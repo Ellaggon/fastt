@@ -15,7 +15,7 @@ try {
 	}
 	const providerId = await getProviderIdFromRequest(Astro.request)
 	if (!providerId) {
-		return Astro.redirect("/forms/provider")
+		return Astro.redirect("/provider")
 	}
 
 	userProducts = await getProductsByProvider(providerId)
