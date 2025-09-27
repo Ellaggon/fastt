@@ -1,0 +1,139 @@
+---
+// src/components/BookingForm.astro
+// Este componente es puramente UI. La lógica de fechas y envío real requiere JS.
+---
+
+<section id="reservar" class="rounded-lg bg-white p-6 shadow-sm">
+	<h2 class="mb-4 text-2xl font-bold text-gray-900">Reservar</h2>
+	<form action="/es/planificador/agregar/" method="post" class="space-y-6">
+		<input type="hidden" name="codigo" value="A-0000133" />
+		<input type="hidden" name="t" value="h" />
+		<input type="hidden" name="o_t" value="0" />
+
+		<fieldset class="grid grid-cols-1 gap-6 md:grid-cols-2">
+			<div>
+				<label for="checkin_date" class="mb-1 block text-sm font-medium text-gray-700"
+					>Fecha de check-in</label
+				>
+				<input
+					type="date"
+					id="checkin_date"
+					name="checkin"
+					required
+					class="block w-full rounded-md border-gray-300 p-2.5 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+					value={new Date().toISOString().slice(0, 10)}
+				/>
+			</div>
+			<div>
+				<label for="checkout_date" class="mb-1 block text-sm font-medium text-gray-700"
+					>Fecha de check-out</label
+				>
+				<input
+					type="date"
+					id="checkout_date"
+					name="checkout"
+					required
+					class="block w-full rounded-md border-gray-300 p-2.5 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+				/>
+			</div>
+		</fieldset>
+
+		<fieldset>
+			<h3 class="mb-3 text-xl font-semibold text-gray-800">Selecciona las habitaciones</h3>
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-gray-200">
+					<thead class="bg-gray-50">
+						<tr>
+							<th
+								scope="col"
+								class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+								>Tipo de Habitación</th
+							>
+							<th
+								scope="col"
+								class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+								>Capacidad</th
+							>
+							<th
+								scope="col"
+								class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+								>Cantidad</th
+							>
+							<th
+								scope="col"
+								class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+							></th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-200 bg-white">
+						<tr>
+							<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">Single</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">👤 x 1</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+								<select
+									name="cant_single"
+									class="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+								>
+									{[...Array(10).keys()].map((i) => <option value={i}>{i}</option>)}
+								</select>
+								<input type="hidden" name="h_cap_single" value="sgl" />
+							</td>
+							<td rowspan="4" class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+								<span class="mb-4 block italic text-gray-500"
+									>Comienza tu viaje seleccionando las habitaciones</span
+								>
+								<button
+									type="submit"
+									class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+								>
+									Agregar a mi Viaje
+								</button>
+							</td>
+						</tr>
+						<tr>
+							<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">Doble</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">👥 x 2</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+								<select
+									name="cant_double"
+									class="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+								>
+									{[...Array(10).keys()].map((i) => <option value={i}>{i}</option>)}
+								</select>
+								<input type="hidden" name="h_cap_double" value="dbl" />
+							</td>
+						</tr>
+						<tr>
+							<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">Triple</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">👪 x 3</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+								<select
+									name="cant_triple"
+									class="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+								>
+									{[...Array(10).keys()].map((i) => <option value={i}>{i}</option>)}
+								</select>
+								<input type="hidden" name="h_cap_triple" value="tpl" />
+							</td>
+						</tr>
+						<tr>
+							<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900"
+								>Cuádruple</td
+							>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">👨‍👩‍👧‍👦 x 4</td>
+							<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+								<select
+									name="cant_quad"
+									class="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+								>
+									{[...Array(10).keys()].map((i) => <option value={i}>{i}</option>)}
+								</select>
+								<input type="hidden" name="h_cap_quad" value="qua" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</fieldset>
+	</form>
+</section>

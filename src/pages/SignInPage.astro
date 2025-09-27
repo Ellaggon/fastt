@@ -1,0 +1,24 @@
+---
+import { SignIn } from "auth-astro/components"
+---
+
+<main
+	class="mt-20 flex h-auto flex-col justify-center rounded-md border px-20 py-10 text-white md:w-1/2"
+>
+	<h1 class="mb-20 text-3xl">Iniciar Sesión</h1>
+
+	<article class="flex flex-col gap-4">
+		<div>
+			<!-- Title -->
+			<label for="title" class="mb-4 block text-sm font-medium text-gray-400">
+				Ingresar con Google
+			</label>
+
+			<SignIn
+				class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm transition-transform hover:scale-105 focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
+			>
+				Ingresar
+			</SignIn>
+		</div>
+	</article>
+</main>

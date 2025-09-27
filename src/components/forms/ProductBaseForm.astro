@@ -1,0 +1,109 @@
+---
+const { product } = Astro.props as { product: any }
+---
+
+<section>
+	<div class="grid gap-4">
+		<label class="block">
+			<span class="text-sm text-gray-300">Nombre</span>
+			<input
+				name="name"
+				type="text"
+				required
+				value={product?.name || ""}
+				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			/>
+		</label>
+
+		<label class="block">
+			<span class="text-sm text-gray-300">Descripción corta</span>
+			<textarea
+				name="shortDescription"
+				rows="2"
+				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				>{product?.shortDescription || ""}</textarea
+			>
+		</label>
+
+		<label class="block">
+			<span class="text-sm text-gray-300">Descripción larga</span>
+			<textarea
+				name="longDescription"
+				rows="4"
+				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				>{product?.longDescription || ""}</textarea
+			>
+		</label>
+
+		<label class="block">
+			<span class="text-sm text-gray-300">Tipo de producto</span>
+			<select name="productType" class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white">
+				<option value="Hotel" selected={String(product?.productType) === "Hotel"}>Hotel</option>
+				<option value="Tour" selected={String(product?.productType) === "Tour"}>Tour</option>
+				<option value="Package" selected={String(product?.productType) === "Package"}
+					>Paquete</option
+				>
+			</select>
+		</label>
+
+		<div class="grid grid-cols-2 gap-4">
+			<label class="block">
+				<span class="text-sm text-gray-300">Precio USD</span>
+				<input
+					name="basePriceUSD"
+					type="number"
+					step="0.01"
+					required
+					value={product?.basePriceUSD ?? 0}
+					class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				/>
+			</label>
+
+			<label class="block">
+				<span class="text-sm text-gray-300">Precio BOB</span>
+				<input
+					name="basePriceBOB"
+					type="number"
+					step="0.01"
+					required
+					value={product?.basePriceBOB ?? 0}
+					class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				/>
+			</label>
+		</div>
+
+		<label class="block">
+			<span class="text-sm text-gray-300">Ciudad</span>
+			<select name="cityId" required class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white">
+				<option value="">Selecciona una ciudad...</option>
+				<option value="uuid-city-lapaz" selected={product?.cityId === "uuid-city-lapaz"}
+					>La Paz</option
+				>
+				<option value="uuid-city-santacruz" selected={product?.cityId === "uuid-city-santacruz"}
+					>Santa Cruz</option
+				>
+				<option value="uuid-city-cochabamba" selected={product?.cityId === "uuid-city-cochabamba"}
+					>Cochabamba</option
+				>
+				<option value="uuid-city-oruro" selected={product?.cityId === "uuid-city-oruro"}
+					>Oruro</option
+				>
+				<option value="uuid-city-potosi" selected={product?.cityId === "uuid-city-potosi"}
+					>Potosí</option
+				>
+				<option value="uuid-city-sucre" selected={product?.cityId === "uuid-city-sucre"}
+					>Sucre</option
+				>
+				<option value="uuid-city-tarija" selected={product?.cityId === "uuid-city-tarija"}
+					>Tarija</option
+				>
+				<option value="uuid-city-trinidad" selected={product?.cityId === "uuid-city-trinidad"}
+					>Trinidad</option
+				>
+				<option value="uuid-city-cobija" selected={product?.cityId === "uuid-city-cobija"}
+					>Cobija</option
+				>
+			</select>
+		</label>
+	</div>
+</section>

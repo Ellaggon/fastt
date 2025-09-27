@@ -1,0 +1,101 @@
+---
+import HotelForm from "@/components/product/subtypes/HotelForm.astro"
+import PackageForm from "@/components/product/subtypes/PackageForm.astro"
+import TourForm from "@/components/product/subtypes/TourForm.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProductWithImagesAndSubtype } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const paramsId = Astro.params.id
+
+// redirecciones / checks
+const providerId = await getProviderIdFromRequest(Astro.request)
+if (!providerId) return Astro.redirect("/provider")
+
+// obtener provider
+if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!paramsId) return Astro.redirect("/dashboard")
+
+const productBundle = await getProductWithImagesAndSubtype(paramsId)
+if (!productBundle) return Astro.redirect("/dashboard")
+
+// verificar product pertenece al provider
+if (String(productBundle.product.providerId) !== String(providerId)) {
+	return Astro.redirect("/dashboard")
+}
+
+const product = productBundle.product
+const subtype = (product.productType || "hotel").toLowerCase()
+---
+
+<Layout title={`Detalles: ${product.name || "Producto"}`}>
+	<article class="mx-auto max-w-3xl rounded-lg bg-beaver-900 p-6 text-gray-300">
+		<h2 class="mb-2 text-2xl font-bold">Detalles adicionales — {product.name}</h2>
+		<p class="mb-4 text-sm text-gray-400">
+			Completa la información específica para este tipo de producto.
+		</p>
+
+		<form id="subtypeForm" class="space-y-4">
+			<input type="hidden" name="productId" value={paramsId} />
+			<input type="hidden" name="subtype" value={subtype} />
+
+			<div class={subtype !== "hotel" ? "hidden" : ""}><HotelForm productId={paramsId} /></div>
+			<div class={subtype !== "tour" ? "hidden" : ""}><TourForm productId={paramsId} /></div>
+			<div class={subtype !== "package" ? "hidden" : ""}><PackageForm productId={paramsId} /></div>
+
+			<div class="pt-4">
+				<button
+					id="submitBtn"
+					type="button"
+					class="rounded bg-green-150 px-4 py-2 font-semibold text-beaver-900"
+					>Guardar detalles</button
+				>
+			</div>
+		</form>
+
+		<div id="message" class="mt-4 text-sm"></div>
+	</article>
+
+	<script type="module">
+		const form = document.getElementById("subtypeForm")
+		const btn = document.getElementById("submitBtn")
+		const message = document.getElementById("message")
+
+		btn.addEventListener("click", async () => {
+			btn.disabled = true
+			btn.textContent = "Guardando..."
+			message.textContent = ""
+
+			const fd = new FormData(form)
+			try {
+				const res = await fetch("/api/products/subtype/create", {
+					method: "POST",
+					body: fd,
+					credentials: "same-origin",
+				})
+
+				if (!res.ok) {
+					let json = {}
+					try {
+						json = await res.json()
+					} catch (e) {}
+					const err = json?.error ? JSON.stringify(json.error) : res.statusText
+					message.textContent = "Error: " + err
+					btn.disabled = false
+					btn.textContent = "Guardar detalles"
+					return
+				}
+
+				// success -> redirect to product detail
+				window.location.href = `/products/${encodeURIComponent(fd.get("productId"))}`
+			} catch (e) {
+				console.error(e)
+				message.textContent = "Error de red. Intenta nuevamente."
+				btn.disabled = false
+				btn.textContent = "Guardar detalles"
+			}
+		})
+	</script>
+</Layout>

@@ -1,0 +1,131 @@
+---
+import { db, eq, User } from "astro:db"
+import { SignIn } from "auth-astro/components"
+import { getSession } from "auth-astro/server"
+import ProfileHover from "./ProfileHover.astro"
+
+const session = await getSession(Astro.request)
+const userUid = crypto.randomUUID()
+const username = session?.user?.name
+const email = session?.user?.email ?? ""
+
+try {
+	if (session?.user) {
+		const existingUser = await db.select().from(User).where(eq(User.email, email))
+
+		if (typeof userUid === "string" && typeof username === "string" && typeof email === "string") {
+			if (existingUser.length === 0) {
+				await db.insert(User).values({
+					id: userUid,
+					username,
+					email,
+				})
+			}
+		}
+	}
+} catch (e) {
+	if (e instanceof Error) {
+		console.error("No se pudo guardar el usuario en DB", e.message)
+	} else {
+		console.error("No se pudo guardar el usuario en DB", e)
+	}
+}
+---
+
+<nav class="mb-3 flex items-center justify-center border-gray-700 p-3 text-black">
+	<!-- inicio de session -->
+	<div id="fixedSession" class="fixed left-7 top-7 z-10 xl:left-64">
+		<!-- nombre de usuario -->
+		{
+			session ? (
+				<div class="fixed left-3 top-3 z-10 text-xs sm:left-5 sm:top-7 xl:left-64">
+					<ProfileHover />
+				</div>
+			) : (
+				<SignIn
+					provider="google"
+					class="flex items-center justify-center rounded-lg bg-black px-4 py-1 text-xs text-black/70 transition hover:bg-black/80 md:px-4 md:py-2 md:text-sm dark:border-white/10 dark:text-white"
+				>
+					Ingresar
+				</SignIn>
+			)
+		}
+	</div>
+
+	<!-- nav buttons -->
+	<div
+		class="z-10 mr-12 mt-3 hidden items-end justify-center gap-5 text-xs sm:flex md:text-sm lg:gap-10"
+	>
+		<!-- icon -->
+		<img src="/favicon-sbg.webp" alt="icon-company" class="w-6" />
+		<a href="/" class="transition hover:text-black/70">
+			<p>Inicio</p>
+		</a>
+		<a href="/account">
+			<p class="transition hover:text-black/70">Mi cuenta</p>
+		</a>
+		<a href="/posts/page/1">
+			<p class="transition hover:text-black/70">Publicaciones</p>
+		</a>
+		<a href="/posts/page/1">
+			<p class="transition hover:text-black/70">Hoteles</p>
+		</a>
+		<a href="/posts/page/1">
+			<p class="transition hover:text-black/70">Tours</p>
+		</a>
+	</div>
+
+	<!-- publish button -->
+	<div class="z-10 flex items-center">
+		{
+			session ? (
+				<div id="fixedPostButton" class="fixed right-7 top-5 sm:top-7 xl:right-64">
+					<a
+						href="/form"
+						class="flex items-center justify-center gap-x-2 rounded-lg bg-white px-4 py-1 text-sm font-semibold text-black transition hover:bg-black hover:text-white md:px-4 md:py-2"
+					>
+						+ Publicar
+					</a>
+				</div>
+			) : (
+				<div class="fixed right-7 top-7 xl:right-64">
+					<SignIn
+						id="fixedSessionPost"
+						provider="google"
+						class="flex items-center justify-center gap-x-2 rounded-lg bg-white px-4 py-1 text-sm font-semibold text-black transition hover:bg-black md:px-4 md:py-2"
+					>
+						+ Publicar
+					</SignIn>
+				</div>
+			)
+		}
+	</div>
+</nav>
+
+<script>
+	const $fixedSession = document.getElementById("fixedSession")
+	const $fixedSessionPost = document.getElementById("fixedSessionPost")
+	const $fixedUser = document.getElementById("fixedUser")
+	const $fixedPostButton = document.getElementById("fixedPostButton")
+	let prevYPos = window.scrollY
+
+	const handleScroll = () => {
+		let currentYPos = window.scrollY
+
+		if (currentYPos > prevYPos) {
+			$fixedSession?.classList.add("hidden")
+			$fixedSessionPost?.classList.add("hidden")
+			$fixedUser?.classList.add("hidden")
+			$fixedPostButton?.classList.add("hidden")
+		} else {
+			$fixedSession?.classList.remove("hidden")
+			$fixedSessionPost?.classList.remove("hidden")
+			$fixedUser?.classList.remove("hidden")
+			$fixedPostButton?.classList.remove("hidden")
+		}
+
+		prevYPos = currentYPos
+	}
+
+	window.addEventListener("scroll", handleScroll)
+</script>

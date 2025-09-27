@@ -1,0 +1,120 @@
+---
+import { SignOut } from "auth-astro/components"
+---
+
+<nav>
+	<!-- burger button -->
+	<div class="fixed bottom-10 right-10 z-10 cursor-pointer">
+		<button
+			class="inline-flex cursor-pointer flex-row items-center justify-center rounded-full border-2 bg-opacity-60 px-2 pb-1.5 text-center text-3xl font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden dark:focus:ring-[#1da1f2]/55"
+			id="menuButton"
+		>
+			&#9776;
+		</button>
+	</div>
+
+	<!-- burger nav -->
+	<article
+		class="nav fixed bottom-24 left-1/2 z-10 hidden w-3/4 -translate-x-1/2 transform flex-col items-center gap-3 rounded-lg border bg-[#13151a] p-5 md:flex-row md:text-xl"
+	>
+		<a
+			href="/account"
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<div>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					fill="currentColor"
+					class="bi bi-person"
+					viewBox="0 0 16 16"
+				>
+					<path
+						d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"
+					></path>
+				</svg>
+			</div>
+			<p>Mi cuenta</p>
+		</a>
+		<a
+			href="/posts/page/1"
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<div>
+				<svg width="16" height="16" fill="currentColor" class="bi bi-car-front" viewBox="0 0 16 16">
+					<path
+						d="M4 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0m10 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0M6 8a1 1 0 0 0 0 2h4a1 1 0 1 0 0-2zM4.862 4.276 3.906 6.19a.51.51 0 0 0 .497.731c.91-.073 2.35-.17 3.597-.17s2.688.097 3.597.17a.51.51 0 0 0 .497-.731l-.956-1.913A.5.5 0 0 0 10.691 4H5.309a.5.5 0 0 0-.447.276"
+					></path>
+					<path
+						d="M2.52 3.515A2.5 2.5 0 0 1 4.82 2h6.362c1 0 1.904.596 2.298 1.515l.792 1.848c.075.175.21.319.38.404.5.25.855.715.965 1.262l.335 1.679q.05.242.049.49v.413c0 .814-.39 1.543-1 1.997V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.338c-1.292.048-2.745.088-4 .088s-2.708-.04-4-.088V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.892c-.61-.454-1-1.183-1-1.997v-.413a2.5 2.5 0 0 1 .049-.49l.335-1.68c.11-.546.465-1.012.964-1.261a.8.8 0 0 0 .381-.404l.792-1.848ZM4.82 3a1.5 1.5 0 0 0-1.379.91l-.792 1.847a1.8 1.8 0 0 1-.853.904.8.8 0 0 0-.43.564L1.03 8.904a1.5 1.5 0 0 0-.03.294v.413c0 .796.62 1.448 1.408 1.484 1.555.07 3.786.155 5.592.155s4.037-.084 5.592-.155A1.48 1.48 0 0 0 15 9.611v-.413q0-.148-.03-.294l-.335-1.68a.8.8 0 0 0-.43-.563 1.8 1.8 0 0 1-.853-.904l-.792-1.848A1.5 1.5 0 0 0 11.18 3z"
+					></path>
+				</svg>
+			</div>
+			<p>Publicaciones</p>
+		</a>
+		<a
+			href="/form"
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<div>
+				<svg
+					width="16"
+					height="16"
+					fill="currentColor"
+					class="bi bi-mailbox-flag"
+					viewBox="0 0 16 16"
+				>
+					<path
+						d="M10.5 8.5V3.707l.854-.853A.5.5 0 0 0 11.5 2.5v-2A.5.5 0 0 0 11 0H9.5a.5.5 0 0 0-.5.5v8zM5 7c0 .334-.164.264-.415.157C4.42 7.087 4.218 7 4 7s-.42.086-.585.157C3.164 7.264 3 7.334 3 7a1 1 0 0 1 2 0"
+					></path>
+					<path
+						d="M4 3h4v1H6.646A4 4 0 0 1 8 7v6h7V7a3 3 0 0 0-3-3V3a4 4 0 0 1 4 4v6a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V7a4 4 0 0 1 4-4m0 1a3 3 0 0 0-3 3v6h6V7a3 3 0 0 0-3-3"
+					></path>
+				</svg>
+			</div>
+			<p>Publicar</p>
+		</a>
+		<SignOut
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<div>
+				<svg
+					width="16"
+					height="16"
+					fill="currentColor"
+					class="bi bi-box-arrow-right"
+					viewBox="0 0 16 16"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0z"
+					></path>
+					<path
+						fill-rule="evenodd"
+						d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"
+					></path>
+				</svg>
+			</div>
+			<p>Salir</p>
+		</SignOut>
+	</article>
+</nav>
+
+<script>
+	const $menuButton = document.getElementById("menuButton")
+	let $nav = document.querySelector(".nav")
+
+	let menuOpen = false
+
+	$menuButton?.addEventListener("click", () => {
+		menuOpen = !menuOpen
+		if (menuOpen) {
+			$nav?.classList.add("flex")
+			$nav?.classList.remove("hidden")
+		} else {
+			$nav?.classList.add("hidden")
+			$nav?.classList.remove("flex")
+		}
+	})
+</script>

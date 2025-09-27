@@ -1,0 +1,809 @@
+---
+import Layout from "@/layouts/Layout.astro"
+---
+
+<Layout title="Home page">
+	<div
+		id="intro"
+		class="flex flex-col items-center justify-center gap-5 bg-gray-100 p-10 text-center"
+	>
+		<figure class="m-0 p-0">
+			<img
+				src="/fotos/header/64468-486707729.jpg"
+				alt="Castro, Chile"
+				class="h-auto max-w-full rounded-lg shadow-md"
+			/>
+			<figcaption class="mt-2 text-sm text-gray-600">
+				<a
+					href="/es/castro/hoteles.htm"
+					class="tooltip text-blue-600 hover:underline"
+					data-tipo="a"
+					data-id="75">Castro, Chile</a
+				>
+			</figcaption>
+		</figure>
+		<div class="w-full max-w-3xl">
+			<p class="mb-5 text-2xl font-medium text-gray-800">Encuentra el hotel que necesitas</p>
+			<form method="post" action="/es/buscar-hoteles.htm">
+				<div class="datos mb-5 flex flex-wrap justify-center gap-4">
+					<label class="hoteles min-w-[250px] flex-1 text-left font-medium text-gray-800"
+						>Destino / Hotel
+						<input
+							type="text"
+							name="atractivo_hotel"
+							class="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+							placeholder="¿Qué quieres conocer?"
+						/>
+					</label>
+					<label class="hoteles categoria min-w-[250px] flex-1 text-left font-medium text-gray-800"
+						>Categoría
+						<select
+							name="categoria"
+							class="custom-select mt-1 block w-full appearance-none rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+						>
+							<option value="">Cualquiera</option>
+							<option value="" disabled>--------</option>
+							<option value="3">★★★</option>
+							<option value="4">★★★★</option>
+							<option value="5">★★★★★</option>
+						</select>
+					</label>
+				</div>
+				<div class="accion flex justify-center">
+					<div class="botones">
+						<input
+							type="submit"
+							value="Buscar"
+							class="cursor-pointer rounded-lg bg-blue-500 px-8 py-3 text-lg font-medium text-white shadow-md transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+						/>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<main
+		role="main"
+		id="content"
+		class="mx-auto my-8 max-w-7xl rounded-lg bg-white p-8 leading-relaxed shadow-lg"
+	>
+		<ol
+			id="ruta"
+			class="breadcrumbs m-0 mb-5 flex list-none items-center gap-2 p-0 text-sm text-gray-600"
+			itemscope
+			itemtype="http://schema.org/BreadcrumbList"
+		>
+			<li itemprop="itemListElement" itemscope itemtype="http://schema.org/ListItem">
+				<a itemprop="item" href="/es/" class="text-blue-600 hover:underline">
+					<span itemprop="name">Home</span>
+				</a>
+				<meta itemprop="position" content="1" />
+			</li>
+			<li
+				class="relative pl-3"
+				itemprop="itemListElement"
+				itemscope
+				itemtype="http://schema.org/ListItem"
+			>
+				<span class="absolute left-0 top-1/2 -translate-y-1/2 text-gray-300">/</span>
+				<a itemprop="item" href="/es/hoteles.htm" class="text-blue-600 hover:underline">
+					<span itemprop="name">Hoteles</span>
+				</a>
+				<meta itemprop="position" content="2" />
+			</li>
+		</ol>
+
+		<h1 class="mb-5 text-4xl font-bold text-gray-900">Hoteles en Bolivia</h1>
+		<p class="mb-8 text-gray-800">
+			Elige tu hotel preferido en Bolivia y disfruta de una experiencia única.
+		</p>
+
+		<div class="flex flex-col gap-8 md:flex-row">
+			<ul
+				id="zonas-chile"
+				class="sidebar flex-shrink-0 rounded-lg bg-gray-50 p-6 shadow-md md:w-64"
+			>
+				<li class="mb-4 flex items-center text-lg font-semibold text-gray-900">
+					<i class="fi fi-up-dir mr-2 text-blue-600"></i> Mapa
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-desierto-de-atacama-altiplano.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Desierto de Atacama y Altiplano</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-norte-astronomico-playas.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Norte Astronómico y Playas</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-valle-central-vinas-santiago.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Valle Central, Viñas y Santiago</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-araucania-lagos-volcanes.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Araucanía, Lagos y Volcanes</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-isla-de-chiloe-fiordos.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Isla de Chiloé y Fiordos</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-patagonia-norte-carretera-austral.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Patagonia Norte y Carretera Austral</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-patagonia-sur-torres-del-paine-tierra-del-fuego.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Patagonia Sur, Torres del Paine y Tierra del Fuego</a
+					>
+				</li>
+				<li>
+					<a
+						href="/es/hoteles-isla-de-pascua-robinson-crusoe.htm"
+						class="block rounded-md px-3 py-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-blue-600"
+						>Isla de Pascua y Robinson Crusoe</a
+					>
+				</li>
+			</ul>
+
+			<section class="listado mini flex-grow">
+				<ul class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=1"
+								alt="Santiago"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/santiago/hoteles.htm" class="hover:text-blue-600">Santiago</a>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									La ciudad de Santiago es la capital de Chile, junto con ser centro cultural,
+									administrativo y financiero más importante del…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/santiago/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=2"
+								alt="Viña del Mar"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/vina-del-mar/hoteles.htm" class="hover:text-blue-600">Viña del Mar</a
+									>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									Viña del Mar es una de las ciudades más turísticas de Chile. Por su cercanía con
+									Santiago, pues sólo queda a 120 kilómetros…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/vina-del-mar/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=3"
+								alt="Isla de Pascua"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/isla-de-pascua/hoteles.htm" class="hover:text-blue-600"
+										>Isla de Pascua</a
+									>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									En la región de Valparaíso, la Isla de Pascua es el nexo de Chile con la
+									Polinesia, un lugar que se aleja de las tradiciones…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/isla-de-pascua/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=4"
+								alt="Aldea de Tulor"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/aldea-de-tulor/hoteles.htm" class="hover:text-blue-600"
+										>Aldea de Tulor</a
+									>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									La Aldea de Tulor es uno de los centros arqueológicos más antiguos del norte de
+									Chile, que cuenta con construcciones milenarias…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/aldea-de-tulor/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=5"
+								alt="Alto El Loa"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/alto-loa/hoteles.htm" class="hover:text-blue-600">Alto El Loa</a>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									El Alto El Loa es considerado un sector verde dentro del desierto de Atacama y se
+									puede visitar desde San Pedro de Atacama…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/alto-loa/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+					<li>
+						<figure class="overflow-hidden rounded-lg bg-white shadow-md">
+							<img
+								src="https://picsum.photos/290/183?random=6"
+								alt="Antofagasta"
+								width="290"
+								height="183"
+								class="h-48 w-full object-cover"
+							/>
+							<figcaption class="p-4">
+								<h2 class="mb-2 text-xl font-semibold text-gray-900">
+									<a href="/es/antofagasta/hoteles.htm" class="hover:text-blue-600">Antofagasta</a>
+								</h2>
+								<p class="desc mb-4 text-sm text-gray-700">
+									La ciudad de Antofagasta es llamada la perla del norte de Chile. Se caracteriza
+									por sus playas y por el famoso monumento…
+								</p>
+								<ul class="flex justify-end">
+									<li class="ver_hoteles">
+										<a
+											href="/es/antofagasta/hoteles.htm"
+											class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+											>Ver Hoteles</a
+										>
+									</li>
+								</ul>
+							</figcaption>
+						</figure>
+					</li>
+				</ul>
+			</section>
+		</div>
+
+		<article class="links mt-12">
+			<h2 class="mb-6 text-3xl font-bold text-gray-900">Hoteles por destino turístico</h2>
+			<div class="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Desierto de Atacama y Altiplano</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="antofagasta/hoteles.htm"
+								title="Hoteles en Antofagasta"
+								class="text-blue-600 hover:underline">Antofagasta</a
+							>
+						</li>
+						<li>
+							<a
+								href="arica/hoteles.htm"
+								title="Hoteles en Arica"
+								class="text-blue-600 hover:underline">Arica</a
+							>
+						</li>
+						<li>
+							<a
+								href="copiapo/hoteles.htm"
+								title="Hoteles en Copiapó"
+								class="text-blue-600 hover:underline">Copiapó</a
+							>
+						</li>
+						<li>
+							<a
+								href="iquique/hoteles.htm"
+								title="Hoteles en Iquique"
+								class="text-blue-600 hover:underline">Iquique</a
+							>
+						</li>
+						<li>
+							<a
+								href="parque-nacional-pan-de-azucar/hoteles.htm"
+								title="Hoteles en Parque Nacional Pan de Azúcar"
+								class="text-blue-600 hover:underline">Parque Nacional Pan de Azúcar</a
+							>
+						</li>
+						<li>
+							<a
+								href="san-pedro-de-atacama/hoteles.htm"
+								title="Hoteles en San Pedro de Atacama"
+								class="text-blue-600 hover:underline">San Pedro de Atacama</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Norte Astronómico y Playas</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="la-serena-coquimbo/hoteles.htm"
+								title="Hoteles en La Serena"
+								class="text-blue-600 hover:underline">La Serena</a
+							>
+						</li>
+						<li>
+							<a
+								href="valle-del-elqui/hoteles.htm"
+								title="Hoteles en Valle del Elqui"
+								class="text-blue-600 hover:underline">Valle del Elqui</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Valle Central, Viñas y Santiago</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="el-colorado/hoteles.htm"
+								title="Hoteles en El Colorado"
+								class="text-blue-600 hover:underline">El Colorado</a
+							>
+						</li>
+						<li>
+							<a
+								href="farellones/hoteles.htm"
+								title="Hoteles en Farellones"
+								class="text-blue-600 hover:underline">Farellones</a
+							>
+						</li>
+						<li>
+							<a
+								href="isla-juan-fernandez/hoteles.htm"
+								title="Hoteles en Isla Robinson Crusoe"
+								class="text-blue-600 hover:underline">Isla Robinson Crusoe</a
+							>
+						</li>
+						<li>
+							<a
+								href="los-andes-portillo/hoteles.htm"
+								title="Hoteles en Los Andes / Portillo"
+								class="text-blue-600 hover:underline">Los Andes / Portillo</a
+							>
+						</li>
+						<li>
+							<a
+								href="rancagua/hoteles.htm"
+								title="Hoteles en Rancagua"
+								class="text-blue-600 hover:underline">Rancagua</a
+							>
+						</li>
+						<li>
+							<a
+								href="santa-cruz/hoteles.htm"
+								title="Hoteles en Santa Cruz"
+								class="text-blue-600 hover:underline">Santa Cruz</a
+							>
+						</li>
+						<li>
+							<a
+								href="santiago/hoteles.htm"
+								title="Hoteles en Santiago"
+								class="text-blue-600 hover:underline">Santiago</a
+							>
+						</li>
+						<li>
+							<a
+								href="talca/hoteles.htm"
+								title="Hoteles en Talca"
+								class="text-blue-600 hover:underline">Talca</a
+							>
+						</li>
+						<li>
+							<a
+								href="valle-de-casablanca/hoteles.htm"
+								title="Hoteles en Valle de Casablanca"
+								class="text-blue-600 hover:underline">Valle de Casablanca</a
+							>
+						</li>
+						<li>
+							<a
+								href="valle-nevado/hoteles.htm"
+								title="Hoteles en Valle Nevado"
+								class="text-blue-600 hover:underline">Valle Nevado</a
+							>
+						</li>
+						<li>
+							<a
+								href="valparaiso/hoteles.htm"
+								title="Hoteles en Valparaíso"
+								class="text-blue-600 hover:underline">Valparaíso</a
+							>
+						</li>
+						<li>
+							<a
+								href="vina-del-mar/hoteles.htm"
+								title="Hoteles en Viña del Mar"
+								class="text-blue-600 hover:underline">Viña del Mar</a
+							>
+						</li>
+						<li>
+							<a
+								href="vina-vik/hoteles.htm"
+								title="Hoteles en Viña Vik"
+								class="text-blue-600 hover:underline">Viña Vik</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Araucanía, Lagos y Volcanes</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="osorno/hoteles.htm"
+								title="Hoteles en Osorno"
+								class="text-blue-600 hover:underline">Osorno</a
+							>
+						</li>
+						<li>
+							<a
+								href="parque-nacional-vicente-perez-rosales/hoteles.htm"
+								title="Hoteles en Parque Nacional Vicente Perez Rosales"
+								class="text-blue-600 hover:underline">Parque Nacional Vicente Perez Rosales</a
+							>
+						</li>
+						<li>
+							<a
+								href="pucon/hoteles.htm"
+								title="Hoteles en Pucón"
+								class="text-blue-600 hover:underline">Pucón</a
+							>
+						</li>
+						<li>
+							<a
+								href="puerto-montt/hoteles.htm"
+								title="Hoteles en Puerto Montt"
+								class="text-blue-600 hover:underline">Puerto Montt</a
+							>
+						</li>
+						<li>
+							<a
+								href="puerto-varas/hoteles.htm"
+								title="Hoteles en Puerto Varas"
+								class="text-blue-600 hover:underline">Puerto Varas</a
+							>
+						</li>
+						<li>
+							<a
+								href="reserva-biologica-huilo-huilo/hoteles.htm"
+								title="Hoteles en Reserva Biologica Huilo Huilo"
+								class="text-blue-600 hover:underline">Reserva Biologica Huilo Huilo</a
+							>
+						</li>
+						<li>
+							<a
+								href="ski-en-chillan/hoteles.htm"
+								title="Hoteles en Ski en Chillán"
+								class="text-blue-600 hover:underline">Ski en Chillán</a
+							>
+						</li>
+						<li>
+							<a
+								href="temuco/hoteles.htm"
+								title="Hoteles en Temuco"
+								class="text-blue-600 hover:underline">Temuco</a
+							>
+						</li>
+						<li>
+							<a
+								href="valdivia/hoteles.htm"
+								title="Hoteles en Valdivia"
+								class="text-blue-600 hover:underline">Valdivia</a
+							>
+						</li>
+						<li>
+							<a
+								href="villarrica/hoteles.htm"
+								title="Hoteles en Villarrica"
+								class="text-blue-600 hover:underline">Villarrica</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Isla de Chiloé y Fiordos</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="ancud/hoteles.htm"
+								title="Hoteles en Ancud"
+								class="text-blue-600 hover:underline">Ancud</a
+							>
+						</li>
+						<li>
+							<a
+								href="castro/hoteles.htm"
+								title="Hoteles en Castro"
+								class="text-blue-600 hover:underline">Castro</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">
+						Patagonia Norte y Carretera Austral
+					</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="carretera-austral-norte/hoteles.htm"
+								title="Hoteles en Carretera Austral Norte"
+								class="text-blue-600 hover:underline">Carretera Austral Norte</a
+							>
+						</li>
+						<li>
+							<a
+								href="carretera-austral-sur/hoteles.htm"
+								title="Hoteles en Carretera Austral Sur"
+								class="text-blue-600 hover:underline">Carretera Austral Sur</a
+							>
+						</li>
+						<li>
+							<a
+								href="coyhaique-puerto-aysen/hoteles.htm"
+								title="Hoteles en Coyhaique"
+								class="text-blue-600 hover:underline">Coyhaique</a
+							>
+						</li>
+						<li>
+							<a
+								href="futaleufu/hoteles.htm"
+								title="Hoteles en Futaleufú"
+								class="text-blue-600 hover:underline">Futaleufú</a
+							>
+						</li>
+						<li>
+							<a
+								href="la-junta/hoteles.htm"
+								title="Hoteles en La Junta"
+								class="text-blue-600 hover:underline">La Junta</a
+							>
+						</li>
+						<li>
+							<a
+								href="puerto-bertrand/hoteles.htm"
+								title="Hoteles en Puerto Bertrand"
+								class="text-blue-600 hover:underline">Puerto Bertrand</a
+							>
+						</li>
+						<li>
+							<a
+								href="puerto-guadal/hoteles.htm"
+								title="Hoteles en Puerto Guadal"
+								class="text-blue-600 hover:underline">Puerto Guadal</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">
+						Patagonia Sur, Torres del Paine y Tierra del Fuego
+					</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="isla-navarino/hoteles.htm"
+								title="Hoteles en Isla Navarino"
+								class="text-blue-600 hover:underline">Isla Navarino</a
+							>
+						</li>
+						<li>
+							<a
+								href="parque-nacional-torres-del-paine/hoteles.htm"
+								title="Hoteles en Parque Nacional Torres del Paine"
+								class="text-blue-600 hover:underline">Parque Nacional Torres del Paine</a
+							>
+						</li>
+						<li>
+							<a
+								href="puerto-natales/hoteles.htm"
+								title="Hoteles en Puerto Natales"
+								class="text-blue-600 hover:underline">Puerto Natales</a
+							>
+						</li>
+						<li>
+							<a
+								href="punta-arenas/hoteles.htm"
+								title="Hoteles en Punta Arenas"
+								class="text-blue-600 hover:underline">Punta Arenas</a
+							>
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900">Isla de Pascua y Robinson Crusoe</h3>
+					<ul class="m-0 list-none space-y-2 p-0">
+						<li>
+							<a
+								href="isla-de-pascua/hoteles.htm"
+								title="Hoteles en Isla de Pascua"
+								class="text-blue-600 hover:underline">Isla de Pascua</a
+							>
+						</li>
+					</ul>
+				</section>
+			</div>
+		</article>
+	</main>
+</Layout>
+<style is:global>
+	body {
+		background: linear-gradient(135deg, #e0e5ec, #f0f2f5, #e0eaf2);
+		background-size: 400% 400%;
+		animation: gradientFlowLight 20s ease infinite;
+	}
+
+	@keyframes gradientFlowLight {
+		0% {
+			background-position: 0% 50%;
+		}
+		50% {
+			background-position: 100% 50%;
+		}
+		100% {
+			background-position: 0% 50%;
+		}
+	}
+
+	/* Estilos para el select personalizado que no son triviales con Tailwind */
+	.custom-select-wrapper::after {
+		content: "▼";
+		position: absolute;
+		right: 10px;
+		top: 50%;
+		transform: translateY(-50%);
+		color: #666;
+		pointer-events: none;
+	}
+
+	/* Oculta los elementos móviles por defecto en escritorio, se muestran con JS si es necesario */
+	@media (min-width: 768px) {
+		.solo_mobile {
+			display: none !important;
+		}
+		#header .solo_mobile {
+			display: none !important;
+		}
+	}
+
+	/* Estilos específicos para la flecha de expansión/colapso */
+	.lista li.mas .expand {
+		cursor: pointer;
+		margin-right: 5px;
+		display: inline-block; /* Para que el icono de flecha se vea bien */
+		width: 1em; /* Asegura un ancho fijo para la flecha */
+		text-align: center;
+	}
+
+	/* Ajustes responsive para el menú principal en móvil */
+	@media (max-width: 767px) {
+		#mainMenu {
+			flex-direction: column;
+			width: 100%;
+			background-color: white; /* Fondo para el menú móvil */
+			position: absolute;
+			top: 100%; /* Debajo del encabezado */
+			left: 0;
+			display: none; /* Oculto por defecto, se mostrará con JS */
+			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+		}
+
+		#mainMenu.active {
+			display: flex;
+		}
+
+		#mainMenu > li {
+			width: 100%;
+			border-bottom: 1px solid #e0e0e0;
+		}
+
+		#mainMenu > li > a {
+			padding: 15px 20px;
+		}
+
+		.dropdown_fullwidth {
+			position: static; /* Cambia a static en móvil para flujo normal */
+			width: 100%;
+			border-top: none;
+			box-shadow: none;
+			padding: 10px 20px;
+			background-color: #f0f0f0; /* Un color ligeramente diferente para el submenú móvil */
+		}
+
+		.dropdown_fullwidth > div {
+			flex-direction: column; /* Apila las columnas en móvil */
+			width: 100%;
+		}
+		.dropdown_fullwidth .fijo.mobile {
+			display: block; /* Asegura que la sección móvil del menú se muestre */
+		}
+	}
+</style>

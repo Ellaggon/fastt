@@ -1,0 +1,66 @@
+---
+import ProductBaseForm from "@/components/forms/ProductBaseForm.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProductWithImagesAndSubtype } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const paramsId = Astro.params.id
+
+if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!paramsId) return Astro.redirect("/dashboard")
+
+const providerId = await getProviderIdFromRequest(Astro.request)
+if (!providerId) return Astro.redirect("/forms/provider?message=not_registered")
+
+const productBundle = await getProductWithImagesAndSubtype(paramsId)
+if (!productBundle) return Astro.redirect("/dashboard")
+
+// seguridad: verificar que el product pertenezca al provider
+if (String(productBundle.product.providerId) !== String(providerId)) {
+	return Astro.redirect("/dashboard")
+}
+
+// props para el cliente
+const product = productBundle.product
+---
+
+<Layout title={`Editar · ${product.name || "Producto"}`}>
+	<div class="mx-auto w-11/12 rounded-lg bg-beaver-900 p-8 text-gray-300 md:max-w-3xl">
+		<h1 class="mb-2 text-2xl font-bold">Editar Producto</h1>
+		<p class="mb-6 text-sm text-gray-400">
+			Modifica la información base y los detalles específicos según tipo.
+		</p>
+
+		<!-- Formulario: POST a tu endpoint centralizado -->
+		<form
+			id="productUpdateForm"
+			method="POST"
+			action={`/api/products/${product.id}/update`}
+			class="space-y-6"
+		>
+			<ProductBaseForm product={product} />
+
+			<!-- hidden input where we will place JSON for subtype -->
+			<input type="hidden" name="subtype" id="subtypeInput" value="" />
+
+			<div class="flex justify-end">
+				<button
+					type="submit"
+					class="rounded-lg bg-green-150 px-4 py-2 font-semibold text-beaver-900 transition hover:scale-105"
+				>
+					Guardar Cambios
+				</button>
+			</div>
+		</form>
+
+		<div class="mt-6 text-sm text-yellow-300">
+			<p>
+				<strong>Nota:</strong> Cambiar el tipo de producto (Hotel ↔ Tour ↔ Package) puede eliminar
+				los detalles del subtipo anterior y crear el nuevo. Asegúrate de revisar los campos antes de
+				guardar.
+			</p>
+		</div>
+	</div>
+</Layout>

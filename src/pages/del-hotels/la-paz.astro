@@ -1,0 +1,193 @@
+---
+// src/pages/santiago/hoteles.astro
+import Breadcrumbs from "@/components/Breadcrumbs.astro"
+import HotelCard from "@/components/HotelCard.astro"
+import Layout from "@/layouts/Layout.astro" // Asume que tienes un Layout base
+
+// Datos de hoteles simulados (idealmente vendrían de una API o CMS)
+// He limpiado los datos innecesarios (data-id, data-codigo, lat/lng, etc.)
+// y simplificado los servicios para facilitar su manejo.
+const hotelsData = [
+	{
+		name: "Hotel Eurotel Providencia",
+		href: "/es/santiago/hotel-eurotel-providencia.htm",
+		image: "https://picsum.photos/id/10/400/250", // Random image
+		alt: "Hotel Eurotel Providencia",
+		stars: 4,
+		address: "Guardia Vieja 285, Providencia, Santiago",
+		description:
+			"Hotel Eurotel es un hotel cuatro estrellas recientemente renovado con un estilo europeo, ubicado en un área residencial del nuevo centro de Santiago cercano a 2 estaciones del metro, las principales calles y pubs.",
+		priceUSD: 106,
+		priceCLP: 80325,
+		services: [
+			{ name: "Estacionamiento", available: true },
+			{ name: "Gimnasio", available: true },
+			{ name: "Restaurante", available: false },
+			{ name: "Bar", available: false },
+			{ name: "Piscina", available: false },
+			{ name: "Aire Acondicionado", available: false },
+			{ name: "SPA", available: false },
+			{ name: "Internet - Habitación", available: false },
+			{ name: "Internet - Wi-Fi", available: false },
+		],
+	},
+	{
+		name: "Hotel Providencia",
+		href: "/es/santiago/hotel-providencia.htm",
+		image: "https://picsum.photos/id/20/400/250",
+		alt: "Hotel Providencia",
+		stars: 4,
+		address: "Calle Francisco Noguera 146, Providencia, Santiago",
+		description:
+			"De avanzada arquitectura y excelente ubicación, dispone de 66 habitaciones climatizadas. Bar, restaurant, room service, piscina y business centre las 24 hrs. Salas de reuniones hasta 100 personas. Estacionamiento privado.",
+		priceUSD: 106,
+		priceCLP: 83300,
+		services: [
+			{ name: "Estacionamiento", available: true },
+			{ name: "Piscina", available: true },
+			{ name: "Restaurante", available: false },
+			{ name: "Gimnasio", available: false },
+			{ name: "Bar", available: false },
+			{ name: "Aire Acondicionado", available: false },
+			{ name: "SPA", available: false },
+			{ name: "Internet - Habitación", available: false },
+			{ name: "Internet - Wi-Fi", available: false },
+		],
+	},
+	{
+		name: "Apart Hotel Neruda",
+		href: "/es/santiago/apart-hotel-neruda.htm",
+		image: "https://picsum.photos/id/30/400/250",
+		alt: "Apart Hotel Neruda",
+		stars: 0, // No stars in original, set to 0
+		address: "Avda Pedro de Valdivia 164, Providencia, Santiago",
+		description:
+			"Ubicado en el tradicional Barrio Providencia de la ciudad de Santiago, a solo pasos del metro y de las principales avenidas. Cuenta con departamento amoblados y equipados que ofrecen a sus visitantes…",
+		priceUSD: 110,
+		priceCLP: 69913,
+		services: [
+			{ name: "Estacionamiento", available: true },
+			{ name: "Gimnasio", available: true },
+			{ name: "Piscina", available: true },
+			{ name: "Restaurante", available: false },
+			{ name: "Bar", available: false },
+			{ name: "Aire Acondicionado", available: false },
+			{ name: "SPA", available: false },
+			{ name: "Internet - Habitación", available: false },
+			{ name: "Internet - Wi-Fi", available: false },
+		],
+	},
+	{
+		name: "Hotel Panamericano",
+		href: "/es/santiago/hotel-panamericano.htm",
+		image: "https://picsum.photos/id/180/400/250",
+		alt: "Hotel Panamericano",
+		stars: 3,
+		address: "Teatinos 320, Santiago",
+		description:
+			"Ubicado en el corazón del centro de Santiago, a pasos del palacio de gobierno, una de las zonas mas seguras de la capital, en lo que constituye el núcleo financiero, cultural, cívico y comercial del país.",
+		services: [], // No services in original, set to empty array
+	},
+]
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/es/" },
+	{ name: "Hoteles", href: "/es/hoteles.htm" },
+	{ name: "La Paz", href: "/es/santiago/hoteles.htm", current: true },
+]
+---
+
+<Layout title="Hoteles en Santiago">
+	<main role="main" id="content" class="mx-auto my-8 max-w-7xl px-4 sm:px-6 lg:px-8">
+		<Breadcrumbs items={breadcrumbItems} />
+
+		<div class="mt-8">
+			<p class="mb-6 text-lg text-gray-700">
+				Encuentra el alojamiento que necesitas y compáralo con otros en nuestra guía de hoteles de
+				La Paz. Si lo que buscas es más información del destino, te invitamos a ver nuestra <a
+					href="/es/La Paz/"
+					class="text-blue-600 hover:underline">Guía de La Paz</a
+				>.
+			</p>
+		</div>
+
+		<div class="listado mt-8">
+			<div
+				class="mb-6 flex flex-col justify-between rounded-lg bg-gray-50 p-4 shadow-sm md:flex-row md:items-center"
+			>
+				<div class="order-selection mb-4 flex items-center md:mb-0">
+					<label for="orden" class="mr-2 text-sm font-medium text-gray-700">Ordenar por:</label>
+					<div class="relative inline-block">
+						<select
+							name="orden"
+							id="orden"
+							class="block w-full appearance-none rounded-md border border-gray-300 bg-white py-2 pl-3 pr-10 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+						>
+							<optgroup label="Tarifa">
+								<option value="t_asc">Menor tarifa primero</option>
+								<option value="t_desc">Mayor tarifa primero</option>
+							</optgroup>
+							<optgroup label="Categoría">
+								<option value="s_desc">Mayor categoría primero</option>
+								<option value="s_asc">Menor categoría primero</option>
+							</optgroup>
+						</select>
+						<div
+							class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
+						>
+							<svg
+								class="h-4 w-4"
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								aria-hidden="true"
+							>
+								<path
+									fill-rule="evenodd"
+									d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+									clip-rule="evenodd"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+
+				<div class="view-options flex items-center">
+					<span class="mr-2 text-sm font-medium text-gray-700">Ver:</span>
+					<button
+						class="mr-2 rounded-md border border-blue-500 bg-white p-2 text-blue-600 shadow-sm transition-colors hover:bg-blue-50"
+						aria-label="Ver en lista"
+					>
+						<svg
+							class="h-5 w-5"
+							fill="currentColor"
+							viewBox="0 0 20 20"
+							xmlns="http://www.w3.org/2000/svg"
+							><path
+								fill-rule="evenodd"
+								d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+								clip-rule="evenodd"></path></svg
+						>
+					</button>
+					<button
+						class="rounded-md border border-gray-300 bg-white p-2 text-gray-500 shadow-sm transition-colors hover:bg-gray-100"
+						aria-label="Ver en cuadrícula"
+					>
+						<svg
+							class="h-5 w-5"
+							fill="currentColor"
+							viewBox="0 0 20 20"
+							xmlns="http://www.w3.org/2000/svg"
+							><path
+								d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM11 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"
+							></path></svg
+						>
+					</button>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+				{hotelsData.map((hotel) => <HotelCard hotel={hotel} />)}
+			</div>
+		</div>
+	</main>
+</Layout>

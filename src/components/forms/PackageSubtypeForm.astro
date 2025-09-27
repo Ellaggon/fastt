@@ -1,0 +1,38 @@
+---
+const { pkg } = Astro.props as { pkg: any | null }
+---
+
+<section class="space-y-3">
+	<h3 class="text-lg font-semibold text-gray-100">Detalles del Paquete</h3>
+
+	<label class="block">
+		<span class="text-sm text-gray-300">Itinerario</span>
+		<textarea name="itinerary" rows="4" class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			>{pkg?.itinerary ?? ""}</textarea
+		>
+	</label>
+
+	<div class="grid grid-cols-2 gap-4">
+		<label class="block">
+			<span class="text-sm text-gray-300">Días</span>
+			<input
+				name="days"
+				type="number"
+				min="0"
+				value={pkg?.days ?? ""}
+				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			/>
+		</label>
+
+		<label class="block">
+			<span class="text-sm text-gray-300">Noches</span>
+			<input
+				name="nights"
+				type="number"
+				min="0"
+				value={pkg?.nights ?? ""}
+				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			/>
+		</label>
+	</div>
+</section>

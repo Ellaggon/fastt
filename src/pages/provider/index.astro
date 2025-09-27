@@ -1,0 +1,115 @@
+---
+// src/pages/forms/provider.astro
+import Layout from "@/layouts/Layout.astro"
+import SignInPage from "@/pages/SignInPage.astro"
+import { db, eq, Provider } from "astro:db"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+
+const existing = await db
+	.select()
+	.from(Provider)
+	.where(eq(Provider.userEmail, session?.user?.email || ""))
+	.get()
+if (existing) return Astro.redirect("/dashboard")
+---
+
+<Layout title="Registrar Proveedor">
+	{
+		session ? (
+			<article class="mx-auto w-10/12 rounded-lg bg-beaver-900 p-8 text-gray-300 sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20">
+				<h2 class="mb-4 text-2xl font-semibold">REGISTRAR MI EMPRESA</h2>
+				<p class="mb-6 text-xs text-gray-400">
+					Ingresa los datos de tu empresa para empezar a publicar tus servicios.
+				</p>
+				<form id="providerForm" method="post" class="flex flex-col gap-4" data-form-type="provider">
+					<input type="hidden" name="userEmail" value={session.user?.email} />
+
+					{/* companyName */}
+					<label for="companyName" class="block text-xs font-medium text-gray-400 md:text-sm">
+						Nombre de la Compañía
+						<input
+							type="text"
+							id="companyName"
+							name="companyName"
+							placeholder="Ej: Hotel del Mar S.A."
+							class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
+							required
+						/>
+					</label>
+
+					{/* contactName */}
+					<label for="contactName" class="block text-xs font-medium text-gray-400 md:text-sm">
+						Nombre de Contacto
+						<input
+							type="text"
+							id="contactName"
+							name="contactName"
+							placeholder="Ej: Juan Pérez"
+							class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
+							required
+						/>
+					</label>
+
+					{/* contactEmail */}
+					<label for="contactEmail" class="block text-xs font-medium text-gray-400 md:text-sm">
+						Email de Contacto
+						<input
+							type="email"
+							id="contactEmail"
+							name="contactEmail"
+							placeholder="ejemplo@empresa.com"
+							class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
+							required
+						/>
+					</label>
+
+					{/* phone */}
+					<label for="phone" class="block text-xs font-medium text-gray-400 md:text-sm">
+						Teléfono
+						<input
+							type="tel"
+							id="phone"
+							name="phone"
+							placeholder="Ej: +56 9 1234 5678"
+							class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
+						/>
+					</label>
+
+					{/* type */}
+					<label for="type" class="block text-xs font-medium text-gray-400 md:text-sm">
+						Tipo de Proveedor
+						<select
+							name="type"
+							id="type"
+							class="mt-1 block w-full cursor-pointer rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm font-medium shadow-sm focus:border-green-150 focus:outline-none focus:ring-green-150"
+							required
+						>
+							<option value="">Selecciona un tipo...</option>
+							<option value="Hotel">Hotel</option>
+							<option value="Tour Operator">Tour Operator</option>
+							<option value="Transport">Transporte</option>
+							<option value="Restaurant">Restaurante</option>
+						</select>
+					</label>
+
+					<div class="mt-10 flex justify-end">
+						<button
+							type="submit"
+							class="h-10 w-40 rounded-lg bg-white p-1 text-black hover:bg-green-150 hover:text-lg"
+						>
+							Registrar Empresa
+						</button>
+					</div>
+				</form>
+			</article>
+		) : (
+			<div class="flex items-center justify-center">
+				<SignInPage />
+			</div>
+		)
+	}
+</Layout>
+
+<script src="/src/lib/forms/formHandler"></script>

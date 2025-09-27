@@ -1,0 +1,23 @@
+---
+const { productId } = Astro.props
+---
+
+<div class="space-y-3">
+	<input type="hidden" name="productId" value={productId} />
+	<input type="hidden" name="productType" value="package" />
+	<label class="block text-sm">
+		<span class="text-gray-300">Itinerario</span>
+		<textarea name="itinerary" rows="3" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		></textarea>
+	</label>
+	<div class="grid grid-cols-2 gap-2">
+		<label class="block text-sm">
+			<span class="text-gray-300">Días</span>
+			<input type="number" name="days" min="0" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+		</label>
+		<label class="block text-sm">
+			<span class="text-gray-300">Noches</span>
+			<input type="number" name="nights" min="0" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+		</label>
+	</div>
+</div>

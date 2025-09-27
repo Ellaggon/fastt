@@ -1,0 +1,50 @@
+---
+const { productId } = Astro.props
+---
+
+<div class="space-y-3">
+	<input type="hidden" name="productId" value={productId} />
+	<input type="hidden" name="productType" value="hotel" />
+	<label class="block text-sm">
+		<span class="text-gray-300">Estrellas</span>
+		<input
+			type="number"
+			name="stars"
+			min="1"
+			max="5"
+			class="mt-1 w-24 rounded-md bg-gray-800 px-2 py-1"
+		/>
+	</label>
+	<label class="block text-sm">
+		<span class="text-gray-300">Dirección</span>
+		<input type="text" name="address" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1" />
+	</label>
+	<div class="grid grid-cols-2 gap-2">
+		<input
+			type="text"
+			name="phone"
+			placeholder="Teléfono"
+			class="mt-1 rounded-md bg-gray-800 px-2 py-1"
+		/>
+		<input
+			type="email"
+			name="email"
+			placeholder="Email"
+			class="mt-1 rounded-md bg-gray-800 px-2 py-1"
+		/>
+	</div>
+	<label class="block text-sm">
+		<span class="text-gray-300">Website</span>
+		<input type="url" name="website" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1" />
+	</label>
+	<div class="grid grid-cols-2 gap-2">
+		<label class="block text-sm">
+			<span class="text-gray-300">Check-in</span>
+			<input type="time" name="checkInTime" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+		</label>
+		<label class="block text-sm">
+			<span class="text-gray-300">Check-out</span>
+			<input type="time" name="checkOutTime" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+		</label>
+	</div>
+</div>

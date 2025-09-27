@@ -1,0 +1,102 @@
+---
+import { ROOM_TYPES } from "@/data/room-types"
+import Layout from "@/layouts/Layout.astro"
+import SignInPage from "@/pages/SignInPage.astro"
+import { db, eq, Product } from "astro:db"
+import { getSession } from "auth-astro/server"
+
+const hotelId = Astro.params.id
+const session = await getSession(Astro.request)
+
+let hotelDetails
+if (hotelId) {
+	hotelDetails = await db.select().from(Product).where(eq(Product.id, hotelId)).get()
+}
+
+const roomTypes = ROOM_TYPES
+---
+
+<Layout title="Configurar Habitaciones">
+	{
+		session ? (
+			<article class="mx-auto w-10/12 rounded-lg bg-beaver-900 p-8 text-gray-300 sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20">
+				<h2 class="mb-4 text-2xl font-semibold">CONFIGURACIÓN DE HABITACIONES</h2>
+				<p class="mb-6 text-xs text-gray-400">
+					Define los precios y la disponibilidad de los tipos de habitación para tu hotel.
+				</p>
+
+				{hotelDetails && (
+					<p class="mb-4 text-sm">
+						Hotel: <span class="font-bold">{hotelDetails.name}</span>
+					</p>
+				)}
+
+				<form
+					id="hotelRoomTypeForm"
+					method="post"
+					class="flex flex-col gap-4"
+					data-form-type="hotelRoomType"
+				>
+					<input type="hidden" name="hotelId" value={hotelId} />
+
+					{roomTypes.map((roomType) => (
+						<div class="border-b border-gray-700 py-4 last:border-b-0">
+							<h3 class="text-lg font-bold">
+								{roomType.name} ({roomType.maxCapacity} personas)
+							</h3>
+							<p class="mb-2 text-sm text-gray-400">{roomType.description}</p>
+
+							<input type="hidden" name="roomTypeId" value={roomType.id} />
+
+							<label class="block text-xs font-medium text-gray-400 md:text-sm">
+								Habitaciones disponibles
+								<input
+									type="number"
+									name={`availableRooms-${roomType.id}`}
+									placeholder="Cantidad"
+									class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm"
+									min="0"
+								/>
+							</label>
+
+							<label class="mt-2 block text-xs font-medium text-gray-400 md:text-sm">
+								Precio por Noche (USD)
+								<input
+									type="number"
+									name={`priceUSD-${roomType.id}`}
+									placeholder="Precio en dólares"
+									class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm"
+								/>
+							</label>
+
+							<label class="mt-2 block text-xs font-medium text-gray-400 md:text-sm">
+								Precio por Noche (BOB)
+								<input
+									type="number"
+									name={`priceBOB-${roomType.id}`}
+									placeholder="Precio en bolivianos"
+									class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm"
+								/>
+							</label>
+						</div>
+					))}
+
+					<div class="mt-10 flex justify-end">
+						<button
+							type="submit"
+							class="h-15 w-40 rounded-lg bg-white p-1 text-black hover:bg-green-150 hover:text-lg"
+						>
+							Guardar Configuraciones
+						</button>
+					</div>
+				</form>
+			</article>
+		) : (
+			<div class="flex items-center justify-center">
+				<SignInPage />
+			</div>
+		)
+	}
+</Layout>
+
+<script src="/src/lib/forms/formHandler"></script>

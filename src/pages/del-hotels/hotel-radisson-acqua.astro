@@ -1,0 +1,229 @@
+---
+// src/pages/vina-del-mar/hotel-radisson-acqua.astro
+import BookingForm from "../../components/BookingForm.astro"
+import Breadcrumbs from "../../components/Breadcrumbs.astro"
+import HotelInfo from "../../components/HotelInfo.astro"
+import ImageGallery from "../../components/ImageGallery.astro"
+import Layout from "../../layouts/Layout.astro"
+
+// Datos simulados del hotel
+const hotelData = {
+	name: "Hotel Radisson Acqua",
+	location: "Concón, Viña del Mar",
+	address: "Borgoño 23333 Concón, Viña del Mar",
+	coordinates: {
+		latitude: -32.94549,
+		longitude: -71.550457,
+	},
+	description:
+		"Radisson Acqua Hotel & Spa Concón cuenta con 50 exclusivas habitaciones, todas con vista al mar, disponibles en tres estilos: habitaciones estándar, habitaciones superiores y una suite. Estas han sido diseñadas teniendo en cuenta la comodidad de sus huéspedes y son el lugar perfecto para relajarse tras un largo día. El hotel tiene además con un completo spa, dedicado principalmente a la talasoterapia, un restaurante de premiada gastronomía, bar, gimnasio y todo lo necesario para que disfrute su estadía. El Radisson Acqua Hotel & Spa destaca sobre el resto de hoteles de Concón y Valparaíso, ya que ofrece todo lo necesario para tu estancia. Los huéspedes pueden relajarse en el spa Acqua, que ofrece terapias alternativas, masajes, tratamientos con agua de mar y mucho más. El hotel dispone de centro de negocios abierto 24 horas para garantizar la conexión en todo momento.",
+	images: [
+		{
+			src: "https://picsum.photos/seed/terrace/800/500",
+			alt: "Terraza del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/terrace/1600/1000",
+		},
+		{
+			src: "https://picsum.photos/seed/exterior/800/500",
+			alt: "Exterior del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/exterior/1600/1000",
+		},
+		{
+			src: "https://picsum.photos/seed/pool/800/500",
+			alt: "Piscina del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/pool/1600/1000",
+		},
+		{
+			src: "https://picsum.photos/seed/room1/800/500",
+			alt: "Habitación estándar del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/room1/1600/1000",
+		},
+		{
+			src: "https://picsum.photos/seed/room2/800/500",
+			alt: "Habitación superior del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/room2/1600/1000",
+		},
+		{
+			src: "https://picsum.photos/seed/restaurant/800/500",
+			alt: "Restaurante del Hotel Radisson Acqua",
+			href: "https://picsum.photos/seed/restaurant/1600/1000",
+		},
+	],
+	services: [
+		{ name: "Centro de negocios disponible 24 horas" },
+		{ name: "Habitaciones con vistas totales al mar" },
+		{ name: "Spa Acqua" },
+		{ name: "Conexión inalámbrica a Internet en todo el hotel" },
+		{ name: "Terapias alternativas (reiki, shiatsu, yoga)" },
+		{ name: "Tratamientos corporales y faciales" },
+		{ name: "Hidroterapia" },
+		{ name: "Piscina interior con agua de mar" },
+		{ name: "Masajes" },
+		{ name: "Sauna" },
+		{ name: "Cuartos de ducha al vapor" },
+	],
+	roomFeatures: [
+		{ name: "Habitaciones conectadas." },
+		{ name: "Terraza." },
+		{ name: "Botellas de agua sin costo." },
+		{ name: "Cafetera." },
+		{ name: "Teléfono con dos líneas." },
+		{ name: "Televisión por cable con pantalla plana." },
+		{ name: "Plancha / Tabla de planchar." },
+		{ name: "Radio / Despertador." },
+		{ name: "Detector de humos." },
+		{ name: "Mesa de trabajo con lámpara." },
+	],
+}
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/es/" },
+	{ name: "Hoteles", href: "/es/hoteles.htm" },
+	{ name: "Viña del Mar", href: "/es/vina-del-mar/hoteles.htm" },
+	{
+		name: "Hotel Radisson Acqua",
+		href: "/es/vina-del-mar/hotel-radisson-acqua.htm",
+		current: true,
+	},
+]
+---
+
+<Layout title={`${hotelData.name} en ${hotelData.location}`}>
+	<main role="main" id="content" class="mx-auto my-8 max-w-7xl px-4 sm:px-6 lg:px-8">
+		<Breadcrumbs items={breadcrumbItems} />
+
+		<h1 class="mb-4 mt-8 text-4xl font-extrabold text-gray-900">{hotelData.name}</h1>
+		<p class="mb-6 text-lg text-gray-600">{hotelData.address}</p>
+
+		<ImageGallery images={hotelData.images} hotelName={hotelData.name} />
+
+		<section id="ficha" class="mt-8">
+			<ul class="flex border-b border-gray-200" role="tablist">
+				<li>
+					<button
+						type="button"
+						role="tab"
+						aria-controls="tab-overview"
+						aria-selected="true"
+						id="tab-btn-overview"
+						class="active-tab-btn border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600 focus:outline-none"
+					>
+						Información General
+					</button>
+				</li>
+				<li>
+					<button
+						type="button"
+						role="tab"
+						aria-controls="tab-mapa"
+						aria-selected="false"
+						id="tab-btn-mapa"
+						class="border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600 focus:outline-none"
+					>
+						Mapa
+					</button>
+				</li>
+				<li>
+					<button
+						type="button"
+						role="tab"
+						aria-controls="tab-reservar"
+						aria-selected="false"
+						id="tab-btn-reservar"
+						class="border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600 focus:outline-none"
+					>
+						Reservar
+					</button>
+				</li>
+			</ul>
+
+			<div
+				id="tab-content-overview"
+				role="tabpanel"
+				aria-labelledby="tab-btn-overview"
+				class="tab-content mt-6"
+			>
+				<HotelInfo
+					description={hotelData.description}
+					services={hotelData.services}
+					roomFeatures={hotelData.roomFeatures}
+				/>
+			</div>
+
+			<div
+				id="tab-content-mapa"
+				role="tabpanel"
+				aria-labelledby="tab-btn-mapa"
+				class="tab-content mt-6 hidden rounded-lg bg-white p-6 shadow-sm"
+			>
+				<h2 class="mb-4 text-2xl font-bold text-gray-900">Mapa del Hotel</h2>
+				<p class="mb-4 text-gray-700">Ubicación: {hotelData.address}</p>
+				<div
+					class="flex h-80 w-full items-center justify-center rounded-md bg-gray-200 text-lg text-gray-500"
+				>
+					{/* Aquí integrarías un mapa real con una API (ej. Google Maps, OpenStreetMap) */}
+					Mapa interactivo iría aquí (requiere integración con API de mapas)
+					<br />
+					Coordenadas: Latitud {hotelData.coordinates.latitude}, Longitud {
+						hotelData.coordinates.longitude
+					}
+				</div>
+			</div>
+
+			<div
+				id="tab-content-reservar"
+				role="tabpanel"
+				aria-labelledby="tab-btn-reservar"
+				class="tab-content mt-6 hidden"
+			>
+				<BookingForm />
+			</div>
+		</section>
+	</main>
+</Layout>
+
+<script is:inline>
+	// Simple JavaScript para la funcionalidad de pestañas
+	document.addEventListener("DOMContentLoaded", () => {
+		const tabButtons = document.querySelectorAll('[role="tab"]')
+		const tabContents = document.querySelectorAll(".tab-content")
+
+		const activateTab = (tabId) => {
+			// Desactivar todos los botones y contenidos
+			tabButtons.forEach((btn) => {
+				btn.setAttribute("aria-selected", "false")
+				btn.classList.remove("active-tab-btn")
+				btn.classList.remove("border-blue-600", "text-blue-600")
+				btn.classList.add("border-transparent", "text-gray-600")
+			})
+			tabContents.forEach((content) => content.classList.add("hidden"))
+
+			// Activar el botón y contenido seleccionados
+			const selectedButton = document.getElementById(`tab-btn-${tabId}`)
+			const selectedContent = document.getElementById(`tab-content-${tabId}`)
+
+			if (selectedButton && selectedContent) {
+				selectedButton.setAttribute("aria-selected", "true")
+				selectedButton.classList.add("active-tab-btn")
+				selectedButton.classList.remove("border-transparent", "text-gray-600")
+				selectedButton.classList.add("border-blue-600", "text-blue-600")
+				selectedContent.classList.remove("hidden")
+			}
+		}
+
+		tabButtons.forEach((button) => {
+			button.addEventListener("click", (event) => {
+				const tabId = event.currentTarget.id.replace("tab-btn-", "")
+				activateTab(tabId)
+			})
+		})
+
+		// Activar la primera pestaña por defecto al cargar
+		activateTab("overview")
+	})
+</script>
+
+<style is:global>
+	/* Puedes añadir estilos adicionales si Tailwind no cubre todo */
+	/* Aunque con Tailwind, la mayoría de los estilos deberían ser utilidades */
+</style>

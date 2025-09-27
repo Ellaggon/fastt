@@ -1,0 +1,198 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProductsByProvider } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+
+let userProducts: any[] = []
+let errorMessage: string | null = null
+
+try {
+	if (!session?.user?.email) {
+		return Astro.redirect("/SinginPage")
+	}
+	const providerId = await getProviderIdFromRequest(Astro.request)
+	if (!providerId) {
+		return Astro.redirect("/forms/provider")
+	}
+
+	userProducts = await getProductsByProvider(providerId)
+	console.log("userProducts: ", userProducts)
+} catch (e) {
+	console.error("Error al obtener los productos del proveedor: ", e)
+	errorMessage = "Hubo un error al cargar los productos. Por favor, inténtalo de nuevo más tarde."
+}
+---
+
+<Layout title="Panel del Proveedor">
+	<div class="mx-auto w-11/12 max-w-7xl pb-24 pt-12 text-gray-200">
+		<navbar class="mb-8 flex flex-col items-center justify-between md:mb-12 md:flex-row">
+			<h2 class="mb-4 text-3xl font-extrabold text-beaver-900 md:mb-0 md:text-4xl">
+				Panel del Proveedor
+			</h2>
+			<a
+				href="/forms/product"
+				class="transform rounded-lg bg-green-150 px-6 py-2 font-semibold text-beaver-900 shadow-md transition-transform hover:scale-105"
+			>
+				Crear Nuevo Producto
+			</a>
+		</navbar>
+
+		<main class="rounded-lg bg-beaver-900 p-6 shadow-lg md:p-8">
+			<article
+				class="flex h-auto w-full cursor-pointer gap-3 border-b border-gray-700 text-sm text-gray-400"
+				id="tabs"
+			>
+				<div class="tab-button active p-2 text-white" data-tab="products">Productos</div>
+				<div class="tab-button p-2" data-tab="edit">Editar Productos</div>
+			</article>
+			<div class="mx-auto">
+				{
+					errorMessage ? (
+						<div class="border-l-4 border-red-500 bg-red-100 p-4 text-red-700" role="alert">
+							<p class="font-bold">Error</p>
+							<p>{errorMessage}</p>
+						</div>
+					) : userProducts.length === 0 ? (
+						<div>
+							<p class="mb-4 text-lg">Aún no has creado nungún tour o paquete.</p>
+							<p class="text-sm">
+								Haz clic en el boton "Crear Nuevo Producto" para empezar a vender.
+							</p>
+						</div>
+					) : (
+						<section class="overflow-x-auto">
+							<div class="rounded-lg bg-beaver-900 p-6 shadow-lg">
+								<article class="mb-4 flex items-center justify-between">
+									<h3 class="text-lg font-semibold">Tus productos</h3>
+									<p class="text-sm text-gray-400">{userProducts.length} en total</p>
+								</article>
+
+								{/* <!-- Contenido de Productos --> */}
+								<article id="tab-products" class="tab-content block">
+									<div class="mt-4 divide-y divide-gray-800">
+										{userProducts.map((el) => (
+											<div class="flex items-center justify-between py-3">
+												<div class="flex flex-col">
+													<span class="text-sm font-medium text-gray-100">{el.name}</span>
+													<span class="text-xs text-gray-400">{el.productType}</span>
+												</div>
+												<div class="text-sm font-medium text-gray-300">
+													💲{el.price ? el.price : "0.00"}
+												</div>
+											</div>
+										))}
+									</div>
+								</article>
+
+								<article class="tab-content hidden divide-y divide-gray-800" id="tab-edit">
+									{userProducts.map((el) => (
+										<div class="flex items-center justify-between py-3">
+											<div class="flex flex-col">
+												<span class="text-sm font-medium text-gray-100">{el.name}</span>
+												<span class="text-xs text-gray-400">{el.productType}</span>
+											</div>
+
+											<div class="flex items-center gap-6 text-sm font-medium text-gray-300">
+												{el.productType === "Hotel" && (
+													<a
+														href={`/products/${el.id}/rooms/create`}
+														class="text-green-400 hover:text-green-300"
+													>
+														Editar Habitaciones
+													</a>
+												)}
+												<a
+													href={`/products/${el.id}/edit`}
+													class="text-gray-300 hover:text-gray-100"
+												>
+													Editar Producto
+												</a>
+												<a
+													href={`/products/${el.id}/edit/images`}
+													class="text-gray-300 hover:text-gray-100"
+												>
+													Editar Imágenes
+												</a>
+												<a
+													href={`/products/${el.id}/edit/subtype`}
+													class="text-gray-300 hover:text-gray-100"
+												>
+													{`Editar ${el.productType}`}
+												</a>
+
+												<button
+													data-product-id={el.id}
+													class="delete-button text-red-500 hover:text-red-300"
+													type="button"
+												>
+													Eliminar
+												</button>
+											</div>
+										</div>
+									))}
+								</article>
+							</div>
+						</section>
+					)
+				}
+			</div>
+		</main>
+	</div>
+	<script>
+		const $deleteBtns = document.querySelectorAll(".delete-button")
+
+		$deleteBtns.forEach((el) => {
+			el.addEventListener("click", async (e) => {
+				const button = e.currentTarget as HTMLButtonElement
+				const productId = button.dataset.productId
+
+				if (
+					confirm(
+						"¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer."
+					)
+				) {
+					try {
+						const res = await fetch("/api/products/delete", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify({ productId }),
+						})
+						if (res.ok) {
+							window.location.reload()
+						} else {
+							const errorText = await res.text()
+							alert(`Error al eliminar el producto: ${errorText}`)
+						}
+					} catch (e) {
+						console.error("Error: ", e)
+						alert("Hubo un error al procesar la solicitud.")
+					}
+				}
+			})
+		})
+	</script>
+	<script>
+		const tabButtons = document.querySelectorAll(".tab-button") as NodeListOf<HTMLDivElement>
+		const tabContents = document.querySelectorAll(".tab-content")
+
+		tabButtons.forEach((btn) => {
+			btn.addEventListener("click", () => {
+				// quitar activo de todos
+				tabButtons.forEach((b) =>
+					b.classList.remove("active", "text-white", "border-b", "border-white")
+				)
+				tabContents.forEach((c) => c.classList.add("hidden"))
+
+				// activar el actual
+				btn.classList.add("active", "text-white", "border-b", "border-white")
+				const content = document.querySelector(`#tab-${btn.dataset.tab}`)
+				content?.classList.remove("hidden")
+			})
+		})
+	</script>
+</Layout>

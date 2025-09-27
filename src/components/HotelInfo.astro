@@ -1,0 +1,92 @@
+---
+// src/components/HotelInfo.astro
+interface Service {
+	name: string
+	description?: string // Para servicios que tienen una descripción larga
+	icon?: string // Si quieres usar un icono específico (ej. "wifi", "pool")
+}
+
+interface RoomFeature {
+	name: string
+}
+
+interface Props {
+	description: string
+	services: Service[]
+	roomFeatures: RoomFeature[]
+}
+
+const { description, services, roomFeatures } = Astro.props
+
+// Puedes mapear iconos o simplemente usar texto si no tienes una librería de iconos
+const serviceEmojis: { [key: string]: string } = {
+	"Centro de negocios": "💼",
+	"Habitaciones con vistas al mar": "🌊",
+	"Spa Acqua": "🧖‍♀️",
+	"Conexión inalámbrica a Internet": "📶",
+	"Terapias alternativas": "🧘",
+	"Tratamientos corporales y faciales": "✨",
+	"Hidroterapia": "🛁",
+	"Piscina interior con agua de mar": "🏊",
+	"Masajes": "💆‍♀️",
+	"Sauna": "🔥",
+	"Cuartos de ducha al vapor": "🚿",
+	// Habitaciones
+	"Habitaciones conectadas": "🚪",
+	"Terraza": " балкона",
+	"Botellas de agua sin costo": "💧",
+	"Cafetera": "☕",
+	"Teléfono con dos líneas": "📞",
+	"Televisión por cable con pantalla plana": "📺",
+	"Plancha / Tabla de planchar": " ironing",
+	"Radio / Despertador": "⏰",
+	"Detector de humos": "🚨",
+	"Mesa de trabajo con lámpara": "💡",
+}
+---
+
+<section id="overview" class="rounded-lg bg-white p-6 shadow-sm">
+	<h2 class="mb-4 text-2xl font-bold text-gray-900">Información General</h2>
+	<p class="mb-6 leading-relaxed text-gray-700">
+		{description}
+	</p>
+
+	{
+		services.length > 0 && (
+			<div class="mb-6">
+				<h3 class="mb-3 text-xl font-semibold text-gray-800">Servicios disponibles</h3>
+				<ul class="grid grid-cols-1 gap-y-2 text-gray-700 sm:grid-cols-2 lg:grid-cols-3">
+					{services.map((service) => (
+						<li class="flex items-center">
+							<span class="mr-2 text-lg" aria-hidden="true">
+								{serviceEmojis[service.name] || "•"}
+							</span>
+							<span>{service.name}</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		)
+	}
+
+	{
+		roomFeatures.length > 0 && (
+			<div>
+				<h3 class="mb-3 text-xl font-semibold text-gray-800">Habitaciones</h3>
+				<p class="mb-4 leading-relaxed text-gray-700">
+					Las habitaciones Radisson Acqua Hotel & Spa Concón cuentan con:
+				</p>
+				<ul class="grid grid-cols-1 gap-y-2 text-gray-700 sm:grid-cols-2 lg:grid-cols-3">
+					{roomFeatures.map((feature) => (
+						<li class="flex items-center">
+							<span class="mr-2 text-lg" aria-hidden="true">
+								{serviceEmojis[feature.name] || "•"}
+							</span>
+							<span>{feature.name}</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		)
+	}
+</section>

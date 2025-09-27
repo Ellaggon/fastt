@@ -1,0 +1,64 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProductWithImagesAndSubtype } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const paramsId = Astro.params.id
+
+if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!paramsId) return Astro.redirect("/dashboard")
+
+const providerId = await getProviderIdFromRequest(Astro.request)
+if (!providerId) return Astro.redirect("/forms/provider")
+
+const productBundle = await getProductWithImagesAndSubtype(paramsId)
+if (!productBundle) return Astro.redirect("/dashboard")
+
+if (String(productBundle.product.providerId) !== String(providerId)) {
+	return Astro.redirect("/dashboard")
+}
+
+const product = productBundle.product
+const images = productBundle.images || [] // [{id, url, order, isPrimary, ...}]
+
+const safeInitialImages = JSON.stringify(images || []).replace(/<\/script>/g, "<\\/script>")
+---
+
+<Layout title={`Editar Imágenes · ${product.id} `}>
+	<div class="mx-auto w-11/12 rounded-lg bg-beaver-900 p-8 text-gray-300 md:max-w-3xl">
+		<h1 class="mb-4 text-2xl font-bold">Editar Imágenes de {product.name}</h1>
+
+		<div
+			id="dropZone-product"
+			class="cursor-pointer rounded border-2 border-dashed border-gray-700 p-6 text-center"
+		>
+			<p id="imageText-product" class="mb-2 text-gray-400">Haz clic o arrastra imágenes aquí</p>
+			<input
+				id="imageUpload-product"
+				name="imageUpload-product"
+				type="file"
+				accept="image/*"
+				multiple
+				class="hidden"
+			/>
+			<button id="pickBtn" class="rounded bg-gray-800 px-4 py-2">Seleccionar imágenes</button>
+		</div>
+
+		<input type="hidden" id="productId" value={product.id} />
+		<!-- Previsualización / lista (reordenable con botones) -->
+		<script id="initialImages" type="application/json" set:html={safeInitialImages} />
+		<div id="imagePreview" class="mt-4 grid grid-cols-2 gap-4"></div>
+		<span class="error mt-3 text-sm text-red-500" data-error-for="imagesMeta"></span>
+
+		<!-- Acciones -->
+		<div class="mt-6 flex justify-end gap-3">
+			<button id="cancelBtn" class="rounded bg-gray-700 px-4 py-2">Cancelar</button>
+			<button id="saveBtn" class="rounded bg-green-150 px-4 py-2 font-semibold text-beaver-900"
+				>Guardar cambios</button
+			>
+		</div>
+	</div>
+	<script src="/src/lib/forms/imageFormHandler.ts"></script>
+</Layout>
