@@ -29,51 +29,63 @@ const normalizedType = String(product.productType || "").toLowerCase() // "hotel
 ---
 
 <Layout title={`Editar subtipo · ${product.name || "Producto"}`}>
-	<section class="mx-auto w-11/12 rounded-lg bg-beaver-900 p-8 text-gray-300 md:max-w-3xl">
-		<h1 class="mb-4 text-2xl font-bold">
-			Editar detalles del {product.productType} - {product.name}
+	<section
+		class="mx-auto mt-16 w-11/12 max-w-4xl rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 lg:p-16"
+	>
+		<h1 class="mb-6 text-2xl font-bold lg:text-3xl">
+			Editar detalles del
+			<span class="text-blue-600">{product.productType}</span> – {product.name}
 		</h1>
 
-		<!-- Form wrapper: solo este form se encarga del submit -->
-		<form id="subtypeForm" class="space-y-6">
-			<!-- Renderiza el formulario correspondiente. Cada componente debe tener inputs con name="" -->
-			<div data-subtype-section="hotel" class={normalizedType === "hotel" ? "" : "hidden"}>
+		<!-- Form wrapper -->
+		<form id="subtypeForm" class="flex flex-col gap-8">
+			<!-- Renderiza el formulario correspondiente -->
+			<div data-subtype-section="hotel" class={normalizedType === "hotel" ? "block" : "hidden"}>
 				<HotelSubtypeForm hotel={subtype} />
 			</div>
 
-			<div data-subtype-section="tour" class={normalizedType === "tour" ? "" : "hidden"}>
+			<div data-subtype-section="tour" class={normalizedType === "tour" ? "block" : "hidden"}>
 				<TourSubtypeForm tour={subtype} />
 			</div>
 
-			<div data-subtype-section="package" class={normalizedType === "package" ? "" : "hidden"}>
+			<div data-subtype-section="package" class={normalizedType === "package" ? "block" : "hidden"}>
 				<PackageSubtypeForm pkg={subtype} />
 			</div>
 
 			<!-- Mensajes -->
 			<div id="subtypeMsg" class="min-h-[1.25rem] text-sm"></div>
 
-			<!-- Hidden productId (usado por el script) -->
+			<!-- Hidden productId -->
 			<input id="productId" name="productId" type="hidden" value={product.id} />
 
-			<!-- Submit -->
-			<div class="flex justify-end">
+			<!-- Acciones -->
+			<div class="mt-4 flex justify-end gap-4">
+				<button
+					type="button"
+					onclick="window.location.href='/products/${product.id}'"
+					class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+				>
+					Cancelar
+				</button>
 				<button
 					id="subtypeSubmit"
 					type="submit"
-					class="rounded-lg bg-green-150 px-4 py-2 font-semibold text-beaver-900 transition hover:scale-105"
+					class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
 				>
 					Guardar Subtipo
 				</button>
 			</div>
 		</form>
 
-		<p class="mt-4 text-sm text-yellow-300">
-			Si el subtipo no existe para este producto verás el formulario vacío: al guardar se creará la
-			fila del subtipo.
+		<!-- Nota -->
+		<p class="mt-8 text-sm text-neutral-500">
+			ℹ️ Si el subtipo no existe para este producto verás el formulario vacío: al guardar se creará
+			automáticamente.
 			<br />
-			Nota: este formulario solo modifica la tabla del subtipo. Si quieres cambiar el <em
-				>productType</em
-			> (Hotel / Tour / Package) hazlo en la página de datos del producto.
+			<em class="text-neutral-600">
+				Este formulario solo modifica la tabla del subtipo. Si quieres cambiar el
+				<code>productType</code> (Hotel / Tour / Package), hazlo en la página de datos del producto.
+			</em>
 		</p>
 	</section>
 

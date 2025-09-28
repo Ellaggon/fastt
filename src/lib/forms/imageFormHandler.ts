@@ -26,7 +26,6 @@ type Item = {
 	file?: File // only for new items
 	isPrimary?: boolean
 }
-
 ;(() => {
 	// helpers DOM
 	const $ = (id: string) => document.getElementById(id)
@@ -74,7 +73,7 @@ type Item = {
 		preview.innerHTML = ""
 		items.forEach((it, idx) => {
 			const card = document.createElement("div")
-			card.className = "image-card bg-gray-800 p-2 rounded flex flex-col"
+			card.className = "image-card bg-neutral-200 p-2 rounded-lg flex flex-col"
 			card.draggable = true
 			card.dataset.idx = String(idx)
 
@@ -93,7 +92,7 @@ type Item = {
 
 			const btnLeft = document.createElement("button")
 			btnLeft.type = "button"
-			btnLeft.className = "px-2 py-1 bg-gray-700 rounded"
+			btnLeft.className = "px-2 py-1 bg-black rounded"
 			btnLeft.title = "Mover izquierda"
 			btnLeft.textContent = "←"
 			btnLeft.addEventListener("click", (e) => {
@@ -104,7 +103,7 @@ type Item = {
 
 			const btnRight = document.createElement("button")
 			btnRight.type = "button"
-			btnRight.className = "px-2 py-1 bg-gray-700 rounded"
+			btnRight.className = "px-2 py-1 bg-black rounded"
 			btnRight.title = "Mover derecha"
 			btnRight.textContent = "→"
 			btnRight.addEventListener("click", (e) => {
@@ -121,7 +120,7 @@ type Item = {
 			actions.className = "flex items-center gap-2"
 
 			const primaryLabel = document.createElement("label")
-			primaryLabel.className = "flex items-center gap-1 text-sm text-gray-300"
+			primaryLabel.className = "flex items-center gap-1 text-sm text-neutral-900"
 			const primaryRadio = document.createElement("input")
 			primaryRadio.type = "radio"
 			primaryRadio.name = "primarySelector"

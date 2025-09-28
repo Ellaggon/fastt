@@ -31,10 +31,12 @@ const subtype = (product.productType || "hotel").toLowerCase()
 ---
 
 <Layout title={`Detalles: ${product.name || "Producto"}`}>
-	<article class="mx-auto max-w-3xl rounded-lg bg-beaver-900 p-6 text-gray-300">
+	<article
+		class="mx-auto mt-20 w-10/12 max-w-3xl rounded-2xl bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20"
+	>
 		<h2 class="mb-2 text-2xl font-bold">Detalles adicionales — {product.name}</h2>
-		<p class="mb-4 text-sm text-gray-400">
-			Completa la información específica para este tipo de producto.
+		<p class="mb-8 text-xs text-neutral-500">
+			Completa la información específica para tu {subtype === "package" ? "Paquete" : subtype}.
 		</p>
 
 		<form id="subtypeForm" class="space-y-4">
@@ -49,7 +51,7 @@ const subtype = (product.productType || "hotel").toLowerCase()
 				<button
 					id="submitBtn"
 					type="button"
-					class="rounded bg-green-150 px-4 py-2 font-semibold text-beaver-900"
+					class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
 					>Guardar detalles</button
 				>
 			</div>

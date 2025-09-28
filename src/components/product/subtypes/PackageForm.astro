@@ -6,18 +6,31 @@ const { productId } = Astro.props
 	<input type="hidden" name="productId" value={productId} />
 	<input type="hidden" name="productType" value="package" />
 	<label class="block text-sm">
-		<span class="text-gray-300">Itinerario</span>
-		<textarea name="itinerary" rows="3" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		<span class="text-neutral-500">Itinerario</span>
+		<textarea
+			name="itinerary"
+			rows="3"
+			class="mt-1 w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
 		></textarea>
 	</label>
 	<div class="grid grid-cols-2 gap-2">
 		<label class="block text-sm">
-			<span class="text-gray-300">Días</span>
-			<input type="number" name="days" min="0" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+			<span class="text-neutral-500">Días</span>
+			<input
+				type="number"
+				name="days"
+				min="0"
+				class="mt-1 w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+			/>
 		</label>
 		<label class="block text-sm">
-			<span class="text-gray-300">Noches</span>
-			<input type="number" name="nights" min="0" class="mt-1 rounded-md bg-gray-800 px-2 py-1" />
+			<span class="text-neutral-500">Noches</span>
+			<input
+				type="number"
+				name="nights"
+				min="0"
+				class="mt-1 w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+			/>
 		</label>
 	</div>
 </div>
