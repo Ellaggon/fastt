@@ -25,28 +25,23 @@ const { title } = Astro.props
 		<slot />
 	</body>
 </html>
+
 <style is:global>
-	:root {
-		--accent: 136, 58, 234;
-		--accent-light: 224, 204, 250;
-		--accent-dark: 49, 10, 101;
-		--accent-gradient: linear-gradient(
-			45deg,
-			rgb(var(--accent)),
-			rgb(var(--accent-light)) 30%,
-			white 60%
-		);
-	}
 	html {
-		font-family: system-ui, sans-serif;
-		background: linear-gradient(135deg, #e0e5ec, #f0f2f5, #e0eaf2);
+		font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+
+		/* background: linear-gradient(135deg, #101010, #151515, #101010); */
+		background: black;
 		background-size: 400% 400%;
-		animation: gradientFlowLight 20s ease infinite; /* Animación más lenta para un efecto sutil */
-		color: #000000;
+
+		/* Animación de gradiente para el modo oscuro */
+		animation: gradientFlowDark 20s ease infinite;
+
+		color: #e0e0e0;
 		min-height: 100vh;
-		font-family: "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
 	}
-	@keyframes gradientFlowLight {
+
+	@keyframes gradientFlowDark {
 		0% {
 			background-position: 0% 50%;
 		}
@@ -57,6 +52,7 @@ const { title } = Astro.props
 			background-position: 0% 50%;
 		}
 	}
+
 	code {
 		font-family:
 			Menlo,
