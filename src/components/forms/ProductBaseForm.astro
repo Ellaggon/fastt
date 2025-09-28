@@ -3,41 +3,44 @@ const { product } = Astro.props as { product: any }
 ---
 
 <section>
-	<div class="grid gap-4">
-		<label class="block">
-			<span class="text-sm text-gray-300">Nombre</span>
+	<div class="grid gap-6">
+		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+			Nombre
 			<input
 				name="name"
 				type="text"
 				required
 				value={product?.name || ""}
-				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
 			/>
 		</label>
 
-		<label class="block">
-			<span class="text-sm text-gray-300">Descripción corta</span>
+		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+			Descripción corta
 			<textarea
 				name="shortDescription"
 				rows="2"
-				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
 				>{product?.shortDescription || ""}</textarea
 			>
 		</label>
 
-		<label class="block">
-			<span class="text-sm text-gray-300">Descripción larga</span>
+		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+			Descripción larga
 			<textarea
 				name="longDescription"
 				rows="4"
-				class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+				class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
 				>{product?.longDescription || ""}</textarea
 			>
 		</label>
 
-		<label class="block">
-			<span class="text-sm text-gray-300">Tipo de producto</span>
-			<select name="productType" class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white">
+		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+			Tipo de producto
+			<select
+				name="productType"
+				class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+			>
 				<option value="Hotel" selected={String(product?.productType) === "Hotel"}>Hotel</option>
 				<option value="Tour" selected={String(product?.productType) === "Tour"}>Tour</option>
 				<option value="Package" selected={String(product?.productType) === "Package"}
@@ -46,35 +49,39 @@ const { product } = Astro.props as { product: any }
 			</select>
 		</label>
 
-		<div class="grid grid-cols-2 gap-4">
-			<label class="block">
-				<span class="text-sm text-gray-300">Precio USD</span>
+		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+				Precio USD
 				<input
 					name="basePriceUSD"
 					type="number"
 					step="0.01"
 					required
 					value={product?.basePriceUSD ?? 0}
-					class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
 				/>
 			</label>
 
-			<label class="block">
-				<span class="text-sm text-gray-300">Precio BOB</span>
+			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+				Precio BOB
 				<input
 					name="basePriceBOB"
 					type="number"
 					step="0.01"
 					required
 					value={product?.basePriceBOB ?? 0}
-					class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
 				/>
 			</label>
 		</div>
 
-		<label class="block">
-			<span class="text-sm text-gray-300">Ciudad</span>
-			<select name="cityId" required class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white">
+		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+			Ciudad
+			<select
+				name="cityId"
+				required
+				class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+			>
 				<option value="">Selecciona una ciudad...</option>
 				<option value="uuid-city-lapaz" selected={product?.cityId === "uuid-city-lapaz"}
 					>La Paz</option

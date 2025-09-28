@@ -27,35 +27,35 @@ const product = productBundle.product
 ---
 
 <Layout title={`Editar · ${product.name || "Producto"}`}>
-	<div class="mx-auto w-11/12 rounded-lg bg-beaver-900 p-8 text-gray-300 md:max-w-3xl">
-		<h1 class="mb-2 text-2xl font-bold">Editar Producto</h1>
-		<p class="mb-6 text-sm text-gray-400">
-			Modifica la información base y los detalles específicos según tipo.
-		</p>
+	<div
+		class="mx-auto mt-20 w-11/12 rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-3xl lg:p-20"
+	>
+		<h1 class="mb-2 text-2xl font-semibold">Editar Producto</h1>
+		<p class="mb-6 text-sm text-neutral-500">Modifica la información base de tu producto.</p>
 
 		<!-- Formulario: POST a tu endpoint centralizado -->
 		<form
 			id="productUpdateForm"
 			method="POST"
 			action={`/api/products/${product.id}/update`}
-			class="space-y-6"
+			class="flex flex-col gap-6"
 		>
 			<ProductBaseForm product={product} />
 
 			<!-- hidden input where we will place JSON for subtype -->
 			<input type="hidden" name="subtype" id="subtypeInput" value="" />
 
-			<div class="flex justify-end">
+			<div class="mt-8 flex justify-end">
 				<button
 					type="submit"
-					class="rounded-lg bg-green-150 px-4 py-2 font-semibold text-beaver-900 transition hover:scale-105"
+					class="h-11 w-44 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700 hover:shadow-lg"
 				>
 					Guardar Cambios
 				</button>
 			</div>
 		</form>
 
-		<div class="mt-6 text-sm text-yellow-300">
+		<div class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-yellow-800 shadow-sm">
 			<p>
 				<strong>Nota:</strong> Cambiar el tipo de producto (Hotel ↔ Tour ↔ Package) puede eliminar
 				los detalles del subtipo anterior y crear el nuevo. Asegúrate de revisar los campos antes de
