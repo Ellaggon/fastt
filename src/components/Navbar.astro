@@ -32,99 +32,71 @@ try {
 }
 ---
 
-<nav class="mb-3 flex items-center justify-center border-gray-700 p-3 text-black">
-	<!-- inicio de session -->
-	<div id="fixedSession" class="fixed left-7 top-7 z-10 xl:left-64">
-		<!-- nombre de usuario -->
+<nav
+	class="fixed top-0 z-50 flex w-full items-center justify-between bg-neutral-900/50 px-4 py-4 text-neutral-300 backdrop-blur-md transition-colors duration-300"
+>
+	<!-- Izquierda: Links de Navegación -->
+	<div class="flex items-center gap-6 md:gap-8">
+		<a href="/" class="flex items-center gap-x-2 transition hover:text-white">
+			<img src="/favicon-sbg.webp" alt="icon-company" class="h-6 w-6" />
+		</a>
+		<div class="hidden items-center gap-6 text-sm font-medium sm:flex md:gap-8">
+			<a href="/" class="transition hover:text-white"> Inicio </a>
+			<a href="/del-hotels" class="transition hover:text-white"> Hoteles </a>
+			<a href="/tours" class="transition hover:text-white"> Tours </a>
+			<a href="/packages" class="transition hover:text-white"> Paquetes </a>
+			<a href="/dashboard" class="transition hover:text-white"> Dashboard </a>
+		</div>
+	</div>
+
+	<!-- Derecha: Botones de Publicación y Sesión -->
+	<div class="flex items-center gap-x-4">
 		{
 			session ? (
-				<div class="fixed left-3 top-3 z-10 text-xs sm:left-5 sm:top-7 xl:left-64">
+				<>
 					<ProfileHover />
-				</div>
-			) : (
-				<SignIn
-					provider="google"
-					class="flex items-center justify-center rounded-lg bg-black px-4 py-1 text-xs text-black/70 transition hover:bg-black/80 md:px-4 md:py-2 md:text-sm dark:border-white/10 dark:text-white"
-				>
-					Ingresar
-				</SignIn>
-			)
-		}
-	</div>
-
-	<!-- nav buttons -->
-	<div
-		class="z-10 mr-12 mt-3 hidden items-end justify-center gap-5 text-xs sm:flex md:text-sm lg:gap-10"
-	>
-		<!-- icon -->
-		<img src="/favicon-sbg.webp" alt="icon-company" class="w-6" />
-		<a href="/" class="transition hover:text-black/70">
-			<p>Inicio</p>
-		</a>
-		<a href="/account">
-			<p class="transition hover:text-black/70">Mi cuenta</p>
-		</a>
-		<a href="/posts/page/1">
-			<p class="transition hover:text-black/70">Publicaciones</p>
-		</a>
-		<a href="/posts/page/1">
-			<p class="transition hover:text-black/70">Hoteles</p>
-		</a>
-		<a href="/posts/page/1">
-			<p class="transition hover:text-black/70">Tours</p>
-		</a>
-	</div>
-
-	<!-- publish button -->
-	<div class="z-10 flex items-center">
-		{
-			session ? (
-				<div id="fixedPostButton" class="fixed right-7 top-5 sm:top-7 xl:right-64">
 					<a
-						href="/form"
-						class="flex items-center justify-center gap-x-2 rounded-lg bg-white px-4 py-1 text-sm font-semibold text-black transition hover:bg-black hover:text-white md:px-4 md:py-2"
+						href="/products/create"
+						class="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
 					>
-						+ Publicar
+						Publicar
 					</a>
-				</div>
+				</>
 			) : (
-				<div class="fixed right-7 top-7 xl:right-64">
+				<>
+					<SignIn
+						provider="google"
+						class="hidden items-center justify-center rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors duration-200 hover:bg-white/20 md:flex"
+					>
+						Ingresar
+					</SignIn>
 					<SignIn
 						id="fixedSessionPost"
 						provider="google"
-						class="flex items-center justify-center gap-x-2 rounded-lg bg-white px-4 py-1 text-sm font-semibold text-black transition hover:bg-black md:px-4 md:py-2"
+						class="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
 					>
-						+ Publicar
+						Publicar
 					</SignIn>
-				</div>
+				</>
 			)
 		}
 	</div>
 </nav>
+<div class="absolute top-9 h-2 w-full bg-white"></div>
 
 <script>
-	const $fixedSession = document.getElementById("fixedSession")
-	const $fixedSessionPost = document.getElementById("fixedSessionPost")
-	const $fixedUser = document.getElementById("fixedUser")
-	const $fixedPostButton = document.getElementById("fixedPostButton")
-	let prevYPos = window.scrollY
+	// Script para ocultar/mostrar la barra de navegación al hacer scroll
+	let lastScrollY = window.scrollY
+	const nav = document.querySelector("nav")
 
 	const handleScroll = () => {
-		let currentYPos = window.scrollY
-
-		if (currentYPos > prevYPos) {
-			$fixedSession?.classList.add("hidden")
-			$fixedSessionPost?.classList.add("hidden")
-			$fixedUser?.classList.add("hidden")
-			$fixedPostButton?.classList.add("hidden")
+		const currentScrollY = window.scrollY
+		if (lastScrollY < currentScrollY && currentScrollY > 50) {
+			nav?.classList.add("-translate-y-full")
 		} else {
-			$fixedSession?.classList.remove("hidden")
-			$fixedSessionPost?.classList.remove("hidden")
-			$fixedUser?.classList.remove("hidden")
-			$fixedPostButton?.classList.remove("hidden")
+			nav?.classList.remove("-translate-y-full")
 		}
-
-		prevYPos = currentYPos
+		lastScrollY = currentScrollY
 	}
 
 	window.addEventListener("scroll", handleScroll)
