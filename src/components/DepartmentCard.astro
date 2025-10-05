@@ -1,0 +1,35 @@
+---
+interface Props {
+	id: string
+	name: string
+	description: string
+	imageUrl?: string
+}
+
+const { id, name, description, imageUrl } = Astro.props
+---
+
+<figure class="overflow-hidden rounded-lg bg-white shadow-lg">
+	<img
+		src={imageUrl ?? `https://picsum.photos/290/183?random=${id}`}
+		alt={name}
+		width="290"
+		height="183"
+		class="h-48 w-full object-cover"
+	/>
+	<figcaption class="p-4">
+		<h2 class="mb-2 text-xl font-semibold text-gray-900">
+			<a href="" class="hover:text-blue-500">{name}</a>
+		</h2>
+		<p class="desc mb-4 line-clamp-3 text-sm text-gray-700">{description}</p>
+		<ul class="flex justify-end">
+			<li>
+				<a
+					href={`/hotels/${id}`}
+					class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+					>Ver Tours</a
+				>
+			</li>
+		</ul>
+	</figcaption>
+</figure>
