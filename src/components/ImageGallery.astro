@@ -2,31 +2,31 @@
 // src/components/ImageGallery.astro
 interface Props {
 	images: {
-		src: string
+		url: string
 		alt: string
 		href?: string // Si cada imagen tiene su propia página de detalles de foto
 	}[]
-	hotelName: string
+	productName: string
 }
 
-const { images, hotelName } = Astro.props
+const { images, productName } = Astro.props
 ---
 
 <div class="relative overflow-hidden rounded-xl bg-gray-100 p-2 shadow-lg">
-	<h2 class="sr-only">Galería de Imágenes de {hotelName}</h2>
+	<h2 class="sr-only">Galería de Imágenes de {productName}</h2>
 	<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 		{
 			images.map((image) => (
 				<div class="aspect-w-16 aspect-h-9 sm:aspect-h-10 md:aspect-h-12 group relative w-full overflow-hidden rounded-md">
 					<a
-						href={image.href || image.src}
+						href={image.href || image.url}
 						target="_blank"
 						rel="noopener noreferrer"
 						class="block h-full w-full"
 					>
 						<img
-							src={image.src}
-							alt={image.alt}
+							src={image.url}
+							alt={productName}
 							width="300"
 							height="200"
 							class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
