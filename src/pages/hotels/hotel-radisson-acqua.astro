@@ -7,7 +7,7 @@ import ImageGallery from "../../components/ImageGallery.astro"
 import Layout from "../../layouts/Layout.astro"
 
 // Datos simulados del hotel
-const hotelData = {
+export const hotelData = {
 	name: "Hotel Radisson Acqua",
 	location: "Concón, Viña del Mar",
 	address: "Borgoño 23333 Concón, Viña del Mar",
@@ -95,7 +95,7 @@ const breadcrumbItems = [
 		<h1 class="mb-4 mt-8 text-4xl font-extrabold text-gray-900">{hotelData.name}</h1>
 		<p class="mb-6 text-lg text-gray-600">{hotelData.address}</p>
 
-		<ImageGallery images={hotelData.images} hotelName={hotelData.name} />
+		<ImageGallery images={hotelData.images} productName={hotelData.name} />
 
 		<section id="ficha" class="mt-8">
 			<ul class="flex border-b border-gray-200" role="tablist">

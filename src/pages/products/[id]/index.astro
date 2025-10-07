@@ -1,8 +1,13 @@
 ---
+import BookingForm from "@/components/BookingForm.astro"
+import Breadcrumbs from "@/components/Breadcrumbs.astro"
+import HotelInfo from "@/components/HotelInfo.astro"
+import ImageGallery from "@/components/ImageGallery.astro"
 import HotelDetails from "@/components/product/HotelDetails.astro"
 import PackageDetails from "@/components/product/PackageDetails.astro"
 import TourDetails from "@/components/product/TourDetails.astro"
 import Layout from "@/layouts/Layout.astro"
+import { hotelData } from "@/pages/hotels/hotel-radisson-acqua.astro"
 import { asc, db, eq, Hotel, Image, Package, Product, Tour } from "astro:db"
 
 // Obtener el ID del producto de los parámetros de la URL
@@ -42,11 +47,34 @@ try {
 }
 
 const productData = product ? { ...product, images, subtype } : null
+
+console.log("productData: ", productData)
+
+const hrefType = (name: string) => {
+	if (name === "Hotel") return "/hotels"
+	if (name === "Package") return "/packages"
+	if (name === "Tour") return "/tours"
+}
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/" },
+	{ name: productData?.productType, href: hrefType(`${productData?.productType}`) },
+	{ name: productData?.name, href: `/products/${productId}` },
+	{
+		name: productData?.name || "/",
+		href: `/products/${productId}`,
+		current: true,
+	},
+]
 ---
 
 <Layout title={productData?.name || "Producto no encontrado"}>
 	<!-- Contenedor principal -->
-	<div class="min-h-screen bg-gray-950 font-sans text-gray-200">
+	<main class="mx-auto min-h-screen max-w-7xl p-4 font-sans lg:p-12">
+		<Breadcrumbs items={breadcrumbItems} />
+
+		<h2 class="mb-4 mt-8 text-4xl font-extrabold text-gray-300">{productData?.name}</h2>
+		<p class="text-lg text-gray-600">{`${productData?.subtype?.address}, `}</p>
 		<div class="mx-auto max-w-6xl p-6 md:p-12">
 			{
 				errorMessage ? (
@@ -98,6 +126,87 @@ const productData = product ? { ...product, images, subtype } : null
 								</div>
 							)}
 						</div>
+						<ImageGallery images={productData.images} productName={productData.name} />
+
+						<section id="ficha" class="mt-8">
+							<ul class="flex border-b border-gray-500" role="tablist">
+								<li>
+									<button
+										type="button"
+										role="tab"
+										aria-controls="tab-overview"
+										aria-selected="true"
+										id="tab-btn-overview"
+										class="active-tab-btn focus;outline-none border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600"
+									>
+										Información General
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										role="tab"
+										aria-controls="tab-mapa"
+										aria-selected="false"
+										id="tab-btn-mapa"
+										class="active-tab-btn focus;outline-none border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600"
+									>
+										Mapa
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										role="tab"
+										aria-controls="tab-reservar"
+										aria-selected="false"
+										id="tab-btn-reservar"
+										class="border-b-2 border-transparent px-6 py-3 text-sm font-medium text-gray-600 transition-colors duration-200 hover:border-blue-300 hover:text-blue-600 focus:border-blue-500 focus:text-blue-600 focus:outline-none"
+									>
+										Reservar
+									</button>
+								</li>
+							</ul>
+
+							<div
+								id="tab-content-overview"
+								role="tabpanel"
+								aria-labelledby="tab-btn-overview"
+								class="tab-content mt-6"
+							>
+								<HotelInfo
+									description={hotelData.description}
+									services={hotelData.services}
+									roomFeatures={hotelData.roomFeatures}
+								/>
+							</div>
+
+							<div
+								id="tab-content-mapa"
+								role="tabpanel"
+								aria-labelledby="tab-btn-mapa"
+								class="tab-content mt-6 hidden rounded-lg bg-white p-6 shadow-sm"
+							>
+								<h2 class="mb-4 text-2xl font-bold text-gray-900">Mapa del Hotel</h2>
+								<p class="mb-4 text-gray-700">Ubicación: {hotelData.address}</p>
+								<div class="flex h-80 w-full items-center justify-center rounded-md bg-gray-200 text-lg text-gray-500">
+									{/* Aquí integrarías un mapa real con una API (ej. Google Maps, OpenStreetMap) */}
+									Mapa interactivo iría aquí (requiere integración con API de mapas)
+									<br />
+									Coordenadas: Latitud {hotelData.coordinates.latitude}, Longitud{" "}
+									{hotelData.coordinates.longitude}
+								</div>
+							</div>
+
+							<div
+								id="tab-content-reservar"
+								role="tabpanel"
+								aria-labelledby="tab-btn-reservar"
+								class="tab-content mt-6 hidden"
+							>
+								<BookingForm />
+							</div>
+						</section>
 
 						{/* Sección de contenido principal unificada */}
 						<div class="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl backdrop-blur-lg md:p-12">
@@ -137,6 +246,7 @@ const productData = product ? { ...product, images, subtype } : null
 								</p>
 							</div>
 						</div>
+
 						<div class="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl backdrop-blur-lg md:p-12">
 							<div class="mb-8 grid grid-cols-1 gap-x-8 gap-y-4 text-lg font-light md:grid-cols-2">
 								<h1>{productData.name}</h1>
@@ -165,7 +275,7 @@ const productData = product ? { ...product, images, subtype } : null
 				)
 			}
 		</div>
-	</div>
+	</main>
 </Layout>
 
 <script>
