@@ -45,10 +45,16 @@ const product = productBundle.product
 			<!-- hidden input where we will place JSON for subtype -->
 			<input type="hidden" name="subtype" id="subtypeInput" value="" />
 
-			<div class="mt-8 flex justify-end">
+			<div class="mt-4 flex justify-end gap-4">
+				<a
+					href={`/products/${product.id}`}
+					class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+				>
+					Cancelar
+				</a>
 				<button
 					type="submit"
-					class="h-11 w-44 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700 hover:shadow-lg"
+					class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
 				>
 					Guardar Cambios
 				</button>
