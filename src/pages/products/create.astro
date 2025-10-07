@@ -84,12 +84,12 @@ if (session?.user?.email) {
 				></textarea>
 			</label>
 
-			{/* <!-- cityId --> */}
+			{/* <!-- departmentId --> */}
 			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Ciudad
+				Departamento
 				<select
-					name="cityId"
-					id="cityId"
+					name="departmentId"
+					id="departmentId"
 					class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
 					required
 				>
@@ -104,6 +104,19 @@ if (session?.user?.email) {
 					<option value="uuid-city-beni">Beni</option>
 					<option value="uuid-city-pando">Pando</option>
 				</select>
+			</label>
+
+			{/* <!-- cityId --> */}
+			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+				Ciudad
+				<input
+					type="text"
+					id="cityId"
+					name="cityId"
+					placeholder="Ej: Uyuni"
+					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+					required
+				/>
 			</label>
 
 			{/* <!-- basePriceUSD --> */}

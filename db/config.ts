@@ -1,5 +1,18 @@
 import { defineDb, defineTable, column, NOW } from "astro:db"
 
+// --- Tablas de Proveedores y Usuarios ---
+const Provider = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		userEmail: column.text({ optional: true }),
+		companyName: column.text(),
+		contactName: column.text({ optional: true }),
+		contactEmail: column.text({ optional: true }),
+		phone: column.text({ optional: true }),
+		type: column.text({ optional: true }), // e.g., 'Hotel', 'Tour Operator', 'Transport'
+	},
+})
+
 const User = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -51,19 +64,6 @@ const PointOfInterest = defineTable({
 	},
 })
 
-// --- Tablas de Proveedores y Usuarios ---
-const Provider = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		userEmail: column.text({ optional: true }),
-		companyName: column.text(),
-		contactName: column.text({ optional: true }),
-		contactEmail: column.text({ optional: true }),
-		phone: column.text({ optional: true }),
-		type: column.text({ optional: true }), // e.g., 'Hotel', 'Tour Operator', 'Transport'
-	},
-})
-
 // --- Tablas de Contenido Principal (Productos) ---
 // Product es una tabla base para Hotel, Tour, Package
 const Product = defineTable({
@@ -76,6 +76,7 @@ const Product = defineTable({
 		creationDate: column.date({ default: NOW }),
 		lastUpdated: column.date({ default: NOW }),
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
+		departmentId: column.text(),
 		cityId: column.text({ references: () => City.columns.id }),
 		isActive: column.boolean({ default: true }),
 		basePriceUSD: column.number({ default: 0 }), // Added base price directly to product for simplicity
