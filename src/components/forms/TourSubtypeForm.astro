@@ -3,50 +3,56 @@ const { tour } = Astro.props as { tour: any | null }
 ---
 
 <section class="space-y-3">
-	<h3 class="text-lg font-semibold text-gray-100">Detalles del Tour</h3>
+	<h3 class="text-lg font-semibold text-neutral-800">Detalles del Tour</h3>
 
 	<label class="block">
-		<span class="text-sm text-gray-300">Duración</span>
+		<span class="text-sm text-neutral-800">Duración</span>
 		<input
 			name="duration"
 			type="text"
 			value={tour?.duration ?? ""}
-			class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			class="mt-1 w-full rounded bg-neutral-100 px-3 py-2 text-white"
 		/>
 	</label>
 
 	<label class="block">
-		<span class="text-sm text-gray-300">Nivel de dificultad</span>
+		<span class="text-sm text-neutral-800">Nivel de dificultad</span>
 		<input
 			name="difficultyLevel"
 			type="text"
 			value={tour?.difficultyLevel ?? ""}
-			class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			class="mt-1 w-full rounded bg-neutral-100 px-3 py-2 text-white"
 		/>
 	</label>
 
 	<label class="block">
-		<span class="text-sm text-gray-300">Idiomas del guía (separados por comas)</span>
+		<span class="text-sm text-neutral-800">Idiomas del guía (separados por comas)</span>
 		<input
 			name="guideLanguages"
 			type="text"
 			value={Array.isArray(tour?.guideLanguages)
 				? tour.guideLanguages.join(", ")
 				: (tour?.guideLanguages ?? "")}
-			class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+			class="mt-1 w-full rounded bg-neutral-100 px-3 py-2 text-white"
 		/>
 	</label>
 
 	<label class="block">
-		<span class="text-sm text-gray-300">Incluye</span>
-		<textarea name="includes" rows="3" class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+		<span class="text-sm text-neutral-800">Incluye</span>
+		<textarea
+			name="includes"
+			rows="3"
+			class="mt-1 w-full rounded bg-neutral-100 px-3 py-2 text-white"
 			>{tour?.includes ?? ""}</textarea
 		>
 	</label>
 
 	<label class="block">
-		<span class="text-sm text-gray-300">Excluye</span>
-		<textarea name="excludes" rows="3" class="mt-1 w-full rounded bg-gray-800 px-3 py-2 text-white"
+		<span class="text-sm text-neutral-800">Excluye</span>
+		<textarea
+			name="excludes"
+			rows="3"
+			class="mt-1 w-full rounded bg-neutral-100 px-3 py-2 text-white"
 			>{tour?.excludes ?? ""}</textarea
 		>
 	</label>
