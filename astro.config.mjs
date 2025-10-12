@@ -6,13 +6,15 @@ import node from "@astrojs/node"
 import db from "@astrojs/db"
 import dotenv from "dotenv"
 
+import react from "@astrojs/react"
+
 dotenv.config()
 
 const isVercel = process.env.VERCEL === "1"
 
 // https://astro.build/config
 export default defineConfig({
-	integrations: [tailwind(), auth(), db()],
+	integrations: [tailwind(), auth(), db(), react()],
 	db: {
 		connection: {
 			client: "@libsql/client",
