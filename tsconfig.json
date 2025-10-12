@@ -4,13 +4,12 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    // "allowJs": true,
-    // "checkJs": false,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "strict": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "jsxImportSource": "react"
   }
 }
