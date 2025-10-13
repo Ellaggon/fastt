@@ -15,6 +15,7 @@ if (session?.user?.email) {
 		providerId = user.providerId
 	} else {
 		console.error("No se encontró providerId para el usuario:", session.user.email)
+		return Astro.redirect("/provider")
 	}
 }
 ---
@@ -86,7 +87,7 @@ if (session?.user?.email) {
 
 			{/* <!-- departmentId --> */}
 			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Departamento
+				Departamento/region
 				<select
 					name="departmentId"
 					id="departmentId"
@@ -94,29 +95,38 @@ if (session?.user?.email) {
 					required
 				>
 					<option value="">Selecciona una ciudad...</option>
-					<option value="uuid-city-lapaz">La Paz</option>
-					<option value="uuid-city-santacruz">Santa Cruz</option>
-					<option value="uuid-city-cochabamba">Cochabamba</option>
-					<option value="uuid-city-oruro">Oruro</option>
-					<option value="uuid-city-potosi">Potosí</option>
-					<option value="uuid-city-sucre">Sucre</option>
-					<option value="uuid-city-tarija">Tarija</option>
-					<option value="uuid-city-beni">Beni</option>
-					<option value="uuid-city-pando">Pando</option>
+					<option value="la-paz">La Paz</option>
+					<option value="santa-cruz">Santa Cruz</option>
+					<option value="cochabamba">Cochabamba</option>
+					<option value="oruro">Oruro</option>
+					<option value="potosi">Potosí</option>
+					<option value="sucre">Sucre</option>
+					<option value="tarija">Tarija</option>
+					<option value="beni">Beni</option>
+					<option value="pando">Pando</option>
 				</select>
 			</label>
 
-			{/* <!-- cityId --> */}
-			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Ciudad
+			{/* <!-- destinationId --> */}
+			<label
+				for="destinationInput"
+				class="relative block text-xs font-medium text-neutral-500 md:text-sm"
+			>
+				Ciudad/localidad
 				<input
-					type="text"
-					id="cityId"
-					name="cityId"
-					placeholder="Ej: Uyuni"
+					id="destinationInput"
+					name="destinationQuery"
+					autocomplete="off"
+					type="search"
 					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
+					placeholder="Ej: Uyuni"
 				/>
+				<input type="hidden" name="destinationId" id="destinationId" />
+				<ul
+					id="destinationsList"
+					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white"
+				>
+				</ul>
 			</label>
 
 			{/* <!-- basePriceUSD --> */}
@@ -184,6 +194,104 @@ if (session?.user?.email) {
 			</div>
 		</form>
 	</article>
+
+	<script type="module">
+		const qs = (selector, el = document) => el.querySelector(selector)
+
+		function debounce(fn, wait = 200) {
+			let t
+			return (...args) => {
+				clearTimeout(t)
+				t = setTimeout(() => fn(...args), wait)
+			}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const destInput = qs("#destinationInput")
+			const destList = qs("#destinationsList")
+			const destIdInput = qs("#destinationId")
+
+			if (!destInput || !destList || !destIdInput) return
+
+			// DESTINATIONS AUTOCOMPLETE
+			async function fetchDestinations(q) {
+				try {
+					const res = await fetch(`/api/destinations?q=${encodeURIComponent(q)}&limit=8`)
+					if (!res.ok) return []
+					const data = await res.json()
+					return Array.isArray(data) ? data : []
+				} catch (e) {
+					console.error("fetchDestinations error:", e)
+					return []
+				}
+			}
+
+			function renderDestinations(items) {
+				destList.innerHTML = ""
+				if (!items || items.length === 0) {
+					destList.classList.add("hidden")
+					return
+				}
+				for (const d of items) {
+					const li = document.createElement("li")
+					li.tabIndex = 0
+					li.className = "px-3 py-2 hover:bg-neutral-100 cursor-pointer"
+					li.dataset.id = d.id
+					li.dataset.slug = d.slug || ""
+					li.dataset.lat = d.latitude ?? d.lat ?? ""
+					li.dataset.lng = d.longitude ?? d.lng ?? ""
+					// texto legible: Ciudad, Departamento — País
+					// const dept = d.department || d.departmentName || ""
+					// const country = d.country || ""
+					li.textContent = `${d.name}`
+					destList.appendChild(li)
+				}
+				destList.classList.remove("hidden")
+			}
+
+			destList.addEventListener("click", (ev) => {
+				const li = ev.target.closest("li")
+				if (!li) return
+				chooseDestination(li)
+			})
+
+			destList.addEventListener("keydown", (ev) => {
+				if (ev.key === "Enter") {
+					const li = ev.target.closest("li")
+					if (li) chooseDestination(li)
+				}
+			})
+
+			function chooseDestination(li) {
+				const id = li.dataset.id
+				const name = li.textContent
+				destInput.value = name
+				destIdInput.value = id
+				destList.classList.add("hidden")
+			}
+
+			const debouncedSearch = debounce(async (value) => {
+				if (!value || value.trim().length < 1) {
+					destList.classList.add("hidden")
+					return
+				}
+				const items = await fetchDestinations(value.trim())
+				renderDestinations(items)
+			}, 180)
+
+			destInput.addEventListener("input", (e) => {
+				destIdInput.value = "" // clear selection if user types
+				debouncedSearch(e.target.value)
+			})
+
+			// close suggestions on outside click
+			document.addEventListener("click", (e) => {
+				if (!e.target.closest("#destinationInput") && !e.target.closest("#destinationsList")) {
+					destList.classList.add("hidden")
+				}
+			})
+		})
+	</script>
 
 	<script src="/src/lib/forms/productFormHandler"></script>
 </Layout>
