@@ -1,5 +1,5 @@
 ---
-// src/components/HotelCard.astro
+import { iconMap } from "@/lib/utils/iconMaps"
 interface Hotel {
 	name: string
 	href: string
@@ -41,6 +41,7 @@ const serviceIcons: { [key: string]: string } = {
 	"Internet - Wi-Fi": "📶",
 	// Añade más según tus necesidades
 }
+const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hotel.services || "[]")
 ---
 
 <article
@@ -114,6 +115,15 @@ const serviceIcons: { [key: string]: string } = {
 								{service.free && <span class="ml-1 font-medium text-green-600">Gratis</span>}
 							</li>
 						))}
+					{services.map((s) => {
+						const Icon = iconMap[s.icon]
+						return (
+							<li class="flex items-center space-x-2 text-sm text-gray-700">
+								{Icon ? <Icon class="h-3 w-3 text-blue-500" /> : null}
+								<small>{s.name}</small>
+							</li>
+						)
+					})}
 				</ul>
 			)
 		}
