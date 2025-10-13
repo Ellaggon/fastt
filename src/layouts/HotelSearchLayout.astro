@@ -1,0 +1,24 @@
+---
+import SearchPanel from "@/components/SearchPanel.astro"
+import Layout from "../layouts/Layout.astro"
+
+const { title } = Astro.props
+const params = Astro.params
+console.log(params)
+---
+
+<Layout title={title}>
+	<div
+		id="intro"
+		class="flex flex-col items-center justify-center gap-5 bg-gray-100 p-10 text-center"
+	>
+		<div class="w-full max-w-4xl">
+			<p class="mb-5 text-2xl font-medium text-gray-800">Encuentra tu hotel ideal</p>
+			<SearchPanel />
+		</div>
+	</div>
+
+	<main>
+		<slot />
+	</main>
+</Layout>

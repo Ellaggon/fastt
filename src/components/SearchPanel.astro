@@ -1,0 +1,293 @@
+<div class="sticky top-0 mx-auto w-full max-w-4xl">
+	<form
+		id="searchForm"
+		action="/hotels/search"
+		method="get"
+		class="grid grid-cols-1 items-end gap-3 rounded-lg bg-white p-4 shadow md:grid-cols-3"
+	>
+		<!-- DESTINATION -->
+		<div class="col-span-1 md:col-span-1">
+			<label for="destinationInput" class="mb-1 block text-sm font-medium text-gray-700"
+				>Destino</label
+			>
+			<div class="relative text-gray-900">
+				<input
+					id="destinationInput"
+					name="destinationQuery"
+					autocomplete="off"
+					type="search"
+					class="w-full rounded border px-3 py-2"
+					placeholder="Ciudad, departamento..."
+				/>
+				<input type="hidden" name="destinationId" id="destinationId" />
+				<ul
+					id="destinationsList"
+					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white"
+				>
+				</ul>
+			</div>
+		</div>
+
+		<!-- DATES -->
+		<div class="col-span-1 md:col-span-1">
+			<label class="mb-1 block text-sm font-medium text-gray-700">Fechas</label>
+			<div class="flex gap-2 text-gray-400">
+				<input
+					id="checkin"
+					name="checkin"
+					type="date"
+					class="w-1/2 rounded border px-3 py-2"
+					required
+				/>
+				<input
+					id="checkout"
+					name="checkout"
+					type="date"
+					class="w-1/2 rounded border px-3 py-2"
+					required
+				/>
+			</div>
+		</div>
+
+		<!-- TRAVELERS -->
+		<div class="col-span-1 md:col-span-1">
+			<label class="mb-1 block text-sm font-medium text-gray-700">Viajeros</label>
+
+			<div class="relative">
+				<button
+					type="button"
+					id="openTravelers"
+					class="w-full rounded border px-3 py-2 text-left text-gray-400"
+				>
+					<span id="travelersSummary">2 adultos, 0 niños · 1 habitación</span>
+				</button>
+
+				<div
+					id="travelersPanel"
+					class="absolute z-50 mt-1 hidden w-full rounded border bg-white p-3 text-gray-900"
+				>
+					<div class="mb-2 flex items-center justify-between">
+						<div>
+							<div class="text-sm font-medium">Adultos</div>
+							<div class="text-xs text-gray-500">Edad 13+</div>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								data-role="decrement"
+								data-target="adults"
+								class="rounded border px-2 py-1">-</button
+							>
+							<span id="adultsCount">2</span>
+							<button
+								type="button"
+								data-role="increment"
+								data-target="adults"
+								class="rounded border px-2 py-1">+</button
+							>
+						</div>
+					</div>
+
+					<div class="mb-2 flex items-center justify-between">
+						<div>
+							<div class="text-sm font-medium">Niños</div>
+							<div class="text-xs text-gray-500">0-12</div>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								data-role="decrement"
+								data-target="children"
+								class="rounded border px-2 py-1">-</button
+							>
+							<span id="childrenCount">0</span>
+							<button
+								type="button"
+								data-role="increment"
+								data-target="children"
+								class="rounded border px-2 py-1">+</button
+							>
+						</div>
+					</div>
+
+					<div class="flex items-center justify-between">
+						<div>
+							<div class="text-sm font-medium">Habitaciones</div>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								data-role="decrement"
+								data-target="rooms"
+								class="rounded border px-2 py-1">-</button
+							>
+							<span id="roomsCount">1</span>
+							<button
+								type="button"
+								data-role="increment"
+								data-target="rooms"
+								class="rounded border px-2 py-1">+</button
+							>
+						</div>
+					</div>
+
+					<!-- hidden inputs to send -->
+					<input type="hidden" name="adults" id="adultsInput" value="2" />
+					<input type="hidden" name="children" id="childrenInput" value="0" />
+					<input type="hidden" name="rooms" id="roomsInput" value="1" />
+				</div>
+			</div>
+		</div>
+
+		<!-- SUBMIT -->
+		<div class="col-span-1 flex justify-end md:col-span-3">
+			<button type="submit" class="rounded bg-blue-600 px-6 py-2 text-white shadow">Buscar</button>
+		</div>
+	</form>
+</div>
+<script type="module">
+	const qs = (s, el = document) => el.querySelector(s)
+	const qsa = (s, el = document) => Array.from(el.querySelectorAll(s))
+
+	function debounce(fn, wait = 250) {
+		let t
+		return (...args) => {
+			clearTimeout(t)
+			t = setTimeout(() => fn(...args), wait)
+		}
+	}
+
+	document.addEventListener("DOMContentLoaded", () => {
+		const destInput = qs("#destinationInput")
+		const destList = qs("#destinationsList")
+		const destIdInput = qs("#destinationId")
+		const checkin = qs("#checkin")
+		const checkout = qs("#checkout")
+
+		// Travelers elements
+		const openTravelers = qs("#openTravelers")
+		const travelersPanel = qs("#travelersPanel")
+		const adultsCountElm = qs("#adultsCount")
+		const childrenCountElm = qs("#childrenCount")
+		const roomsCountElm = qs("#roomsCount")
+		const adultsInput = qs("#adultsInput")
+		const childrenInput = qs("#childrenInput")
+		const roomsInput = qs("#roomsInput")
+		const travelersSummary = qs("#travelersSummary")
+
+		// default dates (today / tomorrow)
+		const today = new Date()
+		const yyyy = today.toISOString().split("T")[0]
+		const tom = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+		if (!checkin.value) checkin.value = yyyy
+		if (!checkout.value) checkout.value = tom
+		checkin.min = yyyy
+		checkout.min = tom
+
+		checkin.addEventListener("change", () => {
+			const inDate = new Date(checkin.value)
+			const minOut = new Date(inDate.getTime() + 24 * 60 * 60 * 1000)
+			checkout.min = minOut.toISOString().split("T")[0]
+			if (new Date(checkout.value) <= inDate) {
+				checkout.value = checkout.min
+			}
+		})
+
+		// DESTINATIONS AUTOCOMPLETE
+		async function fetchDestinations(q) {
+			const res = await fetch(`/api/destinations?q=${encodeURIComponent(q)}&limit=8`)
+			if (!res.ok) return []
+			return res.json()
+		}
+
+		function renderDestinations(items) {
+			destList.innerHTML = ""
+			if (!items || items.length === 0) {
+				destList.classList.add("hidden")
+				return
+			}
+			for (const d of items) {
+				const li = document.createElement("li")
+				li.tabIndex = 0
+				li.className = "px-3 py-2 hover:bg-gray-100 cursor-pointer"
+				li.dataset.id = d.id
+				li.dataset.slug = d.slug || ""
+				li.dataset.lat = d.lat || ""
+				li.dataset.lng = d.lng || ""
+				li.textContent = `${d.name}${d.department ? ", " + d.department : ""}${d.country ? " — " + d.country : ""}`
+				destList.appendChild(li)
+			}
+			destList.classList.remove("hidden")
+		}
+
+		destList.addEventListener("click", (ev) => {
+			const li = ev.target.closest("li")
+			if (!li) return
+			chooseDestination(li)
+		})
+
+		destList.addEventListener("keydown", (ev) => {
+			if (ev.key === "Enter") {
+				const li = ev.target.closest("li")
+				if (li) chooseDestination(li)
+			}
+		})
+
+		function chooseDestination(li) {
+			const id = li.dataset.id
+			const name = li.textContent
+			destInput.value = name
+			destIdInput.value = id
+			destList.classList.add("hidden")
+		}
+
+		const debouncedSearch = debounce(async (value) => {
+			if (!value || value.trim().length < 1) {
+				destList.classList.add("hidden")
+				return
+			}
+			const items = await fetchDestinations(value.trim())
+			renderDestinations(items)
+		}, 180)
+
+		destInput.addEventListener("input", (e) => {
+			destIdInput.value = "" // clear selection if user types
+			debouncedSearch(e.target.value)
+		})
+
+		// close suggestions on outside click
+		document.addEventListener("click", (e) => {
+			if (!e.target.closest("#destinationInput") && !e.target.closest("#destinationsList")) {
+				destList.classList.add("hidden")
+			}
+			if (!e.target.closest("#openTravelers") && !e.target.closest("#travelersPanel")) {
+				travelersPanel.classList.add("hidden")
+			}
+		})
+
+		// TRAVELERS UI
+		openTravelers.addEventListener("click", () => {
+			travelersPanel.classList.toggle("hidden")
+		})
+
+		qsa("[data-role]", travelersPanel).forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const role = btn.dataset.role
+				const target = btn.dataset.target
+				const countElm = qs(`#${target}Count`) || qs(`#${target}Count`) // fallback
+				let val = parseInt(qs(`#${target}Count`).textContent, 10)
+				if (role === "increment") val = Math.min(val + 1, 20)
+				if (role === "decrement") val = Math.max(val - 1, target === "adults" ? 1 : 0)
+				qs(`#${target}Count`).textContent = String(val)
+				// update hidden inputs
+				adultsInput.value = qs("#adultsCount").textContent
+				childrenInput.value = qs("#childrenCount").textContent
+				roomsInput.value = qs("#roomsCount").textContent
+				travelersSummary.textContent = `${adultsInput.value} adults, ${childrenInput.value} children · ${roomsInput.value} room${roomsInput.value > 1 ? "s" : ""}`
+			})
+		})
+
+		// make sure initial summary is correct
+		travelersSummary.textContent = `${adultsInput.value} adults, ${childrenInput.value} children · ${roomsInput.value} room${roomsInput.value > 1 ? "s" : ""}`
+	})
+</script>

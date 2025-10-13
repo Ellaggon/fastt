@@ -1,0 +1,110 @@
+---
+// src/pages/hotels/search.astro
+import HotelCard from "@/components/HotelCard.astro"
+import HotelSearchLayout from "@/layouts/HotelSearchLayout.astro"
+import { and, db, Destination, eq, Hotel, Image, or, Product } from "astro:db"
+
+type HotelResult = {
+	id: string
+	name: string
+	shortDescription: string | null
+	basePriceUSD: number | null
+	basePriceBOB: number | null
+	address: string | null
+	stars: number | null
+	imageUrl: string | null
+}
+
+const url = new URL(Astro.request.url)
+const params = url.searchParams
+const destinationId = params.get("destinationId") || params.get("destinationQuery") || null
+const checkin = params.get("checkin") || null
+const checkout = params.get("checkout") || null
+const adults = params.get("adults") || "2"
+const children = params.get("children") || "0"
+const rooms = params.get("rooms") || "1"
+
+let hotels: HotelResult[] = []
+let destination = null
+
+if (destinationId) {
+	// si nos pasan un slug o un id, intentamos resolverlo en Destination
+	const possible = await db
+		.select()
+		.from(Destination)
+		.where(or(eq(Destination.id, destinationId), eq(Destination.slug, destinationId)))
+		.limit(1)
+		.all()
+
+	if (possible.length > 0) {
+		destination = possible[0]
+	}
+}
+
+try {
+	const whereClause = destination
+		? and(
+				eq(Product.productType, "Hotel"),
+				or(
+					eq(Product.destinationId, destination?.id),
+					eq(Product.departmentId, destination?.department ?? destination?.id)
+				)
+			)
+		: eq(Product.productType, "Hotel")
+
+	hotels = await db
+		.select({
+			id: Product.id,
+			name: Product.name,
+			shortDescription: Product.shortDescription,
+			basePriceUSD: Product.basePriceUSD,
+			basePriceBOB: Product.basePriceBOB,
+			address: Hotel.address,
+			stars: Hotel.stars,
+			imageUrl: Image.url,
+		})
+		.from(Product)
+		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
+		.leftJoin(Image, eq(Image.entityId, Product.id))
+		.where(whereClause)
+		.limit(50)
+		.all()
+} catch (err) {
+	console.error("error querying hotels", err)
+}
+---
+
+<HotelSearchLayout title="Resultados de búsqueda">
+	<main class="mx-auto max-w-7xl p-6">
+		<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
+		<p class="text-sm text-gray-600">
+			Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
+				checkout ?? "-"
+			}
+		</p>
+		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+			{
+				hotels.length === 0 ? (
+					<p class="col-span-full text-gray-500">No se encontraron hoteles para esos filtros.</p>
+				) : (
+					hotels.map((h) => (
+						<HotelCard
+							hotel={{
+								name: h.name,
+								href: `/hotels/${h.id}`,
+								image: h.imageUrl || "https://picsum.photos/400/250",
+								alt: h.name,
+								stars: h.stars || 0,
+								address: h.address || "Dirección no disponible",
+								description: h.shortDescription || "",
+								priceUSD: h.basePriceUSD || 0,
+								priceCLP: h.basePriceBOB || 0,
+								services: [],
+							}}
+						/>
+					))
+				)
+			}
+		</div>
+	</main>
+</HotelSearchLayout>
