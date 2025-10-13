@@ -1,115 +1,24 @@
 ---
+import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import DepartmentCard from "@/components/DepartmentCard.astro"
 import { DEPARTMENTS } from "@/data/departments"
-import Layout from "@/layouts/Layout.astro"
+import HotelSearchLayout from "@/layouts/HotelSearchLayout.astro"
+
+const breadcrumbsItems = [
+	{ name: "Home", href: "/" },
+	{ name: "Hoteles", href: "/hotels", current: true },
+]
 ---
 
-<Layout title="Hoteles en Bolivia">
-	<div
-		id="intro"
-		class="flex flex-col items-center justify-center gap-5 bg-gray-100 p-10 text-center"
-	>
-		<figure class="m-0 p-0">
-			<img
-				src="https://picsum.photos/290/183?random=11"
-				alt="Hoteles en Bolivia"
-				class="h-auto w-full rounded-lg shadow-md"
-			/>
-			<figcaption class="mt-2 text-sm text-gray-600">
-				<a
-					href="/es/la-paz/hoteles.htm"
-					class="tooltip text-blue-600 hover:underline"
-					data-tipo="a"
-					data-id="200">Hoteles en La Paz, Bolivia</a
-				>
-			</figcaption>
-		</figure>
-
-		<div class="w-full max-w-3xl">
-			<p class="mb-5 text-2xl font-medium text-gray-800">Encuentra tu hotel ideal</p>
-			<form method="post" action="/es/buscar-hoteles.htm">
-				<div class="datos mb-5 flex flex-wrap justify-center gap-4">
-					<label class="tours min-w-[250px] flex-1 text-left font-medium text-gray-800"
-						>Destino
-						<select
-							name="categoria"
-							class="custom-select mt-1 block w-full appearance-none rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-						>
-							<option value="">Selecciona una ciudad...</option>
-							<option value="uuid-city-lapaz">La Paz</option>
-							<option value="uuid-city-santacruz">Santa Cruz</option>
-							<option value="uuid-city-cochabamba">Cochabamba</option>
-							<option value="uuid-city-oruro">Oruro</option>
-							<option value="uuid-city-potosi">Potosí</option>
-							<option value="uuid-city-sucre">Sucre</option>
-							<option value="uuid-city-tarija">Tarija</option>
-							<option value="uuid-city-beni">Beni</option>
-							<option value="uuid-city-pando">Pando</option>
-						</select>
-					</label>
-
-					<label class="tours tipo min-w-[250px] flex-1 text-left font-medium text-gray-800"
-						>Categoría
-						<select
-							name="categoria"
-							class="custom-select mt-1 block w-full appearance-none rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-						>
-							<option value="">Cualquiera</option>
-							<option value="" disabled>--------</option>
-							<option value="5 estrellas">★★★★★</option>
-							<option value="4 estrellas">★★★★</option>
-							<option value="3 estrellas">★★★</option>
-							<option value="2 estrellas">★★</option>
-							<option value="1 estrella">★</option>
-						</select>
-					</label>
-				</div>
-
-				<div class="accion flex justify-center">
-					<div class="botones">
-						<input
-							type="submit"
-							value="Buscar"
-							class="cursor-pointer rounded-lg bg-blue-500 px-8 py-3 text-lg font-medium text-white shadow-md transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-						/>
-					</div>
-				</div>
-			</form>
-		</div>
-	</div>
-
+<HotelSearchLayout title="Hoteles en Bolivia">
 	<main
 		role="main"
 		id="content"
 		class="mx-auto my-8 max-w-7xl rounded-lg p-8 leading-relaxed shadow-lg"
 	>
-		<ol
-			id="ruta"
-			class="breadcrumbs m-0 mb-5 flex list-none items-center gap-2 p-0 text-sm text-gray-600"
-			itemscope
-			itemtype="http://schema.org/BreadcrumbList"
-		>
-			<li itemprop="itemListElement" itemscope itemtype="http://schema.org/ListItem">
-				<a itemprop="item" href="/es/" class="text-blue-600 hover:underline">
-					<span itemprop="name">Home</span>
-				</a>
-				<meta itemprop="position" content="1" />
-			</li>
-			<li
-				class="relative pl-3"
-				itemprop="itemListElement"
-				itemscope
-				itemtype="http://schema.org/ListItem"
-			>
-				<span class="absolute left-0 top-1/2 -translate-y-1/2 text-gray-300">/</span>
-				<a itemprop="item" href="/es/hoteles.htm" class="text-blue-600 hover:underline">
-					<span itemprop="name">Hoteles</span>
-				</a>
-				<meta itemprop="position" content="2" />
-			</li>
-		</ol>
+		<Breadcrumbs items={breadcrumbsItems} />
 
-		<h1 class="mb-5 text-4xl font-bold text-gray-100">Hoteles en Bolivia</h1>
+		<h1 class="mb-5 mt-8 text-4xl font-bold text-gray-100">Hoteles en Bolivia</h1>
 		<p class="mb-8 text-gray-100">
 			Encuentra los mejores hoteles, hostales y lodges para tu estadía en Bolivia.
 		</p>
@@ -169,7 +78,9 @@ import Layout from "@/layouts/Layout.astro"
 									id={dept.id}
 									name={dept.name}
 									description={`Descubre los mejores alojamientos en ${dept.name}.`}
-									imageUrl={`https://picsum.photos/290/183?random=${i + 20}`}
+									imageUrl={
+										dept.imageUrl ? dept.imageUrl : `https://picsum.photos/290/183?random=${i + 20}`
+									}
 								/>
 							</li>
 						))
@@ -249,4 +160,4 @@ import Layout from "@/layouts/Layout.astro"
 			</div>
 		</article>
 	</main>
-</Layout>
+</HotelSearchLayout>
