@@ -8,7 +8,8 @@ export const productFormSchema = z.object({
 	}),
 	shortDescription: z.string().max(240, "Máx 240").optional().or(z.literal("")),
 	longDescription: z.string().max(5000, "Máx 5000").optional().or(z.literal("")),
-	cityId: z.string().min(1, "Selecciona una ciudad"),
+	departmentId: z.string().min(1, "Selecciona una region o departamento"),
+	destinationId: z.string().min(1, "Selecciona una ciudad o localidad"),
 	basePriceUSD: z.coerce.number().min(0, "Precio >= 0"),
 	basePriceBOB: z.coerce.number().min(0, "Precio >= 0"),
 	// imágenes: validamos en cliente con la metadata y en server por seguridad

@@ -50,6 +50,7 @@ export function initializeProductFormHandlers() {
 		// Submit
 		form.addEventListener("submit", async (e) => {
 			e.preventDefault()
+			console.log("🚀 Enviando form...")
 			const fd = new FormData(form)
 
 			// preparar objeto para validar
@@ -67,7 +68,8 @@ export function initializeProductFormHandlers() {
 				productType: String(raw.productType || ""),
 				shortDescription: String(raw.shortDescription || ""),
 				longDescription: String(raw.longDescription || ""),
-				cityId: String(raw.cityId || ""),
+				departmentId: String(raw.departmentId || ""),
+				destinationId: String(raw.destinationId || ""),
 				basePriceUSD: Number(raw.basePriceUSD || 0),
 				basePriceBOB: Number(raw.basePriceBOB || 0),
 				imagesMeta,
