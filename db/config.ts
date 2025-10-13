@@ -26,29 +26,17 @@ const User = defineTable({
 	},
 })
 
-const Publication = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		title: column.text(),
-		description: column.text(),
-		images: column.json({ optional: true }),
-		published: column.date({ default: NOW }),
-		price: column.number({ default: 0 }),
-		vehicle_type_id: column.text(),
-		city_id: column.text(),
-		user_id: column.text({ references: () => User.columns.id }),
-	},
-})
-
 // --- Tablas Geográficas ---
-const City = defineTable({
+const Destination = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		name: column.text({ unique: true }),
-		department: column.text(),
+		name: column.text(),
+		type: column.text(), // city, region, landmark, etc.
+		country: column.text(),
+		department: column.text({ optional: true }),
 		latitude: column.number({ optional: true }),
 		longitude: column.number({ optional: true }),
-		description: column.text({ optional: true }),
+		slug: column.text(),
 	},
 })
 
@@ -57,7 +45,7 @@ const PointOfInterest = defineTable({
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
 		description: column.text({ optional: true }),
-		cityId: column.text({ references: () => City.columns.id }),
+		destinationId: column.text({ references: () => Destination.columns.id }),
 		latitude: column.number({ optional: true }),
 		longitude: column.number({ optional: true }),
 		type: column.text({ optional: true }), // e.g., 'National Park', 'Monument', 'Museum'
@@ -77,7 +65,7 @@ const Product = defineTable({
 		lastUpdated: column.date({ default: NOW }),
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 		departmentId: column.text(),
-		cityId: column.text({ references: () => City.columns.id }),
+		destinationId: column.text({ references: () => Destination.columns.id }),
 		isActive: column.boolean({ default: true }),
 		basePriceUSD: column.number({ default: 0 }), // Added base price directly to product for simplicity
 		basePriceBOB: column.number({ default: 0 }),
@@ -258,9 +246,8 @@ const Translation = defineTable({
 
 export default defineDb({
 	tables: {
-		Publication,
 		// Geográficas
-		City,
+		Destination,
 		PointOfInterest,
 		// Proveedores y Usuarios
 		Provider,
