@@ -3,26 +3,26 @@
 		id="searchForm"
 		action="/hotels/search"
 		method="get"
-		class="grid grid-cols-1 items-end gap-3 rounded-lg bg-white p-4 shadow md:grid-cols-3"
+		class="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-3"
 	>
 		<!-- DESTINATION -->
 		<div class="col-span-1 md:col-span-1">
-			<label for="destinationInput" class="mb-1 block text-sm font-medium text-gray-700"
+			<label for="destinationInput" class="text-md mb-1 block text-left font-medium text-gray-800"
 				>Destino</label
 			>
-			<div class="relative text-gray-900">
+			<div class="relative text-gray-500">
 				<input
 					id="destinationInput"
 					name="destinationQuery"
 					autocomplete="off"
 					type="search"
-					class="w-full rounded border px-3 py-2"
+					class="w-full rounded-md border border-gray-500 p-2 px-3 text-gray-500"
 					placeholder="Ciudad, departamento..."
 				/>
 				<input type="hidden" name="destinationId" id="destinationId" />
 				<ul
 					id="destinationsList"
-					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white"
+					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white text-sm"
 				>
 				</ul>
 			</div>
@@ -30,20 +30,20 @@
 
 		<!-- DATES -->
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-medium text-gray-700">Fechas</label>
+			<label class="text-md mb-1 block text-left font-medium text-gray-800">Fechas</label>
 			<div class="flex gap-2 text-gray-400">
 				<input
 					id="checkin"
 					name="checkin"
 					type="date"
-					class="w-1/2 rounded border px-3 py-2"
+					class="w-1/2 rounded border border-gray-500 px-3 py-2"
 					required
 				/>
 				<input
 					id="checkout"
 					name="checkout"
 					type="date"
-					class="w-1/2 rounded border px-3 py-2"
+					class="w-1/2 rounded border border-gray-500 px-3 py-2"
 					required
 				/>
 			</div>
@@ -51,13 +51,13 @@
 
 		<!-- TRAVELERS -->
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-medium text-gray-700">Viajeros</label>
+			<label class="text-md mb-1 block text-left font-medium text-gray-800">Viajeros</label>
 
 			<div class="relative">
 				<button
 					type="button"
 					id="openTravelers"
-					class="w-full rounded border px-3 py-2 text-left text-gray-400"
+					class="w-full rounded border border-gray-500 bg-white px-3 py-2 text-left text-gray-400"
 				>
 					<span id="travelersSummary">2 adultos, 0 niños · 1 habitación</span>
 				</button>
@@ -140,8 +140,12 @@
 		</div>
 
 		<!-- SUBMIT -->
-		<div class="col-span-1 flex justify-end md:col-span-3">
-			<button type="submit" class="rounded bg-blue-600 px-6 py-2 text-white shadow">Buscar</button>
+		<div class="col-span-1 flex justify-center md:col-span-3">
+			<button
+				type="submit"
+				class="cursor-pointer rounded-lg bg-blue-500 px-8 py-3 text-lg font-medium text-white shadow-md transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+				>Buscar</button
+			>
 		</div>
 	</form>
 </div>
@@ -209,12 +213,13 @@
 			for (const d of items) {
 				const li = document.createElement("li")
 				li.tabIndex = 0
-				li.className = "px-3 py-2 hover:bg-gray-100 cursor-pointer"
+				li.className =
+					"px-3 py-2 hover:bg-gray-100 cursor-pointer whitespace-pre-line text-gray-800"
 				li.dataset.id = d.id
 				li.dataset.slug = d.slug || ""
-				li.dataset.lat = d.lat || ""
-				li.dataset.lng = d.lng || ""
-				li.textContent = `${d.name}${d.department ? ", " + d.department : ""}${d.country ? " — " + d.country : ""}`
+				li.dataset.latitude = d.latitude || ""
+				li.dataset.longitude = d.longitude || ""
+				li.textContent = `${d.name}  ${d.department ? "\n" + d.department : ""}${d.country ? " · " + d.country : ""}`
 				destList.appendChild(li)
 			}
 			destList.classList.remove("hidden")
