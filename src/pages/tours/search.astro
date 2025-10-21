@@ -1,7 +1,7 @@
 ---
 import ProductCard from "@/components/product/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, Destination, eq, Hotel, Image, or, Product } from "astro:db"
+import { and, db, Destination, eq, Image, or, Product, Tour } from "astro:db"
 
 type ProductResult = {
 	id: string
@@ -9,8 +9,8 @@ type ProductResult = {
 	shortDescription: string | null
 	basePriceUSD: number | null
 	basePriceBOB: number | null
-	address: string | null
-	stars: number | null
+	duration: string | null
+	difficultyLevel: string | null
 	imageUrl: string | null
 }
 
@@ -23,7 +23,7 @@ const adults = params.get("adults") || "2"
 const children = params.get("children") || "0"
 const rooms = params.get("rooms") || "1"
 
-let hotels: ProductResult[] = []
+let tours: ProductResult[] = []
 let destination = null
 
 if (destinationId) {
@@ -43,27 +43,27 @@ if (destinationId) {
 try {
 	const whereClause = destination
 		? and(
-				eq(Product.productType, "Hotel"),
+				eq(Product.productType, "Tour"),
 				or(
 					eq(Product.destinationId, destination?.id),
 					eq(Product.departmentId, destination?.department ?? destination?.id)
 				)
 			)
-		: eq(Product.productType, "Hotel")
+		: eq(Product.productType, "Tour")
 
-	hotels = await db
+	tours = await db
 		.select({
 			id: Product.id,
 			name: Product.name,
 			shortDescription: Product.shortDescription,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
-			address: Hotel.address,
-			stars: Hotel.stars,
+			duration: Tour.duration,
+			difficultyLevel: Tour.difficultyLevel,
 			imageUrl: Image.url,
 		})
 		.from(Product)
-		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
+		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.where(whereClause)
 		.limit(50)
@@ -71,10 +71,10 @@ try {
 } catch (err) {
 	console.error("error querying hotels", err)
 }
-console.log("hotels: ", hotels)
+console.log("tours: ", tours)
 ---
 
-<SearchLayout title="Resultados de búsqueda" producType="hotels">
+<SearchLayout title="Resultados de búsqueda" producType="tours">
 	<main class="mx-auto max-w-7xl p-6">
 		<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
 		<p class="text-sm text-gray-600">
@@ -84,20 +84,20 @@ console.log("hotels: ", hotels)
 		</p>
 		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{
-				hotels.length === 0 ? (
+				tours.length === 0 ? (
 					<p class="col-span-full text-gray-500">No se encontraron hoteles para esos filtros.</p>
 				) : (
-					hotels.map((h) => (
+					tours.map((t) => (
 						<ProductCard
-							name={h.name}
-							href={`/hotels/${h.id}`}
-							image={h.imageUrl || "https://picsum.photos/400/250"}
-							alt={h.name}
-							stars={h.stars || 0}
-							address={h.address || "Dirección no disponible"}
-							description={h.shortDescription || ""}
-							priceUSD={h.basePriceUSD || 0}
-							priceCLP={h.basePriceBOB || 0}
+							name={t.name}
+							href={`/hotels/${t.id}`}
+							image={t.imageUrl || "https://picsum.photos/400/250"}
+							alt={t.name}
+							duration={t.duration || ""}
+							difficultyLevel={t.difficultyLevel || ""}
+							description={t.shortDescription || ""}
+							priceUSD={t.basePriceUSD || 0}
+							priceCLP={t.basePriceBOB || 0}
 							services={[]}
 						/>
 					))

@@ -2,7 +2,10 @@
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import DepartmentCard from "@/components/DepartmentCard.astro"
 import { DEPARTMENTS } from "@/data/departments"
-import HotelSearchLayout from "@/layouts/HotelSearchLayout.astro"
+import SearchLayout from "@/layouts/SearchLayout.astro"
+
+const pathname = Astro.originPathname
+console.log("patname", pathname)
 
 const breadcrumbsItems = [
 	{ name: "Home", href: "/" },
@@ -10,7 +13,7 @@ const breadcrumbsItems = [
 ]
 ---
 
-<HotelSearchLayout title="Hoteles en Bolivia">
+<SearchLayout title="Hoteles en Bolivia" producType="hotels">
 	<main
 		role="main"
 		id="content"
@@ -81,6 +84,7 @@ const breadcrumbsItems = [
 									imageUrl={
 										dept.imageUrl ? dept.imageUrl : `https://picsum.photos/290/183?random=${i + 20}`
 									}
+									producType="hotels"
 								/>
 							</li>
 						))
@@ -160,4 +164,4 @@ const breadcrumbsItems = [
 			</div>
 		</article>
 	</main>
-</HotelSearchLayout>
+</SearchLayout>
