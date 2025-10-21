@@ -1,23 +1,22 @@
 ---
-import { iconMap } from "@/lib/utils/iconMaps"
-interface Hotel {
+import { iconItems } from "@/lib/utils/iconItems"
+
+interface Props {
 	name: string
 	href: string
 	image: string
 	alt: string
-	stars: number
-	address: string
 	description: string
+	stars?: number
+	address?: string
+	difficultyLevel?: string
+	duration?: string
 	priceUSD?: number
 	priceCLP?: number
 	services: { name: string; free?: boolean; available: boolean }[]
 }
 
-interface Props {
-	hotel: Hotel
-}
-
-const { hotel } = Astro.props
+const props = Astro.props as Props
 
 // Función para generar las estrellas
 const renderStars = (count: number) => {
@@ -41,7 +40,7 @@ const serviceIcons: { [key: string]: string } = {
 	"Internet - Wi-Fi": "📶",
 	// Añade más según tus necesidades
 }
-const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hotel.services || "[]")
+const services = Array.isArray(props.services) ? props.services : JSON.parse(props.services || "[]")
 ---
 
 <article
@@ -49,8 +48,8 @@ const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hot
 >
 	<figure class="relative h-48 w-full overflow-hidden">
 		<img
-			src={hotel.image}
-			alt={hotel.alt}
+			src={props.image}
+			alt={props.alt}
 			width="290"
 			height="183"
 			class="h-full w-full object-cover object-center"
@@ -59,41 +58,41 @@ const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hot
 	</figure>
 	<div class="flex flex-grow flex-col p-5">
 		<h3 class="mb-2 text-xl font-semibold text-gray-900">
-			<a href={hotel.href} class="transition-colors hover:text-blue-600">
-				{hotel.name}
+			<a href={props.href} class="transition-colors hover:text-blue-600">
+				{props.name}
 				{
-					hotel.stars > 0 && (
+					props.stars && props.stars > 0 && (
 						<span
 							class="ml-2 align-middle text-lg text-yellow-500"
-							aria-label={`Calificación: ${hotel.stars} estrellas`}
+							aria-label={`Calificación: ${props.stars} estrellas`}
 						>
-							{renderStars(hotel.stars)}
+							{renderStars(props.stars)}
 						</span>
 					)
 				}
 			</a>
 		</h3>
-		<p class="mb-2 text-sm text-gray-600">{hotel.address}</p>
-		<p class="mb-4 flex-grow text-sm text-gray-700">{hotel.description}</p>
+		<p class="mb-2 text-sm text-gray-600">{props.address}</p>
+		<p class="mb-4 flex-grow text-sm text-gray-700">{props.description}</p>
 
 		{
-			(hotel.priceUSD || hotel.priceCLP) && (
+			(props.priceUSD || props.priceCLP) && (
 				<ul class="mb-4 flex items-center justify-end font-semibold text-gray-800">
-					{hotel.priceCLP && (
+					{props.priceCLP && (
 						<li class="mr-4 flex items-center">
 							<span class="mr-1 text-xs">Desde</span>
 							<span class="text-base text-blue-700">
 								<span class="text-sm">CLP $</span>
-								{hotel.priceCLP.toLocaleString("es-CL")}
+								{props.priceCLP.toLocaleString("es-CL")}
 							</span>
 						</li>
 					)}
-					{hotel.priceUSD && (
+					{props.priceUSD && (
 						<li class="flex items-center">
 							<span class="mr-1 text-xs">Desde</span>
 							<span class="text-base text-blue-700">
 								<span class="text-sm">US$</span>
-								{hotel.priceUSD}
+								{props.priceUSD}
 							</span>
 						</li>
 					)}
@@ -102,9 +101,9 @@ const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hot
 		}
 
 		{
-			hotel.services.length > 0 && (
+			props.services?.length > 0 && (
 				<ul class="mb-4 flex flex-wrap gap-2 text-xs text-gray-700">
-					{hotel.services
+					{props.services
 						.filter((s) => s.available)
 						.map((service) => (
 							<li class="flex items-center rounded-md bg-gray-50 px-2 py-1">
@@ -115,11 +114,12 @@ const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hot
 								{service.free && <span class="ml-1 font-medium text-green-600">Gratis</span>}
 							</li>
 						))}
-					{services.map((s) => {
-						const Icon = iconMap[s.icon]
+					{services.map((s: { id: string; name: string; icon: string }) => {
+						const iconData = iconItems.find((item) => item.id === s.icon)
+						const Icon = iconData?.icon
 						return (
 							<li class="flex items-center space-x-2 text-sm text-gray-700">
-								{Icon ? <Icon class="h-3 w-3 text-blue-500" /> : null}
+								{Icon && <Icon class="h-3 w-3 text-blue-500" />}
 								<small>{s.name}</small>
 							</li>
 						)
@@ -130,7 +130,7 @@ const services = Array.isArray(hotel.services) ? hotel.services : JSON.parse(hot
 
 		<div class="mt-auto flex justify-end">
 			<a
-				href={hotel.href}
+				href={props.href}
 				class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 			>
 				Ver Hotel
