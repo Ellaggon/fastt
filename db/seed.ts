@@ -625,6 +625,12 @@ export default async function seed() {
 		},
 	]
 
+	await db.delete(ProductService)
+	await db.delete(Package)
+	await db.delete(Tour)
+	await db.delete(Hotel)
+	await db.delete(Product)
+
 	// --- INSERTAR DATOS GEOGRÁFICOS ---
 	try {
 		for (const destination of destinations) {
