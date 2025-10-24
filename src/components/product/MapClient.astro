@@ -1,0 +1,49 @@
+---
+const { latitude, longitude, address } = Astro.props
+---
+
+<section class="rounded-2xl border border-gray-200 bg-neutral-100 p-8 shadow-sm">
+	<h2 class="mb-4 text-2xl font-semibold text-gray-900">Ubicación</h2>
+	<p class="mb-4 text-gray-700">
+		{address || "Ver ubicación en mapa"}
+	</p>
+	<div id="map-container">
+		<div id="map" class="h-64 w-full rounded-lg bg-gray-100"></div>
+		<input
+			type="text"
+			class="hidden"
+			id="product-data"
+			value={JSON.stringify({ latitude, longitude })}
+		/>
+		<div
+			id="map-fallback"
+			class="flex hidden h-64 w-full items-center justify-center rounded-lg bg-gray-100"
+		>
+			No localizada
+		</div>
+	</div>
+	<script>
+		import * as L from "leaflet"
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const el = document.getElementById("product-data") as HTMLInputElement
+			const pd = el ? JSON.parse(el.value || "null") : null
+
+			const mapEl = document.getElementById("map")
+			const fallbackEl = document.getElementById("map-fallback")
+			if (!pd) {
+				mapEl?.classList.add("hidden")
+				fallbackEl?.classList.remove("hidden")
+				return
+			}
+
+			const map = L.map("map", { scrollWheelZoom: false }).setView([pd.latitude, pd.longitude], 14)
+			L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+				attribution: "&copy; OpenStreetMap contributors",
+			}).addTo(map)
+			L.marker([pd.latitude, pd.longitude])
+				.addTo(map)
+				.bindPopup(`${pd.name}<br>${pd.subtype?.address || ""}`)
+		})
+	</script>
+</section>
