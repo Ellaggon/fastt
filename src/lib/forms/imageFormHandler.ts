@@ -324,7 +324,9 @@ type Item = {
 				}
 
 				// success: reload to fetch canonical DB state (or you could patch UI from result)
-				window.location.reload()
+				setTimeout(() => {
+					window.location.href = `/dashboard`
+				}, 600)
 			} catch (err) {
 				console.error("Save images error:", err)
 				alert("Error guardando imágenes. Revisa la consola.")
@@ -338,7 +340,9 @@ type Item = {
 	if (cancelBtn) {
 		cancelBtn.addEventListener("click", (ev) => {
 			ev.preventDefault()
-			window.location.reload()
+			setTimeout(() => {
+				window.location.href = `/dashboard`
+			}, 600)
 		})
 	}
 })()
