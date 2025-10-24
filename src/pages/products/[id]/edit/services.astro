@@ -1,0 +1,159 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProductWithImagesAndSubtype } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { iconItems } from "@/lib/utils/iconItems"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const paramsId = Astro.params.id
+
+if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!paramsId) return Astro.redirect("/dashboard")
+
+const providerId = await getProviderIdFromRequest(Astro.request)
+if (!providerId) return Astro.redirect("/forms/provider?message=not_registered")
+
+const productBundle = await getProductWithImagesAndSubtype(paramsId)
+if (!productBundle) return Astro.redirect("/dashboard")
+
+// seguridad: verificar que el product pertenezca al provider
+if (String(productBundle.product.providerId) !== String(providerId)) {
+	return Astro.redirect("/dashboard")
+}
+// props para el cliente
+const product = productBundle.product
+---
+
+<Layout title={`Añade servicios en · ${product.name || "Producto"}`}>
+	<main
+		class="mx-auto mt-20 w-11/12 rounded-2xl border-neutral-300 bg-neutral-300 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-3xl lg:p-20"
+	>
+		<form id="servicesForm">
+			<h1 class="mb-6 text-2xl font-bold lg:text-3xl">
+				Añade servicios de –
+				<span class="text-blue-600">{product.name}</span>
+			</h1>
+			<label class="block text-sm">
+				<div id="servicesContainer" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+					{
+						iconItems.map((el) => (
+							<button
+								type="button"
+								data-id={el.id}
+								data-name={el.name}
+								class="service-btn flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm shadow transition"
+							>
+								<el.icon class="h-4 w-4 text-blue-500 hover:bg-blue-100" />
+								<span>{el.name}</span>
+							</button>
+						))
+					}
+				</div>
+			</label>
+
+			<div id="selectedServices" class="mt-10 flex flex-wrap gap-2"></div>
+			<input type="hidden" name="productId" value={product.id} />
+
+			<!-- Acciones -->
+			<div class="mt-20 flex justify-end gap-4">
+				<a
+					href={`/products/${product.id}`}
+					class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+				>
+					Cancelar
+				</a>
+				<button
+					id="servicesSubmit"
+					type="submit"
+					class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+				>
+					Guardar Servicios
+				</button>
+			</div>
+		</form>
+	</main>
+
+	<script>
+		const container = document.getElementById("servicesContainer")
+		const selected = document.getElementById("selectedServices")
+
+		const btns = container?.querySelectorAll<HTMLButtonElement>(".service-btn")
+
+		btns?.forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const id = btn.dataset.id
+				const name = btn.dataset.name
+
+				if (!id || !name || !selected) return
+
+				const existingTag = selected.querySelector(`[data-id="${id}"]`)
+
+				if (existingTag) {
+					// Deseleccionar
+					existingTag.remove()
+					btn.classList.remove("bg-blue-100")
+					const hidden = document.querySelector(`input[name="services[]"][value="${id}"]`)
+					hidden?.remove()
+					return
+				}
+
+				// Seleccionar
+				btn.classList.add("bg-blue-100")
+
+				// Crear etiqueta visual
+				const tag = document.createElement("div")
+				tag.dataset.id = id
+				tag.className =
+					"flex items-center gap-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs"
+				tag.innerText = name
+				selected.appendChild(tag)
+
+				// Crear input oculto
+				const hidden = document.createElement("input")
+				hidden.type = "hidden"
+				hidden.name = "services[]"
+				hidden.value = id
+				selected.appendChild(hidden)
+			})
+		})
+	</script>
+	<script>
+		const form = document.getElementById("servicesForm")
+		const submitBtn = document.getElementById("servicesSubmit") as HTMLButtonElement
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			submitBtn.disabled = true
+			submitBtn.textContent = "Guardando..."
+
+			try {
+				const serviceInputs = form.querySelectorAll('input[name="services[]"]')
+				const selectedIds = Array.from(serviceInputs).map(
+					(input) => (input as HTMLInputElement).value
+				)
+				const inputEl = form.querySelector('input[name="productId"]') as HTMLInputElement
+				const productId = inputEl.value
+
+				const res = await fetch("/api/products/services/update", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ productId, services: selectedIds }),
+				})
+
+				const result = await res.json()
+				if (!res.ok) throw new Error(result.error || "Error al guardar servicios")
+
+				submitBtn.textContent = "Guardando..."
+				setTimeout(() => {
+					window.location.href = `/dashboard`
+				}, 600)
+			} catch (e) {
+				console.error("Error: ", e)
+				alert("Error al guardar los servicios.")
+				submitBtn.textContent = "Guardar Servicios"
+				submitBtn.disabled = false
+			}
+		})
+	</script>
+</Layout>

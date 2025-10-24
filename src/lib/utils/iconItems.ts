@@ -26,7 +26,7 @@ export const iconItems: iconType[] = [
 	{ id: "serv-wifi", name: "Wi-Fi Gratuito", icon: Wifi },
 	{ id: "serv-breakfast", name: "Desayuno incluido", icon: Coffee },
 	{ id: "serv-parking", name: "Estacionamiento", icon: CircleParking },
-	{ id: "serv-car", name: "Auto", icon: Car },
+	{ id: "serv-car-rental", name: "Auto", icon: Car },
 	{ id: "serv-spa", name: "Spa", icon: HeartPulse },
 	{ id: "serv-gym", name: "Gimnasio / Sala fitness", icon: Dumbbell },
 	{ id: "serv-restaurant", name: "Restaurante", icon: Utensils },
