@@ -689,11 +689,13 @@ export default async function seed() {
 			longDescription: `Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
 			images: generateImageUrl(productId),
 			productType: "Hotel",
-			providerId: "556d34a4-60e6-4071-b7c6-7804ed135692",
+			providerId: "bb9634dc-434e-459d-88f1-80b8f8264320",
 			departmentId: h.departmentId,
 			destinationId: h.destinationId,
 			basePriceUSD: 50 + h.stars * 15,
 			basePriceBOB: (50 + h.stars * 15) * 6.96,
+			latitude: -15.787319,
+			longitude: -68.654381,
 		})
 		allHotelsToInsert.push({
 			productId: productId,
@@ -719,6 +721,8 @@ export default async function seed() {
 			destinationId: t.destinationId,
 			basePriceUSD: 25 + index * 5,
 			basePriceBOB: (25 + index * 5) * 6.96,
+			latitude: -15.787319,
+			longitude: -68.654381,
 		})
 		allToursToInsert.push({
 			productId: productId,
@@ -745,6 +749,8 @@ export default async function seed() {
 			destinationId: p.destinationId,
 			basePriceUSD: 250 + index * 50,
 			basePriceBOB: (250 + index * 50) * 6.96,
+			latitude: -15.787319,
+			longitude: -68.654381,
 		})
 		allPackagesToInsert.push({
 			productId: productId,

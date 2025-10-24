@@ -67,8 +67,10 @@ const Product = defineTable({
 		departmentId: column.text(),
 		destinationId: column.text({ references: () => Destination.columns.id }),
 		isActive: column.boolean({ default: true }),
-		basePriceUSD: column.number({ default: 0 }), // Added base price directly to product for simplicity
+		basePriceUSD: column.number({ default: 0 }),
 		basePriceBOB: column.number({ default: 0 }),
+		latitude: column.number({ optional: true }),
+		longitude: column.number({ optional: true }),
 	},
 })
 
@@ -80,8 +82,8 @@ const Hotel = defineTable({
 		phone: column.text({ optional: true }),
 		email: column.text({ optional: true }),
 		website: column.text({ optional: true }),
-		checkInTime: column.text({ optional: true }), // Store as string 'HH:MM'
-		checkOutTime: column.text({ optional: true }), // Store as string 'HH:MM'
+		checkInTime: column.text({ optional: true }),
+		checkOutTime: column.text({ optional: true }),
 	},
 })
 
