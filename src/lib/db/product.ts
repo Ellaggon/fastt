@@ -45,7 +45,7 @@ export async function getProductsByProvider(providerId: string) {
 			productType: combinedData.productType,
 			basePriceUSD: combinedData.basePriceUSD,
 			basePriceBOB: combinedData.basePriceBOB,
-			cityId: combinedData.cityId,
+			destinationId: combinedData.destinationId,
 		}
 	})
 }
