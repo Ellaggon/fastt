@@ -60,7 +60,6 @@ export const POST: APIRoute = async ({ request }) => {
 				phone: form.get("phone"),
 				email: form.get("email"),
 				website: form.get("website"),
-				services: form.get("services"),
 				checkInTime: form.get("checkInTime"),
 				checkOutTime: form.get("checkOutTime"),
 			}
