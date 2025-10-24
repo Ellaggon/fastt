@@ -29,9 +29,6 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 
-	// (opcional) verificamos que el providerId pertenezca al user
-	const user = await db.select().from(User).where(eq(User.email, email)).get()
-
 	try {
 		const formData = await request.formData()
 		const payload = {
