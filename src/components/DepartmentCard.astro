@@ -4,9 +4,11 @@ interface Props {
 	name: string
 	description: string
 	imageUrl?: string
+	producType?: string
 }
 
-const { id, name, description, imageUrl } = Astro.props
+const { id, name, description, imageUrl, producType } = Astro.props
+console.log("prodictype", producType)
 ---
 
 <figure class="overflow-hidden rounded-lg bg-white shadow-lg">
@@ -25,9 +27,9 @@ const { id, name, description, imageUrl } = Astro.props
 		<ul class="flex justify-end">
 			<li>
 				<a
-					href={`/hotels/${id}`}
+					href={`/${producType}/depts/${id}`}
 					class="inline-block rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
-					>Ver Tours</a
+					>Ver {producType}</a
 				>
 			</li>
 		</ul>
