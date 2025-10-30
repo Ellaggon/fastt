@@ -1,8 +1,9 @@
 ---
+import { categorizedServices } from "@/data/service-categorized"
+import { serviceIcons } from "@/data/service-icons"
 import Layout from "@/layouts/Layout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { iconItems } from "@/lib/utils/iconItems"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
@@ -23,6 +24,17 @@ if (String(productBundle.product.providerId) !== String(providerId)) {
 }
 // props para el cliente
 const product = productBundle.product
+
+const categorizedServiceIconList = Object.entries(categorizedServices).map(([category, keys]) => ({
+	category,
+	items: keys
+		.filter((key) => (serviceIcons as Record<string, any>)[key])
+		.map((key) => ({
+			id: key,
+			name: key.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+			icon: (serviceIcons as Record<string, any>)[key],
+		})),
+}))
 ---
 
 <Layout title={`Añade servicios en · ${product.name || "Producto"}`}>
@@ -35,24 +47,33 @@ const product = productBundle.product
 				<span class="text-blue-600">{product.name}</span>
 			</h1>
 			<label class="block text-sm">
-				<div id="servicesContainer" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+				<div id="selectedServices" class="my-10 flex flex-wrap gap-2"></div>
+				<div id="servicesContainer" class="mt-2 flex flex-col gap-6">
 					{
-						iconItems.map((el) => (
-							<button
-								type="button"
-								data-id={el.id}
-								data-name={el.name}
-								class="service-btn flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm shadow transition"
-							>
-								<el.icon class="h-4 w-4 text-blue-500 hover:bg-blue-100" />
-								<span>{el.name}</span>
-							</button>
+						categorizedServiceIconList.map(({ category, items }) => (
+							<section class="rounded-lg bg-white p-4 shadow-sm">
+								<h2 class="mb-3 border-b border-neutral-300 pb-1 text-sm font-semibold text-neutral-700">
+									{category}
+								</h2>
+								<div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+									{items.map((el) => (
+										<button
+											type="button"
+											data-id={el.id}
+											data-name={el.name}
+											class="service-btn flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm shadow transition"
+										>
+											<el.icon class="h-4 w-4 text-blue-500" />
+											<span>{el.name}</span>
+										</button>
+									))}
+								</div>
+							</section>
 						))
 					}
 				</div>
 			</label>
 
-			<div id="selectedServices" class="mt-10 flex flex-wrap gap-2"></div>
 			<input type="hidden" name="productId" value={product.id} />
 
 			<!-- Acciones -->
@@ -92,14 +113,15 @@ const product = productBundle.product
 				if (existingTag) {
 					// Deseleccionar
 					existingTag.remove()
-					btn.classList.remove("bg-blue-100")
+					btn.classList.remove("!bg-blue-100")
 					const hidden = document.querySelector(`input[name="services[]"][value="${id}"]`)
 					hidden?.remove()
 					return
 				}
 
 				// Seleccionar
-				btn.classList.add("bg-blue-100")
+				btn.classList.add("!bg-blue-100")
+				console.log("seleccionado", id, name)
 
 				// Crear etiqueta visual
 				const tag = document.createElement("div")
