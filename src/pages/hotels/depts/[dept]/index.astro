@@ -21,18 +21,29 @@ try {
 		.select({
 			id: Product.id,
 			name: Product.name,
-			imageUrl: sql`min(${Image.url})`.as("imageUrl"),
+			imageUrl: sql`(
+				SELECT url 
+				FROM Image 
+				WHERE entityId = ${Product.id}
+				ORDER BY isPrimary DESC, "order" ASC
+				LIMIT 1
+			)`.as("imageUrl"),
 			shortDescription: Product.shortDescription,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			address: Hotel.address,
 			stars: Hotel.stars,
-			services: sql`json_group_array(
-			json_object(
-				'id', Service.id,
-				'name', Service.name,
-				'icon', Service.icon
-			))`.as("services"),
+			services: sql`(
+				SELECT json_group_array(
+					json_object(
+						'id', s.id,
+						'name', s.name
+					)
+				)
+				FROM ProductService ps 
+				JOIN Service s ON s.id = ps.serviceId
+				WHERE ps.productId = ${Product.id}
+			)`.as("services"),
 		})
 		.from(Product)
 		.leftJoin(Image, eq(Image.entityId, Product.id))
@@ -140,99 +151,27 @@ const breadcrumbItems = [
 ]
 ---
 
-<SearchLayout title={`Hoteles en ${deptId}`} producType="hotel">
-	<main
-		role="main"
-		id="content"
-		class="mx-auto my-8 max-w-7xl px-4 pt-3 sm:px-6 md:pt-10 lg:px-8 xl:pt-20"
-	>
-		<Breadcrumbs items={breadcrumbItems} />
+<SearchLayout title={`Hoteles en ${deptId}`} producType="hotels">
+	<div class="flex grid grid-cols-4 justify-center">
+		<aside class="col-span-1 m-7 hidden rounded-lg border md:flex"></aside>
+		<main
+			role="main"
+			id="content"
+			class="col-span-4 mx-auto my-3 max-w-7xl px-4 pt-3 sm:px-6 md:col-span-3 md:pt-10 lg:px-5 xl:col-span-2 xl:pt-10"
+		>
+			<Breadcrumbs items={breadcrumbItems} />
 
-		<div class="mt-8">
-			<p class="mb-6 text-lg text-neutral-300">
-				Encuentra el alojamiento que necesitas y compáralo con otros en nuestra guía de hoteles de
-				{depts?.name}. Si lo que buscas es más información del destino, te invitamos a ver nuestra <a
-					href={`/hotels/${depts?.id}/`}
-					class="text-blue-600 hover:underline">Guía de {depts?.name}</a
-				>.
-			</p>
-		</div>
-
-		<div class="listado mt-8">
-			<div
-				class="mb-6 flex flex-col justify-between rounded-lg bg-gray-50 p-4 shadow-sm md:flex-row md:items-center"
-			>
-				<div class="order-selection mb-4 flex items-center md:mb-0">
-					<label for="orden" class="mr-2 text-sm font-medium text-gray-700">Ordenar por:</label>
-					<div class="relative inline-block">
-						<select
-							name="orden"
-							id="orden"
-							class="block w-full appearance-none rounded-md border border-gray-300 bg-white py-2 pl-3 pr-10 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-						>
-							<optgroup label="Tarifa">
-								<option value="t_asc">Menor tarifa primero</option>
-								<option value="t_desc">Mayor tarifa primero</option>
-							</optgroup>
-							<optgroup label="Categoría">
-								<option value="s_desc">Mayor categoría primero</option>
-								<option value="s_asc">Menor categoría primero</option>
-							</optgroup>
-						</select>
-						<div
-							class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
-						>
-							<svg
-								class="h-4 w-4"
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 20 20"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-									clip-rule="evenodd"></path>
-							</svg>
-						</div>
-					</div>
-				</div>
-
-				<div class="view-options flex items-center">
-					<span class="mr-2 text-sm font-medium text-gray-700">Ver:</span>
-					<button
-						class="mr-2 rounded-md border border-blue-500 bg-white p-2 text-blue-600 shadow-sm transition-colors hover:bg-blue-50"
-						aria-label="Ver en lista"
-					>
-						<svg
-							class="h-5 w-5"
-							fill="currentColor"
-							viewBox="0 0 20 20"
-							xmlns="http://www.w3.org/2000/svg"
-							><path
-								fill-rule="evenodd"
-								d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-								clip-rule="evenodd"></path></svg
-						>
-					</button>
-					<button
-						class="rounded-md border border-gray-300 bg-white p-2 text-gray-500 shadow-sm transition-colors hover:bg-gray-100"
-						aria-label="Ver en cuadrícula"
-					>
-						<svg
-							class="h-5 w-5"
-							fill="currentColor"
-							viewBox="0 0 20 20"
-							xmlns="http://www.w3.org/2000/svg"
-							><path
-								d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM11 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"
-							></path></svg
-						>
-					</button>
-				</div>
+			<div class="mt-8 hidden md:block">
+				<p class="mb-6 text-lg text-neutral-500">
+					Encuentra el alojamiento que necesitas y compáralo con otros en nuestra guía de hoteles de
+					{depts?.name}. Si lo que buscas es más información del destino, te invitamos a ver nuestra <a
+						href={`/hotels/${depts?.id}/`}
+						class="text-white hover:underline">Guía de {depts?.name}</a
+					>.
+				</p>
 			</div>
 
-			<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+			<div class="grid grid-cols-1 gap-6">
 				{hotelsData.map((hotel) => <ProductCard {...hotel} />)}
 				{
 					hotels.length > 0 ? (
@@ -246,8 +185,8 @@ const breadcrumbItems = [
 								address={h.address || "Dirección no disponible"}
 								description={h.shortDescription || ""}
 								priceUSD={h.basePriceUSD || 0}
-								priceCLP={h.basePriceBOB || 0}
-								services={[]}
+								priceBOB={h.basePriceBOB || 0}
+								services={JSON.parse(h.services) || []}
 							/>
 						))
 					) : (
@@ -255,6 +194,6 @@ const breadcrumbItems = [
 					)
 				}
 			</div>
-		</div>
-	</main>
+		</main>
+	</div>
 </SearchLayout>
