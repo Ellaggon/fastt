@@ -235,78 +235,81 @@ export default async function seed() {
 
 	// --- 3. Datos de Servicios (Para Tours/Hoteles) ---
 	const servicesData = [
-		{ id: "serv-wifi", name: "Wi-Fi Gratuito", icon: "wifi" },
-		{ id: "serv-paid-wifi", name: "Wi-Fi (de pago / premium)", icon: "wifi" },
-		{ id: "serv-breakfast", name: "Desayuno incluido", icon: "coffee" },
-		{ id: "serv-room-service", name: "Room service", icon: "room-service" },
-		{ id: "serv-restaurant", name: "Restaurante en el lugar", icon: "restaurant" },
-		{ id: "serv-bar", name: "Bar / Lounge", icon: "bar" },
-		{ id: "serv-pool", name: "Piscina", icon: "pool" },
-		{ id: "serv-indoor-pool", name: "Piscina cubierta", icon: "pool" },
-		{ id: "serv-outdoor-pool", name: "Piscina exterior", icon: "pool" },
-		{ id: "serv-spa", name: "Spa / Centro de bienestar", icon: "spa" },
-		{ id: "serv-sauna", name: "Sauna", icon: "sauna" },
-		{ id: "serv-jacuzzi", name: "Jacuzzi / Hidromasaje", icon: "hot-tub" },
-		{ id: "serv-gym", name: "Gimnasio / Sala fitness", icon: "fitness" },
-		{ id: "serv-parking", name: "Estacionamiento", icon: "parking" },
-		{ id: "serv-valet", name: "Valet parking", icon: "valet" },
-		{ id: "serv-ev-charging", name: "Cargador para vehículos eléctricos", icon: "ev" },
-		{ id: "serv-airport-shuttle", name: "Traslado al aeropuerto", icon: "shuttle" },
-		{ id: "serv-shuttle", name: "Transporte / Shuttle", icon: "bus" },
-		{ id: "serv-luggage", name: "Guardaequipaje", icon: "luggage" },
-		{ id: "serv-laundry", name: "Lavandería / Tintorería", icon: "laundry" },
-		{ id: "serv-dryclean", name: "Tintorería", icon: "dry-clean" },
-		{ id: "serv-daily-cleaning", name: "Limpieza diaria", icon: "cleaning" },
-		{ id: "serv-24h-reception", name: "Recepción 24 horas", icon: "reception" },
-		{ id: "serv-concierge", name: "Conserjería / Concierge", icon: "concierge" },
-		{ id: "serv-multilingual-staff", name: "Personal multilingüe", icon: "language" },
-		{ id: "serv-business-center", name: "Business center", icon: "business" },
-		{ id: "serv-meeting-rooms", name: "Salas de reuniones / eventos", icon: "meeting" },
-		{ id: "serv-wedding", name: "Servicios para bodas / banquetes", icon: "wedding" },
-		{ id: "serv-accessible", name: "Accesible / Adaptado para discapacitados", icon: "accessible" },
-		{ id: "serv-elevator", name: "Ascensor", icon: "elevator" },
-		{ id: "serv-pet-friendly", name: "Pet-friendly (acepta mascotas)", icon: "pet" },
-		{ id: "serv-kids-club", name: "Club infantil / actividades para niños", icon: "kids" },
-		{ id: "serv-babysitting", name: "Cuidado de niños / Babysitting", icon: "babysit" },
-		{ id: "serv-kids-menu", name: "Menú infantil", icon: "child-meal" },
-		{
-			id: "serv-smoking-rooms",
-			name: "Habitaciones para fumadores (si aplicable)",
-			icon: "smoking",
-		},
-		{ id: "serv-nonsmoking", name: "Habitaciones no fumadores", icon: "no-smoking" },
-		{ id: "serv-24h-room-service", name: "Room service 24 h", icon: "room-service" },
-		{ id: "serv-minibar", name: "Minibar en habitaciones", icon: "minibar" },
-		{ id: "serv-fridge", name: "Frigorífico / Mini-cocina", icon: "fridge" },
-		{ id: "serv-coffee-maker", name: "Cafetera en habitación", icon: "coffee" },
-		{ id: "serv-inroom-safe", name: "Caja fuerte en habitación", icon: "safe" },
-		{ id: "serv-flat-tv", name: "TV de pantalla plana / cable", icon: "tv" },
-		{ id: "serv-streaming", name: "Apps / streaming en habitación", icon: "stream" },
-		{ id: "serv-ironing", name: "Plancha / Tabla de planchar", icon: "iron" },
-		{ id: "serv-wakeup", name: "Servicio de despertador", icon: "alarm" },
-		{ id: "serv-ATM", name: "Cajero automático (ATM)", icon: "atm" },
-		{ id: "serv-currency-exchange", name: "Cambio de divisas", icon: "currency" },
-		{ id: "serv-car-rental", name: "Alquiler de coches", icon: "car-rental" },
-		{ id: "serv-tour-desk", name: "Recepción/venta de excursiones / Tour desk", icon: "tour" },
-		{ id: "serv-bike-rental", name: "Alquiler de bicicletas", icon: "bike" },
-		{ id: "serv-boat-tours", name: "Excursiones fluviales / náuticas", icon: "boat" },
-		{
-			id: "serv-safety-railings",
-			name: "Medidas de seguridad / primeros auxilios",
-			icon: "safety",
-		},
-		{
-			id: "serv-business-services",
-			name: "Servicios empresariales (impresión, fax)",
-			icon: "printer",
-		},
-		{ id: "serv-highchair", name: "Sillas altas para bebés", icon: "highchair" },
-		{ id: "serv-accessible-bath", name: "Baños accesibles", icon: "accessible" },
-		{ id: "serv-terrace", name: "Terraza / Jardín", icon: "terrace" },
-		{ id: "serv-rooftop", name: "Rooftop / Azotea", icon: "rooftop" },
-		{ id: "serv-fireplace", name: "Chimenea / Sala con chimenea", icon: "fireplace" },
-		{ id: "serv-ice-machine", name: "Máquina de hielo", icon: "ice" },
-		{ id: "serv-evoucher", name: "Ofertas / paquetes promocionales", icon: "offer" },
+		// --- Internet & Tecnología ---
+		{ id: "wifi", name: "Wi-Fi Gratuito" },
+		{ id: "paid-wifi", name: "Wi-Fi (de pago / premium)" },
+		{ id: "streaming", name: "Apps / streaming en habitación" },
+		{ id: "flat-tv", name: "TV de pantalla plana / cable" },
+
+		// --- Comidas y bebidas ---
+		{ id: "breakfast", name: "Desayuno incluidoz" }, // errorr incluidoz
+		{ id: "room-service", name: "Room service" },
+		{ id: "restaurant", name: "Restaurante en el lugar" },
+		{ id: "bar", name: "Bar / Lounge" },
+		{ id: "minibar", name: "Minibar en habitaciones" },
+		{ id: "kids-menu", name: "Menú infantil" },
+
+		// --- Instalaciones ---
+		{ id: "pool", name: "Piscina", icon: "pool" },
+		{ id: "indoor-pool", name: "Piscina cubierta" },
+		{ id: "outdoor-pool", name: "Piscina exterior" },
+		{ id: "spa", name: "Spa / Centro de bienestar" },
+		{ id: "sauna", name: "Sauna" },
+		{ id: "jacuzzi", name: "Jacuzzi / Hidromasaje" },
+		{ id: "gym", name: "Gimnasio / Sala fitness" },
+
+		// --- Transporte y estacionamiento ---
+		{ id: "parking", name: "Estacionamiento" },
+		{ id: "valet", name: "Valet parking" },
+		{ id: "ev-charging", name: "Cargador para vehículos eléctricos" },
+		{ id: "shuttle", name: "Transporte / Shuttle" },
+		{ id: "airport-shuttle", name: "Traslado al aeropuerto" },
+		{ id: "car-rental", name: "Alquiler de coches" },
+		{ id: "bike-rental", name: "Alquiler de bicicletas" },
+		{ id: "boat-tours", name: "Excursiones fluviales / náuticas" },
+
+		// --- Servicios generales ---
+		{ id: "24h-room-service", name: "Room service 24 h" },
+		{ id: "laundry", name: "Lavandería / Tintorería" },
+		{ id: "dryclean", name: "Tintorería" },
+		{ id: "daily-cleaning", name: "Limpieza diaria" },
+		{ id: "24h-reception", name: "Recepción 24 horas" },
+		{ id: "concierge", name: "Conserjería / Concierge" },
+		{ id: "business-center", name: "Business center" },
+		{ id: "meeting-rooms", name: "Salas de reuniones / eventos" },
+		{ id: "wedding", name: "Servicios para bodas / banquetes" },
+		{ id: "luggage", name: "Guardaequipaje" },
+
+		// --- Accesibilidad ---
+		{ id: "accessible", name: "Accesible / Adaptado para discapacitados" },
+		{ id: "elevator", name: "Ascensor" },
+
+		// --- Familias y niños ---
+		{ id: "pet-friendly", name: "Pet-friendly (acepta mascotas)" },
+		{ id: "kids-club", name: "Club infantil / actividades para niños" },
+		{ id: "babysitting", name: "Cuidado de niños / Babysitting" },
+		{ id: "highchair", name: "Sillas altas para bebés" },
+
+		// --- Habitaciones ---
+		{ id: "smoking-rooms", name: "Habitaciones para fumadores (si aplicable)" },
+		{ id: "nonsmoking", name: "Habitaciones no fumadores" },
+		{ id: "fridge", name: "Frigorífico / Mini-cocina" },
+		{ id: "inroom-safe", name: "Caja fuerte en habitación" },
+		{ id: "ironing", name: "Plancha / Tabla de planchar" },
+		{ id: "wakeup", name: "Servicio de despertador" },
+
+		// --- Negocios y servicios financieros ---
+		{ id: "ATM", name: "Cajero automático (ATM)" },
+		{ id: "currency-exchange", name: "Cambio de divisas" },
+		{ id: "business-services", name: "Servicios empresariales (impresión, fax)" },
+
+		// --- Otros servicios ---
+		{ id: "tour-desk", name: "Recepción/venta de excursiones / Tour desk" },
+		{ id: "terrace", name: "Terraza / Jardín" },
+		{ id: "rooftop", name: "Rooftop / Azotea" },
+		{ id: "fireplace", name: "Chimenea / Sala con chimenea" },
+		{ id: "evoucher", name: "Ofertas / paquetes promocionales" },
+		{ id: "safety-railings", name: "Medidas de seguridad / primeros auxilios" },
 	]
 
 	// --- URL genérica para imágenes de prueba (Usa placehold.co) ---
@@ -689,7 +692,7 @@ export default async function seed() {
 			longDescription: `Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
 			images: generateImageUrl(productId),
 			productType: "Hotel",
-			providerId: "bb9634dc-434e-459d-88f1-80b8f8264320",
+			providerId: "cf6a94d0-d286-4e34-85e5-bf7186403c7f",
 			departmentId: h.departmentId,
 			destinationId: h.destinationId,
 			basePriceUSD: 50 + h.stars * 15,
@@ -770,20 +773,20 @@ export default async function seed() {
 	const hotelProductIds = allHotelsToInsert.map((h) => h.productId)
 	const productServicesToInsert: any[] = []
 
-	// Asignar Wi-Fi (serv-1) y Desayuno (serv-4) a todos los hoteles
+	// Asignar Wi-Fi (1) y Desayuno (4) a todos los hoteles
 	hotelProductIds.forEach((id) => {
-		productServicesToInsert.push({ productId: id, serviceId: "serv-wifi", isFree: true })
-		productServicesToInsert.push({ productId: id, serviceId: "serv-breakfast", isFree: true })
+		productServicesToInsert.push({ productId: id, serviceId: "wifi", isFree: true })
+		productServicesToInsert.push({ productId: id, serviceId: "breakfast", isFree: true })
 	})
 
-	// Asignar Guía Bilingüe (serv-3) y Transporte 4x4 (serv-5) a los Tours
+	// Asignar Guía Bilingüe (3) y Transporte 4x4 (5) a los Tours
 	allToursToInsert
 		.filter((t) => t.duration.includes("Día"))
 		.forEach((t) => {
-			productServicesToInsert.push({ productId: t.productId, serviceId: "serv-spa", isFree: true })
+			productServicesToInsert.push({ productId: t.productId, serviceId: "spa", isFree: true })
 			productServicesToInsert.push({
 				productId: t.productId,
-				serviceId: "serv-minibar",
+				serviceId: "minibar",
 				isAvailable: true,
 				isFree: false,
 			})
