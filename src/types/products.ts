@@ -5,7 +5,6 @@ export interface ImageRow {
 }
 
 export interface ServiceRow {
-	id: string
-	name: string
-	icon: string | null
+	id: string | null
+	name: string | null
 }

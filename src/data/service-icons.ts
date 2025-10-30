@@ -1,0 +1,126 @@
+import {
+	Wifi,
+	Coffee,
+	PhoneForwarded,
+	Utensils,
+	Beer,
+	Waves,
+	HeartPulse,
+	WavesLadder,
+	Dumbbell,
+	CircleParking,
+	CarFront,
+	BatteryCharging,
+	Bus,
+	UserRound,
+	WashingMachine,
+	Sparkles,
+	Bell,
+	UserCog,
+	Briefcase,
+	HeartHandshake,
+	Accessibility,
+	BetweenVerticalEnd,
+	PawPrint,
+	Baby,
+	Cigarette,
+	Ban,
+	Refrigerator,
+	Shield,
+	Tv,
+	Play,
+	Anvil,
+	AlarmClock,
+	Banknote,
+	Currency,
+	Car,
+	MapPin,
+	Bike,
+	Ship,
+	ShieldCheck,
+	Luggage,
+	Highlighter,
+	TreePalm,
+	Building2,
+	Flame,
+	Ticket,
+} from "@lucide/astro"
+
+export const serviceIcons = {
+	// --- Internet & Tecnología ---
+	"wifi": Wifi,
+	"paid-wifi": Wifi,
+	"streaming": Play,
+	"flat-tv": Tv,
+
+	// --- Comidas y bebidas ---
+	"coffee": Coffee,
+	"breakfast": Coffee,
+	"restaurant": Utensils,
+	"bar": Beer,
+	"minibar": Beer,
+	"kids-menu": Baby,
+
+	// --- Instalaciones ---
+	"pool": Waves,
+	"indoor-pool": Waves,
+	"outdoor-pool": Waves,
+	"spa": HeartPulse,
+	"sauna": HeartPulse,
+	"jacuzzi": WavesLadder,
+	"gym": Dumbbell,
+
+	// --- Transporte y estacionamiento ---
+	"parking": CircleParking,
+	"valet": CircleParking,
+	"ev-charging": BatteryCharging,
+	"shuttle": Bus,
+	"airport-shuttle": CarFront,
+	"car-rental": Car,
+	"bike-rental": Bike,
+	"boat-tours": Ship,
+
+	// --- Servicios generales ---
+	"room-service": PhoneForwarded,
+	"24h-room-service": PhoneForwarded,
+	"laundry": WashingMachine,
+	"dryclean": WashingMachine,
+	"daily-cleaning": Sparkles,
+	"24h-reception": Bell,
+	"concierge": UserCog,
+	"business-center": Briefcase,
+	"meeting-rooms": UserRound,
+	"wedding": HeartHandshake,
+	"luggage": Luggage,
+
+	// --- Accesibilidad ---
+	"accessible": Accessibility,
+	"elevator": BetweenVerticalEnd,
+
+	// --- Familias y niños ---
+	"pet-friendly": PawPrint,
+	"kids-club": Baby,
+	"babysitting": Baby,
+	"highchair": Highlighter,
+
+	// --- Habitaciones ---
+	"smoking-rooms": Cigarette,
+	"nonsmoking": Ban,
+	"fridge": Refrigerator,
+	"inroom-safe": Shield,
+	"ironing": Anvil,
+	"wakeup": AlarmClock,
+
+	// --- Negocios y servicios financieros ---
+	"ATM": Banknote,
+	"currency-exchange": Currency,
+	"business-services": Briefcase,
+
+	// --- Otros servicios ---
+	"tour-desk": MapPin,
+	"terrace": TreePalm,
+	"rooftop": Building2,
+	"fireplace": Flame,
+	"evoucher": Ticket,
+	"safety-railings": ShieldCheck,
+}
