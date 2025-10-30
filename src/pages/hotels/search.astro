@@ -1,7 +1,7 @@
 ---
 import ProductCard from "@/components/product/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, Destination, eq, Hotel, Image, or, Product } from "astro:db"
+import { and, db, Destination, eq, Hotel, Image, or, Product, sql } from "astro:db"
 
 type ProductResult = {
 	id: string
@@ -12,6 +12,7 @@ type ProductResult = {
 	address: string | null
 	stars: number | null
 	imageUrl: string | null
+	services: string | null
 }
 
 const url = new URL(Astro.request.url)
@@ -55,12 +56,29 @@ try {
 		.select({
 			id: Product.id,
 			name: Product.name,
+			imageUrl: sql<string>`(
+				SELECT url 
+				FROM Image 
+				WHERE entityId = ${Product.id}
+				ORDER BY isPrimary DESC, "order" ASC
+				LIMIT 1
+			)`.as("imageUrl"),
 			shortDescription: Product.shortDescription,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			address: Hotel.address,
 			stars: Hotel.stars,
-			imageUrl: Image.url,
+			services: sql<string>`(
+				SELECT json_group_array(
+					json_object(
+						'id', s.id,
+						'name', s.name
+					)
+				)
+				FROM ProductService ps 
+				JOIN Service s ON s.id = ps.serviceId
+				WHERE ps.productId = ${Product.id}
+			)`.as("services"),
 		})
 		.from(Product)
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
@@ -75,34 +93,40 @@ console.log("hotels: ", hotels)
 ---
 
 <SearchLayout title="Resultados de búsqueda" producType="hotels">
-	<main class="mx-auto max-w-7xl p-6">
-		<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
-		<p class="text-sm text-gray-600">
-			Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
-				checkout ?? "-"
-			}
-		</p>
-		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-			{
-				hotels.length === 0 ? (
-					<p class="col-span-full text-gray-500">No se encontraron hoteles para esos filtros.</p>
-				) : (
-					hotels.map((h) => (
-						<ProductCard
-							name={h.name}
-							href={`/hotels/${h.id}`}
-							image={h.imageUrl || "https://picsum.photos/400/250"}
-							alt={h.name}
-							stars={h.stars || 0}
-							address={h.address || "Dirección no disponible"}
-							description={h.shortDescription || ""}
-							priceUSD={h.basePriceUSD || 0}
-							priceCLP={h.basePriceBOB || 0}
-							services={[]}
-						/>
-					))
-				)
-			}
-		</div>
-	</main>
+	<div class="flex grid grid-cols-4 justify-center">
+		<aside class="col-span-1 m-7 hidden rounded-lg border md:flex"></aside>
+
+		<main
+			class="col-span-4 mx-auto my-3 max-w-7xl px-4 pt-3 sm:px-6 md:col-span-3 md:pt-10 lg:px-5 xl:col-span-2 xl:pt-10"
+		>
+			<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
+			<p class="text-sm text-gray-600">
+				Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
+					checkout ?? "-"
+				}
+			</p>
+			<div class="mt-7 grid grid-cols-1 gap-6">
+				{
+					hotels.length > 0 ? (
+						hotels.map((h) => (
+							<ProductCard
+								name={h.name}
+								href={`/hotels/${h.id}`}
+								image={h.imageUrl || "https://picsum.photos/400/250"}
+								alt={h.name}
+								stars={h.stars || 0}
+								address={h.address || "Dirección no disponible"}
+								description={h.shortDescription || ""}
+								priceUSD={h.basePriceUSD || 0}
+								priceBOB={h.basePriceBOB || 0}
+								services={h.services ? JSON.parse(h.services) : []}
+							/>
+						))
+					) : (
+						<p class="col-span-full text-center text-gray-500">No se encontraron hoteles.</p>
+					)
+				}
+			</div>
+		</main>
+	</div>
 </SearchLayout>
