@@ -71,23 +71,7 @@ try {
 								</article>
 
 								{/* <!-- Contenido de Productos --> */}
-								<article id="tab-products" class="tab-content block">
-									<div class="mt-4 divide-y divide-gray-800">
-										{userProducts.map((el) => (
-											<div class="flex items-center justify-between py-3">
-												<div class="flex flex-col">
-													<span class="text-sm font-medium text-gray-100">{el.name}</span>
-													<span class="text-xs text-gray-400">{el.productType}</span>
-												</div>
-												<div class="text-sm font-medium text-gray-300">
-													💲{el.price ? el.price : "0.00"}
-												</div>
-											</div>
-										))}
-									</div>
-								</article>
-
-								<article class="tab-content hidden divide-y divide-gray-800" id="tab-edit">
+								<article id="tab-products" class="tab-content mt-4 block divide-y divide-gray-800">
 									{userProducts.map((el) => (
 										<div class="flex items-center justify-between py-3">
 											<div class="flex flex-col">
@@ -95,7 +79,7 @@ try {
 												<span class="text-xs text-gray-400">{el.productType}</span>
 											</div>
 
-											<div class="flex items-center gap-6 text-sm font-medium text-gray-300">
+											<div class="flex items-center gap-6 text-sm font-medium">
 												<a
 													href={`/products/${el.id}/edit/services`}
 													class="text-green-400 hover:text-green-300"
@@ -110,6 +94,20 @@ try {
 														Añadir Habitaciones
 													</a>
 												)}
+											</div>
+										</div>
+									))}
+								</article>
+
+								<article id="tab-edit" class="tab-content hidden divide-y divide-gray-800">
+									{userProducts.map((el) => (
+										<div class="flex items-center justify-between py-3">
+											<div class="flex flex-col">
+												<span class="text-sm font-medium text-gray-100">{el.name}</span>
+												<span class="text-xs text-gray-400">{el.productType}</span>
+											</div>
+
+											<div class="flex items-center gap-6 text-sm font-medium text-gray-300">
 												<a
 													href={`/products/${el.id}/edit`}
 													class="text-gray-300 hover:text-gray-100"
