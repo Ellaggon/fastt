@@ -1,9 +1,21 @@
 ---
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import MapClient from "@/components/product/MapClient.astro"
+import { serviceIcons } from "@/data/service-icons"
 import Layout from "@/layouts/Layout.astro"
 import type { ImageRow, ServiceRow } from "@/types/products"
-import { asc, db, Destination, eq, Hotel, Image, Product, ProductService, Service } from "astro:db"
+import {
+	asc,
+	db,
+	desc,
+	Destination,
+	eq,
+	Hotel,
+	Image,
+	Product,
+	ProductService,
+	Service,
+} from "astro:db"
 
 const productId = Astro.params.id
 let product: any = null
@@ -26,7 +38,7 @@ try {
 	product = { ...productResult.Product, destination: productResult.Destination }
 
 	const servicesResult = await db
-		.select({ id: Service.id, name: Service.name, icon: Service.icon })
+		.select({ id: Service.id, name: Service.name })
 		.from(ProductService)
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 		.where(eq(ProductService.productId, productId))
@@ -38,7 +50,7 @@ try {
 		.select()
 		.from(Image)
 		.where(eq(Image.entityId, productId))
-		.orderBy(asc(Image.order))
+		.orderBy(desc(Image.isPrimary), asc(Image.order))
 		.all()
 
 	subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
@@ -113,7 +125,7 @@ const breadcrumbItems = [
 					)}
 
 					{/* <!-- 📋 Info principal --> */}
-					<section class="space-y-4 rounded-2xl border border-gray-200 bg-gray-100 p-8 shadow-sm">
+					<section class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-8 shadow-sm">
 						<div class="flex gap-1 text-black">
 							{Array.from({ length: productData.subtype?.stars || 0 }).map((_, i) => (
 								<svg
@@ -127,21 +139,22 @@ const breadcrumbItems = [
 							))}
 						</div>
 						<h1 class="text-4xl font-bold text-gray-900">{productData.name}</h1>
-
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							<p class="text-neutral-500">
-								{productData.subtype?.address}, {productData.destination?.name}
-							</p>
-						</div>
+						<p class="text-neutral-500">
+							{productData.subtype?.address}, {productData.destination?.name}
+						</p>
 						{/* <!-- Servicios --> */}
 						{productData.services.length > 0 && (
-							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((s: ServiceRow) => (
-									<li class="flex items-center gap-2">
-										<span>{s.icon === "wifi" ? "📶" : "•"}</span>
-										<span>{s.name}</span>
-									</li>
-								))}
+							<ul class="flex grid grid-cols-2 justify-start gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
+								{productData.services.map((service: ServiceRow) => {
+									const key = service.id?.toLowerCase() as keyof typeof serviceIcons
+									const Icon = serviceIcons[key]
+									return (
+										<li class="flex h-[42px] max-w-56 items-center gap-2 p-2">
+											{Icon ? <Icon class="h-5 w-5 shrink-0 text-black" /> : <span>•</span>}
+											<span class="text-sm text-black">{service.name}</span>
+										</li>
+									)
+								})}
 							</ul>
 						)}
 						<p class="mt-4 leading-relaxed text-gray-700">{productData.longDescription}</p>
