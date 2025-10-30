@@ -1,5 +1,5 @@
 ---
-import { iconItems } from "@/lib/utils/iconItems"
+import { serviceIcons } from "@/data/service-icons"
 
 interface Props {
 	name: string
@@ -12,7 +12,7 @@ interface Props {
 	difficultyLevel?: string
 	duration?: string
 	priceUSD?: number
-	priceCLP?: number
+	priceBOB?: number
 	services: { name: string; free?: boolean; available: boolean }[]
 }
 
@@ -27,114 +27,102 @@ const renderStars = (count: number) => {
 	return starIcons
 }
 
-// Mapeo simple de iconos (puedes reemplazar con SVGs de Heroicons o similar)
-const serviceIcons: { [key: string]: string } = {
-	"Estacionamiento": "🅿️",
-	"Gimnasio": "🏋️",
-	"Restaurante": "🍽️",
-	"Bar": "🍷",
-	"Piscina": "🏊",
-	"Aire Acondicionado": "❄️",
-	"SPA": "🧖‍♀️",
-	"Internet - Habitación": "💻",
-	"Internet - Wi-Fi": "📶",
-	// Añade más según tus necesidades
-}
 const services = Array.isArray(props.services) ? props.services : JSON.parse(props.services || "[]")
 ---
 
 <article
-	class="flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-md transition-shadow duration-300 hover:shadow-lg"
+	class="flex w-full overflow-hidden rounded-3xl bg-white shadow-md transition-shadow duration-300 hover:shadow-lg md:flex-row"
 >
-	<figure class="relative h-48 w-full overflow-hidden">
-		<img
-			src={props.image}
-			alt={props.alt}
-			width="290"
-			height="183"
-			class="h-full w-full object-cover object-center"
-			loading="lazy"
-		/>
-	</figure>
-	<div class="flex flex-grow flex-col p-5">
-		<h3 class="mb-2 text-xl font-semibold text-gray-900">
-			<a href={props.href} class="transition-colors hover:text-blue-600">
-				{props.name}
+	<a href={props.href}>
+		<figure class="relative h-full w-full flex-shrink-0 md:h-64 md:w-48">
+			<img
+				src={props.image}
+				alt={props.alt}
+				class="h-full w-full object-cover object-center"
+				loading="lazy"
+			/>
+		</figure>
+	</a>
+
+	<div class="flex flex-grow flex-col p-4 md:p-5">
+		<div class="flex">
+			<div class="flex-grow pr-4">
+				<h3 class="mb-1 text-xl font-bold text-gray-900">
+					<a href={props.href} class="border-gray-900 transition-colors hover:border-b-2">
+						{props.name}
+					</a>
+				</h3>
+				{/* Estrellas (alineadas con el título) */}
 				{
 					props.stars && props.stars > 0 && (
-						<span
-							class="ml-2 align-middle text-lg text-yellow-500"
+						<div
+							class="mb-2 text-base text-yellow-500"
 							aria-label={`Calificación: ${props.stars} estrellas`}
 						>
 							{renderStars(props.stars)}
-						</span>
+						</div>
 					)
 				}
-			</a>
-		</h3>
-		<p class="mb-2 text-sm text-gray-600">{props.address}</p>
-		<p class="mb-4 flex-grow text-sm text-gray-700">{props.description}</p>
+				<p class="mb-2 text-sm text-gray-600">{props.address}</p>
+				{/* Descripción (Más corta para este formato) */}
+				<p class="line-clamp-2 text-sm text-gray-700">{props.description}</p>
 
-		{
-			(props.priceUSD || props.priceCLP) && (
-				<ul class="mb-4 flex items-center justify-end font-semibold text-gray-800">
-					{props.priceCLP && (
-						<li class="mr-4 flex items-center">
-							<span class="mr-1 text-xs">Desde</span>
-							<span class="text-base text-blue-700">
-								<span class="text-sm">CLP $</span>
-								{props.priceCLP.toLocaleString("es-CL")}
-							</span>
-						</li>
-					)}
-					{props.priceUSD && (
-						<li class="flex items-center">
-							<span class="mr-1 text-xs">Desde</span>
-							<span class="text-base text-blue-700">
-								<span class="text-sm">US$</span>
-								{props.priceUSD}
-							</span>
-						</li>
-					)}
-				</ul>
-			)
-		}
+				{/* Servicios (Iconos pequeños) */}
+				{
+					props.services?.length > 0 && (
+						<ul class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+							{services.slice(0, 4).map((s: { name: string; id: string }) => {
+								const key = s.id?.toLowerCase() as keyof typeof serviceIcons
+								const Icon = serviceIcons[key]
+								return (
+									<li class="flex items-center space-x-1" title={s.name}>
+										{Icon ? (
+											<>
+												<Icon class="h-4 w-4 text-gray-700" />
+												<span class="text-gray-700">{s.name}</span>
+											</>
+										) : (
+											<span class="text-lg">•</span>
+										)}
+									</li>
+								)
+							})}
+							{services.length > 4 && <li class="text-gray-500">+{services.length - 4} más</li>}
+						</ul>
+					)
+				}
+			</div>
 
-		{
-			props.services?.length > 0 && (
-				<ul class="mb-4 flex flex-wrap gap-2 text-xs text-gray-700">
-					{props.services
-						.filter((s) => s.available)
-						.map((service) => (
-							<li class="flex items-center rounded-md bg-gray-50 px-2 py-1">
-								<span class="mr-1" aria-hidden="true">
-									{serviceIcons[service.name] || "•"}
-								</span>
-								<span>{service.name}</span>
-								{service.free && <span class="ml-1 font-medium text-green-600">Gratis</span>}
-							</li>
-						))}
-					{services.map((s: { id: string; name: string; icon: string }) => {
-						const iconData = iconItems.find((item) => item.id === s.icon)
-						const Icon = iconData?.icon
-						return (
-							<li class="flex items-center space-x-2 text-sm text-gray-700">
-								{Icon && <Icon class="h-3 w-3 text-blue-500" />}
-								<small>{s.name}</small>
-							</li>
-						)
-					})}
-				</ul>
-			)
-		}
-
-		<div class="mt-auto flex justify-end">
-			<a
-				href={props.href}
-				class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+			<div
+				class="mt-auto flex min-w-[8rem] flex-col items-end justify-end border-l border-gray-200 pl-4"
 			>
-				Ver Hotel
-			</a>
+				<div class="text-right">
+					<p class="text-xs font-semibold text-gray-500">Precio por noche</p>
+					{
+						props.priceUSD && (
+							<p class="text-2xl font-bold text-gray-900">
+								<span class="text-base text-gray-900">US$</span>
+								{props.priceUSD}
+							</p>
+						)
+					}
+					{
+						props.priceBOB && (
+							<p class="text-sm text-gray-500">
+								<span class="text-xs">BOB $</span>
+								{props.priceBOB}
+							</p>
+						)
+					}
+				</div>
+
+				<a
+					href={props.href}
+					class="mt-4 inline-flex items-center rounded-md border border-transparent bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+				>
+					Ver Hotel
+				</a>
+			</div>
 		</div>
 	</div>
 </article>
