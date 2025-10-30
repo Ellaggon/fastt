@@ -30,8 +30,7 @@ try {
 			services: sql`json_group_array(
 			json_object(
 				'id', Service.id,
-				'name', Service.name,
-				'icon', Service.icon
+				'name', Service.name
 			))`.as("services"),
 		})
 		.from(Product)
@@ -246,7 +245,7 @@ const breadcrumbItems = [
 								address={h.address || "Dirección no disponible"}
 								description={h.shortDescription || ""}
 								priceUSD={h.basePriceUSD || 0}
-								priceCLP={h.basePriceBOB || 0}
+								priceBOB={h.basePriceBOB || 0}
 								services={[]}
 							/>
 						))

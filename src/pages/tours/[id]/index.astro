@@ -1,0 +1,295 @@
+---
+import Breadcrumbs from "@/components/Breadcrumbs.astro"
+import Layout from "@/layouts/Layout.astro"
+import type { ImageRow, ServiceRow } from "@/types/products"
+import {
+	asc,
+	db,
+	Destination,
+	eq,
+	Hotel,
+	Image,
+	Package,
+	Product,
+	ProductService,
+	Service,
+	Tour,
+} from "astro:db"
+
+const productId = Astro.params.id
+let product: any = null
+let images: ImageRow[] = []
+let subtype: any = null
+let services: ServiceRow[] = []
+let errorMessage: string | null = null
+
+try {
+	if (!productId) throw new Error("ID de producto no proporcionado.")
+
+	const productResult = await db
+		.select()
+		.from(Product)
+		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+		.where(eq(Product.id, productId))
+		.get()
+
+	if (!productResult) throw new Error("Producto no encontrado.")
+	product = { ...productResult.Product, destination: productResult.Destination }
+
+	const servicesResult = await db
+		.select({ id: Service.id, name: Service.name, icon: Service.icon })
+		.from(ProductService)
+		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
+		.where(eq(ProductService.productId, productId))
+		.all()
+
+	services = (servicesResult ?? []).filter((s) => s.id && s.name) as ServiceRow[]
+
+	images = await db
+		.select()
+		.from(Image)
+		.where(eq(Image.entityId, productId))
+		.orderBy(asc(Image.order))
+		.all()
+
+	switch ((product.productType || "").toLowerCase()) {
+		case "hotel":
+			subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+			break
+		case "package":
+			subtype = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			break
+		case "tour":
+			subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+			break
+	}
+} catch (e) {
+	console.error("Error al obtener detalles del producto:", e)
+	errorMessage = e instanceof Error ? e.message : "Error desconocido"
+}
+
+const productData = product ? { ...product, images, subtype, services } : null
+export const productDataExport = productData
+console.log("productData: ", productData)
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/" },
+	{
+		name: productData?.productType ?? "",
+		href:
+			productData?.productType === "Hotel"
+				? "/hotels"
+				: productData?.productType === "Package"
+					? "/packages"
+					: "/tours",
+	},
+	{
+		name: productData?.name || "/",
+		href: `/products/${productId}`,
+		current: true,
+	},
+]
+
+const isHotel = productData?.productType?.toLowerCase() === "hotel"
+---
+
+<Layout title={productData?.name || "Producto"}>
+	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
+		<Breadcrumbs items={breadcrumbItems} />
+
+		{
+			errorMessage ? (
+				<div class="flex min-h-[60vh] flex-col items-center justify-center text-center">
+					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
+					<a
+						href="/"
+						class="rounded-lg border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
+					>
+						Volver al inicio
+					</a>
+				</div>
+			) : productData ? (
+				<>
+					{/* <!-- 🖼 Imagen principal --> */}
+					<div class="relative overflow-hidden rounded-2xl shadow-lg">
+						<img
+							id="gallery-main-img"
+							src={productData.images[0]?.url || "https://placehold.co/1200x675?text=Sin+imagen"}
+							alt={productData.name}
+							class="h-96 w-full cursor-pointer object-cover transition-transform duration-700 hover:scale-105"
+						/>
+					</div>
+
+					{/* <!-- 🖼 Miniaturas --> */}
+					{productData.images.length > 1 && (
+						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+							{productData.images.map((img: ImageRow, i: number) => (
+								<img
+									src={img.url}
+									alt={`Imagen ${i + 1}`}
+									class="thumb-img h-24 w-full cursor-pointer rounded-lg object-cover hover:opacity-80"
+									data-index={i}
+								/>
+							))}
+						</div>
+					)}
+
+					{/* <!-- 📋 Info principal --> */}
+					<section class="space-y-4 rounded-2xl border border-gray-200 bg-gray-100 p-8 shadow-sm">
+						<div class="flex gap-1 text-black">
+							{Array.from({ length: productData.subtype?.stars || 0 }).map((_, i) => (
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="currentColor"
+									viewBox="0 0 24 24"
+									class="h-5 w-5"
+								>
+									<path d="M12 .587l3.668 7.568L24 9.748l-6 5.85 1.416 8.252L12 19.771l-7.416 4.079L6 15.598 0 9.748l8.332-1.593z" />
+								</svg>
+							))}
+						</div>
+						<h1 class="text-4xl font-bold text-gray-900">{productData.name}</h1>
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+							<p class="text-neutral-500">
+								{productData.subtype?.address}, {productData.destination?.name}
+							</p>
+						</div>
+						{/* <!-- Servicios --> */}
+						{productData.services.length > 0 && (
+							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
+								{productData.services.map((s: ServiceRow) => (
+									<li class="flex items-center gap-2">
+										<span>{s.icon === "wifi" ? "📶" : "•"}</span>
+										<span>{s.name}</span>
+									</li>
+								))}
+							</ul>
+						)}
+						<p class="mt-4 leading-relaxed text-gray-700">{productData.longDescription}</p>
+					</section>
+
+					<section class="grid grid-cols-2 p-8">
+						<div>
+							<p>
+								<b>Check-in:</b> {productData.subtype?.checkInTime}
+							</p>
+							<p>
+								<b>Check-out:</b> {productData.subtype?.checkOutTime}
+							</p>
+						</div>
+						<div>
+							<p>
+								<b>$</b>
+								{productData?.basePriceUSD}
+							</p>
+							<p>
+								{productData?.basePriceBOB}
+								<b>Bs</b>
+							</p>
+						</div>
+					</section>
+
+					{/* mapa */}
+					<section class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+						<h2 class="mb-4 text-2xl font-semibold text-gray-900">Ubicación</h2>
+						<p class="mb-4 text-gray-700">
+							{isHotel ? productData.subtype?.address : "Ver ubicación en mapa"}
+						</p>
+						<div class="flex h-64 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+							Mapa (pendiente)
+						</div>
+					</section>
+
+					{/* <!-- 🪟 Modal --> */}
+					<div
+						id="gallery-modal"
+						class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-90"
+					>
+						<button
+							id="modal-close"
+							class="absolute right-6 top-5 text-3xl font-bold text-white hover:text-gray-400"
+						>
+							&times;
+						</button>
+
+						<button
+							id="modal-prev"
+							class="absolute left-6 text-4xl font-bold text-white hover:text-gray-400"
+						>
+							❮
+						</button>
+						<img
+							id="modal-img"
+							class="max-h-[80vh] max-w-[90vw] rounded-lg shadow-lg"
+							alt="Vista ampliada"
+						/>
+						<button
+							id="modal-next"
+							class="absolute right-6 text-4xl font-bold text-white hover:text-gray-400"
+						>
+							❯
+						</button>
+					</div>
+				</>
+			) : (
+				<p class="text-center text-gray-500">Cargando...</p>
+			)
+		}
+	</main>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const mainImg = document.getElementById("gallery-main-img") as HTMLImageElement | null
+			const thumbImgs = Array.from(document.querySelectorAll<HTMLImageElement>(".thumb-img"))
+			const modal = document.getElementById("gallery-modal") as HTMLElement | null
+			const modalImg = document.getElementById("modal-img") as HTMLImageElement | null
+			const modalClose = document.getElementById("modal-close") as HTMLElement | null
+			const btnPrev = document.getElementById("modal-prev") as HTMLElement | null
+			const btnNext = document.getElementById("modal-next") as HTMLElement | null
+
+			let currentIndex = 0
+
+			const openModal = (index: number) => {
+				if (!modal || !modalImg) return
+				currentIndex = index
+				modalImg.src = thumbImgs[index].src
+				modal.classList.remove("hidden")
+			}
+
+			const closeModal = () => modal?.classList.add("hidden")
+
+			const showPrev = () => {
+				if (!modalImg) return
+				currentIndex = (currentIndex - 1 + thumbImgs.length) % thumbImgs.length
+				modalImg.src = thumbImgs[currentIndex].src
+			}
+
+			const showNext = () => {
+				if (!modalImg) return
+				currentIndex = (currentIndex + 1) % thumbImgs.length
+				modalImg.src = thumbImgs[currentIndex].src
+			}
+
+			mainImg?.addEventListener("click", () => openModal(0))
+			thumbImgs.forEach((thumb, i) => thumb.addEventListener("click", () => openModal(i)))
+			modalClose?.addEventListener("click", closeModal)
+			modal?.addEventListener("click", (e) => e.target === modal && closeModal())
+			btnPrev?.addEventListener("click", (e) => {
+				e.stopPropagation()
+				showPrev()
+			})
+			btnNext?.addEventListener("click", (e) => {
+				e.stopPropagation()
+				showNext()
+			})
+
+			document.addEventListener("keydown", (e) => {
+				if (modal?.classList.contains("hidden")) return
+				if (e.key === "ArrowLeft") showPrev()
+				if (e.key === "ArrowRight") showNext()
+				if (e.key === "Escape") closeModal()
+			})
+		})
+	</script>
+</Layout>
