@@ -47,7 +47,7 @@ const subtype = (product.productType || "hotel").toLowerCase()
 			<div class={subtype !== "tour" ? "hidden" : ""}><TourForm productId={paramsId} /></div>
 			<div class={subtype !== "package" ? "hidden" : ""}><PackageForm productId={paramsId} /></div>
 
-			<div class="pt-4">
+			<div class="flex justify-end pt-4">
 				<button
 					id="submitBtn"
 					type="button"
@@ -91,7 +91,7 @@ const subtype = (product.productType || "hotel").toLowerCase()
 				}
 
 				// success -> redirect to product detail
-				window.location.href = `/products/${encodeURIComponent(fd.get("productId"))}`
+				window.location.href = `/dashboard`
 			} catch (e) {
 				console.error(e)
 				message.textContent = "Error de red. Intenta nuevamente."
