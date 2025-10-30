@@ -131,7 +131,6 @@ const Service = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		name: column.text({ unique: true }),
-		icon: column.text({ optional: true }), // e.g., 'wifi-icon.svg' or a Tailwind class
 	},
 })
 
