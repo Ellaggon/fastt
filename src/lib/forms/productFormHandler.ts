@@ -66,9 +66,7 @@ export function initializeProductFormHandlers() {
 				providerId: String(raw.providerId || ""),
 				name: String(raw.name || ""),
 				productType: String(raw.productType || ""),
-				shortDescription: String(raw.shortDescription || ""),
-				longDescription: String(raw.longDescription || ""),
-				departmentId: String(raw.departmentId || ""),
+				description: String(raw.description || ""),
 				destinationId: String(raw.destinationId || ""),
 				basePriceUSD: Number(raw.basePriceUSD || 0),
 				basePriceBOB: Number(raw.basePriceBOB || 0),
@@ -105,16 +103,16 @@ export function initializeProductFormHandlers() {
 			fd.append("images", JSON.stringify(publicUrls)) // urls públicas
 			try {
 				const res = await fetch("/api/products/create", { method: "POST", body: fd })
+
 				if (!res.ok) {
-					const t = await res.text()
-					console.error("Error creando producto:", t)
+					const err = await res.text()
+					console.error("Error creando producto:", err)
 					alert("Error creando producto")
 					return
 				}
+
 				const data = await res.json()
 
-				// Podrías redirigir según el tipo:
-				// const type = String(fd.get("productType") || "").toLowerCase()
 				window.location.href = `/products/${data.id}/subtype`
 			} catch (err) {
 				console.error(err)
