@@ -53,24 +53,19 @@ const PointOfInterest = defineTable({
 })
 
 // --- Tablas de Contenido Principal (Productos) ---
-// Product es una tabla base para Hotel, Tour, Package
 const Product = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
-		shortDescription: column.text({ optional: true }),
-		longDescription: column.text({ optional: true }),
-		productType: column.text(), // 'Hotel', 'Tour', 'Cruise', 'Package'
+		description: column.text({ optional: true }),
+		productType: column.text(),
 		creationDate: column.date({ default: NOW }),
 		lastUpdated: column.date({ default: NOW }),
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
-		departmentId: column.text(),
 		destinationId: column.text({ references: () => Destination.columns.id }),
 		isActive: column.boolean({ default: true }),
 		basePriceUSD: column.number({ default: 0 }),
 		basePriceBOB: column.number({ default: 0 }),
-		latitude: column.number({ optional: true }),
-		longitude: column.number({ optional: true }),
 	},
 })
 
@@ -84,6 +79,8 @@ const Hotel = defineTable({
 		website: column.text({ optional: true }),
 		checkInTime: column.text({ optional: true }),
 		checkOutTime: column.text({ optional: true }),
+		latitude: column.number({ optional: true }),
+		longitude: column.number({ optional: true }),
 	},
 })
 
@@ -111,11 +108,6 @@ const Package = defineTable({
 const Image = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		productId: column.text({
-			references: () => Product.columns.id,
-			optional: true,
-			deprecated: true,
-		}), // Images can be related to a product
 		entityType: column.text({ optional: true }), // e.g. "Product", "Hotel", "City"
 		entityId: column.text({ optional: true }), // ID de la entidad
 		url: column.text(),
@@ -153,14 +145,59 @@ const ProductService = defineTable({
 	// or via unique constraints in your ORM/app logic.
 })
 
+const RoomType = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(), // "Suite Familiar", "Habitación Doble", etc.
+		description: column.text({ optional: true }),
+		maxOccupancy: column.number({ optional: true }),
+		bedType: column.text({ optional: true }), // "1 cama doble", "2 camas individuales"
+		sizeM2: column.number({ optional: true }),
+		hasPrivateBathroom: column.boolean({ default: true }),
+		hasBalcony: column.boolean({ optional: true }),
+		hasView: column.text({ optional: true }), // "Vista al mar", "Vista al salar"
+	},
+})
+
 const HotelRoomType = defineTable({
-	// Junction table for Hotel-RoomType (Many-to-Many)
 	columns: {
 		hotelId: column.text({ references: () => Hotel.columns.productId }), // FK to Hotel (which is Product ID)
-		roomTypeId: column.text(),
-		availableRooms: column.number({ default: 0 }),
+		roomTypeId: column.text({ references: () => RoomType.columns.id }),
+		totalRooms: column.number({ default: 0 }), // total inventory for this hotel
 		priceUSD: column.number({ optional: true }),
 		priceBOB: column.number({ optional: true }),
+	},
+})
+
+// RatePlan (price rules)
+const RatePlan = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }), // hotel/product
+		name: column.text(),
+		refundable: column.boolean({ default: true }),
+		paymentType: column.text({ default: "Prepaid" }), // Prepaid | Postpaid
+		basePriceUSD: column.number({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+
+const OperatingRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }),
+		ruleType: column.text(), // "CheckIn", "CheckOut", "OperationHours", "BlackoutDates"
+		value: column.text(),
+	},
+})
+
+const Policy = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }),
+		policyType: column.text(), // 'Cancellation', 'CheckIn', 'CheckOut', 'Children', 'Pets', 'Smoking', etc.
+		description: column.text(),
+		isActive: column.boolean({ default: true }),
 	},
 })
 
@@ -245,6 +282,57 @@ const Translation = defineTable({
 	// you might need to handle this at the application level during insertion.
 })
 
+const TaxFee = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }),
+		name: column.text(), // "IVA", "Tarifa de servicio", etc.
+		amount: column.number({ optional: true }),
+		percentage: column.number({ optional: true }),
+		currency: column.text({ default: "USD" }),
+		isIncluded: column.boolean({ default: false }), // si está incluido en el precio mostrado
+	},
+})
+
+const Payment = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text({ references: () => Booking.columns.id }),
+		amountUSD: column.number(),
+		currency: column.text({ default: "USD" }),
+		paymentDate: column.date({ default: NOW }),
+		paymentMethod: column.text(), // "Stripe", "PayPal", "BankTransfer", etc.
+		status: column.text({ default: "Completed" }),
+		processor: column.text({ optional: true }), // "Expedia", "Direct", etc.
+		transactionId: column.text({ optional: true }),
+	},
+})
+
+const Refund = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text({ references: () => Booking.columns.id }),
+		policyId: column.text({ references: () => Policy.columns.id, optional: true }),
+		amountUSD: column.number(),
+		reason: column.text({ optional: true }),
+		refundDate: column.date({ default: NOW }),
+		status: column.text({ default: "Pending" }),
+	},
+})
+
+const ProviderPayout = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		periodStart: column.date(),
+		periodEnd: column.date(),
+		amountUSD: column.number(),
+		commissionUSD: column.number(),
+		paymentDate: column.date({ optional: true }),
+		status: column.text({ default: "Pending" }), // "Pending", "Paid"
+	},
+})
+
 export default defineDb({
 	tables: {
 		// Geográficas
@@ -262,7 +350,12 @@ export default defineDb({
 		Image,
 		Service,
 		ProductService,
+		RoomType,
 		HotelRoomType,
+		RatePlan,
+		OperatingRule,
+		Policy,
+		TaxFee,
 		// Reservas
 		Booking,
 		BookingRoomDetail,
@@ -273,5 +366,8 @@ export default defineDb({
 		ArticleToCategory,
 		// Multilenguaje
 		Translation,
+		Payment,
+		Refund,
+		ProviderPayout,
 	},
 })

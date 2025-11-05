@@ -325,140 +325,120 @@ export default async function seed() {
 			destinationId: "santa-cruz",
 			stars: 5,
 			address: "Av. San Martín",
-			departmentId: "santa-cruz", // Corregido/Añadido
 		},
 		{
 			name: "Hotel Presidente",
 			destinationId: "la-paz",
 			stars: 4,
 			address: "Av. 6 de Agosto",
-			departmentId: "la-paz", // Corregido/Añadido
 		},
 		{
 			name: "Cochabamba Palace Hotel",
 			destinationId: "cochabamba",
 			stars: 4,
 			address: "Av. Libertador",
-			departmentId: "cochabamba", // Corregido/Añadido
 		},
 		{
 			name: "Parador Santa Maria La Real",
 			destinationId: "sucre",
 			stars: 5,
 			address: "Calle Bolívar",
-			departmentId: "chuquisaca", // Añadido (Sucre)
 		},
 		{
 			name: "Hostal Colonial",
 			destinationId: "potosi",
 			stars: 3,
 			address: "Calle Linares",
-			departmentId: "potosi", // Añadido
 		},
 		{
 			name: "Hotel Los Parrales",
 			destinationId: "tarija",
 			stars: 4,
 			address: "Av. La Banda",
-			departmentId: "tarija", // Añadido
 		},
 		{
 			name: "Gran Hotel Trópico",
 			destinationId: "trinidad",
 			stars: 3,
 			address: "Plaza Principal",
-			departmentId: "beni", // Añadido (Trinidad)
 		},
 		{
 			name: "Hotel Edén",
 			destinationId: "oruro",
 			stars: 3,
 			address: "Calle Junín",
-			departmentId: "oruro", // Añadido
 		},
 		{
 			name: "Hotel Cabañas del Lago",
 			destinationId: "cobija",
 			stars: 4,
 			address: "Ribera del Acre",
-			departmentId: "pando", // Añadido (Cobija)
 		},
 		{
 			name: "Casa Grande Hotel",
 			destinationId: "la-paz",
 			stars: 5,
 			address: "Zona Sur",
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "Senses Hotel Boutique",
 			destinationId: "santa-cruz",
 			stars: 4,
 			address: "Equipetrol",
-			departmentId: "santa-cruz", // Añadido
 		},
 		{
 			name: "Cesars Plaza Hotel",
 			destinationId: "cochabamba",
 			stars: 3,
 			address: "Centro Histórico",
-			departmentId: "cochabamba", // Añadido
 		},
 		{
 			name: "Hotel Samary",
 			destinationId: "sucre",
 			stars: 4,
 			address: "Barrio San Lázaro",
-			departmentId: "chuquisaca", // Añadido
 		},
 		{
 			name: "Gala Hotel",
 			destinationId: "potosi",
 			stars: 3,
 			address: "Cerca de la Casa de la Moneda",
-			departmentId: "potosi", // Añadido
 		},
 		{
 			name: "Hostal Carmen",
 			destinationId: "tarija",
 			stars: 2,
 			address: "Barrio Central",
-			departmentId: "tarija", // Añadido
 		},
 		{
 			name: "Hotel Trinidad",
 			destinationId: "trinidad",
 			stars: 4,
 			address: "Zona Residencial",
-			departmentId: "beni", // Añadido
 		},
 		{
 			name: "Regis Hotel",
 			destinationId: "oruro",
 			stars: 4,
 			address: "Av. 6 de Agosto",
-			departmentId: "oruro", // Añadido
 		},
 		{
 			name: "Pando Palace",
 			destinationId: "cobija",
 			stars: 3,
 			address: "Cerca del Aeropuerto",
-			departmentId: "pando", // Añadido
 		},
 		{
 			name: "La Casona Hotel",
 			destinationId: "la-paz",
 			stars: 3,
 			address: "Casco Viejo",
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "Resort Jardines del Este",
 			destinationId: "santa-cruz",
 			stars: 5,
 			address: "Kilómetro 8",
-			departmentId: "santa-cruz", // Añadido
 		},
 	]
 
@@ -469,7 +449,6 @@ export default async function seed() {
 			duration: "4 Horas",
 			difficulty: "Fácil",
 			languages: ["Español", "Inglés"],
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "Salar de Uyuni: 3 Días y 2 Noches",
@@ -477,7 +456,6 @@ export default async function seed() {
 			duration: "3 Días",
 			difficulty: "Moderado",
 			languages: ["Español", "Francés"],
-			departmentId: "potosi", // Añadido
 		},
 		{
 			name: "Ruta del Vino y Singani",
@@ -485,7 +463,6 @@ export default async function seed() {
 			duration: "8 Horas",
 			difficulty: "Fácil",
 			languages: ["Español"],
-			departmentId: "tarija", // Añadido
 		},
 		{
 			name: "Parque Nacional Amboró - Lado Oeste",
@@ -493,7 +470,6 @@ export default async function seed() {
 			duration: "1 Día",
 			difficulty: "Moderado",
 			languages: ["Español", "Alemán"],
-			departmentId: "santa-cruz", // Añadido
 		},
 		{
 			name: "Parque Toro Toro: Cañones y Dinosaurios",
@@ -501,7 +477,6 @@ export default async function seed() {
 			duration: "2 Días",
 			difficulty: "Moderado",
 			languages: ["Español"],
-			departmentId: "cochabamba", // Añadido
 		},
 		{
 			name: "Recorrido por la Casa de la Libertad",
@@ -509,7 +484,6 @@ export default async function seed() {
 			duration: "3 Horas",
 			difficulty: "Fácil",
 			languages: ["Español", "Portugués"],
-			departmentId: "chuquisaca", // Añadido
 		},
 		{
 			name: "Ruta de la Coca y el Chairo",
@@ -517,7 +491,6 @@ export default async function seed() {
 			duration: "6 Horas",
 			difficulty: "Moderado",
 			languages: ["Español"],
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "Misiones Jesuíticas de Chiquitos",
@@ -525,7 +498,6 @@ export default async function seed() {
 			duration: "3 Días",
 			difficulty: "Fácil",
 			languages: ["Español", "Inglés"],
-			departmentId: "santa-cruz", // Añadido
 		},
 		{
 			name: "Carnaval de Oruro: Entrada VIP",
@@ -533,7 +505,6 @@ export default async function seed() {
 			duration: "1 Día",
 			difficulty: "Fácil",
 			languages: ["Español"],
-			departmentId: "oruro", // Añadido
 		},
 		{
 			name: "Amazonía Profunda - Río Mamoré",
@@ -541,7 +512,6 @@ export default async function seed() {
 			duration: "4 Días",
 			difficulty: "Difícil",
 			languages: ["Español", "Inglés"],
-			departmentId: "beni", // Añadido
 		},
 	]
 
@@ -552,7 +522,6 @@ export default async function seed() {
 			days: 7,
 			nights: 6,
 			itinerary: "Día 1: SCZ a Uyuni. Días 2-3: Salar. Día 4: Vuelo a SCZ. Días 5-6: Amboró.",
-			departmentId: "santa-cruz", // Añadido
 		},
 		{
 			name: "Culturas Andinas (La Paz + Titicaca)",
@@ -560,7 +529,6 @@ export default async function seed() {
 			days: 5,
 			nights: 4,
 			itinerary: "Día 1: City Tour LPZ. Día 2: Tiwanaku. Días 3-4: Copacabana e Isla del Sol.",
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "El Encanto del Sur (Sucre + Potosí)",
@@ -568,7 +536,6 @@ export default async function seed() {
 			days: 4,
 			nights: 3,
 			itinerary: "Días 1-2: Sucre colonial. Días 3-4: Potosí (Mina y Casa de la Moneda).",
-			departmentId: "chuquisaca", // Añadido
 		},
 		{
 			name: "Trópico y Valle (Cochabamba)",
@@ -576,7 +543,6 @@ export default async function seed() {
 			days: 3,
 			nights: 2,
 			itinerary: "Día 1: Cristo de la Concordia. Día 2: Parque Machía y Trópico. Día 3: Regreso.",
-			departmentId: "cochabamba", // Añadido
 		},
 		{
 			name: "Descanso y Viñedos (Tarija)",
@@ -584,7 +550,6 @@ export default async function seed() {
 			days: 3,
 			nights: 2,
 			itinerary: "Día 1: City Tour. Días 2: Visita a 3 bodegas. Día 3: Tiempo libre.",
-			departmentId: "tarija", // Añadido
 		},
 		{
 			name: "Misterios Amazónicos (Beni)",
@@ -592,7 +557,6 @@ export default async function seed() {
 			days: 4,
 			nights: 3,
 			itinerary: "Día 1: Llegada a Trinidad. Días 2-3: Safari fluvial y fauna. Día 4: Despedida.",
-			departmentId: "beni", // Añadido
 		},
 		{
 			name: "Ruta de las Lagunas (Potosí)",
@@ -600,7 +564,6 @@ export default async function seed() {
 			days: 4,
 			nights: 3,
 			itinerary: "Recorrido completo por las lagunas de colores y los géiseres del desierto.",
-			departmentId: "potosi", // Añadido
 		},
 		{
 			name: "Patrimonio de la UNESCO (Chiquitania)",
@@ -608,7 +571,6 @@ export default async function seed() {
 			days: 5,
 			nights: 4,
 			itinerary: "Visita a 4 misiones jesuíticas históricas.",
-			departmentId: "santa-cruz", // Añadido
 		},
 		{
 			name: "Aventura Extrema (Yungas)",
@@ -616,7 +578,6 @@ export default async function seed() {
 			days: 2,
 			nights: 1,
 			itinerary: "Día 1: Descenso en bicicleta por la 'Carretera de la Muerte'. Día 2: Trekking.",
-			departmentId: "la-paz", // Añadido
 		},
 		{
 			name: "Relax en Cobija (Pando)",
@@ -624,7 +585,6 @@ export default async function seed() {
 			days: 3,
 			nights: 2,
 			itinerary: "Día 1: Paseo por el río. Día 2: Reserva de fauna silvestre. Día 3: Compras.",
-			departmentId: "pando", // Añadido
 		},
 	]
 
@@ -688,17 +648,13 @@ export default async function seed() {
 		allProductsToInsert.push({
 			id: productId,
 			name: h.name,
-			shortDescription: `Alojamiento ${h.stars} estrellas en ${h.departmentId.toUpperCase()}`,
-			longDescription: `Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
+			description: `Alojamiento ${h.stars} estrellas en ${h.destinationId.toUpperCase()}. Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
 			images: generateImageUrl(productId),
 			productType: "Hotel",
-			providerId: "cf6a94d0-d286-4e34-85e5-bf7186403c7f",
-			departmentId: h.departmentId,
+			providerId: "2f09e8f8-e09b-4332-90a8-6542dbf3c822",
 			destinationId: h.destinationId,
 			basePriceUSD: 50 + h.stars * 15,
 			basePriceBOB: (50 + h.stars * 15) * 6.96,
-			latitude: -15.787319,
-			longitude: -68.654381,
 		})
 		allHotelsToInsert.push({
 			productId: productId,
@@ -706,6 +662,8 @@ export default async function seed() {
 			address: h.address,
 			checkInTime: "14:00",
 			checkOutTime: "12:00",
+			latitude: -15.787319,
+			longitude: -68.654381,
 		})
 	})
 
@@ -715,17 +673,13 @@ export default async function seed() {
 		allProductsToInsert.push({
 			id: productId,
 			name: t.name,
-			shortDescription: `Tour de ${t.duration} en ${t.departmentId.toUpperCase()}. Nivel: ${t.difficulty}.`,
-			longDescription: `Experimente la aventura con nuestro tour exclusivo. Incluye transporte, guía profesional y seguro. No se pierda esta inmersión cultural y natural.`,
+			description: `Tour de ${t.duration} en ${t.destinationId.toUpperCase()}. Nivel: ${t.difficulty}.Experimente la aventura con nuestro tour exclusivo. Incluye transporte, guía profesional y seguro. No se pierda esta inmersión cultural y natural.`,
 			images: generateImageUrl(productId),
 			productType: "Tour",
 			providerId: providersData[0].id, // Proveedor: EcoTours Bolivia
-			departmentId: t.departmentId,
 			destinationId: t.destinationId,
 			basePriceUSD: 25 + index * 5,
 			basePriceBOB: (25 + index * 5) * 6.96,
-			latitude: -15.787319,
-			longitude: -68.654381,
 		})
 		allToursToInsert.push({
 			productId: productId,
@@ -743,17 +697,13 @@ export default async function seed() {
 		allProductsToInsert.push({
 			id: productId,
 			name: p.name,
-			shortDescription: `Paquete de ${p.days} días, ${p.nights} noches. Incluye todo lo necesario.`,
-			longDescription: `Nuestro paquete turístico más popular. Cubre las mejores atracciones de la región con alojamiento de lujo y todas las comidas incluidas. ¡La opción más cómoda y completa!`,
+			description: `Paquete de ${p.days} días, ${p.nights} noches. Incluye todo lo necesario. Nuestro paquete turístico más popular. Cubre las mejores atracciones de la región con alojamiento de lujo y todas las comidas incluidas. ¡La opción más cómoda y completa!`,
 			images: generateImageUrl(productId),
 			productType: "Package",
 			providerId: providersData[2].id, // Proveedor: Aventuras del Sur
-			departmentId: p.departmentId,
 			destinationId: p.destinationId,
 			basePriceUSD: 250 + index * 50,
 			basePriceBOB: (250 + index * 50) * 6.96,
-			latitude: -15.787319,
-			longitude: -68.654381,
 		})
 		allPackagesToInsert.push({
 			productId: productId,
