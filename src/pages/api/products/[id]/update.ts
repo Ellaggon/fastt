@@ -6,8 +6,7 @@ import { z } from "zod"
 // Definir el esquema de validación para los datos entrantes
 const bodySchema = z.object({
 	name: z.string().min(1, "El nombre es requerido."),
-	shortDescription: z.string().nullable().optional(),
-	longDescription: z.string().nullable().optional(),
+	description: z.string().nullable().optional(),
 	productType: z.enum(["Tour", "Package", "Hotel"]),
 	basePriceUSD: z.preprocess((v) => {
 		if (typeof v === "string") return v === "" ? undefined : Number(v)
@@ -42,10 +41,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		try {
 			parsedPayload = {
 				name: plain.name ? String(plain.name).trim() : "",
-				shortDescription:
-					plain.shortDescription !== undefined ? String(plain.shortDescription).trim() : undefined,
-				longDescription:
-					plain.longDescription !== undefined ? String(plain.longDescription).trim() : undefined,
+				description: plain.description !== undefined ? String(plain.description).trim() : undefined,
 				productType: plain.productType ? String(plain.productType).trim() : "Tour",
 				basePriceUSD: maybeNum(plain.basePriceUSD),
 				basePriceBOB: maybeNum(plain.basePriceBOB),
@@ -63,10 +59,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
 		const productFields: Record<string, any> = {}
 		productFields.name = parsed.data.name
-		if (parsed.data.shortDescription !== undefined)
-			productFields.shortDescription = parsed.data.shortDescription
-		if (parsed.data.longDescription !== undefined)
-			productFields.longDescription = parsed.data.longDescription
+		if (parsed.data.description !== undefined) productFields.description = parsed.data.description
 		if (parsed.data.productType !== undefined) productFields.productType = parsed.data.productType
 		if (parsed.data.basePriceUSD !== undefined)
 			productFields.basePriceUSD = parsed.data.basePriceUSD
@@ -84,7 +77,12 @@ export const POST: APIRoute = async ({ request, params }) => {
 		// Orquestador (transaccional)
 		await updateProductAndSubtype(productId, providerId, productFields, subtypeType, subtypePayload)
 
-		return new Response(JSON.stringify({ ok: true }), { status: 200 })
+		let redirectUrl = "/dashboard"
+		if (parsed.data.productType === "Hotel") redirectUrl = `/hotels/${productId}`
+		if (parsed.data.productType === "Tour") redirectUrl = `/tours/${productId}`
+		if (parsed.data.productType === "Package") redirectUrl = `/packages/${productId}`
+
+		return new Response(JSON.stringify({ ok: true, redirectUrl }), { status: 200 })
 	} catch (e) {
 		console.error("Error al actualizar el producto: ", e)
 		return new Response(JSON.stringify({ error: "Error al procesar la solicitud" }), {

@@ -16,22 +16,12 @@ const { product } = Astro.props as { product: any }
 		</label>
 
 		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-			Descripción corta
+			Descripción
 			<textarea
-				name="shortDescription"
-				rows="2"
-				class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
-				>{product?.shortDescription || ""}</textarea
-			>
-		</label>
-
-		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-			Descripción larga
-			<textarea
-				name="longDescription"
+				name="description"
 				rows="4"
 				class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 sm:text-sm"
-				>{product?.longDescription || ""}</textarea
+				>{product?.description || ""}</textarea
 			>
 		</label>
 
@@ -74,43 +64,5 @@ const { product } = Astro.props as { product: any }
 				/>
 			</label>
 		</div>
-
-		<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-			Ciudad
-			<select
-				name="cityId"
-				required
-				class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
-			>
-				<option value="">Selecciona una ciudad...</option>
-				<option value="uuid-city-lapaz" selected={product?.cityId === "uuid-city-lapaz"}
-					>La Paz</option
-				>
-				<option value="uuid-city-santacruz" selected={product?.cityId === "uuid-city-santacruz"}
-					>Santa Cruz</option
-				>
-				<option value="uuid-city-cochabamba" selected={product?.cityId === "uuid-city-cochabamba"}
-					>Cochabamba</option
-				>
-				<option value="uuid-city-oruro" selected={product?.cityId === "uuid-city-oruro"}
-					>Oruro</option
-				>
-				<option value="uuid-city-potosi" selected={product?.cityId === "uuid-city-potosi"}
-					>Potosí</option
-				>
-				<option value="uuid-city-sucre" selected={product?.cityId === "uuid-city-sucre"}
-					>Sucre</option
-				>
-				<option value="uuid-city-tarija" selected={product?.cityId === "uuid-city-tarija"}
-					>Tarija</option
-				>
-				<option value="uuid-city-trinidad" selected={product?.cityId === "uuid-city-trinidad"}
-					>Trinidad</option
-				>
-				<option value="uuid-city-cobija" selected={product?.cityId === "uuid-city-cobija"}
-					>Cobija</option
-				>
-			</select>
-		</label>
 	</div>
 </section>

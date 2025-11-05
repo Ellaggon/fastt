@@ -3,7 +3,18 @@ import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import ProductCard from "@/components/product/ProductCard.astro"
 import { DEPARTMENTS } from "@/data/departments"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, eq, Image, Product, ProductService, Service, sql, Tour } from "astro:db"
+import {
+	and,
+	db,
+	Destination,
+	eq,
+	Image,
+	Product,
+	ProductService,
+	Service,
+	sql,
+	Tour,
+} from "astro:db"
 
 const deptId = Astro.params.dept || null
 if (!deptId) throw new Error("Departamento no especificado")
@@ -22,7 +33,7 @@ try {
 			id: Product.id,
 			name: Product.name,
 			imageUrl: sql`min(${Image.url})`.as("imageUrl"),
-			shortDescription: Product.shortDescription,
+			description: Product.description,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			duration: Tour.duration,
@@ -38,7 +49,7 @@ try {
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(ProductService, eq(ProductService.productId, Product.id))
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
-		.where(and(eq(Product.productType, "Tour"), eq(Product.departmentId, deptId)))
+		.where(and(eq(Product.productType, "Tour"), eq(Destination.department, deptId)))
 		.groupBy(Product.id)
 		.all()
 	console.log("product: ", tours)
@@ -243,7 +254,7 @@ const breadcrumbItems = [
 								alt={h.name}
 								stars={h.stars || 0}
 								address={h.address || "Dirección no disponible"}
-								description={h.shortDescription || ""}
+								description={h.description || ""}
 								priceUSD={h.basePriceUSD || 0}
 								priceBOB={h.basePriceBOB || 0}
 								services={[]}

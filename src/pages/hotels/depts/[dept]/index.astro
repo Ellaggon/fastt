@@ -3,7 +3,18 @@ import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import ProductCard from "@/components/product/ProductCard.astro"
 import { DEPARTMENTS } from "@/data/departments"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, eq, Hotel, Image, Product, ProductService, Service, sql } from "astro:db"
+import {
+	and,
+	db,
+	Destination,
+	eq,
+	Hotel,
+	Image,
+	Product,
+	ProductService,
+	Service,
+	sql,
+} from "astro:db"
 
 const deptId = Astro.params.dept || null
 if (!deptId) throw new Error("Departamento no especificado")
@@ -28,7 +39,7 @@ try {
 				ORDER BY isPrimary DESC, "order" ASC
 				LIMIT 1
 			)`.as("imageUrl"),
-			shortDescription: Product.shortDescription,
+			description: Product.description,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			address: Hotel.address,
@@ -50,7 +61,8 @@ try {
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
 		.leftJoin(ProductService, eq(ProductService.productId, Product.id))
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
-		.where(and(eq(Product.productType, "Hotel"), eq(Product.departmentId, deptId)))
+		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+		.where(and(eq(Product.productType, "Hotel"), eq(Destination.department, deptId)))
 		.groupBy(Product.id)
 		.all()
 	console.log("product: ", hotels)
@@ -183,7 +195,7 @@ const breadcrumbItems = [
 								alt={h.name}
 								stars={h.stars || 0}
 								address={h.address || "Dirección no disponible"}
-								description={h.shortDescription || ""}
+								description={h.description || ""}
 								priceUSD={h.basePriceUSD || 0}
 								priceBOB={h.basePriceBOB || 0}
 								services={JSON.parse(h.services) || []}

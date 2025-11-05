@@ -61,50 +61,16 @@ if (session?.user?.email) {
 				</select>
 			</label>
 
-			{/* <!-- shortDescription --> */}
-			<label for="shortDescription" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Descripción Corta
+			{/* <!-- description --> */}
+			<label for="description" class="block text-xs font-medium text-neutral-500 md:text-sm">
+				Descripción
 				<textarea
-					name="shortDescription"
-					id="shortDescription"
-					rows="2"
-					placeholder="Resumen del producto en una frase"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-				></textarea>
-			</label>
-
-			{/* <!-- longDescription --> */}
-			<label for="longDescription" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Descripción Completa
-				<textarea
-					name="longDescription"
-					id="longDescription"
+					name="description"
+					id="description"
 					rows="5"
 					placeholder="Describe los detalles completos del producto"
 					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
 				></textarea>
-			</label>
-
-			{/* <!-- departmentId --> */}
-			<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Departamento/region
-				<select
-					name="departmentId"
-					id="departmentId"
-					class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-					required
-				>
-					<option value="">Selecciona una ciudad...</option>
-					<option value="la-paz">La Paz</option>
-					<option value="santa-cruz">Santa Cruz</option>
-					<option value="cochabamba">Cochabamba</option>
-					<option value="oruro">Oruro</option>
-					<option value="potosi">Potosí</option>
-					<option value="sucre">Sucre</option>
-					<option value="tarija">Tarija</option>
-					<option value="beni">Beni</option>
-					<option value="pando">Pando</option>
-				</select>
 			</label>
 
 			{/* <!-- destinationId --> */}
@@ -238,11 +204,6 @@ if (session?.user?.email) {
 					li.className = "px-3 py-2 hover:bg-neutral-100 cursor-pointer"
 					li.dataset.id = d.id
 					li.dataset.slug = d.slug || ""
-					li.dataset.lat = d.latitude ?? d.lat ?? ""
-					li.dataset.lng = d.longitude ?? d.lng ?? ""
-					// texto legible: Ciudad, Departamento — País
-					// const dept = d.department || d.departmentName || ""
-					// const country = d.country || ""
 					li.textContent = `${d.name}`
 					destList.appendChild(li)
 				}

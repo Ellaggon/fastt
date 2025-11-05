@@ -6,7 +6,7 @@ import { and, db, Destination, eq, Hotel, Image, or, Product, sql } from "astro:
 type ProductResult = {
 	id: string
 	name: string
-	shortDescription: string | null
+	description: string | null
 	basePriceUSD: number | null
 	basePriceBOB: number | null
 	address: string | null
@@ -17,6 +17,7 @@ type ProductResult = {
 
 const url = new URL(Astro.request.url)
 const params = url.searchParams
+
 const destinationId = params.get("destinationId") || params.get("destinationQuery") || null
 const checkin = params.get("checkin") || null
 const checkout = params.get("checkout") || null
@@ -42,12 +43,12 @@ if (destinationId) {
 }
 
 try {
-	const whereClause = destination
+	let whereClause = destination
 		? and(
 				eq(Product.productType, "Hotel"),
 				or(
 					eq(Product.destinationId, destination?.id),
-					eq(Product.departmentId, destination?.department ?? destination?.id)
+					eq(Destination.department, destination?.department ?? destination?.id)
 				)
 			)
 		: eq(Product.productType, "Hotel")
@@ -63,7 +64,7 @@ try {
 				ORDER BY isPrimary DESC, "order" ASC
 				LIMIT 1
 			)`.as("imageUrl"),
-			shortDescription: Product.shortDescription,
+			description: Product.description,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			address: Hotel.address,
@@ -83,6 +84,7 @@ try {
 		.from(Product)
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
+		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(whereClause)
 		.limit(50)
 		.all()
@@ -116,7 +118,7 @@ console.log("hotels: ", hotels)
 								alt={h.name}
 								stars={h.stars || 0}
 								address={h.address || "Dirección no disponible"}
-								description={h.shortDescription || ""}
+								description={h.description || ""}
 								priceUSD={h.basePriceUSD || 0}
 								priceBOB={h.basePriceBOB || 0}
 								services={h.services ? JSON.parse(h.services) : []}

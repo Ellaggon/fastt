@@ -40,8 +40,7 @@ export async function updateProductAndSubtype(
 		// 1) update product basic fields (filter allowed)
 		const allowed = [
 			"name",
-			"shortDescription",
-			"longDescription",
+			"description",
 			"productType",
 			"basePriceUSD",
 			"basePriceBOB",

@@ -6,7 +6,7 @@ import { and, db, Destination, eq, Image, or, Product, Tour } from "astro:db"
 type ProductResult = {
 	id: string
 	name: string
-	shortDescription: string | null
+	description: string | null
 	basePriceUSD: number | null
 	basePriceBOB: number | null
 	duration: string | null
@@ -46,7 +46,7 @@ try {
 				eq(Product.productType, "Tour"),
 				or(
 					eq(Product.destinationId, destination?.id),
-					eq(Product.departmentId, destination?.department ?? destination?.id)
+					eq(Destination.department, destination?.department ?? destination?.id)
 				)
 			)
 		: eq(Product.productType, "Tour")
@@ -55,7 +55,7 @@ try {
 		.select({
 			id: Product.id,
 			name: Product.name,
-			shortDescription: Product.shortDescription,
+			description: Product.description,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			duration: Tour.duration,
@@ -65,6 +65,7 @@ try {
 		.from(Product)
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
+		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(whereClause)
 		.limit(50)
 		.all()
@@ -95,9 +96,9 @@ console.log("tours: ", tours)
 							alt={t.name}
 							duration={t.duration || ""}
 							difficultyLevel={t.difficultyLevel || ""}
-							description={t.shortDescription || ""}
+							description={t.description || ""}
 							priceUSD={t.basePriceUSD || 0}
-							priceCLP={t.basePriceBOB || 0}
+							priceBOB={t.basePriceBOB || 0}
 							services={[]}
 						/>
 					))
