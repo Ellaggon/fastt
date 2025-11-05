@@ -6,9 +6,7 @@ export const productFormSchema = z.object({
 	productType: z.enum(["Hotel", "Tour", "Package"], {
 		required_error: "Tipo de producto requerido",
 	}),
-	shortDescription: z.string().max(240, "Máx 240").optional().or(z.literal("")),
-	longDescription: z.string().max(5000, "Máx 5000").optional().or(z.literal("")),
-	departmentId: z.string().min(1, "Selecciona una region o departamento"),
+	description: z.string().max(5000, "Máx 5000").optional().or(z.literal("")),
 	destinationId: z.string().min(1, "Selecciona una ciudad o localidad"),
 	basePriceUSD: z.coerce.number().min(0, "Precio >= 0"),
 	basePriceBOB: z.coerce.number().min(0, "Precio >= 0"),
