@@ -99,15 +99,14 @@ console.log("hotels: ", hotels)
 		<aside class="col-span-1 m-7 hidden rounded-lg border md:flex"></aside>
 
 		<main
-			class="col-span-4 mx-auto my-3 max-w-7xl px-4 pt-3 sm:px-6 md:col-span-3 md:pt-10 lg:px-5 xl:col-span-2 xl:pt-10"
+			class="col-span-4 mx-auto my-3 w-[96%] max-w-7xl pt-3 sm:px-6 md:col-span-3 md:pt-10 lg:px-5 xl:col-span-2 xl:pt-10"
 		>
-			<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
-			<p class="text-sm text-gray-600">
-				Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
-					checkout ?? "-"
-				}
-			</p>
-			<div class="mt-7 grid grid-cols-1 gap-6">
+			<h1 class="px-2 text-lg font-semibold md:text-2xl md:font-bold">Resultados</h1>
+			<div class="justify-between px-2 text-sm text-gray-600 md:flex">
+				<p>Destino: {destination?.name ?? "Origen desconocido"}</p>
+				<p>Fechas: {checkin ?? "-"} → {checkout ?? "-"}</p>
+			</div>
+			<div class="mt-7 grid grid-cols-1 gap-3 md:gap-6">
 				{
 					hotels.length > 0 ? (
 						hotels.map((h) => (
