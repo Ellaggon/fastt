@@ -18,9 +18,9 @@ const roomTypes = ROOM_TYPES
 
 <Layout title="Configurar Habitaciones">
 	<article
-		class="mx-auto mt-20 w-11/12 rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-6xl lg:p-16"
+		class="mx-auto mt-20 w-11/12 rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-6xl lg:p-16"
 	>
-		<h2 class="mb-4 text-2xl font-semibold">CONFIGURACIÓN DE HABITACIONES</h2>
+		<h2 class="font-semibold md:text-2xl">CONFIGURACIÓN DE HABITACIONES</h2>
 		<p class="mb-8 text-sm text-neutral-500">
 			Define los precios y la disponibilidad de los tipos de habitación para tu hotel.
 		</p>
@@ -47,42 +47,11 @@ const roomTypes = ROOM_TYPES
 					roomTypes.map((roomType) => (
 						<div class="rounded-2xl border border-neutral-300 bg-neutral-300 p-6 shadow-sm backdrop-blur-sm transition duration-200 hover:shadow-lg">
 							<h3 class="text-lg font-semibold text-neutral-900">
-								{roomType.name} ({roomType.maxCapacity} personas)
+								{roomType.name} ({roomType.maxOccupancy} personas)
 							</h3>
 							<p class="mb-4 text-sm text-neutral-500">{roomType.description}</p>
 
 							<input type="hidden" name="roomTypeId" value={roomType.id} />
-
-							<label class="block text-xs font-medium text-neutral-600 md:text-sm">
-								Habitaciones disponibles
-								<input
-									type="number"
-									name={`availableRooms-${roomType.id}`}
-									placeholder="Cantidad"
-									class="mt-2 block w-full rounded-xl border border-neutral-300 bg-neutral-100 px-4 py-3 text-neutral-900 placeholder-neutral-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:text-sm"
-									min="0"
-								/>
-							</label>
-
-							<label class="mt-4 block text-xs font-medium text-neutral-600 md:text-sm">
-								Precio por Noche (USD)
-								<input
-									type="number"
-									name={`priceUSD-${roomType.id}`}
-									placeholder="Precio en dólares"
-									class="mt-2 block w-full rounded-xl border border-neutral-300 bg-neutral-100 px-4 py-3 text-neutral-900 placeholder-neutral-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:text-sm"
-								/>
-							</label>
-
-							<label class="mt-4 block text-xs font-medium text-neutral-600 md:text-sm">
-								Precio por Noche (BOB)
-								<input
-									type="number"
-									name={`priceBOB-${roomType.id}`}
-									placeholder="Precio en bolivianos"
-									class="mt-2 block w-full rounded-xl border border-neutral-300 bg-neutral-100 px-4 py-3 text-neutral-900 placeholder-neutral-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:text-sm"
-								/>
-							</label>
 						</div>
 					))
 				}
