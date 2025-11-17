@@ -62,6 +62,8 @@ export const POST: APIRoute = async ({ request }) => {
 				website: form.get("website"),
 				checkInTime: form.get("checkInTime"),
 				checkOutTime: form.get("checkOutTime"),
+				latitude: form.get("latitude") ? Number(form.get("latitude")) : null,
+				longitude: form.get("longitude") ? Number(form.get("longitude")) : null,
 			}
 			const parsed = hotelSchema.safeParse(payload)
 			if (!parsed.success) {
