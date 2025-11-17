@@ -1,0 +1,242 @@
+<div
+	id="gallery-modal"
+	class="fixed inset-0 z-50 flex hidden flex-col items-center justify-center bg-black bg-opacity-90 p-4 backdrop-blur-sm transition-opacity duration-300"
+>
+	<button
+		id="modal-close"
+		class="absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-3xl font-bold text-white hover:bg-black/70 md:right-10 md:top-10 lg:h-20 lg:w-20 lg:text-5xl"
+	>
+		&times;
+	</button>
+
+	<div
+		id="modal-image-container"
+		class="relative flex w-full max-w-sm md:max-w-xl lg:max-w-3xl xl:max-w-5xl"
+	>
+		<img
+			id="modal-img"
+			class="hidden h-auto max-h-[80vh] w-full rounded-xl object-contain shadow-lg transition-all duration-300 md:block"
+			alt="Vista ampliada"
+		/>
+		<div
+			id="modal-vertical-gallery"
+			class="flex w-full snap-y snap-mandatory flex-col gap-4 overflow-y-auto md:hidden"
+		>
+		</div>
+	</div>
+
+	<button
+		id="modal-prev-desktop"
+		class="absolute left-10 top-1/2 z-10 hidden h-16 w-16 -translate-y-1/2 items-center justify-center text-6xl font-bold text-white hover:text-gray-400 md:flex"
+	>
+		❮
+	</button>
+	<button
+		id="modal-next-desktop"
+		class="absolute right-10 top-1/2 z-10 hidden h-16 w-16 -translate-y-1/2 items-center justify-center text-6xl font-bold text-white hover:text-gray-400 md:flex"
+	>
+		❯
+	</button>
+</div>
+
+<script>
+	document.addEventListener("DOMContentLoaded", () => {
+		const mainImg = document.getElementById("gallery-main-img") as HTMLImageElement | null
+		const thumbImgs = Array.from(document.querySelectorAll<HTMLImageElement>(".thumb-img"))
+		const modal = document.getElementById("gallery-modal") as HTMLElement | null
+		const modalImg = document.getElementById("modal-img") as HTMLImageElement | null
+		const modalContainer = document.getElementById("modal-image-container") as HTMLElement | null
+		const modalVertical = document.getElementById("modal-vertical-gallery") as HTMLElement | null
+
+		// Botones
+		const btnPrevDesktop = document.getElementById("modal-prev-desktop") as HTMLElement | null
+		const btnNextDesktop = document.getElementById("modal-next-desktop") as HTMLElement | null
+		const modalClose = document.getElementById("modal-close") as HTMLElement | null
+
+		let currentIndex = 0
+		let touchStartX = 0 // Para manejar el swipe
+		const SWIPE_THRESHOLD = 50 // Mínimo de píxeles para considerar un swipe
+
+		// --- Funciones de Control ---
+		const isMobile = () => window.innerWidth < 768
+
+		const openModal = (index = 0) => {
+			if (!modal) return
+
+			const imgs = thumbImgs.length > 0 ? thumbImgs : mainImg ? [mainImg] : []
+			if (imgs.length === 0) return
+
+			currentIndex = index
+			modal.classList.remove("hidden", "hide")
+			modal.classList.add("show")
+			document.body.style.overflow = "hidden"
+
+			if (isMobile()) {
+				if (modalVertical) {
+					modalVertical.innerHTML = thumbImgs
+						.map(
+							(img) => `
+									<div class="flex justify-center snap-center">
+										<img src="${img.src}" class="w-full max-h-[85vh] object-contain rounded-xl shadow-md" />
+									</div>`
+						)
+						.join("")
+				}
+			} else {
+				// Desktop: solo una imagen
+				if (modalImg) modalImg.src = imgs[index].src
+			}
+		}
+
+		const closeModal = () => {
+			if (!modal) return
+			modal.classList.remove("show")
+			modal.classList.add("hide")
+			setTimeout(() => {
+				modal.classList.add("hidden")
+				modal.classList.remove("hide")
+				document.body.style.overflow = "auto"
+			}, 280)
+		}
+
+		const changeImage = (newIndex: number) => {
+			if (!modalImg) return
+			modalImg.classList.add("fade")
+			setTimeout(() => {
+				currentIndex = (newIndex + thumbImgs.length) % thumbImgs.length
+				modalImg.src = thumbImgs[currentIndex].src
+				modalImg.classList.remove("fade")
+			}, 180)
+		}
+
+		const showPrev = () => changeImage(currentIndex - 1)
+		const showNext = () => changeImage(currentIndex + 1)
+
+		modalContainer?.addEventListener("mousemove", (e) => {
+			if (!modalImg) return
+			const rect = modalContainer.getBoundingClientRect()
+			const offsetX = (e.clientX - rect.left) / rect.width - 0.5
+			const offsetY = (e.clientY - rect.top) / rect.height - 0.5
+			modalImg.style.transform = `translate(${offsetX * 15}px, ${offsetY * 10}px) scale(1.02)`
+		})
+
+		modalContainer?.addEventListener("mouseleave", () => {
+			if (!modalImg) return
+			modalImg.style.transform = "translate(0, 0) scale(1)"
+		})
+
+		// --- Lógica de Swipe ---
+		const handleTouchStart = (e: TouchEvent) => {
+			touchStartX = e.touches[0].clientX
+		}
+
+		const handleTouchEnd = (e: TouchEvent) => {
+			const touchEndX = e.changedTouches[0].clientX
+			const deltaX = touchEndX - touchStartX
+
+			if (modal?.classList.contains("hidden") || Math.abs(deltaX) < SWIPE_THRESHOLD) {
+				return // Ignorar si el modal está cerrado o el movimiento es demasiado pequeño
+			}
+
+			if (deltaX > 0) {
+				// Movimiento a la derecha (Swipe Right -> Show Prev)
+				showPrev()
+			} else if (deltaX < 0) {
+				// Movimiento a la izquierda (Swipe Left -> Show Next)
+				showNext()
+			}
+		}
+
+		// --- Event Listeners ---
+		mainImg?.addEventListener("click", () => openModal(0))
+		thumbImgs.forEach((thumb, i) => thumb.addEventListener("click", () => openModal(i)))
+		modalClose?.addEventListener("click", closeModal)
+		modal?.addEventListener("click", (e) => e.target === modal && closeModal())
+
+		// Eventos de botones (Desktop y Mobile)
+		const allNavButtons = [btnPrevDesktop, btnNextDesktop]
+
+		allNavButtons.forEach((btn) => {
+			btn?.addEventListener("click", (e) => {
+				e.stopPropagation()
+				// Determina si es 'prev' o 'next' basado en el ID
+				if (btn.id.includes("prev")) {
+					showPrev()
+				} else {
+					showNext()
+				}
+			})
+		})
+
+		// Eventos Táctiles (Swipe)
+		if (modalContainer) {
+			modalContainer.addEventListener("touchstart", handleTouchStart, false)
+			modalContainer.addEventListener("touchend", handleTouchEnd, false)
+		}
+
+		// Eventos de teclado
+		document.addEventListener("keydown", (e) => {
+			if (modal?.classList.contains("hidden")) return
+			if (e.key === "ArrowLeft") showPrev()
+			if (e.key === "ArrowRight") showNext()
+			if (e.key === "Escape") closeModal()
+		})
+	})
+</script>
+<style>
+	/* --- Animaciones suaves --- */
+	@keyframes modalFadeIn {
+		from {
+			opacity: 0;
+			transform: scale(0.96) translateY(20px);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1) translateY(0);
+		}
+	}
+
+	@keyframes modalFadeOut {
+		from {
+			opacity: 1;
+			transform: scale(1) translateY(0);
+		}
+		to {
+			opacity: 0;
+			transform: scale(0.96) translateY(20px);
+		}
+	}
+
+	#gallery-modal.show {
+		display: flex !important;
+		animation: modalFadeIn 0.4s ease-out forwards;
+	}
+
+	#gallery-modal.hide {
+		animation: modalFadeOut 0.3s ease-in forwards;
+	}
+
+	/* Imagen con transición sutil de cambio */
+	#modal-img {
+		transition:
+			opacity 0.4s ease,
+			transform 0.4s ease;
+	}
+	#modal-img.fade {
+		opacity: 0;
+		transform: scale(0.98);
+	}
+	/* Galería vertical móvil */
+	#modal-vertical-gallery {
+		scroll-snap-type: y mandatory;
+		overflow-y: scroll;
+		height: 85vh;
+		scroll-behavior: smooth;
+	}
+	#modal-vertical-gallery::-webkit-scrollbar {
+		display: none;
+	}
+	#modal-vertical-gallery > div {
+		scroll-snap-align: center;
+	}
+</style>
