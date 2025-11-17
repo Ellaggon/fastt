@@ -21,145 +21,157 @@ if (session?.user?.email) {
 ---
 
 <Layout title="Crear Nuevo Producto">
-	<article
-		class="mx-auto mt-20 w-10/12 rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20"
-	>
-		<h2 class="mb-2 text-2xl font-semibold">CREAR NUEVO PRODUCTO</h2>
-		<p class="mb-8 text-xs text-neutral-500">
-			Ingresa la información básica de tu producto (Hotel, Tour, etc.).
-		</p>
-		<form id="productForm" method="post" class="flex flex-col gap-4" data-form-type="product">
-			{/* <!-- providerId - campo oculto --> */}
-			<input type="hidden" name="providerId" value={providerId} />
-
-			{/* <!-- name --> */}
-			<label for="name" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Nombre del Producto
-				<input
-					type="text"
-					id="name"
-					name="name"
-					placeholder="Ej: Tour al desierto de Uyuni"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
-
-			{/* <!-- productType --> */}
-			<label for="productType" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Tipo de Producto
-				<select
-					name="productType"
-					id="productType"
-					class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-					required
-				>
-					<option value="">Selecciona un tipo...</option>
-					<option value="Hotel">Hotel</option>
-					<option value="Tour">Tour</option>
-					<option value="Package">Paquete</option>
-				</select>
-			</label>
-
-			{/* <!-- description --> */}
-			<label for="description" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Descripción
-				<textarea
-					name="description"
-					id="description"
-					rows="5"
-					placeholder="Describe los detalles completos del producto"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-				></textarea>
-			</label>
-
-			{/* <!-- destinationId --> */}
-			<label
-				for="destinationInput"
-				class="relative block text-xs font-medium text-neutral-500 md:text-sm"
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-lg lg:max-w-2xl lg:p-20"
+		>
+			<h2 class="font-semibold md:mb-2 md:text-3xl">CREAR NUEVO PRODUCTO</h2>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Ingresa la información básica de tu producto (Hotel, Tour, etc.)
+			</p>
+			<small class="text-xs text-neutral-500 md:hidden"
+				>Ingresa la información básica de tu producto</small
 			>
-				Ciudad/localidad
-				<input
-					id="destinationInput"
-					name="destinationQuery"
-					autocomplete="off"
-					type="search"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					placeholder="Ej: Uyuni"
-				/>
-				<input type="hidden" name="destinationId" id="destinationId" />
-				<ul
-					id="destinationsList"
-					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white"
-				>
-				</ul>
-			</label>
+			<form
+				id="productForm"
+				method="post"
+				class="mt-10 flex flex-col gap-4"
+				data-form-type="product"
+			>
+				{/* <!-- providerId - campo oculto --> */}
+				<input type="hidden" name="providerId" value={providerId} />
 
-			{/* <!-- basePriceUSD --> */}
-			<label for="basePriceUSD" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Precio Base (USD)
-				<input
-					type="number"
-					id="basePriceUSD"
-					name="basePriceUSD"
-					placeholder="Precio en dólares"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
-
-			{/* <!-- basePriceBOB --> */}
-			<label for="basePriceBOB" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Precio Base (BOB)
-				<input
-					type="number"
-					id="basePriceBOB"
-					name="basePriceBOB"
-					placeholder="Precio en pesos bolivianos"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
-
-			{/* Subida de imágenes (IDs únicos) */}
-			<div class="relative">
-				<label
-					for="imageUpload-product"
-					class="block text-xs font-medium text-neutral-500 md:text-sm"
-				>
-					Imágenes del producto
-				</label>
-				<div
-					id="dropZone-product"
-					class="dropZone transitions-colors mt-2 flex min-h-64 w-full cursor-pointer flex-col items-center justify-center overflow-auto rounded-lg bg-neutral-900/50 text-center backdrop-blur-sm duration-300 hover:bg-neutral-900/70 hover:text-white"
-				>
-					<p id="imageText-product" class="flex flex-col gap-2 text-xs md:text-sm">
-						<span>Arrastra y suelta o haz click</span>
-					</p>
+				{/* <!-- name --> */}
+				<label for="name" class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Nombre del Producto
 					<input
-						type="file"
-						class="hidden"
-						id="imageUpload-product"
-						name="imageUpload-product"
-						accept="image/*"
-						multiple
+						type="text"
+						id="name"
+						name="name"
+						placeholder="Ej: Tour al desierto de Uyuni"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+						required
 					/>
-					{/* <div id="imagePreview-product" class="hidden gap-3 sm:m-6" /> */}
-					<div id="imagePreview" class="flex flex-wrap gap-2"></div>
-				</div>
-				<span class="error mt-3 text-sm text-red-500" data-error-for="imagesMeta"></span>
-			</div>
+					<span class="error text-sm text-red-500" data-error-for="name"></span>
+				</label>
 
-			<div class="mt-10 flex justify-end">
-				<button
-					type="submit"
-					class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+				{/* <!-- productType --> */}
+				<label for="productType" class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Tipo de Producto
+					<select
+						name="productType"
+						id="productType"
+						class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+						required
+					>
+						<option value="">Selecciona un tipo...</option>
+						<option value="Hotel">Hotel</option>
+						<option value="Tour">Tour</option>
+						<option value="Package">Paquete</option>
+					</select>
+					<span class="error text-sm text-red-500" data-error-for="productType"></span>
+				</label>
+
+				{/* <!-- description --> */}
+				<label for="description" class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Descripción
+					<textarea
+						name="description"
+						id="description"
+						rows="5"
+						placeholder="Describe los detalles completos del producto"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+					></textarea>
+					<span class="error text-sm text-red-500" data-error-for="description"></span>
+				</label>
+
+				{/* <!-- destinationId --> */}
+				<label
+					for="destinationInput"
+					class="relative block text-xs font-medium text-neutral-500 md:text-sm"
 				>
-					Siguiente
-				</button>
-			</div>
-		</form>
-	</article>
+					Ciudad/localidad
+					<input
+						id="destinationInput"
+						name="destinationQuery"
+						autocomplete="off"
+						type="search"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+						placeholder="Ej: Uyuni"
+					/>
+					<input type="hidden" name="destinationId" id="destinationId" />
+					<ul
+						id="destinationsList"
+						class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white"
+					>
+					</ul>
+					<span class="error text-sm text-red-500" data-error-for="destinationId"></span>
+				</label>
+
+				{/* <!-- basePriceUSD --> */}
+				<label for="basePriceUSD" class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Precio de referencia Base (USD)
+					<input
+						type="number"
+						id="basePriceUSD"
+						name="basePriceUSD"
+						placeholder="Precio referencial en dólares"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+					/>
+				</label>
+
+				{/* <!-- basePriceBOB --> */}
+				<label for="basePriceBOB" class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Precio de referencia Base (BOB)
+					<input
+						type="number"
+						id="basePriceBOB"
+						name="basePriceBOB"
+						placeholder="Precio referencial en pesos bolivianos"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+					/>
+				</label>
+
+				{/* Subida de imágenes (IDs únicos) */}
+				<div class="relative">
+					<label
+						for="imageUpload-product"
+						class="block text-xs font-medium text-neutral-500 md:text-sm"
+					>
+						Imágenes del producto
+					</label>
+					<div
+						id="dropZone-product"
+						class="dropZone transitions-colors mt-2 flex min-h-64 w-full cursor-pointer flex-col items-center justify-center overflow-auto rounded-lg bg-neutral-900/50 text-center backdrop-blur-sm duration-300 hover:bg-neutral-900/70 hover:text-white"
+					>
+						<p id="imageText-product" class="flex flex-col gap-2 text-xs md:text-sm">
+							<span>Arrastra y suelta o haz click</span>
+						</p>
+						<input
+							type="file"
+							class="hidden"
+							id="imageUpload-product"
+							name="imageUpload-product"
+							accept="image/*"
+							multiple
+						/>
+						{/* <div id="imagePreview-product" class="hidden gap-3 sm:m-6" /> */}
+						<div id="imagePreview" class="flex flex-wrap gap-2"></div>
+					</div>
+					<span class="error mt-3 text-sm text-red-500" data-error-for="imagesMeta"></span>
+				</div>
+
+				<div class="mt-10 flex justify-end">
+					<button
+						type="submit"
+						class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+					>
+						Siguiente
+					</button>
+				</div>
+			</form>
+		</article>
+	</section>
 
 	<script type="module">
 		const qs = (selector, el = document) => el.querySelector(selector)

@@ -27,61 +27,71 @@ const safeInitialImages = JSON.stringify(images || []).replace(/<\/script>/g, "<
 ---
 
 <Layout title={`Editar Imágenes · ${product.id} `}>
-	<div
-		class="mx-auto mt-16 w-11/12 max-w-4xl rounded-2xl border border-neutral-300 bg-neutral-100/80 p-8 shadow-lg backdrop-blur-md sm:p-10 lg:p-16"
-	>
-		<h1 class="mb-6 text-2xl font-bold text-neutral-800 lg:text-3xl">
-			Editar Imágenes de <span class="text-blue-600">{product.name}</span>
-		</h1>
-
-		<!-- Zona de drop/upload -->
-		<div
-			id="dropZone-product"
-			class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-400 bg-white/70 p-10 text-center shadow-inner transition-colors duration-200 hover:border-blue-500 hover:bg-blue-50/70"
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[97%] max-w-4xl rounded-3xl border border-neutral-300 bg-neutral-100/80 p-8 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:p-16"
 		>
-			<p id="imageText-product" class="mb-4 text-sm text-neutral-500">
-				Haz clic o arrastra imágenes aquí
+			<h1 class="text-base font-bold text-neutral-800 md:mb-1 md:text-2xl lg:text-3xl">
+				EDICIÓN DE IMAGENES
+			</h1>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Actualiza las imagenes de tu <span>{product.productType}</span>
 			</p>
-			<input
-				id="imageUpload-product"
-				name="imageUpload-product"
-				type="file"
-				accept="image/*"
-				multiple
-				class="hidden"
-			/>
-			<button
-				id="pickBtn"
-				class="rounded-lg bg-blue-600 px-6 py-2 text-white shadow-sm transition hover:bg-blue-700"
+			<small class="text-xs text-neutral-500 md:hidden"
+				>Actualiza las imagenes de tu <span>{product.productType}</span></small
 			>
-				Seleccionar imágenes
-			</button>
-		</div>
+			<p class="mt-3 text-end text-base font-semibold text-neutral-600 md:mb-6">{product.name}</p>
 
-		<input type="hidden" id="productId" value={product.id} />
-		<!-- Previsualización en grid -->
-		<script id="initialImages" type="application/json" set:html={safeInitialImages} />
-
-		<div id="imagePreview" class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
-
-		<span class="error mt-4 block text-sm text-red-500" data-error-for="imagesMeta"></span>
-
-		<!-- Acciones -->
-		<div class="mt-10 flex justify-end gap-4">
-			<button
-				id="cancelBtn"
-				class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+			<!-- Zona de drop/upload -->
+			<div
+				id="dropZone-product"
+				class="mt-10 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-400 bg-white/70 p-3 text-center shadow-inner transition-colors duration-200 hover:border-blue-500 hover:bg-blue-50/70 md:p-10"
 			>
-				Cancelar
-			</button>
-			<button
-				id="saveBtn"
-				class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-			>
-				Guardar cambios
-			</button>
-		</div>
-	</div>
+				<p id="imageText-product" class="mb-4 hidden text-sm text-neutral-500">
+					Haz clic o arrastra imágenes aquí
+				</p>
+				<input
+					id="imageUpload-product"
+					name="imageUpload-product"
+					type="file"
+					accept="image/*"
+					multiple
+					class="hidden"
+				/>
+				<button
+					id="pickBtn"
+					class="rounded-xl bg-neutral-800 px-6 py-2 text-xs text-white shadow-sm transition hover:bg-neutral-900 md:text-base"
+				>
+					Seleccionar imágenes
+				</button>
+			</div>
+
+			<input type="hidden" id="productId" value={product.id} />
+			<!-- Previsualización en grid -->
+			<script id="initialImages" type="application/json" set:html={safeInitialImages} />
+
+			<div id="imagePreview" class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+			</div>
+
+			<span class="error mt-4 block text-sm text-red-500" data-error-for="imagesMeta"></span>
+
+			<!-- Acciones -->
+			<div class="mt-10 flex justify-end gap-4">
+				<button
+					id="cancelBtn"
+					class="rounded-xl border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+				>
+					Cancelar
+				</button>
+				<button
+					id="saveBtn"
+					class="rounded-xl bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+				>
+					Guardar cambios
+				</button>
+			</div>
+		</article>
+	</section>
 
 	<script src="/src/lib/forms/imageFormHandler.ts"></script>
 </Layout>
