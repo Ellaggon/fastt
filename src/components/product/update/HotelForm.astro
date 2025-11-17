@@ -1,0 +1,110 @@
+---
+const { productId } = Astro.props
+const { hotel } = Astro.props as { hotel: any | null }
+
+let lat = hotel?.latitude ?? -16.5
+let lng = hotel?.longitude ?? -68.13
+---
+
+<div class="space-y-3">
+	<input type="hidden" name="productId" value={productId} />
+	<input type="hidden" name="productType" value="hotel" />
+	<label class="flex flex-col text-sm">
+		<span class="text-neutral-500">Estrellas</span>
+		<select
+			name="stars"
+			id="stars"
+			class="mt-2 rounded-lg bg-neutral-100 px-2 py-3 text-neutral-500 lg:px-3"
+		>
+			<option value="">En cuantas estrellas esta categorizado tu Hotel/alojamiento</option>
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+		</select>
+	</label>
+
+	<label class="block text-sm">
+		<div>
+			<input
+				name="address"
+				type="text"
+				placeholder="Dirección"
+				class="mt-1 w-full rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+			/>
+		</div>
+	</label>
+
+	<!-- Inputs para lat/lng -->
+	<div class="grid grid-cols-3 gap-2 text-sm">
+		<button
+			id="openMapBtn"
+			type="button"
+			class="my-1 rounded-xl bg-neutral-600 px-3 py-2 text-white hover:bg-neutral-700 md:my-0 xl:mr-12"
+		>
+			Mapa
+		</button>
+		<label class="flex flex-col lg:block">
+			<span class="text-neutral-500">Latitud</span>
+			<input
+				type="text"
+				name="latitude"
+				id="latitude"
+				value={lat}
+				class="mt-1 w-24 rounded-md bg-neutral-100 px-2 py-2 text-neutral-400 lg:px-3"
+			/>
+		</label>
+		<label class="flex flex-col lg:block">
+			<span class="text-neutral-500">Longitud</span>
+			<input
+				type="text"
+				name="longitude"
+				id="longitude"
+				value={lng}
+				class="mt-1 w-24 rounded-md bg-neutral-100 px-2 py-2 text-neutral-400 lg:px-3"
+			/>
+		</label>
+	</div>
+
+	<label class="block text-sm">
+		<input
+			type="url"
+			name="website"
+			placeholder="Website"
+			class="mt-7 w-full rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+		/>
+	</label>
+	<div class="grid grid-cols-2 gap-2 text-sm">
+		<input
+			type="text"
+			name="phone"
+			placeholder="Teléfono"
+			class="mt-1 rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+		/>
+		<input
+			type="email"
+			name="email"
+			placeholder="Email"
+			class="mt-1 rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+		/>
+	</div>
+	<div class="grid grid-cols-2 gap-2">
+		<label class="block text-sm">
+			<span class="text-neutral-500">Check-in</span>
+			<input
+				type="time"
+				name="checkInTime"
+				class="mt-1 rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+			/>
+		</label>
+		<label class="block text-sm">
+			<span class="text-neutral-500">Check-out</span>
+			<input
+				type="time"
+				name="checkOutTime"
+				class="mt-1 rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
+			/>
+		</label>
+	</div>
+</div>
