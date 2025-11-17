@@ -1,0 +1,209 @@
+---
+import "leaflet/dist/leaflet.css"
+
+interface MapPickerProps {
+	latitude?: number
+	longitude?: number
+}
+
+const { latitude = -16.5, longitude = -68.13 } = Astro.props as MapPickerProps
+---
+
+<style>
+	.mp-overlay {
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.45);
+	}
+	.mp-overlay.open {
+		display: flex;
+	}
+	.mp-panel {
+		overflow: hidden;
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+	}
+</style>
+
+<div
+	id="mapPickerModal"
+	class="mp-overlay z-60 fixed inset-0 hidden h-full w-full"
+	aria-hidden="true"
+	data-lat={latitude}
+	data-lng={longitude}
+>
+	<div
+		class="mp-panel w-[97%] max-w-[1200px] rounded-3xl bg-neutral-900/50 backdrop-blur-md transition-colors duration-300"
+	>
+		<header class="flex items-center justify-between border-b p-4">
+			<h3 class="text-lg font-semibold text-neutral-300">Seleccionar ubicación</h3>
+			<button id="mp-closeBtn" class="px-3 py-1 text-neutral-300">✕</button>
+		</header>
+
+		<div class="p-4">
+			<div class="mb-3 flex gap-2">
+				<input
+					id="mp-search"
+					class="flex-1 rounded-xl bg-neutral-100 px-3 py-2"
+					placeholder="Buscar dirección..."
+					type="text"
+				/>
+				<button id="mp-searchBtn" class="rounded-xl bg-neutral-800 px-3 py-2 text-white"
+					>Buscar</button
+				>
+			</div>
+
+			<div id="mp-map" class="h-[500px] w-full rounded-2xl border border-neutral-200 xl:h-[560px]">
+			</div>
+
+			<div class="mt-3 flex justify-end gap-3">
+				<button id="mp-cancel" class="rounded-xl bg-neutral-200 px-4 py-2 text-neutral-800"
+					>Cancelar</button
+				>
+				<button id="mp-confirm" class="rounded-xl bg-blue-600 px-4 py-2 text-white"
+					>Confirmar</button
+				>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+	import L, { Map, Marker } from "leaflet"
+
+	let map: Map | null = null
+	let marker: Marker | null = null
+	let currentLat = -16.5
+	let currentLng = -68.13
+	let currentAddress = ""
+
+	const modal = document.getElementById("mapPickerModal")
+	const mapContainer = document.getElementById("mp-map")
+
+	// ✅ Obtener lat/lng inicial del atributo HTML
+	if (modal?.dataset.lat && modal?.dataset.lng) {
+		currentLat = Number(modal.dataset.lat)
+		currentLng = Number(modal.dataset.lng)
+	}
+
+	function initMap() {
+		if (!mapContainer || map) return
+
+		map = L.map(mapContainer).setView([currentLat, currentLng], 13)
+
+		L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			maxZoom: 19,
+			attribution: "&copy; OpenStreetMap contributors",
+		}).addTo(map)
+
+		marker = L.marker([currentLat, currentLng], { draggable: true }).addTo(map)
+		marker.on("moveend", (e) => {
+			const pos = e.target.getLatLng()
+			currentLat = pos.lat
+			currentLng = pos.lng
+		})
+	}
+
+	function openModal(payload: { lat?: number; lng?: number; address?: string } = {}) {
+		if (!modal) return
+
+		if (payload.lat !== undefined) currentLat = Number(payload.lat)
+		if (payload.lng !== undefined) currentLng = Number(payload.lng)
+		currentAddress = payload.address || ""
+
+		modal.classList.add("open")
+		modal.setAttribute("aria-hidden", "false")
+
+		setTimeout(() => {
+			initMap()
+			if (map && marker) {
+				map.setView([currentLat, currentLng], 13)
+				marker.setLatLng([currentLat, currentLng])
+			}
+		}, 50)
+	}
+
+	function closeModal() {
+		if (!modal) return
+
+		// 🔧 primero quitar foco
+		;(document.activeElement as HTMLElement)?.blur()
+
+		modal.classList.remove("open")
+
+		// 🔧 espera un frame antes de aplicar aria-hidden
+		requestAnimationFrame(() => {
+			modal.setAttribute("aria-hidden", "true")
+		})
+
+		document.dispatchEvent(new CustomEvent("map-closed"))
+	}
+
+	// Wire buttons
+	document.getElementById("mp-closeBtn")?.addEventListener("click", (e) => {
+		e.preventDefault()
+		closeModal()
+	})
+	document.getElementById("mp-cancel")?.addEventListener("click", (e) => {
+		e.preventDefault()
+		closeModal()
+	})
+
+	document.getElementById("mp-confirm")?.addEventListener("click", (e) => {
+		e.preventDefault()
+		if (marker) {
+			const pos = marker.getLatLng()
+			currentLat = pos.lat
+			currentLng = pos.lng
+		}
+
+		// ✅ emitir evento global con coordenadas seleccionadas
+		document.dispatchEvent(
+			new CustomEvent("map-picked", {
+				detail: {
+					lat: currentLat,
+					lng: currentLng,
+					address: currentAddress,
+				},
+			})
+		)
+		closeModal()
+	})
+
+	document.getElementById("mp-searchBtn")?.addEventListener("click", async (e) => {
+		e.preventDefault()
+		const input = document.getElementById("mp-search") as HTMLInputElement
+		if (!input) return
+		const q = input.value.trim()
+		if (!q) return
+		try {
+			const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`)
+			const data = await r.json()
+			if (data?.[0]) {
+				currentLat = parseFloat(data[0].lat)
+				currentLng = parseFloat(data[0].lon)
+				currentAddress = data[0].display_name
+				if (!map) initMap()
+				map?.setView([currentLat, currentLng], 15)
+				marker?.setLatLng([currentLat, currentLng])
+			}
+		} catch (err) {
+			console.error("Nominatim error", err)
+		}
+	})
+
+	document.addEventListener("open-map", (ev: Event) => {
+		const customEv = ev as CustomEvent<{ lat?: number; lng?: number; address?: string }>
+		openModal(customEv.detail || {})
+	})
+
+	modal?.addEventListener("click", (e) => {
+		if (e.target === modal) closeModal()
+	})
+
+	window.addEventListener("beforeunload", () => {
+		try {
+			map?.remove()
+		} catch (_) {}
+		map = null
+		marker = null
+	})
+</script>
