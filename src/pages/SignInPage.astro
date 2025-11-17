@@ -1,24 +1,35 @@
 ---
+import Layout from "@/layouts/Layout.astro"
 import { SignIn } from "auth-astro/components"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+if (session) {
+	return Astro.redirect("/dashboard")
+}
 ---
 
-<main
-	class="mt-20 flex h-auto flex-col justify-center rounded-md border px-20 py-10 text-white md:w-1/2"
->
-	<h1 class="mb-20 text-3xl">Iniciar Sesión</h1>
+<Layout title="Iniciar Sesión">
+	<main class="flex min-h-screen items-center justify-center">
+		<section
+			class="mt-20 flex h-auto flex-col items-center justify-center rounded-xl border px-20 py-10 text-white md:w-1/2"
+		>
+			<h1 class="mb-20 text-3xl">Iniciar Sesión</h1>
 
-	<article class="flex flex-col gap-4">
-		<div>
-			<!-- Title -->
-			<label for="title" class="mb-4 block text-sm font-medium text-gray-400">
-				Ingresar con Google
-			</label>
+			<article class="flex flex-col gap-4">
+				<div>
+					<!-- Title -->
+					<label for="title" class="mb-4 block text-sm font-medium text-gray-400">
+						Ingresar con Google
+					</label>
 
-			<SignIn
-				class="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm transition-transform hover:scale-105 focus:border-green-150 focus:outline-none focus:ring-green-150 sm:text-sm"
-			>
-				Ingresar
-			</SignIn>
-		</div>
-	</article>
-</main>
+					<SignIn
+						class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm transition-transform hover:scale-105 focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+					>
+						Ingresar
+					</SignIn>
+				</div>
+			</article>
+		</section>
+	</main>
+</Layout>
