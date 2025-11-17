@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { db, Product, Image, NOW, eq, User } from "astro:db"
+import { db, Product, Image, NOW } from "astro:db"
 import { getSession } from "auth-astro/server"
 import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
@@ -11,8 +11,8 @@ const serverSchema = z.object({
 	productType: z.enum(["Hotel", "Tour", "Package"]),
 	description: z.string().optional().or(z.literal("")),
 	destinationId: z.string().min(1),
-	basePriceUSD: z.coerce.number().min(0),
-	basePriceBOB: z.coerce.number().min(0),
+	basePriceUSD: z.coerce.number().min(0).optional(),
+	basePriceBOB: z.coerce.number().min(0).optional(),
 	images: z.array(z.string().url()).min(1), // publicUrls
 })
 
@@ -35,8 +35,8 @@ export const POST: APIRoute = async ({ request }) => {
 			productType: String(formData.get("productType") || ""),
 			description: String(formData.get("description") || ""),
 			destinationId: String(formData.get("destinationId") || ""),
-			basePriceUSD: Number(formData.get("basePriceUSD") || 0),
-			basePriceBOB: Number(formData.get("basePriceBOB") || 0),
+			basePriceUSD: formData.get("basePriceUSD") ? Number(formData.get("basePriceUSD")) : undefined,
+			basePriceBOB: formData.get("basePriceBOB") ? Number(formData.get("basePriceBOB")) : undefined,
 			images: JSON.parse(String(formData.get("images") || "[]")) as string[],
 		}
 
@@ -62,8 +62,8 @@ export const POST: APIRoute = async ({ request }) => {
 				providerId: parsed.data.providerId || null,
 				destinationId: parsed.data.destinationId,
 				isActive: true,
-				basePriceUSD: parsed.data.basePriceUSD,
-				basePriceBOB: parsed.data.basePriceBOB,
+				basePriceUSD: parsed.data.basePriceUSD ?? null,
+				basePriceBOB: parsed.data.basePriceBOB ?? null,
 			})
 
 			// 2 Guardar imágenes en la tabla Image
