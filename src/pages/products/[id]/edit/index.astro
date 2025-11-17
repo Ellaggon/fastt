@@ -1,5 +1,5 @@
 ---
-import ProductBaseForm from "@/components/forms/ProductBaseForm.astro"
+import ProductBaseForm from "@/components/product/create/ProductBaseForm.astro"
 import Layout from "@/layouts/Layout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
@@ -27,46 +27,81 @@ const product = productBundle.product
 ---
 
 <Layout title={`Editar · ${product.name || "Producto"}`}>
-	<div
-		class="mx-auto mt-20 w-11/12 rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-3xl lg:p-20"
-	>
-		<h1 class="mb-2 text-2xl font-semibold">Editar Producto</h1>
-		<p class="mb-6 text-sm text-neutral-500">Modifica la información base de tu producto.</p>
-
-		<!-- Formulario: POST a tu endpoint centralizado -->
-		<form
-			id="productUpdateForm"
-			method="POST"
-			action={`/api/products/${product.id}/update`}
-			class="flex flex-col gap-6"
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-3xl lg:p-20"
 		>
-			<ProductBaseForm product={product} />
+			<h1 class="mb-2 text-2xl font-semibold">EDICIÓN DE PRODUCTO</h1>
+			<p class="mb-6 text-sm text-neutral-500">Modifica la información base de tu producto</p>
+			<p class="text-end text-base font-semibold text-neutral-600 md:mb-6">{product.name}</p>
 
-			<!-- hidden input where we will place JSON for subtype -->
-			<input type="hidden" name="subtype" id="subtypeInput" value="" />
+			<!-- Formulario: POST a tu endpoint centralizado -->
+			<form
+				id="productUpdateForm"
+				method="POST"
+				action={`/api/products/${product.id}/update`}
+				class="flex flex-col gap-6"
+			>
+				<ProductBaseForm product={product} />
 
-			<div class="mt-4 flex justify-end gap-4">
-				<a
-					href={`/products/${product.id}`}
-					class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
-				>
-					Cancelar
-				</a>
-				<button
-					type="submit"
-					class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-				>
-					Guardar Cambios
-				</button>
+				<!-- hidden input where we will place JSON for subtype -->
+				<input type="hidden" name="subtype" id="subtypeInput" value="" />
+
+				<div class="mt-4 flex justify-end gap-4">
+					<a
+						href={`/products/${product.id}`}
+						class="rounded-xl border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+					>
+						Cancelar
+					</a>
+					<button
+						type="submit"
+						class="rounded-xl bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+					>
+						Guardar Cambios
+					</button>
+				</div>
+			</form>
+
+			<div class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-yellow-800 shadow-sm">
+				<p>
+					<strong>Nota:</strong> Cambiar el tipo de producto (Hotel ↔ Tour ↔ Package) puede eliminar
+					los detalles del subtipo anterior y crear el nuevo. Asegúrate de revisar los campos antes de
+					guardar.
+				</p>
 			</div>
-		</form>
+		</article>
+	</section>
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const form = document.getElementById("productUpdateForm") as HTMLFormElement
+			if (!form) return
 
-		<div class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-yellow-800 shadow-sm">
-			<p>
-				<strong>Nota:</strong> Cambiar el tipo de producto (Hotel ↔ Tour ↔ Package) puede eliminar
-				los detalles del subtipo anterior y crear el nuevo. Asegúrate de revisar los campos antes de
-				guardar.
-			</p>
-		</div>
-	</div>
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault()
+
+				const fd = new FormData(form)
+				const res = await fetch(form.action, { method: "POST", body: fd })
+				const text = await res.text()
+				console.log("📦 Respuesta update:", text)
+
+				if (!res.ok) {
+					alert("Error al actualizar el producto")
+					return
+				}
+
+				try {
+					const data = JSON.parse(text)
+					if (data.ok && data.redirectUrl) {
+						window.location.href = data.redirectUrl // ✅ redirige al destino
+					} else {
+						window.location.href = "/dashboard"
+						console.error("Producto actualizado, pero sin URL de redirección")
+					}
+				} catch (err) {
+					console.error("Error parseando respuesta:", err)
+				}
+			})
+		})
+	</script>
 </Layout>
