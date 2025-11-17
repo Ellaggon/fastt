@@ -10,7 +10,10 @@ export function initializeProductFormHandlers() {
 
 		const schema = productFormSchema
 		const form = document.getElementById("productForm") as HTMLFormElement | null
-		if (!form) return
+		if (!form) {
+			console.error("❌ No se encontró #productForm en el DOM")
+			return
+		}
 
 		// Validaciones en tiempo real
 		form
@@ -68,14 +71,18 @@ export function initializeProductFormHandlers() {
 				productType: String(raw.productType || ""),
 				description: String(raw.description || ""),
 				destinationId: String(raw.destinationId || ""),
-				basePriceUSD: Number(raw.basePriceUSD || 0),
-				basePriceBOB: Number(raw.basePriceBOB || 0),
+				basePriceUSD: raw.basePriceUSD ? Number(raw.basePriceUSD) : undefined,
+				basePriceBOB: raw.basePriceBOB ? Number(raw.basePriceBOB) : undefined,
 				imagesMeta,
 			}
 
+			console.log("🔎 parsed for zod:", parsed)
 			const validation = schema.safeParse(parsed)
 			if (!validation.success) {
 				// pintar errores
+				console.warn("⚠️ Zod validation failed:", validation.error.flatten())
+				// Mostrar al usuario (simple)
+				alert("Validación: revisa los campos requeridos.")
 				const errsByField = new Map<string, string>()
 				for (const issue of validation.error.issues) {
 					const path = issue.path[0] as string
@@ -101,7 +108,11 @@ export function initializeProductFormHandlers() {
 
 			// 2) Enviar al backend para crear el Product
 			fd.append("images", JSON.stringify(publicUrls)) // urls públicas
+			console.log("📸 URLs enviadas:", publicUrls)
+			console.log("📦 FormData keys:", Array.from(fd.keys()))
 			try {
+				console.log("📸 URLs enviadas:", publicUrls)
+				console.log("📦 FormData keys:", Array.from(fd.keys()))
 				const res = await fetch("/api/products/create", { method: "POST", body: fd })
 
 				if (!res.ok) {
