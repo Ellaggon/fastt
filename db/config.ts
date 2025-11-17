@@ -40,18 +40,6 @@ const Destination = defineTable({
 	},
 })
 
-const PointOfInterest = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		description: column.text({ optional: true }),
-		destinationId: column.text({ references: () => Destination.columns.id }),
-		latitude: column.number({ optional: true }),
-		longitude: column.number({ optional: true }),
-		type: column.text({ optional: true }), // e.g., 'National Park', 'Monument', 'Museum'
-	},
-})
-
 // --- Tablas de Contenido Principal (Productos) ---
 const Product = defineTable({
 	columns: {
@@ -64,10 +52,22 @@ const Product = defineTable({
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 		destinationId: column.text({ references: () => Destination.columns.id }),
 		isActive: column.boolean({ default: true }),
-		basePriceUSD: column.number({ default: 0 }),
-		basePriceBOB: column.number({ default: 0 }),
+		basePriceUSD: column.number({ optional: true }),
+		basePriceBOB: column.number({ optional: true }),
 	},
 })
+
+// const Place = defineTable({
+// 	columns: {
+// 		id: column.text({ primaryKey: true }),
+// 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
+// 		address: column.text({ optional: true }),
+// 		phone: column.text({ optional: true }),
+// 		email: column.text({ optional: true }),
+// 		latitude: column.number({ optional: true }),
+// 		longitude: column.number({ optional: true }),
+// 	}
+// })
 
 const Hotel = defineTable({
 	columns: {
@@ -114,8 +114,6 @@ const Image = defineTable({
 		altText: column.text({ optional: true }),
 		order: column.number({ default: 0 }),
 		isPrimary: column.boolean({ default: false }),
-		// You could add columns like `entityType` and `entityId` for polymorphic relations
-		// e.g., `entityType: column.text()`, `entityId: column.text()`
 	},
 })
 
@@ -145,27 +143,51 @@ const ProductService = defineTable({
 	// or via unique constraints in your ORM/app logic.
 })
 
+// configuracion de typo de habitacion (aspectos generales)
 const RoomType = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		name: column.text(), // "Suite Familiar", "Habitación Doble", etc.
-		description: column.text({ optional: true }),
+		name: column.text(),
 		maxOccupancy: column.number({ optional: true }),
-		bedType: column.text({ optional: true }), // "1 cama doble", "2 camas individuales"
-		sizeM2: column.number({ optional: true }),
-		hasPrivateBathroom: column.boolean({ default: true }),
-		hasBalcony: column.boolean({ optional: true }),
-		hasView: column.text({ optional: true }), // "Vista al mar", "Vista al salar"
+		description: column.text({ optional: true }),
 	},
 })
 
+// configuracion de typo de habitacion (aspectos especificos)
 const HotelRoomType = defineTable({
 	columns: {
+		id: column.text({ primaryKey: true }),
 		hotelId: column.text({ references: () => Hotel.columns.productId }), // FK to Hotel (which is Product ID)
 		roomTypeId: column.text({ references: () => RoomType.columns.id }),
-		totalRooms: column.number({ default: 0 }), // total inventory for this hotel
+		name: column.text({ optional: true }), // cambiar overrider
+		description: column.text({ optional: true }), // cambiar overrider
 		priceUSD: column.number({ optional: true }),
 		priceBOB: column.number({ optional: true }),
+		totalRooms: column.number({ default: 0 }), // total inventory for this hotel
+		hasView: column.text({ optional: true }), // "Vista al salar"
+		bedType: column.json({ optional: true }), //cambiar s
+		sizeM2: column.number({ optional: true }),
+		bathroom: column.number({ optional: true }),
+		hasBalcony: column.boolean({ optional: true }),
+		maxOccupancyOverride: column.number({ optional: true }),
+		// debemos enlazar las imagenes con cada habitacion medienate el entityId y el entityType
+	},
+})
+
+const AmenityRoom = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(), // "Aire acondicionado", "TV", "Minibar"
+		category: column.text({ optional: true }), // "Entretenimiento", "Comodidad", "Baño"
+	},
+})
+
+const HotelRoomAmenity = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
+		amenityId: column.text({ references: () => AmenityRoom.columns.id }),
+		isAvailable: column.boolean({ default: true }),
 	},
 })
 
@@ -173,11 +195,11 @@ const HotelRoomType = defineTable({
 const RatePlan = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id }), // hotel/product
+		roomTypeHotelId: column.text({ references: () => HotelRoomType.columns.id }),
 		name: column.text(),
 		refundable: column.boolean({ default: true }),
 		paymentType: column.text({ default: "Prepaid" }), // Prepaid | Postpaid
-		basePriceUSD: column.number({ optional: true }),
+		priceModifierUSD: column.number({ default: 0 }), // Puede sumar o restar al basePrice
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -223,49 +245,13 @@ const BookingRoomDetail = defineTable({
 	// If a booking includes multiple rooms/types
 	columns: {
 		bookingId: column.text({ references: () => Booking.columns.id }),
-		roomTypeId: column.text(),
+		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }), // ✅ vínculo a habitación específica del hotel
+		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }), // ✅ tarifa aplicada
 		quantity: column.number(),
 		unitPriceUSD: column.number({ optional: true }),
 		unitPriceBOB: column.number({ optional: true }),
 	},
 	// Composite primary key (bookingId, roomTypeId) would be ideal here too.
-})
-
-// --- Tablas de Contenido Dinámico (Blog/Artículos) ---
-const Author = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		biography: column.text({ optional: true }),
-	},
-})
-
-const Article = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		title: column.text(),
-		content: column.text(),
-		publicationDate: column.date(),
-		authorId: column.text({ references: () => Author.columns.id, optional: true }),
-		urlSlug: column.text({ unique: true }),
-		mainImageId: column.text({ references: () => Image.columns.id, optional: true }), // FK to Image
-	},
-})
-
-const ArticleCategory = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text({ unique: true }),
-	},
-})
-
-const ArticleToCategory = defineTable({
-	// Junction table for Article-Category (Many-to-Many)
-	columns: {
-		articleId: column.text({ references: () => Article.columns.id }),
-		categoryId: column.text({ references: () => ArticleCategory.columns.id }),
-	},
-	// Composite primary key (articleId, categoryId) would be ideal here.
 })
 
 // --- Tabla de Traducciones (para soporte multilenguaje) ---
@@ -337,7 +323,6 @@ export default defineDb({
 	tables: {
 		// Geográficas
 		Destination,
-		PointOfInterest,
 		// Proveedores y Usuarios
 		Provider,
 		User,
@@ -350,20 +335,18 @@ export default defineDb({
 		Image,
 		Service,
 		ProductService,
-		RoomType,
-		HotelRoomType,
 		RatePlan,
 		OperatingRule,
 		Policy,
 		TaxFee,
+		// Configuracion de habitación
+		RoomType,
+		HotelRoomType,
+		AmenityRoom,
+		HotelRoomAmenity,
 		// Reservas
 		Booking,
 		BookingRoomDetail,
-		// Contenido Dinámico
-		Author,
-		Article,
-		ArticleCategory,
-		ArticleToCategory,
 		// Multilenguaje
 		Translation,
 		Payment,

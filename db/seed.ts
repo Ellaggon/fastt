@@ -9,6 +9,8 @@ import {
 	Package,
 	Service,
 	ProductService,
+	RoomType,
+	AmenityRoom,
 } from "astro:db"
 import { isDepartmentId } from "@/data/departments"
 
@@ -651,7 +653,7 @@ export default async function seed() {
 			description: `Alojamiento ${h.stars} estrellas en ${h.destinationId.toUpperCase()}. Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
 			images: generateImageUrl(productId),
 			productType: "Hotel",
-			providerId: "2f09e8f8-e09b-4332-90a8-6542dbf3c822",
+			providerId: "36f153e3-6b6a-4ba3-8542-8b4fa64fa171",
 			destinationId: h.destinationId,
 			basePriceUSD: 50 + h.stars * 15,
 			basePriceBOB: (50 + h.stars * 15) * 6.96,
@@ -743,6 +745,178 @@ export default async function seed() {
 		})
 
 	await db.insert(ProductService).values(productServicesToInsert)
+
+	await db.insert(RoomType).values([
+		{
+			id: "single",
+			name: "Habitación Simple",
+			maxOccupancy: 1,
+			description: "Una cama individual; ideal para una persona.",
+		},
+		{
+			id: "double",
+			name: "Habitación Doble",
+			maxOccupancy: 2,
+			description: "Una cama doble o dos camas individuales; para dos personas.",
+		},
+		{
+			id: "twin",
+			name: "Habitación Twin",
+			maxOccupancy: 2,
+			description: "Dos camas individuales separadas; perfecta para amigos o compañeros de viaje.",
+		},
+		{
+			id: "triple",
+			name: "Habitación Triple",
+			maxOccupancy: 3,
+			description: "Tres camas individuales o una doble más una individual; para tres huéspedes.",
+		},
+		{
+			id: "quad",
+			name: "Habitación Cuádruple",
+			maxOccupancy: 4,
+			description: "Cuatro camas individuales o dos camas dobles; ideal para familias o grupos.",
+		},
+		{
+			id: "queen",
+			name: "Habitación Queen",
+			maxOccupancy: 2,
+			description: "Una cama tamaño Queen; para dos personas con mayor comodidad.",
+		},
+		{
+			id: "king",
+			name: "Habitación King",
+			maxOccupancy: 2,
+			description: "Una cama tamaño King; para dos personas, espaciosa y lujosa.",
+		},
+		{
+			id: "suite",
+			name: "Suite",
+			maxOccupancy: 2,
+			description:
+				"Habitación amplia con zona de estar o sala; generalmente incluye servicios premium.",
+		},
+		{
+			id: "junior_suite",
+			name: "Junior Suite",
+			maxOccupancy: 2,
+			description:
+				"Espacio semi-dividido con cama y área de estar; más grande que una habitación estándar.",
+		},
+		{
+			id: "family_suite",
+			name: "Suite Familiar",
+			maxOccupancy: 4,
+			description: "Diseñada para familias, con varias camas o dormitorios conectados.",
+		},
+		{
+			id: "studio",
+			name: "Estudio",
+			maxOccupancy: 2,
+			description: "Habitación con área de cocina o kitchenette integrada.",
+		},
+		{
+			id: "apartment",
+			name: "Departamento / Apartamento",
+			maxOccupancy: 4,
+			description:
+				"Unidad independiente con cocina, sala y dormitorio; ideal para estancias largas.",
+		},
+		{
+			id: "villa",
+			name: "Villa",
+			maxOccupancy: 4,
+			description:
+				"Alojamiento independiente con varias habitaciones y áreas privadas, a menudo con piscina.",
+		},
+		{
+			id: "bungalow",
+			name: "Bungalow",
+			maxOccupancy: 3,
+			description: "Unidad privada de un solo piso, usualmente rodeada de jardines o playa.",
+		},
+		{
+			id: "penthouse",
+			name: "Penthouse",
+			maxOccupancy: 2,
+			description: "Suite ubicada en el último piso con terraza o vistas panorámicas.",
+		},
+		{
+			id: "duplex",
+			name: "Dúplex",
+			maxOccupancy: 4,
+			description: "Habitación o suite de dos niveles conectados por una escalera interna.",
+		},
+		{
+			id: "connecting",
+			name: "Habitaciones Conectadas",
+			maxOccupancy: 4,
+			description: "Dos habitaciones unidas por una puerta interior; ideal para familias o grupos.",
+		},
+		{
+			id: "accessible",
+			name: "Habitación Accesible",
+			maxOccupancy: 2,
+			description:
+				"Diseñada para huéspedes con movilidad reducida; acceso adaptado y baño accesible.",
+		},
+		{
+			id: "deluxe",
+			name: "Habitación Deluxe",
+			maxOccupancy: 2,
+			description:
+				"Habitación superior con mejores vistas, mobiliario o ubicación dentro del hotel.",
+		},
+		{
+			id: "executive",
+			name: "Habitación Ejecutiva",
+			maxOccupancy: 2,
+			description:
+				"Orientada a viajeros de negocios; incluye escritorio, sala o beneficios adicionales.",
+		},
+		{
+			id: "presidential_suite",
+			name: "Suite Presidencial",
+			maxOccupancy: 2,
+			description: "La suite más lujosa del hotel, con amplios espacios y servicios exclusivos.",
+		},
+		{
+			id: "loft",
+			name: "Loft",
+			maxOccupancy: 2,
+			description: "Espacio de planta abierta con techos altos; moderno y espacioso.",
+		},
+		{
+			id: "cabana",
+			name: "Cabaña / Cabana",
+			maxOccupancy: 2,
+			description:
+				"Unidad junto a la piscina o playa, generalmente privada y con servicios propios.",
+		},
+		{
+			id: "tent",
+			name: "Tienda / Glamping",
+			maxOccupancy: 2,
+			description: "Alojamiento tipo tienda de lujo o glamping, combinando naturaleza y confort.",
+		},
+		{
+			id: "dormitory",
+			name: "Dormitorio Compartido",
+			maxOccupancy: 1,
+			description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
+		},
+	])
+
+	await db.insert(AmenityRoom).values([
+		{ id: "air_conditioning", name: "Aire acondicionado", category: "Confort" },
+		{ id: "heating", name: "Calefacción", category: "Confort" },
+		{ id: "fan", name: "Ventilador", category: "Confort" },
+		{ id: "soundproofing", name: "Insonorización", category: "Confort" },
+		{ id: "extra_long_beds", name: "Camas extra largas (> 2 metros)", category: "Confort" },
+		{ id: "iron", name: "Plancha para ropa", category: "Confort" },
+		{ id: "closet", name: "Armario o clóset", category: "Confort" },
+		{ id: "mosquito_net", name: "Mosquitero", category: "Confort" },
+	])
 
 	console.log("¡Siembra de datos completada exitosamente!")
 }
