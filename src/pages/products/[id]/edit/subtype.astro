@@ -1,11 +1,14 @@
 ---
-import HotelSubtypeForm from "@/components/forms/HotelSubtypeForm.astro"
-import PackageSubtypeForm from "@/components/forms/PackageSubtypeForm.astro"
-import TourSubtypeForm from "@/components/forms/TourSubtypeForm.astro"
+import MapPicker from "@/components/MapPicker.astro"
+import HotelForm from "@/components/product/update/HotelForm.astro"
+import PackageForm from "@/components/product/update/PackageForm.astro"
+import TourForm from "@/components/product/update/TourForm.astro"
 import Layout from "@/layouts/Layout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
 import { getSession } from "auth-astro/server"
+
+const { hotel } = Astro.props as { hotel: any | null }
 
 const session = await getSession(Astro.request)
 const paramsId = Astro.params.id
@@ -26,67 +29,124 @@ if (String(productBundle.product.providerId) !== String(providerId)) {
 const product = productBundle.product
 const subtype = productBundle.subtype
 const normalizedType = String(product.productType || "").toLowerCase() // "hotel" | "tour" | "package"
+
+let lat = hotel?.latitude ?? -16.5
+let lng = hotel?.longitude ?? -68.13
 ---
 
 <Layout title={`Editar subtipo · ${product.name || "Producto"}`}>
-	<section
-		class="mx-auto mt-16 w-11/12 max-w-4xl rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 lg:p-16"
-	>
-		<h1 class="mb-6 text-2xl font-bold lg:text-3xl">
-			Editar detalles del
-			<span class="text-blue-600">{product.productType}</span> – {product.name}
-		</h1>
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+		>
+			<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">EDICIÓN DE DETALLES</h1>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Completa la información específica para tu {product.productType}
+			</p>
+			<small class="text-xs text-neutral-500 md:hidden"
+				>Completa la información específica para tu {product.productType}</small
+			>
+			<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{product.name}</p>
 
-		<!-- Form wrapper -->
-		<form id="subtypeForm" class="flex flex-col gap-8">
-			<!-- Renderiza el formulario correspondiente -->
-			<div data-subtype-section="hotel" class={normalizedType === "hotel" ? "block" : "hidden"}>
-				<HotelSubtypeForm hotel={subtype} />
-			</div>
+			<!-- Form wrapper -->
+			<form id="subtypeForm" class="mt-10 flex flex-col gap-8">
+				<!-- Renderiza el formulario correspondiente -->
+				<div data-subtype-section="hotel" class={normalizedType === "hotel" ? "block" : "hidden"}>
+					<HotelForm hotel={subtype} />
+				</div>
 
-			<div data-subtype-section="tour" class={normalizedType === "tour" ? "block" : "hidden"}>
-				<TourSubtypeForm tour={subtype} />
-			</div>
+				<div data-subtype-section="tour" class={normalizedType === "tour" ? "block" : "hidden"}>
+					<TourForm tour={subtype} />
+				</div>
 
-			<div data-subtype-section="package" class={normalizedType === "package" ? "block" : "hidden"}>
-				<PackageSubtypeForm pkg={subtype} />
-			</div>
-
-			<!-- Mensajes -->
-			<div id="subtypeMsg" class="min-h-[1.25rem] text-sm"></div>
-
-			<!-- Hidden productId -->
-			<input id="productId" name="productId" type="hidden" value={product.id} />
-
-			<!-- Acciones -->
-			<div class="mt-4 flex justify-end gap-4">
-				<a
-					href={`/products/${product.id}`}
-					class="rounded-lg border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+				<div
+					data-subtype-section="package"
+					class={normalizedType === "package" ? "block" : "hidden"}
 				>
-					Cancelar
-				</a>
-				<button
-					id="subtypeSubmit"
-					type="submit"
-					class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-				>
-					Guardar Subtipo
-				</button>
-			</div>
-		</form>
+					<PackageForm pkg={subtype} />
+				</div>
 
-		<!-- Nota -->
-		<p class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-neutral-500">
-			ℹ️ Si el subtipo no existe para este producto verás el formulario vacío: al guardar se creará
-			automáticamente.
-			<br />
-			<em class="text-neutral-600">
-				Este formulario solo modifica la tabla del subtipo. Si quieres cambiar el
-				<code>productType</code> (Hotel / Tour / Package), hazlo en la página de datos del producto.
-			</em>
-		</p>
+				<!-- Mensajes -->
+				<div id="subtypeMsg" class="min-h-[1.25rem] text-sm"></div>
+
+				<!-- Hidden productId -->
+				<input id="productId" name="productId" type="hidden" value={product.id} />
+
+				<!-- Acciones -->
+				<div class="mt-4 flex justify-end gap-4">
+					<a
+						href={`/products/${product.id}`}
+						class="rounded-xl border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+					>
+						Cancelar
+					</a>
+					<button
+						id="subtypeSubmit"
+						type="submit"
+						class="rounded-xl bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+					>
+						Guardar
+					</button>
+				</div>
+			</form>
+
+			<!-- Nota -->
+			<p class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-neutral-500">
+				ℹ️ Si el subtipo no existe para este producto verás el formulario vacío: al guardar se
+				creará automáticamente.
+				<br />
+				<em class="text-neutral-600">
+					Este formulario solo modifica la tabla del subtipo. Si quieres cambiar el tipo de producto
+					(Hotel / Tour / Package), hazlo en la página de datos del producto.
+				</em>
+			</p>
+		</article>
 	</section>
+	<!-- Modal de mapa -->
+	<MapPicker latitude={hotel?.latitude || lat} longitude={hotel?.longitude || lng} />
+
+	<script>
+		// botón que abre el mapa -> disparar evento global 'open-map'
+		document.addEventListener("DOMContentLoaded", () => {
+			const openBtn = document.getElementById("openMapBtn") as HTMLButtonElement | null
+			const latInput = document.getElementById("latitude") as HTMLInputElement | null
+			const lngInput = document.getElementById("longitude") as HTMLInputElement | null
+			const addressInput = document.getElementById("hotelAddress") as HTMLInputElement | null
+
+			openBtn?.addEventListener("click", () => {
+				// mandamos coords iniciales como detalle
+				document.dispatchEvent(
+					new CustomEvent("open-map", {
+						detail: {
+							lat: Number(latInput?.value) || -16.5,
+							lng: Number(lngInput?.value) || -68.13,
+							address: addressInput?.value || "",
+						},
+					})
+				)
+			})
+
+			// escuchar cuando el usuario confirma en MapPicker
+			document.addEventListener("map-picked", (ev) => {
+				const custonEv = ev as CustomEvent<{ lat: number; lng: number; address: string }>
+				const { lat, lng, address } = custonEv.detail
+
+				// actualizar inputs del formulario
+				if (latInput) latInput.value = String(lat)
+				if (lngInput) lngInput.value = String(lng)
+				if (addressInput) addressInput.value = address
+
+				// ✅ feedback visual opcional
+				addressInput?.classList.add("ring", "ring-green-400")
+				setTimeout(() => addressInput?.classList.remove("ring", "ring-green-400"), 1000)
+			})
+
+			// opcional: escuchar cierre
+			document.addEventListener("map-closed", () => {
+				// si quieres hacer algo cuando se cierre sin confirmar
+			})
+		})
+	</script>
 
 	<script define:vars={{ SUBTYPE_TYPE: normalizedType }}>
 		// Valores embebidos del servidor
@@ -168,10 +228,10 @@ const normalizedType = String(product.productType || "").toLowerCase() // "hotel
 						return
 					}
 
-					msgEl.innerHTML = `<span class="text-green-300">Subtipo guardado correctamente.</span>`
+					msgEl.innerHTML = `<span class="text-green-700">Subtipo guardado correctamente.</span>`
 					submitBtn.textContent = "Guardado"
 					setTimeout(() => {
-						window.location.href = `/products/${PRODUCT_ID}`
+						window.location.href = `/dashboard`
 					}, 500)
 				} catch (err) {
 					console.error("update-subtype client error:", err)

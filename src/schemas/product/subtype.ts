@@ -19,6 +19,8 @@ export const hotelSchema = z.object({
 	website: z.preprocess((v) => (v === "" ? null : v), z.string().url().optional().nullable()),
 	checkInTime: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
 	checkOutTime: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
+	latitude: z.number().nullable().optional(),
+	longitude: z.number().nullable().optional(),
 })
 
 export const tourSchema = z.object({

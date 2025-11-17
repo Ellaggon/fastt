@@ -9,6 +9,8 @@ export type HotelPayload = {
 	website?: string | null
 	checkInTime?: string | null
 	checkOutTime?: string | null
+	latitude?: number | null
+	longitude?: number | null
 }
 export type TourPayload = {
 	productId: string
@@ -40,6 +42,8 @@ export async function insertHotel(dbOrTx: DBOrTx, data: HotelPayload) {
 		website: data.website ?? null,
 		checkInTime: data.checkInTime ?? null,
 		checkOutTime: data.checkOutTime ?? null,
+		latitude: data.latitude ?? null,
+		longitude: data.longitude ?? null,
 	})
 }
 export async function updateHotel(dbOrTx: DBOrTx, productId: string, data: Partial<HotelPayload>) {
@@ -53,6 +57,8 @@ export async function updateHotel(dbOrTx: DBOrTx, productId: string, data: Parti
 			website: data.website ?? null,
 			checkInTime: data.checkInTime ?? null,
 			checkOutTime: data.checkOutTime ?? null,
+			latitude: data.latitude ?? null,
+			longitude: data.longitude ?? null,
 		})
 		.where(eq(Hotel.productId, productId))
 }

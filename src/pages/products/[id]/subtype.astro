@@ -1,11 +1,14 @@
 ---
-import HotelForm from "@/components/product/subtypes/HotelForm.astro"
-import PackageForm from "@/components/product/subtypes/PackageForm.astro"
-import TourForm from "@/components/product/subtypes/TourForm.astro"
+import MapPicker from "@/components/MapPicker.astro"
+import HotelForm from "@/components/product/update/HotelForm.astro"
+import PackageForm from "@/components/product/update/PackageForm.astro"
+import TourForm from "@/components/product/update/TourForm.astro"
 import Layout from "@/layouts/Layout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
 import { getSession } from "auth-astro/server"
+
+const { hotel } = Astro.props as { hotel: any | null }
 
 const session = await getSession(Astro.request)
 const paramsId = Astro.params.id
@@ -28,37 +31,95 @@ if (String(productBundle.product.providerId) !== String(providerId)) {
 
 const product = productBundle.product
 const subtype = (product.productType || "hotel").toLowerCase()
+
+let lat = hotel?.latitude ?? -16.5
+let lng = hotel?.longitude ?? -68.13
 ---
 
 <Layout title={`Detalles: ${product.name || "Producto"}`}>
-	<article
-		class="mx-auto mt-20 w-10/12 max-w-3xl rounded-2xl bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20"
-	>
-		<h2 class="mb-2 text-2xl font-bold">Detalles adicionales — {product.name}</h2>
-		<p class="mb-8 text-xs text-neutral-500">
-			Completa la información específica para tu {subtype === "package" ? "Paquete" : subtype}.
-		</p>
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+		>
+			<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">DETALLES ADICIONALES</h1>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Completa la información específica para tu {product.productType ?? "Subproducto"}
+			</p>
+			<small class="text-xs text-neutral-500 md:hidden"
+				>Completa la información específica para tu {product.productType ?? "Subproducto"}</small
+			>
+			<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{product.name}</p>
 
-		<form id="subtypeForm" class="space-y-4">
-			<input type="hidden" name="productId" value={paramsId} />
-			<input type="hidden" name="subtype" value={subtype} />
+			<form id="subtypeForm" class="mt-10 space-y-4">
+				<input type="hidden" name="productId" value={paramsId} />
+				<input type="hidden" name="subtype" value={subtype} />
 
-			<div class={subtype !== "hotel" ? "hidden" : ""}><HotelForm productId={paramsId} /></div>
-			<div class={subtype !== "tour" ? "hidden" : ""}><TourForm productId={paramsId} /></div>
-			<div class={subtype !== "package" ? "hidden" : ""}><PackageForm productId={paramsId} /></div>
+				<div class={subtype !== "hotel" ? "hidden" : ""}><HotelForm productId={paramsId} /></div>
+				<div class={subtype !== "tour" ? "hidden" : ""}><TourForm productId={paramsId} /></div>
+				<div class={subtype !== "package" ? "hidden" : ""}>
+					<PackageForm productId={paramsId} />
+				</div>
 
-			<div class="flex justify-end pt-4">
-				<button
-					id="submitBtn"
-					type="button"
-					class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
-					>Guardar detalles</button
-				>
-			</div>
-		</form>
+				<div class="flex justify-end py-16">
+					<button
+						id="submitBtn"
+						type="button"
+						class="h-10 w-40 rounded-xl bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+						>Guardar</button
+					>
+				</div>
+			</form>
 
-		<div id="message" class="mt-4 text-sm"></div>
-	</article>
+			<div id="message" class="mt-4 text-sm"></div>
+		</article>
+		<!-- Modal de mapa -->
+		<MapPicker latitude={lat} longitude={lng} />
+	</section>
+	<script>
+		// botón que abre el mapa -> disparar evento global 'open-map'
+		document.addEventListener("DOMContentLoaded", () => {
+			const openBtn = document.getElementById("openMapBtn") as HTMLButtonElement | null
+			const latInput = document.getElementById("latitude") as HTMLInputElement | null
+			const lngInput = document.getElementById("longitude") as HTMLInputElement | null
+			const addressInput = document.getElementById(
+				"input[name='address']"
+			) as HTMLInputElement | null
+
+			// abrir el modal del mapa
+			openBtn?.addEventListener("click", () => {
+				// mandamos coords iniciales como detalle
+				document.dispatchEvent(
+					new CustomEvent("open-map", {
+						detail: {
+							lat: Number(latInput?.value) || -16.5,
+							lng: Number(lngInput?.value) || -68.13,
+							address: addressInput?.value || "",
+						},
+					})
+				)
+			})
+
+			// escuchar cuando el usuario confirma en MapPicker
+			document.addEventListener("map-picked", (ev) => {
+				const custonEv = ev as CustomEvent<{ lat: number; lng: number; address: string }>
+				const { lat, lng, address } = custonEv.detail
+
+				// actualizar inputs del formulario
+				if (latInput) latInput.value = String(lat)
+				if (lngInput) lngInput.value = String(lng)
+				if (addressInput) addressInput.value = address
+
+				// ✅ feedback visual opcional
+				addressInput?.classList.add("ring", "ring-green-400")
+				setTimeout(() => addressInput?.classList.remove("ring", "ring-green-400"), 1000)
+			})
+
+			// opcional: escuchar cierre
+			document.addEventListener("map-closed", () => {
+				// si quieres hacer algo cuando se cierre sin confirmar
+			})
+		})
+	</script>
 
 	<script type="module">
 		const form = document.getElementById("subtypeForm")
@@ -91,7 +152,13 @@ const subtype = (product.productType || "hotel").toLowerCase()
 				}
 
 				// success -> redirect to product detail
-				window.location.href = `/dashboard`
+				if (res.ok) {
+					message.textContent = "Detalles guardados correctamente"
+					message.classList.add("text-green-600")
+					setTimeout(() => {
+						window.location.href = "/dashboard"
+					}, 1200)
+				}
 			} catch (e) {
 				console.error(e)
 				message.textContent = "Error de red. Intenta nuevamente."
