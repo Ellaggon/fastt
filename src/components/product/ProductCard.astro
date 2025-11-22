@@ -33,19 +33,17 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 <article
 	class="flex w-full overflow-hidden rounded-3xl bg-white shadow-md transition-shadow duration-300 hover:shadow-lg md:flex-row"
 >
-	<a href={props.href}>
-		<figure class="relative h-full w-24 flex-shrink-0 md:h-64 md:w-48">
-			<img
-				src={props.image}
-				alt={props.alt}
-				class="h-full w-full object-cover object-center"
-				loading="lazy"
-			/>
-		</figure>
+	<a href={props.href} class="relative aspect-[3/4] w-24 flex-shrink-0 md:w-40">
+		<img
+			src={props.image}
+			alt={props.alt}
+			class="absolute inset-0 h-full w-full object-cover"
+			loading="lazy"
+		/>
 	</a>
 
 	<div class="flex flex-grow flex-col p-4 md:p-5">
-		<div class="">
+		<div class="h-full lg:flex">
 			<div class="flex-grow pr-4">
 				<h3 class="mb-1 text-sm font-semibold text-gray-900 md:text-xl md:font-bold">
 					<a href={props.href} class="border-gray-900 transition-colors hover:border-b-2">
@@ -56,7 +54,7 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 				{
 					props.stars && props.stars > 0 && (
 						<div
-							class="mb-2 text-base text-yellow-500"
+							class="mb-2 hidden text-base text-yellow-500 lg:block"
 							aria-label={`Calificación: ${props.stars} estrellas`}
 						>
 							{renderStars(props.stars)}
@@ -64,8 +62,6 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 					)
 				}
 				<p class="mb-2 text-xs text-gray-600 md:text-sm">{props.address}</p>
-				{/* Descripción (Más corta para este formato) */}
-				<p class="line-clamp-2 hidden text-sm text-gray-700 md:block">{props.description}</p>
 
 				{/* Servicios (Iconos pequeños) */}
 				{
@@ -79,7 +75,8 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 										{Icon ? (
 											<>
 												<Icon class="h-4 w-4 text-gray-700" />
-												<span class="text-gray-700">{s.name}</span>
+												<small class="text-gray-700 md:hidden">{s.name}</small>
+												<span class="hidden text-gray-700 md:block">{s.name}</span>
 											</>
 										) : (
 											<span class="text-lg">•</span>
@@ -94,14 +91,14 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 			</div>
 
 			<div
-				class="mt-auto flex min-w-[8rem] flex-col items-end justify-end border-l border-gray-200 pl-4"
+				class="mt-auto flex min-w-[8rem] flex-col items-end justify-end border-gray-200 pl-4 lg:mt-2 lg:border-l"
 			>
 				<div class="text-right">
-					<p class="hidden text-xs font-semibold text-gray-500 md:block">Precio por noche</p>
+					<p class="hidden text-xs font-semibold text-gray-500 lg:block">Precio por noche</p>
 					{
 						props.priceUSD && (
-							<p class="text-2xl font-bold text-gray-900">
-								<span class="text-base text-gray-900">US$</span>
+							<p class="text-base font-semibold text-gray-900 md:text-2xl md:font-bold">
+								<span class="text-xs text-gray-900 md:text-base">US$</span>
 								{props.priceUSD}
 							</p>
 						)
@@ -118,7 +115,7 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 
 				<a
 					href={props.href}
-					class="mt-4 inline-flex items-center rounded-md border border-transparent bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+					class="mt-1 inline-flex items-center rounded-md border border-transparent bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:mt-2 lg:mt-4"
 				>
 					Ver Hotel
 				</a>
