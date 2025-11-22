@@ -6,8 +6,8 @@ interface Props {
 const { items } = Astro.props
 ---
 
-<nav aria-label="Breadcrumb">
-	<ol class="flex items-center space-x-2 text-sm text-neutral-500">
+<nav aria-label="Breadcrumb" class="hidden md:block">
+	<ol class="mt-3 flex items-center space-x-2 text-sm text-neutral-500">
 		{
 			items.map((item, index) => (
 				<li class="flex items-center">
