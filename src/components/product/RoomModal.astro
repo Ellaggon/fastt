@@ -1,0 +1,264 @@
+<!-- Modal (hidden por defecto) -->
+<div
+	id="room-modal"
+	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-6"
+	aria-hidden="true"
+	role="dialog"
+	aria-modal="true"
+>
+	<div class="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+		<header class="flex items-start justify-between gap-4 border-b px-6 py-4">
+			<div>
+				<h3 id="room-modal-title" class="text-xl font-semibold text-neutral-900"></h3>
+				<p id="room-modal-sub" class="mt-1 text-sm text-neutral-500"></p>
+			</div>
+			<div class="flex items-center gap-3">
+				<button
+					id="room-modal-close"
+					class="rounded px-3 py-2 text-neutral-600 hover:bg-neutral-100">Cerrar</button
+				>
+			</div>
+		</header>
+
+		<div class="grid grid-cols-1 gap-6 px-6 py-6 md:grid-cols-2">
+			<!-- carousel -->
+			<div>
+				<div class="relative h-80 w-full">
+					<div
+						id="carousel-main"
+						class="flex h-full w-full items-center justify-center overflow-hidden rounded-lg bg-neutral-100"
+					>
+						<!-- imagen principal reemplazada por JS -->
+					</div>
+					<button
+						id="carousel-prev"
+						class="translate-1/2 absolute left-2 top-1/2 z-10 rounded-full bg-white/80 px-4 py-1 text-neutral-500 shadow md:text-lg"
+						>‹</button
+					>
+					<button
+						id="carousel-next"
+						class="translate-1/2 absolute right-2 top-1/2 z-10 rounded-full bg-white/80 px-4 py-1 text-neutral-500 shadow md:text-lg"
+						>›</button
+					>
+				</div>
+
+				<div id="carousel-thumbs" class="mt-3 flex gap-2 overflow-x-auto"></div>
+			</div>
+
+			<!-- detalles y amenities -->
+			<div class="flex flex-col gap-4">
+				<div class="space-y-2">
+					<p id="room-price" class="text-sm text-neutral-500"></p>
+					<p id="room-desc" class="text-sm text-neutral-700"></p>
+				</div>
+
+				<div>
+					<h4 class="mb-2 text-sm font-semibold text-neutral-800">Comodidades</h4>
+					<div
+						id="amenities-list"
+						class="max-h-64 space-y-4 overflow-auto pr-2 text-sm text-neutral-700"
+					>
+					</div>
+				</div>
+
+				<div class="mt-auto flex gap-3">
+					<a
+						id="modal-book-btn"
+						class="flex-1 rounded-md bg-blue-600 px-4 py-2 text-center text-white"
+						href="#">Reservar</a
+					>
+					<button id="modal-close-2" class="rounded-md border px-4 py-2 text-neutral-700"
+						>Cerrar</button
+					>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<script type="module">
+	document.addEventListener("DOMContentLoaded", () => {
+		// parse rooms
+		const roomsJsonEl = document.getElementById("rooms-data")
+		let rooms = []
+
+		try {
+			rooms = JSON.parse(roomsJsonEl?.dataset.rooms || "[]")
+		} catch (err) {
+			console.error("Error parsing rooms JSON", err)
+		}
+
+		// elements
+		const modal = document.getElementById("room-modal")
+		const modalTitle = document.getElementById("room-modal-title")
+		const modalSub = document.getElementById("room-modal-sub")
+		const modalDesc = document.getElementById("room-desc")
+		const modalPrice = document.getElementById("room-price")
+		const modalClose = document.getElementById("room-modal-close")
+		const modalClose2 = document.getElementById("modal-close-2")
+		const modalBook = document.getElementById("modal-book-btn")
+		const carouselMain = document.getElementById("carousel-main")
+		const carouselThumbs = document.getElementById("carousel-thumbs")
+		const prevBtn = document.getElementById("carousel-prev")
+		const nextBtn = document.getElementById("carousel-next")
+		const amenitiesList = document.getElementById("amenities-list")
+
+		let activeImages = []
+		let activeIndex = 0
+
+		// util: group amenities by category
+		function groupAmenities(amenities = []) {
+			const map = new Map()
+			amenities.forEach((a) => {
+				const cat = a.category || "Otras"
+				if (!map.has(cat)) map.set(cat, [])
+				map.get(cat).push(a)
+			})
+			return map
+		}
+
+		// render carousel main + thumbs
+		function renderCarousel(images = []) {
+			activeImages = images
+			activeIndex = 0
+			if (!carouselMain) return
+			carouselMain.innerHTML = ""
+			carouselThumbs.innerHTML = ""
+
+			if (images.length === 0) {
+				carouselMain.innerHTML = `<div class="text-neutral-400">Sin imágenes</div>`
+				return
+			}
+
+			// main
+			const imgEl = document.createElement("img")
+			imgEl.src = images[0].url
+			imgEl.alt = images[0].altText || ""
+			imgEl.className = "h-full w-full object-cover"
+			carouselMain.appendChild(imgEl)
+
+			// thumbs
+			images.forEach((im, i) => {
+				const t = document.createElement("button")
+				t.className = "h-16 w-24 overflow-hidden rounded border border-neutral-200"
+				t.innerHTML = `<img src="${im.url}" alt="${im.altText || ""}" class="h-full w-full object-cover">`
+				t.addEventListener("click", () => {
+					activeIndex = i
+					updateMain()
+				})
+				carouselThumbs.appendChild(t)
+			})
+			updateMain()
+		}
+
+		function updateMain() {
+			if (!carouselMain) return
+			carouselMain.innerHTML = ""
+			const img = activeImages[activeIndex]
+			if (!img) return
+			const imgEl = document.createElement("img")
+			imgEl.src = img.url
+			imgEl.alt = img.altText || ""
+			imgEl.className = "h-full w-full object-cover transition-opacity duration-300"
+			carouselMain.appendChild(imgEl)
+		}
+
+		prevBtn?.addEventListener("click", () => {
+			if (activeImages.length === 0) return
+			activeIndex = (activeIndex - 1 + activeImages.length) % activeImages.length
+			updateMain()
+		})
+		nextBtn?.addEventListener("click", () => {
+			if (activeImages.length === 0) return
+			activeIndex = (activeIndex + 1) % activeImages.length
+			updateMain()
+		})
+
+		// open modal with roomId
+		function openRoomModal(roomId) {
+			const room = rooms.find((r) => r.id === roomId)
+			if (!room) return
+			// title / sub
+			modalTitle.textContent = room.name
+			modalSub.textContent = room.sizeM2
+				? `${room.sizeM2} m² • ${room.hasView ?? ""}`
+				: (room.hasView ?? "")
+			modalDesc.textContent = room.description ?? "Sin descripción disponible."
+			modalPrice.textContent = `Precio: $${room.priceUSD ?? "--"} / ${room.priceBOB ? `${room.priceBOB} Bs` : ""}`
+			modalBook.href = `/book/${room.id}`
+
+			// images: use all images array (if no images, fallback)
+			const images =
+				room.images && room.images.length
+					? room.images
+					: [{ url: "https://placehold.co/1200x800?text=Sin+imagen", altText: "" }]
+			renderCarousel(images)
+
+			// amenities grouped
+			amenitiesList.innerHTML = ""
+			const grouped = groupAmenities(room.amenities || [])
+			for (const [cat, items] of grouped.entries()) {
+				const container = document.createElement("div")
+				container.className = "space-y-1"
+				container.innerHTML = `<h5 class="text-sm font-medium text-neutral-800">${cat}</h5>`
+				const ul = document.createElement("ul")
+				ul.className = "mt-1 grid gap-1 text-sm text-neutral-600"
+				items.forEach((it) => {
+					const li = document.createElement("li")
+					li.className = "flex items-start gap-2"
+					li.innerHTML = `<svg class="mt-1 h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${it.amenityName}</span>`
+					ul.appendChild(li)
+				})
+				container.appendChild(ul)
+				amenitiesList.appendChild(container)
+			}
+
+			// show modal
+			modal.classList.remove("hidden")
+			modal.setAttribute("aria-hidden", "false")
+			document.body.style.overflow = "hidden"
+			// focus
+			const close = document.getElementById("room-modal-close")
+			close?.focus()
+		}
+
+		// close modal
+		function closeModal() {
+			// mover el foco fuera del modal antes de esconderlo
+			document.activeElement?.blur()
+			modal.classList.add("hidden")
+			modal.setAttribute("aria-hidden", "true")
+			document.body.style.overflow = ""
+		}
+
+		// attach click handlers to "Ver habitación" buttons
+		document.querySelectorAll("[data-room-id]").forEach((btn) => {
+			btn.addEventListener("click", (ev) => {
+				const id = btn.getAttribute("data-room-id")
+				if (!id) return
+				openRoomModal(id)
+			})
+		})
+
+		modalClose?.addEventListener("click", (e) => {
+			e.preventDefault()
+			closeModal()
+		})
+		modalClose2?.addEventListener("click", (e) => {
+			e.preventDefault()
+			closeModal()
+		})
+
+		// close on overlay click
+		modal?.addEventListener("click", (ev) => {
+			if (ev.target === modal) closeModal()
+		})
+
+		// keyboard
+		document.addEventListener("keydown", (e) => {
+			if (modal.classList.contains("hidden")) return
+			if (e.key === "Escape") closeModal()
+			if (e.key === "ArrowLeft") prevBtn?.click()
+			if (e.key === "ArrowRight") nextBtn?.click()
+		})
+	})
+</script>
