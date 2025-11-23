@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 
 			alert("Habitación guardada")
-			window.location.reload()
+			window.location.href = "/dashboard"
 		} catch (err) {
 			console.error(err)
 			alert("Error de red")

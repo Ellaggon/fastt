@@ -1,5 +1,4 @@
 ---
-// src/pages/products/[id]/rooms.astro (extracto)
 import { AMENITY_ROOMS } from "@/data/amenity-rooms"
 import Layout from "@/layouts/Layout.astro"
 import { db, eq, Product } from "astro:db"
@@ -41,21 +40,6 @@ if (hotelId) {
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<label class="flex flex-col text-sm">
 						<span class="mb-1 text-neutral-500">Tipo de habitación</span>
-						<!-- <select
-          id="roomTypeId"
-          name="roomTypeId"
-          class="rounded-lg bg-neutral-100 px-3 py-3 text-neutral-500"
-          required
-					>
-          <option value="">Selecciona...</option>
-          {
-            ROOM_TYPES.map((rt) => (
-              <option value={rt.id}>
-									{rt.name} — ( Capacidad: {rt.maxOccupancy} )
-								</option>
-							))
-						}
-					</select> -->
 						<button
 							id="openRoomTypeModal"
 							type="button"
@@ -63,7 +47,6 @@ if (hotelId) {
 						>
 							Seleccionar tipo de habitación
 						</button>
-						<!-- valor final (array en formato texto: "1,2,3") -->
 						<input type="hidden" name="roomTypeId" id="roomTypeId" />
 					</label>
 					<label class="flex flex-col text-sm">
@@ -105,7 +88,6 @@ if (hotelId) {
 						class="rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left text-neutral-800"
 						>Selecciona tipos de cama</button
 					>
-					<!-- valor final (array en formato texto: "1,2,3") -->
 					<input type="hidden" name="bedTypes" id="bedTypes" />
 				</label>
 
@@ -292,7 +274,6 @@ if (hotelId) {
 		import { BED_TYPES } from "@/data/bed-types"
 		import { ROOM_TYPES } from "@/data/room-types"
 
-		// Elements
 		const roomModal = document.getElementById("roomTypeModal")
 		const bedModal = document.getElementById("bedTypeModal")
 		const openRoomBtn = document.getElementById("openRoomTypeModal")
@@ -305,7 +286,6 @@ if (hotelId) {
 
 		const closeButtons = document.querySelectorAll(".closeModal")
 
-		/* Safety: si faltan elementos clave, salimos y mostramos aviso en consola */
 		if (
 			!roomModal ||
 			!bedModal ||
@@ -331,7 +311,6 @@ if (hotelId) {
 			})
 
 			closeButtons.forEach((btn) => {
-				// cada botón close puede o no existir — pero querySelectorAll devuelve NodeList (posible vacío)
 				btn.addEventListener("click", () => {
 					roomModal.classList.add("hidden")
 					bedModal.classList.add("hidden")
@@ -362,13 +341,8 @@ if (hotelId) {
 			})
 
 			/* ------------------ BED TYPES (SELECCIÓN CON CONTADORES) ------------------ */
-			// selectedBeds: Map<id, count>
 			const selectedBeds = new Map<string, number>()
 
-			/**
-			 * Helper: crea el control de contador: [-] [n] [+] y devuelve el contenedor <div>
-
-			 */
 			function createCounterControls(id: string | number, li: HTMLLIElement) {
 				const wrapper = document.createElement("div")
 				wrapper.className = "flex items-center space-x-2"
@@ -509,7 +483,7 @@ if (hotelId) {
 				for (const [id, count] of selectedBeds.entries()) {
 					if (count > 0) arr.push({ id, count })
 				}
-				inputBeds.value = JSON.stringify(arr) // → backend: parsear JSON si lo usas
+				inputBeds.value = JSON.stringify(arr)
 				updateOpenBedButtonLabel()
 				bedModal.classList.add("hidden")
 			})
