@@ -106,7 +106,7 @@ console.log("hotels: ", hotels)
 				<p>Destino: {destination?.name ?? "Origen desconocido"}</p>
 				<p>Fechas: {checkin ?? "-"} → {checkout ?? "-"}</p>
 			</div>
-			<div class="mt-7 grid grid-cols-1 gap-3 md:gap-6">
+			<div class="mt-7 grid grid-cols-1 gap-3">
 				{
 					hotels.length > 0 ? (
 						hotels.map((h) => (
