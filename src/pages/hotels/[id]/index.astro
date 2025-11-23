@@ -1,11 +1,13 @@
 ---
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import ImageModal from "@/components/product/ImageModal.astro"
-import MapClient from "@/components/product/MapClient.astro"
+import MapModal from "@/components/product/MapModal.astro"
+import RoomModal from "@/components/product/RoomModal.astro"
 import { serviceIcons } from "@/data/service-icons"
 import Layout from "@/layouts/Layout.astro"
 import type { ImageRow, ServiceRow } from "@/types/products"
 import {
+	AmenityRoom,
 	and,
 	asc,
 	db,
@@ -13,6 +15,7 @@ import {
 	Destination,
 	eq,
 	Hotel,
+	HotelRoomAmenity,
 	HotelRoomType,
 	Image,
 	inArray,
@@ -28,18 +31,17 @@ let images: ImageRow[] = []
 let services: ServiceRow[] = []
 let rooms = null
 let roomImages = null
+let roomAmenities = null
 let errorMessage: string | null = null
 
 try {
 	if (!productId) throw new Error("ID de producto no proporcionado.")
-
 	const productResult = await db
 		.select()
 		.from(Product)
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(eq(Product.id, productId))
 		.get()
-
 	if (!productResult) throw new Error("Producto no encontrado.")
 	product = { ...productResult.Product, destination: productResult.Destination }
 
@@ -49,7 +51,6 @@ try {
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 		.where(eq(ProductService.productId, productId))
 		.all()
-
 	services = (servicesResult ?? []).filter((s) => s.id && s.name) as ServiceRow[]
 
 	images = await db
@@ -62,25 +63,41 @@ try {
 	subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
 
 	rooms = await db.select().from(HotelRoomType).where(eq(HotelRoomType.hotelId, productId)).all()
-
 	const roomIds = rooms.map((r) => r.id)
+
 	roomImages = await db
 		.select()
 		.from(Image)
 		.where(and(eq(Image.entityType, "HotelRoomType"), inArray(Image.entityId, roomIds)))
 		.all()
+
+	roomAmenities = await db
+		.select({
+			roomId: HotelRoomAmenity.hotelRoomTypeId,
+			amenityId: AmenityRoom.id,
+			amenityName: AmenityRoom.name,
+			category: AmenityRoom.category,
+			isAvailable: HotelRoomAmenity.isAvailable,
+		})
+		.from(HotelRoomAmenity)
+		.leftJoin(AmenityRoom, eq(HotelRoomAmenity.amenityId, AmenityRoom.id))
+		.where(inArray(HotelRoomAmenity.hotelRoomTypeId, roomIds))
+		.all()
 } catch (e) {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
 }
+//Rooms
+const roomsServer =
+	rooms?.map((room) => ({
+		...room,
+		images: roomImages?.filter((img) => img.entityId === room.id) ?? [],
+		amenities: roomAmenities?.filter((a) => a.roomId === room.id) ?? [],
+	})) ?? []
 
-const roomsWithImages = rooms?.map((room) => ({
-	...room,
-	images: roomImages?.filter((img) => img.entityId === room.id),
-}))
-const productData = product
-	? { ...product, images, subtype, services, rooms: roomsWithImages }
-	: null
+//AmenityRooms
+console.log("roomAmenity", roomAmenities)
+const productData = product ? { ...product, images, subtype, services, rooms: roomsServer } : null
 console.log("productData: ", productData)
 
 const breadcrumbItems = [
@@ -104,9 +121,7 @@ const breadcrumbItems = [
 
 <Layout title={productData?.name || "Producto"}>
 	<main class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-3 py-7 md:space-y-7 lg:p-12">
-		<div class="hidden md:block">
-			<Breadcrumbs items={breadcrumbItems} />
-		</div>
+		<Breadcrumbs items={breadcrumbItems} />
 
 		{
 			errorMessage ? (
@@ -114,7 +129,7 @@ const breadcrumbItems = [
 					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
 					<a
 						href="/"
-						class="rounded-lg border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
+						class="rounded-lg border border-neutral-500 px-6 py-3 transition hover:bg-neutral-800 hover:text-white"
 					>
 						Volver al inicio
 					</a>
@@ -146,7 +161,7 @@ const breadcrumbItems = [
 					)}
 
 					{/* <!-- 📋 Info principal --> */}
-					<section class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 shadow-sm md:p-8">
+					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8">
 						<div class="flex gap-1 text-black">
 							{Array.from({ length: productData.subtype?.stars || "" }).map((_, i) => (
 								<svg
@@ -159,7 +174,7 @@ const breadcrumbItems = [
 								</svg>
 							))}
 						</div>
-						<h1 class="text-lg font-semibold text-gray-900 md:text-4xl md:font-bold">
+						<h1 class="text-lg font-semibold text-neutral-900 md:text-4xl md:font-bold">
 							{productData.name}
 						</h1>
 						<p class="text-xs text-neutral-500 md:text-sm">
@@ -180,7 +195,7 @@ const breadcrumbItems = [
 								})}
 							</ul>
 						)}
-						<p class="mt-4 text-sm leading-relaxed text-gray-700 md:text-base">
+						<p class="mt-4 text-sm leading-relaxed text-neutral-700 md:text-base">
 							{productData.description}
 						</p>
 					</section>
@@ -205,48 +220,174 @@ const breadcrumbItems = [
 							</p>
 						</div>
 					</section>
-
-					{/* mapa */}
-					<MapClient
-						latitude={productData.subtype?.latitude}
-						longitude={productData.subtype?.longitude}
-						address={productData.subtype?.address || ""}
-					/>
+					<button
+						onclick="openMapModal()"
+						class="rounded-lg bg-blue-600 px-4 py-2 text-white shadow hover:bg-blue-700"
+					>
+						Ver mapa
+					</button>
 				</>
 			) : (
-				<p class="text-center text-gray-500">Cargando...</p>
+				<p class="text-center text-neutral-500">Cargando...</p>
 			)
 		}
-	</main>
-	{/* <!-- 🪟 Modal --> */}
-	<ImageModal />
-	<section class="mt-10 space-y-8">
-		<h2 class="text-2xl font-bold text-gray-900">Habitaciones</h2>
 
-		{
-			productData.rooms?.map((room: any) => (
-				<div class="rounded-xl border bg-white p-4 shadow-sm">
-					<h3 class="text-xl font-semibold">{room.name}</h3>
+		<section class="py-6">
+			<div class="mx-auto max-w-7xl px-4">
+				<header class="mb-6 flex items-end justify-between">
+					<h2 class="text-lg font-semibold text-neutral-800">
+						<span class="block text-xs text-neutral-400">Sección</span>
+						<span class="-mt-1 block text-2xl font-semibold">Habitaciones</span>
+					</h2>
+					<p class="text-sm text-neutral-500">Selecciona la habitación para ver detalles</p>
+				</header>
 
-					{/* Descripción */}
-					<p class="mt-2 text-gray-700">{room.description || "Sin descripción"}</p>
+				<div class="relative -mx-4 overflow-x-auto px-4 py-6">
+					<div class="flex snap-x snap-mandatory gap-6">
+						{
+							(productData?.rooms ?? []).map((room: any) => {
+								const lastImg =
+									room.images && room.images.length ? room.images[room.images.length - 1] : null
+								const thumb = lastImg?.url ?? "https://placehold.co/800x600?text=Sin+imagen"
+								return (
+									<article
+										class="w-[320px] flex-shrink-0 snap-start rounded-3xl border border-neutral-100 bg-white/80 p-4 shadow-[0_12px_30px_rgba(10,10,10,0.08)] backdrop-blur-sm md:w-[360px] lg:w-[420px]"
+										role="group"
+										aria-labelledby={`room-${room.id}-title`}
+									>
+										<div class="relative h-48 w-full overflow-hidden rounded-2xl">
+											<img
+												src={thumb}
+												alt={lastImg?.altText ?? room.name}
+												class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+											/>
+											{room.images && room.images.length > 1 && (
+												<div class="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs text-white">
+													{room.images.length} fotos
+												</div>
+											)}
+										</div>
 
-					{/* Galería de imágenes */}
-					{room.images?.length > 0 ? (
-						<div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-							{room.images.map((img: any) => (
-								<img
-									src={img.url}
-									alt={img.altText || room.name}
-									class="h-32 w-full rounded-lg object-cover"
-								/>
-							))}
-						</div>
-					) : (
-						<p class="mt-3 text-sm text-gray-400">No hay imágenes para esta habitación.</p>
-					)}
+										<div class="mt-4 flex items-start justify-between gap-3">
+											<div>
+												<h3
+													id={`room-${room.id}-title`}
+													class="text-lg font-semibold text-neutral-900"
+												>
+													{room.name}
+												</h3>
+												<p class="mt-1 text-sm text-neutral-500">
+													{room.sizeM2 ? `${room.sizeM2} m²` : ""}{" "}
+													{room.hasView ? `• ${room.hasView}` : ""}
+												</p>
+											</div>
+
+											<div class="text-right">
+												<p class="text-sm text-neutral-500">Desde</p>
+												<p class="mt-1 text-base font-semibold text-neutral-900">
+													${room.priceUSD ?? "--"}
+												</p>
+											</div>
+										</div>
+
+										<div class="mt-4 grid grid-cols-2 gap-3 text-sm text-neutral-600">
+											<div class="flex items-center gap-2">
+												{/* <!-- icono cama --> */}
+												<svg
+													class="h-5 w-5 text-neutral-500"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+												>
+													<path
+														d="M3 7h18v10H3V7Z"
+														stroke-width="1.2"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+													/>
+													<path
+														d="M5 10v4"
+														stroke-width="1.2"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+													/>
+													<path
+														d="M19 10v4"
+														stroke-width="1.2"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+													/>
+												</svg>
+												<span>{room.bedType ? JSON.stringify(room.bedType) : "Tipo de cama"}</span>
+											</div>
+
+											<div class="flex items-center gap-2">
+												<svg
+													class="h-5 w-5 text-neutral-500"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+												>
+													<path d="M7 2h10v2H7V2Zm5 4a5 5 0 0 1 5 5v6h-2v5h-2v-5h-2v5H9v-5H7v-6a5 5 0 0 1 5-5Z" />
+												</svg>
+												<span>{room.bathroom ?? "—"} baños</span>
+											</div>
+
+											<div class="flex items-center gap-2">
+												<svg
+													class="h-5 w-5 text-neutral-500"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+												>
+													<path d="M3 10h18v2H3v-2Z" />
+												</svg>
+												<span>{room.hasBalcony ? "Con balcón" : "Sin balcón"}</span>
+											</div>
+
+											<div class="flex items-center gap-2">
+												<svg
+													class="h-5 w-5 text-neutral-500"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+												>
+													<path d="M3 6h18v8H3V6Z" />
+												</svg>
+												<span>Capacidad: {room.maxOccupancyOverride ?? "--"}</span>
+											</div>
+										</div>
+
+										<div class="mt-5 flex items-center justify-between gap-3">
+											<button
+												class="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:shadow-md"
+												type="button"
+												data-room-id={room.id}
+											>
+												Ver habitación
+											</button>
+
+											<a
+												class="ml-3 inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+												href={`/book/${room.id}`}
+											>
+												Reservar
+											</a>
+										</div>
+									</article>
+								)
+							})
+						}
+					</div>
 				</div>
-			))
-		}
-	</section>
+			</div>
+
+			<!-- contenedor con JSON en data-attribute (seguro) -->
+			<div id="rooms-data" data-rooms={JSON.stringify(roomsServer || [])} class="hidden"></div>
+		</section>
+	</main>
+	<ImageModal />
+	<MapModal
+		latitude={productData.subtype?.latitude}
+		longitude={productData.subtype?.longitude}
+		address={productData.subtype?.address || ""}
+	/>
+	<RoomModal />
 </Layout>
