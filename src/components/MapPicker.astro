@@ -26,7 +26,7 @@ const { latitude = -16.5, longitude = -68.13 } = Astro.props as MapPickerProps
 
 <div
 	id="mapPickerModal"
-	class="mp-overlay z-60 fixed inset-0 hidden h-full w-full"
+	class="mp-overlay fixed inset-0 z-10 hidden h-full w-full"
 	aria-hidden="true"
 	data-lat={latitude}
 	data-lng={longitude}
@@ -122,9 +122,7 @@ const { latitude = -16.5, longitude = -68.13 } = Astro.props as MapPickerProps
 	}
 
 	function closeModal() {
-		if (!modal) return
-
-		// 🔧 primero quitar foco
+		if (!modal) return // 🔧 primero quitar foco
 		;(document.activeElement as HTMLElement)?.blur()
 
 		modal.classList.remove("open")
