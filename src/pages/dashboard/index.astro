@@ -2,11 +2,14 @@
 import Layout from "@/layouts/Layout.astro"
 import { getProductsByProvider } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { db, HotelRoomType, inArray } from "astro:db"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
 
 let userProducts: any[] = []
+let hotelRoomTypes: any[] = []
+let roomsByHotel: Record<string, any[]> = {}
 let errorMessage: string | null = null
 
 try {
@@ -19,6 +22,20 @@ try {
 	}
 
 	userProducts = await getProductsByProvider(providerId)
+
+	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
+
+	if (hotelIds.length > 0) {
+		hotelRoomTypes = await db
+			.select()
+			.from(HotelRoomType)
+			.where(inArray(HotelRoomType.hotelId, hotelIds))
+
+		for (const room of hotelRoomTypes) {
+			if (!roomsByHotel[room.hotelId]) roomsByHotel[room.hotelId] = []
+			roomsByHotel[room.hotelId].push(room)
+		}
+	}
 	console.log("userProducts: ", userProducts)
 } catch (e) {
 	console.error("Error al obtener los productos del proveedor: ", e)
@@ -44,11 +61,12 @@ try {
 
 		<main class="w-[98%] rounded-3xl bg-beaver-900 p-3 shadow-lg md:p-8">
 			<article
-				class="flex h-auto w-full cursor-pointer gap-3 border-b border-gray-700 text-sm text-gray-400"
+				class="flex h-auto w-full cursor-pointer gap-3 border-b border-neutral-700 text-sm text-neutral-400"
 				id="tabs"
 			>
 				<div class="tab-button active p-2 text-white" data-tab="products">Productos</div>
 				<div class="tab-button p-2" data-tab="edit">Editar Productos</div>
+				<div class="tab-button p-2" data-tab="room">Configurar Habitaciones</div>
 			</article>
 			<div class="mx-auto">
 				{
@@ -69,13 +87,13 @@ try {
 							<div class="rounded-lg bg-beaver-900 p-1 shadow-lg md:p-6">
 								<article class="mb-4 hidden items-center justify-between md:flex">
 									<h3 class="text-lg font-semibold">Tus productos</h3>
-									<p class="text-sm text-gray-400">{userProducts.length} en total</p>
+									<p class="text-sm text-neutral-400">{userProducts.length} en total</p>
 								</article>
 
 								{/* <!-- Contenido de Productos --> */}
 								<article
 									id="tab-products"
-									class="tab-content block divide-y divide-gray-800 md:mt-4"
+									class="tab-content translate-y-0 divide-y divide-neutral-800 opacity-100 transition-all duration-300 md:mt-4"
 								>
 									{userProducts.map((el) => {
 										let type = null
@@ -86,14 +104,14 @@ try {
 											<div class="items-center justify-between py-3 md:flex">
 												<div class="mb-3 flex flex-col">
 													<a href={`/${type}/${el.id}`}>
-														<span class="text-xs font-medium text-gray-100 md:text-sm">
+														<span class="text-xs font-medium text-neutral-100 md:text-sm">
 															{el.name}
 														</span>
 													</a>
-													<span class="hidden text-xs text-gray-400 md:block">
+													<span class="hidden text-xs text-neutral-400 md:block">
 														{el.productType}
 													</span>
-													<small class="text-xs text-gray-400 md:hidden">{el.productType}</small>
+													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
 												</div>
 
 												<div class="flex items-center justify-end gap-6 text-xs font-medium md:text-sm">
@@ -101,23 +119,18 @@ try {
 														href={`/products/${el.id}/edit/services`}
 														class="text-green-400 hover:text-green-300"
 													>
-														Servicios
+														Añade Servicios
 													</a>
-													{el.productType === "Hotel" && (
-														<a
-															href={`/products/${el.id}/rooms/create`}
-															class="text-green-400 hover:text-green-300"
-														>
-															Añadir Habitaciones
-														</a>
-													)}
 												</div>
 											</div>
 										)
 									})}
 								</article>
 
-								<article id="tab-edit" class="tab-content hidden divide-y divide-gray-800">
+								<article
+									id="tab-edit"
+									class="tab-content hidden translate-y-2 divide-y divide-neutral-800 opacity-0 transition-all duration-300"
+								>
 									{userProducts.map((el) => {
 										let type = null
 										if (el.productType === "Hotel") type = "hotels"
@@ -127,32 +140,32 @@ try {
 											<div class="items-center justify-between py-3 md:flex">
 												<div class="mb-7 flex flex-col">
 													<a href={`/${type}/${el.id}`}>
-														<span class="text-xs font-medium text-gray-100 md:text-sm">
+														<span class="text-xs font-medium text-neutral-100 md:text-sm">
 															{el.name}
 														</span>
 													</a>
-													<span class="hidden text-xs text-gray-400 md:block">
+													<span class="hidden text-xs text-neutral-400 md:block">
 														{el.productType}
 													</span>
-													<small class="text-xs text-gray-400 md:hidden">{el.productType}</small>
+													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
 												</div>
 
-												<div class="flex items-center justify-end gap-6 text-xs font-medium text-gray-300 md:text-sm">
+												<div class="flex items-center justify-end gap-6 text-xs font-medium text-neutral-300 md:text-sm">
 													<a
 														href={`/products/${el.id}/edit`}
-														class="flex gap-1 text-gray-500 hover:text-gray-100"
+														class="flex gap-1 text-neutral-500 hover:text-neutral-100"
 													>
 														<span class="hidden md:block">Editar</span> Producto
 													</a>
 													<a
 														href={`/products/${el.id}/edit/images`}
-														class="flex gap-1 text-gray-500 hover:text-gray-100"
+														class="flex gap-1 text-neutral-500 hover:text-neutral-100"
 													>
 														<span class="hidden md:block">Editar</span> Imágenes
 													</a>
 													<a
 														href={`/products/${el.id}/edit/subtype`}
-														class="text-gray-500 hover:text-gray-100"
+														class="text-neutral-500 hover:text-neutral-100"
 													>
 														{`Detalles del ${el.productType}`}
 													</a>
@@ -168,6 +181,47 @@ try {
 											</div>
 										)
 									})}
+								</article>
+
+								<article
+									id="tab-room"
+									class="tab-content hidden translate-y-2 divide-y divide-neutral-800 opacity-0 transition-all duration-300"
+								>
+									{userProducts
+										.filter((p) => p.productType === "Hotel")
+										.map((el) => (
+											<div class="items-center justify-between py-3 md:flex">
+												<div class="mb-7 flex flex-col">
+													<span class="text-xs font-medium text-neutral-100 md:text-sm">
+														{el.name}
+													</span>
+													<span class="hidden text-xs text-neutral-400 md:block">
+														{el.productType}
+													</span>
+													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
+												</div>
+												<div class="flex grid grid-cols-4 justify-end gap-4 text-xs font-medium text-neutral-300 md:grid-cols-5 lg:grid-cols-7">
+													{!roomsByHotel[el.id] || roomsByHotel[el.id].length === 0
+														? null
+														: roomsByHotel[el.id].map((room) => {
+																return (
+																	<a
+																		href={`/products/${el.id}/rooms/config`}
+																		class="truncate text-neutral-500 hover:text-neutral-100"
+																	>
+																		{room.name}
+																	</a>
+																)
+															})}
+													<a
+														href={`/products/${el.id}/rooms`}
+														class="truncate text-xs text-green-400 hover:text-green-300 md:text-sm"
+													>
+														Añade Habitaciones
+													</a>
+												</div>
+											</div>
+										))}
 								</article>
 							</div>
 						</section>
@@ -227,6 +281,43 @@ try {
 				btn.classList.add("active", "text-white", "border-b", "border-white")
 				const content = document.querySelector(`#tab-${btn.dataset.tab}`)
 				content?.classList.remove("hidden")
+			})
+		})
+	</script>
+	<script>
+		// TAB switching + nice animation
+		document.addEventListener("DOMContentLoaded", () => {
+			const tabButtons = document.querySelectorAll(".tab-button")
+			const contents = document.querySelectorAll(".tab-content")
+
+			function showTab(name: string | undefined) {
+				contents.forEach((c) => {
+					c.classList.add("hidden")
+					c.classList.add("opacity-0", "translate-y-2")
+					c.classList.remove("opacity-100", "translate-y-0")
+				})
+				const id = "tab-" + name
+				const el = document.getElementById(id)
+				if (!el) return
+				el.classList.remove("hidden")
+				requestAnimationFrame(() => {
+					el.classList.remove("opacity-0", "translate-y-2")
+					el.classList.add("opacity-100", "translate-y-0")
+				})
+			}
+
+			showTab("products")
+
+			tabButtons.forEach((b) => {
+				const btn = b as HTMLButtonElement
+				btn.addEventListener("click", () => {
+					tabButtons.forEach((b) =>
+						b.classList.remove("active", "text-white", "border-b", "border-white")
+					)
+					btn.classList.add("active", "text-white", "border-b", "border-white")
+					const target = btn.dataset.tab
+					showTab(target)
+				})
 			})
 		})
 	</script>
