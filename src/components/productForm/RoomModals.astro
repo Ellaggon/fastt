@@ -1,0 +1,278 @@
+<section class="h-full w-full pt-10 md:pt-16">
+	<div
+		id="roomTypeModal"
+		class="modal fixed inset-0 flex hidden items-center justify-center"
+		style="background: rgba(0, 0, 0, 0.45)"
+	>
+		<div
+			class="modal-content items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto rounded-3xl bg-neutral-100 px-[20px] pt-10 md:h-[80%] md:w-[600px] md:pt-0"
+		>
+			<h3 class="border-b border-neutral-200 py-4 text-sm text-neutral-800 md:text-base">
+				Selecciona un tipo de habitación
+			</h3>
+			<ul id="roomTypeList" class="my-10"></ul>
+
+			<div class="border-t border-neutral-200 py-4 text-center text-sm text-black">
+				<button type="button" class="closeModal">Cerrar</button>
+			</div>
+		</div>
+	</div>
+
+	<div
+		id="bedTypeModal"
+		class="modal fixed inset-0 flex hidden items-center justify-center"
+		style="background: rgba(0, 0, 0, 0.45)"
+	>
+		<div
+			class="modal-content items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto rounded-3xl bg-neutral-100 px-[20px] pt-10 md:h-[80%] md:w-[600px] md:pt-0"
+		>
+			<h3 class="border-b border-neutral-200 py-4 text-sm text-neutral-800 md:text-base">
+				Selecciona tipos de cama
+			</h3>
+			<ul id="bedTypeList" class="my-10"></ul>
+
+			<div class="mt-auto flex justify-end gap-6 border-t border-neutral-200 py-4 text-sm">
+				<button type="button" class="closeModal text-black">Cerrar</button>
+				<button id="saveBedTypes" class="rounded-xl bg-neutral-800 px-4 py-2 text-white"
+					>Guardar selección</button
+				>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	.modal-content ul li {
+		padding: 8px;
+		border: 1px solid #ddd;
+		border-radius: 0.5rem;
+		cursor: pointer;
+		margin-bottom: 6px;
+	}
+	.modal-content ul li.selected {
+		background: #2563eb;
+		color: white;
+		border-color: #2563eb;
+	}
+</style>
+
+<script>
+	import { BED_TYPES } from "@/data/room-beds"
+	import { ROOM_TYPES } from "@/data/room-types"
+
+	document.addEventListener("DOMContentLoaded", () => {
+		const roomModal = document.getElementById("roomTypeModal")
+		const bedModal = document.getElementById("bedTypeModal")
+		const openRoomBtn = document.getElementById("openRoomTypeModal")
+		const openBedBtn = document.getElementById("openBedTypeModal")
+		const roomTypeList = document.getElementById("roomTypeList")
+		const bedTypeList = document.getElementById("bedTypeList")
+		const inputRoom = document.getElementById("roomTypeId") as HTMLInputElement
+		const inputBeds = document.getElementById("bedTypes") as HTMLInputElement
+		const saveBedBtn = document.getElementById("saveBedTypes")
+
+		const closeButtons = document.querySelectorAll(".closeModal")
+
+		if (
+			!roomModal ||
+			!bedModal ||
+			!openRoomBtn ||
+			!openBedBtn ||
+			!roomTypeList ||
+			!bedTypeList ||
+			!inputRoom ||
+			!inputBeds ||
+			!saveBedBtn
+		) {
+			console.warn(
+				"Modal script: faltan elementos DOM. Comprueba ids: roomTypeModal, bedTypeModal, openRoomTypeModal, openBedTypeModal, roomTypeList, bedTypeList, roomTypeId, bedTypes, saveBedTypes"
+			)
+		} else {
+			openRoomBtn.addEventListener("click", () => {
+				roomModal.classList.remove("hidden")
+			})
+
+			openBedBtn.addEventListener("click", () => {
+				bedModal.classList.remove("hidden")
+			})
+
+			closeButtons.forEach((btn) => {
+				btn.addEventListener("click", () => {
+					roomModal.classList.add("hidden")
+					bedModal.classList.add("hidden")
+				})
+			})
+
+			/* ------------------ ROOM TYPE (SELECCIÓN ÚNICA) ------------------ */
+			ROOM_TYPES.forEach((/** @type {RoomType} */ rt) => {
+				const li = document.createElement("li")
+				li.className = "px-3 py-2 cursor-pointer rounded text-neutral-700"
+				li.textContent = `${rt.name}${rt.maxOccupancy ? ` (Capacidad: ${rt.maxOccupancy})` : ""}`
+
+				li.addEventListener("click", () => {
+					// visual
+					roomTypeList.querySelectorAll("li").forEach((x) => x.classList.remove("selected"))
+					li.classList.add("selected")
+
+					// set hidden input
+					inputRoom.value = String(rt.id)
+
+					// mostrar label en el botón que abre el modal (feedback)
+					openRoomBtn.textContent = `${rt.name}${rt.maxOccupancy ? ` (cap: ${rt.maxOccupancy})` : ""}`
+
+					roomModal.classList.add("hidden")
+				})
+
+				roomTypeList.appendChild(li)
+			})
+
+			/* ------------------ BED TYPES (SELECCIÓN CON CONTADORES) ------------------ */
+			const selectedBeds = new Map<string, number>()
+
+			function createCounterControls(id: string | number, li: HTMLLIElement) {
+				const wrapper = document.createElement("div")
+				wrapper.className = "flex items-center space-x-2"
+
+				const dec = document.createElement("button")
+				dec.type = "button"
+				dec.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
+				dec.setAttribute("aria-label", `Quitar una ${id}`)
+				dec.textContent = "−"
+
+				const inputCount = document.createElement("span")
+				inputCount.className = "w-8 text-center"
+				inputCount.textContent = "0"
+
+				const inc = document.createElement("button")
+				inc.type = "button"
+				inc.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
+				inc.setAttribute("aria-label", `Añadir una ${id}`)
+				inc.textContent = "+"
+
+				// Handlers
+				dec.addEventListener("click", (e) => {
+					e.stopPropagation()
+					const current = selectedBeds.get(String(id)) || 0
+					if (current > 0) {
+						const next = current - 1
+						selectedBeds.set(String(id), next)
+						inputCount.textContent = String(next)
+						li.classList.toggle("selected", next > 0)
+						updateOpenBedButtonLabel()
+					}
+				})
+
+				inc.addEventListener("click", (e) => {
+					e.stopPropagation()
+					const current = selectedBeds.get(String(id)) || 0
+					const next = current + 1
+					selectedBeds.set(String(id), next)
+					inputCount.textContent = String(next)
+					li.classList.add("selected")
+					updateOpenBedButtonLabel()
+				})
+
+				wrapper.appendChild(dec)
+				wrapper.appendChild(inputCount)
+				wrapper.appendChild(inc)
+
+				return wrapper
+			}
+
+			/**
+			 * Actualiza texto del botón que abre el modal con el total de camas seleccionadas.
+			 */
+			function updateOpenBedButtonLabel() {
+				let total = 0
+				for (const v of selectedBeds.values()) total += v
+				if (openBedBtn)
+					openBedBtn.textContent =
+						total > 0 ? `(${total}) camas seleccionadas` : "Seleccionar tipos de cama"
+			}
+
+			/* renderizamos la lista */
+			BED_TYPES.forEach((/** @type {{id: string|number; name: string}} */ bt) => {
+				const li = document.createElement("li")
+				li.className =
+					"flex justify-between items-center px-3 py-2 cursor-pointer rounded text-neutral-700"
+				// left label
+				const label = document.createElement("div")
+				label.textContent = bt.name
+				label.className = "flex-1"
+
+				// right: counter controls
+				const counter = createCounterControls(bt.id, li)
+
+				// hacemos clic en la fila para alternar: si no hay conteo, pone 1; si hay, lo incrementa
+				li.addEventListener("click", (e) => {
+					// si el click fue en los botones, los handlers ya lo tratan; aquí solo para clicks en la fila
+					if (e.target instanceof HTMLButtonElement) return
+					const cur = selectedBeds.get(String(bt.id)) || 0
+					const next = cur === 0 ? 1 : cur // fila click pone 1 si no hay ninguno
+					selectedBeds.set(String(bt.id), next)
+					// actualizar vista del contador (buscar el span en counter)
+					const span = counter.querySelector("span")
+					if (span) span.textContent = String(next)
+					li.classList.toggle("selected", next > 0)
+					updateOpenBedButtonLabel()
+				})
+
+				li.appendChild(label)
+				li.appendChild(counter)
+				bedTypeList.appendChild(li)
+			})
+
+			/* Guard: actualiza visuales si ya había valores en el input hidden (por ejemplo edit) */
+			try {
+				// si inputBeds tenía un valor JSON (ej: edición), restauramos
+				if (inputBeds.value) {
+					// esperar a que sea JSON: puede ser "id1,id2" u "[]"/json. Intentamos parsear
+					let parsed = null
+					try {
+						parsed = JSON.parse(inputBeds.value)
+					} catch {
+						// no JSON: si es lista csv, convertir a objetos con count=1
+						if (typeof inputBeds.value === "string" && inputBeds.value.trim() !== "") {
+							parsed = inputBeds.value.split(",").map((id) => ({ id: id.trim(), count: 1 }))
+						}
+					}
+					if (Array.isArray(parsed)) {
+						for (const item of parsed) {
+							if (!item) continue
+							const id = String(item.id ?? item)
+							const count = Number(item.count ?? 1)
+							selectedBeds.set(id, count)
+						}
+						// reflejar en DOM: recorremos li y ponemos spans correspondientes
+						Array.from(bedTypeList.children).forEach((li) => {
+							const label = li.querySelector("div")
+							if (!label) return
+							const name = label.textContent?.trim()
+							// Buscar bed by name (fall back a index)
+							const bt = BED_TYPES.find((b) => b.name === name)
+							if (!bt) return
+							const count = selectedBeds.get(String(bt.id)) || 0
+							const span = li.querySelector("span")
+							if (span) span.textContent = String(count)
+							li.classList.toggle("selected", count > 0)
+						})
+						updateOpenBedButtonLabel()
+					}
+				}
+			} catch (e) {
+				console.warn("No se pudo restaurar bedTypes desde input hidden:", e)
+			}
+
+			/* Guardar: convertimos Map => [{id,count}] y lo guardamos como JSON en el input hidden */
+			saveBedBtn.addEventListener("click", () => {
+				const arr = []
+				for (const [id, count] of selectedBeds.entries()) {
+					if (count > 0) arr.push({ id, count })
+				}
+				inputBeds.value = JSON.stringify(arr)
+				updateOpenBedButtonLabel()
+				bedModal.classList.add("hidden")
+			})
+		}
+	})
+</script>
