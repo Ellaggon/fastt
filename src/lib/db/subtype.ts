@@ -7,8 +7,6 @@ export type HotelPayload = {
 	phone?: string | null
 	email?: string | null
 	website?: string | null
-	checkInTime?: string | null
-	checkOutTime?: string | null
 	latitude?: number | null
 	longitude?: number | null
 }
@@ -40,8 +38,6 @@ export async function insertHotel(dbOrTx: DBOrTx, data: HotelPayload) {
 		phone: data.phone ?? null,
 		email: data.email ?? null,
 		website: data.website ?? null,
-		checkInTime: data.checkInTime ?? null,
-		checkOutTime: data.checkOutTime ?? null,
 		latitude: data.latitude ?? null,
 		longitude: data.longitude ?? null,
 	})
@@ -55,8 +51,6 @@ export async function updateHotel(dbOrTx: DBOrTx, productId: string, data: Parti
 			phone: data.phone ?? null,
 			email: data.email ?? null,
 			website: data.website ?? null,
-			checkInTime: data.checkInTime ?? null,
-			checkOutTime: data.checkOutTime ?? null,
 			latitude: data.latitude ?? null,
 			longitude: data.longitude ?? null,
 		})
