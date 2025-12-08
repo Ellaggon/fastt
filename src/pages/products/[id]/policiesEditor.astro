@@ -1,0 +1,204 @@
+---
+import Layout from "@/layouts/Layout.astro"
+---
+
+<Layout title="Policies form">
+	<main
+		class="mx-auto mt-20 w-[95%] max-w-3xl rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg md:p-12 lg:p-16"
+	>
+		<h1 class="text-xl font-semibold md:text-2xl">CONFIGURACIÓN DE POLÍTICAS</h1>
+		<p class="mt-1 text-sm text-neutral-500">Define reglas importantes sobre tu producto</p>
+
+		<div class="mt-6 flex justify-end">
+			<button
+				id="btnAdd"
+				class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+			>
+				+ Agregar Política
+			</button>
+		</div>
+
+		<div id="policyList" class="mt-8 space-y-4 text-neutral-700">Cargando...</div>
+
+		<dialog
+			id="policyModal"
+			class="w-[90%] max-w-md rounded-2xl border border-neutral-300 bg-neutral-100 p-6 shadow-xl"
+		>
+			<h3 id="modalTitle" class="mb-4 text-lg font-semibold text-neutral-800"></h3>
+
+			<form id="policyForm" class="space-y-4">
+				<input type="hidden" id="policyId" />
+
+				<div class="flex flex-col gap-1">
+					<label class="text-sm font-medium">Tipo</label>
+					<select
+						id="policyType"
+						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
+					>
+						<option value="Cancellation">Cancelación</option>
+						<option value="CheckIn">Check in</option>
+						<option value="CheckOut">Check out</option>
+						<option value="Children">Niños</option>
+						<option value="Pets">Mascotas</option>
+						<option value="Smoking">Fumar</option>
+						<option value="Other">Otro</option>
+					</select>
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label class="text-sm font-medium">Descripción</label>
+					<textarea
+						id="policyDescription"
+						rows="4"
+						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
+					></textarea>
+				</div>
+
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" id="policyActive" checked />
+					<span>Activa</span>
+				</label>
+
+				<div class="mt-6 flex justify-end gap-3">
+					<button
+						type="button"
+						id="btnCancel"
+						class="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+					>
+						Cancelar
+					</button>
+
+					<button
+						type="submit"
+						id="btnSave"
+						class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+					>
+						Guardar
+					</button>
+				</div>
+			</form>
+		</dialog>
+	</main>
+
+	<script type="module">
+		const productId = window.location.pathname.split("/")[2]
+
+		const list = document.getElementById("policyList")
+		const modal = document.getElementById("policyModal")
+		const form = document.getElementById("policyForm")
+
+		const idInput = document.getElementById("policyId")
+		const typeInput = document.getElementById("policyType")
+		const descInput = document.getElementById("policyDescription")
+		const activeInput = document.getElementById("policyActive")
+		const title = document.getElementById("modalTitle")
+
+		document.getElementById("btnAdd").onclick = () => {
+			idInput.value = ""
+			typeInput.value = "Cancellation"
+			descInput.value = ""
+			activeInput.checked = true
+			title.textContent = "Nueva Política"
+			modal.showModal()
+		}
+
+		document.getElementById("btnCancel").onclick = () => modal.close()
+
+		form.onsubmit = async (e) => {
+			e.preventDefault()
+
+			const id = idInput.value
+			const url = id
+				? `/api/products/${productId}/policies/${id}/update`
+				: `/api/products/${productId}/policies/create`
+
+			await fetch(url, {
+				method: id ? "PUT" : "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					policyType: typeInput.value,
+					description: descInput.value,
+					isActive: activeInput.checked,
+				}),
+			})
+
+			modal.close()
+			loadPolicies()
+		}
+
+		async function loadPolicies() {
+			list.innerHTML = "Cargando..."
+
+			const res = await fetch(`/api/products/${productId}/policies/get`)
+			const data = await res.json()
+
+			if (!data.policies?.length) {
+				list.innerHTML = `<p class="text-neutral-500">No hay políticas aún.</p>`
+				return
+			}
+
+			list.innerHTML = data.policies
+				.map(
+					(p) => `
+                            <div class="p-4 bg-white border rounded-xl shadow flex justify-between">
+                                <div>
+                                <p class="font-semibold">${p.policyType}</p>
+                                <p class="text-neutral-600 text-sm">${p.description}</p>
+                                <p class="text-xs ${p.isActive ? "text-green-600" : "text-red-600"}">
+                                    ${p.isActive ? "Activa" : "Inactiva"}
+                                </p>
+                                </div>
+                        
+                                <div class="flex gap-3">
+                                <button class="btnEdit" 
+                                    data-id="${p.id}"
+                                    data-type="${p.policyType}"
+                                    data-description="${p.description.replace(/"/g, "&quot;")}"
+                                    data-active="${p.isActive}"
+                                >Editar</button>
+
+                                <button class="btnDelete text-red-600" data-id="${p.id}">Eliminar</button>
+                                </div>
+                            </div>
+                            `
+				)
+				.join("")
+
+			list.querySelectorAll(".btnEdit").forEach((btn) => {
+				btn.onclick = () => {
+					idInput.value = btn.dataset.id
+					typeInput.value = btn.dataset.type
+					descInput.value = btn.dataset.description
+					activeInput.checked = btn.dataset.active === "true"
+					title.textContent = "Editar Política"
+					modal.showModal()
+				}
+			})
+
+			list.querySelectorAll(".btnDelete").forEach((btn) => {
+				btn.onclick = () => removePolicy(btn.dataset.id)
+			})
+		}
+
+		window.edit = (p) => {
+			idInput.value = p.id
+			typeInput.value = p.policyType
+			descInput.value = p.description
+			activeInput.checked = p.isActive
+			title.textContent = "Editar Política"
+			modal.showModal()
+		}
+
+		window.removePolicy = async (id) => {
+			if (!confirm("¿Eliminar política?")) return
+
+			await fetch(`/api/products/${productId}/policies/${id}/delete`, {
+				method: "DELETE",
+			})
+
+			loadPolicies()
+		}
+
+		loadPolicies()
+	</script>
+</Layout>
