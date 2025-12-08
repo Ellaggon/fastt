@@ -16,8 +16,6 @@ export const productFormSchema = z.object({
 		.optional()
 		.or(z.literal("")),
 	destinationId: z.string().min(1, "Selecciona una ciudad o localidad"),
-	basePriceUSD: z.coerce.number().optional(),
-	basePriceBOB: z.coerce.number().optional(),
 	// imágenes: validamos en cliente con la metadata y en server por seguridad
 	imagesMeta: z
 		.array(
