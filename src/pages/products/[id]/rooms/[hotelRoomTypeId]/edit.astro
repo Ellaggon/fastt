@@ -1,0 +1,284 @@
+---
+import RoomModals from "@/components/productForm/RoomModals.astro"
+import { AMENITY_ROOMS } from "@/data/room-amenity"
+import { formatBedType } from "@/data/room-beds"
+import { ROOM_TYPES } from "@/data/room-types"
+import Layout from "@/layouts/Layout.astro"
+
+const hotelId = Astro.params.id
+const hotelRoomId = Astro.params.hotelRoomTypeId
+
+if (!hotelId) throw new Error("Falta :id")
+if (!hotelRoomId) throw new Error("Falta :hotelRoomTypeId")
+
+const base = Astro.site?.href || "http://localhost:4321/"
+const apiUrl = `${base}api/products/${hotelId}/rooms/get?hotelRoomId=${hotelRoomId}`
+
+const res = await fetch(apiUrl)
+const data = await res.json()
+
+if (!data.found || !data.row) {
+	throw new Error("No se encontró la habitación solicitada.")
+}
+
+const room = data.row
+const variant = data.variant || {}
+const amenities = data.amenities || []
+const images = data.images || []
+---
+
+<Layout title="Editar habitación">
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[98%] rounded-3xl bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+		>
+			<h2 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">EDITAR HABITACIÓN</h2>
+			<p class="mb-8 text-sm text-neutral-500">
+				Modifica precios, inventario y detalles de esta habitación.
+			</p>
+
+			<p class="mb-6 text-end text-base text-neutral-600">
+				<span class="font-semibold">{variant.name || room.name}</span>
+			</p>
+
+			<form id="editRoomForm" enctype="multipart/form-data" class="space-y-10">
+				<input type="hidden" name="hotelId" value={hotelId} />
+				<input type="hidden" name="hotelRoomId" value={room.id} />
+
+				<!-- 🔷 INFORMACIÓN GENERAL -->
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Información General</h3>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<!-- Tipo habitación -->
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tipo de habitación</span>
+							<button
+								id="openRoomTypeModal"
+								type="button"
+								class="mt-1 rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left"
+							>
+								{ROOM_TYPES.find((r) => r.id === room.roomTypeId)?.name || "Seleccionar tipo"}
+							</button>
+							<input type="hidden" name="roomTypeId" id="roomTypeId" value={room.roomTypeId} />
+						</label>
+
+						<!-- Tipo cama -->
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tipo de cama</span>
+							<button
+								id="openBedTypeModal"
+								type="button"
+								class="mt-1 rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left"
+							>
+								{formatBedType(room.bedType) || "Selecciona tipos"}
+							</button>
+
+							<input
+								type="hidden"
+								name="bedTypes"
+								id="bedTypes"
+								value={room.bedType ? JSON.stringify(room.bedType) : ""}
+							/>
+						</label>
+					</div>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Nombre comercial</span>
+							<input
+								name="name"
+								value={variant.name || ""}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Capacidad máxima</span>
+							<input
+								type="number"
+								name="maxOccupancy"
+								value={room.maxOccupancy}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+
+					<label class="flex flex-col text-sm">
+						<span class="text-neutral-600">Descripción</span>
+						<textarea name="description" rows="2" class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							>{variant.description || ""}</textarea
+						>
+					</label>
+				</section>
+
+				<!-- 🔷 CARACTERÍSTICAS -->
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Características</h3>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tamaño (m²)</span>
+							<input
+								type="number"
+								name="sizeM2"
+								value={room.sizeM2 || ""}
+								step="0.1"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Cantidad de baños</span>
+							<input
+								type="number"
+								name="bathroom"
+								value={room.bathroom || ""}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Total de habitaciones</span>
+							<input
+								type="number"
+								name="totalRooms"
+								value={room.totalRooms}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Vista</span>
+							<input
+								name="hasView"
+								value={room.hasView || ""}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+
+					<label class="flex items-center space-x-3 pt-2">
+						<input
+							type="checkbox"
+							name="hasBalcony"
+							value="1"
+							checked={room.hasBalcony}
+							class="h-4 w-4 rounded border-neutral-300 bg-neutral-100"
+						/>
+						<span class="text-sm text-neutral-700">Incluye balcón</span>
+					</label>
+				</section>
+
+				<!-- 🔷 PRECIO BASE -->
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Precio Base</h3>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Precio base USD</span>
+							<input
+								type="number"
+								name="basePriceUSD"
+								value={variant.basePriceUSD || 0}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Precio base BOB</span>
+							<input
+								type="number"
+								name="basePriceBOB"
+								value={variant.basePriceBOB || 0}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+				</section>
+
+				<!-- 🔷 AMENITIES -->
+				<section class="rounded-2xl border border-neutral-300 bg-neutral-200 p-6 shadow-sm">
+					<h3 class="mb-4 text-lg font-semibold text-neutral-800">Amenities</h3>
+
+					<div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
+						{
+							AMENITY_ROOMS.map((a) => (
+								<label class="flex items-center space-x-2 text-neutral-700">
+									<input
+										type="checkbox"
+										name="amenities"
+										value={a.id}
+										checked={amenities.includes(a.id)}
+										class="h-4 w-4 rounded border-neutral-300 bg-neutral-100"
+									/>
+									<span>{a.name}</span>
+								</label>
+							))
+						}
+					</div>
+				</section>
+
+				<!-- 🔷 IMÁGENES -->
+				<section class="rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="mb-3 text-lg font-semibold text-neutral-800">Imágenes</h3>
+
+					<div class="mb-4 grid grid-cols-3 gap-3">
+						{
+							images.map((img: any) => (
+								<img src={img.url} class="h-24 w-full rounded-xl object-cover shadow-sm" />
+							))
+						}
+					</div>
+					<input
+						type="hidden"
+						name="existingImages"
+						value={JSON.stringify(images.map((img: any) => img.url))}
+					/>
+
+					<input
+						id="roomImages"
+						name="roomImages"
+						type="file"
+						accept="image/*"
+						multiple
+						class="w-full rounded-md bg-neutral-100 px-3 py-2 file:mr-4 file:rounded-full file:border-0 file:bg-neutral-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-neutral-700 hover:file:bg-neutral-400"
+					/>
+				</section>
+
+				<!-- 🔷 BOTONES -->
+				<div class="flex justify-end gap-4">
+					<a
+						href="/dashboard"
+						class="flex h-12 w-36 items-center justify-center rounded-xl border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-100"
+					>
+						Cancelar
+					</a>
+
+					<button
+						type="submit"
+						class="h-12 w-48 rounded-xl bg-blue-600 font-medium text-white shadow-md hover:bg-blue-700"
+					>
+						Guardar cambios
+					</button>
+				</div>
+			</form>
+
+			<!-- 🔴 ELIMINAR -->
+			<div class="mt-6">
+				<button
+					id="deleteRoomBtn"
+					type="button"
+					class="h-12 w-full rounded-xl bg-red-600 font-medium text-white shadow-md hover:bg-red-700"
+				>
+					Eliminar habitación
+				</button>
+			</div>
+		</article>
+
+		<RoomModals />
+		<script type="module" src="/src/lib/forms/roomEditHandler"></script>
+	</section>
+</Layout>
