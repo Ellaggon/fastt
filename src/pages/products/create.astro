@@ -23,7 +23,7 @@ if (session?.user?.email) {
 <Layout title="Crear Nuevo Producto">
 	<section class="h-full w-full pt-10 md:pt-16">
 		<article
-			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-lg lg:max-w-2xl lg:p-20"
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-lg lg:max-w-2xl lg:p-20"
 		>
 			<h2 class="font-semibold md:mb-2 md:text-3xl">CREAR NUEVO PRODUCTO</h2>
 			<p class="hidden text-xs text-neutral-500 md:block">
@@ -106,30 +106,6 @@ if (session?.user?.email) {
 					>
 					</ul>
 					<span class="error text-sm text-red-500" data-error-for="destinationId"></span>
-				</label>
-
-				{/* <!-- basePriceUSD --> */}
-				<label for="basePriceUSD" class="block text-xs font-medium text-neutral-500 md:text-sm">
-					Precio de referencia Base (USD)
-					<input
-						type="number"
-						id="basePriceUSD"
-						name="basePriceUSD"
-						placeholder="Precio referencial en dólares"
-						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					/>
-				</label>
-
-				{/* <!-- basePriceBOB --> */}
-				<label for="basePriceBOB" class="block text-xs font-medium text-neutral-500 md:text-sm">
-					Precio de referencia Base (BOB)
-					<input
-						type="number"
-						id="basePriceBOB"
-						name="basePriceBOB"
-						placeholder="Precio referencial en pesos bolivianos"
-						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					/>
 				</label>
 
 				{/* Subida de imágenes (IDs únicos) */}
