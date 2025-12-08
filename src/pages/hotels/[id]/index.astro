@@ -3,6 +3,7 @@ import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import ImageModal from "@/components/product/ImageModal.astro"
 import MapModal from "@/components/product/MapModal.astro"
 import RoomModal from "@/components/product/RoomModal.astro"
+import { formatBedType } from "@/data/room-beds"
 import { serviceIcons } from "@/data/service-icons"
 import Layout from "@/layouts/Layout.astro"
 import type { ImageRow, ServiceRow } from "@/types/products"
@@ -318,7 +319,7 @@ const breadcrumbItems = [
 														stroke-linejoin="round"
 													/>
 												</svg>
-												<span>{room.bedType ? JSON.stringify(room.bedType) : "Tipo de cama"}</span>
+												<span>{formatBedType(room.bedType)}</span>
 											</div>
 
 											<div class="flex items-center gap-2">
