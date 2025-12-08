@@ -1,0 +1,247 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { db, eq, Policy, Variant } from "astro:db"
+
+const variantId = Astro.params.variantId
+if (!variantId) throw new Error("variantId is required")
+
+const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
+const policies = await db.select().from(Policy).all()
+---
+
+<Layout title="Crear Rate Plan">
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+		>
+			<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">CREAR PLAN TARIFARIO</h1>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Completa toda la información del plan tarifario.
+			</p>
+
+			<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{variant?.name}</p>
+
+			<form id="rpForm" class="mt-6 flex flex-col gap-10">
+				<div class="space-y-3">
+					<h2 class="text-center font-semibold text-neutral-700">Información General</h2>
+
+					<label class="flex flex-col text-sm">
+						<span class="text-neutral-500">Nombre</span>
+						<input name="name" required class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
+					</label>
+
+					<label class="flex flex-col text-sm">
+						<span class="text-neutral-500">Descripción</span>
+						<textarea name="description" class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+						></textarea>
+					</label>
+
+					<label class="flex flex-col text-sm">
+						<span class="text-neutral-500">Tipo</span>
+						<select name="type" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+							<option value="modifier">modifier</option>
+							<option value="fixed">fixed</option>
+							<option value="package">package</option>
+						</select>
+					</label>
+				</div>
+
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Precios</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Valor USD</span>
+							<input
+								type="number"
+								name="valueUSD"
+								value="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Valor BOB</span>
+							<input
+								type="number"
+								name="valueBOB"
+								value="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Políticas</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Política de Cancelación</span>
+							<select name="cancellationPolicyId" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+								<option value="">Ninguna</option>
+								{policies.map((p) => <option value={p.id}>{p?.name}</option>)}
+							</select>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Tipo de Pago</span>
+							<select name="paymentType" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+								<option value="Prepaid">Prepaid</option>
+								<option value="Postpaid">Postpaid</option>
+							</select>
+						</label>
+
+						<label class="flex items-center gap-2 text-sm">
+							<input type="checkbox" name="refundable" checked />
+							<span class="text-neutral-500">Reembolsable</span>
+						</label>
+					</div>
+				</div>
+
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Restricciones de Estancia</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Noches mínimas</span>
+							<input
+								type="number"
+								name="minNights"
+								value="1"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Noches máximas</span>
+							<input
+								type="number"
+								name="maxNights"
+								placeholder="Opcional"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Anticipación</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Mínimo días de anticipación</span>
+							<input
+								type="number"
+								name="minAdvanceDays"
+								value="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Máximo días de anticipación</span>
+							<input
+								type="number"
+								name="maxAdvanceDays"
+								placeholder="Opcional"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+				</div>
+
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Días Válidos</h2>
+
+						<div class="grid grid-cols-2 gap-2 text-sm">
+							{
+								["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map(
+									(d) => (
+										<label class="flex items-center gap-2">
+											<input type="checkbox" name="validDays" value={d} />
+											{d}
+										</label>
+									)
+								)
+							}
+						</div>
+					</div>
+
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Rango de Fechas</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Fecha Inicio</span>
+							<input
+								type="date"
+								name="startDate"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-500">Fecha Fin</span>
+							<input type="date" name="endDate" class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
+						</label>
+					</div>
+				</div>
+
+				<label class="flex items-center gap-3 pt-2 text-sm font-medium text-neutral-700">
+					<input type="checkbox" name="isActive" checked class="h-4 w-4 accent-blue-600" />
+					Plan Tarifario Activo
+				</label>
+
+				<div class="flex justify-end py-16">
+					<button
+						class="h-10 w-40 rounded-xl bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+					>
+						Crear
+					</button>
+				</div>
+			</form>
+		</article>
+
+		<script type="module" define:vars={{ VARIANT_ID: variantId }}>
+			const form = document.getElementById("rpForm")
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault()
+				const fd = new FormData(form)
+
+				const validDays = fd.getAll("validDays")
+
+				const body = {
+					variantId: VARIANT_ID,
+					name: fd.get("name"),
+					description: fd.get("description") || null,
+
+					type: fd.get("type"),
+					valueUSD: Number(fd.get("valueUSD")),
+					valueBOB: Number(fd.get("valueBOB")),
+
+					refundable: fd.get("refundable") === "on",
+					cancellationPolicyId: fd.get("cancellationPolicyId") || null,
+					paymentType: fd.get("paymentType"),
+
+					minNights: Number(fd.get("minNights")),
+					maxNights: fd.get("maxNights") ? Number(fd.get("maxNights")) : null,
+
+					minAdvanceDays: Number(fd.get("minAdvanceDays")),
+					maxAdvanceDays: fd.get("maxAdvanceDays") ? Number(fd.get("maxAdvanceDays")) : null,
+
+					validDays: validDays.length ? validDays : null,
+					startDate: fd.get("startDate") || null,
+					endDate: fd.get("endDate") || null,
+
+					isActive: fd.get("isActive") === "on",
+				}
+
+				await fetch("/api/rateplans/create", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(body),
+				})
+
+				window.location.href = `/rate-plans/${VARIANT_ID}`
+			})
+		</script>
+	</section>
+</Layout>

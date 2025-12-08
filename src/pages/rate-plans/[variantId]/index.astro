@@ -1,0 +1,60 @@
+---
+import Layout from "@/layouts/Layout.astro"
+
+const variantId = Astro.params.variantId
+
+const apiUrl = new URL(`/api/rateplans/list?variantId=${variantId}`, Astro.request.url).toString()
+const res = await fetch(apiUrl)
+const rateplans = (await res.json()) || []
+---
+
+<Layout title="Rate Plans">
+	<main
+		class="mx-auto mt-20 w-[95%] max-w-3xl rounded-3xl border bg-neutral-200 p-8 text-neutral-800 shadow"
+	>
+		<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">PLANES TARÍFARIOS</h1>
+
+		<div class="mt-6 flex justify-end">
+			<a
+				href={`/rate-plans/${variantId}/create`}
+				class="rounded-lg bg-blue-600 px-5 py-2 text-sm text-white"
+			>
+				+ Crear Rate Plan
+			</a>
+		</div>
+
+		<div class="mt-8 space-y-4">
+			{
+				rateplans.length === 0 ? (
+					<p class="text-sm text-neutral-500">No hay rate plans para este Variant.</p>
+				) : (
+					rateplans.map((rp: any) => (
+						<article class="flex items-center justify-between rounded-xl border bg-white p-4 shadow">
+							<div>
+								<p class="font-semibold">{rp.name}</p>
+								<p class="text-xs text-neutral-500">{rp.type}</p>
+							</div>
+
+							<div class="flex gap-2">
+								<a
+									href={`/rate-plans/${variantId}/edit?id=${rp.id}`}
+									class="rounded-lg border px-4 py-2 text-sm"
+								>
+									Editar
+								</a>
+
+								<button
+									class="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700"
+									data-id={rp.id}
+									onclick={`if(confirm('Eliminar?')) fetch('/api/rateplans/delete?id=${rp.id}', {method:'DELETE'}).then(()=>location.reload())`}
+								>
+									Eliminar
+								</button>
+							</div>
+						</article>
+					))
+				)
+			}
+		</div>
+	</main>
+</Layout>

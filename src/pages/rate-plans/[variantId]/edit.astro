@@ -1,0 +1,104 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { db, eq, RatePlan } from "astro:db"
+
+const variantId = Astro.params.variantId
+const id = Astro.url.searchParams.get("id")
+if (!id) throw new Error("id is required")
+
+const rateplan = await db.select().from(RatePlan).where(eq(RatePlan.id, id)).get()
+---
+
+<Layout title="Editar Rate Plan">
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-lg lg:max-w-2xl lg:p-20"
+		>
+			<h1 class="text-xl font-semibold md:mb-2 md:text-3xl">EDITAR RATE PLAN</h1>
+			<p class="hidden text-xs text-neutral-500 md:block">
+				Modifica la información del plan tarifario seleccionado.
+			</p>
+			<small class="text-xs text-neutral-500 md:hidden"> Modifica la información del plan </small>
+
+			<form id="editForm" class="mt-10 flex flex-col gap-4">
+				<!-- Nombre -->
+				<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Nombre del Plan
+					<input
+						type="text"
+						name="name"
+						value={rateplan?.name}
+						placeholder="Ej: No Reembolsable"
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+						required
+					/>
+				</label>
+
+				<!-- Valor USD -->
+				<label class="block text-xs font-medium text-neutral-500 md:text-sm">
+					Valor USD
+					<input
+						type="number"
+						name="valueUSD"
+						value={rateplan?.valueUSD}
+						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+					/>
+				</label>
+
+				<!-- Refundable -->
+				<label class="flex items-center gap-3 pt-2 text-sm font-medium text-neutral-700">
+					<input
+						type="checkbox"
+						name="refundable"
+						checked={rateplan?.refundable}
+						class="h-4 w-4 accent-blue-600"
+					/>
+					Reembolsable
+				</label>
+
+				<!-- Buttons -->
+				<div class="mt-10 flex justify-end gap-4">
+					<button
+						type="submit"
+						class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+					>
+						Guardar
+					</button>
+
+					<button
+						type="button"
+						class="h-10 w-40 rounded-lg bg-red-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-red-700"
+						onclick={`if(confirm('¿Eliminar este rate plan?'))
+            fetch('/api/rateplans/delete?id=${id}',{
+              method:'DELETE'
+            }).then(()=>location.href='/rate-plans/${variantId}')`}
+					>
+						Eliminar
+					</button>
+				</div>
+			</form>
+		</article>
+	</section>
+
+	<script type="module" define:vars={{ VARIANT_ID: variantId, ID: id }}>
+		document.getElementById("editForm").addEventListener("submit", async (e) => {
+			e.preventDefault()
+			const fd = new FormData(e.target)
+
+			const body = {
+				id: ID,
+				name: fd.get("name"),
+				valueUSD: Number(fd.get("valueUSD")),
+				refundable: fd.get("refundable") === "on",
+			}
+
+			await fetch("/api/rateplans/update", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			})
+
+			window.location.href = `/rate-plans/${VARIANT_ID}`
+		})
+	</script>
+</Layout>
