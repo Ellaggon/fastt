@@ -3,19 +3,10 @@ import { getProviderIdFromRequest } from "@/lib/db/provider"
 import { updateProductAndSubtype } from "@/lib/services/productService"
 import { z } from "zod"
 
-// Definir el esquema de validación para los datos entrantes
 const bodySchema = z.object({
 	name: z.string().min(1, "El nombre es requerido."),
 	description: z.string().nullable().optional(),
 	productType: z.enum(["Tour", "Package", "Hotel"]),
-	basePriceUSD: z.preprocess((v) => {
-		if (typeof v === "string") return v === "" ? undefined : Number(v)
-		return v
-	}, z.number().min(0).optional()),
-	basePriceBOB: z.preprocess((v) => {
-		if (typeof v === "string") return v === "" ? undefined : Number(v)
-		return v
-	}, z.number().min(0).optional()),
 	subtype: z.record(z.any()).optional(),
 })
 
@@ -31,21 +22,12 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const formData = await request.formData()
 		const plain = Object.fromEntries(formData.entries())
 
-		const maybeNum = (v: unknown): number | undefined => {
-			if (v === undefined || v === null || String(v).trim() === "") return undefined
-			const n = Number(String(v))
-			return Number.isFinite(n) ? n : undefined
-		}
-
 		let parsedPayload
 		try {
 			parsedPayload = {
 				name: plain.name ? String(plain.name).trim() : "",
 				description: plain.description !== undefined ? String(plain.description).trim() : undefined,
 				productType: plain.productType ? String(plain.productType).trim() : "Tour",
-				basePriceUSD: maybeNum(plain.basePriceUSD),
-				basePriceBOB: maybeNum(plain.basePriceBOB),
-				// parse subtype JSON only if fue enviado
 				subtype: plain.subtype ? JSON.parse(String(plain.subtype)) : undefined,
 			}
 		} catch (e) {
@@ -61,10 +43,6 @@ export const POST: APIRoute = async ({ request, params }) => {
 		productFields.name = parsed.data.name
 		if (parsed.data.description !== undefined) productFields.description = parsed.data.description
 		if (parsed.data.productType !== undefined) productFields.productType = parsed.data.productType
-		if (parsed.data.basePriceUSD !== undefined)
-			productFields.basePriceUSD = parsed.data.basePriceUSD
-		if (parsed.data.basePriceBOB !== undefined)
-			productFields.basePriceBOB = parsed.data.basePriceBOB
 		productFields.lastUpdated = new Date()
 
 		// solo tocar subtipo si viene en el form

@@ -26,10 +26,6 @@ export function initializeProductFormHandlers() {
 					const name = input.name as keyof typeof schema.shape
 					let value: unknown = input.value
 
-					if (name === "basePriceUSD" || name === "basePriceBOB") {
-						value = parseFloat(input.value)
-					}
-
 					if (name === "imagesMeta" && fileState.uploadFiles) {
 						value = Array.from(fileState.uploadFiles).map((file) => ({
 							name: file.name,
@@ -71,8 +67,6 @@ export function initializeProductFormHandlers() {
 				productType: String(raw.productType || ""),
 				description: String(raw.description || ""),
 				destinationId: String(raw.destinationId || ""),
-				basePriceUSD: raw.basePriceUSD ? Number(raw.basePriceUSD) : undefined,
-				basePriceBOB: raw.basePriceBOB ? Number(raw.basePriceBOB) : undefined,
 				imagesMeta,
 			}
 
