@@ -1,0 +1,193 @@
+---
+import Layout from "@/layouts/Layout.astro"
+const { id: productId } = Astro.params
+const ruleTypes = ["CheckIn", "CheckOut", "OperationHours", "BlackoutDates"]
+---
+
+<Layout title="Reglas Operativas">
+	<main
+		class="mx-auto mt-20 w-[95%] max-w-3xl rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg md:p-12 lg:p-16"
+	>
+		<h1 class="text-xl font-semibold md:text-2xl">REGLAS OPERATIVAS</h1>
+		<p class="mt-1 text-sm text-neutral-500">Configura reglas específicas para este producto.</p>
+
+		<div class="mt-6 flex items-center justify-between">
+			<div class="text-sm text-neutral-600">
+				Producto: <strong class="text-neutral-800">{productId}</strong>
+			</div>
+			<button
+				id="btnAdd"
+				class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+			>
+				+ Nueva Regla
+			</button>
+		</div>
+
+		<div id="ruleList" class="mt-8 space-y-4">Cargando...</div>
+
+		<dialog
+			id="ruleModal"
+			class="w-[90%] max-w-md rounded-2xl border border-neutral-300 bg-neutral-100 p-6 shadow-xl"
+		>
+			<h3 id="modalTitle" class="mb-4 text-lg font-semibold text-neutral-800"></h3>
+
+			<form id="ruleForm" class="space-y-4">
+				<input type="hidden" id="ruleId" />
+
+				<div class="flex flex-col gap-1">
+					<label class="text-sm font-medium">Tipo de regla</label>
+					<select
+						id="ruleType"
+						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
+					>
+						{ruleTypes.map((t) => <option value={t}>{t}</option>)}
+					</select>
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label class="text-sm font-medium">Valor</label>
+					<input
+						id="ruleValue"
+						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
+						placeholder="Por ejemplo: 14:00 para CheckIn o JSON para OperationHours"
+					/>
+					<small class="text-xs text-neutral-500"
+						>El campo 'value' es texto. Para horarios/fechas usa el formato que manejes en tu app
+						(p. ej. "14:00", o JSON).</small
+					>
+				</div>
+
+				<div class="mt-6 flex justify-end gap-3">
+					<button
+						type="button"
+						id="btnCancel"
+						class="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+						>Cancelar</button
+					>
+					<button
+						type="submit"
+						id="btnSave"
+						class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+						>Guardar</button
+					>
+				</div>
+			</form>
+		</dialog>
+	</main>
+
+	<script type="module">
+		const productId = window.location.pathname.split("/")[2]
+
+		const list = document.getElementById("ruleList")
+		const modal = document.getElementById("ruleModal")
+		const form = document.getElementById("ruleForm")
+
+		const idInput = document.getElementById("ruleId")
+		const typeInput = document.getElementById("ruleType")
+		const valueInput = document.getElementById("ruleValue")
+		const title = document.getElementById("modalTitle")
+
+		document.getElementById("btnAdd").onclick = () => {
+			idInput.value = ""
+			typeInput.value = "CheckIn"
+			valueInput.value = ""
+			title.textContent = "Nueva Regla Operativa"
+			modal.showModal()
+		}
+
+		document.getElementById("btnCancel").onclick = () => modal.close()
+
+		form.onsubmit = async (e) => {
+			e.preventDefault()
+			const id = idInput.value
+			const payload = { ruleType: typeInput.value, value: valueInput.value }
+
+			const url = id
+				? `/api/products/${productId}/operating-rules/${id}/update`
+				: `/api/products/${productId}/operating-rules/create`
+
+			const res = await fetch(url, {
+				method: id ? "PUT" : "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			})
+
+			if (!res.ok) {
+				const txt = await res.text().catch(() => "<no body>")
+				alert("Error: " + txt)
+				return
+			}
+
+			modal.close()
+			loadRules()
+		}
+
+		async function loadRules() {
+			list.innerHTML = "Cargando..."
+			const res = await fetch(`/api/products/${productId}/operating-rules/get`)
+			if (!res.ok) {
+				list.innerHTML = `<p class="text-red-600">Error cargando reglas</p>`
+				return
+			}
+			const data = await res.json()
+			const rules = data.rules || []
+
+			if (!rules.length) {
+				list.innerHTML =
+					'<p class="text-neutral-500 text-sm text-center">No hay reglas operativas.</p>'
+				return
+			}
+
+			list.innerHTML = rules
+				.map(
+					(r) => `
+        <div class="p-4 bg-white border border-neutral-300 rounded-xl shadow flex justify-between items-start">
+          <div class="w-3/4">
+            <p class="font-semibold text-neutral-900">${r.ruleType}</p>
+            <p class="text-neutral-600 text-sm break-words">${r.value}</p>
+            <p class="text-xs mt-1 text-neutral-500">id: ${r.id}</p>
+          </div>
+
+          <div class="flex flex-col gap-2 justify-center">
+            <button class="btnEdit text-blue-600 hover:underline text-sm" data-id="${r.id}" data-type="${r.ruleType}" data-value="${(r.value || "").replace(/"/g, "&quot;")}">Editar</button>
+            <button class="btnDelete text-red-600 hover:underline text-sm" data-id="${r.id}">Eliminar</button>
+          </div>
+        </div>
+      `
+				)
+				.join("")
+
+			list.querySelectorAll(".btnEdit").forEach((btn) => {
+				btn.onclick = () => {
+					idInput.value = btn.dataset.id || ""
+					typeInput.value = btn.dataset.type || "CheckIn"
+					valueInput.value = btn.dataset.value || ""
+					title.textContent = "Editar Regla Operativa"
+					modal.showModal()
+				}
+			})
+
+			list.querySelectorAll(".btnDelete").forEach((btn) => {
+				btn.onclick = () => removeRule(btn.dataset.id)
+			})
+		}
+
+		async function removeRule(id) {
+			if (!id) return
+			if (!confirm("¿Eliminar esta regla operativa?")) return
+
+			const res = await fetch(`/api/products/${productId}/operating-rules/${id}/delete`, {
+				method: "DELETE",
+			})
+
+			if (!res.ok) {
+				alert("Error borrando")
+				return
+			}
+
+			loadRules()
+		}
+
+		loadRules()
+	</script>
+</Layout>
