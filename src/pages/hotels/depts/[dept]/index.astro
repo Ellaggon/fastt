@@ -40,10 +40,9 @@ try {
 				LIMIT 1
 			)`.as("imageUrl"),
 			description: Product.description,
-			basePriceUSD: Product.basePriceUSD,
-			basePriceBOB: Product.basePriceBOB,
 			address: Hotel.address,
 			stars: Hotel.stars,
+			isActive: Product.isActive,
 			services: sql`(
 				SELECT json_group_array(
 					json_object(
@@ -70,9 +69,6 @@ try {
 	console.error(e)
 }
 
-// Datos de hoteles simulados (idealmente vendrían de una API o CMS)
-// He limpiado los datos innecesarios (data-id, data-codigo, lat/lng, etc.)
-// y simplificado los servicios para facilitar su manejo.
 const hotelsData = [
 	{
 		name: "Hotel Eurotel Providencia",
@@ -187,20 +183,21 @@ const breadcrumbItems = [
 				{hotelsData.map((hotel) => <ProductCard {...hotel} />)}
 				{
 					hotels.length > 0 ? (
-						hotels.map((h) => (
-							<ProductCard
-								name={h.name}
-								href={`/hotels/${h.id}`}
-								image={h.imageUrl || "https://picsum.photos/400/250"}
-								alt={h.name}
-								stars={h.stars || 0}
-								address={h.address || "Dirección no disponible"}
-								description={h.description || ""}
-								priceUSD={h.basePriceUSD || 0}
-								priceBOB={h.basePriceBOB || 0}
-								services={JSON.parse(h.services) || []}
-							/>
-						))
+						hotels.map(
+							(h) =>
+								h.isActive && (
+									<ProductCard
+										name={h.name}
+										href={`/hotels/${h.id}`}
+										image={h.imageUrl || "https://picsum.photos/400/250"}
+										alt={h.name}
+										stars={h.stars || 0}
+										address={h.address || "Dirección no disponible"}
+										description={h.description || ""}
+										services={JSON.parse(h.services) || []}
+									/>
+								)
+						)
 					) : (
 						<p class="col-span-full text-center text-gray-500">No se encontraron hoteles.</p>
 					)
