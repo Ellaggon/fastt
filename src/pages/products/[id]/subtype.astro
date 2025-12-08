@@ -1,8 +1,8 @@
 ---
 import MapPicker from "@/components/MapPicker.astro"
-import HotelForm from "@/components/product/update/HotelForm.astro"
-import PackageForm from "@/components/product/update/PackageForm.astro"
-import TourForm from "@/components/product/update/TourForm.astro"
+import HotelForm from "@/components/product/create/HotelForm.astro"
+import PackageForm from "@/components/product/create/PackageForm.astro"
+import TourForm from "@/components/product/create/TourForm.astro"
 import Layout from "@/layouts/Layout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
@@ -39,7 +39,7 @@ let lng = hotel?.longitude ?? -68.13
 <Layout title={`Detalles: ${product.name || "Producto"}`}>
 	<section class="h-full w-full pt-10 md:pt-16">
 		<article
-			class="mx-auto w-[97%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
 			<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">DETALLES ADICIONALES</h1>
 			<p class="hidden text-xs text-neutral-500 md:block">
