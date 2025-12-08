@@ -1,31 +1,33 @@
-// src/pages/api/products/[id]/rooms/get.ts
 import type { APIRoute } from "astro"
-import { db, HotelRoomType, HotelRoomAmenity, Image, and, eq } from "astro:db"
+import { and, db, eq, HotelRoomAmenity, HotelRoomType, Image, Variant } from "astro:db"
 
 export const GET: APIRoute = async ({ request, params }) => {
-	const hotelId = String(params.hotelId || "")
+	const hotelId = String(params.id || "")
 	const url = new URL(request.url)
-	const roomTypeId = url.searchParams.get("roomTypeId") || ""
-	if (!hotelId || !roomTypeId)
-		return new Response(JSON.stringify({ found: false }), { status: 400 })
+	const hotelRoomId = url.searchParams.get("hotelRoomId")
+
+	if (!hotelId || !hotelRoomId)
+		return new Response(JSON.stringify({ found: false, error: "Missing hotelId or hotelRoomId" }), {
+			status: 400,
+		})
 
 	const row = await db
 		.select()
 		.from(HotelRoomType)
-		.where(and(eq(HotelRoomType.hotelId, hotelId), eq(HotelRoomType.roomTypeId, roomTypeId)))
+		.where(and(eq(HotelRoomType.hotelId, hotelId), eq(HotelRoomType.id, hotelRoomId)))
 		.get()
 
 	if (!row) return new Response(JSON.stringify({ found: false }), { status: 200 })
 
-	// get amenities
-	const ams = await db
+	const variant = await db.select().from(Variant).where(eq(Variant.entityId, row.id)).get()
+
+	const amenities = await db
 		.select({ amenityId: HotelRoomAmenity.amenityId })
 		.from(HotelRoomAmenity)
 		.where(eq(HotelRoomAmenity.hotelRoomTypeId, row.id))
 		.all()
 
-	// get images
-	const imgs = await db
+	const images = await db
 		.select()
 		.from(Image)
 		.where(and(eq(Image.entityType, "HotelRoomType"), eq(Image.entityId, row.id)))
@@ -33,7 +35,13 @@ export const GET: APIRoute = async ({ request, params }) => {
 		.all()
 
 	return new Response(
-		JSON.stringify({ found: true, row, amenities: ams.map((a) => a.amenityId), images: imgs }),
+		JSON.stringify({
+			found: true,
+			row,
+			variant,
+			amenities: amenities.map((a) => a.amenityId),
+			images,
+		}),
 		{ status: 200 }
 	)
 }

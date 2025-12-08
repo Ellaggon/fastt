@@ -1,6 +1,5 @@
-// src/pages/api/products/[hotelId]/rooms/create.ts
 import type { APIRoute } from "astro"
-import { db, HotelRoomType, Hotel, HotelRoomAmenity, Image, eq, and } from "astro:db"
+import { db, HotelRoomType, Hotel, HotelRoomAmenity, Image, Variant, eq } from "astro:db"
 import { getSession } from "auth-astro/server"
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -8,7 +7,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 	const session = await getSession(request)
 	const email = session?.user?.email
 
-	if (!email) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+	if (!email) {
+		return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+	}
 
 	try {
 		const form = await request.formData()
@@ -16,86 +17,63 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const hotelId = String(form.get("hotelId") || hotelIdParam)
 		const roomTypeId = String(form.get("roomTypeId") || "")
 
-		const maxOccupancy = form.get("maxOccupancy") ? Number(form.get("maxOccupancy")) : undefined
-		const bedTypesRaw = form.get("bedTypes")
-		const bedTypes = bedTypesRaw ? JSON.parse(String(bedTypesRaw)) : []
-		// const bedTypes = form.getAll("bedTypes").map(String); // <-- array real
-		const sizeM2 = form.get("sizeM2") ? Number(form.get("sizeM2")) : undefined
-		const bathroom = form.get("bathroom") ? Number(form.get("bathroom")) : undefined
-		const hasBalcony = form.has("hasBalcony")
-		const totalRooms = form.get("totalRooms") ? Number(form.get("totalRooms")) : 0
-		const priceUSD = form.get("priceUSD") ? Number(form.get("priceUSD")) : null
-		const priceBOB = form.get("priceBOB") ? Number(form.get("priceBOB")) : null
-		const hasView = form.get("hasView") ? String(form.get("hasView")) : null
-
-		//overrides
-		const name = form.get("name") ? String(form.get("name")) : null
-		const description = form.get("description") ? String(form.get("description")) : null
-
-		const amenities = form.getAll("amenities").map((v) => String(v))
-		const images = JSON.parse(String(form.get("images") || "[]")) as string[]
-
 		if (!hotelId || !roomTypeId) {
 			return new Response(JSON.stringify({ error: "Missing hotelId or roomTypeId" }), {
 				status: 400,
 			})
 		}
 
+		const maxOccupancy = form.get("maxOccupancy") ? Number(form.get("maxOccupancy")) : undefined
+		const bedTypesRaw = form.get("bedTypes")
+		const bedTypes = bedTypesRaw ? JSON.parse(String(bedTypesRaw)) : []
+		const sizeM2 = form.get("sizeM2") ? Number(form.get("sizeM2")) : undefined
+		const bathroom = form.get("bathroom") ? Number(form.get("bathroom")) : undefined
+		const hasBalcony = form.has("hasBalcony")
+		const totalRooms = form.get("totalRooms") ? Number(form.get("totalRooms")) : 0
+		const hasView = form.get("hasView") ? String(form.get("hasView")) : null
+
+		const name = form.get("name") ? String(form.get("name")) : "Habitación"
+		const description = form.get("description") ? String(form.get("description")) : null
+
+		const amenities = form.getAll("amenities").map((v) => String(v))
+		const images = JSON.parse(String(form.get("images") || "[]")) as string[]
+
+		const basePriceUSD = form.get("basePriceUSD") ? Number(form.get("basePriceUSD")) : 0
+		const basePriceBOB = form.get("basePriceBOB") ? Number(form.get("basePriceBOB")) : 0
+
 		const hotelRow = await db.select().from(Hotel).where(eq(Hotel.productId, hotelId)).get()
-		if (!hotelRow)
+
+		if (!hotelRow) {
 			return new Response(JSON.stringify({ error: "Hotel not found" }), { status: 404 })
-
-		console.log("HotelId recibido:", hotelId)
-		console.log("RoomTypeId recibido:", roomTypeId)
-		console.log("Hotel encontrado:", hotelRow)
-
-		const exists = await db
-			.select()
-			.from(HotelRoomType)
-			.where(and(eq(HotelRoomType.hotelId, hotelId), eq(HotelRoomType.roomTypeId, roomTypeId)))
-			.get()
-
-		let hotelRoomId: string
-
-		if (exists) {
-			hotelRoomId = exists.id
-
-			await db
-				.update(HotelRoomType)
-				.set({
-					totalRooms,
-					priceUSD,
-					priceBOB,
-					hasView,
-					maxOccupancyOverride: maxOccupancy,
-					bedType: bedTypes.length ? JSON.stringify(bedTypes) : null,
-					sizeM2,
-					bathroom,
-					hasBalcony,
-				})
-				.where(eq(HotelRoomType.id, exists.id))
-		} else {
-			hotelRoomId = crypto.randomUUID()
-
-			await db.insert(HotelRoomType).values({
-				id: hotelRoomId,
-				hotelId,
-				roomTypeId,
-				totalRooms,
-				priceUSD,
-				priceBOB,
-				hasView,
-				name,
-				description,
-				maxOccupancyOverride: maxOccupancy,
-				bedType: bedTypes.length ? bedTypes : null,
-				sizeM2,
-				bathroom,
-				hasBalcony,
-			})
 		}
 
-		await db.delete(HotelRoomAmenity).where(eq(HotelRoomAmenity.hotelRoomTypeId, hotelRoomId))
+		const hotelRoomId = crypto.randomUUID()
+		const variantId = crypto.randomUUID()
+
+		await db.insert(HotelRoomType).values({
+			id: hotelRoomId,
+			hotelId,
+			roomTypeId,
+			totalRooms,
+			hasView,
+			maxOccupancyOverride: maxOccupancy,
+			bedType: bedTypes.length ? bedTypes : null,
+			sizeM2,
+			bathroom,
+			hasBalcony,
+		})
+
+		await db.insert(Variant).values({
+			id: variantId,
+			productId: hotelId,
+			entityType: "hotel_room",
+			entityId: hotelRoomId,
+			name,
+			description,
+			basePriceUSD,
+			basePriceBOB,
+			isActive: true,
+		})
 
 		if (amenities.length > 0) {
 			await db.insert(HotelRoomAmenity).values(
@@ -109,10 +87,6 @@ export const POST: APIRoute = async ({ request, params }) => {
 		}
 
 		if (images.length > 0) {
-			await db
-				.delete(Image)
-				.where(and(eq(Image.entityType, "HotelRoomType"), eq(Image.entityId, hotelRoomId)))
-
 			await db.insert(Image).values(
 				images.map((url, idx) => ({
 					id: crypto.randomUUID(),
@@ -125,7 +99,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 			)
 		}
 
-		return new Response(JSON.stringify({ ok: true, id: hotelRoomId }), { status: 200 })
+		return new Response(JSON.stringify({ ok: true, id: hotelRoomId, variantId }), { status: 200 })
 	} catch (err) {
 		console.error("rooms/create error:", err)
 		return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })

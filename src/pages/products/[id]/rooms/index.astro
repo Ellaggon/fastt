@@ -1,5 +1,6 @@
 ---
-import { AMENITY_ROOMS } from "@/data/amenity-rooms"
+import RoomModals from "@/components/productForm/RoomModals.astro"
+import { AMENITY_ROOMS } from "@/data/room-amenity"
 import Layout from "@/layouts/Layout.astro"
 import { db, eq, Product } from "astro:db"
 import { getSession } from "auth-astro/server"
@@ -7,19 +8,17 @@ import { getSession } from "auth-astro/server"
 const hotelId = Astro.params.id
 const session = await getSession(Astro.request)
 if (!session) return Astro.redirect("/SignInPage")
-console.log(hotelId)
 
 let hotelDetails
 if (hotelId) {
 	hotelDetails = await db.select().from(Product).where(eq(Product.id, hotelId)).get()
-	console.log("hotelID", hotelId)
 }
 ---
 
 <Layout title="Configurar Habitaciones">
 	<section class="h-full w-full pt-10 md:pt-16">
 		<article
-			class="mx-auto w-[97%] rounded-3xl bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
+			class="mx-auto w-[98%] rounded-3xl bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
 			<h2 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">
 				CONFIGURACIÓN DE HABITACIONES
@@ -34,167 +33,162 @@ if (hotelId) {
 				)
 			}
 
-			<form id="hotelRoomTypeForm" enctype="multipart/form-data" class="space-y-4">
-				<input type="hidden" name="hotelId" value={hotelId} />
+			<form id="hotelRoomTypeForm" enctype="multipart/form-data" class="space-y-10">
+				<input id="hotelId" type="hidden" name="hotelId" value={hotelId} />
 
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Información General</h3>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tipo de habitación</span>
+							<button
+								id="openRoomTypeModal"
+								type="button"
+								class="mt-1 rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left text-neutral-800"
+							>
+								Seleccionar tipo de habitación
+							</button>
+							<input type="hidden" name="roomTypeId" id="roomTypeId" />
+						</label>
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tipo de cama</span>
+							<button
+								id="openBedTypeModal"
+								type="button"
+								class="mt-1 rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left text-neutral-800"
+							>
+								Selecciona tipos de cama
+							</button>
+							<input type="hidden" name="bedTypes" id="bedTypes" />
+						</label>
+					</div>
+
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Nombre comercial</span>
+							<input name="name" type="text" class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
+						</label>
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Capacidad máxima</span>
+							<input
+								type="number"
+								name="maxOccupancy"
+								min="1"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
 					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Tipo de habitación</span>
-						<button
-							id="openRoomTypeModal"
-							type="button"
-							class="rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left text-neutral-800"
-						>
-							Seleccionar tipo de habitación
-						</button>
-						<input type="hidden" name="roomTypeId" id="roomTypeId" />
+						<span class="text-neutral-600">Descripción</span>
+						<textarea name="description" rows="2" class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+						></textarea>
 					</label>
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Capacidad máxima</span>
-						<input
-							name="maxOccupancy"
-							id="maxOccupancy"
-							type="number"
-							min="1"
-							class="mt-1 w-full rounded-md bg-neutral-100 px-2 py-2 lg:px-3"
-						/>
-					</label>
-				</div>
+				</section>
 
-				<label class="flex flex-col text-sm">
-					<span class="mb-1 text-neutral-500">Nombre (opcional)</span>
-					<input
-						type="text"
-						name="name"
-						id="name"
-						class="w-full rounded-md bg-neutral-100 px-3 py-2"
-					/>
-				</label>
-				<label class="flex flex-col text-sm">
-					<span class="mb-1 text-neutral-500">Descipción (opcional)</span>
-					<input
-						type="text"
-						name="desciption"
-						id="description"
-						class="w-full rounded-md bg-neutral-100 px-3 py-2"
-					/>
-				</label>
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Características</h3>
 
-				<label class="flex flex-col text-sm">
-					<span class="mb-1 text-neutral-500">Tipo de cama</span>
-					<button
-						id="openBedTypeModal"
-						type="button"
-						class="rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-3 text-left text-neutral-800"
-						>Selecciona tipos de cama</button
-					>
-					<input type="hidden" name="bedTypes" id="bedTypes" />
-				</label>
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Tamaño de la habitación (m²)</span>
+							<input
+								type="number"
+								name="sizeM2"
+								min="0"
+								step="0.1"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
 
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Tamaño de la habitación (m²)</span>
-						<input
-							name="sizeM2"
-							id="sizeM2"
-							type="number"
-							min="0"
-							step="0.1"
-							class="w-full rounded-md bg-neutral-100 px-3 py-2"
-						/>
-					</label>
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Cantidad de baños</span>
+							<input
+								type="number"
+								name="bathroom"
+								min="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
 
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Cantidad de baños</span>
-						<input
-							name="bathroom"
-							id="bathroom"
-							type="number"
-							min="0"
-							class="w-full rounded-md bg-neutral-100 px-3 py-2"
-						/>
-					</label>
-				</div>
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Total de habitaciones (inventario)</span>
+							<input
+								type="number"
+								name="totalRooms"
+								min="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
 
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-					<label for="hasBalcony" class="flex items-center space-x-2 pt-4 text-sm">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Vista</span>
+							<input name="hasView" class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
+						</label>
+					</div>
+
+					<label class="flex items-center space-x-3 pt-2">
 						<input
 							type="checkbox"
 							name="hasBalcony"
-							id="hasBalcony"
 							value="1"
-							class="h-4 w-4 rounded border-neutral-300 bg-neutral-100 text-blue-600 focus:ring-blue-500"
+							class="h-4 w-4 rounded border-neutral-300 bg-neutral-100"
 						/>
-						<span class="text-neutral-800">Incluye Balcón</span>
+						<span class="text-sm text-neutral-700">Incluye balcón</span>
 					</label>
+				</section>
 
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Vista (texto)</span>
-						<input name="hasView" id="hasView" class="w-full rounded-md bg-neutral-100 px-3 py-2" />
-					</label>
-				</div>
+				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Precio Base</h3>
 
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Total habitaciones (inventario)</span>
-						<input
-							name="totalRooms"
-							id="totalRooms"
-							type="number"
-							min="0"
-							class="w-full rounded-md bg-neutral-100 px-3 py-2"
-						/>
-					</label>
+					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Precio base USD</span>
+							<input
+								type="number"
+								name="basePriceUSD"
+								value="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
 
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Precio USD por noche</span>
-						<input
-							name="priceUSD"
-							id="priceUSD"
-							type="number"
-							step="0.01"
-							min="0"
-							class="w-full rounded-md bg-neutral-100 px-3 py-2"
-						/>
-					</label>
+						<label class="flex flex-col text-sm">
+							<span class="text-neutral-600">Precio base BOB</span>
+							<input
+								type="number"
+								name="basePriceBOB"
+								value="0"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+							/>
+						</label>
+					</div>
+				</section>
 
-					<label class="flex flex-col text-sm">
-						<span class="mb-1 text-neutral-500">Precio BOB por noche</span>
-						<input
-							name="priceBOB"
-							id="priceBOB"
-							type="number"
-							step="0.01"
-							min="0"
-							class="w-full rounded-md bg-neutral-100 px-3 py-2"
-						/>
-					</label>
-				</div>
+				<section class="rounded-2xl border border-neutral-300 bg-neutral-200 p-6 shadow-sm">
+					<h3 class="mb-4 text-lg font-semibold text-neutral-800">Amenities</h3>
 
-				<fieldset class="space-y-3 rounded-lg border border-neutral-300 p-4">
-					<legend class="px-2 text-base font-semibold text-neutral-800"
-						>Amenities de la Habitación</legend
-					>
-					<div class="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3 lg:grid-cols-4">
+					<div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
 						{
 							AMENITY_ROOMS.map((a) => (
-								<label for={`amenity-${a.id}`} class="flex items-center space-x-2 text-neutral-600">
+								<label class="flex items-center space-x-2 text-neutral-700">
 									<input
 										type="checkbox"
 										name="amenities"
-										id={`amenity-${a.id}`}
 										value={a.id}
-										class="h-4 w-4 rounded border-neutral-300 bg-neutral-100 text-blue-600 focus:ring-blue-500"
+										class="h-4 w-4 rounded border-neutral-300 bg-neutral-100"
 									/>
-									<span class="select-none">{a.name}</span>
+									<span>{a.name}</span>
 								</label>
 							))
 						}
 					</div>
-				</fieldset>
+				</section>
 
-				<label class="flex flex-col text-sm">
-					<span class="mb-1 text-neutral-500">Imágenes (varias)</span>
+				<section class="rounded-2xl border border-neutral-300 p-6 shadow-sm">
+					<h3 class="mb-3 text-lg font-semibold text-neutral-800">Imágenes</h3>
+
 					<input
 						id="roomImages"
 						name="roomImages"
@@ -203,14 +197,15 @@ if (hotelId) {
 						multiple
 						class="w-full rounded-md bg-neutral-100 px-3 py-2 file:mr-4 file:rounded-full file:border-0 file:bg-neutral-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-neutral-700 hover:file:bg-neutral-400"
 					/>
-				</label>
+				</section>
 
-				<div class="flex justify-end py-6">
+				<div class="flex justify-end">
 					<button
 						type="submit"
-						class="h-10 w-48 rounded-xl bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
-						>Guardar habitación</button
+						class="h-12 w-48 rounded-xl bg-blue-600 font-medium text-white shadow-md hover:bg-blue-700"
 					>
+						Guardar habitación
+					</button>
 				</div>
 			</form>
 		</article>
@@ -228,7 +223,7 @@ if (hotelId) {
 				<ul id="roomTypeList" class="my-10"></ul>
 
 				<div class="border-t border-neutral-200 py-4 text-center text-sm text-black">
-					<button class="closeModal">Cerrar</button>
+					<button type="button" class="closeModal">Cerrar</button>
 				</div>
 			</div>
 		</div>
@@ -247,248 +242,15 @@ if (hotelId) {
 				<ul id="bedTypeList" class="my-10"></ul>
 
 				<div class="mt-auto flex justify-end gap-6 border-t border-neutral-200 py-4 text-sm">
-					<button class="closeModal text-black">Cerrar</button>
+					<button type="button" class="closeModal text-black">Cerrar</button>
 					<button id="saveBedTypes" class="rounded-xl bg-neutral-800 px-4 py-2 text-white"
 						>Guardar selección</button
 					>
 				</div>
 			</div>
 		</div>
+		<RoomModals />
 	</section>
-
-	<style>
-		.modal-content ul li {
-			padding: 8px;
-			border: 1px solid #ddd;
-			border-radius: 0.5rem;
-			cursor: pointer;
-			margin-bottom: 6px;
-		}
-		.modal-content ul li.selected {
-			background: #2563eb;
-			color: white;
-			border-color: #2563eb;
-		}
-	</style>
-	<script>
-		import { BED_TYPES } from "@/data/bed-types"
-		import { ROOM_TYPES } from "@/data/room-types"
-
-		const roomModal = document.getElementById("roomTypeModal")
-		const bedModal = document.getElementById("bedTypeModal")
-		const openRoomBtn = document.getElementById("openRoomTypeModal")
-		const openBedBtn = document.getElementById("openBedTypeModal")
-		const roomTypeList = document.getElementById("roomTypeList")
-		const bedTypeList = document.getElementById("bedTypeList")
-		const inputRoom = document.getElementById("roomTypeId") as HTMLInputElement
-		const inputBeds = document.getElementById("bedTypes") as HTMLInputElement
-		const saveBedBtn = document.getElementById("saveBedTypes")
-
-		const closeButtons = document.querySelectorAll(".closeModal")
-
-		if (
-			!roomModal ||
-			!bedModal ||
-			!openRoomBtn ||
-			!openBedBtn ||
-			!roomTypeList ||
-			!bedTypeList ||
-			!inputRoom ||
-			!inputBeds ||
-			!saveBedBtn
-		) {
-			console.warn(
-				"Modal script: faltan elementos DOM. Comprueba ids: roomTypeModal, bedTypeModal, openRoomTypeModal, openBedTypeModal, roomTypeList, bedTypeList, roomTypeId, bedTypes, saveBedTypes"
-			)
-		} else {
-			/* ------------------ MODAL CONTROLS ------------------ */
-			openRoomBtn.addEventListener("click", () => {
-				roomModal.classList.remove("hidden")
-			})
-
-			openBedBtn.addEventListener("click", () => {
-				bedModal.classList.remove("hidden")
-			})
-
-			closeButtons.forEach((btn) => {
-				btn.addEventListener("click", () => {
-					roomModal.classList.add("hidden")
-					bedModal.classList.add("hidden")
-				})
-			})
-
-			/* ------------------ ROOM TYPE (SELECCIÓN ÚNICA) ------------------ */
-			ROOM_TYPES.forEach((/** @type {RoomType} */ rt) => {
-				const li = document.createElement("li")
-				li.className = "px-3 py-2 cursor-pointer rounded text-neutral-700"
-				li.textContent = `${rt.name}${rt.maxOccupancy ? ` (Capacidad: ${rt.maxOccupancy})` : ""}`
-
-				li.addEventListener("click", () => {
-					// visual
-					roomTypeList.querySelectorAll("li").forEach((x) => x.classList.remove("selected"))
-					li.classList.add("selected")
-
-					// set hidden input
-					inputRoom.value = String(rt.id)
-
-					// mostrar label en el botón que abre el modal (feedback)
-					openRoomBtn.textContent = `${rt.name}${rt.maxOccupancy ? ` (cap: ${rt.maxOccupancy})` : ""}`
-
-					roomModal.classList.add("hidden")
-				})
-
-				roomTypeList.appendChild(li)
-			})
-
-			/* ------------------ BED TYPES (SELECCIÓN CON CONTADORES) ------------------ */
-			const selectedBeds = new Map<string, number>()
-
-			function createCounterControls(id: string | number, li: HTMLLIElement) {
-				const wrapper = document.createElement("div")
-				wrapper.className = "flex items-center space-x-2"
-
-				const dec = document.createElement("button")
-				dec.type = "button"
-				dec.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
-				dec.setAttribute("aria-label", `Quitar una ${id}`)
-				dec.textContent = "−"
-
-				const inputCount = document.createElement("span")
-				inputCount.className = "w-8 text-center"
-				inputCount.textContent = "0"
-
-				const inc = document.createElement("button")
-				inc.type = "button"
-				inc.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
-				inc.setAttribute("aria-label", `Añadir una ${id}`)
-				inc.textContent = "+"
-
-				// Handlers
-				dec.addEventListener("click", (e) => {
-					e.stopPropagation()
-					const current = selectedBeds.get(String(id)) || 0
-					if (current > 0) {
-						const next = current - 1
-						selectedBeds.set(String(id), next)
-						inputCount.textContent = String(next)
-						li.classList.toggle("selected", next > 0)
-						updateOpenBedButtonLabel()
-					}
-				})
-
-				inc.addEventListener("click", (e) => {
-					e.stopPropagation()
-					const current = selectedBeds.get(String(id)) || 0
-					const next = current + 1
-					selectedBeds.set(String(id), next)
-					inputCount.textContent = String(next)
-					li.classList.add("selected")
-					updateOpenBedButtonLabel()
-				})
-
-				wrapper.appendChild(dec)
-				wrapper.appendChild(inputCount)
-				wrapper.appendChild(inc)
-
-				return wrapper
-			}
-
-			/**
-			 * Actualiza texto del botón que abre el modal con el total de camas seleccionadas.
-			 */
-			function updateOpenBedButtonLabel() {
-				let total = 0
-				for (const v of selectedBeds.values()) total += v
-				if (openBedBtn)
-					openBedBtn.textContent =
-						total > 0 ? `(${total}) camas seleccionadas` : "Seleccionar tipos de cama"
-			}
-
-			/* renderizamos la lista */
-			BED_TYPES.forEach((/** @type {{id: string|number; name: string}} */ bt) => {
-				const li = document.createElement("li")
-				li.className =
-					"flex justify-between items-center px-3 py-2 cursor-pointer rounded text-neutral-700"
-				// left label
-				const label = document.createElement("div")
-				label.textContent = bt.name
-				label.className = "flex-1"
-
-				// right: counter controls
-				const counter = createCounterControls(bt.id, li)
-
-				// hacemos clic en la fila para alternar: si no hay conteo, pone 1; si hay, lo incrementa
-				li.addEventListener("click", (e) => {
-					// si el click fue en los botones, los handlers ya lo tratan; aquí solo para clicks en la fila
-					if (e.target instanceof HTMLButtonElement) return
-					const cur = selectedBeds.get(String(bt.id)) || 0
-					const next = cur === 0 ? 1 : cur // fila click pone 1 si no hay ninguno
-					selectedBeds.set(String(bt.id), next)
-					// actualizar vista del contador (buscar el span en counter)
-					const span = counter.querySelector("span")
-					if (span) span.textContent = String(next)
-					li.classList.toggle("selected", next > 0)
-					updateOpenBedButtonLabel()
-				})
-
-				li.appendChild(label)
-				li.appendChild(counter)
-				bedTypeList.appendChild(li)
-			})
-
-			/* Guard: actualiza visuales si ya había valores en el input hidden (por ejemplo edit) */
-			try {
-				// si inputBeds tenía un valor JSON (ej: edición), restauramos
-				if (inputBeds.value) {
-					// esperar a que sea JSON: puede ser "id1,id2" u "[]"/json. Intentamos parsear
-					let parsed = null
-					try {
-						parsed = JSON.parse(inputBeds.value)
-					} catch {
-						// no JSON: si es lista csv, convertir a objetos con count=1
-						if (typeof inputBeds.value === "string" && inputBeds.value.trim() !== "") {
-							parsed = inputBeds.value.split(",").map((id) => ({ id: id.trim(), count: 1 }))
-						}
-					}
-					if (Array.isArray(parsed)) {
-						for (const item of parsed) {
-							if (!item) continue
-							const id = String(item.id ?? item)
-							const count = Number(item.count ?? 1)
-							selectedBeds.set(id, count)
-						}
-						// reflejar en DOM: recorremos li y ponemos spans correspondientes
-						Array.from(bedTypeList.children).forEach((li) => {
-							const label = li.querySelector("div")
-							if (!label) return
-							const name = label.textContent?.trim()
-							// Buscar bed by name (fall back a index)
-							const bt = BED_TYPES.find((b) => b.name === name)
-							if (!bt) return
-							const count = selectedBeds.get(String(bt.id)) || 0
-							const span = li.querySelector("span")
-							if (span) span.textContent = String(count)
-							li.classList.toggle("selected", count > 0)
-						})
-						updateOpenBedButtonLabel()
-					}
-				}
-			} catch (e) {
-				console.warn("No se pudo restaurar bedTypes desde input hidden:", e)
-			}
-
-			/* Guardar: convertimos Map => [{id,count}] y lo guardamos como JSON en el input hidden */
-			saveBedBtn.addEventListener("click", () => {
-				const arr = []
-				for (const [id, count] of selectedBeds.entries()) {
-					if (count > 0) arr.push({ id, count })
-				}
-				inputBeds.value = JSON.stringify(arr)
-				updateOpenBedButtonLabel()
-				bedModal.classList.add("hidden")
-			})
-		}
-	</script>
 
 	<script type="module" src="/src/lib/forms/roomFormHandler"></script>
 </Layout>
