@@ -45,186 +45,186 @@ export default async function seed() {
 			longitude: -63.1833,
 			slug: slugify("Santa Cruz de la Sierra"),
 		},
-		{
-			id: "la-paz",
-			name: "La Paz",
-			type: "city",
-			country: "bolivia",
-			department: dept("la-paz"),
-			latitude: -16.4958,
-			longitude: -68.1333,
-			slug: slugify("La Paz"),
-		},
-		{
-			id: "el-alto",
-			name: "El Alto",
-			type: "city",
-			country: "bolivia",
-			department: dept("la-paz"),
-			latitude: -16.5047,
-			longitude: -68.1633,
-			slug: slugify("El Alto"),
-		},
-		{
-			id: "cochabamba",
-			name: "Cochabamba",
-			type: "city",
-			country: "bolivia",
-			department: dept("cochabamba"),
-			latitude: -17.3883,
-			longitude: -66.1597,
-			slug: slugify("Cochabamba"),
-		},
-		{
-			id: "sucre",
-			name: "Sucre",
-			type: "city",
-			country: "bolivia",
-			department: dept("chuquisaca"),
-			latitude: -19.0196,
-			longitude: -65.262,
-			slug: slugify("Sucre"),
-		},
-		{
-			id: "oruro",
-			name: "Oruro",
-			type: "city",
-			country: "bolivia",
-			department: dept("oruro"),
-			latitude: -17.9622,
-			longitude: -67.1121,
-			slug: slugify("Oruro"),
-		},
-		{
-			id: "potosi",
-			name: "Potosí",
-			type: "city",
-			country: "bolivia",
-			department: dept("potosi"),
-			latitude: -19.5833,
-			longitude: -65.75,
-			slug: slugify("Potosí"),
-		},
-		{
-			id: "tarija",
-			name: "Tarija",
-			type: "city",
-			country: "bolivia",
-			department: dept("tarija"),
-			latitude: -21.5214,
-			longitude: -64.7281,
-			slug: slugify("Tarija"),
-		},
-		{
-			id: "trinidad",
-			name: "Trinidad",
-			type: "city",
-			country: "bolivia",
-			department: dept("beni"),
-			latitude: -14.8333,
-			longitude: -64.9,
-			slug: slugify("Trinidad"),
-		},
-		{
-			id: "cobija",
-			name: "Cobija",
-			type: "city",
-			country: "bolivia",
-			department: dept("pando"),
-			latitude: -11.0267,
-			longitude: -68.7692,
-			slug: slugify("Cobija"),
-		},
-		{
-			id: "montero",
-			name: "Montero",
-			type: "city",
-			country: "bolivia",
-			department: dept("santa-cruz"),
-			latitude: -17.35,
-			longitude: -63.1667,
-			slug: slugify("Montero"),
-		},
-		{
-			id: "riberalta",
-			name: "Riberalta",
-			type: "city",
-			country: "bolivia",
-			department: dept("beni"),
-			latitude: -10.9808,
-			longitude: -66.0604,
-			slug: slugify("Riberalta"),
-		},
-		{
-			id: "san-ignacio-de-velasco",
-			name: "San Ignacio de Velasco",
-			type: "city",
-			country: "bolivia",
-			department: dept("santa-cruz"),
-			latitude: -16.51,
-			longitude: -60.9397,
-			slug: slugify("San Ignacio de Velasco"),
-		},
-		{
-			id: "camiri",
-			name: "Camiri",
-			type: "city",
-			country: "bolivia",
-			department: dept("santa-cruz"),
-			latitude: -19.4525,
-			longitude: -63.5686,
-			slug: slugify("Camiri"),
-		},
-		{
-			id: "yacuiba",
-			name: "Yacuíba",
-			type: "city",
-			country: "bolivia",
-			department: dept("tarija"),
-			latitude: -22.0172,
-			longitude: -63.5806,
-			slug: slugify("Yacuíba"),
-		},
-		{
-			id: "tupiza",
-			name: "Tupiza",
-			type: "city",
-			country: "bolivia",
-			department: dept("potosi"),
-			latitude: -21.445,
-			longitude: -65.7178,
-			slug: slugify("Tupiza"),
-		},
-		{
-			id: "villazon",
-			name: "Villazón",
-			type: "city",
-			country: "bolivia",
-			department: dept("potosi"),
-			latitude: -22.025,
-			longitude: -65.5486,
-			slug: slugify("Villazón"),
-		},
-		{
-			id: "warnes",
-			name: "Warnes",
-			type: "city",
-			country: "bolivia",
-			department: dept("santa-cruz"),
-			latitude: -17.3297,
-			longitude: -63.1215,
-			slug: slugify("Warnes"),
-		},
-		{
-			id: "uyuni",
-			name: "Uyuni",
-			type: "city",
-			country: "bolivia",
-			department: dept("potosi"),
-			latitude: -20.4628,
-			longitude: -66.8239,
-			slug: slugify("Uyuni"),
-		},
+		// {
+		// 	id: "la-paz",
+		// 	name: "La Paz",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("la-paz"),
+		// 	latitude: -16.4958,
+		// 	longitude: -68.1333,
+		// 	slug: slugify("La Paz"),
+		// },
+		// {
+		// 	id: "el-alto",
+		// 	name: "El Alto",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("la-paz"),
+		// 	latitude: -16.5047,
+		// 	longitude: -68.1633,
+		// 	slug: slugify("El Alto"),
+		// },
+		// {
+		// 	id: "cochabamba",
+		// 	name: "Cochabamba",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("cochabamba"),
+		// 	latitude: -17.3883,
+		// 	longitude: -66.1597,
+		// 	slug: slugify("Cochabamba"),
+		// },
+		// {
+		// 	id: "sucre",
+		// 	name: "Sucre",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("chuquisaca"),
+		// 	latitude: -19.0196,
+		// 	longitude: -65.262,
+		// 	slug: slugify("Sucre"),
+		// },
+		// {
+		// 	id: "oruro",
+		// 	name: "Oruro",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("oruro"),
+		// 	latitude: -17.9622,
+		// 	longitude: -67.1121,
+		// 	slug: slugify("Oruro"),
+		// },
+		// {
+		// 	id: "potosi",
+		// 	name: "Potosí",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("potosi"),
+		// 	latitude: -19.5833,
+		// 	longitude: -65.75,
+		// 	slug: slugify("Potosí"),
+		// },
+		// {
+		// 	id: "tarija",
+		// 	name: "Tarija",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("tarija"),
+		// 	latitude: -21.5214,
+		// 	longitude: -64.7281,
+		// 	slug: slugify("Tarija"),
+		// },
+		// {
+		// 	id: "trinidad",
+		// 	name: "Trinidad",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("beni"),
+		// 	latitude: -14.8333,
+		// 	longitude: -64.9,
+		// 	slug: slugify("Trinidad"),
+		// },
+		// {
+		// 	id: "cobija",
+		// 	name: "Cobija",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("pando"),
+		// 	latitude: -11.0267,
+		// 	longitude: -68.7692,
+		// 	slug: slugify("Cobija"),
+		// },
+		// {
+		// 	id: "montero",
+		// 	name: "Montero",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("santa-cruz"),
+		// 	latitude: -17.35,
+		// 	longitude: -63.1667,
+		// 	slug: slugify("Montero"),
+		// },
+		// {
+		// 	id: "riberalta",
+		// 	name: "Riberalta",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("beni"),
+		// 	latitude: -10.9808,
+		// 	longitude: -66.0604,
+		// 	slug: slugify("Riberalta"),
+		// },
+		// {
+		// 	id: "san-ignacio-de-velasco",
+		// 	name: "San Ignacio de Velasco",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("santa-cruz"),
+		// 	latitude: -16.51,
+		// 	longitude: -60.9397,
+		// 	slug: slugify("San Ignacio de Velasco"),
+		// },
+		// {
+		// 	id: "camiri",
+		// 	name: "Camiri",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("santa-cruz"),
+		// 	latitude: -19.4525,
+		// 	longitude: -63.5686,
+		// 	slug: slugify("Camiri"),
+		// },
+		// {
+		// 	id: "yacuiba",
+		// 	name: "Yacuíba",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("tarija"),
+		// 	latitude: -22.0172,
+		// 	longitude: -63.5806,
+		// 	slug: slugify("Yacuíba"),
+		// },
+		// {
+		// 	id: "tupiza",
+		// 	name: "Tupiza",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("potosi"),
+		// 	latitude: -21.445,
+		// 	longitude: -65.7178,
+		// 	slug: slugify("Tupiza"),
+		// },
+		// {
+		// 	id: "villazon",
+		// 	name: "Villazón",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("potosi"),
+		// 	latitude: -22.025,
+		// 	longitude: -65.5486,
+		// 	slug: slugify("Villazón"),
+		// },
+		// {
+		// 	id: "warnes",
+		// 	name: "Warnes",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("santa-cruz"),
+		// 	latitude: -17.3297,
+		// 	longitude: -63.1215,
+		// 	slug: slugify("Warnes"),
+		// },
+		// {
+		// 	id: "uyuni",
+		// 	name: "Uyuni",
+		// 	type: "city",
+		// 	country: "bolivia",
+		// 	department: dept("potosi"),
+		// 	latitude: -20.4628,
+		// 	longitude: -66.8239,
+		// 	slug: slugify("Uyuni"),
+		// },
 	]
 
 	// --- 2. Datos de Proveedores ---
@@ -243,75 +243,75 @@ export default async function seed() {
 		{ id: "streaming", name: "Apps / streaming en habitación" },
 		{ id: "flat-tv", name: "TV de pantalla plana / cable" },
 
-		// --- Comidas y bebidas ---
-		{ id: "breakfast", name: "Desayuno incluidoz" }, // errorr incluidoz
-		{ id: "room-service", name: "Room service" },
-		{ id: "restaurant", name: "Restaurante en el lugar" },
-		{ id: "bar", name: "Bar / Lounge" },
-		{ id: "minibar", name: "Minibar en habitaciones" },
-		{ id: "kids-menu", name: "Menú infantil" },
+		// // --- Comidas y bebidas ---
+		// { id: "breakfast", name: "Desayuno incluidoz" }, // errorr incluidoz
+		// { id: "room-service", name: "Room service" },
+		// { id: "restaurant", name: "Restaurante en el lugar" },
+		// { id: "bar", name: "Bar / Lounge" },
+		// { id: "minibar", name: "Minibar en habitaciones" },
+		// { id: "kids-menu", name: "Menú infantil" },
 
-		// --- Instalaciones ---
-		{ id: "pool", name: "Piscina", icon: "pool" },
-		{ id: "indoor-pool", name: "Piscina cubierta" },
-		{ id: "outdoor-pool", name: "Piscina exterior" },
-		{ id: "spa", name: "Spa / Centro de bienestar" },
-		{ id: "sauna", name: "Sauna" },
-		{ id: "jacuzzi", name: "Jacuzzi / Hidromasaje" },
-		{ id: "gym", name: "Gimnasio / Sala fitness" },
+		// // --- Instalaciones ---
+		// { id: "pool", name: "Piscina", icon: "pool" },
+		// { id: "indoor-pool", name: "Piscina cubierta" },
+		// { id: "outdoor-pool", name: "Piscina exterior" },
+		// { id: "spa", name: "Spa / Centro de bienestar" },
+		// { id: "sauna", name: "Sauna" },
+		// { id: "jacuzzi", name: "Jacuzzi / Hidromasaje" },
+		// { id: "gym", name: "Gimnasio / Sala fitness" },
 
-		// --- Transporte y estacionamiento ---
-		{ id: "parking", name: "Estacionamiento" },
-		{ id: "valet", name: "Valet parking" },
-		{ id: "ev-charging", name: "Cargador para vehículos eléctricos" },
-		{ id: "shuttle", name: "Transporte / Shuttle" },
-		{ id: "airport-shuttle", name: "Traslado al aeropuerto" },
-		{ id: "car-rental", name: "Alquiler de coches" },
-		{ id: "bike-rental", name: "Alquiler de bicicletas" },
-		{ id: "boat-tours", name: "Excursiones fluviales / náuticas" },
+		// // --- Transporte y estacionamiento ---
+		// { id: "parking", name: "Estacionamiento" },
+		// { id: "valet", name: "Valet parking" },
+		// { id: "ev-charging", name: "Cargador para vehículos eléctricos" },
+		// { id: "shuttle", name: "Transporte / Shuttle" },
+		// { id: "airport-shuttle", name: "Traslado al aeropuerto" },
+		// { id: "car-rental", name: "Alquiler de coches" },
+		// { id: "bike-rental", name: "Alquiler de bicicletas" },
+		// { id: "boat-tours", name: "Excursiones fluviales / náuticas" },
 
-		// --- Servicios generales ---
-		{ id: "24h-room-service", name: "Room service 24 h" },
-		{ id: "laundry", name: "Lavandería / Tintorería" },
-		{ id: "dryclean", name: "Tintorería" },
-		{ id: "daily-cleaning", name: "Limpieza diaria" },
-		{ id: "24h-reception", name: "Recepción 24 horas" },
-		{ id: "concierge", name: "Conserjería / Concierge" },
-		{ id: "business-center", name: "Business center" },
-		{ id: "meeting-rooms", name: "Salas de reuniones / eventos" },
-		{ id: "wedding", name: "Servicios para bodas / banquetes" },
-		{ id: "luggage", name: "Guardaequipaje" },
+		// // --- Servicios generales ---
+		// { id: "24h-room-service", name: "Room service 24 h" },
+		// { id: "laundry", name: "Lavandería / Tintorería" },
+		// { id: "dryclean", name: "Tintorería" },
+		// { id: "daily-cleaning", name: "Limpieza diaria" },
+		// { id: "24h-reception", name: "Recepción 24 horas" },
+		// { id: "concierge", name: "Conserjería / Concierge" },
+		// { id: "business-center", name: "Business center" },
+		// { id: "meeting-rooms", name: "Salas de reuniones / eventos" },
+		// { id: "wedding", name: "Servicios para bodas / banquetes" },
+		// { id: "luggage", name: "Guardaequipaje" },
 
-		// --- Accesibilidad ---
-		{ id: "accessible", name: "Accesible / Adaptado para discapacitados" },
-		{ id: "elevator", name: "Ascensor" },
+		// // --- Accesibilidad ---
+		// { id: "accessible", name: "Accesible / Adaptado para discapacitados" },
+		// { id: "elevator", name: "Ascensor" },
 
-		// --- Familias y niños ---
-		{ id: "pet-friendly", name: "Pet-friendly (acepta mascotas)" },
-		{ id: "kids-club", name: "Club infantil / actividades para niños" },
-		{ id: "babysitting", name: "Cuidado de niños / Babysitting" },
-		{ id: "highchair", name: "Sillas altas para bebés" },
+		// // --- Familias y niños ---
+		// { id: "pet-friendly", name: "Pet-friendly (acepta mascotas)" },
+		// { id: "kids-club", name: "Club infantil / actividades para niños" },
+		// { id: "babysitting", name: "Cuidado de niños / Babysitting" },
+		// { id: "highchair", name: "Sillas altas para bebés" },
 
-		// --- Habitaciones ---
-		{ id: "smoking-rooms", name: "Habitaciones para fumadores (si aplicable)" },
-		{ id: "nonsmoking", name: "Habitaciones no fumadores" },
-		{ id: "fridge", name: "Frigorífico / Mini-cocina" },
-		{ id: "inroom-safe", name: "Caja fuerte en habitación" },
-		{ id: "ironing", name: "Plancha / Tabla de planchar" },
-		{ id: "wakeup", name: "Servicio de despertador" },
+		// // --- Habitaciones ---
+		// { id: "smoking-rooms", name: "Habitaciones para fumadores (si aplicable)" },
+		// { id: "nonsmoking", name: "Habitaciones no fumadores" },
+		// { id: "fridge", name: "Frigorífico / Mini-cocina" },
+		// { id: "inroom-safe", name: "Caja fuerte en habitación" },
+		// { id: "ironing", name: "Plancha / Tabla de planchar" },
+		// { id: "wakeup", name: "Servicio de despertador" },
 
-		// --- Negocios y servicios financieros ---
-		{ id: "ATM", name: "Cajero automático (ATM)" },
-		{ id: "currency-exchange", name: "Cambio de divisas" },
-		{ id: "business-services", name: "Servicios empresariales (impresión, fax)" },
+		// // --- Negocios y servicios financieros ---
+		// { id: "ATM", name: "Cajero automático (ATM)" },
+		// { id: "currency-exchange", name: "Cambio de divisas" },
+		// { id: "business-services", name: "Servicios empresariales (impresión, fax)" },
 
-		// --- Otros servicios ---
-		{ id: "tour-desk", name: "Recepción/venta de excursiones / Tour desk" },
-		{ id: "terrace", name: "Terraza / Jardín" },
-		{ id: "rooftop", name: "Rooftop / Azotea" },
-		{ id: "fireplace", name: "Chimenea / Sala con chimenea" },
-		{ id: "evoucher", name: "Ofertas / paquetes promocionales" },
-		{ id: "safety-railings", name: "Medidas de seguridad / primeros auxilios" },
+		// // --- Otros servicios ---
+		// { id: "tour-desk", name: "Recepción/venta de excursiones / Tour desk" },
+		// { id: "terrace", name: "Terraza / Jardín" },
+		// { id: "rooftop", name: "Rooftop / Azotea" },
+		// { id: "fireplace", name: "Chimenea / Sala con chimenea" },
+		// { id: "evoucher", name: "Ofertas / paquetes promocionales" },
+		// { id: "safety-railings", name: "Medidas de seguridad / primeros auxilios" },
 	]
 
 	// --- URL genérica para imágenes de prueba (Usa placehold.co) ---
@@ -590,11 +590,11 @@ export default async function seed() {
 		},
 	]
 
-	await db.delete(ProductService)
-	await db.delete(Package)
-	await db.delete(Tour)
-	await db.delete(Hotel)
-	await db.delete(Product)
+	// await db.delete(ProductService)
+	// await db.delete(Package)
+	// await db.delete(Tour)
+	// await db.delete(Hotel)
+	// await db.delete(Product)
 
 	// --- INSERTAR DATOS GEOGRÁFICOS ---
 	try {
@@ -615,16 +615,16 @@ export default async function seed() {
 		console.error("Error al insertar cities: ", e)
 	}
 
-	// --- INSERTAR PROVEEDORES ---
-	for (const p of providersData) {
-		const exists = await db.select().from(Provider).where(eq(Provider.id, p.id))
-		if (exists.length === 0) {
-			await db.insert(Provider).values(p)
-			console.log(`✅ Insertado proveedor: ${p.id}`)
-		} else {
-			console.log(`⏭️ Proveedor ya existe: ${p.id}`)
-		}
-	}
+	// // --- INSERTAR PROVEEDORES ---
+	// for (const p of providersData) {
+	// 	const exists = await db.select().from(Provider).where(eq(Provider.id, p.id))
+	// 	if (exists.length === 0) {
+	// 		await db.insert(Provider).values(p)
+	// 		console.log(`✅ Insertado proveedor: ${p.id}`)
+	// 	} else {
+	// 		console.log(`⏭️ Proveedor ya existe: ${p.id}`)
+	// 	}
+	// }
 
 	// --- INSERTAR SERVICIOS ---
 	for (const s of servicesData) {
@@ -639,112 +639,106 @@ export default async function seed() {
 		}
 	}
 
-	const allProductsToInsert: any[] = []
-	const allHotelsToInsert: any[] = []
-	const allToursToInsert: any[] = []
-	const allPackagesToInsert: any[] = []
+	// const allProductsToInsert: any[] = []
+	// const allHotelsToInsert: any[] = []
+	// const allToursToInsert: any[] = []
+	// const allPackagesToInsert: any[] = []
 
-	// --- GENERAR HOTELES ---
-	hotelsData.forEach((h, index) => {
-		const productId = `prod-H${index + 1}`
-		allProductsToInsert.push({
-			id: productId,
-			name: h.name,
-			description: `Alojamiento ${h.stars} estrellas en ${h.destinationId.toUpperCase()}. Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
-			images: generateImageUrl(productId),
-			productType: "Hotel",
-			providerId: "36f153e3-6b6a-4ba3-8542-8b4fa64fa171",
-			destinationId: h.destinationId,
-			basePriceUSD: 50 + h.stars * 15,
-			basePriceBOB: (50 + h.stars * 15) * 6.96,
-		})
-		allHotelsToInsert.push({
-			productId: productId,
-			stars: h.stars,
-			address: h.address,
-			checkInTime: "14:00",
-			checkOutTime: "12:00",
-			latitude: -15.787319,
-			longitude: -68.654381,
-		})
-	})
+	// // --- GENERAR HOTELES ---
+	// hotelsData.forEach((h, index) => {
+	// 	const productId = `prod-H${index + 1}`
+	// 	allProductsToInsert.push({
+	// 		id: productId,
+	// 		name: h.name,
+	// 		description: `Alojamiento ${h.stars} estrellas en ${h.destinationId.toUpperCase()}. Disfrute de la comodidad y lujo en ${h.name}. Ofrecemos una experiencia única con atención de primera y la mejor ubicación para su viaje. Ideal para viajes de negocio y placer.`,
+	// 		images: generateImageUrl(productId),
+	// 		productType: "Hotel",
+	// 		providerId: "36f153e3-6b6a-4ba3-8542-8b4fa64fa171",
+	// 		destinationId: h.destinationId,
+	// 	})
+	// 	allHotelsToInsert.push({
+	// 		productId: productId,
+	// 		stars: h.stars,
+	// 		address: h.address,
+	// 		checkInTime: "14:00",
+	// 		checkOutTime: "12:00",
+	// 		latitude: -15.787319,
+	// 		longitude: -68.654381,
+	// 	})
+	// })
 
-	// --- GENERAR TOURS ---
-	toursData.forEach((t, index) => {
-		const productId = `prod-T${index + 1}`
-		allProductsToInsert.push({
-			id: productId,
-			name: t.name,
-			description: `Tour de ${t.duration} en ${t.destinationId.toUpperCase()}. Nivel: ${t.difficulty}.Experimente la aventura con nuestro tour exclusivo. Incluye transporte, guía profesional y seguro. No se pierda esta inmersión cultural y natural.`,
-			images: generateImageUrl(productId),
-			productType: "Tour",
-			providerId: providersData[0].id, // Proveedor: EcoTours Bolivia
-			destinationId: t.destinationId,
-			basePriceUSD: 25 + index * 5,
-			basePriceBOB: (25 + index * 5) * 6.96,
-		})
-		allToursToInsert.push({
-			productId: productId,
-			duration: t.duration,
-			difficultyLevel: t.difficulty,
-			guideLanguages: t.languages,
-			includes: "Transporte, Guía, Agua",
-			excludes: "Propinas, Almuerzo",
-		})
-	})
+	// // --- GENERAR TOURS ---
+	// toursData.forEach((t, index) => {
+	// 	const productId = `prod-T${index + 1}`
+	// 	allProductsToInsert.push({
+	// 		id: productId,
+	// 		name: t.name,
+	// 		description: `Tour de ${t.duration} en ${t.destinationId.toUpperCase()}. Nivel: ${t.difficulty}.Experimente la aventura con nuestro tour exclusivo. Incluye transporte, guía profesional y seguro. No se pierda esta inmersión cultural y natural.`,
+	// 		images: generateImageUrl(productId),
+	// 		productType: "Tour",
+	// 		providerId: providersData[0].id, // Proveedor: EcoTours Bolivia
+	// 		destinationId: t.destinationId,
+	// 	})
+	// 	allToursToInsert.push({
+	// 		productId: productId,
+	// 		duration: t.duration,
+	// 		difficultyLevel: t.difficulty,
+	// 		guideLanguages: t.languages,
+	// 		includes: "Transporte, Guía, Agua",
+	// 		excludes: "Propinas, Almuerzo",
+	// 	})
+	// })
 
-	// --- GENERAR PAQUETES ---
-	packagesData.forEach((p, index) => {
-		const productId = `prod-P${index + 1}`
-		allProductsToInsert.push({
-			id: productId,
-			name: p.name,
-			description: `Paquete de ${p.days} días, ${p.nights} noches. Incluye todo lo necesario. Nuestro paquete turístico más popular. Cubre las mejores atracciones de la región con alojamiento de lujo y todas las comidas incluidas. ¡La opción más cómoda y completa!`,
-			images: generateImageUrl(productId),
-			productType: "Package",
-			providerId: providersData[2].id, // Proveedor: Aventuras del Sur
-			destinationId: p.destinationId,
-			basePriceUSD: 250 + index * 50,
-			basePriceBOB: (250 + index * 50) * 6.96,
-		})
-		allPackagesToInsert.push({
-			productId: productId,
-			itinerary: p.itinerary,
-			days: p.days,
-			nights: p.nights,
-		})
-	})
+	// // --- GENERAR PAQUETES ---
+	// packagesData.forEach((p, index) => {
+	// 	const productId = `prod-P${index + 1}`
+	// 	allProductsToInsert.push({
+	// 		id: productId,
+	// 		name: p.name,
+	// 		description: `Paquete de ${p.days} días, ${p.nights} noches. Incluye todo lo necesario. Nuestro paquete turístico más popular. Cubre las mejores atracciones de la región con alojamiento de lujo y todas las comidas incluidas. ¡La opción más cómoda y completa!`,
+	// 		images: generateImageUrl(productId),
+	// 		productType: "Package",
+	// 		providerId: providersData[2].id, // Proveedor: Aventuras del Sur
+	// 		destinationId: p.destinationId,
+	// 	})
+	// 	allPackagesToInsert.push({
+	// 		productId: productId,
+	// 		itinerary: p.itinerary,
+	// 		days: p.days,
+	// 		nights: p.nights,
+	// 	})
+	// })
 
-	// --- INSERCIÓN FINAL DE PRODUCTOS ---
-	await db.insert(Product).values(allProductsToInsert)
-	await db.insert(Hotel).values(allHotelsToInsert)
-	await db.insert(Tour).values(allToursToInsert)
-	await db.insert(Package).values(allPackagesToInsert)
+	// // --- INSERCIÓN FINAL DE PRODUCTOS ---
+	// await db.insert(Product).values(allProductsToInsert)
+	// await db.insert(Hotel).values(allHotelsToInsert)
+	// await db.insert(Tour).values(allToursToInsert)
+	// await db.insert(Package).values(allPackagesToInsert)
 
-	// --- RELACIONES DE SERVICIOS (Ejemplo: Hoteles con Wi-Fi y Desayuno) ---
-	const hotelProductIds = allHotelsToInsert.map((h) => h.productId)
-	const productServicesToInsert: any[] = []
+	// // --- RELACIONES DE SERVICIOS (Ejemplo: Hoteles con Wi-Fi y Desayuno) ---
+	// const hotelProductIds = allHotelsToInsert.map((h) => h.productId)
+	// const productServicesToInsert: any[] = []
 
-	// Asignar Wi-Fi (1) y Desayuno (4) a todos los hoteles
-	hotelProductIds.forEach((id) => {
-		productServicesToInsert.push({ productId: id, serviceId: "wifi", isFree: true })
-		productServicesToInsert.push({ productId: id, serviceId: "breakfast", isFree: true })
-	})
+	// // Asignar Wi-Fi (1) y Desayuno (4) a todos los hoteles
+	// hotelProductIds.forEach((id) => {
+	// 	productServicesToInsert.push({ productId: id, serviceId: "wifi", isFree: true })
+	// 	productServicesToInsert.push({ productId: id, serviceId: "breakfast", isFree: true })
+	// })
 
-	// Asignar Guía Bilingüe (3) y Transporte 4x4 (5) a los Tours
-	allToursToInsert
-		.filter((t) => t.duration.includes("Día"))
-		.forEach((t) => {
-			productServicesToInsert.push({ productId: t.productId, serviceId: "spa", isFree: true })
-			productServicesToInsert.push({
-				productId: t.productId,
-				serviceId: "minibar",
-				isAvailable: true,
-				isFree: false,
-			})
-		})
+	// // Asignar Guía Bilingüe (3) y Transporte 4x4 (5) a los Tours
+	// allToursToInsert
+	// 	.filter((t) => t.duration.includes("Día"))
+	// 	.forEach((t) => {
+	// 		productServicesToInsert.push({ productId: t.productId, serviceId: "spa", isFree: true })
+	// 		productServicesToInsert.push({
+	// 			productId: t.productId,
+	// 			serviceId: "minibar",
+	// 			isAvailable: true,
+	// 			isFree: false,
+	// 		})
+	// 	})
 
-	await db.insert(ProductService).values(productServicesToInsert)
+	// await db.insert(ProductService).values(productServicesToInsert)
 
 	await db.insert(RoomType).values([
 		{
@@ -753,158 +747,158 @@ export default async function seed() {
 			maxOccupancy: 1,
 			description: "Una cama individual; ideal para una persona.",
 		},
-		{
-			id: "double",
-			name: "Habitación Doble",
-			maxOccupancy: 2,
-			description: "Una cama doble o dos camas individuales; para dos personas.",
-		},
-		{
-			id: "twin",
-			name: "Habitación Twin",
-			maxOccupancy: 2,
-			description: "Dos camas individuales separadas; perfecta para amigos o compañeros de viaje.",
-		},
-		{
-			id: "triple",
-			name: "Habitación Triple",
-			maxOccupancy: 3,
-			description: "Tres camas individuales o una doble más una individual; para tres huéspedes.",
-		},
-		{
-			id: "quad",
-			name: "Habitación Cuádruple",
-			maxOccupancy: 4,
-			description: "Cuatro camas individuales o dos camas dobles; ideal para familias o grupos.",
-		},
-		{
-			id: "queen",
-			name: "Habitación Queen",
-			maxOccupancy: 2,
-			description: "Una cama tamaño Queen; para dos personas con mayor comodidad.",
-		},
-		{
-			id: "king",
-			name: "Habitación King",
-			maxOccupancy: 2,
-			description: "Una cama tamaño King; para dos personas, espaciosa y lujosa.",
-		},
-		{
-			id: "suite",
-			name: "Suite",
-			maxOccupancy: 2,
-			description:
-				"Habitación amplia con zona de estar o sala; generalmente incluye servicios premium.",
-		},
-		{
-			id: "junior_suite",
-			name: "Junior Suite",
-			maxOccupancy: 2,
-			description:
-				"Espacio semi-dividido con cama y área de estar; más grande que una habitación estándar.",
-		},
-		{
-			id: "family_suite",
-			name: "Suite Familiar",
-			maxOccupancy: 4,
-			description: "Diseñada para familias, con varias camas o dormitorios conectados.",
-		},
-		{
-			id: "studio",
-			name: "Estudio",
-			maxOccupancy: 2,
-			description: "Habitación con área de cocina o kitchenette integrada.",
-		},
-		{
-			id: "apartment",
-			name: "Departamento / Apartamento",
-			maxOccupancy: 4,
-			description:
-				"Unidad independiente con cocina, sala y dormitorio; ideal para estancias largas.",
-		},
-		{
-			id: "villa",
-			name: "Villa",
-			maxOccupancy: 4,
-			description:
-				"Alojamiento independiente con varias habitaciones y áreas privadas, a menudo con piscina.",
-		},
-		{
-			id: "bungalow",
-			name: "Bungalow",
-			maxOccupancy: 3,
-			description: "Unidad privada de un solo piso, usualmente rodeada de jardines o playa.",
-		},
-		{
-			id: "penthouse",
-			name: "Penthouse",
-			maxOccupancy: 2,
-			description: "Suite ubicada en el último piso con terraza o vistas panorámicas.",
-		},
-		{
-			id: "duplex",
-			name: "Dúplex",
-			maxOccupancy: 4,
-			description: "Habitación o suite de dos niveles conectados por una escalera interna.",
-		},
-		{
-			id: "connecting",
-			name: "Habitaciones Conectadas",
-			maxOccupancy: 4,
-			description: "Dos habitaciones unidas por una puerta interior; ideal para familias o grupos.",
-		},
-		{
-			id: "accessible",
-			name: "Habitación Accesible",
-			maxOccupancy: 2,
-			description:
-				"Diseñada para huéspedes con movilidad reducida; acceso adaptado y baño accesible.",
-		},
-		{
-			id: "deluxe",
-			name: "Habitación Deluxe",
-			maxOccupancy: 2,
-			description:
-				"Habitación superior con mejores vistas, mobiliario o ubicación dentro del hotel.",
-		},
-		{
-			id: "executive",
-			name: "Habitación Ejecutiva",
-			maxOccupancy: 2,
-			description:
-				"Orientada a viajeros de negocios; incluye escritorio, sala o beneficios adicionales.",
-		},
-		{
-			id: "presidential_suite",
-			name: "Suite Presidencial",
-			maxOccupancy: 2,
-			description: "La suite más lujosa del hotel, con amplios espacios y servicios exclusivos.",
-		},
-		{
-			id: "loft",
-			name: "Loft",
-			maxOccupancy: 2,
-			description: "Espacio de planta abierta con techos altos; moderno y espacioso.",
-		},
-		{
-			id: "cabana",
-			name: "Cabaña / Cabana",
-			maxOccupancy: 2,
-			description:
-				"Unidad junto a la piscina o playa, generalmente privada y con servicios propios.",
-		},
-		{
-			id: "tent",
-			name: "Tienda / Glamping",
-			maxOccupancy: 2,
-			description: "Alojamiento tipo tienda de lujo o glamping, combinando naturaleza y confort.",
-		},
-		{
-			id: "dormitory",
-			name: "Dormitorio Compartido",
-			maxOccupancy: 1,
-			description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
-		},
+		// 	{
+		// 		id: "double",
+		// 		name: "Habitación Doble",
+		// 		maxOccupancy: 2,
+		// 		description: "Una cama doble o dos camas individuales; para dos personas.",
+		// 	},
+		// 	{
+		// 		id: "twin",
+		// 		name: "Habitación Twin",
+		// 		maxOccupancy: 2,
+		// 		description: "Dos camas individuales separadas; perfecta para amigos o compañeros de viaje.",
+		// 	},
+		// 	{
+		// 		id: "triple",
+		// 		name: "Habitación Triple",
+		// 		maxOccupancy: 3,
+		// 		description: "Tres camas individuales o una doble más una individual; para tres huéspedes.",
+		// 	},
+		// 	{
+		// 		id: "quad",
+		// 		name: "Habitación Cuádruple",
+		// 		maxOccupancy: 4,
+		// 		description: "Cuatro camas individuales o dos camas dobles; ideal para familias o grupos.",
+		// 	},
+		// 	{
+		// 		id: "queen",
+		// 		name: "Habitación Queen",
+		// 		maxOccupancy: 2,
+		// 		description: "Una cama tamaño Queen; para dos personas con mayor comodidad.",
+		// 	},
+		// 	{
+		// 		id: "king",
+		// 		name: "Habitación King",
+		// 		maxOccupancy: 2,
+		// 		description: "Una cama tamaño King; para dos personas, espaciosa y lujosa.",
+		// 	},
+		// 	{
+		// 		id: "suite",
+		// 		name: "Suite",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Habitación amplia con zona de estar o sala; generalmente incluye servicios premium.",
+		// 	},
+		// 	{
+		// 		id: "junior_suite",
+		// 		name: "Junior Suite",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Espacio semi-dividido con cama y área de estar; más grande que una habitación estándar.",
+		// 	},
+		// 	{
+		// 		id: "family_suite",
+		// 		name: "Suite Familiar",
+		// 		maxOccupancy: 4,
+		// 		description: "Diseñada para familias, con varias camas o dormitorios conectados.",
+		// 	},
+		// 	{
+		// 		id: "studio",
+		// 		name: "Estudio",
+		// 		maxOccupancy: 2,
+		// 		description: "Habitación con área de cocina o kitchenette integrada.",
+		// 	},
+		// 	{
+		// 		id: "apartment",
+		// 		name: "Departamento / Apartamento",
+		// 		maxOccupancy: 4,
+		// 		description:
+		// 			"Unidad independiente con cocina, sala y dormitorio; ideal para estancias largas.",
+		// 	},
+		// 	{
+		// 		id: "villa",
+		// 		name: "Villa",
+		// 		maxOccupancy: 4,
+		// 		description:
+		// 			"Alojamiento independiente con varias habitaciones y áreas privadas, a menudo con piscina.",
+		// 	},
+		// 	{
+		// 		id: "bungalow",
+		// 		name: "Bungalow",
+		// 		maxOccupancy: 3,
+		// 		description: "Unidad privada de un solo piso, usualmente rodeada de jardines o playa.",
+		// 	},
+		// 	{
+		// 		id: "penthouse",
+		// 		name: "Penthouse",
+		// 		maxOccupancy: 2,
+		// 		description: "Suite ubicada en el último piso con terraza o vistas panorámicas.",
+		// 	},
+		// 	{
+		// 		id: "duplex",
+		// 		name: "Dúplex",
+		// 		maxOccupancy: 4,
+		// 		description: "Habitación o suite de dos niveles conectados por una escalera interna.",
+		// 	},
+		// 	{
+		// 		id: "connecting",
+		// 		name: "Habitaciones Conectadas",
+		// 		maxOccupancy: 4,
+		// 		description: "Dos habitaciones unidas por una puerta interior; ideal para familias o grupos.",
+		// 	},
+		// 	{
+		// 		id: "accessible",
+		// 		name: "Habitación Accesible",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Diseñada para huéspedes con movilidad reducida; acceso adaptado y baño accesible.",
+		// 	},
+		// 	{
+		// 		id: "deluxe",
+		// 		name: "Habitación Deluxe",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Habitación superior con mejores vistas, mobiliario o ubicación dentro del hotel.",
+		// 	},
+		// 	{
+		// 		id: "executive",
+		// 		name: "Habitación Ejecutiva",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Orientada a viajeros de negocios; incluye escritorio, sala o beneficios adicionales.",
+		// 	},
+		// 	{
+		// 		id: "presidential_suite",
+		// 		name: "Suite Presidencial",
+		// 		maxOccupancy: 2,
+		// 		description: "La suite más lujosa del hotel, con amplios espacios y servicios exclusivos.",
+		// 	},
+		// 	{
+		// 		id: "loft",
+		// 		name: "Loft",
+		// 		maxOccupancy: 2,
+		// 		description: "Espacio de planta abierta con techos altos; moderno y espacioso.",
+		// 	},
+		// 	{
+		// 		id: "cabana",
+		// 		name: "Cabaña / Cabana",
+		// 		maxOccupancy: 2,
+		// 		description:
+		// 			"Unidad junto a la piscina o playa, generalmente privada y con servicios propios.",
+		// 	},
+		// 	{
+		// 		id: "tent",
+		// 		name: "Tienda / Glamping",
+		// 		maxOccupancy: 2,
+		// 		description: "Alojamiento tipo tienda de lujo o glamping, combinando naturaleza y confort.",
+		// 	},
+		// 	{
+		// 		id: "dormitory",
+		// 		name: "Dormitorio Compartido",
+		// 		maxOccupancy: 1,
+		// 		description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
+		// 	},
 	])
 
 	await db.insert(AmenityRoom).values([
