@@ -1,4 +1,3 @@
-// src/lib/forms/roomFormHandler.js
 import { uploadFilesToR2 } from "@/lib/upload/uploadFilesToR2"
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -34,9 +33,15 @@ document.addEventListener("DOMContentLoaded", () => {
 			})
 
 			if (!res.ok) {
-				const txt = await res.text()
-				console.error("server error:", txt)
-				alert("Error al guardar habitación: " + txt)
+				const data = await res.json().catch(() => null)
+
+				if (data.error === "Hotel not found") {
+					alert("Este hotel no existe o no está configurado.")
+					window.location.href = `/products/${hotelId}/subtype`
+				}
+
+				console.error("server error:", data)
+				alert("Error al guardar habitación.")
 				return
 			}
 
