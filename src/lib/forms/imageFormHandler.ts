@@ -1,33 +1,14 @@
 // src/lib/forms/imageFormHandler.ts
 import { uploadFilesToR2 } from "@/lib/upload/uploadFilesToR2"
 
-/**
- * imageFormHandler
- * Maneja edición de imágenes: añadir, reordenar (drag), marcar principal, eliminar y guardar (subir nuevos + notificar backend).
- *
- * Requisitos DOM (los IDs deben existir en la página):
- * - #dropZone-product
- * - #imageUpload-product (input type=file multiple)
- * - #imagePreview (contenedor)
- * - #pickBtn
- * - #saveBtn
- * - #cancelBtn
- * - #initialImages (script[type="application/json"] con JSON de images desde el servidor)
- * - #productId (input hidden) OR el handler intentará extraer el id de la URL como fallback
- *
- * El endpoint esperado: POST /api/products/images/update
- * Body: { productId: string, images: [{ id?: string, url: string, isPrimary?: boolean }] }
- */
-
 type Item = {
 	type: "existing" | "new"
-	id?: string // present for existing rows
-	url: string // public url or blob url for preview
-	file?: File // only for new items
+	id?: string
+	url: string
+	file?: File
 	isPrimary?: boolean
 }
 ;(() => {
-	// helpers DOM
 	const $ = (id: string) => document.getElementById(id)
 
 	const dropZone = $("dropZone-product") as HTMLElement | null
@@ -44,11 +25,9 @@ type Item = {
 		return
 	}
 
-	// Parse initial images provided by server
 	let initialImages: any[] = []
 	if (initialScript) {
 		try {
-			// textContent ahora tendrá el JSON crudo (porque usamos set:html)
 			initialImages = JSON.parse(initialScript.textContent || "[]")
 		} catch (err) {
 			console.error("imageFormHandler: error parsing initialImages JSON", err)
@@ -56,7 +35,6 @@ type Item = {
 		}
 	}
 
-	// Build initial items list (existing images)
 	const items: Item[] = initialImages.map((img) => ({
 		type: "existing",
 		id: img.id,
@@ -64,10 +42,8 @@ type Item = {
 		isPrimary: !!img.isPrimary,
 	}))
 
-	// If no primary flagged, mark first as primary
 	if (!items.some((i) => i.isPrimary) && items.length > 0) items[0].isPrimary = true
 
-	// Utility: render the preview grid based on items[]
 	function render() {
 		if (!preview) return
 		preview.innerHTML = ""
