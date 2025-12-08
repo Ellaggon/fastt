@@ -2,7 +2,7 @@
 import Layout from "@/layouts/Layout.astro"
 import { getProductsByProvider } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { db, HotelRoomType, inArray } from "astro:db"
+import { db, inArray, Variant } from "astro:db"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
@@ -26,17 +26,14 @@ try {
 	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
 
 	if (hotelIds.length > 0) {
-		hotelRoomTypes = await db
-			.select()
-			.from(HotelRoomType)
-			.where(inArray(HotelRoomType.hotelId, hotelIds))
+		hotelRoomTypes = await db.select().from(Variant).where(inArray(Variant.productId, hotelIds))
 
 		for (const room of hotelRoomTypes) {
-			if (!roomsByHotel[room.hotelId]) roomsByHotel[room.hotelId] = []
-			roomsByHotel[room.hotelId].push(room)
+			if (!roomsByHotel[room.productId]) roomsByHotel[room.productId] = []
+			roomsByHotel[room.productId].push(room)
 		}
 	}
-	console.log("userProducts: ", userProducts)
+	console.log("roomsByHotel: ", roomsByHotel)
 } catch (e) {
 	console.error("Error al obtener los productos del proveedor: ", e)
 	errorMessage = "Hubo un error al cargar los productos. Por favor, inténtalo de nuevo más tarde."
@@ -67,6 +64,7 @@ try {
 				<div class="tab-button active p-2 text-white" data-tab="products">Productos</div>
 				<div class="tab-button p-2" data-tab="edit">Editar Productos</div>
 				<div class="tab-button p-2" data-tab="room">Configurar Habitaciones</div>
+				<div class="tab-button p-2" data-tab="rate-plan">Planes Tarifarios</div>
 			</article>
 			<div class="mx-auto">
 				{
@@ -116,10 +114,22 @@ try {
 
 												<div class="flex items-center justify-end gap-6 text-xs font-medium md:text-sm">
 													<a
-														href={`/products/${el.id}/edit/services`}
-														class="text-green-400 hover:text-green-300"
+														href={`/products/${el.id}/services`}
+														class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
 													>
 														Añade Servicios
+													</a>
+													<a
+														href={`/products/${el.id}/policiesEditor`}
+														class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
+													>
+														Politicas de Producto
+													</a>
+													<a
+														href={`/products/${el.id}/operatingRules`}
+														class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
+													>
+														Reglas Operativas
 													</a>
 												</div>
 											</div>
@@ -150,22 +160,22 @@ try {
 													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
 												</div>
 
-												<div class="flex items-center justify-end gap-6 text-xs font-medium text-neutral-300 md:text-sm">
+												<div class="flex items-center justify-end gap-6 text-xs font-medium text-neutral-400 md:text-sm">
 													<a
 														href={`/products/${el.id}/edit`}
-														class="flex gap-1 text-neutral-500 hover:text-neutral-100"
+														class="flex gap-1 hover:text-neutral-100"
 													>
 														<span class="hidden md:block">Editar</span> Producto
 													</a>
 													<a
 														href={`/products/${el.id}/edit/images`}
-														class="flex gap-1 text-neutral-500 hover:text-neutral-100"
+														class="flex gap-1 hover:text-neutral-100"
 													>
 														<span class="hidden md:block">Editar</span> Imágenes
 													</a>
 													<a
 														href={`/products/${el.id}/edit/subtype`}
-														class="text-neutral-500 hover:text-neutral-100"
+														class="hover:text-neutral-100"
 													>
 														{`Detalles del ${el.productType}`}
 													</a>
@@ -187,41 +197,84 @@ try {
 									id="tab-room"
 									class="tab-content hidden translate-y-2 divide-y divide-neutral-800 opacity-0 transition-all duration-300"
 								>
-									{userProducts
-										.filter((p) => p.productType === "Hotel")
-										.map((el) => (
-											<div class="items-center justify-between py-3 md:flex">
-												<div class="mb-7 flex flex-col">
+									{userProducts.map((el) => (
+										<div class="items-center justify-between py-3 md:flex">
+											<div class="mb-7 flex flex-col">
+												<a href={`/hotels/${el.id}`}>
 													<span class="text-xs font-medium text-neutral-100 md:text-sm">
 														{el.name}
 													</span>
+												</a>
+												<span class="hidden text-xs text-neutral-400 md:block">
+													{el.productType}
+												</span>
+												<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
+											</div>
+											<div class="flex flex-row-reverse flex-wrap items-center gap-4 text-xs font-medium text-neutral-300 md:text-sm">
+												<a
+													href={`/products/${el.id}/rooms`}
+													class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
+												>
+													Añade Habitaciones
+												</a>
+												{!roomsByHotel[el.id] || roomsByHotel[el.id].length === 0
+													? null
+													: roomsByHotel[el.id].map((room) => (
+															<a
+																href={`/products/${el.id}/rooms/${room.entityId}/edit`}
+																class="w-24 truncate text-center text-neutral-400 hover:text-neutral-100 md:my-2 md:w-40"
+															>
+																{room.name}
+															</a>
+														))}
+											</div>
+										</div>
+									))}
+								</article>
+
+								<article
+									id="tab-rate-plan"
+									class="tab-content hidden translate-y-2 divide-y divide-neutral-800 opacity-0 transition-all duration-300"
+								>
+									{userProducts.map((el) => {
+										let type = null
+										if (el.productType === "Hotel") type = "hotels"
+										if (el.productType === "Tour") type = "tours"
+										if (el.productType === "Package") type = "packages"
+										return (
+											<div class="items-center justify-between py-3 md:flex">
+												<div class="mb-7 flex flex-col">
+													<a href={`/${type}/${el.id}`}>
+														<span class="text-xs font-medium text-neutral-100 md:text-sm">
+															{el.name}
+														</span>
+													</a>
 													<span class="hidden text-xs text-neutral-400 md:block">
 														{el.productType}
 													</span>
 													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
 												</div>
-												<div class="flex grid grid-cols-4 justify-end gap-4 text-xs font-medium text-neutral-300 md:grid-cols-5 lg:grid-cols-7">
+												<div class="flex flex-row-reverse flex-wrap items-center gap-4 text-xs font-medium text-neutral-300 md:text-sm">
+													<a
+														href={`/products/${el.id}/rate-plans`}
+														class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
+													>
+														Añade Planes Tarifarios
+													</a>
 													{!roomsByHotel[el.id] || roomsByHotel[el.id].length === 0
 														? null
-														: roomsByHotel[el.id].map((room) => {
-																return (
-																	<a
-																		href={`/products/${el.id}/rooms/config`}
-																		class="truncate text-neutral-500 hover:text-neutral-100"
-																	>
-																		{room.name}
-																	</a>
-																)
-															})}
-													<a
-														href={`/products/${el.id}/rooms`}
-														class="truncate text-xs text-green-400 hover:text-green-300 md:text-sm"
-													>
-														Añade Habitaciones
-													</a>
+														: roomsByHotel[el.id].map((room) => (
+																<a
+																	href={`/rate-plans/${room.id}`}
+																	class="w-24 truncate text-center text-neutral-400 hover:text-neutral-100 md:my-2 md:w-40"
+																>
+																	{room.name}
+																</a>
+															))}
 												</div>
 											</div>
-										))}
+										)
+									})}
 								</article>
 							</div>
 						</section>
