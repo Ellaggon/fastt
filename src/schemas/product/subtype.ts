@@ -17,8 +17,6 @@ export const hotelSchema = z.object({
 	phone: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
 	email: z.preprocess((v) => (v === "" ? null : v), z.string().email().optional().nullable()),
 	website: z.preprocess((v) => (v === "" ? null : v), z.string().url().optional().nullable()),
-	checkInTime: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
-	checkOutTime: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
 	latitude: z.number().nullable().optional(),
 	longitude: z.number().nullable().optional(),
 })
