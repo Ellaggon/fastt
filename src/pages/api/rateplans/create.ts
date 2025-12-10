@@ -34,8 +34,8 @@ export const POST: APIRoute = async ({ request }) => {
 			maxAdvanceDays: body.maxAdvanceDays,
 
 			validDays: body.validDays,
-			startDate: body.startDate,
-			endDate: body.endDate,
+			startDate: body.startDate ? new Date(body.startDate) : null,
+			endDate: body.endDate ? new Date(body.endDate) : null,
 
 			isActive: body.isActive,
 			createdAt: new Date(),

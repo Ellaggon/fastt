@@ -38,63 +38,59 @@ const policies = await db.select().from(Policy).all()
 
 					<label class="flex flex-col text-sm">
 						<span class="text-neutral-500">Tipo</span>
-						<select name="type" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
-							<option value="modifier">modifier</option>
-							<option value="fixed">fixed</option>
-							<option value="package">package</option>
+						<select id="rateType" name="type" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+							<option value="modifier">Modificar precio</option>
+							<option value="fixed">Precio fijo</option>
+							<option value="package">Paquete / Incluye extras</option>
+							<option value="percentage">Porcentaje de descuento (%)</option>
 						</select>
 					</label>
 				</div>
 
-				<div class="grid gap-10 md:grid-cols-2">
-					<div class="space-y-3">
-						<h2 class="font-semibold text-neutral-700">Precios</h2>
+				<div class="space-y-3">
+					<h2 class="font-semibold text-neutral-700">Precios</h2>
 
-						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Valor USD</span>
+					<label class="relative flex flex-col text-sm">
+						<span class="text-neutral-500">Valor USD</span>
+
+						<div class="relative">
 							<input
 								type="number"
+								id="valueUSD"
 								name="valueUSD"
 								value="0"
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+								class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8"
 							/>
-						</label>
 
-						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Valor BOB</span>
+							<span
+								id="usdPercentIcon"
+								class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
+							>
+								%
+							</span>
+						</div>
+					</label>
+
+					<label class="relative flex flex-col text-sm">
+						<span class="text-neutral-500">Valor BOB</span>
+
+						<div class="relative">
 							<input
 								type="number"
+								id="valueBOB"
 								name="valueBOB"
 								value="0"
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+								class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8"
 							/>
-						</label>
-					</div>
 
-					<div class="space-y-3">
-						<h2 class="font-semibold text-neutral-700">Políticas</h2>
-
-						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Política de Cancelación</span>
-							<select name="cancellationPolicyId" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
-								<option value="">Ninguna</option>
-								{policies.map((p) => <option value={p.id}>{p?.name}</option>)}
-							</select>
-						</label>
-
-						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Tipo de Pago</span>
-							<select name="paymentType" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
-								<option value="Prepaid">Prepaid</option>
-								<option value="Postpaid">Postpaid</option>
-							</select>
-						</label>
-
-						<label class="flex items-center gap-2 text-sm">
-							<input type="checkbox" name="refundable" checked />
-							<span class="text-neutral-500">Reembolsable</span>
-						</label>
-					</div>
+							<span
+								id="bobPercentIcon"
+								class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
+							>
+								%
+							</span>
+						</div>
+					</label>
 				</div>
 
 				<div class="grid gap-10 md:grid-cols-2">
@@ -198,7 +194,29 @@ const policies = await db.select().from(Policy).all()
 				</div>
 			</form>
 		</article>
+		<script>
+			document.addEventListener("DOMContentLoaded", () => {
+				const type = document.getElementById("rateType") as HTMLSelectElement
 
+				const usdIcon = document.getElementById("usdPercentIcon")
+				const bobIcon = document.getElementById("bobPercentIcon")
+
+				const handleTypeChange = () => {
+					const isPercentage = type?.value === "percentage"
+
+					if (isPercentage) {
+						usdIcon?.classList.remove("hidden")
+						bobIcon?.classList.remove("hidden")
+					} else {
+						usdIcon?.classList.add("hidden")
+						bobIcon?.classList.add("hidden")
+					}
+				}
+
+				type.addEventListener("change", handleTypeChange)
+				handleTypeChange()
+			})
+		</script>
 		<script type="module" define:vars={{ VARIANT_ID: variantId }}>
 			const form = document.getElementById("rpForm")
 
