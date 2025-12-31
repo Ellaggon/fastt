@@ -1,0 +1,25 @@
+---
+import Breadcrumbs from "../Breadcrumbs.astro"
+
+const { productData, productId } = Astro.props
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/" },
+	{
+		name: productData?.productType ?? "",
+		href:
+			productData?.productType === "Hotel"
+				? "/hotels"
+				: productData?.productType === "Package"
+					? "/packages"
+					: "/tours",
+	},
+	{
+		name: productData?.name || "/",
+		href: `/products/${productId}`,
+		current: true,
+	},
+]
+---
+
+<Breadcrumbs items={breadcrumbItems} />
