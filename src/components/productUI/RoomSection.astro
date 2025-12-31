@@ -1,0 +1,260 @@
+---
+const { rooms, searchState } = Astro.props
+import { ROOM_TYPE_MAP } from "@/data/room-types"
+import { Bath, BedDouble, User } from "@lucide/astro"
+---
+
+<header class="mb-6 flex flex-wrap items-end justify-between gap-4">
+	<div>
+		<span class="block text-xs text-neutral-400">Revisa disponibilidad de</span>
+		<h2 class="text-2xl font-semibold text-neutral-100">Habitaciones</h2>
+	</div>
+
+	<div class="flex items-center gap-2">
+		<input
+			type="date"
+			id="checkin"
+			value={searchState.checkIn}
+			class="rounded-lg px-3 py-2 text-sm text-neutral-800 focus:ring-2 focus:ring-blue-500"
+		/>
+		<input
+			type="date"
+			id="checkout"
+			value={searchState.checkOut}
+			class="rounded-lg px-3 py-2 text-sm text-neutral-800 focus:ring-2 focus:ring-blue-500"
+		/>
+		<div class="relative">
+			<button
+				id="guestsBtn"
+				type="button"
+				class="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-50"
+			>
+				<span id="guestsLabel">2 adultos</span>
+				<svg class="h-4 w-4 opacity-60" viewBox="0 0 20 20" fill="currentColor">
+					<path
+						fill-rule="evenodd"
+						d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.94l3.71-3.7a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z"
+					></path>
+				</svg>
+			</button>
+
+			<!-- POPOVER -->
+			<div
+				id="guestsPopover"
+				class="absolute right-0 z-20 mt-2 hidden w-56 rounded-xl border bg-white p-4 text-neutral-800 shadow-xl"
+			>
+				<div class="flex items-center justify-between text-sm">
+					<span>Adultos</span>
+					<input
+						id="adultsInput"
+						type="number"
+						min="1"
+						value="2"
+						class="w-16 rounded-md border px-2 py-1 text-center"
+					/>
+				</div>
+
+				<div class="mt-3 flex items-center justify-between text-sm">
+					<span>Niños</span>
+					<input
+						id="childrenInput"
+						type="number"
+						min="0"
+						value="0"
+						class="w-16 rounded-md border px-2 py-1 text-center"
+					/>
+				</div>
+			</div>
+		</div>
+
+		<button
+			id="searchBtn"
+			class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 active:scale-[0.98]"
+		>
+			Buscar
+		</button>
+	</div>
+</header>
+
+<div class="-mx-4 overflow-x-auto px-4 py-6">
+	<div class="flex snap-x snap-mandatory gap-6">
+		{
+			(rooms ?? []).map((room: any) => {
+				const img = room.images?.at(-1)?.url ?? "https://placehold.co/800x600?text=Sin+imagen"
+				const roomType = ROOM_TYPE_MAP[room.roomTypeId] || "Habitación"
+
+				return (
+					<article
+						data-room-id={room.id}
+						data-capacity={room.maxOccupancyOverride ?? 0}
+						class="w-[360px] flex-shrink-0 snap-start rounded-3xl bg-neutral-100 shadow-[0_20px_50px_rgba(0,0,0,0.08)] backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(0,0,0,0.12)]"
+					>
+						<img src={img} alt={roomType.name} class="h-48 w-full rounded-t-2xl object-cover" />
+
+						<div class="p-5">
+							<h3 class="font-semibold text-neutral-800">{roomType.name}</h3>
+
+							<p class="mt-1 text-sm text-neutral-500">
+								{room.sizeM2 ? `${room.sizeM2} m²` : ""}
+								{room.hasView ? ` • Con vista ${room.hasView}` : ""}
+							</p>
+
+							<div class="mt-4 grid grid-cols-2 gap-2 text-sm text-neutral-600">
+								<label class="flex items-center gap-1">
+									<BedDouble class="h-4 w-4" />
+									<span>
+										{room.bedType?.map((b: any) => `${b.count} ${b.id}`).join(", ") ?? "-"}
+									</span>
+								</label>
+								<label class="flex items-center gap-1">
+									<Bath class="h-4 w-4" />
+									<span>{room.bathroom ?? "—"} baños</span>
+								</label>
+								<label class={`${room.hasBalcony ? "block" : "hidden"} flex items-center gap-1`}>
+									<svg
+										class="h-4 w-4"
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="icon-balcony"
+									>
+										<path d="M4 10V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6" />
+										<path d="M2 10v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V10" />
+										<path d="M2 14h20" />
+										<path d="M6 14v7" />
+										<path d="M12 14v7" />
+										<path d="M18 14v7" />
+									</svg>
+									<span class={room.hasBalcony ? "block" : "hidden"}>Con balcón</span>
+								</label>
+								<label class="flex items-center gap-1">
+									<User class="h-4 w-4" />
+									<span>Capacidad {room.maxOccupancyOverride ?? "--"}</span>
+								</label>
+							</div>
+
+							{/* PRICE */}
+							<div class="mt-5">
+								<p class="text-xs text-neutral-400">Desde</p>
+
+								<p class="price-value text-xl font-semibold text-neutral-900">—</p>
+
+								<p class="price-status hidden text-sm font-medium text-red-500">
+									Sin disponibilidad
+								</p>
+							</div>
+
+							<div class="mt-6 flex gap-3">
+								<button
+									type="button"
+									class="flex-1 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+								>
+									Ver habitación
+								</button>
+
+								<a
+									href={`/book/${room.id}`}
+									class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
+								>
+									Reservar
+								</a>
+							</div>
+						</div>
+					</article>
+				)
+			})
+		}
+	</div>
+</div>
+
+<script>
+	import type { AvailabilityResponse } from "@/components/booking/availabilityTypes"
+	import { findAvailability } from "@/components/utils/availability"
+
+	const guestsBtn = document.getElementById("guestsBtn") as HTMLButtonElement
+	const guestsPopover = document.getElementById("guestsPopover") as HTMLDivElement
+	const guestsLabel = document.getElementById("guestsLabel") as HTMLSpanElement
+
+	const adultsInput = document.getElementById("adultsInput") as HTMLInputElement
+	const childrenInput = document.getElementById("childrenInput") as HTMLInputElement
+
+	function updateGuestsLabel() {
+		const adults = Number(adultsInput.value)
+		const children = Number(childrenInput.value)
+		const total = adults + children
+
+		guestsLabel.textContent =
+			children > 0
+				? `${adults} adultos, ${children} niño${children > 1 ? "s" : ""}`
+				: `${adults} adulto${adults > 1 ? "s" : ""}`
+
+		return total
+	}
+
+	/* Toggle popover */
+	guestsBtn.onclick = () => {
+		guestsPopover.classList.toggle("hidden")
+	}
+
+	/* Cerrar al hacer click fuera */
+	document.addEventListener("click", (e) => {
+		const target = e.target
+
+		if (!(target instanceof Node)) return
+
+		if (!guestsBtn.contains(target) && !guestsPopover.contains(target)) {
+			guestsPopover.classList.add("hidden")
+		}
+	})
+
+	/* Recalcular label */
+	adultsInput.oninput = updateGuestsLabel
+	childrenInput.oninput = updateGuestsLabel
+
+	updateGuestsLabel()
+
+	document.getElementById("searchBtn")?.addEventListener("click", () => {
+		const totalGuests = updateGuestsLabel()
+
+		const article = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
+		article.forEach((card) => {
+			const capacity = Number(card.dataset.capacity)
+
+			if (capacity >= totalGuests) {
+				card.classList.remove("hidden")
+			} else {
+				card.classList.add("hidden")
+			}
+		})
+	})
+
+	document.addEventListener("availability:updated", (e) => {
+		const event = e as CustomEvent<AvailabilityResponse>
+		const results = event.detail
+
+		const dataRoomIds = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
+		dataRoomIds.forEach((card) => {
+			const roomId = card.dataset.roomId
+			if (!roomId) return
+
+			const priceValue = card.querySelector(".price-value") as HTMLElement
+			const priceStatus = card.querySelector(".price-status") as HTMLElement
+
+			const availability = findAvailability(results, roomId)
+
+			if (availability) {
+				priceValue.textContent = `USD ${availability.pricing.total}`
+				priceValue.classList.remove("hidden")
+				priceStatus.classList.add("hidden")
+			} else {
+				priceValue.textContent = ""
+				priceValue.classList.add("hidden")
+				priceStatus.classList.remove("hidden")
+			}
+		})
+	})
+</script>
