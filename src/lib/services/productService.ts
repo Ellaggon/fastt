@@ -1,4 +1,3 @@
-// src/lib/services/productService.ts
 import { db } from "astro:db"
 import { ensureProductOwnedByProvider, updateProductFields } from "@/lib/db/product"
 import {
@@ -38,15 +37,7 @@ export async function updateProductAndSubtype(
 	// abrir transacción
 	return await db.transaction(async (tx) => {
 		// 1) update product basic fields (filter allowed)
-		const allowed = [
-			"name",
-			"description",
-			"productType",
-			"basePriceUSD",
-			"basePriceBOB",
-			"cityId",
-			"isActive",
-		]
+		const allowed = ["name", "description", "productType"]
 
 		const toSet: Record<string, any> = { lastUpdated: new Date() }
 		for (const k of allowed) if (k in productFields) toSet[k] = productFields[k]

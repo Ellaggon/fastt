@@ -1,0 +1,324 @@
+---
+import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
+import Layout from "@/layouts/Layout.astro"
+import { and, db, eq, ProductService, ProductServiceAttribute, Service } from "astro:db"
+
+const { id: productId, serviceId } = Astro.params
+if (!productId || !serviceId) return Astro.redirect("/dashboard")
+
+let productService = await db
+	.select()
+	.from(ProductService)
+	.where(and(eq(ProductService.productId, productId), eq(ProductService.serviceId, serviceId)))
+	.get()
+
+if (!productService) {
+	productService = await db
+		.insert(ProductService)
+		.values({
+			id: crypto.randomUUID(),
+			productId,
+			serviceId,
+			isIncluded: false,
+			isPaid: false,
+		})
+		.returning()
+		.get()
+}
+
+const service = await db
+	.select({
+		psId: ProductService.id,
+		name: Service.name,
+		isIncluded: ProductService.isIncluded,
+		isPaid: ProductService.isPaid,
+		price: ProductService.price,
+		priceUnit: ProductService.priceUnit,
+		currency: ProductService.currency,
+		appliesTo: ProductService.appliesTo,
+		customText: ProductService.customText,
+	})
+	.from(ProductService)
+	.innerJoin(Service, eq(Service.id, ProductService.serviceId))
+	.where(and(eq(ProductService.productId, productId), eq(ProductService.serviceId, serviceId)))
+	.get()
+
+if (!service) return Astro.redirect(`/products/${productId}/services`)
+
+const attributesDef = SERVICE_ATTRIBUTES[serviceId] ?? []
+
+const existingAttrs = await db
+	.select({
+		key: ProductServiceAttribute.key,
+		value: ProductServiceAttribute.value,
+	})
+	.from(ProductServiceAttribute)
+	.where(eq(ProductServiceAttribute.productServiceId, service.psId))
+	.all()
+
+const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
+console.log("service: ", service)
+---
+
+<Layout title="Configurar servicio">
+	<section class="h-full w-full pt-10 md:pt-16">
+		<article
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-3xl lg:p-16"
+		>
+			<h1 class="text-lg font-bold md:text-2xl lg:text-3xl">CONFIGURAR SERVICIO</h1>
+
+			<p class="mt-1 hidden text-xs text-neutral-500 md:block">
+				Define cómo se muestra este servicio y si tiene costo adicional
+			</p>
+
+			<small class="text-xs text-neutral-500 md:hidden">
+				Configura disponibilidad y precio del servicio
+			</small>
+
+			<p class="mt-6 text-end text-base font-semibold text-neutral-600">
+				{service.name}
+			</p>
+
+			<form id="serviceConfigForm" class="mt-10 space-y-6">
+				<input type="hidden" name="productId" value={productId} />
+				<input type="hidden" name="serviceId" value={serviceId} />
+				<input type="hidden" name="psId" value={service.psId} />
+				<!-- Inclusión / Pago -->
+				<div class="space-y-4 rounded-xl bg-neutral-100 p-4">
+					<label class="flex items-center gap-3 text-sm font-medium">
+						<input
+							type="checkbox"
+							name="isIncluded"
+							checked={service.isIncluded}
+							class="h-4 w-4 rounded border-neutral-400"
+						/>
+						Incluido sin costo
+					</label>
+
+					<label class="flex items-center gap-3 text-sm font-medium">
+						<input
+							type="checkbox"
+							name="isPaid"
+							checked={service.isPaid}
+							class="h-4 w-4 rounded border-neutral-400"
+						/>
+						Tiene costo adicional
+					</label>
+				</div>
+
+				<!-- Precio -->
+				<div
+					id="priceFields"
+					class="grid grid-cols-1 gap-4 transition-opacity duration-200 md:grid-cols-3"
+				>
+					<div>
+						<label class="mb-1 block text-xs font-medium text-neutral-600"> Precio </label>
+						<input
+							type="number"
+							name="price"
+							value={service.price ?? ""}
+							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+						/>
+					</div>
+
+					<div>
+						<label class="mb-1 block text-xs font-medium text-neutral-600"> Unidad </label>
+						<select
+							name="priceUnit"
+							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+						>
+							<option value="night">Por noche</option>
+							<option value="stay">Por estadía</option>
+							<option value="person">Por persona</option>
+						</select>
+					</div>
+
+					<div>
+						<label class="mb-1 block text-xs font-medium text-neutral-600"> Moneda </label>
+						<select
+							name="currency"
+							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+						>
+							<option value="BOB">BOB</option>
+							<option value="USD">USD</option>
+						</select>
+					</div>
+				</div>
+
+				<!-- Aplica a -->
+				<div>
+					<label class="mb-1 block text-xs font-medium text-neutral-600"> Aplica a </label>
+					<select
+						name="appliesTo"
+						class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+					>
+						<option value="room">Habitación</option>
+						<option value="common">Áreas comunes</option>
+						<option value="both">Ambos</option>
+					</select>
+				</div>
+
+				{
+					attributesDef.length > 0 && (
+						<div class="space-y-4 rounded-xl bg-neutral-100 p-4">
+							<h3 class="text-sm font-semibold text-neutral-700">Características del servicio</h3>
+
+							{attributesDef.map((attr) => (
+								<div>
+									<label class="mb-1 block text-xs font-medium text-neutral-600">
+										{`${attr.label} (Opcional)`}
+									</label>
+
+									{attr.type === "text" && (
+										<input
+											type="text"
+											name={`attr_${attr.key}`}
+											value={attrMap[attr.key] ?? ""}
+											placeholder={attr.placeholder}
+											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+										/>
+									)}
+
+									{attr.type === "number" && (
+										<input
+											type="number"
+											name={`attr_${attr.key}`}
+											value={attrMap[attr.key] ?? ""}
+											placeholder={attr.placeholder}
+											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+										/>
+									)}
+
+									{attr.type === "boolean" && (
+										<div class="flex items-center gap-3">
+											<input type="hidden" name={`attr_${attr.key}`} value="false" />
+
+											<input
+												type="checkbox"
+												name={`attr_${attr.key}`}
+												value="true"
+												checked={attrMap[attr.key] === "true"}
+												class="h-4 w-4"
+											/>
+										</div>
+									)}
+
+									{attr.type === "select" && (
+										<select
+											name={`attr_${attr.key}`}
+											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+										>
+											<option value="">Seleccionar</option>
+											{attr.options?.map((opt) => (
+												<option value={opt.value} selected={opt.value === attrMap[attr.key]}>
+													{opt.label}
+												</option>
+											))}
+										</select>
+									)}
+								</div>
+							))}
+						</div>
+					)
+				}
+
+				<div>
+					<label class="mb-1 block text-xs font-medium text-neutral-600"
+						>Información adicional</label
+					>
+					<textarea
+						name="customText"
+						rows="4"
+						class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+						placeholder="Ej: Wi-Fi gratuito disponible en todas las áreas del hotel."
+						>{service.customText}</textarea
+					>
+				</div>
+
+				<div class="flex justify-end gap-3 pt-10">
+					<button
+						type="button"
+						class="h-10 w-40 rounded-xl border border-red-300 bg-red-50 px-4 py-1 text-sm font-medium text-red-600 hover:bg-red-100"
+						id="removeService"
+					>
+						Quitar servicio
+					</button>
+					<button
+						type="submit"
+						class="h-10 w-40 rounded-xl bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+					>
+						Guardar
+					</button>
+				</div>
+
+				<div id="message" class="text-sm"></div>
+			</form>
+		</article>
+	</section>
+
+	<script type="module">
+		const included = document.querySelector('[name="isIncluded"]')
+		const paid = document.querySelector('[name="isPaid"]')
+		const priceFields = document.getElementById("priceFields")
+
+		function sync() {
+			if (included.checked) {
+				paid.checked = false
+				priceFields.classList.add("opacity-50", "pointer-events-none")
+			} else if (paid.checked) {
+				included.checked = false
+				priceFields.classList.remove("opacity-50", "pointer-events-none")
+			}
+		}
+
+		included.addEventListener("change", sync)
+		paid.addEventListener("change", sync)
+		sync()
+	</script>
+	<script type="module" define:vars={{ PRODUCT_ID: productId, SERVICE_ID: serviceId }}>
+		const form = document.getElementById("serviceConfigForm")
+		const message = document.getElementById("message")
+
+		document.getElementById("removeService")?.addEventListener("click", async () => {
+			if (!confirm("¿Deseas quitar este servicio del producto?")) return
+
+			const res = await fetch("/api/products/services/delete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productId: PRODUCT_ID, serviceId: SERVICE_ID }),
+			})
+
+			if (!res.ok) {
+				alert("No se pudo quitar el servicio")
+				return
+			}
+
+			location.href = `/products/${PRODUCT_ID}/services`
+		})
+
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault()
+
+			message.textContent = "Guardando..."
+			message.className = "text-sm text-neutral-500"
+
+			const res = await fetch(`/api/products/services/${SERVICE_ID}/update`, {
+				method: "POST",
+				body: new FormData(form),
+			})
+
+			if (!res.ok) {
+				message.textContent = "Error al guardar"
+				message.className = "text-sm text-red-600"
+				return
+			}
+
+			message.textContent = "Servicio actualizado correctamente"
+			message.className = "text-sm text-green-600"
+
+			setTimeout(() => {
+				window.location.href = `/products/${PRODUCT_ID}/services`
+			}, 600)
+		})
+	</script>
+</Layout>

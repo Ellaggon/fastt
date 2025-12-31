@@ -1,0 +1,183 @@
+---
+import { SERVICE_CATEGORY_ORDER } from "@/data/service/service-categories"
+import { servicesByCategory } from "@/data/service/service-grouped"
+import Layout from "@/layouts/Layout.astro"
+import { getProductWithImagesAndSubtype } from "@/lib/db/product"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { db, eq, ProductService } from "astro:db"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const productId = Astro.params.id
+
+if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!productId) return Astro.redirect("/dashboard")
+
+const providerId = await getProviderIdFromRequest(Astro.request)
+if (!providerId) return Astro.redirect("/forms/provider?message=not_registered")
+
+const bundle = await getProductWithImagesAndSubtype(productId)
+if (!bundle) return Astro.redirect("/dashboard")
+
+if (String(bundle.product.providerId) !== String(providerId)) {
+	return Astro.redirect("/dashboard")
+}
+
+const product = bundle.product
+
+// 👉 Traemos configuración completa
+const existing = await db
+	.select({
+		serviceId: ProductService.serviceId,
+		isIncluded: ProductService.isIncluded,
+		isPaid: ProductService.isPaid,
+		price: ProductService.price,
+		priceUnit: ProductService.priceUnit,
+		currency: ProductService.currency,
+	})
+	.from(ProductService)
+	.where(eq(ProductService.productId, product.id))
+	.all()
+
+const serviceConfig = Object.fromEntries(existing.map((s) => [s.serviceId, s]))
+
+const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
+	category,
+	items: servicesByCategory[category] ?? [],
+})).filter((group) => group.items.length > 0)
+---
+
+<Layout title={`Servicios · ${product.name}`}>
+	<main class="mx-auto mt-20 w-11/12 max-w-4xl rounded-3xl bg-neutral-200 p-10 shadow-lg">
+		<form id="servicesForm">
+			<h1 class="mb-1 text-2xl font-semibold text-neutral-800">Configuración de servicios</h1>
+			<p class="mb-6 text-sm text-neutral-500">{product.name}</p>
+
+			<div id="servicesContainer" class="space-y-6">
+				{
+					categorizedServiceList.map(({ category, items }) => (
+						<section class="rounded-xl bg-neutral-300 p-4">
+							<h2 class="mb-4 text-sm font-semibold text-neutral-800">{category}</h2>
+
+							<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+								{items.map((service) => {
+									const cfg = serviceConfig[service.id]
+									const isActive = !!cfg
+
+									return (
+										<div
+											class="service-btn relative flex gap-3 rounded-xl bg-neutral-50 px-4 py-3 text-left text-sm shadow transition hover:bg-neutral-100"
+											data-id={service.id}
+											data-active={isActive ? "1" : "0"}
+										>
+											<button
+												type="button"
+												class="absolute inset-0 z-0"
+												aria-label={`Activar ${service.name}`}
+											/>
+
+											<div class="relative z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+												<service.icon class="h-4 w-4 text-blue-600" />
+											</div>
+
+											<div class="relative z-10 flex flex-1 flex-col">
+												<span class="font-medium text-neutral-800">{service.name}</span>
+
+												{isActive && (
+													<span class="mt-0.5 hidden text-xs text-neutral-500 md:block">
+														{cfg.isIncluded && "Incluido"}
+														{cfg.isPaid &&
+															cfg.price &&
+															` · $${cfg.price} ${cfg.currency ?? ""} / ${cfg.priceUnit}`}
+													</span>
+												)}
+
+												<a
+													href={`/products/${product.id}/services/${service.id}`}
+													class="mt-3 text-end text-xs font-medium text-blue-600 hover:underline"
+												>
+													Configurar
+												</a>
+											</div>
+
+											{isActive && (
+												<span class="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-green-500" />
+											)}
+										</div>
+									)
+								})}
+							</div>
+						</section>
+					))
+				}
+			</div>
+
+			<input type="hidden" name="productId" value={product.id} />
+
+			<div class="mt-10 flex justify-end gap-3">
+				<a href="/dashboard" class="rounded-lg border bg-white px-4 py-2 text-sm text-neutral-700">
+					Cancelar
+				</a>
+				<button
+					id="submitBtn"
+					type="submit"
+					class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white"
+				>
+					Guardar servicios
+				</button>
+			</div>
+		</form>
+	</main>
+	<script type="module">
+		const form = document.getElementById("servicesForm")
+		const submitBtn = document.getElementById("submitBtn")
+		const buttons = [...document.querySelectorAll(".service-btn")]
+
+		function toggle(btn) {
+			const active = btn.dataset.active === "1"
+			btn.dataset.active = active ? "0" : "1"
+			btn.classList.toggle("!bg-blue-100", !active)
+		}
+
+		buttons.forEach((btn) => {
+			if (btn.dataset.active === "1") {
+				btn.classList.add("!bg-blue-100")
+			}
+
+			btn.addEventListener("click", () => toggle(btn))
+			const configLink = btn.querySelector("a")
+			if (configLink) {
+				configLink.addEventListener("click", (e) => {
+					e.stopPropagation()
+				})
+			}
+		})
+
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			submitBtn.disabled = true
+			submitBtn.textContent = "Guardando..."
+
+			const productId = form.querySelector('input[name="productId"]').value
+
+			const services = buttons
+				.filter((btn) => btn.dataset.active === "1")
+				.map((btn) => ({
+					serviceId: btn.dataset.id,
+				}))
+
+			const res = await fetch("/api/products/services/update", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productId, services }),
+			})
+
+			if (res.ok) location.href = "/dashboard"
+			else {
+				alert("Error al guardar")
+				submitBtn.disabled = false
+				submitBtn.textContent = "Guardar servicios"
+			}
+		})
+	</script>
+</Layout>
