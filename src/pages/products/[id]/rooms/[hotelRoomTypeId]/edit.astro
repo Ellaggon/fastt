@@ -98,7 +98,7 @@ const images = data.images || []
 							<input
 								type="number"
 								name="maxOccupancy"
-								value={room.maxOccupancy}
+								value={room.maxOccupancyOverride || ""}
 								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
 							/>
 						</label>
@@ -247,6 +247,17 @@ const images = data.images || []
 						class="w-full rounded-md bg-neutral-100 px-3 py-2 file:mr-4 file:rounded-full file:border-0 file:bg-neutral-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-neutral-700 hover:file:bg-neutral-400"
 					/>
 				</section>
+
+				<label class="flex items-center space-x-3 pt-2">
+					<input
+						type="checkbox"
+						name="isActive"
+						value="1"
+						checked={variant.isActive}
+						class="border-neutrl-300 h-4 w-4 rounded bg-neutral-100"
+					/>
+					<span>Habitacion Activa</span>
+				</label>
 
 				<!-- 🔷 BOTONES -->
 				<div class="flex justify-end gap-4">
