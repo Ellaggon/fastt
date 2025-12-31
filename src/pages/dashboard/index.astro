@@ -33,7 +33,6 @@ try {
 			roomsByHotel[room.productId].push(room)
 		}
 	}
-	console.log("roomsByHotel: ", roomsByHotel)
 } catch (e) {
 	console.error("Error al obtener los productos del proveedor: ", e)
 	errorMessage = "Hubo un error al cargar los productos. Por favor, inténtalo de nuevo más tarde."
@@ -255,12 +254,6 @@ try {
 													<small class="text-xs text-neutral-400 md:hidden">{el.productType}</small>
 												</div>
 												<div class="flex flex-row-reverse flex-wrap items-center gap-4 text-xs font-medium text-neutral-300 md:text-sm">
-													<a
-														href={`/products/${el.id}/rate-plans`}
-														class="rounded-2xl border border-neutral-800 px-3 py-1 text-blue-400 hover:text-blue-300 md:my-2"
-													>
-														Añade Planes Tarifarios
-													</a>
 													{!roomsByHotel[el.id] || roomsByHotel[el.id].length === 0
 														? null
 														: roomsByHotel[el.id].map((room) => (
