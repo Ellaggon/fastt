@@ -38,15 +38,5 @@ const { product } = Astro.props as { product: any }
 				>
 			</select>
 		</label>
-
-		<label class="flex items-center gap-3 text-sm font-medium text-neutral-700">
-			<input
-				type="checkbox"
-				name="isActive"
-				class="h-5 w-5 rounded border-neutral-400 text-blue-600 focus:ring-blue-500"
-				checked={product?.isActive === true}
-			/>
-			<span>Publicar / Activar producto</span>
-		</label>
 	</div>
 </section>
