@@ -12,7 +12,7 @@ export const productFormSchema = z.object({
 	description: z
 		.string()
 		.min(10, "La descripcion debe tener al menos 10 caracteres")
-		.max(200, "La descripcion no debe superar los 200 caracteres")
+		.max(500, "La descripcion no debe superar los 500 caracteres")
 		.optional()
 		.or(z.literal("")),
 	destinationId: z.string().min(1, "Selecciona una ciudad o localidad"),
