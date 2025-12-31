@@ -1,0 +1,300 @@
+---
+import { ROOM_TYPE_MAP } from "@/data/room-types"
+import { Bath, BedDouble, DoorClosed, Ruler, User, X } from "@lucide/astro"
+import RoomAvailabilityIsland from "../booking/RoomAvailabilityIsland.astro"
+
+const { rooms, searchState, productId } = Astro.props
+---
+
+<!-- DATA -->
+<div id="rooms-data" data-rooms={JSON.stringify(rooms)} class="hidden"></div>
+
+<!-- BACKDROP -->
+<div
+	id="room-modal"
+	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 opacity-0 backdrop-blur-sm transition-opacity duration-300"
+	role="dialog"
+	aria-modal="true"
+	aria-hidden="true"
+>
+	<!-- PANEL -->
+	<div
+		id="room-modal-panel"
+		class="mx-auto w-full max-w-5xl translate-y-6 scale-95 overflow-hidden rounded-3xl bg-white shadow-[0_40px_120px_rgba(0,0,0,.25)] transition-all duration-300"
+	>
+		<!-- HEADER -->
+		<header class="flex items-start justify-between border-b px-8 py-6">
+			<div>
+				<h2 id="modal-title" class="text-2xl font-semibold text-neutral-900"></h2>
+				<p class="flex gap-2 text-sm text-neutral-500">
+					<span id="modal-subtitle"></span>
+					<span id="modal-hasview"></span>
+				</p>
+			</div>
+
+			<button
+				id="modal-close-1"
+				class="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring"
+				aria-label="Cerrar"
+			>
+				<X class="h-5 w-5" />
+			</button>
+		</header>
+
+		<!-- BODY -->
+		<div class="grid grid-cols-1 gap-8 px-8 py-8 md:grid-cols-2">
+			<!-- GALLERY -->
+			<section>
+				<div class="relative h-[360px] overflow-hidden rounded-2xl bg-neutral-100">
+					<img
+						id="carousel-image"
+						class="h-full w-full object-cover transition-opacity duration-300"
+					/>
+					<button
+						id="carousel-prev"
+						class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-1 text-neutral-800 shadow"
+					>
+						‹
+					</button>
+					<button
+						id="carousel-next"
+						class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-1 text-neutral-800 shadow"
+					>
+						›
+					</button>
+				</div>
+
+				<div id="carousel-thumbs" class="mt-4 flex gap-3 overflow-x-auto"></div>
+			</section>
+
+			<!-- INFO -->
+			<section class="flex flex-col gap-6">
+				<div class="space-y-3 text-sm text-neutral-700">
+					<div class="flex items-center gap-2">
+						<User class="h-4 w-4 text-neutral-400" />
+						<span id="info-capacity"></span>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<BedDouble class="h-4 w-4 text-neutral-400" />
+						<span id="info-beds"></span>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<DoorClosed class="h-4 w-4 text-neutral-400" />
+						<span id="info-total-rooms"></span>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<Bath class="h-4 w-4 text-neutral-400" />
+						<span id="info-bath"></span>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<Ruler class="h-4 w-4 text-neutral-400" />
+						<span id="info-size"></span>
+					</div>
+
+					<div id="info-balcony" class="hidden text-sm text-emerald-600">🌿 Con balcón</div>
+				</div>
+
+				<div>
+					<h3 class="mb-3 text-sm font-semibold text-neutral-800">Comodidades</h3>
+					<ul id="amenities-list" class="space-y-4"></ul>
+				</div>
+
+				<RoomAvailabilityIsland productId={productId} searchState={searchState} />
+
+				<div class="mt-auto flex gap-3">
+					<a
+						id="modal-book"
+						class="flex-1 rounded-xl bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
+					>
+						Reservar
+					</a>
+
+					<button
+						id="modal-close-2"
+						class="rounded-xl border px-5 py-3 text-sm text-neutral-700 hover:bg-neutral-50"
+					>
+						Cerrar
+					</button>
+				</div>
+			</section>
+		</div>
+	</div>
+</div>
+
+<script type="module" define:vars={{ ROOM_TYPE_MAP }}>
+	import { formatBedType } from "/src/data/room-beds"
+
+	const rooms = JSON.parse(document.getElementById("rooms-data")?.dataset.rooms || "[]")
+
+	const modal = document.getElementById("room-modal")
+	const panel = document.getElementById("room-modal-panel")
+
+	const title = document.getElementById("modal-title")
+	const subtitle = document.getElementById("modal-subtitle")
+	const hasView = document.getElementById("modal-hasview")
+
+	const capacity = document.getElementById("info-capacity")
+	const door = document.getElementById("info-total-rooms")
+	const beds = document.getElementById("info-beds")
+	const bath = document.getElementById("info-bath")
+	const size = document.getElementById("info-size")
+	const balcony = document.getElementById("info-balcony")
+
+	const amenities = document.getElementById("amenities-list")
+	const img = document.getElementById("carousel-image")
+	const thumbs = document.getElementById("carousel-thumbs")
+	const bookBtn = document.getElementById("modal-book")
+
+	let images = []
+	let index = 0
+	let lastFocus = null
+
+	/* ---------- CAROUSEL ---------- */
+	function renderCarousel(imgs) {
+		images = imgs
+		index = 0
+		updateImage()
+
+		thumbs.replaceChildren()
+		imgs.forEach((i, idx) => {
+			const t = document.createElement("img")
+			t.src = i.url
+			t.className = "h-16 w-24 rounded-lg object-cover cursor-pointer opacity-70 hover:opacity-100"
+			t.onclick = () => {
+				index = idx
+				updateImage()
+			}
+			thumbs.appendChild(t)
+		})
+	}
+
+	function updateImage() {
+		img.style.opacity = "0"
+		setTimeout(() => {
+			img.src = images[index].url
+			img.style.opacity = "1"
+		}, 120)
+	}
+
+	function groupAmenitiesByCategory(amenities) {
+		const grouped = {}
+
+		for (const amenity of amenities) {
+			if (!amenity.isAvailable) continue
+
+			const category = amenity.category ?? "Otros"
+
+			if (!grouped[category]) {
+				grouped[category] = []
+			}
+
+			grouped[category].push(amenity)
+		}
+
+		return grouped
+	}
+
+	document.getElementById("carousel-prev").onclick = () => {
+		index = (index - 1 + images.length) % images.length
+		updateImage()
+	}
+
+	document.getElementById("carousel-next").onclick = () => {
+		index = (index + 1) % images.length
+		updateImage()
+	}
+
+	/* ---------- MODAL ---------- */
+	function openModal(roomId) {
+		const room = rooms.find((r) => r.id === roomId)
+		if (!room) return
+
+		const type = ROOM_TYPE_MAP[room.roomTypeId]
+
+		title.textContent = type?.name ?? "Habitación"
+		subtitle.textContent = room.sizeM2 ? `${room.sizeM2} m²` : ""
+		hasView.textContent = room.hasView ? ` • Con vista ${room.hasView}` : ""
+
+		capacity.textContent = room.maxOccupancyOverride
+			? `Capacidad: ${room.maxOccupancyOverride} Personas`
+			: "-"
+		beds.textContent = `Camas: ${formatBedType(room.bedType) ?? "-"}`
+		door.textContent = `Habitaciones: ${room.totalRooms ?? "-"}`
+		bath.textContent = `Baños: ${room.bathroom ?? "-"}`
+		size.textContent = room.sizeM2 ? `Tamaño: ${room.sizeM2} m²` : ""
+		balcony.classList.toggle("hidden", !room.hasBalcony)
+
+		bookBtn.href = `/book/${room.id}`
+
+		amenities.replaceChildren()
+
+		if (room.amenities?.length) {
+			const grouped = groupAmenitiesByCategory(room.amenities)
+
+			Object.entries(grouped).forEach(([category, items]) => {
+				// Contenedor categoría
+				const section = document.createElement("div")
+
+				// Título categoría
+				const title = document.createElement("h4")
+				title.textContent = category
+				title.className = "text-sm font-semibold text-neutral-800"
+
+				// Lista amenities
+				const list = document.createElement("ul")
+				list.className = "mt-2 grid grid-cols-2 gap-2 text-sm text-neutral-600"
+
+				items.forEach((a) => {
+					const li = document.createElement("li")
+					li.textContent = a.amenityName
+					list.appendChild(li)
+				})
+
+				section.appendChild(title)
+				section.appendChild(list)
+				amenities.appendChild(section)
+			})
+		}
+
+		renderCarousel(room.images?.length ? room.images : [{ url: "https://placehold.co/1200x800" }])
+
+		lastFocus = document.activeElement
+
+		modal.classList.remove("hidden")
+		modal.classList.add("flex")
+
+		requestAnimationFrame(() => {
+			modal.classList.remove("opacity-0")
+			panel.classList.remove("translate-y-6", "scale-95")
+		})
+
+		document.body.style.overflow = "hidden"
+		bookBtn.focus()
+	}
+
+	function closeModal() {
+		panel.classList.add("translate-y-6", "scale-95")
+		modal.classList.add("opacity-0")
+
+		setTimeout(() => {
+			modal.classList.remove("flex")
+			modal.classList.add("hidden")
+		}, 300)
+
+		document.body.style.overflow = ""
+		lastFocus?.focus()
+	}
+
+	/* ---------- EVENTS ---------- */
+	document.querySelectorAll("[data-room-id]").forEach((btn) => {
+		btn.onclick = () => openModal(btn.dataset.roomId)
+	})
+
+	document.getElementById("modal-close-1").onclick = closeModal
+	document.getElementById("modal-close-2").onclick = closeModal
+	modal.onclick = (e) => e.target === modal && closeModal()
+</script>
