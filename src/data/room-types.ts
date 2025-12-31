@@ -157,3 +157,7 @@ export const ROOM_TYPES = [
 ] as const
 
 export type RoomType = (typeof ROOM_TYPES)[number]
+
+export const ROOM_TYPE_MAP: Record<string, RoomType> = Object.fromEntries(
+	ROOM_TYPES.map((r) => [r.id, r])
+)
