@@ -45,16 +45,16 @@ export default async function seed() {
 			longitude: -63.1833,
 			slug: slugify("Santa Cruz de la Sierra"),
 		},
-		// {
-		// 	id: "la-paz",
-		// 	name: "La Paz",
-		// 	type: "city",
-		// 	country: "bolivia",
-		// 	department: dept("la-paz"),
-		// 	latitude: -16.4958,
-		// 	longitude: -68.1333,
-		// 	slug: slugify("La Paz"),
-		// },
+		{
+			id: "la-paz",
+			name: "La Paz",
+			type: "city",
+			country: "bolivia",
+			department: dept("la-paz"),
+			latitude: -16.4958,
+			longitude: -68.1333,
+			slug: slugify("La Paz"),
+		},
 		// {
 		// 	id: "el-alto",
 		// 	name: "El Alto",
@@ -237,81 +237,148 @@ export default async function seed() {
 
 	// --- 3. Datos de Servicios (Para Tours/Hoteles) ---
 	const servicesData = [
-		// --- Internet & Tecnología ---
-		{ id: "wifi", name: "Wi-Fi Gratuito" },
-		{ id: "paid-wifi", name: "Wi-Fi (de pago / premium)" },
-		{ id: "streaming", name: "Apps / streaming en habitación" },
-		{ id: "flat-tv", name: "TV de pantalla plana / cable" },
+		// ─── Internet & Tecnología ─────────────────────────────
+		{ id: "wifi", name: "Wi-Fi gratuito", category: "Internet" },
+		{ id: "paid-wifi", name: "Wi-Fi premium", category: "Internet" },
+		{ id: "streaming", name: "Apps / streaming", category: "Internet" },
+		{ id: "flat-tv", name: "TV de pantalla plana", category: "Internet" },
 
-		// // --- Comidas y bebidas ---
-		// { id: "breakfast", name: "Desayuno incluidoz" }, // errorr incluidoz
-		// { id: "room-service", name: "Room service" },
-		// { id: "restaurant", name: "Restaurante en el lugar" },
-		// { id: "bar", name: "Bar / Lounge" },
-		// { id: "minibar", name: "Minibar en habitaciones" },
-		// { id: "kids-menu", name: "Menú infantil" },
+		// // ─── Comidas y bebidas ─────────────────────────────────
+		// { id: "coffee", name: "Café / té", category: "Comidas y bebidas" },
+		// { id: "breakfast", name: "Desayuno", category: "Comidas y bebidas" },
+		// { id: "restaurant", name: "Restaurante", category: "Comidas y bebidas" },
+		// { id: "bar", name: "Bar / Lounge", category: "Comidas y bebidas" },
+		// { id: "minibar", name: "Minibar", category: "Comidas y bebidas" },
+		// { id: "kids-menu", name: "Menú infantil", category: "Comidas y bebidas" },
 
-		// // --- Instalaciones ---
-		// { id: "pool", name: "Piscina", icon: "pool" },
-		// { id: "indoor-pool", name: "Piscina cubierta" },
-		// { id: "outdoor-pool", name: "Piscina exterior" },
-		// { id: "spa", name: "Spa / Centro de bienestar" },
-		// { id: "sauna", name: "Sauna" },
-		// { id: "jacuzzi", name: "Jacuzzi / Hidromasaje" },
-		// { id: "gym", name: "Gimnasio / Sala fitness" },
+		// // ─── Instalaciones ─────────────────────────────────────
+		// { id: "pool", name: "Piscina", category: "Instalaciones" },
+		// { id: "indoor-pool", name: "Piscina cubierta", category: "Instalaciones" },
+		// { id: "outdoor-pool", name: "Piscina al aire libre", category: "Instalaciones" },
+		// { id: "spa", name: "Spa / bienestar", category: "Instalaciones" },
+		// { id: "sauna", name: "Sauna", category: "Instalaciones" },
+		// { id: "jacuzzi", name: "Jacuzzi / hidromasaje", category: "Instalaciones" },
+		// { id: "gym", name: "Gimnasio", category: "Instalaciones" },
 
-		// // --- Transporte y estacionamiento ---
-		// { id: "parking", name: "Estacionamiento" },
-		// { id: "valet", name: "Valet parking" },
-		// { id: "ev-charging", name: "Cargador para vehículos eléctricos" },
-		// { id: "shuttle", name: "Transporte / Shuttle" },
-		// { id: "airport-shuttle", name: "Traslado al aeropuerto" },
-		// { id: "car-rental", name: "Alquiler de coches" },
-		// { id: "bike-rental", name: "Alquiler de bicicletas" },
-		// { id: "boat-tours", name: "Excursiones fluviales / náuticas" },
+		// // ─── Estacionamiento y transporte ──────────────────────
+		// { id: "parking", name: "Estacionamiento", category: "Estacionamiento y transporte" },
+		// { id: "valet", name: "Valet parking", category: "Estacionamiento y transporte" },
+		// {
+		// 	id: "ev-charging",
+		// 	name: "Carga para vehículos eléctricos",
+		// 	category: "Estacionamiento y transporte",
+		// },
+		// { id: "shuttle", name: "Servicio de transporte", category: "Estacionamiento y transporte" },
+		// {
+		// 	id: "airport-shuttle",
+		// 	name: "Traslado al aeropuerto",
+		// 	category: "Estacionamiento y transporte",
+		// },
+		// { id: "car-rental", name: "Alquiler de autos", category: "Estacionamiento y transporte" },
+		// {
+		// 	id: "bike-rental",
+		// 	name: "Alquiler de bicicletas",
+		// 	category: "Estacionamiento y transporte",
+		// },
+		// {
+		// 	id: "boat-tours",
+		// 	name: "Excursiones náuticas",
+		// 	category: "Estacionamiento y transporte",
+		// },
 
-		// // --- Servicios generales ---
-		// { id: "24h-room-service", name: "Room service 24 h" },
-		// { id: "laundry", name: "Lavandería / Tintorería" },
-		// { id: "dryclean", name: "Tintorería" },
-		// { id: "daily-cleaning", name: "Limpieza diaria" },
-		// { id: "24h-reception", name: "Recepción 24 horas" },
-		// { id: "concierge", name: "Conserjería / Concierge" },
-		// { id: "business-center", name: "Business center" },
-		// { id: "meeting-rooms", name: "Salas de reuniones / eventos" },
-		// { id: "wedding", name: "Servicios para bodas / banquetes" },
-		// { id: "luggage", name: "Guardaequipaje" },
+		// // ─── Servicios generales ───────────────────────────────
+		// { id: "room-service", name: "Room service", category: "Servicios generales" },
+		// {
+		// 	id: "24h-room-service",
+		// 	name: "Room service 24 h",
+		// 	category: "Servicios generales",
+		// },
+		// { id: "laundry", name: "Lavandería", category: "Servicios generales" },
+		// { id: "dryclean", name: "Tintorería", category: "Servicios generales" },
+		// { id: "daily-cleaning", name: "Limpieza diaria", category: "Servicios generales" },
+		// {
+		// 	id: "24h-reception",
+		// 	name: "Recepción 24 horas",
+		// 	category: "Servicios generales",
+		// },
+		// { id: "concierge", name: "Concierge", category: "Servicios generales" },
+		// {
+		// 	id: "business-center",
+		// 	name: "Centro de negocios",
+		// 	category: "Servicios generales",
+		// },
+		// {
+		// 	id: "meeting-rooms",
+		// 	name: "Salas de reuniones",
+		// 	category: "Servicios generales",
+		// },
+		// { id: "wedding", name: "Eventos y bodas", category: "Servicios generales" },
+		// { id: "luggage", name: "Guardaequipaje", category: "Servicios generales" },
 
-		// // --- Accesibilidad ---
-		// { id: "accessible", name: "Accesible / Adaptado para discapacitados" },
-		// { id: "elevator", name: "Ascensor" },
+		// // ─── Accesibilidad ─────────────────────────────────────
+		// {
+		// 	id: "accessible",
+		// 	name: "Accesible para personas con movilidad reducida",
+		// 	category: "Accesibilidad",
+		// },
+		// { id: "elevator", name: "Ascensor", category: "Accesibilidad" },
 
-		// // --- Familias y niños ---
-		// { id: "pet-friendly", name: "Pet-friendly (acepta mascotas)" },
-		// { id: "kids-club", name: "Club infantil / actividades para niños" },
-		// { id: "babysitting", name: "Cuidado de niños / Babysitting" },
-		// { id: "highchair", name: "Sillas altas para bebés" },
+		// // ─── Familias ──────────────────────────────────────────
+		// { id: "kids-club", name: "Club infantil", category: "Familias" },
+		// { id: "babysitting", name: "Servicio de niñera", category: "Familias" },
+		// {
+		// 	id: "highchair",
+		// 	name: "Sillas altas para bebés",
+		// 	category: "Familias",
+		// },
 
-		// // --- Habitaciones ---
-		// { id: "smoking-rooms", name: "Habitaciones para fumadores (si aplicable)" },
-		// { id: "nonsmoking", name: "Habitaciones no fumadores" },
-		// { id: "fridge", name: "Frigorífico / Mini-cocina" },
-		// { id: "inroom-safe", name: "Caja fuerte en habitación" },
-		// { id: "ironing", name: "Plancha / Tabla de planchar" },
-		// { id: "wakeup", name: "Servicio de despertador" },
+		// // ─── Mascotas ──────────────────────────────────────────
+		// { id: "pet-friendly", name: "Acepta mascotas", category: "Mascotas" },
 
-		// // --- Negocios y servicios financieros ---
-		// { id: "ATM", name: "Cajero automático (ATM)" },
-		// { id: "currency-exchange", name: "Cambio de divisas" },
-		// { id: "business-services", name: "Servicios empresariales (impresión, fax)" },
+		// // ─── Habitaciones ──────────────────────────────────────
+		// {
+		// 	id: "smoking-rooms",
+		// 	name: "Habitaciones para fumadores",
+		// 	category: "Habitación",
+		// },
+		// {
+		// 	id: "nonsmoking",
+		// 	name: "Habitaciones no fumadores",
+		// 	category: "Habitación",
+		// },
+		// { id: "fridge", name: "Frigorífico", category: "Habitación" },
+		// {
+		// 	id: "inroom-safe",
+		// 	name: "Caja fuerte en la habitación",
+		// 	category: "Habitación",
+		// },
+		// { id: "ironing", name: "Plancha", category: "Habitación" },
+		// { id: "wakeup", name: "Servicio despertador", category: "Habitación" },
 
-		// // --- Otros servicios ---
-		// { id: "tour-desk", name: "Recepción/venta de excursiones / Tour desk" },
-		// { id: "terrace", name: "Terraza / Jardín" },
-		// { id: "rooftop", name: "Rooftop / Azotea" },
-		// { id: "fireplace", name: "Chimenea / Sala con chimenea" },
-		// { id: "evoucher", name: "Ofertas / paquetes promocionales" },
-		// { id: "safety-railings", name: "Medidas de seguridad / primeros auxilios" },
+		// // ─── Negocios ──────────────────────────────────────────
+		// { id: "ATM", name: "Cajero automático", category: "Negocios" },
+		// {
+		// 	id: "currency-exchange",
+		// 	name: "Cambio de divisas",
+		// 	category: "Negocios",
+		// },
+		// {
+		// 	id: "business-services",
+		// 	name: "Servicios empresariales",
+		// 	category: "Negocios",
+		// },
+
+		// // ─── Otros / Exteriores ────────────────────────────────
+		// { id: "tour-desk", name: "Venta de excursiones", category: "Otros" },
+		// { id: "terrace", name: "Terraza", category: "Exteriores" },
+		// { id: "rooftop", name: "Rooftop", category: "Exteriores" },
+		// { id: "fireplace", name: "Chimenea", category: "Otros" },
+		// { id: "evoucher", name: "Ofertas y paquetes", category: "Otros" },
+		// {
+		// 	id: "safety-railings",
+		// 	name: "Medidas de seguridad",
+		// 	category: "Otros",
+		// },
 	]
 
 	// --- URL genérica para imágenes de prueba (Usa placehold.co) ---
@@ -753,152 +820,152 @@ export default async function seed() {
 		// 		maxOccupancy: 2,
 		// 		description: "Una cama doble o dos camas individuales; para dos personas.",
 		// 	},
-		// 	{
-		// 		id: "twin",
-		// 		name: "Habitación Twin",
-		// 		maxOccupancy: 2,
-		// 		description: "Dos camas individuales separadas; perfecta para amigos o compañeros de viaje.",
-		// 	},
-		// 	{
-		// 		id: "triple",
-		// 		name: "Habitación Triple",
-		// 		maxOccupancy: 3,
-		// 		description: "Tres camas individuales o una doble más una individual; para tres huéspedes.",
-		// 	},
-		// 	{
-		// 		id: "quad",
-		// 		name: "Habitación Cuádruple",
-		// 		maxOccupancy: 4,
-		// 		description: "Cuatro camas individuales o dos camas dobles; ideal para familias o grupos.",
-		// 	},
-		// 	{
-		// 		id: "queen",
-		// 		name: "Habitación Queen",
-		// 		maxOccupancy: 2,
-		// 		description: "Una cama tamaño Queen; para dos personas con mayor comodidad.",
-		// 	},
-		// 	{
-		// 		id: "king",
-		// 		name: "Habitación King",
-		// 		maxOccupancy: 2,
-		// 		description: "Una cama tamaño King; para dos personas, espaciosa y lujosa.",
-		// 	},
-		// 	{
-		// 		id: "suite",
-		// 		name: "Suite",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Habitación amplia con zona de estar o sala; generalmente incluye servicios premium.",
-		// 	},
-		// 	{
-		// 		id: "junior_suite",
-		// 		name: "Junior Suite",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Espacio semi-dividido con cama y área de estar; más grande que una habitación estándar.",
-		// 	},
-		// 	{
-		// 		id: "family_suite",
-		// 		name: "Suite Familiar",
-		// 		maxOccupancy: 4,
-		// 		description: "Diseñada para familias, con varias camas o dormitorios conectados.",
-		// 	},
-		// 	{
-		// 		id: "studio",
-		// 		name: "Estudio",
-		// 		maxOccupancy: 2,
-		// 		description: "Habitación con área de cocina o kitchenette integrada.",
-		// 	},
-		// 	{
-		// 		id: "apartment",
-		// 		name: "Departamento / Apartamento",
-		// 		maxOccupancy: 4,
-		// 		description:
-		// 			"Unidad independiente con cocina, sala y dormitorio; ideal para estancias largas.",
-		// 	},
-		// 	{
-		// 		id: "villa",
-		// 		name: "Villa",
-		// 		maxOccupancy: 4,
-		// 		description:
-		// 			"Alojamiento independiente con varias habitaciones y áreas privadas, a menudo con piscina.",
-		// 	},
-		// 	{
-		// 		id: "bungalow",
-		// 		name: "Bungalow",
-		// 		maxOccupancy: 3,
-		// 		description: "Unidad privada de un solo piso, usualmente rodeada de jardines o playa.",
-		// 	},
-		// 	{
-		// 		id: "penthouse",
-		// 		name: "Penthouse",
-		// 		maxOccupancy: 2,
-		// 		description: "Suite ubicada en el último piso con terraza o vistas panorámicas.",
-		// 	},
-		// 	{
-		// 		id: "duplex",
-		// 		name: "Dúplex",
-		// 		maxOccupancy: 4,
-		// 		description: "Habitación o suite de dos niveles conectados por una escalera interna.",
-		// 	},
-		// 	{
-		// 		id: "connecting",
-		// 		name: "Habitaciones Conectadas",
-		// 		maxOccupancy: 4,
-		// 		description: "Dos habitaciones unidas por una puerta interior; ideal para familias o grupos.",
-		// 	},
-		// 	{
-		// 		id: "accessible",
-		// 		name: "Habitación Accesible",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Diseñada para huéspedes con movilidad reducida; acceso adaptado y baño accesible.",
-		// 	},
-		// 	{
-		// 		id: "deluxe",
-		// 		name: "Habitación Deluxe",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Habitación superior con mejores vistas, mobiliario o ubicación dentro del hotel.",
-		// 	},
-		// 	{
-		// 		id: "executive",
-		// 		name: "Habitación Ejecutiva",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Orientada a viajeros de negocios; incluye escritorio, sala o beneficios adicionales.",
-		// 	},
-		// 	{
-		// 		id: "presidential_suite",
-		// 		name: "Suite Presidencial",
-		// 		maxOccupancy: 2,
-		// 		description: "La suite más lujosa del hotel, con amplios espacios y servicios exclusivos.",
-		// 	},
-		// 	{
-		// 		id: "loft",
-		// 		name: "Loft",
-		// 		maxOccupancy: 2,
-		// 		description: "Espacio de planta abierta con techos altos; moderno y espacioso.",
-		// 	},
-		// 	{
-		// 		id: "cabana",
-		// 		name: "Cabaña / Cabana",
-		// 		maxOccupancy: 2,
-		// 		description:
-		// 			"Unidad junto a la piscina o playa, generalmente privada y con servicios propios.",
-		// 	},
-		// 	{
-		// 		id: "tent",
-		// 		name: "Tienda / Glamping",
-		// 		maxOccupancy: 2,
-		// 		description: "Alojamiento tipo tienda de lujo o glamping, combinando naturaleza y confort.",
-		// 	},
-		// 	{
-		// 		id: "dormitory",
-		// 		name: "Dormitorio Compartido",
-		// 		maxOccupancy: 1,
-		// 		description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
-		// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "twin",
+		// 	// 	// 		name: "Habitación Twin",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Dos camas individuales separadas; perfecta para amigos o compañeros de viaje.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "triple",
+		// 	// 	// 		name: "Habitación Triple",
+		// 	// 	// 		maxOccupancy: 3,
+		// 	// 	// 		description: "Tres camas individuales o una doble más una individual; para tres huéspedes.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "quad",
+		// 	// 	// 		name: "Habitación Cuádruple",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description: "Cuatro camas individuales o dos camas dobles; ideal para familias o grupos.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "queen",
+		// 	// 	// 		name: "Habitación Queen",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Una cama tamaño Queen; para dos personas con mayor comodidad.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "king",
+		// 	// 	// 		name: "Habitación King",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Una cama tamaño King; para dos personas, espaciosa y lujosa.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "suite",
+		// 	// 	// 		name: "Suite",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Habitación amplia con zona de estar o sala; generalmente incluye servicios premium.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "junior_suite",
+		// 	// 	// 		name: "Junior Suite",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Espacio semi-dividido con cama y área de estar; más grande que una habitación estándar.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "family_suite",
+		// 	// 	// 		name: "Suite Familiar",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description: "Diseñada para familias, con varias camas o dormitorios conectados.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "studio",
+		// 	// 	// 		name: "Estudio",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Habitación con área de cocina o kitchenette integrada.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "apartment",
+		// 	// 	// 		name: "Departamento / Apartamento",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description:
+		// 	// 	// 			"Unidad independiente con cocina, sala y dormitorio; ideal para estancias largas.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "villa",
+		// 	// 	// 		name: "Villa",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description:
+		// 	// 	// 			"Alojamiento independiente con varias habitaciones y áreas privadas, a menudo con piscina.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "bungalow",
+		// 	// 	// 		name: "Bungalow",
+		// 	// 	// 		maxOccupancy: 3,
+		// 	// 	// 		description: "Unidad privada de un solo piso, usualmente rodeada de jardines o playa.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "penthouse",
+		// 	// 	// 		name: "Penthouse",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Suite ubicada en el último piso con terraza o vistas panorámicas.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "duplex",
+		// 	// 	// 		name: "Dúplex",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description: "Habitación o suite de dos niveles conectados por una escalera interna.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "connecting",
+		// 	// 	// 		name: "Habitaciones Conectadas",
+		// 	// 	// 		maxOccupancy: 4,
+		// 	// 	// 		description: "Dos habitaciones unidas por una puerta interior; ideal para familias o grupos.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "accessible",
+		// 	// 	// 		name: "Habitación Accesible",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Diseñada para huéspedes con movilidad reducida; acceso adaptado y baño accesible.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "deluxe",
+		// 	// 	// 		name: "Habitación Deluxe",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Habitación superior con mejores vistas, mobiliario o ubicación dentro del hotel.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "executive",
+		// 	// 	// 		name: "Habitación Ejecutiva",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Orientada a viajeros de negocios; incluye escritorio, sala o beneficios adicionales.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "presidential_suite",
+		// 	// 	// 		name: "Suite Presidencial",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "La suite más lujosa del hotel, con amplios espacios y servicios exclusivos.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "loft",
+		// 	// 	// 		name: "Loft",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Espacio de planta abierta con techos altos; moderno y espacioso.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "cabana",
+		// 	// 	// 		name: "Cabaña / Cabana",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description:
+		// 	// 	// 			"Unidad junto a la piscina o playa, generalmente privada y con servicios propios.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "tent",
+		// 	// 	// 		name: "Tienda / Glamping",
+		// 	// 	// 		maxOccupancy: 2,
+		// 	// 	// 		description: "Alojamiento tipo tienda de lujo o glamping, combinando naturaleza y confort.",
+		// 	// 	// 	},
+		// 	// 	// 	{
+		// 	// 	// 		id: "dormitory",
+		// 	// 	// 		name: "Dormitorio Compartido",
+		// 	// 	// 		maxOccupancy: 1,
+		// 	// 	// 		description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
+		// 	// 	// 	},
 	])
 
 	await db.insert(AmenityRoom).values([
@@ -910,6 +977,14 @@ export default async function seed() {
 		{ id: "iron", name: "Plancha para ropa", category: "Confort" },
 		{ id: "closet", name: "Armario o clóset", category: "Confort" },
 		{ id: "mosquito_net", name: "Mosquitero", category: "Confort" },
+
+		{ id: "private_bathroom", name: "Baño privado", category: "Baño" },
+		{ id: "shared_bathroom", name: "Baño compartido", category: "Baño" },
+		{ id: "shower", name: "Ducha", category: "Baño" },
+
+		{ id: "kitchenette", name: "Cocina pequeña", category: "Cocina" },
+		{ id: "full_kitchen", name: "Cocina completa", category: "Cocina" },
+		{ id: "refrigerator", name: "Refrigerador", category: "Cocina" },
 	])
 
 	console.log("¡Siembra de datos completada exitosamente!")

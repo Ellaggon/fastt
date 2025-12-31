@@ -69,8 +69,9 @@ const AmenityRoom = defineTable({
 
 const Service = defineTable({
 	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text({ unique: true }),
+		id: column.text({ primaryKey: true }), // "internet", "parking"
+		name: column.text(),
+		category: column.text(), // "Internet", "Estacionamiento"
 	},
 })
 
@@ -143,12 +144,31 @@ const Package = defineTable({
 })
 
 const ProductService = defineTable({
-	// Junction table for Product-Service (Many-to-Many)
 	columns: {
+		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
 		serviceId: column.text({ references: () => Service.columns.id }),
-		isAvailable: column.boolean({ default: true }),
-		isFree: column.boolean({ default: false }),
+
+		// ─── Inclusión / pago ───────────────────
+		isIncluded: column.boolean({ default: false }),
+		isPaid: column.boolean({ default: false }),
+		price: column.number({ optional: true }),
+		priceUnit: column.text({ optional: true }), // "night" | "stay" | "person"
+		currency: column.text({ optional: true }), // "USD"
+
+		// ─── Alcance ────────────────────────────
+		appliesTo: column.text({ default: "both" }), // "room" | "common" | "both"
+		// ─── Texto OTA ──────────────────────────
+		customText: column.text({ optional: true }),
+	},
+})
+
+const ProductServiceAttribute = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productServiceId: column.text({ references: () => ProductService.columns.id }),
+		key: column.text(), // "location", "type"
+		value: column.text(), // "room", "free", "wifi", "12"
 	},
 })
 
@@ -276,8 +296,25 @@ const Booking = defineTable({
 		numChildren: column.number({ default: 0 }),
 		totalAmountUSD: column.number({ optional: true }),
 		totalAmountBOB: column.number({ optional: true }),
-		status: column.text({ default: "Pending" }), // e.g., 'Pending', 'Confirmed', 'Cancelled'
+		status: column.text({ default: "draft" }), // e.g., "draft"(recién creado) | "locked"(inventario bloqueado) | "confirmed"(pago OK) | "cancelled" | "expired"(lock vencido)
 		notes: column.text({ optional: true }),
+		currency: column.text({ optional: true }), // "USD" | "BOB"
+		source: column.text({ default: "web" }),
+		confirmedAt: column.date({ optional: true }),
+	},
+})
+
+const InventoryLock = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text({ references: () => Booking.columns.id }),
+		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
+		checkInDate: column.date(),
+		checkOutDate: column.date(),
+		quantity: column.number(),
+		status: column.text({ default: "locked" }), // locked | confirmed | released
+		createdAt: column.date({ default: NOW }),
+		expiresAt: column.date(), // para liberar locks abandonados
 	},
 })
 
@@ -285,7 +322,6 @@ const TaxFee = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		name: column.text(),
 		type: column.text({ default: "percentage" }), // 'percentage'|'fixed'|'perPerson'|'perNight'|'perBooking'
 		value: column.number(), // 13 => 13% si type=percentage, o 50 (moneda) si fixed
 		currency: column.text({ default: "USD" }),
@@ -299,6 +335,9 @@ const BookingTaxFee = defineTable({
 	/* --- Tax/fee cobrado en booking (registro de qué se cobró) --- */
 	columns: {
 		id: column.text({ primaryKey: true }),
+		name: column.text(),
+		type: column.text(), // percentage | fixed | perNight | perPerson
+		isIncluded: column.boolean(),
 		bookingId: column.text({ references: () => Booking.columns.id }),
 		taxFeeId: column.text({ references: () => TaxFee.columns.id }),
 		amountUSD: column.number({ optional: true }),
@@ -312,26 +351,15 @@ const Payment = defineTable({
 	/* --- Pagos / Reembolsos / Payouts --- */
 	columns: {
 		id: column.text({ primaryKey: true }),
+		type: column.text(), // payment | refund | adjustment
 		bookingId: column.text({ references: () => Booking.columns.id }),
-		amountUSD: column.number(),
-		currency: column.text({ default: "USD" }),
+		amount: column.number(),
+		currency: column.text(),
 		paymentDate: column.date({ default: NOW }),
 		paymentMethod: column.text(),
 		status: column.text({ default: "Completed" }),
 		processor: column.text({ optional: true }),
 		transactionId: column.text({ optional: true }),
-	},
-})
-
-const Refund = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		bookingId: column.text({ references: () => Booking.columns.id }),
-		policyId: column.text({ references: () => Policy.columns.id, optional: true }),
-		amountUSD: column.number(),
-		reason: column.text({ optional: true }),
-		refundDate: column.date({ default: NOW }),
-		status: column.text({ default: "Pending" }),
 	},
 })
 
@@ -374,8 +402,19 @@ const BookingRoomDetail = defineTable({
 		quantity: column.number(),
 		unitPriceUSD: column.number({ optional: true }),
 		unitPriceBOB: column.number({ optional: true }),
+		totalPriceUSD: column.number({ optional: true }),
+		totalPriceBOB: column.number({ optional: true }),
+		currency: column.text(),
 	},
 	// Composite primary key (bookingId, roomTypeId) would be ideal here too.
+})
+
+const ProviderPayoutBooking = defineTable({
+	columns: {
+		payoutId: column.text({ references: () => ProviderPayout.columns.id }),
+		bookingId: column.text({ references: () => Booking.columns.id }),
+		amountUSD: column.number(),
+	},
 })
 
 export default defineDb({
@@ -399,6 +438,7 @@ export default defineDb({
 		Package, // Depende de Product
 		Policy, // Depende de Product
 		ProductService, // Depende de Product, Service
+		ProductServiceAttribute,
 		TaxFee, // Depende de Product
 
 		// --- 4. Tablas de detalle de Hotel/Habitaciones (Profundo) ---
@@ -412,15 +452,16 @@ export default defineDb({
 
 		// --- 6. Tablas de Booking/Transacciones (Nivel 1) ---
 		Booking, // Depende de User, Product
+		InventoryLock,
 		ProviderPayout, // Depende de Provider
 
 		// --- 7. Tablas de Pagos y Detalles (Nivel 2) ---
 		BookingTaxFee, // Depende de Booking, TaxFee
 		Payment, // Depende de Booking
-		Refund, // Depende de Booking, Policy
 
 		// --- 8. Tablas de Enlace Final y Traducción ---
 		Translation,
 		BookingRoomDetail, // Depende de Booking, HotelRoomType, RatePlan (DEBE IR AL FINAL)
+		ProviderPayoutBooking,
 	},
 })
