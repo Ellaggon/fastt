@@ -1,0 +1,75 @@
+---
+const { productId, searchState } = Astro.props
+---
+
+<div id="availability-root">
+	<p class="mb-4 text-sm text-neutral-500">Selecciona fechas para ver disponibilidad</p>
+
+	<div id="rooms"></div>
+	<div id="availability-root"></div>
+
+	<div
+		id="room-modal"
+		class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-6"
+	>
+		<div class="w-full max-w-md rounded-lg bg-white p-4">
+			<h3 id="modal-room-name" class="text-lg font-semibold"></h3>
+
+			<p id="modal-price" class="mt-2 text-sm text-neutral-700"></p>
+
+			<div class="mt-4 flex justify-end gap-3">
+				<button id="close-modal" class="rounded border px-3 py-2 text-sm"> Cerrar </button>
+
+				<button id="reserve-btn" class="rounded bg-blue-600 px-4 py-2 text-sm text-white">
+					Reservar
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script
+	type="module"
+	define:vars={{
+		PRODUCT_ID: productId,
+		CHECK_IN: searchState.checkIn,
+		CHECK_OUT: searchState.checkOut,
+		ADULTS: searchState.adults,
+		CHILDREN: searchState.children,
+	}}
+>
+	let availabilityResult = null
+
+	async function loadAvailability() {
+		try {
+			const res = await fetch("/api/search", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					productId: PRODUCT_ID,
+					checkIn: CHECK_IN,
+					checkOut: CHECK_OUT,
+					adults: ADULTS,
+					children: CHILDREN,
+					currency: "USD",
+				}),
+			})
+
+			if (!res.ok) throw new Error("Availability fetch failed")
+
+			availabilityResult = await res.json()
+
+			document.dispatchEvent(
+				new CustomEvent("availability:updated", {
+					detail: availabilityResult,
+				})
+			)
+		} catch (err) {
+			console.error("Availability error", err)
+		}
+	}
+
+	document.getElementById("searchBtn")?.addEventListener("click", loadAvailability())
+
+	loadAvailability()
+</script>
