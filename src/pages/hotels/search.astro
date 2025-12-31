@@ -9,7 +9,6 @@ type ProductResult = {
 	description: string | null
 	address: string | null
 	stars: number | null
-	isActive: boolean | null
 	imageUrl: string | null
 	services: string | null
 }
@@ -66,7 +65,6 @@ try {
 			description: Product.description,
 			address: Hotel.address,
 			stars: Hotel.stars,
-			isActive: Product.isActive,
 			services: sql<string>`(
 				SELECT json_group_array(
 					json_object(
@@ -107,21 +105,18 @@ console.log("hotels: ", hotels)
 			<div class="mt-7 grid grid-cols-1 gap-3">
 				{
 					hotels.length > 0 ? (
-						hotels.map(
-							(h) =>
-								h.isActive && (
-									<ProductCard
-										name={h.name}
-										href={`/hotels/${h.id}`}
-										image={h.imageUrl || "https://picsum.photos/400/250"}
-										alt={h.name}
-										stars={h.stars || 0}
-										address={h.address || "Dirección no disponible"}
-										description={h.description || ""}
-										services={h.services ? JSON.parse(h.services) : []}
-									/>
-								)
-						)
+						hotels.map((h) => (
+							<ProductCard
+								name={h.name}
+								href={`/hotels/${h.id}${Astro.url.search}`}
+								image={h.imageUrl || "https://picsum.photos/400/250"}
+								alt={h.name}
+								stars={h.stars || 0}
+								address={h.address || "Dirección no disponible"}
+								description={h.description || ""}
+								services={h.services ? JSON.parse(h.services) : []}
+							/>
+						))
 					) : (
 						<p class="col-span-full text-center text-gray-500">No se encontraron hoteles.</p>
 					)
