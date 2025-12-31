@@ -6,7 +6,17 @@ const variantId = Astro.params.variantId
 if (!variantId) throw new Error("variantId is required")
 
 const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
-const policies = await db.select().from(Policy).all()
+const policies = await db.select().from(Policy).where(eq(Policy.policyType, "Cancellation")).all()
+
+const WEEK_DAYS = [
+	{ label: "Lunes", value: 1 },
+	{ label: "Martes", value: 2 },
+	{ label: "Miércoles", value: 3 },
+	{ label: "Jueves", value: 4 },
+	{ label: "Viernes", value: 5 },
+	{ label: "Sábado", value: 6 },
+	{ label: "Domingo", value: 0 },
+]
 ---
 
 <Layout title="Crear Rate Plan">
@@ -15,82 +25,148 @@ const policies = await db.select().from(Policy).all()
 			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
 			<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">CREAR PLAN TARIFARIO</h1>
+			<div id="errorBanner" class="mb-4 hidden rounded-lg bg-red-100 p-3 text-sm text-red-700">
+				<span id="errorMsg"></span>
+			</div>
 			<p class="hidden text-xs text-neutral-500 md:block">
 				Completa toda la información del plan tarifario.
 			</p>
 
 			<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{variant?.name}</p>
 
-			<form id="rpForm" class="mt-6 flex flex-col gap-10">
+			<form id="rpForm" class="mt-6 flex flex-col gap-10 space-y-10">
 				<div class="space-y-3">
-					<h2 class="text-center font-semibold text-neutral-700">Información General</h2>
+					<h2 class="font-semibold text-neutral-700 md:text-center">Información General</h2>
 
 					<label class="flex flex-col text-sm">
-						<span class="text-neutral-500">Nombre</span>
-						<input name="name" required class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
+						<span class="font-medium text-neutral-500">Nombre</span>
+						<input
+							name="name"
+							required
+							placeholder="Ej: Tarifa No Reembolsable 10% OFF"
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+						/>
 					</label>
 
 					<label class="flex flex-col text-sm">
-						<span class="text-neutral-500">Descripción</span>
-						<textarea name="description" class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
-						></textarea>
+						<span class="font-medium text-neutral-500">Descripción</span>
+						<textarea
+							name="description"
+							placeholder="Ej: Descuento especial para reservas prepagadas. No permite cancelaciones."
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2"></textarea>
 					</label>
+				</div>
 
-					<label class="flex flex-col text-sm">
-						<span class="text-neutral-500">Tipo</span>
-						<select id="rateType" name="type" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
-							<option value="modifier">Modificar precio</option>
-							<option value="fixed">Precio fijo</option>
-							<option value="package">Paquete / Incluye extras</option>
-							<option value="percentage">Porcentaje de descuento (%)</option>
-						</select>
-					</label>
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-2">
+						<h2 class="font-semibold text-neutral-700">Método de Pago</h2>
+
+						<label class="flex flex-col text-sm">
+							<select name="paymentType" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+								<option value="Prepaid">Pago anticipado</option>
+								<option value="PayAtProperty">Pago en el alojamiento</option>
+								<option value="PartialPrepaid">Pago parcial</option>
+							</select>
+						</label>
+
+						<p class="mt-1 text-xs text-neutral-500">
+							Define cómo paga el huésped. Algunos canales requieren pago anticipado para
+							descuentos.
+						</p>
+					</div>
+					<div class="space-y-2">
+						<h2 class="font-semibold text-neutral-700">Política de Cancelación</h2>
+						<label class="flex flex-col text-sm">
+							<select name="cancellationPolicyId" class="mt-1 rounded-md bg-neutral-100 px-3 py-2">
+								<option value="">Sin política</option>
+
+								{policies.map((p) => <option value={p.id}>{p.description}</option>)}
+							</select>
+						</label>
+						<p class="mt-1 text-xs text-neutral-500">
+							Define cómo se maneja la cancelación para este plan. Las políticas se administran en
+							la sección de <a
+								target="_blank"
+								href={`/products/${variant?.productId}/policiesEditor`}
+								class="border-b border-neutral-900 text-neutral-900 hover:border-blue-500 hover:text-blue-500"
+								>Políticas</a
+							>.
+						</p>
+						<label class="flex items-center gap-3 text-sm">
+							<input type="checkbox" name="refundable" checked class="h-4 w-4 accent-blue-600" />
+							Plan Reembolsable
+						</label>
+					</div>
 				</div>
 
 				<div class="space-y-3">
 					<h2 class="font-semibold text-neutral-700">Precios</h2>
 
-					<label class="relative flex flex-col text-sm">
-						<span class="text-neutral-500">Valor USD</span>
-
-						<div class="relative">
-							<input
-								type="number"
-								id="valueUSD"
-								name="valueUSD"
-								value="0"
-								class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8"
-							/>
-
-							<span
-								id="usdPercentIcon"
-								class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
+					<div class="grid gap-10 md:grid-cols-2">
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Tipo de precio</span>
+							<select
+								id="rateType"
+								name="type"
+								class="typeSelect mt-1 rounded-md bg-neutral-100 px-3 py-2 transition"
 							>
-								%
-							</span>
+								<option value="modifier">Ajuste al precio (sumar o restar)</option>
+								<option value="fixed">Precio fijo (reemplaza el precio base)</option>
+								<option value="package">Paquete con beneficios</option>
+								<option value="percentage">Descuento porcentual (%)</option>
+							</select>
+							<p class="mt-3 text-xs text-neutral-500">
+								Selecciona cómo quieres que este plan afecte el precio final.
+							</p>
+						</label>
+
+						<div class="grid grid-cols-2 gap-3">
+							<label class="relative flex flex-col text-sm">
+								<span class="font-medium text-neutral-500">Valor en USD</span>
+
+								<div class="relative">
+									<input
+										type="number"
+										id="valueUSD"
+										name="valueUSD"
+										value="0"
+										placeholder="Ej: 10 / -5 / 15"
+										disabled={!variant?.basePriceUSD}
+										class={`mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8 ${
+											!variant?.basePriceUSD ? "opacity-50 cursor-not-allowed" : ""
+										}`}
+									/>
+									<span
+										id="usdPercentIcon"
+										class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
+										>%</span
+									>
+								</div>
+							</label>
+							<label class="relative flex flex-col text-sm">
+								<span class="font-medium text-neutral-500">Valor en BOB</span>
+
+								<div class="relative">
+									<input
+										type="number"
+										id="valueBOB"
+										name="valueBOB"
+										value="0"
+										placeholder="Ej: 70 / -20 / 10"
+										disabled={!variant?.basePriceBOB}
+										class={`mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8 ${
+											!variant?.basePriceBOB ? "opacity-50 cursor-not-allowed" : ""
+										}`}
+									/>
+									<span
+										id="bobPercentIcon"
+										class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
+										>%</span
+									>
+								</div>
+							</label>
 						</div>
-					</label>
-
-					<label class="relative flex flex-col text-sm">
-						<span class="text-neutral-500">Valor BOB</span>
-
-						<div class="relative">
-							<input
-								type="number"
-								id="valueBOB"
-								name="valueBOB"
-								value="0"
-								class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8"
-							/>
-
-							<span
-								id="bobPercentIcon"
-								class="absolute right-3 top-1/2 hidden -translate-y-1/2 font-semibold text-neutral-500"
-							>
-								%
-							</span>
-						</div>
-					</label>
+					</div>
 				</div>
 
 				<div class="grid gap-10 md:grid-cols-2">
@@ -98,7 +174,7 @@ const policies = await db.select().from(Policy).all()
 						<h2 class="font-semibold text-neutral-700">Restricciones de Estancia</h2>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Noches mínimas</span>
+							<span class="font-medium text-neutral-500">Noches mínimas</span>
 							<input
 								type="number"
 								name="minNights"
@@ -108,7 +184,7 @@ const policies = await db.select().from(Policy).all()
 						</label>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Noches máximas</span>
+							<span class="font-medium text-neutral-500">Noches máximas</span>
 							<input
 								type="number"
 								name="maxNights"
@@ -122,7 +198,7 @@ const policies = await db.select().from(Policy).all()
 						<h2 class="font-semibold text-neutral-700">Anticipación</h2>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Mínimo días de anticipación</span>
+							<span class="font-medium text-neutral-500">Mínimo días de anticipación</span>
 							<input
 								type="number"
 								name="minAdvanceDays"
@@ -132,7 +208,7 @@ const policies = await db.select().from(Policy).all()
 						</label>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Máximo días de anticipación</span>
+							<span class="font-medium text-neutral-500">Máximo días de anticipación</span>
 							<input
 								type="number"
 								name="maxAdvanceDays"
@@ -149,14 +225,12 @@ const policies = await db.select().from(Policy).all()
 
 						<div class="grid grid-cols-2 gap-2 text-sm">
 							{
-								["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map(
-									(d) => (
-										<label class="flex items-center gap-2">
-											<input type="checkbox" name="validDays" value={d} />
-											{d}
-										</label>
-									)
-								)
+								WEEK_DAYS.map(({ label, value }) => (
+									<label class="flex items-center gap-2">
+										<input type="checkbox" name="validDays" value={value} />
+										{label}
+									</label>
+								))
 							}
 						</div>
 					</div>
@@ -165,7 +239,7 @@ const policies = await db.select().from(Policy).all()
 						<h2 class="font-semibold text-neutral-700">Rango de Fechas</h2>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Fecha Inicio</span>
+							<span class="font-medium text-neutral-500">Fecha Inicio</span>
 							<input
 								type="date"
 								name="startDate"
@@ -174,7 +248,7 @@ const policies = await db.select().from(Policy).all()
 						</label>
 
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-500">Fecha Fin</span>
+							<span class="font-medium text-neutral-500">Fecha Fin</span>
 							<input type="date" name="endDate" class="mt-1 rounded-md bg-neutral-100 px-3 py-2" />
 						</label>
 					</div>
@@ -200,6 +274,8 @@ const policies = await db.select().from(Policy).all()
 
 				const usdIcon = document.getElementById("usdPercentIcon")
 				const bobIcon = document.getElementById("bobPercentIcon")
+				const valueUSD = document.getElementById("valueUSD") as HTMLInputElement
+				const valueBOB = document.getElementById("valueBOB") as HTMLInputElement
 
 				const handleTypeChange = () => {
 					const isPercentage = type?.value === "percentage"
@@ -211,52 +287,173 @@ const policies = await db.select().from(Policy).all()
 						usdIcon?.classList.add("hidden")
 						bobIcon?.classList.add("hidden")
 					}
+
+					if (isPercentage) {
+						valueUSD.placeholder = "Ej: 10 = 10% off"
+						valueBOB.placeholder = "Ej: 10 = 10% off"
+						valueUSD.min = "0"
+						valueBOB.min = "0"
+					} else {
+						valueUSD.placeholder = "Ej: 10 / -5"
+						valueBOB.placeholder = "Ej: 10 / -5"
+						valueUSD.removeAttribute("min")
+						valueBOB.removeAttribute("min")
+					}
 				}
 
 				type.addEventListener("change", handleTypeChange)
 				handleTypeChange()
 			})
 		</script>
+		<script>
+			document.addEventListener("DOMContentLoaded", () => {
+				const select = document.querySelector(".typeSelect") as HTMLSelectElement
+
+				function updateStyle() {
+					select?.classList.remove("bg-blue-100", "bg-green-100", "bg-yellow-100", "bg-purple-100")
+
+					switch (select?.value) {
+						case "modifier":
+							select.classList.add("bg-blue-100")
+							break
+						case "fixed":
+							select.classList.add("bg-green-100")
+							break
+						case "package":
+							select.classList.add("bg-yellow-100")
+							break
+						case "percentage":
+							select.classList.add("bg-purple-100")
+							break
+					}
+				}
+
+				select?.addEventListener("change", updateStyle)
+
+				updateStyle()
+			})
+		</script>
+		<script type="module">
+			document.addEventListener("DOMContentLoaded", () => {
+				const type = document.getElementById("rateType")
+				const valueUSD = document.getElementById("valueUSD")
+				const valueBOB = document.getElementById("valueBOB")
+				const usdIcon = document.getElementById("usdPercentIcon")
+				const bobIcon = document.getElementById("bobPercentIcon")
+
+				const helperText = document.createElement("p")
+				helperText.className = "col-span-2 text-xs text-neutral-500"
+				helperText.id = "priceHelper"
+				const helperContainer = valueBOB?.closest(".grid")
+				helperContainer.appendChild(helperText)
+
+				function applyUX() {
+					const t = type.value
+					const hasUSD = !!valueUSD && !valueUSD.disabled
+					const hasBOB = !!valueBOB && !valueBOB.disabled
+
+					// RESET
+					valueUSD.parentElement.parentElement.classList.remove("hidden")
+					valueBOB.parentElement.parentElement.classList.remove("hidden")
+					usdIcon.classList.add("hidden")
+					bobIcon.classList.add("hidden")
+					valueUSD.removeAttribute("min")
+					valueBOB.removeAttribute("min")
+
+					// --- TYPE RULES ---
+					if (t === "package") {
+						// No requiere valores
+						valueUSD.parentElement.parentElement.classList.add("hidden")
+						valueBOB.parentElement.parentElement.classList.add("hidden")
+						helperText.classList.add("flex", "items-center")
+						helperText.textContent = "Este plan no modifica el precio; forma parte de un paquete."
+						return
+					}
+
+					if (t === "fixed") {
+						// SOLO UNA moneda según disponibilidad
+						if (hasUSD && !hasBOB) {
+							valueBOB.parentElement.parentElement.classList.add("hidden")
+						}
+						if (hasBOB && !hasUSD) {
+							valueUSD.parentElement.parentElement.classList.add("hidden")
+						}
+						helperText.textContent = "Este valor reemplazará completamente el precio base."
+						return
+					}
+
+					if (t === "percentage") {
+						usdIcon.classList.remove("hidden")
+						bobIcon.classList.remove("hidden")
+						valueUSD.placeholder = "Ej: 15 = 15% off"
+						valueBOB.placeholder = "Ej: 15 = 15% off"
+						valueUSD.min = "0"
+						valueBOB.min = "0"
+						helperText.textContent =
+							"Este valor será un porcentaje de descuento aplicado al precio final."
+						return
+					}
+
+					// modifier
+					valueUSD.placeholder = "Ej: 10 / -5"
+					valueBOB.placeholder = "Ej: 10 / -5"
+					helperText.textContent = "Suma o resta al precio base. Puedes usar valores negativos."
+				}
+
+				type.addEventListener("change", applyUX)
+				applyUX()
+			})
+		</script>
 		<script type="module" define:vars={{ VARIANT_ID: variantId }}>
 			const form = document.getElementById("rpForm")
+			const errorBanner = document.getElementById("errorBanner")
+			const errorMsg = document.getElementById("errorMsg")
+
+			function showError(msg) {
+				errorMsg.textContent = msg
+				errorBanner.classList.remove("hidden")
+				window.scrollTo({ top: 0, behavior: "smooth" })
+			}
 
 			form.addEventListener("submit", async (e) => {
 				e.preventDefault()
 				const fd = new FormData(form)
-
-				const validDays = fd.getAll("validDays")
+				const validDays = fd.getAll("validDays").map(Number)
 
 				const body = {
 					variantId: VARIANT_ID,
 					name: fd.get("name"),
 					description: fd.get("description") || null,
-
 					type: fd.get("type"),
 					valueUSD: Number(fd.get("valueUSD")),
 					valueBOB: Number(fd.get("valueBOB")),
-
 					refundable: fd.get("refundable") === "on",
 					cancellationPolicyId: fd.get("cancellationPolicyId") || null,
 					paymentType: fd.get("paymentType"),
-
 					minNights: Number(fd.get("minNights")),
 					maxNights: fd.get("maxNights") ? Number(fd.get("maxNights")) : null,
-
 					minAdvanceDays: Number(fd.get("minAdvanceDays")),
 					maxAdvanceDays: fd.get("maxAdvanceDays") ? Number(fd.get("maxAdvanceDays")) : null,
-
 					validDays: validDays.length ? validDays : null,
 					startDate: fd.get("startDate") || null,
 					endDate: fd.get("endDate") || null,
-
 					isActive: fd.get("isActive") === "on",
 				}
 
-				await fetch("/api/rateplans/create", {
+				const res = await fetch("/api/rateplans/create", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(body),
 				})
+				if (!res.ok) {
+					let msg = "Error al crear plan tarifario"
+					try {
+						const data = await res.json()
+						if (data.error) msg = data.error
+					} catch {}
+					showError(msg)
+					return
+				}
 
 				window.location.href = `/rate-plans/${VARIANT_ID}`
 			})

@@ -1,77 +1,273 @@
 ---
 import Layout from "@/layouts/Layout.astro"
-import { db, eq, RatePlan } from "astro:db"
+import { db, eq, Policy, RatePlan } from "astro:db"
 
 const variantId = Astro.params.variantId
 const id = Astro.url.searchParams.get("id")
 if (!id) throw new Error("id is required")
 
 const rateplan = await db.select().from(RatePlan).where(eq(RatePlan.id, id)).get()
+if (!rateplan) throw new Error("Rate plan not found")
+
+const policies = await db.select().from(Policy).where(eq(Policy.policyType, "Cancellation")).all()
+
+const WEEK_DAYS = [
+	{ label: "Lunes", value: 1 },
+	{ label: "Martes", value: 2 },
+	{ label: "Miércoles", value: 3 },
+	{ label: "Jueves", value: 4 },
+	{ label: "Viernes", value: 5 },
+	{ label: "Sábado", value: 6 },
+	{ label: "Domingo", value: 0 },
+]
 ---
 
 <Layout title="Editar Rate Plan">
 	<section class="h-full w-full pt-10 md:pt-16">
 		<article
-			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:w-[80%] md:max-w-lg lg:max-w-2xl lg:p-20"
+			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 shadow-lg md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
-			<h1 class="text-xl font-semibold md:mb-2 md:text-3xl">EDITAR RATE PLAN</h1>
-			<p class="hidden text-xs text-neutral-500 md:block">
-				Modifica la información del plan tarifario seleccionado.
-			</p>
-			<small class="text-xs text-neutral-500 md:hidden"> Modifica la información del plan </small>
+			<h1 class="text-2xl font-bold text-neutral-800">EDITAR PLAN TARIFARIO</h1>
 
-			<form id="editForm" class="mt-10 flex flex-col gap-4">
-				<!-- Nombre -->
-				<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-					Nombre del Plan
-					<input
-						type="text"
-						name="name"
-						value={rateplan?.name}
-						placeholder="Ej: No Reembolsable"
-						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-						required
-					/>
-				</label>
+			<div id="errorBanner" class="mt-4 hidden rounded-lg bg-red-100 p-3 text-sm text-red-700">
+				<span id="errorMsg"></span>
+			</div>
 
-				<!-- Valor USD -->
-				<label class="block text-xs font-medium text-neutral-500 md:text-sm">
-					Valor USD
-					<input
-						type="number"
-						name="valueUSD"
-						value={rateplan?.valueUSD}
-						class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					/>
-				</label>
+			<form id="editForm" class="mt-10 flex flex-col gap-10">
+				<div class="space-y-3">
+					<label class="flex flex-col text-sm">
+						<span class="font-medium text-neutral-600">Nombre</span>
+						<input
+							name="name"
+							value={rateplan.name}
+							required
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+						/>
+					</label>
 
-				<!-- Refundable -->
-				<label class="flex items-center gap-3 pt-2 text-sm font-medium text-neutral-700">
-					<input
-						type="checkbox"
-						name="refundable"
-						checked={rateplan?.refundable}
-						class="h-4 w-4 accent-blue-600"
-					/>
+					<label class="flex flex-col text-sm">
+						<span class="font-medium text-neutral-600">Descripción</span>
+						<textarea
+							name="description"
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							>{rateplan.description}</textarea
+						>
+					</label>
+				</div>
+
+				<div class="grid grid-cols-2 gap-10">
+					<label class="flex flex-col text-sm">
+						<span class="text-sm font-medium text-neutral-600">Método de Pago</span>
+						<select
+							name="paymentType"
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+						>
+							<option value="Prepaid" selected={rateplan.type === "prepaid"}>Pago anticipado</option
+							>
+							<option value="PayAtProperty" selected={rateplan.type === "payAtProperty"}
+								>Pago en el alojamiento</option
+							>
+							<option value="PartialPrepaid" selected={rateplan.type === "partialPrepaid"}
+								>Pago parcial</option
+							>
+						</select>
+					</label>
+					<label class="flex flex-col text-sm">
+						<span class="font-medium text-neutral-600">Política de cancelación</span>
+						<select
+							name="cancellationPolicyId"
+							class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+						>
+							<option value="">Sin política</option>
+							{
+								policies.map((p) => (
+									<option value={p.id} selected={p.id === rateplan.cancellationPolicyId}>
+										{p.description}
+									</option>
+								))
+							}
+						</select>
+					</label>
+				</div>
+
+				<div class="grid grid-cols-2 gap-10">
+					<label class="flex flex-col text-sm">
+						<span class="font-medium text-neutral-600">Tipo de precio</span>
+						<select
+							id="rateType"
+							name="type"
+							class="typeSelect mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+						>
+							<option value="modifier" selected={rateplan.type === "modifier"}>
+								Ajuste al precio
+							</option>
+							<option value="fixed" selected={rateplan.type === "fixed"}> Precio fijo </option>
+							<option value="package" selected={rateplan.type === "package"}> Paquete </option>
+							<option value="percentage" selected={rateplan.type === "percentage"}>
+								Descuento %
+							</option>
+						</select>
+					</label>
+					<div class="grid grid-cols-2 gap-3">
+						<label class="relative flex flex-col text-sm">
+							<span class="font-medium text-neutral-600">Valor USD</span>
+							<div class="relative">
+								<input
+									id="valueUSD"
+									name="valueUSD"
+									type="number"
+									value={rateplan.valueUSD}
+									class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8 text-neutral-500"
+								/>
+								<span
+									id="usdPercentIcon"
+									class="absolute right-3 top-1/2 hidden -translate-y-1/2 text-sm font-bold text-neutral-500"
+									>%</span
+								>
+							</div>
+						</label>
+
+						<label class="relative flex flex-col text-sm">
+							<span class="font-medium text-neutral-600">Valor BOB</span>
+							<div class="relative">
+								<input
+									id="valueBOB"
+									name="valueBOB"
+									type="number"
+									value={rateplan.valueBOB}
+									class="mt-1 w-full rounded-md bg-neutral-100 px-3 py-2 pr-8 text-neutral-500"
+								/>
+								<span
+									id="bobPercentIcon"
+									class="absolute right-3 top-1/2 hidden -translate-y-1/2 text-sm font-bold text-neutral-500"
+									>%</span
+								>
+							</div>
+						</label>
+						<p id="priceHelper" class="col-span-2 text-xs text-neutral-500"></p>
+					</div>
+				</div>
+
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Restricciones de Estancia</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Noches mínimas</span>
+							<input
+								type="number"
+								name="minNights"
+								value={rateplan.minNights ?? 1}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Noches máximas</span>
+							<input
+								type="number"
+								name="maxNights"
+								value={rateplan.maxNights ?? ""}
+								placeholder="Opcional"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+					</div>
+
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Anticipación</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Mínimo días de anticipación</span>
+							<input
+								type="number"
+								name="minAdvanceDays"
+								value={rateplan.minAdvanceDays ?? 0}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Máximo días de anticipación</span>
+							<input
+								type="number"
+								name="maxAdvanceDays"
+								value={rateplan.maxAdvanceDays ?? ""}
+								placeholder="Opcional"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+					</div>
+				</div>
+
+				<div class="grid gap-10 md:grid-cols-2">
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Días Válidos</h2>
+
+						<div class="grid grid-cols-2 gap-2 text-sm text-neutral-600">
+							{
+								WEEK_DAYS.map(({ label, value }) => (
+									<label class="flex items-center gap-2">
+										<input
+											type="checkbox"
+											name="validDays"
+											value={value}
+											checked={
+												Array.isArray(rateplan.validDays) && rateplan.validDays?.includes(value)
+											}
+										/>
+										{label}
+									</label>
+								))
+							}
+						</div>
+					</div>
+					<div class="space-y-3">
+						<h2 class="font-semibold text-neutral-700">Rango de Fechas</h2>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Fecha Inicio</span>
+							<input
+								type="date"
+								name="startDate"
+								value={rateplan.startDate?.toISOString().slice(0, 10)}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+
+						<label class="flex flex-col text-sm">
+							<span class="font-medium text-neutral-500">Fecha Fin</span>
+							<input
+								type="date"
+								name="endDate"
+								value={rateplan.endDate?.toISOString().slice(0, 10)}
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-neutral-500"
+							/>
+						</label>
+					</div>
+				</div>
+
+				<label class="flex items-center gap-3 text-sm font-medium text-neutral-600">
+					<input type="checkbox" name="refundable" checked={rateplan.refundable} />
 					Reembolsable
 				</label>
 
-				<!-- Buttons -->
-				<div class="mt-10 flex justify-end gap-4">
-					<button
-						type="submit"
-						class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
-					>
-						Guardar
+				<label class="flex items-center gap-3 text-sm font-medium text-neutral-600">
+					<input type="checkbox" name="isActive" checked={rateplan.isActive} />
+					Activo
+				</label>
+
+				<div class="flex justify-end gap-4 pt-10">
+					<button class="rounded-xl bg-blue-600 px-6 py-2 text-white hover:bg-blue-700">
+						Guardar cambios
 					</button>
 
 					<button
 						type="button"
-						class="h-10 w-40 rounded-lg bg-red-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-red-700"
-						onclick={`if(confirm('¿Eliminar este rate plan?'))
-            fetch('/api/rateplans/delete?id=${id}',{
-              method:'DELETE'
-            }).then(()=>location.href='/rate-plans/${variantId}')`}
+						class="rounded-xl bg-red-600 px-6 py-2 text-white hover:bg-red-700"
+						onclick={`if(confirm('¿Eliminar este plan?'))
+              fetch('/api/rateplans/delete?id=${id}',{method:'DELETE'})
+              .then(()=>location.href='/rate-plans/${variantId}')`}
 					>
 						Eliminar
 					</button>
@@ -80,23 +276,108 @@ const rateplan = await db.select().from(RatePlan).where(eq(RatePlan.id, id)).get
 		</article>
 	</section>
 
-	<script type="module" define:vars={{ VARIANT_ID: variantId, ID: id }}>
-		document.getElementById("editForm").addEventListener("submit", async (e) => {
+	<!-- UX LOGIC -->
+	<script type="module">
+		const type = document.getElementById("rateType")
+		const valueUSD = document.getElementById("valueUSD")
+		const valueBOB = document.getElementById("valueBOB")
+		const usdIcon = document.getElementById("usdPercentIcon")
+		const bobIcon = document.getElementById("bobPercentIcon")
+		const helper = document.getElementById("priceHelper")
+
+		function applyUX() {
+			const t = type.value
+
+			usdIcon.classList.add("hidden")
+			bobIcon.classList.add("hidden")
+			valueUSD.removeAttribute("min")
+			valueBOB.removeAttribute("min")
+
+			if (t === "package") {
+				valueUSD.parentElement.classList.add("hidden")
+				valueBOB.parentElement.classList.add("hidden")
+				helper.textContent = "Este plan no modifica el precio."
+				return
+			}
+
+			valueUSD.parentElement.classList.remove("hidden")
+			valueBOB.parentElement.classList.remove("hidden")
+
+			if (t === "fixed") {
+				helper.textContent = "Este valor reemplaza el precio base."
+			}
+
+			if (t === "percentage") {
+				usdIcon.classList.remove("hidden")
+				bobIcon.classList.remove("hidden")
+				valueUSD.min = "0"
+				valueBOB.min = "0"
+				helper.textContent = "Porcentaje de descuento aplicado."
+			}
+
+			if (t === "modifier") {
+				helper.textContent = "Suma o resta al precio base."
+			}
+		}
+
+		type.addEventListener("change", applyUX)
+		applyUX()
+	</script>
+
+	<!-- SUBMIT -->
+	<script type="module" define:vars={{ ID: id, VARIANT_ID: variantId }}>
+		const form = document.getElementById("editForm")
+		const errorBanner = document.getElementById("errorBanner")
+		const errorMsg = document.getElementById("errorMsg")
+
+		function showError(msg) {
+			errorMsg.textContent = msg
+			errorBanner.classList.remove("hidden")
+			window.scrollTo({ top: 0, behavior: "smooth" })
+		}
+
+		form.addEventListener("submit", async (e) => {
 			e.preventDefault()
-			const fd = new FormData(e.target)
+			const fd = new FormData(form)
+
+			const validDays = fd.getAll("validDays").map(Number)
 
 			const body = {
 				id: ID,
+
 				name: fd.get("name"),
+				description: fd.get("description"),
+
+				type: fd.get("type"),
 				valueUSD: Number(fd.get("valueUSD")),
+				valueBOB: Number(fd.get("valueBOB")),
+
 				refundable: fd.get("refundable") === "on",
+				isActive: fd.get("isActive") === "on",
+				cancellationPolicyId: fd.get("cancellationPolicyId") || null,
+
+				minNights: Number(fd.get("minNights")),
+				maxNights: fd.get("maxNights") ? Number(fd.get("maxNights")) : null,
+
+				minAdvanceDays: Number(fd.get("minAdvanceDays")),
+				maxAdvanceDays: fd.get("maxAdvanceDays") ? Number(fd.get("maxAdvanceDays")) : null,
+
+				validDays: validDays.length ? validDays : null,
+				startDate: fd.get("startDate") || null,
+				endDate: fd.get("endDate") || null,
 			}
 
-			await fetch("/api/rateplans/update", {
+			const res = await fetch("/api/rateplans/update", {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			})
+
+			if (!res.ok) {
+				const { error } = await res.json()
+				showError(error || "Error al actualizar")
+				return
+			}
 
 			window.location.href = `/rate-plans/${VARIANT_ID}`
 		})

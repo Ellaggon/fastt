@@ -6,6 +6,7 @@ const variantId = Astro.params.variantId
 const apiUrl = new URL(`/api/rateplans/list?variantId=${variantId}`, Astro.request.url).toString()
 const res = await fetch(apiUrl)
 const rateplans = (await res.json()) || []
+console.log(rateplans)
 ---
 
 <Layout title="Rate Plans">
@@ -33,6 +34,8 @@ const rateplans = (await res.json()) || []
 							<div>
 								<p class="font-semibold">{rp.name}</p>
 								<p class="text-xs text-neutral-500">{rp.type}</p>
+								<p class="text-xs text-green-500">{rp.isActive && "Activo"}</p>
+								<p class="text-xs text-red-500">{!rp.isActive && "Inactivo"}</p>
 							</div>
 
 							<div class="flex gap-2">
