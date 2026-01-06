@@ -18,11 +18,10 @@ interface Props {
 
 const props = Astro.props as Props
 
-// Función para generar las estrellas
 const renderStars = (count: number) => {
 	let starIcons = ""
 	for (let i = 0; i < count; i++) {
-		starIcons += "★" // Unicode star character
+		starIcons += "★"
 	}
 	return starIcons
 }
@@ -114,7 +113,7 @@ const services = Array.isArray(props.services) ? props.services : JSON.parse(pro
 				</div>
 
 				<a
-					href={`/${props.href}${Astro.url.search}`}
+					href={props.href}
 					class="mt-1 inline-flex items-center rounded-md border border-transparent bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:mt-2 lg:mt-4"
 				>
 					Ver Hotel
