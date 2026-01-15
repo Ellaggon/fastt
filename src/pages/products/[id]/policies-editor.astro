@@ -1,4 +1,5 @@
 ---
+import { POLICY_PRESETS } from "@/data/policy-presets"
 import Layout from "@/layouts/Layout.astro"
 ---
 
@@ -44,11 +45,21 @@ import Layout from "@/layouts/Layout.astro"
 						<option value="Other">Otro</option>
 					</select>
 				</div>
+				<div class="flex flex-col gap-1">
+					<label class="text-sm font-medium">Plantilla</label>
+					<select
+						id="policyPreset"
+						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
+					>
+						<option value="">Selecciona una plantilla</option>
+					</select>
+				</div>
 
 				<div class="flex flex-col gap-1">
 					<label class="text-sm font-medium">Descripción</label>
 					<textarea
 						id="policyDescription"
+						value="valor de cancelation"
 						rows="4"
 						class="w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2 shadow-sm"
 					></textarea>
@@ -80,7 +91,7 @@ import Layout from "@/layouts/Layout.astro"
 		</dialog>
 	</main>
 
-	<script type="module">
+	<script type="module" define:vars={{ POLICY_PRESETS: POLICY_PRESETS }}>
 		const productId = window.location.pathname.split("/")[2]
 
 		const list = document.getElementById("policyList")
@@ -89,20 +100,54 @@ import Layout from "@/layouts/Layout.astro"
 
 		const idInput = document.getElementById("policyId")
 		const typeInput = document.getElementById("policyType")
+		const presetSelect = document.getElementById("policyPreset")
 		const descInput = document.getElementById("policyDescription")
 		const activeInput = document.getElementById("policyActive")
 		const title = document.getElementById("modalTitle")
 
-		document.getElementById("btnAdd").onclick = () => {
+		const btnAdd = document.getElementById("btnAdd")
+		const btnCancel = document.getElementById("btnCancel")
+
+		function loadPresetsForType(type) {
+			presetSelect.innerHTML = `<option value="">Selecciona una plantilla</option>`
+
+			const presets = POLICY_PRESETS[type] ?? []
+
+			presets.forEach((p) => {
+				const opt = document.createElement("option")
+				opt.value = p.key
+				opt.textContent = p.name
+				opt.dataset.description = p.description
+				presetSelect.appendChild(opt)
+			})
+		}
+
+		// Change policy type → reload presets
+		typeInput.addEventListener("change", () => {
+			loadPresetsForType(typeInput.value)
+			descInput.value = ""
+		})
+
+		// Select preset → fill description
+		presetSelect.addEventListener("change", () => {
+			const opt = presetSelect.selectedOptions[0]
+			if (!opt?.dataset.description) return
+			descInput.value = opt.dataset.description
+		})
+
+		// Open modal (new)
+		btnAdd.onclick = () => {
 			idInput.value = ""
 			typeInput.value = "Cancellation"
-			descInput.value = ""
 			activeInput.checked = true
+			descInput.value = ""
 			title.textContent = "Nueva Política"
+
+			loadPresetsForType("Cancellation")
 			modal.showModal()
 		}
 
-		document.getElementById("btnCancel").onclick = () => modal.close()
+		btnCancel.onclick = () => modal.close()
 
 		form.onsubmit = async (e) => {
 			e.preventDefault()
@@ -140,27 +185,29 @@ import Layout from "@/layouts/Layout.astro"
 			list.innerHTML = data.policies
 				.map(
 					(p) => `
-                            <div class="p-4 bg-white border rounded-xl shadow flex justify-between">
-                                <div>
-                                <p class="font-semibold">${p.policyType}</p>
-                                <p class="text-neutral-600 text-sm">${p.description}</p>
-                                <p class="text-xs ${p.isActive ? "text-green-600" : "text-red-600"}">
-                                    ${p.isActive ? "Activa" : "Inactiva"}
-                                </p>
-                                </div>
-                        
-                                <div class="flex gap-3">
-                                <button class="btnEdit" 
-                                    data-id="${p.id}"
-                                    data-type="${p.policyType}"
-                                    data-description="${p.description.replace(/"/g, "&quot;")}"
-                                    data-active="${p.isActive}"
-                                >Editar</button>
+				<div class="p-4 bg-white border rounded-xl shadow flex justify-between">
+					<div>
+						<p class="font-semibold">${p.policyType}</p>
+						<p class="text-neutral-600 text-sm">${p.description}</p>
+						<p class="text-xs ${p.isActive ? "text-green-600" : "text-red-600"}">
+							${p.isActive ? "Activa" : "Inactiva"}
+						</p>
+					</div>
 
-                                <button class="btnDelete text-red-600" data-id="${p.id}">Eliminar</button>
-                                </div>
-                            </div>
-                            `
+					<div class="flex gap-3">
+						<button class="btnEdit"
+							data-id="${p.id}"
+							data-type="${p.policyType}"
+							data-description="${p.description.replace(/"/g, "&quot;")}"
+							data-active="${p.isActive}"
+						>Editar</button>
+
+						<button class="btnDelete text-red-600" data-id="${p.id}">
+							Eliminar
+						</button>
+					</div>
+				</div>
+			`
 				)
 				.join("")
 
@@ -171,6 +218,8 @@ import Layout from "@/layouts/Layout.astro"
 					descInput.value = btn.dataset.description
 					activeInput.checked = btn.dataset.active === "true"
 					title.textContent = "Editar Política"
+
+					loadPresetsForType(btn.dataset.type)
 					modal.showModal()
 				}
 			})
@@ -180,16 +229,7 @@ import Layout from "@/layouts/Layout.astro"
 			})
 		}
 
-		window.edit = (p) => {
-			idInput.value = p.id
-			typeInput.value = p.policyType
-			descInput.value = p.description
-			activeInput.checked = p.isActive
-			title.textContent = "Editar Política"
-			modal.showModal()
-		}
-
-		window.removePolicy = async (id) => {
+		async function removePolicy(id) {
 			if (!confirm("¿Eliminar política?")) return
 
 			await fetch(`/api/products/${productId}/policies/${id}/delete`, {
