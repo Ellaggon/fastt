@@ -238,18 +238,18 @@ export default async function seed() {
 	// --- 3. Datos de Servicios (Para Tours/Hoteles) ---
 	const servicesData = [
 		// ─── Internet & Tecnología ─────────────────────────────
-		{ id: "wifi", name: "Wi-Fi gratuito", category: "Internet" },
-		{ id: "paid-wifi", name: "Wi-Fi premium", category: "Internet" },
-		{ id: "streaming", name: "Apps / streaming", category: "Internet" },
-		{ id: "flat-tv", name: "TV de pantalla plana", category: "Internet" },
+		{ id: "wifi" },
+		{ id: "paid-wifi" },
+		{ id: "streaming" },
+		{ id: "flat-tv" },
 
-		// // ─── Comidas y bebidas ─────────────────────────────────
-		// { id: "coffee", name: "Café / té", category: "Comidas y bebidas" },
-		// { id: "breakfast", name: "Desayuno", category: "Comidas y bebidas" },
-		// { id: "restaurant", name: "Restaurante", category: "Comidas y bebidas" },
-		// { id: "bar", name: "Bar / Lounge", category: "Comidas y bebidas" },
-		// { id: "minibar", name: "Minibar", category: "Comidas y bebidas" },
-		// { id: "kids-menu", name: "Menú infantil", category: "Comidas y bebidas" },
+		// ─── Comidas y bebidas ─────────────────────────────────
+		{ id: "coffee" },
+		{ id: "breakfast" },
+		{ id: "restaurant" },
+		{ id: "bar" },
+		{ id: "minibar" },
+		{ id: "kids-menu" },
 
 		// // ─── Instalaciones ─────────────────────────────────────
 		// { id: "pool", name: "Piscina", category: "Instalaciones" },
@@ -695,14 +695,13 @@ export default async function seed() {
 
 	// --- INSERTAR SERVICIOS ---
 	for (const s of servicesData) {
-		// Si tu ID de servicio es la restricción única, búscalo por ID.
-		// Si la restricción es el nombre, búscalo por nombre. Asumo que el ID es clave.
 		const exists = await db.select().from(Service).where(eq(Service.id, s.id))
+
 		if (exists.length === 0) {
-			await db.insert(Service).values(s)
-			console.log(`✅ Insertado servicio: ${s.name}`)
+			await db.insert(Service).values({ id: s.id })
+			console.log(`✅ Insertado servicio: ${s.id}`)
 		} else {
-			console.log(`⏭️ Servicio ya existe: ${s.name}`)
+			console.log(`⏭️ Servicio ya existe: ${s.id}`)
 		}
 	}
 
