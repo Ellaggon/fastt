@@ -29,7 +29,7 @@ const Destination = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
-		type: column.text(), // city, region, landmark, etc.
+		type: column.text(),
 		country: column.text(),
 		department: column.text({ optional: true }),
 		latitude: column.number({ optional: true }),
@@ -62,16 +62,14 @@ const RoomType = defineTable({
 const AmenityRoom = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		name: column.text(), // "Aire acondicionado", "TV", "Minibar"
-		category: column.text({ optional: true }), // "Entretenimiento", "Comodidad", "Baño"
+		name: column.text(),
+		category: column.text({ optional: true }),
 	},
 })
 
 const Service = defineTable({
 	columns: {
-		id: column.text({ primaryKey: true }), // "internet", "parking"
-		name: column.text(),
-		category: column.text(), // "Internet", "Estacionamiento"
+		id: column.text({ primaryKey: true }),
 	},
 })
 
@@ -148,16 +146,14 @@ const ProductService = defineTable({
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
 		serviceId: column.text({ references: () => Service.columns.id }),
-
 		// ─── Inclusión / pago ───────────────────
 		isIncluded: column.boolean({ default: false }),
 		isPaid: column.boolean({ default: false }),
 		price: column.number({ optional: true }),
-		priceUnit: column.text({ optional: true }), // "night" | "stay" | "person"
-		currency: column.text({ optional: true }), // "USD"
-
+		priceUnit: column.text({ optional: true }),
+		currency: column.text({ optional: true }),
 		// ─── Alcance ────────────────────────────
-		appliesTo: column.text({ default: "both" }), // "room" | "common" | "both"
+		appliesTo: column.text({ default: "both" }),
 		// ─── Texto OTA ──────────────────────────
 		customText: column.text({ optional: true }),
 	},
@@ -176,7 +172,7 @@ const Policy = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		policyType: column.text(), // 'Cancellation', 'CheckIn', 'CheckOut', 'Children', 'Pets', 'Smoking', etc.
+		policyType: column.text(),
 		description: column.text(),
 		isActive: column.boolean({ default: true }),
 	},
@@ -190,8 +186,8 @@ const HotelRoomType = defineTable({
 		hotelId: column.text({ references: () => Hotel.columns.productId }),
 		roomTypeId: column.text({ references: () => RoomType.columns.id }),
 		totalRooms: column.number({ default: 0 }),
-		hasView: column.text({ optional: true }), // "Vista al salar"
-		bedType: column.json({ optional: true }), //cambiar s
+		hasView: column.text({ optional: true }),
+		bedType: column.json({ optional: true }),
 		sizeM2: column.number({ optional: true }),
 		bathroom: column.number({ optional: true }),
 		hasBalcony: column.boolean({ optional: true }),
@@ -212,19 +208,19 @@ const OperatingRule = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		ruleType: column.text(), // 'OperationHours' | 'BookingWindow' | 'Other'
-		value: column.text(),
+		presetKey: column.text(),
+		scope: column.text({ default: "product" }),
+		scopeId: column.text({ optional: true }),
+		dateFrom: column.date({ optional: true }),
+		dateTo: column.date({ optional: true }),
+		params: column.json(),
+		priority: column.number({ default: 100 }),
+		enabled: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
 	},
-	//  --- OperatingRule ---
-	//    Reglas técnicas/operativas que afectan disponibilidad/operación:
-	//    - OperationHours: horario de funcionamiento recurrente (ej: 08:00-17:00)
-	//    - BlackoutDates: (vehiculado también por la tabla BlackoutDate) — fechas en las que NO OPERAMOS
-	//    - BookingWindow: límites de venta anticipada (min/max days) — opcional aquí
-	//    NOTA: No usar OperatingRule para reglas "legales" legibles por el usuario (esas van a Policy).
 })
 
 // 5. BlackoutDate (depende de HotelRoomType y Product)
-
 const BlackoutDate = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -239,32 +235,66 @@ const BlackoutDate = defineTable({
 
 // 6. RATEPLAN (depende de Variant + Policy)
 
+// const RatePlan = defineTable({
+// 	columns: {
+// 		id: column.text({ primaryKey: true }),
+// 		variantId: column.text({ references: () => Variant.columns.id }),
+// 		name: column.text(),
+// 		description: column.text({ optional: true }),
+// 		paymentType: column.text({ default: "Prepaid" }),
+// 		refundable: column.boolean({ default: true }),
+// 		cancellationPolicyId: column.text({ optional: true, references: () => Policy.columns.id }),
+// 		isActive: column.boolean({ default: true }),
+// 		createdAt: column.date({ default: NOW }),
+// 	},
+// })
+
+const RatePlanTemplate = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(),
+		description: column.text({ optional: true }),
+		paymentType: column.text(),
+		refundable: column.boolean(),
+		cancellationPolicyId: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+
 const RatePlan = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
+		templateId: column.text({ references: () => RatePlanTemplate.columns.id }),
 		variantId: column.text({ references: () => Variant.columns.id }),
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
 
-		name: column.text(),
-		description: column.text({ optional: true }),
-
+const PriceRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		type: column.text({ default: "modifier" }),
-		valueUSD: column.number({ default: 0 }),
-		valueBOB: column.number({ default: 0 }),
+		currency: column.text({ default: "USD" }),
+		value: column.number({ optional: true }),
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
 
-		refundable: column.boolean({ default: true }),
-		cancellationPolicyId: column.text({ optional: true, references: () => Policy.columns.id }),
-		paymentType: column.text({ default: "Prepaid" }),
-
-		minNights: column.number({ default: 1 }),
-		maxNights: column.number({ optional: true }),
-
-		minAdvanceDays: column.number({ default: 0 }),
-		maxAdvanceDays: column.number({ optional: true }),
-
-		validDays: column.json({ optional: true }),
+const ApplicabilityRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		startDate: column.date({ optional: true }),
 		endDate: column.date({ optional: true }),
-
+		validDays: column.json({ optional: true }),
+		minNights: column.number({ default: 1 }),
+		maxNights: column.number({ optional: true }),
+		minAdvanceDays: column.number({ default: 0 }),
+		maxAdvanceDays: column.number({ optional: true }),
+		channel: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -448,7 +478,10 @@ export default defineDb({
 		BlackoutDate, // Depende de Product, HotelRoomType
 
 		// --- 5. Tablas de Precios y Tarifas ---
+		RatePlanTemplate,
 		RatePlan, // Depende de Variant, Policy
+		PriceRule,
+		ApplicabilityRule,
 
 		// --- 6. Tablas de Booking/Transacciones (Nivel 1) ---
 		Booking, // Depende de User, Product
