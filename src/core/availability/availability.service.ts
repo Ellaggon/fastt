@@ -2,10 +2,13 @@ import { db, HotelRoomType, BookingRoomDetail, Booking, BlackoutDate, RatePlan }
 import { eq, and, lte, gte } from "astro:db"
 import { validateRatePlanWindow } from "./availability.validators"
 import type { AvailabilityRequest, AvailabilityResult } from "./availability.types"
+import { resolveOperationalRules } from "../operational-rules/availability.operational-rules"
+import { daysBetween } from "../date/date.utils"
 
 export async function checkAvailability(input: AvailabilityRequest): Promise<AvailabilityResult> {
 	const checkIn = new Date(input.checkIn)
 	const checkOut = new Date(input.checkOut)
+	const nights = daysBetween(checkIn, checkOut)
 
 	if (checkIn >= checkOut) return { available: false, reason: "Fechas inválidas" }
 
@@ -17,6 +20,18 @@ export async function checkAvailability(input: AvailabilityRequest): Promise<Ava
 		.get()
 
 	if (!roomType) return { available: false, reason: "Habitación no existe" }
+
+	// 2 operational rules
+	const op = await resolveOperationalRules({
+		productId: roomType.hotelId,
+		roomTypeId: roomType.id,
+		ratePlanId: input.ratePlanId,
+		checkIn,
+		checkOut,
+		nights,
+	})
+
+	if (!op.allowed) return { available: false, reason: op.reason }
 
 	// 2️⃣ RatePlan
 	const ratePlan = await db.select().from(RatePlan).where(eq(RatePlan.id, input.ratePlanId)).get()
