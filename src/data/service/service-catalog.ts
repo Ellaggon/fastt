@@ -366,3 +366,6 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 		icon: serviceIcons["safety-railings"],
 	},
 ]
+
+export const SERVICE_CATALOG_BY_ID = Object.fromEntries(SERVICE_CATALOG.map((s) => [s.id, s]))
+export type ServiceId = keyof typeof SERVICE_CATALOG_BY_ID

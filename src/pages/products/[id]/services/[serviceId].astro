@@ -1,5 +1,6 @@
 ---
 import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
+import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
 import { and, db, eq, ProductService, ProductServiceAttribute, Service } from "astro:db"
 
@@ -29,7 +30,6 @@ if (!productService) {
 const service = await db
 	.select({
 		psId: ProductService.id,
-		name: Service.name,
 		isIncluded: ProductService.isIncluded,
 		isPaid: ProductService.isPaid,
 		price: ProductService.price,
@@ -46,6 +46,7 @@ const service = await db
 if (!service) return Astro.redirect(`/products/${productId}/services`)
 
 const attributesDef = SERVICE_ATTRIBUTES[serviceId] ?? []
+const serviceDef = SERVICE_CATALOG.find((s) => s.id === serviceId)
 
 const existingAttrs = await db
 	.select({
@@ -57,7 +58,6 @@ const existingAttrs = await db
 	.all()
 
 const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
-console.log("service: ", service)
 ---
 
 <Layout title="Configurar servicio">
@@ -76,7 +76,7 @@ console.log("service: ", service)
 			</small>
 
 			<p class="mt-6 text-end text-base font-semibold text-neutral-600">
-				{service.name}
+				{serviceDef ? serviceDef.name : "Servicio desconocido"}
 			</p>
 
 			<form id="serviceConfigForm" class="mt-10 space-y-6">
