@@ -4,9 +4,9 @@ import MapModal from "@/components/product/MapModal.astro"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
 import RoomModal from "@/components/productUI/RoomModal.astro"
 import RoomSection from "@/components/productUI/RoomSection.astro"
-import { serviceIcons } from "@/data/service/service-icons"
+import { SERVICE_CATALOG_BY_ID } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
-import type { ImageRow, ServiceRow } from "@/types/products"
+import type { ImageRow } from "@/types/products"
 import {
 	AmenityRoom,
 	and,
@@ -31,8 +31,8 @@ const url = Astro.url
 
 let product: any = null
 let subtype: any = null
-let images: ImageRow[] = []
-let services: ServiceRow[] = []
+let images: any = []
+let services: any = []
 let rooms = null
 let roomImages = null
 let roomAmenities = null
@@ -58,13 +58,12 @@ try {
 	product = { ...productResult.Product, destination: productResult.Destination }
 
 	const servicesResult = await db
-		.select({ id: Service.id, name: Service.name })
+		.select({ id: Service.id })
 		.from(ProductService)
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 		.where(eq(ProductService.productId, productId))
 		.all()
-	services = (servicesResult ?? []).filter((s) => s.id && s.name) as ServiceRow[]
-	console.log("service: ", services)
+	services = (servicesResult ?? []).map((s) => s.id).filter(Boolean)
 
 	images = await db
 		.select()
@@ -111,6 +110,8 @@ try {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
 }
+//Service
+const resolvedServices = services.map((id: any) => SERVICE_CATALOG_BY_ID[id]).filter(Boolean)
 //Rooms
 const roomsServer =
 	rooms?.map((room) => ({
@@ -120,9 +121,9 @@ const roomsServer =
 		variant: roomVariants?.filter((v) => v.entityId === room.id) ?? [],
 	})) ?? []
 
-const productData = product ? { ...product, images, subtype, services, rooms: roomsServer } : null
-
-console.log("productData: ", productData.services)
+const productData = product
+	? { ...product, images, subtype, services: resolvedServices, rooms: roomsServer }
+	: null
 ---
 
 <Layout title={productData?.name || "Producto"}>
@@ -166,6 +167,24 @@ console.log("productData: ", productData.services)
 						</div>
 					)}
 
+					<article
+						class="flex h-auto w-full cursor-pointer flex-row-reverse gap-3 border-b border-neutral-700 text-sm text-neutral-400"
+						id="tabs"
+					>
+						<div class="tab-button active p-2 text-white" data-tab="products">
+							Politicas
+						</div>
+						<div class="tab-button p-2" data-tab="edit">
+							<button onclick="openMapModal()">Ver mapa</button>
+						</div>
+						<div class="tab-button p-2" data-tab="room">
+							Ver Detalles
+						</div>
+						<div class="tab-button p-2" data-tab="rate-plan">
+							Ver Habitaciones
+						</div>
+					</article>
+
 					{/* <!-- 📋 Info principal --> */}
 					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8">
 						<div class="flex gap-1 text-black">
@@ -188,11 +207,9 @@ console.log("productData: ", productData.services)
 						</p>
 						{/* <!-- Servicios --> */}
 						{productData.services.length > 0 && (
-							<ul class="flex grid grid-cols-2 justify-start gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((service: ServiceRow) => {
-									console.log("service: ", service)
-									const key = service.id?.toLowerCase() as keyof typeof serviceIcons
-									const Icon = serviceIcons[key]
+							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
+								{productData.services.map((service: any) => {
+									const Icon = service.icon
 									return (
 										<li class="flex h-[42px] max-w-56 items-center gap-2 p-2">
 											{Icon ? <Icon class="h-5 w-5 shrink-0 text-black" /> : <span>•</span>}
@@ -207,13 +224,13 @@ console.log("productData: ", productData.services)
 						</p>
 					</section>
 
-					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8" />
 					<button
 						onclick="openMapModal()"
 						class="rounded-lg bg-blue-600 px-4 py-2 text-white shadow hover:bg-blue-700"
 					>
 						Ver mapa
 					</button>
+					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8" />
 				</>
 			) : (
 				<p class="text-center text-neutral-500">Cargando...</p>
