@@ -32,10 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
 				body: fd,
 			})
 
-			if (!res.ok) {
-				const data = await res.json().catch(() => null)
+			let data = null
+			try {
+				data = await res.json()
+			} catch {
+				data = null
+			}
 
-				if (data.error === "Hotel not found") {
+			if (!res.ok) {
+				if (data?.error === "Hotel not found") {
 					alert("Este hotel no existe o no está configurado.")
 					window.location.href = `/products/${hotelId}/subtype`
 				}
@@ -46,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 
 			alert("Habitación guardada")
-			window.location.href = `/rate-plans/${hotelId}`
+			window.location.href = `/rate-plans/${data.variantId}`
 		} catch (err) {
 			console.error(err)
 			alert("Error de red")
