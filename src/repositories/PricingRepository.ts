@@ -1,5 +1,5 @@
 import { db, eq, PriceRule, EffectivePricing } from "astro:db"
-import { adaptPriceRule } from "@/core/pricing/pricing.rules"
+import { adaptPriceRule } from "@/core/pricing/adapters/adapter.priceRule"
 import type { AppliedPriceRule } from "@/core/pricing/pricing.types"
 
 export class PricingRepository {
