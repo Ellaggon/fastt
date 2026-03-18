@@ -1,10 +1,10 @@
 ---
-import Layout from "@/layouts/Layout.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 ---
 
-<Layout title="Taxes & Fees">
+<DashboardLayout title="Taxes & Fees">
 	<main
-		class="mx-auto mt-20 w-[95%] max-w-3xl rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg md:p-12 lg:p-16"
+		class="mx-auto mt-6 md:mt-20 w-[95%] max-w-3xl rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg md:p-12 lg:p-16"
 	>
 		<h1 class="text-xl font-semibold md:text-2xl">IMPUESTOS Y TARIFAS</h1>
 		<p class="mt-1 text-sm text-neutral-500">Configura impuestos y cargos aplicados al producto.</p>
@@ -20,7 +20,6 @@ import Layout from "@/layouts/Layout.astro"
 
 		<div id="taxList" class="mt-8 space-y-4 text-neutral-700">Cargando...</div>
 
-		<!-- MODAL -->
 		<dialog
 			id="taxModal"
 			class="w-[90%] max-w-md rounded-2xl border border-neutral-300 bg-neutral-100 p-6 shadow-xl"
@@ -213,4 +212,4 @@ import Layout from "@/layouts/Layout.astro"
 
 		loadTaxes()
 	</script>
-</Layout>
+</DashboardLayout>

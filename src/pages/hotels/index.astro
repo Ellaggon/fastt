@@ -4,8 +4,8 @@ import DepartmentCard from "@/components/DepartmentCard.astro"
 import { DEPARTMENTS } from "@/data/departments"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 
-const pathname = Astro.originPathname
-console.log("patname", pathname)
+// const pathname = Astro.originPathname
+// console.log("patname", pathname)
 
 const breadcrumbsItems = [
 	{ name: "Home", href: "/" },
@@ -14,11 +14,7 @@ const breadcrumbsItems = [
 ---
 
 <SearchLayout title="Hoteles en Bolivia" producType="hotels">
-	<main
-		role="main"
-		id="content"
-		class="mx-auto my-8 max-w-7xl rounded-lg p-8 leading-relaxed shadow-lg"
-	>
+	<main role="main" id="content" class="mx-auto max-w-7xl rounded-lg leading-relaxed shadow-lg">
 		<Breadcrumbs items={breadcrumbsItems} />
 
 		<h1 class="mb-5 mt-8 text-4xl font-bold text-gray-100">Hoteles en Bolivia</h1>

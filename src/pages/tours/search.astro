@@ -1,7 +1,7 @@
 ---
-import ProductCard from "@/components/product/ProductCard.astro"
+import ProductCard from "@/components/productUI/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, Destination, eq, Image, or, Product, Tour } from "astro:db"
+import { and, db, Destination, eq, Image, or, Product, sql, Tour, Variant } from "astro:db"
 
 type ProductResult = {
 	id: string
@@ -56,8 +56,16 @@ try {
 			id: Product.id,
 			name: Product.name,
 			description: Product.description,
-			basePriceUSD: Product.basePriceUSD,
-			basePriceBOB: Product.basePriceBOB,
+			basePriceUSD: sql<
+				number | null
+			>`min(case when ${Variant.currency} = 'USD' then ${Variant.basePrice} end)`.as(
+				"basePriceUSD"
+			),
+			basePriceBOB: sql<
+				number | null
+			>`min(case when ${Variant.currency} = 'BOB' then ${Variant.basePrice} end)`.as(
+				"basePriceBOB"
+			),
 			duration: Tour.duration,
 			difficultyLevel: Tour.difficultyLevel,
 			imageUrl: Image.url,
@@ -66,7 +74,9 @@ try {
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
 		.where(whereClause)
+		.groupBy(Product.id)
 		.limit(50)
 		.all()
 } catch (err) {

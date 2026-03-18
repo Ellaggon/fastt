@@ -1,5 +1,6 @@
 ---
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
+import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
 import type { ImageRow, ServiceRow } from "@/types/products"
 import {
@@ -12,7 +13,6 @@ import {
 	Package,
 	Product,
 	ProductService,
-	Service,
 	Tour,
 } from "astro:db"
 
@@ -20,7 +20,7 @@ const productId = Astro.params.id
 let product: any = null
 let images: ImageRow[] = []
 let subtype: any = null
-let services: ServiceRow[] = []
+let services: Array<ServiceRow & { iconId?: string | null }> = []
 let errorMessage: string | null = null
 
 try {
@@ -37,13 +37,23 @@ try {
 	product = { ...productResult.Product, destination: productResult.Destination }
 
 	const servicesResult = await db
-		.select({ id: Service.id, name: Service.name, icon: Service.icon })
+		.select({ id: ProductService.serviceId })
 		.from(ProductService)
-		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 		.where(eq(ProductService.productId, productId))
 		.all()
 
-	services = (servicesResult ?? []).filter((s) => s.id && s.name) as ServiceRow[]
+	const catalogById = new Map(SERVICE_CATALOG.map((s) => [s.id, s]))
+
+	services = (servicesResult ?? [])
+		.filter((s) => s.id)
+		.map((s) => {
+			const def = catalogById.get(String(s.id))
+			return {
+				id: String(s.id),
+				name: def?.name ?? String(s.id),
+				iconId: def?.id ?? null,
+			}
+		})
 
 	images = await db
 		.select()
@@ -158,9 +168,9 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 						{/* <!-- Servicios --> */}
 						{productData.services.length > 0 && (
 							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((s: ServiceRow) => (
+								{productData.services.map((s: ServiceRow & { iconId?: string | null }) => (
 									<li class="flex items-center gap-2">
-										<span>{s.icon === "wifi" ? "📶" : "•"}</span>
+										<span>{s.iconId === "wifi" ? "📶" : "•"}</span>
 										<span>{s.name}</span>
 									</li>
 								))}

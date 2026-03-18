@@ -1,9 +1,9 @@
 ---
 import MapPicker from "@/components/MapPicker.astro"
-import HotelForm from "@/components/product/update/HotelForm.astro"
-import PackageForm from "@/components/product/update/PackageForm.astro"
-import TourForm from "@/components/product/update/TourForm.astro"
-import Layout from "@/layouts/Layout.astro"
+import HotelForm from "@/components/productForm/update/HotelForm.astro"
+import PackageForm from "@/components/productForm/update/PackageForm.astro"
+import TourForm from "@/components/productForm/update/TourForm.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
 import { getSession } from "auth-astro/server"
@@ -28,14 +28,14 @@ if (String(productBundle.product.providerId) !== String(providerId)) {
 
 const product = productBundle.product
 const subtype = productBundle.subtype
-const normalizedType = String(product.productType || "").toLowerCase() // "hotel" | "tour" | "package"
+const normalizedType = String(product.productType || "").toLowerCase()
 
 let lat = hotel?.latitude ?? -16.5
 let lng = hotel?.longitude ?? -68.13
 ---
 
-<Layout title={`Editar subtipo · ${product.name || "Producto"}`}>
-	<section class="h-full w-full pt-10 md:pt-16">
+<DashboardLayout title={`Editar subtipo · ${product.name || "Producto"}`}>
+	<section class="h-full w-full pt-6 md:pt-20">
 		<article
 			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
@@ -48,9 +48,7 @@ let lng = hotel?.longitude ?? -68.13
 			>
 			<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{product.name}</p>
 
-			<!-- Form wrapper -->
 			<form id="subtypeForm" class="mt-10 flex flex-col gap-8">
-				<!-- Renderiza el formulario correspondiente -->
 				<div data-subtype-section="hotel" class={normalizedType === "hotel" ? "block" : "hidden"}>
 					<HotelForm hotel={subtype} />
 				</div>
@@ -66,16 +64,13 @@ let lng = hotel?.longitude ?? -68.13
 					<PackageForm pkg={subtype} />
 				</div>
 
-				<!-- Mensajes -->
 				<div id="subtypeMsg" class="min-h-[1.25rem] text-sm"></div>
 
-				<!-- Hidden productId -->
 				<input id="productId" name="productId" type="hidden" value={product.id} />
 
-				<!-- Acciones -->
 				<div class="mt-4 flex justify-end gap-4">
 					<a
-						href={`/products/${product.id}`}
+						href={`/dashboard`}
 						class="rounded-xl border border-neutral-400 bg-white px-5 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-100"
 					>
 						Cancelar
@@ -90,7 +85,6 @@ let lng = hotel?.longitude ?? -68.13
 				</div>
 			</form>
 
-			<!-- Nota -->
 			<p class="mt-8 rounded-lg bg-yellow-100/70 p-4 text-sm text-neutral-500">
 				ℹ️ Si el subtipo no existe para este producto verás el formulario vacío: al guardar se
 				creará automáticamente.
@@ -102,11 +96,9 @@ let lng = hotel?.longitude ?? -68.13
 			</p>
 		</article>
 	</section>
-	<!-- Modal de mapa -->
 	<MapPicker latitude={hotel?.latitude || lat} longitude={hotel?.longitude || lng} />
 
 	<script>
-		// botón que abre el mapa -> disparar evento global 'open-map'
 		document.addEventListener("DOMContentLoaded", () => {
 			const openBtn = document.getElementById("openMapBtn") as HTMLButtonElement | null
 			const latInput = document.getElementById("latitude") as HTMLInputElement | null
@@ -114,7 +106,6 @@ let lng = hotel?.longitude ?? -68.13
 			const addressInput = document.getElementById("hotelAddress") as HTMLInputElement | null
 
 			openBtn?.addEventListener("click", () => {
-				// mandamos coords iniciales como detalle
 				document.dispatchEvent(
 					new CustomEvent("open-map", {
 						detail: {
@@ -126,33 +117,24 @@ let lng = hotel?.longitude ?? -68.13
 				)
 			})
 
-			// escuchar cuando el usuario confirma en MapPicker
 			document.addEventListener("map-picked", (ev) => {
 				const custonEv = ev as CustomEvent<{ lat: number; lng: number; address: string }>
 				const { lat, lng, address } = custonEv.detail
 
-				// actualizar inputs del formulario
 				if (latInput) latInput.value = String(lat)
 				if (lngInput) lngInput.value = String(lng)
 				if (addressInput) addressInput.value = address
 
-				// ✅ feedback visual opcional
 				addressInput?.classList.add("ring", "ring-green-400")
 				setTimeout(() => addressInput?.classList.remove("ring", "ring-green-400"), 1000)
 			})
 
-			// opcional: escuchar cierre
-			document.addEventListener("map-closed", () => {
-				// si quieres hacer algo cuando se cierre sin confirmar
-			})
+			document.addEventListener("map-closed", () => {})
 		})
 	</script>
 
 	<script define:vars={{ SUBTYPE_TYPE: normalizedType }}>
-		// Valores embebidos del servidor
-
 		;(function () {
-			// helpers
 			const toNumber = (v) => {
 				if (v === null || v === undefined || v === "") return null
 				const n = Number(v)
@@ -176,7 +158,6 @@ let lng = hotel?.longitude ?? -68.13
 				submitBtn.textContent = "Guardando..."
 
 				try {
-					// Seleccionar la sección visible
 					const sections = Array.from(form.querySelectorAll("[data-subtype-section]"))
 					const active = sections.find((s) => !s.classList.contains("hidden"))
 
@@ -190,7 +171,6 @@ let lng = hotel?.longitude ?? -68.13
 							if (!name) return
 							let value = input.value
 
-							// conversiones simples conocidas
 							if (["stars", "days", "nights"].includes(name)) {
 								value = toNumber(input.value)
 							}
@@ -208,7 +188,6 @@ let lng = hotel?.longitude ?? -68.13
 						})
 					}
 
-					// Petición al endpoint dedicado
 					const resp = await fetch("/api/products/subtype/update", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
@@ -242,4 +221,4 @@ let lng = hotel?.longitude ?? -68.13
 			})
 		})()
 	</script>
-</Layout>
+</DashboardLayout>

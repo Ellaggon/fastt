@@ -4,9 +4,8 @@ import { db, eq, Provider } from "astro:db"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
-if (!session) return Astro.redirect("/SignInPage") // Unificar el check de sesión y redirección.
+if (!session) return Astro.redirect("/SignInPage")
 
-// Buscar si ya existe un proveedor registrado con este email
 const existing = await db
 	.select()
 	.from(Provider)
@@ -25,10 +24,8 @@ if (existing) return Astro.redirect("/dashboard")
 			Ingresa los datos de tu empresa para empezar a publicar tus servicios.
 		</p>
 		<form id="providerForm" method="post" class="flex flex-col gap-4" data-form-type="provider">
-			{/* */}
 			<input type="hidden" name="userEmail" value={session.user?.email} />
 
-			{/* */}
 			<label for="companyName" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Nombre de la Compañía
 				<input
@@ -41,7 +38,6 @@ if (existing) return Astro.redirect("/dashboard")
 				/>
 			</label>
 
-			{/* */}
 			<label for="contactName" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Nombre de Contacto
 				<input
@@ -54,7 +50,6 @@ if (existing) return Astro.redirect("/dashboard")
 				/>
 			</label>
 
-			{/* */}
 			<label for="contactEmail" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Email de Contacto
 				<input
@@ -67,7 +62,6 @@ if (existing) return Astro.redirect("/dashboard")
 				/>
 			</label>
 
-			{/* */}
 			<label for="phone" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Teléfono
 				<input
@@ -79,7 +73,6 @@ if (existing) return Astro.redirect("/dashboard")
 				/>
 			</label>
 
-			{/* */}
 			<label for="type" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Tipo de Proveedor
 				<select

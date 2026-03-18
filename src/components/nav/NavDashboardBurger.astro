@@ -1,0 +1,109 @@
+---
+import { Building2, HandCoins, HandPlatter, Handshake, LogOut, PackageSearch, Scale } from "@lucide/astro"
+import { SignOut } from "auth-astro/components"
+import { getSession } from "auth-astro/server"
+
+const session = await getSession(Astro.request)
+const pathname = Astro.url.pathname
+const id = Astro.params.id
+---
+
+<nav>
+	<div class="fixed bottom-10 right-10 z-50 cursor-pointer">
+		<button
+			class="inline-flex cursor-pointer flex-row items-center justify-center rounded-full border-2 bg-opacity-60 px-2 pb-1.5 text-center text-3xl font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden dark:focus:ring-[#1da1f2]/55"
+			id="menuButton"
+		>
+			&#9776;
+		</button>
+	</div>
+
+	<article
+		class="nav fixed bottom-24 left-1/2 z-50 hidden w-[96%] -translate-x-1/2 transform flex-col items-center gap-3 rounded-3xl bg-black p-5 md:flex-row md:text-xl"
+	>
+		<a
+			href="/"
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"></path>
+			</svg>
+			<p>Inicio</p>
+		</a>
+		<a
+			href="/dashboard"
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M4 13h4v7H4v-7Zm6-6h4v13h-4V7Zm6 9h4v4h-4v-4Z"></path>
+			</svg>
+			<p>Dashboard</p>
+		</a>
+		<!-- <a
+			href={`/products/${id}/services`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<Building2 />
+			<p>Empresa</p>
+		</a>
+		<a
+			href={`/products/${id}/services`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<PackageSearch />
+			<p>Productos</p>
+		</a>
+		<a
+			href={`/products/${id}/services`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<HandCoins />
+			<p>Tarifas</p>
+		</a> -->
+		<a
+			href={`/products/${id}/services`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<HandPlatter />
+			<p>Servicios</p>
+		</a>
+		<a
+			href={`/products/${id}/policies`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<Scale />
+			<p>Políticas</p>
+		</a>
+		<a
+			href={`/products/${id}/operating-rules`}
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<Handshake />
+			<p>Reglas Operativas</p>
+		</a>
+		<SignOut
+			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+		>
+			<LogOut />
+			<p>Salir</p>
+		</SignOut>
+	</article>
+</nav>
+
+<script>
+	const $menuButton = document.getElementById("menuButton")
+	let $nav = document.querySelector(".nav")
+
+	let menuOpen = false
+
+	$menuButton?.addEventListener("click", () => {
+		menuOpen = !menuOpen
+		if (menuOpen) {
+			$nav?.classList.add("flex")
+			$nav?.classList.remove("hidden")
+		} else {
+			$nav?.classList.add("hidden")
+			$nav?.classList.remove("flex")
+		}
+	})
+</script>

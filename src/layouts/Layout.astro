@@ -1,11 +1,7 @@
 ---
-import Navbar from "@/components/nav/Navbar.astro"
-import Sidebar from "@/components/nav/NavBurger.astro"
+import "@/styles/modals.css"
 
-interface Props {
-	title: string
-}
-
+interface Props { title: string }
 const { title } = Astro.props
 ---
 
@@ -25,9 +21,6 @@ const { title } = Astro.props
 		<title>{title}</title>
 	</head>
 	<body class="py-12">
-		<Navbar />
-		<Sidebar />
-
 		<slot />
 	</body>
 </html>

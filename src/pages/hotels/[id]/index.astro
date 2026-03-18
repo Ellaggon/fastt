@@ -1,43 +1,49 @@
 ---
-import ImageModal from "@/components/product/ImageModal.astro"
-import MapModal from "@/components/product/MapModal.astro"
+import { resolveHotelAmenities } from "@/application/queries/resolveHotelAmenities"
+import { resolveHotelPolicies } from "@/application/queries/resolveHotelPolicies"
+import { resolveHotelType } from "@/application/queries/resolveHotelType"
+import { resolveProductImages } from "@/application/queries/resolveProductImages"
+import { resolveProductServices } from "@/application/queries/resolveProductServices"
+import { resolveRoomImages } from "@/application/queries/resolveRoomImages"
+import { searchOffers } from "@/application/queries/searchOffers.query"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
+import ImageModal from "@/components/productUI/ImageModal.astro"
+import MapModal from "@/components/productUI/MapModal.astro"
 import RoomModal from "@/components/productUI/RoomModal.astro"
 import RoomSection from "@/components/productUI/RoomSection.astro"
-import { serviceIcons } from "@/data/service/service-icons"
-import Layout from "@/layouts/Layout.astro"
-import type { ImageRow, ServiceRow } from "@/types/products"
-import {
-	AmenityRoom,
-	and,
-	asc,
-	db,
-	desc,
-	Destination,
-	eq,
-	Hotel,
-	HotelRoomAmenity,
-	HotelRoomType,
-	Image,
-	inArray,
-	Product,
-	ProductService,
-	Service,
-	Variant,
-} from "astro:db"
+import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astro"
+import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
+import UILayout from "@/layouts/UILayout.astro"
+import type { ImageRow } from "@/types/products"
+import { db, Destination, eq, Hotel, Product } from "astro:db"
 
-const productId = Astro.params.id
 const url = Astro.url
+const productId = Astro.params.id
+if (!productId) throw new Error("ID de producto no proporcionado.")
 
-let product: any = null
-let subtype: any = null
-let images: ImageRow[] = []
-let services: ServiceRow[] = []
-let rooms = null
-let roomImages = null
-let roomAmenities = null
-let roomVariants = null
+let hotelProduct: any = null
+let hotelSubtype: any = null
 let errorMessage: string | null = null
+
+const checkInStr = url.searchParams.get("checkin")
+const checkOutStr = url.searchParams.get("checkout")
+if (!checkInStr || !checkOutStr) throw new Error("Fechas requeridas")
+
+const checkIn = new Date(checkInStr)
+const checkOut = new Date(checkOutStr)
+
+const adults = Number(url.searchParams.get("adults") ?? 2)
+const children = Number(url.searchParams.get("children") ?? 0)
+
+const offers = await searchOffers({
+	productId,
+	checkIn,
+	checkOut,
+	adults,
+	children,
+})
+// console.log(typeof checkIn, checkIn)
+// console.log("offers", offers)
 
 const searchState = {
 	checkIn: url.searchParams.get("checkin"),
@@ -45,89 +51,46 @@ const searchState = {
 	adults: Number(url.searchParams.get("adults") ?? 2),
 	children: Number(url.searchParams.get("children") ?? 0),
 }
+// console.log("searchstate", searchState)
+// console.log("searchOffers", searchOffers)
+const images = await resolveProductImages(productId)
+const services = await resolveProductServices(productId)
+const policies = await resolveHotelPolicies(productId)
+
+const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) => {
+	if (!acc[p.category]) acc[p.category] = []
+	acc[p.category].push(p)
+	return acc
+}, {})
+
+const hotelRoom = await resolveHotelType(offers.map((o) => o.variant.entityId))
+const amenities = await resolveHotelAmenities(offers.map((o) => o.variant.entityId))
+const roomImages = await resolveRoomImages(offers.map((o) => o.variant.entityId))
 
 try {
-	if (!productId) throw new Error("ID de producto no proporcionado.")
 	const productResult = await db
 		.select()
 		.from(Product)
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(eq(Product.id, productId))
 		.get()
+
 	if (!productResult) throw new Error("Producto no encontrado.")
-	product = { ...productResult.Product, destination: productResult.Destination }
 
-	const servicesResult = await db
-		.select({ id: Service.id, name: Service.name })
-		.from(ProductService)
-		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
-		.where(eq(ProductService.productId, productId))
-		.all()
-	services = (servicesResult ?? []).filter((s) => s.id && s.name) as ServiceRow[]
-	console.log("service: ", services)
-
-	images = await db
-		.select()
-		.from(Image)
-		.where(eq(Image.entityId, productId))
-		.orderBy(desc(Image.isPrimary), asc(Image.order))
-		.all()
-
-	subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
-
-	rooms = await db.select().from(HotelRoomType).where(eq(HotelRoomType.hotelId, productId)).all()
-	const roomIds = rooms.map((r) => r.id)
-
-	roomImages = await db
-		.select()
-		.from(Image)
-		.where(and(eq(Image.entityType, "HotelRoomType"), inArray(Image.entityId, roomIds)))
-		.all()
-
-	roomAmenities = await db
-		.select({
-			roomId: HotelRoomAmenity.hotelRoomTypeId,
-			amenityId: AmenityRoom.id,
-			amenityName: AmenityRoom.name,
-			category: AmenityRoom.category,
-			isAvailable: HotelRoomAmenity.isAvailable,
-		})
-		.from(HotelRoomAmenity)
-		.leftJoin(AmenityRoom, eq(HotelRoomAmenity.amenityId, AmenityRoom.id))
-		.where(inArray(HotelRoomAmenity.hotelRoomTypeId, roomIds))
-		.all()
-
-	roomVariants = await db
-		.select({
-			id: Variant.id,
-			entityId: Variant.entityId,
-			name: Variant.name,
-			description: Variant.description,
-		})
-		.from(Variant)
-		.where(and(eq(Variant.entityType, "hotel_room"), inArray(Variant.entityId, roomIds)))
-		.all()
+	hotelProduct = { ...productResult.Product, destination: productResult.Destination }
+	hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
 } catch (e) {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
 }
-//Rooms
-const roomsServer =
-	rooms?.map((room) => ({
-		...room,
-		images: roomImages?.filter((img) => img.entityId === room.id) ?? [],
-		amenities: roomAmenities?.filter((a) => a.roomId === room.id) ?? [],
-		variant: roomVariants?.filter((v) => v.entityId === room.id) ?? [],
-	})) ?? []
-
-const productData = product ? { ...product, images, subtype, services, rooms: roomsServer } : null
-
-console.log("productData: ", productData.services)
 ---
 
-<Layout title={productData?.name || "Producto"}>
-	<main class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-3 py-7 md:space-y-7 lg:p-12">
-		<BreadcrumProduct productData={productData} productId={productId} />
+<UILayout title={hotelProduct?.name || "Producto"}>
+	<main
+		class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-7 overflow-x-hidden py-3 md:space-y-20 md:py-7 lg:p-12"
+	>
+		<BreadcrumProduct productData={hotelProduct} productId={productId} />
+		<pre>{JSON.stringify(offers, null, 2)}</pre>
 
 		{
 			errorMessage ? (
@@ -140,99 +103,220 @@ console.log("productData: ", productData.services)
 						Volver al inicio
 					</a>
 				</div>
-			) : productData ? (
+			) : hotelProduct ? (
 				<>
-					{/* <!-- 🖼 Imagen principal --> */}
-					<div class="relative overflow-hidden rounded-2xl shadow-lg">
-						<img
-							id="gallery-main-img"
-							src={productData.images[0]?.url || "https://placehold.co/1200x675?text=Sin+imagen"}
-							alt={productData.name}
-							class="h-96 w-full cursor-pointer object-cover transition-transform duration-700 hover:scale-105"
-						/>
-					</div>
-
-					{/* <!-- 🖼 Miniaturas --> */}
-					{productData.images.length > 1 && (
-						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-							{productData.images.map((img: ImageRow, i: number) => (
-								<img
-									src={img.url}
-									alt={`Imagen ${i + 1}`}
-									class="thumb-img h-24 w-full cursor-pointer rounded-lg object-cover hover:opacity-80"
-									data-index={i}
-								/>
-							))}
+					<section class="space-y-3">
+						<div class="relative overflow-hidden rounded-2xl shadow-lg">
+							<img
+								id="gallery-main-img"
+								data-open-modal="images"
+								src={images[0]?.url || "https://placehold.co/1200x675?text=Sin+imagen"}
+								alt={hotelProduct?.name}
+								class="h-96 w-full cursor-pointer object-cover transition-transform duration-700 hover:scale-105"
+							/>
 						</div>
-					)}
 
-					{/* <!-- 📋 Info principal --> */}
-					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8">
-						<div class="flex gap-1 text-black">
-							{Array.from({ length: productData.subtype?.stars || "" }).map((_, i) => (
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									fill="currentColor"
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-								>
-									<path d="M12 .587l3.668 7.568L24 9.748l-6 5.85 1.416 8.252L12 19.771l-7.416 4.079L6 15.598 0 9.748l8.332-1.593z" />
-								</svg>
-							))}
-						</div>
-						<h1 class="text-lg font-semibold text-neutral-900 md:text-4xl md:font-bold">
-							{productData.name}
-						</h1>
-						<p class="text-xs text-neutral-500 md:text-sm">
-							{productData.subtype?.address}, {productData.destination?.name}
-						</p>
-						{/* <!-- Servicios --> */}
-						{productData.services.length > 0 && (
-							<ul class="flex grid grid-cols-2 justify-start gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((service: ServiceRow) => {
-									console.log("service: ", service)
-									const key = service.id?.toLowerCase() as keyof typeof serviceIcons
-									const Icon = serviceIcons[key]
-									return (
-										<li class="flex h-[42px] max-w-56 items-center gap-2 p-2">
-											{Icon ? <Icon class="h-5 w-5 shrink-0 text-black" /> : <span>•</span>}
-											<span class="text-xs text-black md:text-sm">{service.name}</span>
-										</li>
-									)
-								})}
-							</ul>
+						{images.length > 1 && (
+							<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6" dir="rtl">
+								{images.map((img: ImageRow, i: number) => (
+									<img
+										src={img.url}
+										alt={`Imagen ${i + 1}`}
+										class="thumb-img h-24 w-full cursor-pointer rounded-lg object-cover hover:opacity-80"
+										data-open-modal="images"
+										data-index={i}
+									/>
+								))}
+							</div>
 						)}
-						<p class="mt-4 text-sm leading-relaxed text-neutral-700 md:text-base">
-							{productData.description}
-						</p>
 					</section>
 
-					<section class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8" />
-					<button
-						onclick="openMapModal()"
-						class="rounded-lg bg-blue-600 px-4 py-2 text-white shadow hover:bg-blue-700"
-					>
-						Ver mapa
-					</button>
+					<section class="space-y-3" id="info">
+						<article
+							class="flex h-auto w-full cursor-pointer flex-row gap-2 border-b border-neutral-700 text-sm text-neutral-400 md:gap-3"
+							id="tabs"
+						>
+							<div class="tab-button active p-2 text-white" data-tab="info">
+								<button>Información</button>
+							</div>
+							<div class="tab-button p-2" data-tab="price">
+								<button>Precios</button>
+							</div>
+							<div class="tab-button p-2" data-tab="map">
+								<button>Ubicación</button>
+							</div>
+							<div class="tab-button p-2" data-tab="policies">
+								<button>Políticas</button>
+							</div>
+						</article>
+
+						<article class="space-y-3 rounded-2xl bg-neutral-100 p-3 py-7 shadow-sm md:p-8">
+							<div class="flex gap-1 text-black">
+								{Array.from({ length: hotelSubtype?.stars ?? 0 }).map((_, i) => (
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="currentColor"
+										viewBox="0 0 24 24"
+										class="h-5 w-5"
+									>
+										<path d="M12 .587l3.668 7.568L24 9.748l-6 5.85 1.416 8.252L12 19.771l-7.416 4.079L6 15.598 0 9.748l8.332-1.593z" />
+									</svg>
+								))}
+							</div>
+							<h1 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
+								{hotelProduct?.name}
+							</h1>
+							<p class="text-xs text-neutral-500 md:text-sm">
+								{hotelSubtype?.address}, {hotelProduct.destination?.name}
+							</p>
+
+							<p class="pt-7 text-sm leading-relaxed text-neutral-700 md:text-base">
+								{hotelProduct?.description}
+							</p>
+							<div class="text-end">
+								<span class="cursor-pointer text-sm text-blue-600" data-open-modal="services">
+									... Más Información
+								</span>
+							</div>
+						</article>
+
+						<article>
+							{services.length > 0 && (
+								<div class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8" id="map">
+									<ul class="grid grid-cols-2 gap-3 md:grid-cols-3 md:py-3 lg:grid-cols-4">
+										{services.slice(0, 4).map((service: any) => {
+											const Icon = service.icon
+											return (
+												<li class="flex h-[42px] max-w-56 items-center gap-2 p-2">
+													{Icon ? <Icon class="h-5 w-5 shrink-0 text-black" /> : <span>•</span>}
+													<span class="text-xs text-black md:text-sm">{service.name}</span>
+												</li>
+											)
+										})}
+									</ul>
+									<div class="text-end">
+										{services.length > 4 && (
+											<span class="cursor-pointer text-sm text-blue-600" data-open-modal="services">
+												+{services.length - 4} Servicios Más
+											</span>
+										)}
+									</div>
+								</div>
+							)}
+						</article>
+
+						<article class="grid grid-cols-2">
+							<button
+								data-open-modal="map"
+								class="group relative h-40 w-full overflow-hidden rounded-xl bg-neutral-200 shadow"
+							>
+								<iframe
+									class="pointer-events-none h-full w-full grayscale transition group-hover:grayscale-0"
+									loading="lazy"
+									referrerpolicy="no-referrer-when-downgrade"
+									src="https://www.google.com/maps?q=-33.4489,-70.6693&z=15&output=embed"
+								/>
+
+								<div class="absolute inset-0 flex items-center justify-center bg-black/30 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
+									Ver mapa
+								</div>
+							</button>
+						</article>
+					</section>
+
+					<section class="mx-auto max-w-7xl" id="price">
+						<RoomSection
+							searchState={searchState}
+							productId={productId}
+							offers={offers}
+							amenities={amenities}
+							roomImages={roomImages}
+							hotelRoom={hotelRoom}
+						/>
+					</section>
+
+					<section>
+						<article
+							class="space-y-9 rounded-2xl bg-neutral-100 p-3 py-6 shadow-sm md:p-8"
+							id="policies"
+						>
+							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
+								Políticas de Alojamiento
+							</h3>
+							<div class="space-y-8">
+								{Object.values(POLICY_UI_GROUPS)
+									.flat()
+									.map((category) => {
+										const group = policiesByCategory[category]
+										if (!group) return null
+
+										return (
+											<div class="space-y-3">
+												<h4 class="text-lg font-semibold text-neutral-800">
+													{POLICY_CATEGORY_ORDER[category]}
+												</h4>
+
+												<ul class="list-disc space-y-2 pl-5 text-sm text-neutral-600 md:text-base">
+													{group.map((policy) => {
+														return policy.description
+															.split("\n")
+															.filter((line: string) => line.trim() !== "")
+															.map((line: string) => <li>{line.replace(/^- /, "")}</li>)
+													})}
+												</ul>
+											</div>
+										)
+									})}
+							</div>
+						</article>
+					</section>
 				</>
 			) : (
 				<p class="text-center text-neutral-500">Cargando...</p>
 			)
 		}
-
-		<section class="py-6">
-			<div class="mx-auto max-w-7xl px-4">
-				<RoomSection rooms={productData.rooms} searchState={searchState} />
-			</div>
-
-			<div id="rooms-data" data-rooms={JSON.stringify(roomsServer || [])} class="hidden"></div>
-		</section>
 	</main>
+
 	<ImageModal />
+	<ServiceDetailsModal services={services} />
 	<MapModal
-		latitude={productData.subtype?.latitude}
-		longitude={productData.subtype?.longitude}
-		address={productData.subtype?.address || ""}
+		latitude={hotelSubtype?.latitude}
+		longitude={hotelSubtype?.longitude}
+		address={hotelSubtype?.address || ""}
 	/>
-	<RoomModal productId={productId} searchState={searchState} />
-</Layout>
+	<RoomModal
+		searchState={searchState}
+		productId={productId}
+		offers={offers}
+		amenities={amenities}
+		roomImages={roomImages}
+		hotelRoom={hotelRoom}
+	/>
+
+	<script>
+		const tabs = document.querySelectorAll("#tabs .tab-button") as NodeListOf<HTMLDivElement>
+
+		tabs.forEach((tab) => {
+			tab.addEventListener("click", () => {
+				tabs.forEach((t) => {
+					t.classList.remove("active", "text-white")
+					t.classList.add("text-neutral-400")
+				})
+
+				tab.classList.add("active", "text-white")
+				tab.classList.remove("text-neutral-400")
+
+				const targetId = tab.dataset.tab
+				if (!targetId) return
+				const section = document.getElementById(targetId)
+
+				if (section) {
+					section.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					})
+				}
+			})
+		})
+	</script>
+</UILayout>

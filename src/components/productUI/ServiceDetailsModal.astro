@@ -1,0 +1,138 @@
+---
+import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
+import { servicesByCategory } from "@/data/service/service-grouped"
+
+type ServiceInstance = {
+	id: string
+	attributes: Record<string, string>
+	notes?: string
+	appliesTo?: string[]
+	price?: number
+	currency?: string
+	priceUnit?: "per_night" | "per_person" | "per_use"
+}
+
+const { services } = Astro.props as { services: ServiceInstance[] }
+
+function buildServiceDescription(serviceId: string, attributes: Record<string, string>): string[] {
+	const defs = SERVICE_ATTRIBUTES[serviceId]
+	if (!defs) return []
+
+	const lines: string[] = []
+
+	for (const def of defs) {
+		const rawValue = attributes[def.key]
+		if (!rawValue) continue
+
+		switch (def.type) {
+			case "boolean":
+				lines.push(rawValue === "true" ? def.label : `No ${def.label.toLowerCase()}`)
+				break
+
+			case "select": {
+				const option = def.options?.find((o) => o.value === rawValue)
+				if (option) lines.push(`${def.label}: ${option.label}`)
+				break
+			}
+
+			default:
+				lines.push(`${def.label}: ${rawValue}`)
+		}
+	}
+
+	return lines
+}
+---
+
+<div
+	id="service-details-modal"
+	data-modal="services"
+	class="modal-overlay fixed inset-0 z-40 hidden bg-black/70 backdrop-blur-sm"
+>
+	<button
+		id="modal-close"
+		data-close-modal
+		class="absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-black/50 md:right-10 md:top-10 md:h-20 md:w-20 md:bg-transparent lg:border-0"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			class="h-6 w-6 text-2xl font-bold text-white hover:text-gray-400 md:h-12 md:w-12 md:text-5xl"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="3"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<line x1="18" y1="6" x2="6" y2="18"></line>
+			<line x1="6" y1="6" x2="18" y2="18"></line>
+		</svg>
+	</button>
+	<div class="w-2/5 mx-auto mt-20 rounded-2xl bg-white p-6 shadow-xl text-neutral-800">
+		<header class="mb-4 flex items-center">
+			<h2 class="text-lg font-semibold">Servicios del alojamiento</h2>
+		</header>
+
+		<div class="max-h-[70vh] space-y-6 overflow-y-auto">
+			{
+				Object.entries(servicesByCategory).map(([category, catalog]) => {
+					const active = catalog.filter((s) => services.some((ps) => ps.id === s.id))
+
+					if (!active.length) return null
+
+					return (
+						<section>
+							<h3 class="mb-2 text-sm font-semibold text-neutral-700">{category}</h3>
+
+							<ul class="space-y-3">
+								{active.map((service) => {
+									const resolved = services.find((s) => s.id === service.id)!
+									const description = buildServiceDescription(service.id, resolved.attributes)
+
+									return (
+										<li class="rounded-lg border p-3">
+											<div class="flex items-center gap-2">
+												<service.icon class="h-5 w-5 text-blue-600" />
+												<span class="font-medium">{service.name}</span>
+											</div>
+
+											{description.length > 0 && (
+												<ul class="mt-2 list-disc pl-6 text-sm text-neutral-600">
+													{description.map((line) => (
+														<li>{line}</li>
+													))}
+												</ul>
+											)}
+											{(resolved.notes || resolved.appliesTo || resolved.price) && (
+												<ul class="mt-2 space-y-1 text-sm text-neutral-600">
+													{resolved.appliesTo && (
+														<li>
+															<span class="font-medium">Disponible en:</span>{" "}
+															{resolved.appliesTo.join(", ")}
+														</li>
+													)}
+
+													{typeof resolved.price === "number" && (
+														<li>
+															<span class="font-medium">Precio:</span> {resolved.price}{" "}
+															{resolved.currency}
+															{resolved.priceUnit && ` / ${resolved.priceUnit}`}
+														</li>
+													)}
+
+													{resolved.notes && (
+														<li class="italic text-neutral-500">{resolved.notes}</li>
+													)}
+												</ul>
+											)}
+										</li>
+									)
+								})}
+							</ul>
+						</section>
+					)
+				})
+			}
+		</div>
+	</div>
+</div>

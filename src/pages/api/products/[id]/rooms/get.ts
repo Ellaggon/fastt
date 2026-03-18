@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ request, params }) => {
 	const images = await db
 		.select()
 		.from(Image)
-		.where(and(eq(Image.entityType, "HotelRoomType"), eq(Image.entityId, row.id)))
+		.where(and(eq(Image.entityType, "hotel_room"), eq(Image.entityId, row.id)))
 		.orderBy(Image.order)
 		.all()
 

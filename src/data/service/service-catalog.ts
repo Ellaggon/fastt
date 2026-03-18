@@ -5,17 +5,10 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 	// ─── Internet & Tecnología ─────────────────────────────
 	{
 		id: "wifi",
-		name: "Wi-Fi gratuito",
+		name: "Wi-Fi",
 		category: "Internet",
-		defaultFree: true,
+		defaultIncluded: true,
 		icon: serviceIcons.wifi,
-	},
-	{
-		id: "paid-wifi",
-		name: "Wi-Fi premium",
-		category: "Internet",
-		defaultFree: false,
-		icon: serviceIcons["paid-wifi"],
 	},
 	{
 		id: "streaming",
@@ -366,3 +359,6 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 		icon: serviceIcons["safety-railings"],
 	},
 ]
+
+export const SERVICE_CATALOG_BY_ID = Object.fromEntries(SERVICE_CATALOG.map((s) => [s.id, s]))
+export type ServiceId = keyof typeof SERVICE_CATALOG_BY_ID

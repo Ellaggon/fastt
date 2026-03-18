@@ -1,0 +1,20 @@
+---
+import PolicyManager from "@/components/policy/PolicyManager.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
+
+const productId = Astro.params.id
+
+if (!productId) throw new Error("Product ID is required")
+---
+
+<DashboardLayout>
+	<PolicyManager
+		title="Políticas Globales"
+		scope="product"
+		scopeId={productId}
+		resolveParams={{
+			productId,
+			category: "global",
+		}}
+	/>
+</DashboardLayout>

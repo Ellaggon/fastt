@@ -1,0 +1,111 @@
+---
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import { db, eq, Variant } from "astro:db"
+
+const { id, variantId } = Astro.params
+if (!variantId || !id) throw new Error("id/variantId param is required")
+
+const ratePlansRes = await fetch(
+	new URL(`/api/rateplans/list?variantId=${variantId}`, Astro.request.url)
+)
+
+if (!ratePlansRes.ok) throw new Error("Failed to load rate plans")
+const ratePlans = await ratePlansRes.json()
+
+const variant = await db
+	.select({ name: Variant.name })
+	.from(Variant)
+	.where(eq(Variant.id, variantId))
+	.get()
+
+if (!variant) throw new Error("Variant not found")
+---
+
+<DashboardLayout title="Rate Plans">
+	<main
+		class="mx-auto mt-6 w-[95%] max-w-3xl rounded-3xl border bg-neutral-200 p-8 text-neutral-800 shadow md:mt-20"
+	>
+		<h1 class="text-lg font-bold md:mb-1 md:text-2xl lg:text-3xl">PLANES TARÍFARIOS</h1>
+		<p class="mt-7 text-end text-base font-semibold text-neutral-600 md:mb-6">{variant?.name}</p>
+
+		<div class="mt-6 flex justify-start">
+			<a
+				href={`/products/${id}/rate-plans/${variantId}/create`}
+				class="rounded-lg bg-blue-600 px-5 py-2 text-sm text-white"
+			>
+				+ Crear plan tarifario
+			</a>
+		</div>
+
+		<div class="mt-8 space-y-4">
+			{
+				ratePlans.length === 0 ? (
+					<p class="text-sm text-neutral-500">No hay plan tarifario para esta habitación.</p>
+				) : (
+					ratePlans.map((rp: any) => {
+						// console.log("ratePlans", ratePlans)
+						return (
+							<article class="flex items-center justify-between rounded-xl border bg-white p-4 shadow">
+								<div>
+									<p class="font-medium">{rp.template?.name}</p>
+
+									{rp.dateRange ? (
+										<p class="text-xs text-neutral-500 md:text-base">
+											{new Date(rp.dateRange.startDate).toLocaleDateString()} →
+											{new Date(rp.dateRange.endDate).toLocaleDateString()}
+										</p>
+									) : (
+										<p class="text-xs text-neutral-400">Sin restricciones</p>
+									)}
+									<p class="text-xs text-neutral-500">
+										{rp.template?.paymentType} ·{" "}
+										{rp.template?.refundable ? "Reembolsable" : "No reembolsable"}
+									</p>
+
+									<p class="text-xs text-green-500">{rp.isActive && "Activo"}</p>
+									<p class="text-xs text-red-500">{!rp.isActive && "Inactivo"}</p>
+								</div>
+
+								<div class="flex gap-2">
+									<a
+										href={`/products/${id}/rate-plans/${variantId}/${rp.id}/edit`}
+										class="rounded-lg border px-4 py-2 text-sm"
+									>
+										Editar
+									</a>
+
+									<button
+										class="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700"
+										data-id={rp.id}
+									>
+										Eliminar
+									</button>
+								</div>
+							</article>
+						)
+					})
+				)
+			}
+		</div>
+	</main>
+</DashboardLayout>
+<script>
+	document.addEventListener("click", async (event) => {
+		const target = event.target as HTMLElement | null
+		if (!target) return
+
+		const btn = target.closest("button[data-id]") as HTMLButtonElement | null
+		if (!btn) return
+
+		const id = btn.dataset.id
+		if (!id) return
+
+		if (!confirm("¿Eliminar?")) return
+
+		await fetch(`/api/rateplans/delete?id=${id}`, {
+			method: "DELETE",
+		})
+
+		location.reload()
+	})
+</script>

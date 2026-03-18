@@ -49,7 +49,6 @@ import {
 export const serviceIcons = {
 	// --- Internet & Tecnología ---
 	"wifi": Wifi,
-	"paid-wifi": Wifi,
 	"streaming": Play,
 	"flat-tv": Tv,
 

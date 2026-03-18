@@ -1,116 +1,182 @@
 ---
-const { rooms, searchState } = Astro.props
-import { ROOM_TYPE_MAP } from "@/data/room-types"
+const { offers, searchState, productId, amenities, roomImages, hotelRoom } = Astro.props
 import { Bath, BedDouble, User } from "@lucide/astro"
+import RoomAvailabilityIsland from "../booking/RoomAvailabilityIsland.astro"
+import DatesModal from "./DatesModal.astro"
+// console.log("amenities", amenities)
+// console.log("roomImages", roomImages)
+// console.log("hotelRoom", hotelRoom)
 ---
 
-<header class="mb-6 flex flex-wrap items-end justify-between gap-4">
+<header
+	class="flex flex-wrap items-end justify-between gap-6 rounded-2xl bg-neutral-900 p-4 md:p-6"
+>
 	<div>
-		<span class="block text-xs text-neutral-400">Revisa disponibilidad de</span>
-		<h2 class="text-2xl font-semibold text-neutral-100">Habitaciones</h2>
+		<span class="block text-xs font-medium uppercase tracking-wide text-neutral-400">
+			Revisa disponibilidad de
+		</span>
+		<h2 class="mt-1 text-2xl font-semibold text-white">Habitaciones</h2>
 	</div>
 
-	<div class="flex items-center gap-2">
-		<input
-			type="date"
-			id="checkin"
-			value={searchState.checkIn}
-			class="rounded-lg px-3 py-2 text-sm text-neutral-800 focus:ring-2 focus:ring-blue-500"
-		/>
-		<input
-			type="date"
-			id="checkout"
-			value={searchState.checkOut}
-			class="rounded-lg px-3 py-2 text-sm text-neutral-800 focus:ring-2 focus:ring-blue-500"
-		/>
-		<div class="relative">
-			<button
-				id="guestsBtn"
-				type="button"
-				class="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-50"
-			>
-				<span id="guestsLabel">2 adultos</span>
-				<svg class="h-4 w-4 opacity-60" viewBox="0 0 20 20" fill="currentColor">
-					<path
-						fill-rule="evenodd"
-						d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.94l3.71-3.7a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z"
-					></path>
+	<span id="guestsLabel" class="hidden"></span>
+
+	<div class="flex w-full flex-wrap items-end gap-3 md:w-auto">
+		<div class="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
+			<div class="flex flex-col gap-1">
+				<label class="text-xs text-neutral-400">Adultos</label>
+				<input
+					id="adultsInput"
+					type="number"
+					min="1"
+					value="2"
+					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
+				/>
+			</div>
+
+			<div class="flex flex-col gap-1">
+				<label class="text-xs text-neutral-400">Niños</label>
+				<input
+					id="childrenInput"
+					type="number"
+					min="0"
+					value="0"
+					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
+				/>
+			</div>
+		</div>
+
+		<div
+			class="flex w-full overflow-hidden rounded-xl border border-neutral-700 bg-neutral-800 md:w-auto"
+			data-open-modal="dates"
+		>
+			<div class="relative flex w-1/2 items-center md:w-[160px]">
+				<svg
+					class="absolute left-3 h-4 w-4 text-neutral-400"
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<rect x="3" y="4" width="18" height="18" rx="2"></rect>
+					<line x1="16" y1="2" x2="16" y2="6"></line>
+					<line x1="8" y1="2" x2="8" y2="6"></line>
+					<line x1="3" y1="10" x2="21" y2="10"></line>
 				</svg>
-			</button>
 
-			<!-- POPOVER -->
-			<div
-				id="guestsPopover"
-				class="absolute right-0 z-20 mt-2 hidden w-56 rounded-xl border bg-white p-4 text-neutral-800 shadow-xl"
-			>
-				<div class="flex items-center justify-between text-sm">
-					<span>Adultos</span>
-					<input
-						id="adultsInput"
-						type="number"
-						min="1"
-						value="2"
-						class="w-16 rounded-md border px-2 py-1 text-center"
-					/>
-				</div>
+				<button
+					id="checkinBtn"
+					value={searchState.checkIn}
+					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
+				>
+					<span id="checkinText">Check-in</span>
+				</button>
+			</div>
 
-				<div class="mt-3 flex items-center justify-between text-sm">
-					<span>Niños</span>
-					<input
-						id="childrenInput"
-						type="number"
-						min="0"
-						value="0"
-						class="w-16 rounded-md border px-2 py-1 text-center"
-					/>
-				</div>
+			<div class="w-px bg-neutral-700"></div>
+
+			<div class="relative flex w-1/2 items-center md:w-[160px]">
+				<svg
+					class="absolute left-3 h-4 w-4 text-neutral-400"
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<rect x="3" y="4" width="18" height="18" rx="2"></rect>
+					<line x1="16" y1="2" x2="16" y2="6"></line>
+					<line x1="8" y1="2" x2="8" y2="6"></line>
+					<line x1="3" y1="10" x2="21" y2="10"></line>
+				</svg>
+
+				<button
+					id="checkoutBtn"
+					value={searchState.checkOut}
+					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
+				>
+					<span id="checkoutText">Check-out</span>
+				</button>
 			</div>
 		</div>
 
 		<button
 			id="searchBtn"
-			class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 active:scale-[0.98]"
+			class="h-[44px] w-full rounded-lg bg-blue-600 px-6 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-500 active:scale-[0.97] md:w-auto"
 		>
 			Buscar
 		</button>
 	</div>
 </header>
 
-<div class="-mx-4 overflow-x-auto px-4 py-6">
-	<div class="flex snap-x snap-mandatory gap-6">
+<RoomAvailabilityIsland productId={productId} searchState={searchState} />
+<DatesModal />
+
+<div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 py-3">
+	<div class="flex snap-x snap-mandatory gap-3">
 		{
-			(rooms ?? []).map((room: any) => {
-				const img = room.images?.at(-1)?.url ?? "https://placehold.co/800x600?text=Sin+imagen"
-				const roomType = ROOM_TYPE_MAP[room.roomTypeId] || "Habitación"
+			(offers ?? []).map((room: any) => {
+				// console.log("room", room)
+
+				const variant = room.variant
+				const entity = hotelRoom?.find((r: any) => r.id === variant.entityId) ?? {}
+				const ratePlans = room.ratePlans ?? []
+				const img = roomImages?.at(0)?.url ?? "https://placehold.co/800x600?text=Sin+imagen"
+
+				const prices = ratePlans
+					.map((rp: any) => rp.finalPrice ?? rp.price)
+					.filter((p: any) => typeof p === "number")
+
+				console.log("variant", variant)
+				console.log("prices", prices)
+				const fromPrice = prices.length ? Math.min(...prices) : variant.basePrice
+				const showBasePrice =
+					typeof variant.basePrice === "number" &&
+					prices.length > 0 &&
+					variant.basePrice > fromPrice
+				console.log("fromPrice", fromPrice)
 
 				return (
 					<article
-						data-room-id={room.id}
-						data-capacity={room.maxOccupancyOverride ?? 0}
+						data-room-id={variant.id}
+						data-capacity={variant.maxOccupancy ?? 0}
 						class="w-[360px] flex-shrink-0 snap-start rounded-3xl bg-neutral-100 shadow-[0_20px_50px_rgba(0,0,0,0.08)] backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(0,0,0,0.12)]"
 					>
-						<img src={img} alt={roomType.name} class="h-48 w-full rounded-t-2xl object-cover" />
+						<img
+							src={img}
+							alt={variant.name}
+							data-open-modal={`room-${variant.id}`}
+							class="h-48 w-full cursor-pointer rounded-t-2xl object-cover"
+						/>
 
 						<div class="p-5">
-							<h3 class="font-semibold text-neutral-800">{roomType.name}</h3>
+							<h3 class="font-semibold text-neutral-800" data-open-modal={`room-${variant.id}`}>
+								{variant.name}
+							</h3>
 
 							<p class="mt-1 text-sm text-neutral-500">
-								{room.sizeM2 ? `${room.sizeM2} m²` : ""}
-								{room.hasView ? ` • Con vista ${room.hasView}` : ""}
+								{entity.sizeM2 && `${entity.sizeM2} m²`}
+								{entity.hasView && ` • Con vista ${entity.hasView}`}
 							</p>
 
 							<div class="mt-4 grid grid-cols-2 gap-2 text-sm text-neutral-600">
 								<label class="flex items-center gap-1">
-									<BedDouble class="h-4 w-4" />
+									<BedDouble class={`h-4 w-4 ${entity.bedType ? "block" : "hidden"}`} />
 									<span>
-										{room.bedType?.map((b: any) => `${b.count} ${b.id}`).join(", ") ?? "-"}
+										{entity.bedType?.map((b: any) => `${b.count} ${b.id}`).join(", ") ?? "-"}
 									</span>
 								</label>
+
 								<label class="flex items-center gap-1">
-									<Bath class="h-4 w-4" />
-									<span>{room.bathroom ?? "—"} baños</span>
+									<Bath class={`h-4 w-4 ${entity.bathroom ? "block" : "hidden"}`} />
+									{entity.bathroom != null && (
+										<span>
+											{entity.bathroom} {entity.bathroom > 1 ? "baños" : "baño"}
+										</span>
+									)}
 								</label>
-								<label class={`${room.hasBalcony ? "block" : "hidden"} flex items-center gap-1`}>
+
+								<label class={`${entity.hasBalcony ? "block" : "hidden"} flex items-center gap-1`}>
 									<svg
 										class="h-4 w-4"
 										xmlns="http://www.w3.org/2000/svg"
@@ -120,7 +186,6 @@ import { Bath, BedDouble, User } from "@lucide/astro"
 										stroke-width="2"
 										stroke-linecap="round"
 										stroke-linejoin="round"
-										class="icon-balcony"
 									>
 										<path d="M4 10V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6" />
 										<path d="M2 10v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V10" />
@@ -129,35 +194,77 @@ import { Bath, BedDouble, User } from "@lucide/astro"
 										<path d="M12 14v7" />
 										<path d="M18 14v7" />
 									</svg>
-									<span class={room.hasBalcony ? "block" : "hidden"}>Con balcón</span>
+									<span>Con balcón</span>
 								</label>
+
 								<label class="flex items-center gap-1">
-									<User class="h-4 w-4" />
-									<span>Capacidad {room.maxOccupancyOverride ?? "--"}</span>
+									<User class={`h-4 w-4 ${entity.maxOccupancy ? "block" : "hidden"}`} />
+									{entity.maxOccupancy > 0 && (
+										<span>
+											{entity.maxOccupancy} {entity.maxOccupancy > 1 ? "Personas" : "Persona"}
+										</span>
+									)}
 								</label>
 							</div>
 
-							{/* PRICE */}
-							<div class="mt-5">
-								<p class="text-xs text-neutral-400">Desde</p>
+							<div class="mt-5 grid grid-cols-2 items-end gap-x-3 text-right">
+								{showBasePrice && (
+									<>
+										<span class="text-xs text-neutral-500">Precio normal:</span>
+										<span class="text-sm text-neutral-500 line-through opacity-60">
+											${variant.basePrice}
+										</span>
+									</>
+								)}
 
-								<p class="price-value text-xl font-semibold text-neutral-900">—</p>
+								<span class="text-xs text-neutral-500">Desde:</span>
+								<span class="price-value text-xl font-semibold text-neutral-900">${fromPrice}</span>
+							</div>
 
-								<p class="price-status hidden text-sm font-medium text-red-500">
-									Sin disponibilidad
-								</p>
+							<div class="mt-4 space-y-3">
+								{ratePlans.map((rp: any) => {
+									const finalPrice = rp.finalPrice ?? rp.price ?? 0
+									console.log("finalP", finalPrice)
+
+									return (
+										<div
+											class="flex items-center justify-between rounded-lg border bg-white px-3 py-2"
+											data-rateplan-id={rp.id}
+										>
+											<div>
+												<p class="text-sm font-medium text-neutral-800">{rp.name ?? "Tarifa"}</p>
+												<p class="text-xs text-neutral-500">
+													{rp.paymentType}
+													{rp.refundable === false ? " • No reembolsable" : ""}
+												</p>
+											</div>
+
+											<div class="text-right">
+												<p class="text-sm font-semibold text-neutral-900">${finalPrice}</p>
+
+												<a
+													href={`/book/${variant.id}?ratePlan=${rp.id}`}
+													class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+												>
+													Reservar
+												</a>
+											</div>
+										</div>
+									)
+								})}
 							</div>
 
 							<div class="mt-6 flex gap-3">
 								<button
 									type="button"
+									data-open-modal={`room-${variant.id}`}
 									class="flex-1 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
 								>
 									Ver habitación
 								</button>
 
 								<a
-									href={`/book/${room.id}`}
+									href={`/book/${variant.id}`}
 									class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
 								>
 									Reservar
@@ -172,11 +279,7 @@ import { Bath, BedDouble, User } from "@lucide/astro"
 </div>
 
 <script>
-	import type { AvailabilityResponse } from "@/components/booking/availabilityTypes"
-	import { findAvailability } from "@/components/utils/availability"
 
-	const guestsBtn = document.getElementById("guestsBtn") as HTMLButtonElement
-	const guestsPopover = document.getElementById("guestsPopover") as HTMLDivElement
 	const guestsLabel = document.getElementById("guestsLabel") as HTMLSpanElement
 
 	const adultsInput = document.getElementById("adultsInput") as HTMLInputElement
@@ -187,31 +290,16 @@ import { Bath, BedDouble, User } from "@lucide/astro"
 		const children = Number(childrenInput.value)
 		const total = adults + children
 
-		guestsLabel.textContent =
-			children > 0
-				? `${adults} adultos, ${children} niño${children > 1 ? "s" : ""}`
-				: `${adults} adulto${adults > 1 ? "s" : ""}`
+		if (guestsLabel) {
+			guestsLabel.textContent =
+				children > 0
+					? `${adults} adultos, ${children} niño${children > 1 ? "s" : ""}`
+					: `${adults} adulto${adults > 1 ? "s" : ""}`
+		}
 
 		return total
 	}
 
-	/* Toggle popover */
-	guestsBtn.onclick = () => {
-		guestsPopover.classList.toggle("hidden")
-	}
-
-	/* Cerrar al hacer click fuera */
-	document.addEventListener("click", (e) => {
-		const target = e.target
-
-		if (!(target instanceof Node)) return
-
-		if (!guestsBtn.contains(target) && !guestsPopover.contains(target)) {
-			guestsPopover.classList.add("hidden")
-		}
-	})
-
-	/* Recalcular label */
 	adultsInput.oninput = updateGuestsLabel
 	childrenInput.oninput = updateGuestsLabel
 
@@ -232,29 +320,36 @@ import { Bath, BedDouble, User } from "@lucide/astro"
 		})
 	})
 
-	document.addEventListener("availability:updated", (e) => {
-		const event = e as CustomEvent<AvailabilityResponse>
-		const results = event.detail
+	// document.addEventListener("availability:updated", (e) => {
+	// 	const event = e as CustomEvent<AvailabilityResponse>
+	// 	const results = event.detail
+	// 	console.log("RESULTS:", results)
 
-		const dataRoomIds = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
-		dataRoomIds.forEach((card) => {
-			const roomId = card.dataset.roomId
-			if (!roomId) return
+	// 	const dataRoomIds = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
+	// 	dataRoomIds.forEach((card) => {
+	// 		const variantId = card.dataset.roomId
+	// 		console.log("variantId:", variantId)
+	// 		if (!variantId) return
 
-			const priceValue = card.querySelector(".price-value") as HTMLElement
-			const priceStatus = card.querySelector(".price-status") as HTMLElement
+	// 		const priceValue = card.querySelector(".price-value") as HTMLElement
+	// 		const priceStatus = card.querySelector(".price-status") as HTMLElement
 
-			const availability = findAvailability(results, roomId)
+	// 		const availability = findAvailability(results, variantId)
+	// 		console.log("availability", availability)
 
-			if (availability) {
-				priceValue.textContent = `USD ${availability.pricing.total}`
-				priceValue.classList.remove("hidden")
-				priceStatus.classList.add("hidden")
-			} else {
-				priceValue.textContent = ""
-				priceValue.classList.add("hidden")
-				priceStatus.classList.remove("hidden")
-			}
-		})
-	})
+	// 		if (availability && typeof availability.pricing === "number") {
+	// 			if (!priceValue) return
+
+	// 			priceValue.textContent = `USD ${availability.pricing}`
+	// 			priceValue.classList.remove("hidden")
+	// 			priceStatus?.classList.add("hidden")
+	// 		} else {
+	// 			if (!priceValue) return
+
+	// 			priceValue.textContent = ""
+	// 			priceValue.classList.add("hidden")
+	// 			priceStatus?.classList.remove("hidden")
+	// 		}
+	// 	})
+	// })
 </script>

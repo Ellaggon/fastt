@@ -1,5 +1,7 @@
 import { defineDb, defineTable, column, NOW } from "astro:db"
 
+// 1. Core master data (sin dependencias)
+
 const Provider = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -11,6 +13,74 @@ const Provider = defineTable({
 		type: column.text({ optional: true }),
 	},
 })
+const Destination = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(),
+		type: column.text(),
+		country: column.text(),
+		department: column.text({ optional: true }),
+		latitude: column.number({ optional: true }),
+		longitude: column.number({ optional: true }),
+		slug: column.text(),
+	},
+})
+// const Place = defineTable({
+//  columns: {
+//      id: column.text({ primaryKey: true }),
+//      productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
+//      address: column.text({ optional: true }),
+//      phone: column.text({ optional: true }),
+//      email: column.text({ optional: true }),
+//      latitude: column.number({ optional: true }),
+//      longitude: column.number({ optional: true }),
+//  }
+// })
+const RoomType = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(),
+		maxOccupancy: column.number({ optional: true }),
+		description: column.text({ optional: true }),
+	},
+})
+const AmenityRoom = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		name: column.text(),
+		category: column.text({ optional: true }),
+	},
+})
+const Service = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+	},
+})
+const Image = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		entityType: column.text({ optional: true }), // e.g. "Product", "Hotel", "City"
+		entityId: column.text({ optional: true }), // ID de la entidad
+		url: column.text(),
+		altText: column.text({ optional: true }),
+		order: column.number({ default: 0 }),
+		isPrimary: column.boolean({ default: false }),
+	},
+})
+const Translation = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		tableRef: column.text(), // e.g., 'Product'
+		columnRef: column.text(), // e.g., 'name'
+		recordId: column.text(), // ID of the record in the referenced table
+		languageCode: column.text(), // e.g., 'es', 'en', 'pt'
+		translatedText: column.text(),
+	},
+	// For Astro DB, to ensure uniqueness (tableRef, columnRef, recordId, languageCode),
+	// you might need to handle this at the application level during insertion.
+})
+
+// 2. Usuarios y entidades principales
 
 const User = defineTable({
 	columns: {
@@ -24,59 +94,6 @@ const User = defineTable({
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 	},
 })
-
-const Destination = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		type: column.text(), // city, region, landmark, etc.
-		country: column.text(),
-		department: column.text({ optional: true }),
-		latitude: column.number({ optional: true }),
-		longitude: column.number({ optional: true }),
-		slug: column.text(),
-	},
-})
-
-// const Place = defineTable({
-//  columns: {
-//      id: column.text({ primaryKey: true }),
-//      productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
-//      address: column.text({ optional: true }),
-//      phone: column.text({ optional: true }),
-//      email: column.text({ optional: true }),
-//      latitude: column.number({ optional: true }),
-//      longitude: column.number({ optional: true }),
-//  }
-// })
-
-const RoomType = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		maxOccupancy: column.number({ optional: true }),
-		description: column.text({ optional: true }),
-	},
-})
-
-const AmenityRoom = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(), // "Aire acondicionado", "TV", "Minibar"
-		category: column.text({ optional: true }), // "Entretenimiento", "Comodidad", "Baño"
-	},
-})
-
-const Service = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }), // "internet", "parking"
-		name: column.text(),
-		category: column.text(), // "Internet", "Estacionamiento"
-	},
-})
-
-//   2. TABLAS QUE DEPENDEN DE PROVIDER / DESTINATION
-
 const Product = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -89,27 +106,6 @@ const Product = defineTable({
 		destinationId: column.text({ references: () => Destination.columns.id }),
 	},
 })
-
-// 3. TABLAS QUE DEPENDEN DE PRODUCT
-
-const Variant = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id }),
-
-		entityType: column.text({ optional: true }),
-		entityId: column.text({ optional: true }),
-
-		name: column.text(),
-		description: column.text({ optional: true }),
-
-		basePriceUSD: column.number({ default: 0 }),
-		basePriceBOB: column.number({ default: 0 }),
-
-		isActive: column.boolean({ default: true }),
-	},
-})
-
 const Hotel = defineTable({
 	columns: {
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
@@ -122,7 +118,6 @@ const Hotel = defineTable({
 		longitude: column.number({ optional: true }),
 	},
 })
-
 const Tour = defineTable({
 	columns: {
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
@@ -133,7 +128,6 @@ const Tour = defineTable({
 		excludes: column.text({ optional: true }),
 	},
 })
-
 const Package = defineTable({
 	columns: {
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
@@ -142,47 +136,34 @@ const Package = defineTable({
 		nights: column.number({ optional: true }),
 	},
 })
-
-const ProductService = defineTable({
+const Variant = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		serviceId: column.text({ references: () => Service.columns.id }),
+		entityType: column.text(), // 'hotel_room', 'tour_slot', 'package_base'
+		entityId: column.text(),
+		name: column.text(),
+		description: column.text({ optional: true }),
 
-		// ─── Inclusión / pago ───────────────────
-		isIncluded: column.boolean({ default: false }),
-		isPaid: column.boolean({ default: false }),
-		price: column.number({ optional: true }),
-		priceUnit: column.text({ optional: true }), // "night" | "stay" | "person"
-		currency: column.text({ optional: true }), // "USD"
+		maxOccupancy: column.number({ default: 1 }),
+		minOccupancy: column.number({ default: 1 }),
+		currency: column.text({ default: "USD" }),
+		basePrice: column.number({ optional: true }),
 
-		// ─── Alcance ────────────────────────────
-		appliesTo: column.text({ default: "both" }), // "room" | "common" | "both"
-		// ─── Texto OTA ──────────────────────────
-		customText: column.text({ optional: true }),
-	},
-})
+		// Gestión de Confirmación
+		// 'instant': Se confirma de inmediato si hay stock
+		// 'request': El proveedor debe confirmar manualmente
+		confirmationType: column.text({ default: "instant" }),
+		// overbookingLimit: column.number({ default: 0 }),
 
-const ProductServiceAttribute = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		productServiceId: column.text({ references: () => ProductService.columns.id }),
-		key: column.text(), // "location", "type"
-		value: column.text(), // "room", "free", "wifi", "12"
-	},
-})
-
-const Policy = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id }),
-		policyType: column.text(), // 'Cancellation', 'CheckIn', 'CheckOut', 'Children', 'Pets', 'Smoking', etc.
-		description: column.text(),
+		// Código para integraciones externas (Channel Managers)
+		externalCode: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
 	},
+	indexes: [{ on: ["entityId", "entityType"] }],
 })
 
-// 4. TABLAS QUE DEPENDEN DE PRODUCT + ROOMTYPE + HOTEL
+// 3. Configuración estructural de producto
 
 const HotelRoomType = defineTable({
 	columns: {
@@ -190,15 +171,14 @@ const HotelRoomType = defineTable({
 		hotelId: column.text({ references: () => Hotel.columns.productId }),
 		roomTypeId: column.text({ references: () => RoomType.columns.id }),
 		totalRooms: column.number({ default: 0 }),
-		hasView: column.text({ optional: true }), // "Vista al salar"
-		bedType: column.json({ optional: true }), //cambiar s
+		hasView: column.text({ optional: true }),
+		bedType: column.json({ optional: true }),
 		sizeM2: column.number({ optional: true }),
 		bathroom: column.number({ optional: true }),
 		hasBalcony: column.boolean({ optional: true }),
 		maxOccupancyOverride: column.number({ optional: true }),
 	},
 })
-
 const HotelRoomAmenity = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -207,88 +187,243 @@ const HotelRoomAmenity = defineTable({
 		isAvailable: column.boolean({ default: true }),
 	},
 })
-
-const OperatingRule = defineTable({
+const ProductService = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		ruleType: column.text(), // 'OperationHours' | 'BookingWindow' | 'Other'
-		value: column.text(),
+		serviceId: column.text({ references: () => Service.columns.id }),
+		price: column.number({ optional: true }),
+		currency: column.text({ optional: true }),
+		priceUnit: column.text({ optional: true }),
+		appliesTo: column.text({ default: "both" }),
+		notes: column.text({ optional: true }),
 	},
-	//  --- OperatingRule ---
-	//    Reglas técnicas/operativas que afectan disponibilidad/operación:
-	//    - OperationHours: horario de funcionamiento recurrente (ej: 08:00-17:00)
-	//    - BlackoutDates: (vehiculado también por la tabla BlackoutDate) — fechas en las que NO OPERAMOS
-	//    - BookingWindow: límites de venta anticipada (min/max days) — opcional aquí
-	//    NOTA: No usar OperatingRule para reglas "legales" legibles por el usuario (esas van a Policy).
+	indexes: [{ on: ["productId", "serviceId"], unique: true }],
 })
-
-// 5. BlackoutDate (depende de HotelRoomType y Product)
-
-const BlackoutDate = defineTable({
+const ProductServiceAttribute = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id, optional: true }),
-		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id, optional: true }),
-		startDate: column.date(),
-		endDate: column.date(),
-		reason: column.text({ optional: true }),
+		productServiceId: column.text({ references: () => ProductService.columns.id }),
+		key: column.text(), // "location", "type"
+		value: column.text(), // "room", "free", "wifi", "12"
 	},
-	/* --- BlackoutDate: rango de fechas en que un PRODUCTO o una HABITACIÓN no está disponible */
+	// EFICIENCIA: Búsquedas rápidas por atributo
+	indexes: [{ on: ["productServiceId", "key"] }],
 })
 
-// 6. RATEPLAN (depende de Variant + Policy)
+// 4. Policy system
 
-const RatePlan = defineTable({
+const PolicyGroup = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		category: column.text(),
+	},
+})
+const Policy = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		groupId: column.text({ references: () => PolicyGroup.columns.id }),
+		description: column.text(),
+		version: column.number(),
+		status: column.text({ default: "draft" }), // draft | active | archived
+		effectiveFrom: column.text({ optional: true }),
+		effectiveTo: column.text({ optional: true }),
+	},
+})
+const PolicyAssignment = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		policyGroupId: column.text({ references: () => PolicyGroup.columns.id }),
+		scope: column.text(),
+		scopeId: column.text(),
+		channel: column.text({ optional: true }),
+		isActive: column.boolean({ default: true }),
+	},
+})
+const CancellationTier = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		policyId: column.text({ references: () => Policy.columns.id }),
+		daysBeforeArrival: column.number(),
+		penaltyType: column.text({ default: "percentage" }),
+		penaltyAmount: column.number({ optional: true }),
+	},
+})
+const PolicyRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		policyId: column.text({ references: () => Policy.columns.id }),
+		ruleKey: column.text({ optional: true }),
+		ruleValue: column.json({ optional: true }),
+	},
+})
+const EffectivePolicy = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		entityType: column.text(), // hotel | product | variant | rateplan | channel
+		entityId: column.text(),
+		category: column.text(),
+		effectivePolicyId: column.text(),
+		effectiveGroupId: column.text(),
+		description: column.text({ optional: true }),
+		rules: column.json({ optional: true }),
+		cancellationTiers: column.json({ optional: true }),
+		priority: column.number(),
+		computedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["entityType", "entityId", "category"], unique: true }],
+})
+
+// 5. Inventory / Availability base
+
+// const DailyAvailability = defineTable({
+// 	columns: {
+// 		id: column.text({ primaryKey: true }),
+// 		entityType: column.text(), // hotel_room | tour_slot | package_base
+// 		entityId: column.text(),
+// 		// hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
+// 		date: column.text(),
+// 		availableCount: column.number(), // Ej: 10 habitaciones
+// 		priceOverride: column.number({ optional: true }), // Las OTAs permiten cambiar el precio por día específico aquí
+// 	},
+// })
+
+const DailyInventory = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		variantId: column.text({ references: () => Variant.columns.id }),
+		date: column.text(), // YYYY-MM-DD
+		totalInventory: column.number(), // Ej: 10 habitaciones físicas
+		reservedCount: column.number({ default: 0 }),
+		priceOverride: column.number({ optional: true }), // opcional si quieres override por día
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["variantId", "date"], unique: true }],
+})
+const EffectiveInventory = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		date: column.text(),
+		availableInventory: column.number(),
+		computedAt: column.date(),
+	},
+	indexes: [{ on: ["variantId", "date"], unique: true }],
+})
 
+// 6. Pricing / Restrictions
+
+const RatePlanTemplate = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
 		name: column.text(),
 		description: column.text({ optional: true }),
+		paymentType: column.text(), // 'prepaid', 'at_property'
+		refundable: column.boolean(),
+		cancellationPolicyId: column.text({ references: () => Policy.columns.id, optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+const RatePlan = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		templateId: column.text({ references: () => RatePlanTemplate.columns.id }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+const PriceRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		name: column.text({ optional: true }), // Ej: "Recargo Fin de Semana" o "Temporada Alta"
+		type: column.text({ default: "modifier" }), // 'modifier', 'absolute', 'override'
+		value: column.number(), // El monto o porcentaje
 
-		type: column.text({ default: "modifier" }),
-		valueUSD: column.number({ default: 0 }),
-		valueBOB: column.number({ default: 0 }),
+		// Campos de estacionalidad (antes estaban en PriceSeason)
+		// startDate: column.text({ optional: true }),
+		// endDate: column.text({ optional: true }),
+		// validDays: column.json({ optional: true }), // [1,2,3,4,5]
 
-		refundable: column.boolean({ default: true }),
-		cancellationPolicyId: column.text({ optional: true, references: () => Policy.columns.id }),
-		paymentType: column.text({ default: "Prepaid" }),
-
-		minNights: column.number({ default: 1 }),
-		maxNights: column.number({ optional: true }),
-
-		minAdvanceDays: column.number({ default: 0 }),
-		maxAdvanceDays: column.number({ optional: true }),
-
-		validDays: column.json({ optional: true }),
-		startDate: column.date({ optional: true }),
-		endDate: column.date({ optional: true }),
-
+		priority: column.number({ default: 10 }), // Para saber qué regla se aplica primero
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+const Restriction = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		// A qué se aplica: 'product', 'variant' o 'rate_plan'
+		scope: column.text(),
+		scopeId: column.text(),
+		type: column.text(), // 'min_stay', 'max_stay', 'cta' (closed to arrival), 'stop_sell'
+		value: column.number({ optional: true }),
+		startDate: column.text(),
+		endDate: column.text(),
+		validDays: column.json({ optional: true }), // [1,2,3,4,5,6,0]
+		isActive: column.boolean({ default: true }),
+		priority: column.number({ default: 100 }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+const EffectiveRestriction = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		date: column.text(),
+		minStay: column.number({ optional: true }),
+		maxStay: column.number({ optional: true }),
+		cta: column.boolean({ default: false }),
+		ctd: column.boolean({ default: false }),
+		stopSell: column.boolean({ default: false }),
+		priority: column.number({ default: 0 }),
+		computedAt: column.date(),
+	},
+	indexes: [{ on: ["variantId", "date"], unique: true }],
+})
+const EffectivePricing = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({
+			references: () => Variant.columns.id,
+		}),
+		ratePlanId: column.text({
+			references: () => RatePlan.columns.id,
+		}),
+		date: column.text(),
+		basePrice: column.number(),
+		yieldMultiplier: column.number({ default: 1 }),
+		finalBasePrice: column.number(),
+		computedAt: column.date(),
+	},
+	indexes: [
+		{
+			on: ["variantId", "ratePlanId", "date"],
+			unique: true,
+		},
+	],
+})
+const TaxFee = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }),
+		type: column.text({ default: "percentage" }), // 'percentage'|'fixed'|'perPerson'|'perNight'|'perBooking'
+		value: column.number(), // 13 => 13% si type=percentage, o 50 (moneda) si fixed
+		currency: column.text({ default: "USD" }),
+		isIncluded: column.boolean({ default: false }), // si está incluido en el precio mostrado
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
 
-const Image = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		entityType: column.text({ optional: true }), // e.g. "Product", "Hotel", "City"
-		entityId: column.text({ optional: true }), // ID de la entidad
-		url: column.text(),
-		altText: column.text({ optional: true }),
-		order: column.number({ default: 0 }),
-		isPrimary: column.boolean({ default: false }),
-	},
-})
-
-// 7. BOOKING (depende de User + Product)
+// 7. Booking core
 
 const Booking = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		userId: column.text({ references: () => User.columns.id, optional: true }), // Optional for guest bookings
-		productId: column.text({ references: () => Product.columns.id, optional: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		bookingDate: column.date({ default: NOW }),
 		checkInDate: column.date(),
 		checkOutDate: column.date(),
@@ -303,34 +438,43 @@ const Booking = defineTable({
 		confirmedAt: column.date({ optional: true }),
 	},
 })
-
-const InventoryLock = defineTable({
+const BookingRoomDetail = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		bookingId: column.text({ references: () => Booking.columns.id }),
-		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
-		checkInDate: column.date(),
-		checkOutDate: column.date(),
-		quantity: column.number(),
-		status: column.text({ default: "locked" }), // locked | confirmed | released
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		checkIn: column.text(),
+		checkOut: column.text(),
+		adults: column.number(),
+		children: column.number(),
+		basePrice: column.number(),
+		taxes: column.number(),
+		totalPrice: column.number(),
 		createdAt: column.date({ default: NOW }),
-		expiresAt: column.date(), // para liberar locks abandonados
 	},
 })
-
-const TaxFee = defineTable({
+const InventoryLock = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id }),
-		type: column.text({ default: "percentage" }), // 'percentage'|'fixed'|'perPerson'|'perNight'|'perBooking'
-		value: column.number(), // 13 => 13% si type=percentage, o 50 (moneda) si fixed
-		currency: column.text({ default: "USD" }),
-		isIncluded: column.boolean({ default: false }), // si está incluido en el precio mostrado
-		isActive: column.boolean({ default: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		date: column.text(),
+		quantity: column.number({ default: 1 }),
+		expiresAt: column.date(),
+		bookingId: column.text({ references: () => Booking.columns.id, optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [{ on: ["variantId", "date"] }],
 })
-
+const BookingPolicySnapshot = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		policyType: column.text(),
+		description: column.text(),
+		cancellationJson: column.json({ optional: true }),
+	},
+})
 const BookingTaxFee = defineTable({
 	/* --- Tax/fee cobrado en booking (registro de qué se cobró) --- */
 	columns: {
@@ -345,7 +489,7 @@ const BookingTaxFee = defineTable({
 	},
 })
 
-//  8. TABLAS DE PAGOS
+// 8. Payments / Finance
 
 const Payment = defineTable({
 	/* --- Pagos / Reembolsos / Payouts --- */
@@ -362,7 +506,6 @@ const Payment = defineTable({
 		transactionId: column.text({ optional: true }),
 	},
 })
-
 const ProviderPayout = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -375,40 +518,6 @@ const ProviderPayout = defineTable({
 		status: column.text({ default: "Pending" }),
 	},
 })
-
-// 9. TRANSLATION
-
-const Translation = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		tableRef: column.text(), // e.g., 'Product'
-		columnRef: column.text(), // e.g., 'name'
-		recordId: column.text(), // ID of the record in the referenced table
-		languageCode: column.text(), // e.g., 'es', 'en', 'pt'
-		translatedText: column.text(),
-	},
-	// For Astro DB, to ensure uniqueness (tableRef, columnRef, recordId, languageCode),
-	// you might need to handle this at the application level during insertion.
-})
-
-// 10. ÚLTIMA TABLA — BookingRoomDetail
-
-const BookingRoomDetail = defineTable({
-	// If a booking includes multiple rooms/types
-	columns: {
-		bookingId: column.text({ references: () => Booking.columns.id }),
-		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }), // ✅ vínculo a habitación específica del hotel
-		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }), // ✅ tarifa aplicada
-		quantity: column.number(),
-		unitPriceUSD: column.number({ optional: true }),
-		unitPriceBOB: column.number({ optional: true }),
-		totalPriceUSD: column.number({ optional: true }),
-		totalPriceBOB: column.number({ optional: true }),
-		currency: column.text(),
-	},
-	// Composite primary key (bookingId, roomTypeId) would be ideal here too.
-})
-
 const ProviderPayoutBooking = defineTable({
 	columns: {
 		payoutId: column.text({ references: () => ProviderPayout.columns.id }),
@@ -419,49 +528,61 @@ const ProviderPayoutBooking = defineTable({
 
 export default defineDb({
 	tables: {
-		// --- 1. Tablas base sin dependencias ---
+		// 1 master
 		Provider,
 		Destination,
 		RoomType,
 		AmenityRoom,
 		Service,
-		Image, // Es genérica, puede ir aquí
-
-		// --- 2. Tablas de entidades principales ---
-		Product, // Depende de Provider, Destination
-		User, // Depende de Provider
-
-		// --- 3. Tablas de configuración de producto/hotel ---
-		Variant, // Depende de Product
-		Hotel, // Depende de Product
-		Tour, // Depende de Product
-		Package, // Depende de Product
-		Policy, // Depende de Product
-		ProductService, // Depende de Product, Service
-		ProductServiceAttribute,
-		TaxFee, // Depende de Product
-
-		// --- 4. Tablas de detalle de Hotel/Habitaciones (Profundo) ---
-		HotelRoomType, // Depende de Hotel, RoomType
-		OperatingRule, // Depende de Product
-		HotelRoomAmenity, // Depende de HotelRoomType, AmenityRoom
-		BlackoutDate, // Depende de Product, HotelRoomType
-
-		// --- 5. Tablas de Precios y Tarifas ---
-		RatePlan, // Depende de Variant, Policy
-
-		// --- 6. Tablas de Booking/Transacciones (Nivel 1) ---
-		Booking, // Depende de User, Product
-		InventoryLock,
-		ProviderPayout, // Depende de Provider
-
-		// --- 7. Tablas de Pagos y Detalles (Nivel 2) ---
-		BookingTaxFee, // Depende de Booking, TaxFee
-		Payment, // Depende de Booking
-
-		// --- 8. Tablas de Enlace Final y Traducción ---
+		Image,
 		Translation,
-		BookingRoomDetail, // Depende de Booking, HotelRoomType, RatePlan (DEBE IR AL FINAL)
+
+		// 2 core entities
+		User,
+		Product,
+		Hotel,
+		Tour,
+		Package,
+		Variant,
+
+		// 3 product structure
+		HotelRoomType,
+		HotelRoomAmenity,
+		ProductService,
+		ProductServiceAttribute,
+
+		// 4 policy
+		PolicyGroup,
+		Policy,
+		PolicyAssignment,
+		CancellationTier,
+		PolicyRule,
+		EffectivePolicy,
+
+		// 5 inventory
+		// DailyAvailability,
+		DailyInventory,
+		EffectiveInventory,
+
+		// 6 pricing
+		RatePlanTemplate,
+		RatePlan,
+		PriceRule,
+		Restriction,
+		EffectiveRestriction,
+		EffectivePricing,
+		TaxFee,
+
+		// 7 booking
+		Booking,
+		BookingRoomDetail,
+		InventoryLock,
+		BookingPolicySnapshot,
+		BookingTaxFee,
+
+		// 8 finance
+		Payment,
+		ProviderPayout,
 		ProviderPayoutBooking,
 	},
 })

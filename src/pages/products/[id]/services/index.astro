@@ -1,7 +1,7 @@
 ---
 import { SERVICE_CATEGORY_ORDER } from "@/data/service/service-categories"
 import { servicesByCategory } from "@/data/service/service-grouped"
-import Layout from "@/layouts/Layout.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { getProductWithImagesAndSubtype } from "@/lib/db/product"
 import { getProviderIdFromRequest } from "@/lib/db/provider"
 import { db, eq, ProductService } from "astro:db"
@@ -25,12 +25,9 @@ if (String(bundle.product.providerId) !== String(providerId)) {
 
 const product = bundle.product
 
-// 👉 Traemos configuración completa
 const existing = await db
 	.select({
 		serviceId: ProductService.serviceId,
-		isIncluded: ProductService.isIncluded,
-		isPaid: ProductService.isPaid,
 		price: ProductService.price,
 		priceUnit: ProductService.priceUnit,
 		currency: ProductService.currency,
@@ -47,16 +44,24 @@ const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
 })).filter((group) => group.items.length > 0)
 ---
 
-<Layout title={`Servicios · ${product.name}`}>
-	<main class="mx-auto mt-20 w-11/12 max-w-4xl rounded-3xl bg-neutral-200 p-10 shadow-lg">
+<DashboardLayout title={`Servicios · ${product.name}`}>
+	<main
+		class="mx-auto mt-6 md:mt-20 w-[98%] max-w-4xl rounded-3xl bg-neutral-200 px-3 py-10 shadow-lg lg:px-6"
+	>
 		<form id="servicesForm">
-			<h1 class="mb-1 text-2xl font-semibold text-neutral-800">Configuración de servicios</h1>
-			<p class="mb-6 text-sm text-neutral-500">{product.name}</p>
+			<h1 class="text-xl font-semibold uppercase text-neutral-800 md:text-2xl">
+				Configuración de servicios
+			</h1>
+			<p class="mt-1 text-xs text-neutral-500 md:text-sm">
+				Un click en el ícono para <strong>activar/desactivar</strong> el servicio, un click en Configurar
+				para ajustar detalles.
+			</p>
+			<h3 class="my-6 text-end text-base font-semibold text-neutral-600">{product.name}</h3>
 
 			<div id="servicesContainer" class="space-y-6">
 				{
 					categorizedServiceList.map(({ category, items }) => (
-						<section class="rounded-xl bg-neutral-300 p-4">
+						<section class="rounded-xl bg-neutral-300 p-3">
 							<h2 class="mb-4 text-sm font-semibold text-neutral-800">{category}</h2>
 
 							<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -82,15 +87,6 @@ const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
 
 											<div class="relative z-10 flex flex-1 flex-col">
 												<span class="font-medium text-neutral-800">{service.name}</span>
-
-												{isActive && (
-													<span class="mt-0.5 hidden text-xs text-neutral-500 md:block">
-														{cfg.isIncluded && "Incluido"}
-														{cfg.isPaid &&
-															cfg.price &&
-															` · $${cfg.price} ${cfg.currency ?? ""} / ${cfg.priceUnit}`}
-													</span>
-												)}
 
 												<a
 													href={`/products/${product.id}/services/${service.id}`}
@@ -166,7 +162,7 @@ const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
 					serviceId: btn.dataset.id,
 				}))
 
-			const res = await fetch("/api/products/services/update", {
+			const res = await fetch("/api/products/services/sync", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ productId, services }),
@@ -180,4 +176,4 @@ const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
 			}
 		})
 	</script>
-</Layout>
+</DashboardLayout>

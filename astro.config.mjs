@@ -5,7 +5,7 @@ import vercel from "@astrojs/vercel"
 import node from "@astrojs/node"
 import db from "@astrojs/db"
 import dotenv from "dotenv"
-
+import path from "path"
 import react from "@astrojs/react"
 
 dotenv.config()
@@ -26,5 +26,12 @@ export default defineConfig({
 	adapter: isVercel ? vercel() : node({ mode: "standalone" }),
 	image: {
 		service: passthroughImageService(),
+	},
+	vite: {
+		resolve: {
+			alias: {
+				"@": path.resolve("./src"),
+			},
+		},
 	},
 })

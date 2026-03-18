@@ -1,3 +1,1 @@
-export function roundMoney(value: number): number {
-	return Math.round(value * 100) / 100
-}
+export * from "@/modules/pricing/domain/pricing.utils"

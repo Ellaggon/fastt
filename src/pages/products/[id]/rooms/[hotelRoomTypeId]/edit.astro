@@ -1,9 +1,9 @@
 ---
 import RoomModals from "@/components/productForm/RoomModals.astro"
-import { AMENITY_ROOMS } from "@/data/room-amenity"
-import { formatBedType } from "@/data/room-beds"
-import { ROOM_TYPES } from "@/data/room-types"
-import Layout from "@/layouts/Layout.astro"
+import { AMENITY_ROOMS } from "@/data/room/room-amenity"
+import { formatBedType } from "@/data/room/room-beds"
+import { ROOM_TYPES } from "@/data/room/room-types"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 
 const hotelId = Astro.params.id
 const hotelRoomId = Astro.params.hotelRoomTypeId
@@ -27,8 +27,8 @@ const amenities = data.amenities || []
 const images = data.images || []
 ---
 
-<Layout title="Editar habitación">
-	<section class="h-full w-full pt-10 md:pt-16">
+<DashboardLayout title="Editar habitación">
+	<section class="h-full w-full pt-6 md:pt-20">
 		<article
 			class="mx-auto w-[98%] rounded-3xl bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
@@ -45,12 +45,10 @@ const images = data.images || []
 				<input type="hidden" name="hotelId" value={hotelId} />
 				<input type="hidden" name="hotelRoomId" value={room.id} />
 
-				<!-- 🔷 INFORMACIÓN GENERAL -->
 				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-neutral-800">Información General</h3>
 
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-						<!-- Tipo habitación -->
 						<label class="flex flex-col text-sm">
 							<span class="text-neutral-600">Tipo de habitación</span>
 							<button
@@ -63,7 +61,6 @@ const images = data.images || []
 							<input type="hidden" name="roomTypeId" id="roomTypeId" value={room.roomTypeId} />
 						</label>
 
-						<!-- Tipo cama -->
 						<label class="flex flex-col text-sm">
 							<span class="text-neutral-600">Tipo de cama</span>
 							<button
@@ -112,7 +109,6 @@ const images = data.images || []
 					</label>
 				</section>
 
-				<!-- 🔷 CARACTERÍSTICAS -->
 				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-neutral-800">Características</h3>
 
@@ -172,34 +168,35 @@ const images = data.images || []
 					</label>
 				</section>
 
-				<!-- 🔷 PRECIO BASE -->
 				<section class="space-y-6 rounded-2xl border border-neutral-300 p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-neutral-800">Precio Base</h3>
 
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-600">Precio base USD</span>
-							<input
-								type="number"
-								name="basePriceUSD"
-								value={variant.basePriceUSD || 0}
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
-							/>
+							<span class="text-neutral-600">Moneda</span>
+							<select
+								name="currency"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+								value={variant.currency || "USD"}
+							>
+								<option value="USD">USD – Dólar estadounidense</option>
+								<option value="BOB">BOB – Boliviano</option>
+							</select>
 						</label>
-
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-600">Precio base BOB</span>
+							<span class="text-neutral-600">Precio base</span>
 							<input
 								type="number"
-								name="basePriceBOB"
-								value={variant.basePriceBOB || 0}
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+								name="basePrice"
+								value={variant.basePrice || "0.00"}
+								min="0"
+								step="0.01"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 							/>
 						</label>
 					</div>
 				</section>
 
-				<!-- 🔷 AMENITIES -->
 				<section class="rounded-2xl border border-neutral-300 bg-neutral-200 p-6 shadow-sm">
 					<h3 class="mb-4 text-lg font-semibold text-neutral-800">Amenities</h3>
 
@@ -221,7 +218,6 @@ const images = data.images || []
 					</div>
 				</section>
 
-				<!-- 🔷 IMÁGENES -->
 				<section class="rounded-2xl border border-neutral-300 p-6 shadow-sm">
 					<h3 class="mb-3 text-lg font-semibold text-neutral-800">Imágenes</h3>
 
@@ -259,7 +255,6 @@ const images = data.images || []
 					<span>Habitacion Activa</span>
 				</label>
 
-				<!-- 🔷 BOTONES -->
 				<div class="flex justify-end gap-4">
 					<a
 						href="/dashboard"
@@ -277,7 +272,6 @@ const images = data.images || []
 				</div>
 			</form>
 
-			<!-- 🔴 ELIMINAR -->
 			<div class="mt-6">
 				<button
 					id="deleteRoomBtn"
@@ -292,4 +286,4 @@ const images = data.images || []
 		<RoomModals />
 		<script type="module" src="/src/lib/forms/roomEditHandler"></script>
 	</section>
-</Layout>
+</DashboardLayout>

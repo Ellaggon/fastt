@@ -1,4 +1,16 @@
-import { db, eq, and, Product, Tour, Package, Hotel, Image, HotelRoomType, asc } from "astro:db"
+import {
+	db,
+	eq,
+	and,
+	asc,
+	Product,
+	Tour,
+	Package,
+	Hotel,
+	Image,
+	HotelRoomType,
+	Variant,
+} from "astro:db"
 import { r2 } from "../upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { DBOrTx } from "./subtype"
@@ -30,6 +42,9 @@ export async function getProductsByProvider(providerId: string) {
 		.where(eq(Product.providerId, providerId))
 		.leftJoin(Tour, eq(Product.id, Tour.productId))
 		.leftJoin(Package, eq(Product.id, Package.productId))
+		// Unimos con Variant para traer el precio base
+		.leftJoin(Variant, eq(Product.id, Variant.productId))
+		.groupBy(Product.id)
 
 	// Formatear los resultados en un array limpio
 	return products.map((el) => {
@@ -43,8 +58,8 @@ export async function getProductsByProvider(providerId: string) {
 			id: combinedData.id,
 			name: combinedData.name,
 			productType: combinedData.productType,
-			basePriceUSD: combinedData.basePriceUSD,
-			basePriceBOB: combinedData.basePriceBOB,
+			basePrice: el.Variant?.basePrice ?? 0,
+			currency: el.Variant?.currency ?? "USD",
 			destinationId: combinedData.destinationId,
 		}
 	})
