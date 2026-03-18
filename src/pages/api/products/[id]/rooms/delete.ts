@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { db, HotelRoomType, eq } from "astro:db"
-import { deleteHotelRoomCascade } from "@/lib/db/hotelRoom"
+import { hotelRoomRepository } from "@/container"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		}
 
 		// 3️⃣ Cascade delete real
-		await deleteHotelRoomCascade(hotelRoomId)
+		await hotelRoomRepository.deleteHotelRoomCascade(hotelRoomId)
 
 		return new Response(JSON.stringify({ success: true }), { status: 200 })
 	} catch (err) {

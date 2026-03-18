@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { deleteProductCascade, ensureProductOwnedByProvider } from "@/lib/db/product"
+import { productRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -13,11 +13,14 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!providerId) return new Response("Unauthorized", { status: 401 })
 
 		// 3. Verificar que el producto pertenezca al proveedor
-		const product = await ensureProductOwnedByProvider(productId, String(providerId))
+		const product = await productRepository.ensureProductOwnedByProvider(
+			productId,
+			String(providerId)
+		)
 		if (!product) return new Response("Not found or not owned", { status: 403 })
 
 		// 4. Eliminar el producto de la base de datos
-		await deleteProductCascade(productId)
+		await productRepository.deleteProductCascade(productId)
 
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	} catch (e) {

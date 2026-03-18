@@ -1,8 +1,8 @@
 // src/pages/api/products/images/update.ts
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { ensureProductOwnedByProvider } from "@/lib/db/product"
+import { productRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { db, Image, eq, asc } from "astro:db"
 import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const { productId, images } = parsed.data
 
 		// ownership
-		const product = await ensureProductOwnedByProvider(productId, providerId)
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 		if (!product) {
 			return new Response(JSON.stringify({ error: "Not found or not owned" }), { status: 403 })
 		}

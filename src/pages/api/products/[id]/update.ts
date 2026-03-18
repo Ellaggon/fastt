@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { updateProductAndSubtype } from "@/lib/services/productService"
 import { z } from "zod"
 
