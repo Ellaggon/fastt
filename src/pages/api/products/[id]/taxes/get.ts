@@ -1,15 +1,6 @@
 import type { APIRoute } from "astro"
-import { db, TaxFee, eq } from "astro:db"
+import { getTaxes } from "@/modules/catalog/application/use-cases/get-taxes"
 
 export const GET: APIRoute = async ({ params }) => {
-	const productId = params.id
-
-	if (!productId)
-		return new Response(JSON.stringify({ error: "Missing productId" }), { status: 400 })
-
-	const taxes = await db.select().from(TaxFee).where(eq(TaxFee.productId, productId)).all()
-
-	return new Response(JSON.stringify({ taxes }), {
-		headers: { "Content-Type": "application/json" },
-	})
+	return getTaxes(params.id || "")
 }
