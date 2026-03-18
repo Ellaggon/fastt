@@ -239,7 +239,6 @@ export default async function seed() {
 	const servicesData = [
 		// ─── Internet & Tecnología ─────────────────────────────
 		{ id: "wifi" },
-		{ id: "paid-wifi" },
 		{ id: "streaming" },
 		{ id: "flat-tv" },
 
@@ -251,134 +250,70 @@ export default async function seed() {
 		{ id: "minibar" },
 		{ id: "kids-menu" },
 
-		// // ─── Instalaciones ─────────────────────────────────────
-		// { id: "pool", name: "Piscina", category: "Instalaciones" },
-		// { id: "indoor-pool", name: "Piscina cubierta", category: "Instalaciones" },
-		// { id: "outdoor-pool", name: "Piscina al aire libre", category: "Instalaciones" },
-		// { id: "spa", name: "Spa / bienestar", category: "Instalaciones" },
-		// { id: "sauna", name: "Sauna", category: "Instalaciones" },
-		// { id: "jacuzzi", name: "Jacuzzi / hidromasaje", category: "Instalaciones" },
-		// { id: "gym", name: "Gimnasio", category: "Instalaciones" },
+		// ─── Instalaciones ─────────────────────────────────────
+		{ id: "pool" },
+		{ id: "indoor-pool" },
+		{ id: "outdoor-pool" },
+		{ id: "spa" },
+		{ id: "sauna" },
+		{ id: "jacuzzi" },
+		{ id: "gym" },
 
-		// // ─── Estacionamiento y transporte ──────────────────────
-		// { id: "parking", name: "Estacionamiento", category: "Estacionamiento y transporte" },
-		// { id: "valet", name: "Valet parking", category: "Estacionamiento y transporte" },
-		// {
-		// 	id: "ev-charging",
-		// 	name: "Carga para vehículos eléctricos",
-		// 	category: "Estacionamiento y transporte",
-		// },
-		// { id: "shuttle", name: "Servicio de transporte", category: "Estacionamiento y transporte" },
-		// {
-		// 	id: "airport-shuttle",
-		// 	name: "Traslado al aeropuerto",
-		// 	category: "Estacionamiento y transporte",
-		// },
-		// { id: "car-rental", name: "Alquiler de autos", category: "Estacionamiento y transporte" },
-		// {
-		// 	id: "bike-rental",
-		// 	name: "Alquiler de bicicletas",
-		// 	category: "Estacionamiento y transporte",
-		// },
-		// {
-		// 	id: "boat-tours",
-		// 	name: "Excursiones náuticas",
-		// 	category: "Estacionamiento y transporte",
-		// },
+		// ─── Estacionamiento y transporte ──────────────────────
+		{ id: "parking" },
+		{ id: "valet" },
+		{ id: "ev-charging" },
+		{ id: "shuttle" },
+		{ id: "airport-shuttle" },
+		{ id: "car-rental" },
+		{ id: "bike-rental" },
+		{ id: "boat-tours" },
 
-		// // ─── Servicios generales ───────────────────────────────
-		// { id: "room-service", name: "Room service", category: "Servicios generales" },
-		// {
-		// 	id: "24h-room-service",
-		// 	name: "Room service 24 h",
-		// 	category: "Servicios generales",
-		// },
-		// { id: "laundry", name: "Lavandería", category: "Servicios generales" },
-		// { id: "dryclean", name: "Tintorería", category: "Servicios generales" },
-		// { id: "daily-cleaning", name: "Limpieza diaria", category: "Servicios generales" },
-		// {
-		// 	id: "24h-reception",
-		// 	name: "Recepción 24 horas",
-		// 	category: "Servicios generales",
-		// },
-		// { id: "concierge", name: "Concierge", category: "Servicios generales" },
-		// {
-		// 	id: "business-center",
-		// 	name: "Centro de negocios",
-		// 	category: "Servicios generales",
-		// },
-		// {
-		// 	id: "meeting-rooms",
-		// 	name: "Salas de reuniones",
-		// 	category: "Servicios generales",
-		// },
-		// { id: "wedding", name: "Eventos y bodas", category: "Servicios generales" },
-		// { id: "luggage", name: "Guardaequipaje", category: "Servicios generales" },
+		// ─── Servicios generales ───────────────────────────────
+		{ id: "room-service" },
+		{ id: "24h-room-service" },
+		{ id: "laundry" },
+		{ id: "dryclean" },
+		{ id: "daily-cleaning" },
+		{ id: "24h-reception" },
+		{ id: "concierge" },
+		{ id: "business-center" },
+		{ id: "meeting-rooms" },
+		{ id: "wedding" },
+		{ id: "luggage" },
 
-		// // ─── Accesibilidad ─────────────────────────────────────
-		// {
-		// 	id: "accessible",
-		// 	name: "Accesible para personas con movilidad reducida",
-		// 	category: "Accesibilidad",
-		// },
-		// { id: "elevator", name: "Ascensor", category: "Accesibilidad" },
+		// ─── Accesibilidad ─────────────────────────────────────
+		{ id: "accessible" },
+		{ id: "elevator" },
 
-		// // ─── Familias ──────────────────────────────────────────
-		// { id: "kids-club", name: "Club infantil", category: "Familias" },
-		// { id: "babysitting", name: "Servicio de niñera", category: "Familias" },
-		// {
-		// 	id: "highchair",
-		// 	name: "Sillas altas para bebés",
-		// 	category: "Familias",
-		// },
+		// ─── Familias ──────────────────────────────────────────
+		{ id: "kids-club" },
+		{ id: "babysitting" },
+		{ id: "highchair" },
 
-		// // ─── Mascotas ──────────────────────────────────────────
-		// { id: "pet-friendly", name: "Acepta mascotas", category: "Mascotas" },
+		// ─── Mascotas ──────────────────────────────────────────
+		{ id: "pet-friendly" },
 
 		// // ─── Habitaciones ──────────────────────────────────────
-		// {
-		// 	id: "smoking-rooms",
-		// 	name: "Habitaciones para fumadores",
-		// 	category: "Habitación",
-		// },
-		// {
-		// 	id: "nonsmoking",
-		// 	name: "Habitaciones no fumadores",
-		// 	category: "Habitación",
-		// },
-		// { id: "fridge", name: "Frigorífico", category: "Habitación" },
-		// {
-		// 	id: "inroom-safe",
-		// 	name: "Caja fuerte en la habitación",
-		// 	category: "Habitación",
-		// },
-		// { id: "ironing", name: "Plancha", category: "Habitación" },
-		// { id: "wakeup", name: "Servicio despertador", category: "Habitación" },
+		// { id: "smoking-rooms" },
+		// { id: "nonsmoking" },
+		// { id: "fridge" },
+		// { id: "inroom-safe" },
+		// { id: "ironing" },
+		// { id: "wakeup" },
 
 		// // ─── Negocios ──────────────────────────────────────────
-		// { id: "ATM", name: "Cajero automático", category: "Negocios" },
-		// {
-		// 	id: "currency-exchange",
-		// 	name: "Cambio de divisas",
-		// 	category: "Negocios",
-		// },
-		// {
-		// 	id: "business-services",
-		// 	name: "Servicios empresariales",
-		// 	category: "Negocios",
-		// },
+		// { id: "ATM" },
+		// { id: "currency-exchange" },
+		// { id: "business-services" },
 
 		// // ─── Otros / Exteriores ────────────────────────────────
-		// { id: "tour-desk", name: "Venta de excursiones", category: "Otros" },
-		// { id: "terrace", name: "Terraza", category: "Exteriores" },
-		// { id: "rooftop", name: "Rooftop", category: "Exteriores" },
-		// { id: "fireplace", name: "Chimenea", category: "Otros" },
-		// { id: "evoucher", name: "Ofertas y paquetes", category: "Otros" },
-		// {
-		// 	id: "safety-railings",
-		// 	name: "Medidas de seguridad",
-		// 	category: "Otros",
-		// },
+		// { id: "tour-desk" },
+		// { id: "terrace" },
+		// { id: "rooftop" },
+		// { id: "fireplace" },
+		// { id: "evoucher"  },
+		// { id: "safety-railings" },
 	]
 
 	// --- URL genérica para imágenes de prueba (Usa placehold.co) ---
@@ -813,12 +748,12 @@ export default async function seed() {
 			maxOccupancy: 1,
 			description: "Una cama individual; ideal para una persona.",
 		},
-		// 	{
-		// 		id: "double",
-		// 		name: "Habitación Doble",
-		// 		maxOccupancy: 2,
-		// 		description: "Una cama doble o dos camas individuales; para dos personas.",
-		// 	},
+		{
+			id: "double",
+			name: "Habitación Doble",
+			maxOccupancy: 2,
+			description: "Una cama doble o dos camas individuales; para dos personas.",
+		},
 		// 	// 	// 	{
 		// 	// 	// 		id: "twin",
 		// 	// 	// 		name: "Habitación Twin",
