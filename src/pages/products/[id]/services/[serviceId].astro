@@ -1,8 +1,8 @@
 ---
 import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
-import Layout from "@/layouts/Layout.astro"
-import { and, db, eq, ProductService, ProductServiceAttribute, Service } from "astro:db"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import { and, db, eq, ProductService, ProductServiceAttribute } from "astro:db"
 
 const { id: productId, serviceId } = Astro.params
 if (!productId || !serviceId) return Astro.redirect("/dashboard")
@@ -20,267 +20,238 @@ if (!productService) {
 			id: crypto.randomUUID(),
 			productId,
 			serviceId,
-			isIncluded: false,
-			isPaid: false,
+			appliesTo: "both",
 		})
 		.returning()
 		.get()
 }
 
-const service = await db
-	.select({
-		psId: ProductService.id,
-		isIncluded: ProductService.isIncluded,
-		isPaid: ProductService.isPaid,
-		price: ProductService.price,
-		priceUnit: ProductService.priceUnit,
-		currency: ProductService.currency,
-		appliesTo: ProductService.appliesTo,
-		customText: ProductService.customText,
-	})
-	.from(ProductService)
-	.innerJoin(Service, eq(Service.id, ProductService.serviceId))
-	.where(and(eq(ProductService.productId, productId), eq(ProductService.serviceId, serviceId)))
-	.get()
-
-if (!service) return Astro.redirect(`/products/${productId}/services`)
-
 const attributesDef = SERVICE_ATTRIBUTES[serviceId] ?? []
 const serviceDef = SERVICE_CATALOG.find((s) => s.id === serviceId)
 
 const existingAttrs = await db
-	.select({
-		key: ProductServiceAttribute.key,
-		value: ProductServiceAttribute.value,
-	})
+	.select()
 	.from(ProductServiceAttribute)
-	.where(eq(ProductServiceAttribute.productServiceId, service.psId))
+	.where(eq(ProductServiceAttribute.productServiceId, productService.id))
 	.all()
 
 const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
+const isInitiallyIncluded = productService.price === null || productService.price === 0
 ---
 
-<Layout title="Configurar servicio">
-	<section class="h-full w-full pt-10 md:pt-16">
+<DashboardLayout title={`Configurar ${serviceDef?.name}`}>
+	<section class="h-full w-full pb-20 pt-6 md:pt-20">
 		<article
 			class="mx-auto w-[98%] rounded-3xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-3xl lg:p-16"
 		>
-			<h1 class="text-lg font-bold md:text-2xl lg:text-3xl">CONFIGURAR SERVICIO</h1>
+			<header class="mb-10">
+				<h1 class="text-xl font-bold uppercase tracking-tight md:text-3xl">Configurar Servicio</h1>
+				<div class="mt-2 flex items-center gap-2">
+					<span class="h-2 w-2 rounded-full bg-blue-600"></span>
+					<p class="text-lg font-semibold text-neutral-700">{serviceDef?.name}</p>
+				</div>
+			</header>
 
-			<p class="mt-1 hidden text-xs text-neutral-500 md:block">
-				Define cómo se muestra este servicio y si tiene costo adicional
-			</p>
-
-			<small class="text-xs text-neutral-500 md:hidden">
-				Configura disponibilidad y precio del servicio
-			</small>
-
-			<p class="mt-6 text-end text-base font-semibold text-neutral-600">
-				{serviceDef ? serviceDef.name : "Servicio desconocido"}
-			</p>
-
-			<form id="serviceConfigForm" class="mt-10 space-y-6">
+			<form id="serviceConfigForm" class="space-y-12">
+				<input type="hidden" name="psId" value={productService.id} />
+				<input type="hidden" name="mode" value={productService.id ? "update" : "create"} />
 				<input type="hidden" name="productId" value={productId} />
-				<input type="hidden" name="serviceId" value={serviceId} />
-				<input type="hidden" name="psId" value={service.psId} />
-				<!-- Inclusión / Pago -->
-				<div class="space-y-4 rounded-xl bg-neutral-100 p-4">
-					<label class="flex items-center gap-3 text-sm font-medium">
-						<input
-							type="checkbox"
-							name="isIncluded"
-							checked={service.isIncluded}
-							class="h-4 w-4 rounded border-neutral-400"
-						/>
-						Incluido sin costo
+
+				<fieldset class="space-y-4 rounded-2xl border p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Precio y Cargo</h3>
+
+					<label class="flex cursor-pointer items-center gap-3 font-medium text-neutral-800">
+						<div class="relative flex items-center">
+							<input
+								type="checkbox"
+								name="isIncluded"
+								id="isIncluded"
+								checked={isInitiallyIncluded}
+								class="peer h-5 w-5 cursor-pointer appearance-none rounded-md bg-white transition-all checked:border-blue-600 checked:bg-blue-600"
+							/>
+							<svg
+								class="pointer-events-none absolute left-1 top-1 h-3 w-3 text-white opacity-0 peer-checked:opacity-100"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="4"
+								viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg
+							>
+						</div>
+						<span class="text-sm">Este servicio es gratuito (Incluido en el precio)</span>
 					</label>
 
-					<label class="flex items-center gap-3 text-sm font-medium">
-						<input
-							type="checkbox"
-							name="isPaid"
-							checked={service.isPaid}
-							class="h-4 w-4 rounded border-neutral-400"
-						/>
-						Tiene costo adicional
-					</label>
-				</div>
+					<hr class="border-neutral-200" />
 
-				<!-- Precio -->
-				<div
-					id="priceFields"
-					class="grid grid-cols-1 gap-4 transition-opacity duration-200 md:grid-cols-3"
-				>
-					<div>
-						<label class="mb-1 block text-xs font-medium text-neutral-600"> Precio </label>
-						<input
-							type="number"
-							name="price"
-							value={service.price ?? ""}
-							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-						/>
-					</div>
-
-					<div>
-						<label class="mb-1 block text-xs font-medium text-neutral-600"> Unidad </label>
-						<select
-							name="priceUnit"
-							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-						>
-							<option value="night">Por noche</option>
-							<option value="stay">Por estadía</option>
-							<option value="person">Por persona</option>
-						</select>
-					</div>
-
-					<div>
-						<label class="mb-1 block text-xs font-medium text-neutral-600"> Moneda </label>
-						<select
-							name="currency"
-							class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-						>
-							<option value="BOB">BOB</option>
-							<option value="USD">USD</option>
-						</select>
-					</div>
-				</div>
-
-				<!-- Aplica a -->
-				<div>
-					<label class="mb-1 block text-xs font-medium text-neutral-600"> Aplica a </label>
-					<select
-						name="appliesTo"
-						class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+					<div
+						id="priceFields"
+						class="grid grid-cols-1 gap-4 transition-all duration-300 md:grid-cols-3"
 					>
-						<option value="room">Habitación</option>
-						<option value="common">Áreas comunes</option>
-						<option value="both">Ambos</option>
-					</select>
-				</div>
+						<div class="flex flex-col gap-1">
+							<label class="text-sm font-medium text-neutral-600">Precio</label>
+							<input
+								type="number"
+								name="price"
+								step="0.01"
+								value={productService.price ?? ""}
+								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+								placeholder="0.00"
+							/>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label class="text-sm font-medium text-neutral-600">Unidad</label>
+							<select
+								name="priceUnit"
+								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
+							>
+								<option value="night" selected={productService.priceUnit === "night"}
+									>Por noche</option
+								>
+								<option value="stay" selected={productService.priceUnit === "stay"}
+									>Por estadía</option
+								>
+								<option value="person" selected={productService.priceUnit === "person"}
+									>Por persona</option
+								>
+							</select>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label class="text-sm font-medium text-neutral-600">Moneda</label>
+							<select
+								name="currency"
+								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
+							>
+								<option value="BOB" selected={productService.currency === "BOB"}>BOB</option>
+								<option value="USD" selected={productService.currency === "USD"}>USD</option>
+							</select>
+						</div>
+					</div>
+				</fieldset>
+
+				<fieldset class="space-y-4 rounded-2xl border p-6 shadow-sm">
+					<h3 class="text-lg font-semibold text-neutral-800">Alcance del Servicio</h3>
+					<div class="flex flex-col gap-1">
+						<label class="text-sm font-medium text-neutral-600">¿Dónde está disponible?</label>
+						<select
+							name="appliesTo"
+							class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
+						>
+							<option value="room" selected={productService.appliesTo === "room"}
+								>Solo en Habitaciones</option
+							>
+							<option value="common" selected={productService.appliesTo === "common"}
+								>Solo en Áreas Comunes</option
+							>
+							<option value="both" selected={productService.appliesTo === "both"}
+								>En todo el establecimiento</option
+							>
+						</select>
+					</div>
+				</fieldset>
 
 				{
 					attributesDef.length > 0 && (
-						<div class="space-y-4 rounded-xl bg-neutral-100 p-4">
-							<h3 class="text-sm font-semibold text-neutral-700">Características del servicio</h3>
+						<fieldset class="space-y-4 rounded-2xl border p-6 shadow-sm">
+							<h3 class="text-lg font-semibold text-neutral-800">Detalles Técnicos</h3>
+							<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+								{attributesDef.map((attr) => (
+									<div class="flex flex-col gap-1">
+										<label class="text-sm font-medium text-neutral-600">{attr.label}</label>
 
-							{attributesDef.map((attr) => (
-								<div>
-									<label class="mb-1 block text-xs font-medium text-neutral-600">
-										{`${attr.label} (Opcional)`}
-									</label>
-
-									{attr.type === "text" && (
-										<input
-											type="text"
-											name={`attr_${attr.key}`}
-											value={attrMap[attr.key] ?? ""}
-											placeholder={attr.placeholder}
-											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-										/>
-									)}
-
-									{attr.type === "number" && (
-										<input
-											type="number"
-											name={`attr_${attr.key}`}
-											value={attrMap[attr.key] ?? ""}
-											placeholder={attr.placeholder}
-											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-										/>
-									)}
-
-									{attr.type === "boolean" && (
-										<div class="flex items-center gap-3">
-											<input type="hidden" name={`attr_${attr.key}`} value="false" />
-
-											<input
-												type="checkbox"
+										{attr.type === "select" ? (
+											<select
 												name={`attr_${attr.key}`}
-												value="true"
-												checked={attrMap[attr.key] === "true"}
-												class="h-4 w-4"
+												class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
+											>
+												<option value="">No especificado</option>
+												{attr.options?.map((opt) => (
+													<option value={opt.value} selected={opt.value === attrMap[attr.key]}>
+														{opt.label}
+													</option>
+												))}
+											</select>
+										) : attr.type === "boolean" ? (
+											<div class="flex h-full items-center">
+												<input
+													type="checkbox"
+													name={`attr_${attr.key}`}
+													value="true"
+													checked={attrMap[attr.key] === "true"}
+													class="h-5 w-5 rounded bg-white"
+												/>
+											</div>
+										) : (
+											<input
+												type={attr.type === "number" ? "number" : "text"}
+												name={`attr_${attr.key}`}
+												value={attrMap[attr.key] ?? ""}
+												placeholder={attr.placeholder}
+												class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
 											/>
-										</div>
-									)}
-
-									{attr.type === "select" && (
-										<select
-											name={`attr_${attr.key}`}
-											class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-										>
-											<option value="">Seleccionar</option>
-											{attr.options?.map((opt) => (
-												<option value={opt.value} selected={opt.value === attrMap[attr.key]}>
-													{opt.label}
-												</option>
-											))}
-										</select>
-									)}
-								</div>
-							))}
-						</div>
+										)}
+									</div>
+								))}
+							</div>
+						</fieldset>
 					)
 				}
 
-				<div>
-					<label class="mb-1 block text-xs font-medium text-neutral-600"
-						>Información adicional</label
-					>
+				<div class="flex flex-col gap-1">
+					<label class="px-2 font-semibold text-neutral-700">Notas adicionales (opcional)</label>
 					<textarea
-						name="customText"
-						rows="4"
-						class="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-						placeholder="Ej: Wi-Fi gratuito disponible en todas las áreas del hotel."
-						>{service.customText}</textarea
+						name="notes"
+						rows="3"
+						class="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+						placeholder="Ej: Solo disponible bajo petición previa..."
+						>{productService.notes || ""}</textarea
 					>
 				</div>
 
-				<div class="flex justify-end gap-3 pt-10">
+				<div class="flex flex-col-reverse justify-end gap-4 pt-6 md:flex-row">
 					<button
 						type="button"
-						class="h-10 w-40 rounded-xl border border-red-300 bg-red-50 px-4 py-1 text-sm font-medium text-red-600 hover:bg-red-100"
 						id="removeService"
+						class="rounded-xl px-6 py-3 text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
 					>
-						Quitar servicio
+						Quitar del inventario
 					</button>
 					<button
 						type="submit"
-						class="h-10 w-40 rounded-xl bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
+						class="rounded-xl bg-blue-600 px-10 py-3 font-bold text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 active:scale-95"
 					>
-						Guardar
+						Guardar Cambios
 					</button>
 				</div>
-
-				<div id="message" class="text-sm"></div>
+				<p id="message" class="text-sm font-medium"></p>
 			</form>
 		</article>
 	</section>
 
 	<script type="module">
-		const included = document.querySelector('[name="isIncluded"]')
-		const paid = document.querySelector('[name="isPaid"]')
+		const includedCheckbox = document.getElementById("isIncluded")
 		const priceFields = document.getElementById("priceFields")
+		const priceInput = document.querySelector('[name="price"]')
 
-		function sync() {
-			if (included.checked) {
-				paid.checked = false
-				priceFields.classList.add("opacity-50", "pointer-events-none")
-			} else if (paid.checked) {
-				included.checked = false
-				priceFields.classList.remove("opacity-50", "pointer-events-none")
+		function syncPriceUI() {
+			if (includedCheckbox.checked) {
+				priceFields.classList.add("opacity-40", "pointer-events-none", "grayscale")
+				priceInput.value = ""
+			} else {
+				priceFields.classList.remove("opacity-40", "pointer-events-none", "grayscale")
 			}
 		}
 
-		included.addEventListener("change", sync)
-		paid.addEventListener("change", sync)
-		sync()
+		includedCheckbox.addEventListener("change", syncPriceUI)
+		syncPriceUI()
 	</script>
+
 	<script type="module" define:vars={{ PRODUCT_ID: productId, SERVICE_ID: serviceId }}>
 		const form = document.getElementById("serviceConfigForm")
 		const message = document.getElementById("message")
 
 		document.getElementById("removeService")?.addEventListener("click", async () => {
-			if (!confirm("¿Deseas quitar este servicio del producto?")) return
+			if (!confirm("¿Seguro que deseas eliminar este servicio de tu lista?")) return
 
 			const res = await fetch("/api/products/services/delete", {
 				method: "POST",
@@ -288,37 +259,27 @@ const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
 				body: JSON.stringify({ productId: PRODUCT_ID, serviceId: SERVICE_ID }),
 			})
 
-			if (!res.ok) {
-				alert("No se pudo quitar el servicio")
-				return
-			}
-
-			location.href = `/products/${PRODUCT_ID}/services`
+			if (res.ok) window.location.href = `/products/${PRODUCT_ID}/services`
 		})
 
 		form.addEventListener("submit", async (e) => {
 			e.preventDefault()
-
-			message.textContent = "Guardando..."
-			message.className = "text-sm text-neutral-500"
+			message.textContent = "Guardando cambios..."
+			message.className = "text-sm text-blue-600 font-medium"
 
 			const res = await fetch(`/api/products/services/${SERVICE_ID}/update`, {
 				method: "POST",
 				body: new FormData(form),
 			})
 
-			if (!res.ok) {
+			if (res.ok) {
+				message.textContent = "Actualizado correctamente"
+				message.className = "text-sm text-green-600 font-bold"
+				setTimeout(() => (window.location.href = `/products/${PRODUCT_ID}/services`), 800)
+			} else {
 				message.textContent = "Error al guardar"
 				message.className = "text-sm text-red-600"
-				return
 			}
-
-			message.textContent = "Servicio actualizado correctamente"
-			message.className = "text-sm text-green-600"
-
-			setTimeout(() => {
-				window.location.href = `/products/${PRODUCT_ID}/services`
-			}, 600)
 		})
 	</script>
-</Layout>
+</DashboardLayout>

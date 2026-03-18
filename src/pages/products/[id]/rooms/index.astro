@@ -1,7 +1,7 @@
 ---
 import RoomModals from "@/components/productForm/RoomModals.astro"
-import { AMENITY_ROOMS } from "@/data/room-amenity"
-import Layout from "@/layouts/Layout.astro"
+import { AMENITY_ROOMS } from "@/data/room/room-amenity"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { db, eq, Product } from "astro:db"
 import { getSession } from "auth-astro/server"
 
@@ -15,8 +15,8 @@ if (hotelId) {
 }
 ---
 
-<Layout title="Configurar Habitaciones">
-	<section class="h-full w-full pt-10 md:pt-16">
+<DashboardLayout title="Configurar Habitaciones">
+	<section class="h-full w-full pt-6 md:pt-20">
 		<article
 			class="mx-auto w-[98%] rounded-3xl bg-neutral-200 p-8 text-neutral-800 shadow-lg backdrop-blur-md sm:p-10 md:w-[80%] lg:max-w-4xl lg:p-20"
 		>
@@ -149,22 +149,24 @@ if (hotelId) {
 
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-600">Precio base USD</span>
-							<input
-								type="number"
-								name="basePriceUSD"
-								value="0"
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
-							/>
+							<span class="text-neutral-600">Moneda</span>
+							<select
+								name="currency"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							>
+								<option value="USD">USD – Dólar estadounidense</option>
+								<option value="BOB">BOB – Boliviano</option>
+							</select>
 						</label>
-
 						<label class="flex flex-col text-sm">
-							<span class="text-neutral-600">Precio base BOB</span>
+							<span class="text-neutral-600">Precio base por noche</span>
 							<input
 								type="number"
-								name="basePriceBOB"
-								value="0"
-								class="mt-1 rounded-md bg-neutral-100 px-3 py-2"
+								name="basePrice"
+								min="0"
+								step="0.01"
+								placeholder="0.00"
+								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 							/>
 						</label>
 					</div>
@@ -257,4 +259,4 @@ if (hotelId) {
 	</section>
 
 	<script type="module" src="/src/lib/forms/roomFormHandler"></script>
-</Layout>
+</DashboardLayout>
