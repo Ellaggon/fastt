@@ -1,300 +1,244 @@
 ---
-import { ROOM_TYPE_MAP } from "@/data/room-types"
-import { Bath, BedDouble, DoorClosed, Ruler, User, X } from "@lucide/astro"
-import RoomAvailabilityIsland from "../booking/RoomAvailabilityIsland.astro"
+import { formatBedType } from "@/data/room/room-beds"
+import { Bath, BedDouble, DoorClosed, Ruler, User } from "@lucide/astro"
 
-const { rooms, searchState, productId } = Astro.props
+const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
 ---
 
-<!-- DATA -->
-<div id="rooms-data" data-rooms={JSON.stringify(rooms)} class="hidden"></div>
+{
+	offers.map((offer: any) => {
+		const variant = offer.variant
 
-<!-- BACKDROP -->
-<div
-	id="room-modal"
-	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 opacity-0 backdrop-blur-sm transition-opacity duration-300"
-	role="dialog"
-	aria-modal="true"
-	aria-hidden="true"
->
-	<!-- PANEL -->
-	<div
-		id="room-modal-panel"
-		class="mx-auto w-full max-w-5xl translate-y-6 scale-95 overflow-hidden rounded-3xl bg-white shadow-[0_40px_120px_rgba(0,0,0,.25)] transition-all duration-300"
-	>
-		<!-- HEADER -->
-		<header class="flex items-start justify-between border-b px-8 py-6">
-			<div>
-				<h2 id="modal-title" class="text-2xl font-semibold text-neutral-900"></h2>
-				<p class="flex gap-2 text-sm text-neutral-500">
-					<span id="modal-subtitle"></span>
-					<span id="modal-hasview"></span>
-				</p>
-			</div>
+		// 🔹 habitación estructural
+		const room = hotelRoom.find((r: any) => r.id === variant.entityId)
+		if (!room) return null
 
-			<button
-				id="modal-close-1"
-				class="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring"
-				aria-label="Cerrar"
+		// 🔹 imágenes reales desde roomImages
+		const images = roomImages
+			.filter((img: any) => img.entityId === room.id)
+			.sort((a: any, b: any) => a.order - b.order)
+
+		const mainImage =
+			images.find((img: any) => img.isPrimary)?.url ??
+			images[0]?.url ??
+			"https://placehold.co/1200x800"
+
+		return (
+			<article
+				data-modal={`room-${variant.id}`}
+				class="modal-overlay hidden border-none bg-transparent p-0 outline-none backdrop:bg-black/40 backdrop:backdrop-blur-sm"
 			>
-				<X class="h-5 w-5" />
-			</button>
-		</header>
+				<button
+					data-close-modal
+					class="absolute right-0 top-3 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/50"
+				>
+					✕
+				</button>
 
-		<!-- BODY -->
-		<div class="grid grid-cols-1 gap-8 px-8 py-8 md:grid-cols-2">
-			<!-- GALLERY -->
-			<section>
-				<div class="relative h-[360px] overflow-hidden rounded-2xl bg-neutral-100">
-					<img
-						id="carousel-image"
-						class="h-full w-full object-cover transition-opacity duration-300"
-					/>
-					<button
-						id="carousel-prev"
-						class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-1 text-neutral-800 shadow"
-					>
-						‹
-					</button>
-					<button
-						id="carousel-next"
-						class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-1 text-neutral-800 shadow"
-					>
-						›
-					</button>
+				<div data-close class="fixed inset-0 overflow-y-auto flex items-start justify-center px-2 py-10 sm:p-12">
+					<div class="pointer-events-auto relative w-full max-w-5xl rounded-3xl bg-neutral-100 shadow-2xl max-h-[90vh] overflow-y-auto">
+						{/* HEADER */}
+						<header class="border-b px-8 py-6">
+							<h2 class="text-2xl font-semibold text-neutral-900">{variant.name}</h2>
+							<p class="mt-2 text-sm text-neutral-500">
+								{room.sizeM2 && `${room.sizeM2} m²`}
+								{room.hasView && ` • Con vista ${room.hasView}`}
+							</p>
+						</header>
+
+						<div class="grid grid-cols-1 gap-8 md:p-8 lg:grid-cols-2">
+							{/* GALERÍA */}
+							<section>
+								<div class="relative h-[360px] overflow-hidden md:rounded-2xl" data-gallery>
+									<img
+										src={mainImage}
+										class="h-full w-full object-cover transition-opacity duration-300"
+										data-main-image
+									/>
+
+									{images.length > 1 && (
+										<>
+											<button
+												type="button"
+												class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white"
+												data-prev
+											>
+												‹
+											</button>
+
+											<button
+												type="button"
+												class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white"
+												data-next
+											>
+												›
+											</button>
+										</>
+									)}
+								</div>
+
+								{images.length > 1 && (
+									<div class="mt-4 flex gap-3 overflow-x-auto px-1">
+										{images.map((img: any, i: number) => (
+											<button type="button" data-thumb data-index={i}>
+												<img
+													src={img.url}
+													class="h-16 w-24 rounded-lg object-cover opacity-70 hover:opacity-100"
+												/>
+											</button>
+										))}
+									</div>
+								)}
+							</section>
+
+							{/* DETALLES */}
+							<section class="space-y-8 mx-8">
+								<div class="space-y-3 text-sm text-neutral-700">
+									{room.maxOccupancyOverride > 0 && (
+										<div class="flex items-center gap-2">
+											<User class="h-4 w-4" />
+											{room.maxOccupancyOverride} persona
+											{room.maxOccupancyOverride > 1 && "s"}
+										</div>
+									)}
+
+									{room.bedType && (
+										<div class="flex items-center gap-2">
+											<BedDouble class="h-4 w-4" />
+											{formatBedType(room.bedType)}
+										</div>
+									)}
+
+									<div class="flex items-center gap-2">
+										<DoorClosed class="h-4 w-4" />
+										{room.totalRooms} habitación
+										{room.totalRooms > 1 && "es"}
+									</div>
+
+									{room.bathroom != null && (
+										<div class="flex items-center gap-2">
+											<Bath class="h-4 w-4" />
+											{room.bathroom} baño
+											{room.bathroom > 1 && "s"}
+										</div>
+									)}
+
+									<div class="flex items-center gap-2">
+										<Ruler class="h-4 w-4" />
+										{room.sizeM2} m²
+									</div>
+
+									{room.hasBalcony && <div class="text-emerald-600">🌿 Con balcón</div>}
+								</div>
+
+								{/* TARIFAS */}
+								<div>
+									<h3 class="mb-3 font-semibold text-neutral-800">Tarifas disponibles</h3>
+
+									<p class="text-right text-sm text-neutral-500">
+										Precio base: ${variant.basePrice}
+									</p>
+
+									<div class="mt-3 space-y-3">
+										{offer.ratePlans?.map((rp: any) => {
+											const finalPrice = rp.finalPrice ?? rp.price ?? 0
+
+											return (
+												<div class="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+													<div>
+														<p class="text-sm font-medium text-neutral-800">{rp.name}</p>
+													</div>
+
+													<div class="text-right">
+														<p class="font-semibold text-neutral-800">${finalPrice}</p>
+														<a
+															href={`/book/${variant.id}?ratePlan=${rp.id}`}
+															class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+														>
+															Reservar
+														</a>
+													</div>
+												</div>
+											)
+										})}
+									</div>
+								</div>
+							</section>
+						</div>
+					</div>
 				</div>
+			</article>
+		)
+	})
+}
 
-				<div id="carousel-thumbs" class="mt-4 flex gap-3 overflow-x-auto"></div>
-			</section>
+<script>
+	import { closeModal } from "@/lib/utils/modal-manager"
 
-			<!-- INFO -->
-			<section class="flex flex-col gap-6">
-				<div class="space-y-3 text-sm text-neutral-700">
-					<div class="flex items-center gap-2">
-						<User class="h-4 w-4 text-neutral-400" />
-						<span id="info-capacity"></span>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<BedDouble class="h-4 w-4 text-neutral-400" />
-						<span id="info-beds"></span>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<DoorClosed class="h-4 w-4 text-neutral-400" />
-						<span id="info-total-rooms"></span>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<Bath class="h-4 w-4 text-neutral-400" />
-						<span id="info-bath"></span>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<Ruler class="h-4 w-4 text-neutral-400" />
-						<span id="info-size"></span>
-					</div>
-
-					<div id="info-balcony" class="hidden text-sm text-emerald-600">🌿 Con balcón</div>
-				</div>
-
-				<div>
-					<h3 class="mb-3 text-sm font-semibold text-neutral-800">Comodidades</h3>
-					<ul id="amenities-list" class="space-y-4"></ul>
-				</div>
-
-				<RoomAvailabilityIsland productId={productId} searchState={searchState} />
-
-				<div class="mt-auto flex gap-3">
-					<a
-						id="modal-book"
-						class="flex-1 rounded-xl bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
-					>
-						Reservar
-					</a>
-
-					<button
-						id="modal-close-2"
-						class="rounded-xl border px-5 py-3 text-sm text-neutral-700 hover:bg-neutral-50"
-					>
-						Cerrar
-					</button>
-				</div>
-			</section>
-		</div>
-	</div>
-</div>
-
-<script type="module" define:vars={{ ROOM_TYPE_MAP }}>
-	import { formatBedType } from "/src/data/room-beds"
-
-	const rooms = JSON.parse(document.getElementById("rooms-data")?.dataset.rooms || "[]")
-
-	const modal = document.getElementById("room-modal")
-	const panel = document.getElementById("room-modal-panel")
-
-	const title = document.getElementById("modal-title")
-	const subtitle = document.getElementById("modal-subtitle")
-	const hasView = document.getElementById("modal-hasview")
-
-	const capacity = document.getElementById("info-capacity")
-	const door = document.getElementById("info-total-rooms")
-	const beds = document.getElementById("info-beds")
-	const bath = document.getElementById("info-bath")
-	const size = document.getElementById("info-size")
-	const balcony = document.getElementById("info-balcony")
-
-	const amenities = document.getElementById("amenities-list")
-	const img = document.getElementById("carousel-image")
-	const thumbs = document.getElementById("carousel-thumbs")
-	const bookBtn = document.getElementById("modal-book")
-
-	let images = []
-	let index = 0
-	let lastFocus = null
-
-	/* ---------- CAROUSEL ---------- */
-	function renderCarousel(imgs) {
-		images = imgs
-		index = 0
-		updateImage()
-
-		thumbs.replaceChildren()
-		imgs.forEach((i, idx) => {
-			const t = document.createElement("img")
-			t.src = i.url
-			t.className = "h-16 w-24 rounded-lg object-cover cursor-pointer opacity-70 hover:opacity-100"
-			t.onclick = () => {
-				index = idx
-				updateImage()
-			}
-			thumbs.appendChild(t)
-		})
-	}
-
-	function updateImage() {
-		img.style.opacity = "0"
-		setTimeout(() => {
-			img.src = images[index].url
-			img.style.opacity = "1"
-		}, 120)
-	}
-
-	function groupAmenitiesByCategory(amenities) {
-		const grouped = {}
-
-		for (const amenity of amenities) {
-			if (!amenity.isAvailable) continue
-
-			const category = amenity.category ?? "Otros"
-
-			if (!grouped[category]) {
-				grouped[category] = []
-			}
-
-			grouped[category].push(amenity)
-		}
-
-		return grouped
-	}
-
-	document.getElementById("carousel-prev").onclick = () => {
-		index = (index - 1 + images.length) % images.length
-		updateImage()
-	}
-
-	document.getElementById("carousel-next").onclick = () => {
-		index = (index + 1) % images.length
-		updateImage()
-	}
-
-	/* ---------- MODAL ---------- */
-	function openModal(roomId) {
-		const room = rooms.find((r) => r.id === roomId)
-		if (!room) return
-
-		const type = ROOM_TYPE_MAP[room.roomTypeId]
-
-		title.textContent = type?.name ?? "Habitación"
-		subtitle.textContent = room.sizeM2 ? `${room.sizeM2} m²` : ""
-		hasView.textContent = room.hasView ? ` • Con vista ${room.hasView}` : ""
-
-		capacity.textContent = room.maxOccupancyOverride
-			? `Capacidad: ${room.maxOccupancyOverride} Personas`
-			: "-"
-		beds.textContent = `Camas: ${formatBedType(room.bedType) ?? "-"}`
-		door.textContent = `Habitaciones: ${room.totalRooms ?? "-"}`
-		bath.textContent = `Baños: ${room.bathroom ?? "-"}`
-		size.textContent = room.sizeM2 ? `Tamaño: ${room.sizeM2} m²` : ""
-		balcony.classList.toggle("hidden", !room.hasBalcony)
-
-		bookBtn.href = `/book/${room.id}`
-
-		amenities.replaceChildren()
-
-		if (room.amenities?.length) {
-			const grouped = groupAmenitiesByCategory(room.amenities)
-
-			Object.entries(grouped).forEach(([category, items]) => {
-				// Contenedor categoría
-				const section = document.createElement("div")
-
-				// Título categoría
-				const title = document.createElement("h4")
-				title.textContent = category
-				title.className = "text-sm font-semibold text-neutral-800"
-
-				// Lista amenities
-				const list = document.createElement("ul")
-				list.className = "mt-2 grid grid-cols-2 gap-2 text-sm text-neutral-600"
-
-				items.forEach((a) => {
-					const li = document.createElement("li")
-					li.textContent = a.amenityName
-					list.appendChild(li)
-				})
-
-				section.appendChild(title)
-				section.appendChild(list)
-				amenities.appendChild(section)
+	document
+		.querySelectorAll<HTMLElement>(".modal-overlay .pointer-events-auto")
+		.forEach((content) => {
+			content.addEventListener("click", (e) => {
+				e.stopPropagation()
 			})
-		}
-
-		renderCarousel(room.images?.length ? room.images : [{ url: "https://placehold.co/1200x800" }])
-
-		lastFocus = document.activeElement
-
-		modal.classList.remove("hidden")
-		modal.classList.add("flex")
-
-		requestAnimationFrame(() => {
-			modal.classList.remove("opacity-0")
-			panel.classList.remove("translate-y-6", "scale-95")
 		})
 
-		document.body.style.overflow = "hidden"
-		bookBtn.focus()
-	}
+	document.addEventListener("click", (e) => {
+		const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-close]")
+		if (!btn) return
 
-	function closeModal() {
-		panel.classList.add("translate-y-6", "scale-95")
-		modal.classList.add("opacity-0")
+		const modal = btn.closest<HTMLElement>(".modal-overlay")
+		if (!modal) return
 
-		setTimeout(() => {
-			modal.classList.remove("flex")
-			modal.classList.add("hidden")
-		}, 300)
+		const name = modal.dataset.modal
+		if (!name) return
 
-		document.body.style.overflow = ""
-		lastFocus?.focus()
-	}
-
-	/* ---------- EVENTS ---------- */
-	document.querySelectorAll("[data-room-id]").forEach((btn) => {
-		btn.onclick = () => openModal(btn.dataset.roomId)
+		closeModal(name)
 	})
 
-	document.getElementById("modal-close-1").onclick = closeModal
-	document.getElementById("modal-close-2").onclick = closeModal
-	modal.onclick = (e) => e.target === modal && closeModal()
+	document.querySelectorAll<HTMLElement>(".modal-overlay").forEach((modal) => {
+		const gallery = modal.querySelector<HTMLElement>("[data-gallery]")
+		if (!gallery) return
+
+		const _mainImage = gallery.querySelector<HTMLImageElement>("[data-main-image]")
+		if (!_mainImage) return
+
+		const mainImage = _mainImage
+
+		const images = Array.from(modal.querySelectorAll<HTMLButtonElement>("[data-thumb]")).map(
+			(btn) => {
+				const img = btn.querySelector("img")
+				return img?.getAttribute("src") ?? ""
+			}
+		)
+
+		let currentIndex = 0
+
+		function updateImage(index: number) {
+			if (images.length === 0) return
+
+			currentIndex = (index + images.length) % images.length
+			mainImage.style.opacity = "0"
+
+			setTimeout(() => {
+				mainImage.src = images[currentIndex]
+				mainImage.style.opacity = "1"
+			}, 150)
+		}
+
+		gallery.querySelector("[data-prev]")?.addEventListener("click", () => {
+			updateImage(currentIndex - 1)
+		})
+
+		gallery.querySelector("[data-next]")?.addEventListener("click", () => {
+			updateImage(currentIndex + 1)
+		})
+
+		modal.querySelectorAll<HTMLButtonElement>("[data-thumb]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const index = Number(btn.dataset.index)
+				updateImage(index)
+			})
+		})
+	})
 </script>

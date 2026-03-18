@@ -1,0 +1,280 @@
+<div
+	data-modal="dates"
+	class="modal-overlay fixed inset-0 z-40 hidden items-end bg-black/60 backdrop-blur-sm md:items-center"
+>
+	<button
+		id="modal-close"
+		data-close-modal
+		class="absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-black/50 md:right-10 md:top-10 md:h-20 md:w-20 md:bg-transparent lg:border-0"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			class="h-6 w-6 text-2xl font-bold text-white hover:text-gray-400 md:h-12 md:w-12 md:text-5xl"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="3"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<line x1="18" y1="6" x2="6" y2="18"></line>
+			<line x1="6" y1="6" x2="18" y2="18"></line>
+		</svg>
+	</button>
+	<div class="w-[98%] rounded-2xl bg-black p-4 md:max-w-md">
+		<header class="flex items-center justify-between">
+			<button
+				id="prevMonth"
+				class="hidden rounded-lg px-2 py-1 text-neutral-300 hover:bg-neutral-800 md:block"
+			>
+				‹
+			</button>
+
+			<h3 id="monthLabel" class="text-2xl font-semibold text-white">Selecciona fechas</h3>
+
+			<button
+				id="nextMonth"
+				class="hidden rounded-lg px-2 py-1 text-neutral-300 hover:bg-neutral-800 md:block"
+			>
+				›
+			</button>
+		</header>
+
+		<p id="dateStep" class="mb-3 text-sm text-neutral-400">Elige fecha de entrada</p>
+
+		<div
+			id="calendar"
+			class="my-9 grid grid-cols-1 gap-9 overflow-y-auto md:grid-cols-2 md:gap-6"
+			style="max-height: 65vh"
+		>
+			<div>
+				<h4 id="monthLabel1" class="mb-2 text-center font-semibold text-white"></h4>
+				<div id="calendar1" class="grid grid-cols-7 gap-1 text-center text-sm"></div>
+			</div>
+
+			<div>
+				<h4 id="monthLabel2" class="mb-2 text-center font-semibold text-white"></h4>
+				<div id="calendar2" class="grid grid-cols-7 gap-1 text-center text-sm"></div>
+			</div>
+		</div>
+
+		<button
+			id="confirmDates"
+			class="mt-4 w-full rounded-lg bg-blue-600 py-2 font-semibold text-white disabled:opacity-40"
+			disabled
+		>
+			Confirmar fechas
+		</button>
+	</div>
+</div>
+<script>
+	const calendarWrapper = document.getElementById("calendar") as HTMLElement
+	const stepText = document.getElementById("dateStep") as HTMLElement
+	const confirmBtn = document.getElementById("confirmDates") as HTMLButtonElement
+
+	let checkIn: Date | null = null
+	let checkOut: Date | null = null
+	let renderedMonths = 0
+
+	const MONTHS_AHEAD = 12
+	const STORAGE_KEY = "selectedDates"
+
+	let currentMonth: Date = new Date()
+	currentMonth.setDate(1)
+
+	function sameDay(a: Date, b: Date): boolean {
+		return (
+			a.getFullYear() === b.getFullYear() &&
+			a.getMonth() === b.getMonth() &&
+			a.getDate() === b.getDate()
+		)
+	}
+
+	function daysInMonth(date: Date): number {
+		return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+	}
+
+	function firstWeekday(date: Date): number {
+		return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+	}
+
+	function capitalize(text: string): string {
+		return text.charAt(0).toUpperCase() + text.slice(1)
+	}
+
+	function formatMonth(date: Date): string {
+		const formatted = date.toLocaleDateString("es-CL", {
+			month: "long",
+			year: "numeric",
+		})
+		return capitalize(formatted)
+	}
+
+	function loadMoreMonths(): void {
+		for (let i = 0; i < 3; i++) {
+			const date = new Date(currentMonth)
+			date.setMonth(currentMonth.getMonth() + renderedMonths)
+			calendarWrapper.appendChild(renderMonthBlock(date))
+			renderedMonths++
+		}
+	}
+
+	function saveDates(checkIn: Date, checkOut: Date) {
+		localStorage.setItem(
+			STORAGE_KEY,
+			JSON.stringify({
+				checkIn: checkIn.toISOString(),
+				checkOut: checkOut.toISOString(),
+			})
+		)
+	}
+
+	function loadDates(): { checkIn: Date; checkOut: Date } | null {
+		const raw = localStorage.getItem(STORAGE_KEY)
+		if (!raw) return null
+
+		try {
+			const parsed = JSON.parse(raw)
+			return {
+				checkIn: new Date(parsed.checkIn),
+				checkOut: new Date(parsed.checkOut),
+			}
+		} catch {
+			return null
+		}
+	}
+
+	function renderMonthBlock(date: Date): HTMLElement {
+		const wrapper = document.createElement("div")
+
+		const label = document.createElement("h4")
+		label.className = "mb-2 text-center font-semibold text-white"
+		label.textContent = formatMonth(date)
+
+		const grid = document.createElement("div")
+		grid.className = "grid grid-cols-7 gap-1 text-center text-sm"
+
+		renderSingleMonth(grid, label, date)
+
+		wrapper.appendChild(label)
+		wrapper.appendChild(grid)
+
+		return wrapper
+	}
+
+	function renderSingleMonth(container: HTMLElement, label: HTMLElement, date: Date): void {
+		container.innerHTML = ""
+		label.textContent = formatMonth(date)
+
+		const today = new Date()
+		const totalDays = daysInMonth(date)
+		const startDay = firstWeekday(date)
+
+		for (let i = 0; i < startDay; i++) {
+			container.appendChild(document.createElement("div"))
+		}
+
+		for (let day = 1; day <= totalDays; day++) {
+			const d = new Date(date.getFullYear(), date.getMonth(), day)
+
+			const btn = document.createElement("button")
+			btn.textContent = String(day)
+			btn.className = "h-10 rounded-lg text-white hover:bg-neutral-700"
+
+			if (d < today && !sameDay(d, today)) {
+				btn.disabled = true
+				btn.classList.add("opacity-30")
+			}
+			if (checkIn && !checkOut && d <= checkIn) {
+				btn.disabled = true
+				btn.classList.add("opacity-30")
+			}
+			if ((checkIn && sameDay(d, checkIn)) || (checkOut && sameDay(d, checkOut))) {
+				btn.classList.add("bg-blue-600", "font-semibold")
+			}
+			if (checkIn && checkOut && d > checkIn && d < checkOut) {
+				btn.classList.add("bg-blue-500/40")
+			}
+
+			btn.onclick = () => onDateClick(d)
+			container.appendChild(btn)
+		}
+	}
+
+	function renderCalendars(): void {
+		calendarWrapper.innerHTML = ""
+		renderedMonths = 0
+
+		if (window.innerWidth >= 768) {
+			const nextMonth = new Date(currentMonth)
+			nextMonth.setMonth(currentMonth.getMonth() + 1)
+
+			calendarWrapper.appendChild(renderMonthBlock(currentMonth))
+			calendarWrapper.appendChild(renderMonthBlock(nextMonth))
+		} else {
+			loadMoreMonths()
+		}
+	}
+
+	function onDateClick(date: Date): void {
+		if (!checkIn || checkOut) {
+			checkIn = date
+			checkOut = null
+			stepText.textContent = "Elige fecha de salida"
+			confirmBtn.disabled = true
+		} else if (date > checkIn) {
+			checkOut = date
+			confirmBtn.disabled = false
+		}
+		renderCalendars()
+	}
+
+	calendarWrapper.addEventListener("scroll", () => {
+		if (window.innerWidth >= 768) return
+		const nearBottom =
+			calendarWrapper.scrollTop + calendarWrapper.clientHeight >= calendarWrapper.scrollHeight - 100
+		if (nearBottom && renderedMonths < MONTHS_AHEAD) {
+			loadMoreMonths()
+		}
+	})
+
+	document.getElementById("prevMonth")!.onclick = () => {
+		currentMonth.setMonth(currentMonth.getMonth() - 1)
+		renderCalendars()
+	}
+
+	document.getElementById("nextMonth")!.onclick = () => {
+		currentMonth.setMonth(currentMonth.getMonth() + 1)
+		renderCalendars()
+	}
+
+	confirmBtn.onclick = () => {
+		const inEl = document.getElementById("checkinText") as HTMLElement
+		const outEl = document.getElementById("checkoutText") as HTMLElement
+
+		if (checkIn && checkOut) {
+			inEl.textContent = checkIn.toLocaleDateString("es-CL")
+			outEl.textContent = checkOut.toLocaleDateString("es-CL")
+			saveDates(checkIn, checkOut)
+		}
+		document.querySelector('[data-modal="dates"]')?.classList.add("hidden")
+		document.body.style.overflow = ""
+		document.body.style.touchAction = ""
+	}
+
+	const saved = loadDates()
+	if (saved) {
+		checkIn = saved.checkIn
+		checkOut = saved.checkOut
+		const inEl = document.getElementById("checkinText")
+		const outEl = document.getElementById("checkoutText")
+		if (inEl && outEl) {
+			inEl.textContent = checkIn.toLocaleDateString("es-CL")
+			outEl.textContent = checkOut.toLocaleDateString("es-CL")
+		}
+		stepText.textContent = "Fechas seleccionadas"
+		confirmBtn.disabled = false
+	}
+
+	renderCalendars()
+</script>
