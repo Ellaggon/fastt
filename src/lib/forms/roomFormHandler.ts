@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			}
 
 			alert("Habitación guardada")
-			window.location.href = `/rate-plans/${data.variantId}`
+			window.location.href = `/products/${hotelId}/rate-plans/${data.variantId}`
 		} catch (err) {
 			console.error(err)
 			alert("Error de red")

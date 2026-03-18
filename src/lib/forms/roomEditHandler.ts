@@ -82,5 +82,5 @@ document.getElementById("deleteRoomBtn")?.addEventListener("click", async () => 
 	}
 
 	alert("Habitación eliminada correctamente.")
-	window.location.href = "/dashboard"
+	window.location.href = `/products/${hotelId}/rate-plans/${data.variantId}`
 })
