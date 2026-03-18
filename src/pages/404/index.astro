@@ -1,0 +1,32 @@
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/svg+xml" href="/favicon-sbg.webp" />
+		<title>Redirigiendo...</title>
+		<!-- Redirección automática después de 3 segundos -->
+		<meta http-equiv="refresh" content="3;url=/" />
+	</head>
+
+	<body class="flex h-screen items-center justify-center bg-[#13151a] text-white">
+		<div class="mx-2 text-center">
+			<h1 class="mb-9 text-2xl font-bold text-red-500">404 - Página no encontrada</h1>
+			<p class="mb-6 text-lg">La página que estás buscando no existe o fue movida.</p>
+			<p class="text-md mb-6 text-gray-400">
+				Redirigiéndote al inicio en <span id="countdown" class="font-bold">3</span> segundos...
+			</p>
+
+			<!-- Spinner de carga -->
+			<div class="flex items-center justify-center">
+				<div
+					class="h-10 w-10 animate-spin rounded-full border-4 border-red-500 border-t-transparent"
+				>
+				</div>
+			</div>
+
+			<div class="mt-6">
+				<a href="/" class="text-red-600 hover:underline">Ir al inicio ahora</a>
+			</div>
+		</div>
+	</body>
+</html>
