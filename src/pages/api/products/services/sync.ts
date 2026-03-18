@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "astro:content"
 import { db, eq, inArray, and, Service, ProductService } from "astro:db"
-import { ensureProductOwnedByProvider } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { productRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -27,7 +27,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const { productId, services } = parsed.data
 
-		const product = await ensureProductOwnedByProvider(productId, providerId)
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 		if (!product) {
 			return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
 		}

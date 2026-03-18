@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { and, db, eq, ProductService, ProductServiceAttribute, Product } from "astro:db"
 import { getSession } from "auth-astro/server"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 
 export const POST: APIRoute = async ({ request }) => {
 	const session = await getSession(request)

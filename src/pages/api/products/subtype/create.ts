@@ -5,9 +5,8 @@ import {
 	tourSchema,
 	packageSchema,
 } from "@/schemas/product/subtype"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { ensureProductOwnedByProvider } from "@/lib/db/product"
-import { insertHotel, insertTour, insertPackage, subtypeExists } from "@/lib/db/subtype"
+import { productRepository, subtypeRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { db } from "astro:db"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -28,7 +27,7 @@ export const POST: APIRoute = async ({ request }) => {
 		// const productType = normalizeProductType(form.get("productType"));
 
 		// 3) verificar propiedad del producto
-		const product = await ensureProductOwnedByProvider(productId, providerId)
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 		if (!product) {
 			return new Response(JSON.stringify({ error: "Product not found or not owned by you" }), {
 				status: 403,
@@ -42,7 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		// 4) prevenir duplicados
-		const already = await subtypeExists(productId, productType as any)
+		const already = await subtypeRepository.subtypeExists(productId, productType as any)
 		if (already) {
 			return new Response(
 				JSON.stringify({ error: "Subtype details already exist for this product" }),
@@ -67,7 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
 			if (!parsed.success) {
 				return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 			}
-			await insertHotel(db, parsed.data)
+			await subtypeRepository.insertHotel(db as any, parsed.data as any)
 			return new Response(JSON.stringify({ ok: true }), { status: 200 })
 		}
 
@@ -85,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
 			if (!parsed.success) {
 				return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 			}
-			await insertTour(db, parsed.data)
+			await subtypeRepository.insertTour(db as any, parsed.data as any)
 			return new Response(JSON.stringify({ ok: true }), { status: 200 })
 		}
 
@@ -101,7 +100,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!parsed.success) {
 			return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 		}
-		await insertPackage(db, parsed.data)
+		await subtypeRepository.insertPackage(db as any, parsed.data as any)
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	} catch (err) {
 		console.error("subtype/create error:", err)

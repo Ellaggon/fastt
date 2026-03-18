@@ -1,16 +1,7 @@
 import type { APIRoute } from "astro"
 import { z } from "astro:content"
-import { ensureProductOwnedByProvider } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import {
-	insertHotel,
-	insertPackage,
-	insertTour,
-	subtypeExists,
-	updateHotel,
-	updatePackage,
-	updateTour,
-} from "@/lib/db/subtype"
+import { productRepository, subtypeRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { db } from "astro:db"
 
 const schema = z.object({
@@ -30,7 +21,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const { productId, subtypeType, subtype } = parsed.data
 
 		// ownership + product check
-		const product = await ensureProductOwnedByProvider(productId, providerId)
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 		if (!product)
 			return new Response(JSON.stringify({ error: "Not found or not owned" }), { status: 403 })
 
@@ -47,15 +38,25 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// Upsert subtype inside a transaction
 		await db.transaction(async (tx) => {
-			const exists = await subtypeExists(tx, productId, subtypeType as "hotel" | "tour" | "package")
+			const exists = await subtypeRepository.subtypeExists(
+				tx as any,
+				productId,
+				subtypeType as "hotel" | "tour" | "package"
+			)
 			if (exists) {
-				if (subtypeType === "hotel") await updateHotel(tx, productId, subtype || {})
-				if (subtypeType === "tour") await updateTour(tx, productId, subtype || {})
-				if (subtypeType === "package") await updatePackage(tx, productId, subtype || {})
+				if (subtypeType === "hotel")
+					await subtypeRepository.updateHotel(tx as any, productId, subtype || {})
+				if (subtypeType === "tour")
+					await subtypeRepository.updateTour(tx as any, productId, subtype || {})
+				if (subtypeType === "package")
+					await subtypeRepository.updatePackage(tx as any, productId, subtype || {})
 			} else {
-				if (subtypeType === "hotel") await insertHotel(tx, { productId, ...(subtype || {}) })
-				if (subtypeType === "tour") await insertTour(tx, { productId, ...(subtype || {}) })
-				if (subtypeType === "package") await insertPackage(tx, { productId, ...(subtype || {}) })
+				if (subtypeType === "hotel")
+					await subtypeRepository.insertHotel(tx as any, { productId, ...(subtype || {}) } as any)
+				if (subtypeType === "tour")
+					await subtypeRepository.insertTour(tx as any, { productId, ...(subtype || {}) } as any)
+				if (subtypeType === "package")
+					await subtypeRepository.insertPackage(tx as any, { productId, ...(subtype || {}) } as any)
 			}
 		})
 

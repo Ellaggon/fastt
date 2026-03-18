@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { db, eq, and, ProductService, ProductServiceAttribute } from "astro:db"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { ensureProductOwnedByProvider } from "@/lib/db/product"
+import { productRepository } from "@/container"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		}
 
 		// 1. Validar seguridad
-		const product = await ensureProductOwnedByProvider(productId, providerId)
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 		if (!product) {
 			return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
 		}
