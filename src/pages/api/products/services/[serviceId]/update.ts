@@ -1,92 +1,78 @@
 import type { APIRoute } from "astro"
 import { db, eq, and, ProductService, ProductServiceAttribute } from "astro:db"
-import { generateOtaText } from "@/lib/services/generateOtaText"
+import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { ensureProductOwnedByProvider } from "@/lib/db/product"
 
-export const POST: APIRoute = async ({ request }) => {
-	console.log("API UPDATE HIT")
+export const POST: APIRoute = async ({ request, params }) => {
 	try {
+		const { serviceId } = params
+		const providerId = await getProviderIdFromRequest(request)
+		if (!providerId || !serviceId) {
+			return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+		}
+
 		const formData = await request.formData()
+		const psId = formData.get("psId")?.toString()
+		const productId = formData.get("productId")?.toString()
 
-		const productId = String(formData.get("productId") ?? "")
-		const serviceId = String(formData.get("serviceId") ?? "")
-		const psId = String(formData.get("psId") ?? "")
-
-		if (!productId || !serviceId || !psId) {
-			return new Response(JSON.stringify({ error: "Missing identifiers" }), { status: 400 })
+		if (!psId || !productId) {
+			return new Response(JSON.stringify({ error: "Missing IDs" }), { status: 400 })
 		}
 
-		// ─── Flags principales ─────────────────────────────
+		// 1. Validar seguridad
+		const product = await ensureProductOwnedByProvider(productId, providerId)
+		if (!product) {
+			return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
+		}
+
+		// 2. Extraer datos básicos
 		const isIncluded = formData.get("isIncluded") === "on"
-		const isPaid = formData.get("isPaid") === "on"
+		const price = isIncluded ? null : Number(formData.get("price"))
+		const priceUnit = isIncluded ? null : formData.get("priceUnit")?.toString()
+		const currency = isIncluded ? null : formData.get("currency")?.toString()
+		const appliesTo = formData.get("appliesTo")?.toString() || "both"
+		const notes = formData.get("notes")?.toString()
 
-		const price = isPaid ? Number(formData.get("price") || 0) : null
-		const priceUnit = isPaid ? String(formData.get("priceUnit") || "") : null
-		const currency = isPaid ? String(formData.get("currency") || "") : null
-
-		const appliesTo = String(formData.get("appliesTo") || "both")
-
-		let customText = String(formData.get("customText") || "").trim()
-
-		// ─── Atributos dinámicos ──────────────────────────
-		const attrMap: Record<string, string> = {}
-
-		for (const [key, value] of formData.entries()) {
-			if (key.startsWith("attr_")) {
-				const attrKey = key.replace("attr_", "")
-				attrMap[attrKey] = String(value)
-			}
-		}
-
-		// ─── Generar texto OTA si está vacío ──────────────
-		if (!customText) {
-			customText = generateOtaText(serviceId, attrMap)
-		}
-
-		// ─── Transacción ─────────────────────────────────
 		await db.transaction(async (tx) => {
-			// 1️⃣ Update ProductService
+			// 3. Actualizar tabla principal ProductService
 			await tx
 				.update(ProductService)
 				.set({
-					isIncluded,
-					isPaid,
 					price,
 					priceUnit,
 					currency,
 					appliesTo,
-					customText,
+					notes,
 				})
-				.where(
-					and(
-						eq(ProductService.id, psId),
-						eq(ProductService.productId, productId),
-						eq(ProductService.serviceId, serviceId)
-					)
-				)
+				.where(eq(ProductService.id, psId))
 
-			// 2️⃣ Borrar atributos anteriores
+			// 4. Procesar Atributos Dinámicos (los que empiezan con attr_)
+			// Primero borramos los anteriores para este servicio
 			await tx
 				.delete(ProductServiceAttribute)
 				.where(eq(ProductServiceAttribute.productServiceId, psId))
 
-			// 3️⃣ Insertar nuevos atributos
-			const entries = Object.entries(attrMap).filter(([_, value]) => value !== "" && value !== null)
-
-			if (entries.length > 0) {
-				await tx.insert(ProductServiceAttribute).values(
-					entries.map(([key, value]) => ({
+			const attributeInserts = []
+			for (const [key, value] of formData.entries()) {
+				if (key.startsWith("attr_") && value) {
+					const attrKey = key.replace("attr_", "")
+					attributeInserts.push({
 						id: crypto.randomUUID(),
 						productServiceId: psId,
-						key,
-						value,
-					}))
-				)
+						key: attrKey,
+						value: value.toString(),
+					})
+				}
+			}
+
+			if (attributeInserts.length > 0) {
+				await tx.insert(ProductServiceAttribute).values(attributeInserts)
 			}
 		})
 
-		return new Response(JSON.stringify({ success: true }), { status: 200 })
+		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	} catch (err) {
-		console.error(err)
-		return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 })
+		console.error("Update error:", err)
+		return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })
 	}
 }

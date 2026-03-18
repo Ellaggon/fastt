@@ -27,6 +27,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const maxOccupancy = form.get("maxOccupancy") ? Number(form.get("maxOccupancy")) : undefined
 		const hasBalcony = form.has("hasBalcony")
 		const hasView = form.get("hasView") ? String(form.get("hasView")) : null
+		const currency = form.get("currency") ? String(form.get("currency")) : "USD"
 
 		const bedTypesRaw = form.get("bedTypes")
 		const bedTypes = bedTypesRaw ? JSON.parse(String(bedTypesRaw)) : []
@@ -52,12 +53,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const variant = await db.select().from(Variant).where(eq(Variant.entityId, hotelRoomId)).get()
 
 		if (variant) {
-			const basePriceUSD = form.get("basePriceUSD")
-				? Number(form.get("basePriceUSD"))
-				: variant.basePriceUSD
-			const basePriceBOB = form.get("basePriceBOB")
-				? Number(form.get("basePriceBOB"))
-				: variant.basePriceBOB
+			const basePrice = form.get("basePrice")
+				? Number(form.get("basePrice"))
+				: variant.basePrice
 			const isActive = form.has("isActive")
 
 			await db
@@ -65,8 +63,8 @@ export const POST: APIRoute = async ({ request, params }) => {
 				.set({
 					name: name || "Habitación",
 					description,
-					basePriceUSD,
-					basePriceBOB,
+					currency,
+					basePrice,
 					isActive,
 				})
 				.where(eq(Variant.id, variant.id))
@@ -87,13 +85,13 @@ export const POST: APIRoute = async ({ request, params }) => {
 
 		await db
 			.delete(Image)
-			.where(and(eq(Image.entityType, "HotelRoomType"), eq(Image.entityId, hotelRoomId)))
+			.where(and(eq(Image.entityType, "hotel_room"), eq(Image.entityId, hotelRoomId)))
 
 		if (finalImages.length > 0) {
 			await db.insert(Image).values(
 				finalImages.map((url, idx) => ({
 					id: crypto.randomUUID(),
-					entityType: "HotelRoomType",
+					entityType: "hotel_room",
 					entityId: hotelRoomId,
 					url,
 					order: idx,
