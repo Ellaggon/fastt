@@ -1,13 +1,7 @@
 import type { APIRoute } from "astro"
-import { db, eq, PolicyAssignment } from "astro:db"
+import { toggleCancellationPolicyAssignment } from "@/modules/catalog/application/use-cases/toggle-cancellation-policy-assignment"
 
 export const POST: APIRoute = async ({ request }) => {
 	const { assignmentId, isActive } = await request.json()
-
-	await db
-		.update(PolicyAssignment)
-		.set({ isActive })
-		.where(eq(PolicyAssignment.id, assignmentId))
-
-	return new Response(JSON.stringify({ success: true }))
+	return toggleCancellationPolicyAssignment({ assignmentId, isActive })
 }
