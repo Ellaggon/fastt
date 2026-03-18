@@ -9,12 +9,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: "Missing productId" }), { status: 400 })
 	}
 
-	const { name, type, value, currency, isIncluded, isActive } = body
+	const { type, value, currency, isIncluded, isActive } = body
 
 	await db.insert(TaxFee).values({
 		id: crypto.randomUUID(),
 		productId,
-		name,
 		type,
 		value,
 		currency,

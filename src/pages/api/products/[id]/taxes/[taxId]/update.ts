@@ -9,12 +9,11 @@ export const PUT: APIRoute = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: "Missing params" }), { status: 400 })
 	}
 
-	const { name, type, value, currency, isIncluded, isActive } = body
+	const { type, value, currency, isIncluded, isActive } = body
 
 	await db
 		.update(TaxFee)
 		.set({
-			name,
 			type,
 			value,
 			currency,
