@@ -1,0 +1,42 @@
+.modal-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 30;
+	display: flex;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(6px);
+}
+
+.modal-overlay.show {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	animation: modalFadeIn 0.4s ease-out forwards;
+}
+
+.modal-overlay.hide {
+	opacity: 0;
+	visibility: visible;
+	pointer-events: none;
+	animation: modalFadeOut 0.3s ease-in forwards;
+}
+
+.modal-overlay.hidden {
+	visibility: hidden;
+	pointer-events: none;
+}
+
+@keyframes modalFadeIn {
+	from { opacity: 0 }
+	to { opacity: 1 }
+}
+
+@keyframes modalFadeOut {
+	from { opacity: 1 }
+	to { opacity: 0 }
+}
