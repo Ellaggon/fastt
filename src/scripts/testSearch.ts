@@ -1,7 +1,10 @@
 import { SearchPipeline } from "@/core/search/SearchPipeline"
+import { SearchContextLoader } from "@/core/search/SearchContextLoader"
+import { globalAdapterRegistry } from "@/core/search/adapters/adapter.globalRegistry"
 
 async function run() {
-	const pipeline = new SearchPipeline()
+	const loader = new SearchContextLoader(globalAdapterRegistry)
+	const pipeline = new SearchPipeline(loader)
 
 	const result = await pipeline.run({
 		productId: "YOUR_PRODUCT_ID",
