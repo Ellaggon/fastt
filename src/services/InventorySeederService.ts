@@ -13,7 +13,7 @@ export class InventorySeederService {
 
 			await this.repo.upsert({
 				id: crypto.randomUUID(),
-				hotelRoomTypeId: roomTypeId,
+				variantId: roomTypeId,
 				date: toISODate(date),
 				totalInventory: totalRooms,
 				reservedCount: 0,
