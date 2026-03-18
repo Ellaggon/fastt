@@ -1,27 +1,32 @@
+export type Currency = "USD" | "BOB"
+
 export interface PricingContext {
-	basePriceUSD: number
-	basePriceBOB: number
-	nights: number
+	basePrice: number
+	nights?: number
 }
 
-export type RatePlanType = "base" | "fixed" | "modifier" | "package" | "percentage"
+export type RuntimePriceRuleType = "fixed" | "modifier" | "percentage"
 
-export interface AppliedRatePlan {
+export interface RuntimePriceRule {
+	type: RuntimePriceRuleType
+	value: number
+}
+
+export interface AppliedPriceRule {
 	id: string
-	type: RatePlanType
-	valueUSD: number
-	valueBOB: number
-}
-
-export interface PriceResult {
-	currency: "USD" | "BOB"
-	base: number
-	adjustments: number
-	total: number
-	breakdown: PriceBreakdown[]
+	rule: RuntimePriceRule
 }
 
 export interface PriceBreakdown {
 	label: string
 	amount: number
+}
+
+export interface PriceResult {
+	currency: Currency
+	base: number
+	adjustments: number
+	total: number
+	breakdown: PriceBreakdown[]
+	appliedRules?: AppliedPriceRule[]
 }

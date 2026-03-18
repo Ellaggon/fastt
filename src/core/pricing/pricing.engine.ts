@@ -1,14 +1,13 @@
 import { roundMoney } from "./pricing.utils"
-import type { PricingContext, AppliedRatePlan, PriceResult } from "./pricing.types"
+import type { PricingContext, AppliedPriceRule, PriceResult, Currency } from "./pricing.types"
 
 export function calculatePrice(
 	context: PricingContext,
-	ratePlan: AppliedRatePlan,
-	currency: "USD" | "BOB"
+	appliedRules: AppliedPriceRule[] = [],
+	currency: Currency
 ): PriceResult {
-	const base = currency === "USD" ? context.basePriceUSD : context.basePriceBOB
-
-	let adjustments = 0
+	const base = context.basePrice
+	let current = base
 	const breakdown = []
 
 	breakdown.push({
@@ -16,66 +15,49 @@ export function calculatePrice(
 		amount: base,
 	})
 
-	// --- RATE PLAN LOGIC ---
-	switch (ratePlan.type) {
-		case "package":
-			breakdown.push({
-				label: "Paquete (precio incluido)",
-				amount: 0,
-			})
-			return {
-				currency,
-				base,
-				adjustments: 0,
-				total: base,
-				breakdown,
+	for (const appliedRule of appliedRules) {
+		const { type, value } = appliedRule.rule
+
+		switch (type) {
+			case "fixed": {
+				const diff = value - current
+				current = value
+				breakdown.push({
+					label: "Precio fijo",
+					amount: diff,
+				})
+				break
 			}
 
-		case "fixed": {
-			const value = currency === "USD" ? ratePlan.valueUSD : ratePlan.valueBOB
+			case "modifier": {
+				current += value
+				breakdown.push({
+					label: "Ajuste",
+					amount: value,
+				})
+				break
+			}
 
-			adjustments += value
-
-			breakdown.push({
-				label: `Ajuste fijo`,
-				amount: value,
-			})
-			break
-		}
-
-		case "percentage": {
-			const percent = currency === "USD" ? ratePlan.valueUSD : ratePlan.valueBOB
-
-			const value = -(base * percent) / 100
-			adjustments += value
-
-			breakdown.push({
-				label: `Descuento ${percent}%`,
-				amount: value,
-			})
-			break
-		}
-
-		case "modifier": {
-			const value = currency === "USD" ? ratePlan.valueUSD : ratePlan.valueBOB
-
-			adjustments += value
-
-			breakdown.push({
-				label: "Modificador",
-				amount: value,
-			})
-			break
+			case "percentage": {
+				const delta = (current * value) / 100
+				current += delta
+				breakdown.push({
+					label: `Ajuste ${value}%`,
+					amount: delta,
+				})
+				break
+			}
 		}
 	}
 
-	const total = roundMoney(base + adjustments)
+	const total = roundMoney(Math.max(0, current))
 
 	return {
 		currency,
 		base,
-		adjustments: roundMoney(adjustments),
+		adjustments: roundMoney(total - base),
 		total,
 		breakdown,
+		appliedRules,
 	}
 }
