@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { db, Product, Image, NOW } from "astro:db"
 import { getSession } from "auth-astro/server"
 import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { createProductUseCase } from "@/container"
 
 const serverSchema = z.object({
 	providerId: z.string().min(1),
@@ -47,30 +47,15 @@ export const POST: APIRoute = async ({ request }) => {
 		const id = crypto.randomUUID()
 
 		try {
-			// 1 Insertar producto
-			await db.insert(Product).values({
+			await createProductUseCase({
 				id,
 				name: parsed.data.name,
 				description: parsed.data.description || null,
 				productType: parsed.data.productType,
-				creationDate: NOW,
-				lastUpdated: NOW,
 				providerId: parsed.data.providerId || null,
 				destinationId: parsed.data.destinationId,
+				images: parsed.data.images,
 			})
-
-			// 2 Guardar imágenes en la tabla Image
-			for (let i = 0; i < parsed.data.images.length; i++) {
-				const url = parsed.data.images[i]
-				await db.insert(Image).values({
-					id: crypto.randomUUID(),
-					entityId: id,
-					entityType: "Product",
-					url,
-					order: i,
-					isPrimary: i === 0,
-				})
-			}
 			return new Response(JSON.stringify({ id }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
