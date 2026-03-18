@@ -1,0 +1,35 @@
+---
+const { products, roomsByHotel } = Astro.props
+---
+
+{
+	products
+		.filter((p: any) => p.productType === "Hotel")
+		.map((hotel: any) => (
+			<div class="flex flex-col gap-9 border-b border-neutral-800 pb-3 md:gap-9">
+				<div class="my-12 mt-8 flex justify-between">
+					<div class="px-3 py-2">
+						<p class="font-medium text-neutral-100 lg:text-xl">{hotel.name}</p>
+						<small class="text-neutral-400">{hotel.productType}</small>
+					</div>
+					<a
+						href={`/products/${hotel.id}/rooms`}
+						class="btn-primary flex items-center rounded-xl border border-neutral-800 px-3 py-1 text-blue-400 transition-colors hover:border-neutral-500 hover:text-blue-300"
+					>
+						Añadir habitación
+					</a>
+				</div>
+
+				<div class="grid grid-cols-2 gap-3 text-xs text-neutral-400 md:grid-cols-3 md:gap-6 md:gap-9 md:text-base lg:grid-cols-4">
+					{roomsByHotel[hotel.id]?.map((room: any) => (
+						<a
+							href={`/products/${hotel.id}/rooms/${room.entityId}/edit`}
+							class="rounded-lg border border-neutral-800 p-2 text-center hover:text-white md:px-3"
+						>
+							{room.name}
+						</a>
+					))}
+				</div>
+			</div>
+		))
+}

@@ -1,0 +1,41 @@
+---
+const { products, roomsByHotel } = Astro.props
+---
+
+{
+	products.map((el: any) => (
+		<div class="fflex flex-col gap-9 border-b border-neutral-800 pb-3 md:gap-9">
+			<div class="my-12 mt-8 flex justify-between">
+				<div class="px-3 py-2">
+					<p class="font-medium text-neutral-100 lg:text-xl">{el.name}</p>
+					<small class="text-neutral-400">{el.productType}</small>
+				</div>
+				<div class="flex gap-3">
+					<a
+						href={`/products/${el.id}/policies`}
+						class="btn-primary flex items-center rounded-xl border border-neutral-800 px-3 py-1 text-blue-400 transition-colors hover:border-neutral-500 hover:text-blue-300"
+					>
+						Politicas Globales
+					</a>
+					<a
+						href={`/products/${el.id}/policies/cancellation`}
+						class="btn-primary flex items-center rounded-xl border border-neutral-800 px-3 py-1 text-blue-400 transition-colors hover:border-neutral-500 hover:text-blue-300"
+					>
+						Politicas de cancelación
+					</a>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-2 gap-3 text-xs text-neutral-400 md:grid-cols-3 md:gap-6 md:gap-9 md:text-base lg:grid-cols-4">
+				{roomsByHotel[el.id]?.map((room: any) => (
+					<a
+						href={`/products/${el.id}/policies/${room.entityId}/create`}
+						class="rounded-lg border border-neutral-800 p-2 text-center hover:text-white md:px-3"
+					>
+						{room.name}
+					</a>
+				))}
+			</div>
+		</div>
+	))
+}

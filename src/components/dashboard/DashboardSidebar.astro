@@ -1,0 +1,28 @@
+<nav class="sticky top-24 h-fit">
+	<ul class="md:max-w-[200px] flex md:flex-col justify-around lg:space-y-1 uppercase text-xs md:text-sm">
+		<li data-section="projects" class="main-tab active">
+			General
+		</li>
+		<li data-section="products" class="main-tab">
+			Productos
+		</li>
+		<li data-section="rates" class="main-tab">
+			Tarifas
+		</li>
+		<li data-section="policies" class="main-tab hidden lg:block">
+			Politicas
+		</li>
+		<li data-section="restrictions" class="main-tab hidden lg:block">
+			Restricciones
+		</li>
+	</ul>
+
+	<style>
+		.main-tab {
+			@apply cursor-pointer rounded-md px-6 lg:pl-3 lg:pr-9 py-2 text-neutral-400 hover:bg-beaver-800 hover:text-white text-center lg:text-start;
+		}
+		.main-tab.active {
+			@apply bg-beaver-800 text-white;
+		}
+	</style>
+</nav>
