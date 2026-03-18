@@ -1,21 +1,14 @@
 import type { APIRoute } from "astro"
 import { db, RatePlanTemplate, RatePlan, PriceRule, Restriction } from "astro:db"
 import { randomUUID } from "node:crypto"
+import { buildCreateRatePlanSpec } from "@/modules/pricing/application/use-cases/build-create-rateplan-spec"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()
 
-	if (
-		(body.type === "percentage_discount" || body.type === "percentage_markup") &&
-		(body.value < 0 || body.value > 100)
-	) {
-		return new Response(JSON.stringify({ error: "Invalid percentage" }), { status: 400 })
-	}
-
-	if (body.type === "override" && body.value <= 0) {
-		return new Response(JSON.stringify({ error: "Override price must be greater than zero" }), {
-			status: 400,
-		})
+	const specResult = buildCreateRatePlanSpec(body)
+	if (!specResult.ok) {
+		return new Response(JSON.stringify({ error: specResult.error.message }), { status: 400 })
 	}
 
 	const templateId = randomUUID()
@@ -23,6 +16,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 	await db.transaction(async (tx) => {
 		/* ---------------- TEMPLATE ---------------- */
+		const { restrictions } = specResult.spec
+
 		await tx.insert(RatePlanTemplate).values({
 			id: templateId,
 			name: body.name,
@@ -69,43 +64,12 @@ export const POST: APIRoute = async ({ request }) => {
 			isActive: true,
 		}
 
-		// Min LOS
-		if (body.minNights && body.minNights > 1) {
+		for (const item of restrictions.items) {
 			await tx.insert(Restriction).values({
 				id: randomUUID(),
 				...baseRestriction,
-				type: "min_los",
-				value: Number(body.minNights),
-			})
-		}
-
-		// Max LOS
-		if (body.maxNights) {
-			await tx.insert(Restriction).values({
-				id: randomUUID(),
-				...baseRestriction,
-				type: "max_los",
-				value: Number(body.maxNights),
-			})
-		}
-
-		// Min Lead Time
-		if (body.minAdvanceDays && body.minAdvanceDays > 0) {
-			await tx.insert(Restriction).values({
-				id: randomUUID(),
-				...baseRestriction,
-				type: "min_lead_time",
-				value: Number(body.minAdvanceDays),
-			})
-		}
-
-		// Max Lead Time
-		if (body.maxAdvanceDays) {
-			await tx.insert(Restriction).values({
-				id: randomUUID(),
-				...baseRestriction,
-				type: "max_lead_time",
-				value: Number(body.maxAdvanceDays),
+				type: item.type,
+				value: item.value,
 			})
 		}
 	})
