@@ -1,5 +1,6 @@
 export interface RatePlanContext {
 	variantId: string
+	basePrice: number
 	checkIn: Date
 	checkOut: Date
 }
@@ -7,7 +8,16 @@ export interface RatePlanContext {
 export interface SelectedRatePlan {
 	id: string
 	name: string
-	type: string
+	price: number
 	priority: number
-	isDefault: boolean
+}
+
+export interface PriceRule {
+	id: string
+	ratePlanId: string
+	type: "modifier" | "fixed_adjustment" | "override" | "percentage_discount" | "percentage_markup"
+	value: number
+	startDate?: Date | null
+	endDate?: Date | null
+	isActive: boolean
 }
