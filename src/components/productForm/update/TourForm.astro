@@ -1,0 +1,45 @@
+---
+const { productId } = Astro.props
+---
+
+<div class="space-y-3">
+	<input type="hidden" name="productId" value={productId} />
+	<input type="hidden" name="productType" value="tour" />
+	<label class="block text-sm">
+		<span class="text-gray-300">Duración</span>
+		<input
+			type="text"
+			name="duration"
+			placeholder="Ej: 3 Horas"
+			class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		/>
+	</label>
+	<label class="block text-sm">
+		<span class="text-gray-300">Dificultad</span>
+		<input
+			type="text"
+			name="difficultyLevel"
+			placeholder="Ej: Fácil"
+			class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		/>
+	</label>
+	<label class="block text-sm">
+		<span class="text-gray-300">Idiomas del guía (separados por comas)</span>
+		<input
+			type="text"
+			name="guideLanguages"
+			placeholder="Español, Inglés"
+			class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		/>
+	</label>
+	<label class="block text-sm">
+		<span class="text-gray-300">Incluye</span>
+		<textarea name="includes" rows="2" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		></textarea>
+	</label>
+	<label class="block text-sm">
+		<span class="text-gray-300">No incluye</span>
+		<textarea name="excludes" rows="2" class="mt-1 w-full rounded-md bg-gray-800 px-2 py-1"
+		></textarea>
+	</label>
+</div>

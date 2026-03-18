@@ -57,8 +57,8 @@
 </style>
 
 <script>
-	import { BED_TYPES } from "@/data/room-beds"
-	import { ROOM_TYPES } from "@/data/room-types"
+	import { BED_TYPES } from "@/data/room/room-beds"
+	import { ROOM_TYPES } from "@/data/room/room-types"
 
 	document.addEventListener("DOMContentLoaded", () => {
 		const roomModal = document.getElementById("roomTypeModal")
@@ -103,21 +103,17 @@
 				})
 			})
 
-			/* ------------------ ROOM TYPE (SELECCIÓN ÚNICA) ------------------ */
 			ROOM_TYPES.forEach((/** @type {RoomType} */ rt) => {
 				const li = document.createElement("li")
 				li.className = "px-3 py-2 cursor-pointer rounded text-neutral-700"
 				li.textContent = `${rt.name}${rt.maxOccupancy ? ` (Capacidad: ${rt.maxOccupancy})` : ""}`
 
 				li.addEventListener("click", () => {
-					// visual
 					roomTypeList.querySelectorAll("li").forEach((x) => x.classList.remove("selected"))
 					li.classList.add("selected")
 
-					// set hidden input
 					inputRoom.value = String(rt.id)
 
-					// mostrar label en el botón que abre el modal (feedback)
 					openRoomBtn.textContent = `${rt.name}${rt.maxOccupancy ? ` (cap: ${rt.maxOccupancy})` : ""}`
 
 					roomModal.classList.add("hidden")
@@ -126,7 +122,6 @@
 				roomTypeList.appendChild(li)
 			})
 
-			/* ------------------ BED TYPES (SELECCIÓN CON CONTADORES) ------------------ */
 			const selectedBeds = new Map<string, number>()
 
 			function createCounterControls(id: string | number, li: HTMLLIElement) {
@@ -149,7 +144,6 @@
 				inc.setAttribute("aria-label", `Añadir una ${id}`)
 				inc.textContent = "+"
 
-				// Handlers
 				dec.addEventListener("click", (e) => {
 					e.stopPropagation()
 					const current = selectedBeds.get(String(id)) || 0
@@ -179,9 +173,6 @@
 				return wrapper
 			}
 
-			/**
-			 * Actualiza texto del botón que abre el modal con el total de camas seleccionadas.
-			 */
 			function updateOpenBedButtonLabel() {
 				let total = 0
 				for (const v of selectedBeds.values()) total += v
@@ -190,29 +181,26 @@
 						total > 0 ? `(${total}) camas seleccionadas` : "Seleccionar tipos de cama"
 			}
 
-			/* renderizamos la lista */
 			BED_TYPES.forEach((/** @type {{id: string|number; name: string}} */ bt) => {
 				const li = document.createElement("li")
 				li.className =
 					"flex justify-between items-center px-3 py-2 cursor-pointer rounded text-neutral-700"
-				// left label
 				const label = document.createElement("div")
 				label.textContent = bt.name
 				label.className = "flex-1"
 
-				// right: counter controls
 				const counter = createCounterControls(bt.id, li)
 
-				// hacemos clic en la fila para alternar: si no hay conteo, pone 1; si hay, lo incrementa
 				li.addEventListener("click", (e) => {
-					// si el click fue en los botones, los handlers ya lo tratan; aquí solo para clicks en la fila
 					if (e.target instanceof HTMLButtonElement) return
 					const cur = selectedBeds.get(String(bt.id)) || 0
-					const next = cur === 0 ? 1 : cur // fila click pone 1 si no hay ninguno
+					const next = cur === 0 ? 1 : cur
+
 					selectedBeds.set(String(bt.id), next)
-					// actualizar vista del contador (buscar el span en counter)
+
 					const span = counter.querySelector("span")
 					if (span) span.textContent = String(next)
+					
 					li.classList.toggle("selected", next > 0)
 					updateOpenBedButtonLabel()
 				})
@@ -222,16 +210,12 @@
 				bedTypeList.appendChild(li)
 			})
 
-			/* Guard: actualiza visuales si ya había valores en el input hidden (por ejemplo edit) */
 			try {
-				// si inputBeds tenía un valor JSON (ej: edición), restauramos
 				if (inputBeds.value) {
-					// esperar a que sea JSON: puede ser "id1,id2" u "[]"/json. Intentamos parsear
 					let parsed = null
 					try {
 						parsed = JSON.parse(inputBeds.value)
 					} catch {
-						// no JSON: si es lista csv, convertir a objetos con count=1
 						if (typeof inputBeds.value === "string" && inputBeds.value.trim() !== "") {
 							parsed = inputBeds.value.split(",").map((id) => ({ id: id.trim(), count: 1 }))
 						}
@@ -243,17 +227,18 @@
 							const count = Number(item.count ?? 1)
 							selectedBeds.set(id, count)
 						}
-						// reflejar en DOM: recorremos li y ponemos spans correspondientes
 						Array.from(bedTypeList.children).forEach((li) => {
 							const label = li.querySelector("div")
 							if (!label) return
+
 							const name = label.textContent?.trim()
-							// Buscar bed by name (fall back a index)
 							const bt = BED_TYPES.find((b) => b.name === name)
 							if (!bt) return
+
 							const count = selectedBeds.get(String(bt.id)) || 0
 							const span = li.querySelector("span")
 							if (span) span.textContent = String(count)
+
 							li.classList.toggle("selected", count > 0)
 						})
 						updateOpenBedButtonLabel()
@@ -263,12 +248,12 @@
 				console.warn("No se pudo restaurar bedTypes desde input hidden:", e)
 			}
 
-			/* Guardar: convertimos Map => [{id,count}] y lo guardamos como JSON en el input hidden */
 			saveBedBtn.addEventListener("click", () => {
 				const arr = []
 				for (const [id, count] of selectedBeds.entries()) {
 					if (count > 0) arr.push({ id, count })
 				}
+
 				inputBeds.value = JSON.stringify(arr)
 				updateOpenBedButtonLabel()
 				bedModal.classList.add("hidden")
