@@ -21,6 +21,7 @@ export interface ServiceDefinition {
 	category: ServiceCategory
 	name: string
 	description?: string
-	defaultFree?: boolean
 	icon: ServiceIcon
+	defaultIncluded?: boolean
+	isRoomAmenity?: boolean
 }
