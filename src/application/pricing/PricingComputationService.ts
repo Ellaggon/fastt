@@ -1,5 +1,6 @@
 import { PricingEngine } from "@/core/pricing/PricingEngine"
 import { PricingRepository } from "@/repositories/PricingRepository"
+import { computeAndPersistDailyPrice } from "@/modules/pricing/application/use-cases/compute-and-persist-daily-price"
 
 export class PricingComputationService {
 	constructor(
@@ -13,20 +14,9 @@ export class PricingComputationService {
 		date: string
 		basePrice: number
 	}) {
-		const rules = await this.pricingRepo.getRules(params.ratePlanId)
-
-		const result = this.pricingEngine.computeDaily({
-			basePrice: params.basePrice,
-			rules,
-			currency: "USD",
-		})
-
-		await this.pricingRepo.saveEffectivePrice({
-			variantId: params.variantId,
-			ratePlanId: params.ratePlanId,
-			date: params.date,
-			basePrice: params.basePrice,
-			finalBasePrice: result.total,
-		})
+		return computeAndPersistDailyPrice(
+			{ pricingRepo: this.pricingRepo, pricingEngine: this.pricingEngine },
+			params
+		)
 	}
 }
