@@ -1,10 +1,10 @@
 ---
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTabs from "@/components/dashboard/DashboardTabs.astro"
+import { productRepository } from "@/container"
 import Layout from "@/layouts/Layout.astro"
-import { getProductsByProvider } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { db, inArray, Policy, PolicyAssignment, Variant } from "astro:db"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { db, inArray, PolicyAssignment, Variant } from "astro:db"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
@@ -24,13 +24,16 @@ try {
 		return Astro.redirect("/provider")
 	}
 
-	userProducts = await getProductsByProvider(providerId)
+	userProducts = await productRepository.getProductsByProvider(providerId)
 
 	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
 
 	if (hotelIds.length > 0) {
 		hotelRoomTypes = await db.select().from(Variant).where(inArray(Variant.productId, hotelIds))
-		hotelPolicies = await db.select().from(PolicyAssignment).where(inArray(PolicyAssignment.scopeId, hotelIds))
+		hotelPolicies = await db
+			.select()
+			.from(PolicyAssignment)
+			.where(inArray(PolicyAssignment.scopeId, hotelIds))
 
 		for (const room of hotelRoomTypes) {
 			if (!roomsByHotel[room.productId]) roomsByHotel[room.productId] = []

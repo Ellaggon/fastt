@@ -1,7 +1,7 @@
 ---
+import { productRepository } from "@/container"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { getProductWithImagesAndSubtype } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getSession } from "auth-astro/server"
 
 const session = await getSession(Astro.request)
@@ -13,7 +13,7 @@ if (!paramsId) return Astro.redirect("/dashboard")
 const providerId = await getProviderIdFromRequest(Astro.request)
 if (!providerId) return Astro.redirect("/forms/provider")
 
-const productBundle = await getProductWithImagesAndSubtype(paramsId)
+const productBundle = await productRepository.getProductWithImagesAndSubtype(paramsId)
 if (!productBundle) return Astro.redirect("/dashboard")
 
 if (String(productBundle.product.providerId) !== String(providerId)) {
