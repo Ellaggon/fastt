@@ -1,10 +1,7 @@
 import type { APIRoute } from "astro"
-import { restrictionService as service } from "@/container"
+import { createRestrictionViaService } from "@/modules/catalog/application/use-cases/create-restriction-via-service"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()
-
-	await service.create(body)
-
-	return new Response("ok")
+	return createRestrictionViaService(body)
 }
