@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro"
 import { db, eq, and, lte, gte, ne, Restriction } from "astro:db"
+import { toISODate } from "@/core/date/date.utils"
 
 export const PUT: APIRoute = async ({ params, request }) => {
 	const productId = params.id
@@ -26,11 +27,11 @@ export const PUT: APIRoute = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: "No fields to update" }), { status: 400 })
 	}
 
-	const fromDate = startDate ? new Date(startDate) : undefined
-	const toDate = endDate ? new Date(endDate) : undefined
+	const fromISO = startDate ? toISODate(new Date(startDate)) : undefined
+	const toISO = endDate ? toISODate(new Date(endDate)) : undefined
 
 	// 🔒 Validación de solapamiento por tipo + scope
-	if (type && fromDate && toDate) {
+	if (type && fromISO && toISO) {
 		const overlap = await db
 			.select()
 			.from(Restriction)
@@ -38,8 +39,8 @@ export const PUT: APIRoute = async ({ params, request }) => {
 				and(
 					eq(Restriction.scopeId, productId),
 					eq(Restriction.type, type),
-					lte(Restriction.startDate, toDate),
-					gte(Restriction.endDate, fromDate),
+					lte(Restriction.startDate, toISO),
+					gte(Restriction.endDate, fromISO),
 					ne(Restriction.id, ruleId)
 				)
 			)
@@ -56,8 +57,8 @@ export const PUT: APIRoute = async ({ params, request }) => {
 		.set({
 			...(type && { type }),
 			...(value !== undefined && { value }),
-			...(fromDate && { startDate: fromDate }),
-			...(toDate && { endDate: toDate }),
+			...(fromISO && { startDate: fromISO }),
+			...(toISO && { endDate: toISO }),
 			...(validDays !== undefined && { validDays }),
 			...(isActive !== undefined && { isActive }),
 			...(scope && { scope }),

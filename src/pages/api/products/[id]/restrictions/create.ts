@@ -1,4 +1,5 @@
 import { computeRestrictionPriority } from "@/core/restrictions/restrictions.priority"
+import { toISODate } from "@/core/date/date.utils"
 import type { APIRoute } from "astro"
 import { db, and, eq, lte, gte, Restriction } from "astro:db"
 import { randomUUID } from "node:crypto"
@@ -17,6 +18,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400 })
 	}
 
+	const startISO = toISODate(new Date(startDate))
+	const endISO = toISODate(new Date(endDate))
+
 	const overlap = await db
 		.select()
 		.from(Restriction)
@@ -25,8 +29,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 				eq(Restriction.scope, scope),
 				eq(Restriction.scopeId, scopeId),
 				eq(Restriction.type, type),
-				lte(Restriction.startDate, new Date(endDate)),
-				gte(Restriction.endDate, new Date(startDate))
+				lte(Restriction.startDate, endISO),
+				gte(Restriction.endDate, startISO)
 			)
 		)
 
@@ -42,11 +46,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 		scopeId,
 		type,
 		value,
-		startDate: new Date(startDate),
-		endDate: new Date(endDate),
+		startDate: startISO,
+		endDate: endISO,
 		validDays,
 		isActive: isActive ?? true,
-		priority: computeRestrictionPriority(body.scope, body.type)
+		priority: computeRestrictionPriority(body.scope, body.type),
 	})
 
 	return new Response(JSON.stringify({ success: true }), { status: 200 })
