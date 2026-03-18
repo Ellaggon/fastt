@@ -1,8 +1,8 @@
 import { toISODate } from "@/core/date/date.utils"
-import { DailyInventoryRepository } from "@/repositories/AvailabilityRepository"
+import type { DailyInventoryRepositoryPort } from "@/modules/inventory/application/ports/DailyInventoryRepositoryPort"
 
 export class InventorySeederService {
-	constructor(private repo = new DailyInventoryRepository()) {}
+	constructor(private repo: DailyInventoryRepositoryPort) {}
 
 	async seed(roomTypeId: string, totalRooms: number) {
 		const today = new Date()

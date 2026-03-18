@@ -1,21 +1,11 @@
-import { DailyInventoryRepository } from "@/repositories/AvailabilityRepository"
+import type { DailyInventoryRepositoryPort } from "@/modules/inventory/application/ports/DailyInventoryRepositoryPort"
+import { canReserveInventory } from "@/modules/inventory/application/use-cases/can-reserve-inventory"
 
 export class AvailabilityService {
-	constructor(private repo = new DailyInventoryRepository()) {}
+	constructor(private repo: DailyInventoryRepositoryPort) {}
 
-	async canReserve(
-		roomTypeId: string,
-		checkIn: Date,
-		checkOut: Date,
-		quantity: number
-	) {
+	async canReserve(roomTypeId: string, checkIn: Date, checkOut: Date, quantity: number) {
 		const days = await this.repo.getRange(roomTypeId, checkIn, checkOut)
-		if (!days.length) return false
-
-		const available = Math.min(
-			...days.map((d) => d.totalInventory - d.reservedCount)
-		)
-
-		return available >= quantity
+		return canReserveInventory({ days, quantity })
 	}
 }

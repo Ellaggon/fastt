@@ -8,22 +8,24 @@ import type { RestrictionRow, RestrictionContext } from "@/core/restrictions/res
 
 export class RestrictionService {
 	constructor(
-		private repo = new RestrictionRepository(),
-		private engine = new RestrictionRuleEngine()
+		private deps: {
+			repo: RestrictionRepository
+			engine: RestrictionRuleEngine
+		}
 	) {}
 
 	// ⭐ Resolver reserva
 	async resolve(ctx: RestrictionContext) {
-		const rules = await this.repo.loadActiveRules(ctx)
+		const rules = await this.deps.repo.loadActiveRules(ctx)
 
-		return this.engine.resolve(ctx, rules)
+		return this.deps.engine.resolve(ctx, rules)
 	}
 
 	// ⭐ Preview UI
 	async preview(ctx: RestrictionContext, newRule: RestrictionRow) {
-		const existing = await this.repo.loadByScope(newRule.scope, newRule.scopeId)
+		const existing = await this.deps.repo.loadByScope(newRule.scope, newRule.scopeId)
 
-		const blockedDates = this.engine.preview(ctx, newRule, existing)
+		const blockedDates = this.deps.engine.preview(ctx, newRule, existing)
 
 		const conflicts = this.detectConflicts(newRule, existing)
 
@@ -34,17 +36,17 @@ export class RestrictionService {
 	async create(rule: RestrictionRow) {
 		rule.priority = computeRestrictionPriority(rule.scope, rule.type)
 
-		await this.repo.create(rule)
+		await this.deps.repo.create(rule)
 	}
 
 	async update(rule: RestrictionRow) {
 		rule.priority = computeRestrictionPriority(rule.scope, rule.type)
 
-		await this.repo.update(rule)
+		await this.deps.repo.update(rule)
 	}
 
 	async delete(id: string) {
-		await this.repo.delete(id)
+		await this.deps.repo.delete(id)
 	}
 
 	// ⭐ detectar conflictos UI
