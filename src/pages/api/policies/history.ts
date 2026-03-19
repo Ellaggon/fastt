@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, Policy, eq } from "astro:db"
+import { listPolicyHistoryUseCase } from "@/container"
 
 export const GET: APIRoute = async ({ url }) => {
 	const groupId = url.searchParams.get("groupId")
@@ -8,10 +8,7 @@ export const GET: APIRoute = async ({ url }) => {
 		return new Response("Missing groupId", { status: 400 })
 	}
 
-	const rows = await db
-		.select()
-		.from(Policy)
-		.where(eq(Policy.groupId, groupId))
+	const rows = await listPolicyHistoryUseCase(groupId)
 
 	return new Response(JSON.stringify(rows))
 }

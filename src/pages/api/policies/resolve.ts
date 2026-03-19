@@ -1,12 +1,12 @@
 import type { APIRoute } from "astro"
-import { resolvePolicies } from "@/core/policy/runtime/policy.engine"
+import { resolvePoliciesUseCase } from "@/container"
 
 export const GET: APIRoute = async ({ url }) => {
 	const hotelId = url.searchParams.get("hotelId")
 	const productId = url.searchParams.get("productId")
 	const variantId = url.searchParams.get("variantId")
 
-	const policies = await resolvePolicies({
+	const policies = await resolvePoliciesUseCase({
 		hotelId,
 		productId,
 		variantId,
