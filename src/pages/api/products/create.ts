@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 import { getSession } from "auth-astro/server"
-import { r2 } from "@/lib/upload/r2"
-import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { createProductUseCase } from "@/container"
+import { createProductWithR2Rollback } from "@/modules/catalog/application/use-cases/create-product-with-r2-rollback"
 
 const serverSchema = z.object({
 	providerId: z.string().min(1),
@@ -45,44 +44,16 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const id = crypto.randomUUID()
-
-		try {
-			await createProductUseCase({
-				id,
-				name: parsed.data.name,
-				description: parsed.data.description || null,
-				productType: parsed.data.productType,
-				providerId: parsed.data.providerId || null,
-				destinationId: parsed.data.destinationId,
-				images: parsed.data.images,
-			})
-			return new Response(JSON.stringify({ id }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			})
-		} catch (e) {
-			// ROLLBACK: borrar las imágenes en R2 si DB falla
-			console.error("DB insert failed, cleaning up R2…", e)
-
-			for (const publicUrl of parsed.data.images) {
-				try {
-					const key = new URL(publicUrl).pathname.replace(/^\//, "")
-					await r2.send(
-						new DeleteObjectCommand({
-							Bucket: process.env.R2_BUCKET_NAME!,
-							Key: key,
-						})
-					)
-					console.log("Rollback: deleted", key)
-				} catch (e) {
-					console.error("Rollback failed to delete key:", e)
-				}
-			}
-			return new Response(JSON.stringify({ error: "DB error, rollback executed" }), {
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
+		return createProductWithR2Rollback({
+			createProduct: createProductUseCase,
+			id,
+			providerId: parsed.data.providerId,
+			name: parsed.data.name,
+			productType: parsed.data.productType,
+			description: parsed.data.description,
+			destinationId: parsed.data.destinationId,
+			images: parsed.data.images,
+		})
 	} catch (e) {
 		console.error("Error creando producto:", e)
 
