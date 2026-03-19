@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { SearchPipeline } from "@/core/search/SearchPipeline"
+import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
 
 const baseDate = new Date("2026-03-01")
 
@@ -57,7 +57,7 @@ describe("SearchPipeline E2E", () => {
 		expect(result[0].basePrice).toBe(180)
 		expect(result[0].finalPrice).toBe(180)
 	})
-	
+
 	it("applies promotion after pricing", async () => {
 		const fakeLoader: any = {
 			load: async () => ({

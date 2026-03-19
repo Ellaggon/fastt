@@ -1,4 +1,4 @@
-import { RatePlanEngine } from "@/core/rate-plans/RatePlanEngine"
+import { RatePlanEngine } from "@/modules/pricing/domain/rate-plans/RatePlanEngine"
 import { selectBestRatePlan } from "@/modules/pricing/application/use-cases/select-best-rateplan"
 import type { PriceRuleRepositoryPort } from "@/modules/pricing/application/ports/PriceRuleRepositoryPort"
 import type { RatePlanRepositoryPort } from "@/modules/pricing/application/ports/RatePlanRepositoryPort"

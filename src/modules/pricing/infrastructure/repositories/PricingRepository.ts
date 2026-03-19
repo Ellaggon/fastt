@@ -1,6 +1,6 @@
 import { db, eq, PriceRule, EffectivePricing } from "astro:db"
-import { adaptPriceRule } from "@/core/pricing/adapters/adapter.priceRule"
-import type { AppliedPriceRule } from "@/core/pricing/pricing.types"
+import { adaptPriceRule } from "@/modules/pricing/domain/adapters/adapter.priceRule"
+import type { AppliedPriceRule } from "@/modules/pricing/domain/pricing.types"
 import type { PricingRepositoryPort } from "../../application/ports/PricingRepositoryPort"
 
 export class PricingRepository implements PricingRepositoryPort {

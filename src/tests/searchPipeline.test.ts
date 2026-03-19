@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { SearchPipeline } from "@/core/search/SearchPipeline"
+import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
 import { vi } from "vitest"
 
 vi.mock("astro:db")

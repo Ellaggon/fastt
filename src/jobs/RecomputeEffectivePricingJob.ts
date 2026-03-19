@@ -1,5 +1,5 @@
 import { db, RatePlan } from "astro:db"
-import { PricingEngine } from "@/core/pricing/PricingEngine"
+import { PricingEngine } from "@/modules/pricing/domain/PricingEngine"
 import { PricingRepository } from "@/repositories/PricingRepository"
 
 export async function runPricingRecomputeJob() {

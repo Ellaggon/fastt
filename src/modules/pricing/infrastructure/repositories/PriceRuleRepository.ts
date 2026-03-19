@@ -1,6 +1,6 @@
 import { db, PriceRule, eq } from "astro:db"
 import type { PriceRuleRepositoryPort } from "../../application/ports/PriceRuleRepositoryPort"
-import type { PriceRule as DomainPriceRule } from "@/core/rate-plans/ratePlan.types"
+import type { PriceRule as DomainPriceRule } from "@/modules/pricing/domain/rate-plans/ratePlan.types"
 
 export class PriceRuleRepository implements PriceRuleRepositoryPort {
 	async getActive(ratePlanId: string): Promise<DomainPriceRule[]> {
