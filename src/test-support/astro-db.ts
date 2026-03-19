@@ -24,6 +24,15 @@ export let db: any
 // Tables (add as needed when repositories/services import more)
 export let Destination: any
 export let Product: any
+export let Image: any
+export let Provider: any
+export let Hotel: any
+export let Tour: any
+export let Package: any
+export let RoomType: any
+export let AmenityRoom: any
+export let HotelRoomType: any
+export let HotelRoomAmenity: any
 export let Variant: any
 export let DailyInventory: any
 export let EffectiveInventory: any
@@ -75,6 +84,15 @@ async function init() {
 
 	Destination = drizzleTables.Destination
 	Product = drizzleTables.Product
+	Image = drizzleTables.Image
+	Provider = drizzleTables.Provider
+	Hotel = drizzleTables.Hotel
+	Tour = drizzleTables.Tour
+	Package = drizzleTables.Package
+	RoomType = drizzleTables.RoomType
+	AmenityRoom = drizzleTables.AmenityRoom
+	HotelRoomType = drizzleTables.HotelRoomType
+	HotelRoomAmenity = drizzleTables.HotelRoomAmenity
 	Variant = drizzleTables.Variant
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveInventory = drizzleTables.EffectiveInventory
