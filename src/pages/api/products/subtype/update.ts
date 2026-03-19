@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { z } from "astro:content"
 import { productRepository, subtypeRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { db } from "astro:db"
+import { updateProductSubtype } from "@/modules/catalog/application/use-cases/update-product-subtype"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -19,48 +19,20 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!parsed.success)
 			return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 		const { productId, subtypeType, subtype } = parsed.data
-
-		// ownership + product check
-		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
-		if (!product)
-			return new Response(JSON.stringify({ error: "Not found or not owned" }), { status: 403 })
-
-		const prevType = String(product.productType || "").toLowerCase()
-		if (subtypeType !== prevType) {
-			return new Response(
-				JSON.stringify({
-					error:
-						"Subtype type does not match product.productType. Change productType first in the product page.",
-				}),
-				{ status: 400 }
-			)
-		}
-
-		// Upsert subtype inside a transaction
-		await db.transaction(async (tx) => {
-			const exists = await subtypeRepository.subtypeExists(
-				tx as any,
-				productId,
-				subtypeType as "hotel" | "tour" | "package"
-			)
-			if (exists) {
-				if (subtypeType === "hotel")
-					await subtypeRepository.updateHotel(tx as any, productId, subtype || {})
-				if (subtypeType === "tour")
-					await subtypeRepository.updateTour(tx as any, productId, subtype || {})
-				if (subtypeType === "package")
-					await subtypeRepository.updatePackage(tx as any, productId, subtype || {})
-			} else {
-				if (subtypeType === "hotel")
-					await subtypeRepository.insertHotel(tx as any, { productId, ...(subtype || {}) } as any)
-				if (subtypeType === "tour")
-					await subtypeRepository.insertTour(tx as any, { productId, ...(subtype || {}) } as any)
-				if (subtypeType === "package")
-					await subtypeRepository.insertPackage(tx as any, { productId, ...(subtype || {}) } as any)
-			}
+		return updateProductSubtype({
+			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+			subtypeExists: (dbOrTx, pid, st) => subtypeRepository.subtypeExists(dbOrTx, pid, st),
+			updateHotel: (dbOrTx, pid, data) => subtypeRepository.updateHotel(dbOrTx, pid, data),
+			updateTour: (dbOrTx, pid, data) => subtypeRepository.updateTour(dbOrTx, pid, data),
+			updatePackage: (dbOrTx, pid, data) => subtypeRepository.updatePackage(dbOrTx, pid, data),
+			insertHotel: (dbOrTx, data) => subtypeRepository.insertHotel(dbOrTx, data),
+			insertTour: (dbOrTx, data) => subtypeRepository.insertTour(dbOrTx, data),
+			insertPackage: (dbOrTx, data) => subtypeRepository.insertPackage(dbOrTx, data),
+			providerId,
+			productId,
+			subtypeType,
+			subtype,
 		})
-
-		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	} catch (e) {
 		console.error("update-subtype error:", e)
 		return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })
