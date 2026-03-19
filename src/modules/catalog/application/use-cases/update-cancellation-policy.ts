@@ -22,7 +22,10 @@ export async function updateCancellationPolicy(params: {
 	const lastPolicy = last[0]
 
 	/* archivar versión anterior */
-	await db.update(Policy).set({ status: "archived" }).where(eq(Policy.id, lastPolicy.id))
+	await db
+		.update(Policy)
+		.set({ status: "archived" })
+		.where(eq(Policy.id, (lastPolicy as any).id))
 
 	/* nueva versión */
 	const newPolicyId = randomUUID()
