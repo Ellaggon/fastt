@@ -1,7 +1,18 @@
 import type { APIRoute } from "astro"
-import { previewRestrictionsViaService } from "@/modules/catalog/application/use-cases/preview-restrictions-via-service"
+import { restrictionService as service } from "@/container"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	const body = await request.json()
-	return previewRestrictionsViaService({ productId: params.id!, body })
+
+	const preview = await service.preview(
+		{
+			productId: params.id!,
+			checkIn: new Date(),
+			checkOut: new Date(),
+			nights: 1,
+		},
+		body
+	)
+
+	return new Response(JSON.stringify(preview), { status: 200 })
 }
