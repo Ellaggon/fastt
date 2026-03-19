@@ -19,6 +19,12 @@ import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories
 import { ProviderRepository } from "@/modules/catalog/infrastructure/repositories/ProviderRepository"
 import { HotelRoomRepository } from "@/modules/catalog/infrastructure/repositories/HotelRoomRepository"
 
+// Policies infrastructure
+import { PolicyReadRepository } from "@/modules/policies/infrastructure/repositories/PolicyReadRepository"
+import { PolicyCommandRepository } from "@/modules/policies/infrastructure/repositories/PolicyCommandRepository"
+import { EffectivePolicyRepository } from "@/modules/policies/infrastructure/repositories/EffectivePolicyRepository"
+import { PolicyCache } from "@/modules/policies/infrastructure/cache/policy-cache"
+
 // Domain engines / pure components
 import { RatePlanEngine } from "@/core/rate-plans/RatePlanEngine"
 import { PricingEngine } from "@/core/pricing/PricingEngine"
@@ -36,6 +42,22 @@ import { PricingComputationService } from "@/application/pricing/PricingComputat
 import { createRoom } from "@/modules/catalog/application/use-cases/create-room"
 import { createProduct } from "@/modules/catalog/application/use-cases/create-product"
 
+// Policies use-cases
+import { resolvePolicies } from "@/modules/policies/application/use-cases/resolve-policies"
+import { resolvePolicyByHierarchy } from "@/modules/policies/application/use-cases/resolve-policy-by-hierarchy"
+import { buildPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
+import { runPolicyCompiler } from "@/modules/policies/application/use-cases/run-policy-compiler"
+import { getPolicy } from "@/modules/policies/application/use-cases/get-policy"
+import { listAssignedPolicies } from "@/modules/policies/application/use-cases/list-assigned-policies"
+import { assignPolicyGroup } from "@/modules/policies/application/use-cases/assign-policy-group"
+import { unassignPolicyGroup } from "@/modules/policies/application/use-cases/unassign-policy-group"
+import { activatePolicy } from "@/modules/policies/application/use-cases/activate-policy"
+import { createPolicy } from "@/modules/policies/application/use-cases/create-policy"
+import { deleteDraftPolicy } from "@/modules/policies/application/use-cases/delete-draft-policy"
+import { createPolicyVersion } from "@/modules/policies/application/use-cases/create-policy-version"
+import { applyPolicyPreset } from "@/modules/policies/application/use-cases/apply-policy-preset"
+import { listPolicyHistory } from "@/modules/policies/application/use-cases/list-policy-history"
+
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
 export const ratePlanRepository = new RatePlanRepository()
@@ -52,6 +74,11 @@ export const productRepository = new ProductRepository()
 export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
 export const hotelRoomRepository = new HotelRoomRepository()
+
+export const policyReadRepository = new PolicyReadRepository()
+export const policyCommandRepository = new PolicyCommandRepository()
+export const effectivePolicyRepository = new EffectivePolicyRepository()
+export const policyCache = new PolicyCache<any>()
 
 export const restrictionRepository = new RestrictionRepository()
 
@@ -87,4 +114,87 @@ export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]
 
 export async function createProductUseCase(params: Parameters<typeof createProduct>[1]) {
 	return createProduct({ repo: productRepository }, params)
+}
+
+// ---- Policies (wired use-cases) ----
+export async function resolvePoliciesUseCase(params: Parameters<typeof resolvePolicies>[1]) {
+	return resolvePolicies({ queryRepo: policyReadRepository, cache: policyCache }, params)
+}
+
+export async function resolvePolicyByHierarchyUseCase(params: {
+	category: string
+	entityType: string
+	entityId: string
+}) {
+	return resolvePolicyByHierarchy({ queryRepo: policyReadRepository }, params)
+}
+
+export async function buildPolicySnapshotUseCase(params: { entityType: string; entityId: string }) {
+	return buildPolicySnapshot(
+		{ effectivePolicyRepo: effectivePolicyRepository, queryRepo: policyReadRepository },
+		params
+	)
+}
+
+export async function runPolicyCompilerUseCase(entityType: string, entityId: string) {
+	return runPolicyCompiler(
+		{
+			effectivePolicyRepo: effectivePolicyRepository,
+			queryRepo: policyReadRepository,
+			cache: policyCache,
+		},
+		{ entityType, entityId }
+	)
+}
+
+export async function getPolicyUseCase(policyId: string) {
+	return getPolicy({ queryRepo: policyReadRepository }, { policyId })
+}
+
+export async function listAssignedPoliciesUseCase(scopeId: string, category?: string | null) {
+	return listAssignedPolicies({ queryRepo: policyReadRepository }, { scopeId, category })
+}
+
+export async function assignPolicyGroupUseCase(groupId: string, scopeId: string) {
+	return assignPolicyGroup({ commandRepo: policyCommandRepository }, { groupId, scopeId })
+}
+
+export async function unassignPolicyGroupUseCase(groupId: string, scopeId: string) {
+	return unassignPolicyGroup({ commandRepo: policyCommandRepository }, { groupId, scopeId })
+}
+
+export async function activatePolicyUseCase(policyId: string, effectiveFrom?: string) {
+	return activatePolicy(
+		{
+			commandRepo: policyCommandRepository,
+			queryRepo: policyReadRepository,
+			runPolicyCompiler: runPolicyCompilerUseCase,
+		},
+		{ policyId, effectiveFrom }
+	)
+}
+
+export async function createPolicyUseCase(params: Parameters<typeof createPolicy>[1]) {
+	return createPolicy({ commandRepo: policyCommandRepository }, params)
+}
+
+export async function deleteDraftPolicyUseCase(policyId: string) {
+	return deleteDraftPolicy({ commandRepo: policyCommandRepository }, { policyId })
+}
+
+export async function createPolicyVersionUseCase(
+	params: Parameters<typeof createPolicyVersion>[1]
+) {
+	return createPolicyVersion({ commandRepo: policyCommandRepository }, params)
+}
+
+export async function applyPolicyPresetUseCase(policyId: string, presetKey: string) {
+	return applyPolicyPreset(
+		{ commandRepo: policyCommandRepository, queryRepo: policyReadRepository },
+		{ policyId, presetKey }
+	)
+}
+
+export async function listPolicyHistoryUseCase(groupId: string) {
+	return listPolicyHistory({ queryRepo: policyReadRepository }, { groupId })
 }
