@@ -1,9 +1,9 @@
-import { SearchPipeline } from "@/core/search/SearchPipeline"
-import { SearchContextLoader } from "@/core/search/SearchContextLoader"
-import { globalAdapterRegistry } from "@/core/search/adapters/adapter.globalRegistry"
+import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
+import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
+import { searchAdapterRegistry } from "@/container"
 
 async function run() {
-	const loader = new SearchContextLoader(globalAdapterRegistry)
+	const loader = new SearchContextLoader(searchAdapterRegistry)
 	const pipeline = new SearchPipeline(loader)
 
 	const result = await pipeline.run({

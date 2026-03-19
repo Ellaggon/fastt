@@ -1,10 +1,10 @@
 import { AvailabilityGridEngine } from "@/core/availability/AvailabilityGridEngine"
-import { globalAdapterRegistry } from "@/core/search/adapters/adapter.globalRegistry"
-import { SearchContextLoader } from "@/core/search/SearchContextLoader"
+import { searchAdapterRegistry } from "@/container"
+import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
 import type { APIRoute } from "astro"
 
 export const GET: APIRoute = async ({ url }) => {
-	const loader = new SearchContextLoader(globalAdapterRegistry)
+	const loader = new SearchContextLoader(searchAdapterRegistry)
 
 	const memory = await loader.load({
 		productId: url.searchParams.get("productId")!,

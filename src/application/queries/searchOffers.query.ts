@@ -1,6 +1,6 @@
 // src/application/queries/searchOffers.query.ts
 
-import { OfferBuilderEngine } from "@/core/offers/OfferBuilderEngine"
+import { buildOffers } from "@/container"
 
 export async function searchOffers(params: {
 	productId: string
@@ -9,7 +9,5 @@ export async function searchOffers(params: {
 	adults: number
 	children: number
 }) {
-	const builder = new OfferBuilderEngine()
-
-	return builder.build(params)
+	return buildOffers.execute(params)
 }

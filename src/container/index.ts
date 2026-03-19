@@ -26,12 +26,15 @@ import { EffectivePolicyRepository } from "@/modules/policies/infrastructure/rep
 import { PolicyCache } from "@/modules/policies/infrastructure/cache/policy-cache"
 
 // Domain engines / pure components
-import { RatePlanEngine } from "@/core/rate-plans/RatePlanEngine"
-import { PricingEngine } from "@/core/pricing/PricingEngine"
+import { RatePlanEngine } from "@/modules/pricing/domain/rate-plans/RatePlanEngine"
+import { PricingEngine } from "@/modules/pricing/domain/PricingEngine"
 import { RestrictionRuleEngine } from "@/core/restrictions/RestrictionRuleEngine"
 
 // Legacy repositories not yet migrated behind module infrastructure
 import { RestrictionRepository } from "@/repositories/RestrictionRepository"
+import { DailyInventoryRepository as LegacyDailyInventoryRepository } from "@/repositories/AvailabilityRepository"
+import { RatePlanRepository as LegacyRatePlanRepository } from "@/repositories/RatePlanRepository"
+import { PriceRuleRepository as LegacyPriceRuleRepository } from "@/repositories/PriceRuleRepository"
 
 // Services (thin orchestration / adapters)
 import { AvailabilityService } from "@/services/AvailabilityServices"
@@ -41,6 +44,14 @@ import { RestrictionService } from "@/services/RestrictionService"
 import { PricingComputationService } from "@/application/pricing/PricingComputationService"
 import { createRoom } from "@/modules/catalog/application/use-cases/create-room"
 import { createProduct } from "@/modules/catalog/application/use-cases/create-product"
+
+// Search module wiring (infrastructure + application)
+import { AdapterRegistry as SearchAdapterRegistry } from "@/modules/search/infrastructure/AdapterRegistry"
+import { HotelAdapter } from "@/modules/search/infrastructure/adapters/HotelAdapter"
+import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
+import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
+import { VariantQueryAdapter } from "@/modules/search/infrastructure/adapters/VariantQueryAdapter"
+import { BuildOffersUseCase } from "@/modules/search/application/use-cases/build-offers"
 
 // Policies use-cases
 import { resolvePolicies } from "@/modules/policies/application/use-cases/resolve-policies"
@@ -81,6 +92,9 @@ export const effectivePolicyRepository = new EffectivePolicyRepository()
 export const policyCache = new PolicyCache<any>()
 
 export const restrictionRepository = new RestrictionRepository()
+export const legacyDailyInventoryRepository = new LegacyDailyInventoryRepository()
+export const legacyRatePlanRepository = new LegacyRatePlanRepository()
+export const legacyPriceRuleRepository = new LegacyPriceRuleRepository()
 
 // ---- Engine singletons ----
 export const ratePlanEngine = new RatePlanEngine()
@@ -107,6 +121,25 @@ export const pricingComputationService = new PricingComputationService(
 	pricingRepository,
 	pricingEngine
 )
+
+// ---- Search singletons ----
+export const searchAdapterRegistry = new SearchAdapterRegistry()
+export const hotelAdapter = new HotelAdapter({
+	inventoryRepo: legacyDailyInventoryRepository,
+	ratePlanRepo: legacyRatePlanRepository,
+	restrictionRepo: restrictionRepository,
+	priceRuleRepo: legacyPriceRuleRepository,
+})
+searchAdapterRegistry.register("hotel_room", hotelAdapter)
+
+export const searchContextLoader = new SearchContextLoader(searchAdapterRegistry)
+export const searchPipeline = new SearchPipeline(searchContextLoader)
+
+export const variantQueryAdapter = new VariantQueryAdapter(variantRepository)
+export const buildOffers = new BuildOffersUseCase({
+	variantQuery: variantQueryAdapter,
+	searchPipeline,
+})
 
 export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]) {
 	return createRoom({ roomRepo: roomRepository, inventoryBootstrap: inventoryBootstrapper }, params)
