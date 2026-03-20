@@ -1,5 +1,5 @@
-import { RatePlanEngine } from "@/modules/pricing/domain/rate-plans/RatePlanEngine"
-import type { SelectedRatePlan } from "@/modules/pricing/domain/rate-plans/ratePlan.types"
+import { RatePlanEngine } from "../../domain/rate-plans/RatePlanEngine"
+import type { SelectedRatePlan } from "../../domain/rate-plans/ratePlan.types"
 import type { PriceRuleRepositoryPort } from "../ports/PriceRuleRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 import type { VariantRepositoryPort } from "../ports/VariantRepositoryPort"

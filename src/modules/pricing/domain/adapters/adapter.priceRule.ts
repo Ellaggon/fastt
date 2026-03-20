@@ -1,4 +1,4 @@
-import type { AppliedPriceRule } from "@/modules/pricing/domain/pricing.types"
+import type { AppliedPriceRule } from "../pricing.types"
 
 export function adaptPriceRule(dbRule: any | null): AppliedPriceRule | null {
 	if (!dbRule?.isActive) return null

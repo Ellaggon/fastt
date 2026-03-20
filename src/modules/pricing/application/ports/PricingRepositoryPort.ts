@@ -1,4 +1,4 @@
-import type { AppliedPriceRule } from "@/modules/pricing/domain/pricing.types"
+import type { AppliedPriceRule } from "../../domain/pricing.types"
 
 export interface PricingRepositoryPort {
 	getRules(ratePlanId: string): Promise<AppliedPriceRule[]>
