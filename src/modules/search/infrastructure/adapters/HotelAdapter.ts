@@ -2,44 +2,46 @@ import type {
 	SellableUnitAdapterPort,
 	SearchContext,
 } from "../../application/ports/SellableUnitAdapterPort"
+import type {
+	InventorySnapshot,
+	PriceRuleSnapshot,
+	RatePlanSnapshot,
+} from "../../domain/unit.types"
+import type { SearchUnit } from "../../domain/unit.types"
+import type { RestrictionRow, RestrictionContext } from "../../domain/restrictions.types"
+import type { Promotion } from "../../domain/promotions.types"
 
-export class HotelAdapter implements SellableUnitAdapterPort {
+export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 	constructor(
 		private deps: {
-			inventoryRepo: { getRange(variantId: string, from: Date, to: Date): Promise<any[]> }
-			ratePlanRepo: { getActiveByVariant(variantId: string): Promise<any[]> }
-			restrictionRepo: {
-				loadActiveRules(input: {
-					productId?: string
-					variantId: string
-					checkIn: Date
-					checkOut: Date
-					nights: number
-				}): Promise<any[]>
+			inventoryRepo: {
+				getRange(variantId: string, from: Date, to: Date): Promise<InventorySnapshot[]>
 			}
-			priceRuleRepo: { getActive(ratePlanId: string): Promise<any[]> }
+			ratePlanRepo: { getActiveByVariant(variantId: string): Promise<RatePlanSnapshot[]> }
+			restrictionRepo: {
+				loadActiveRules(input: RestrictionContext): Promise<RestrictionRow[]>
+			}
+			priceRuleRepo: { getActive(ratePlanId: string): Promise<PriceRuleSnapshot[]> }
 		}
 	) {}
 
-	async loadInventory(ctx: SearchContext) {
+	async loadInventory(ctx: SearchContext<SearchUnit>) {
 		return this.deps.inventoryRepo.getRange(ctx.unitId, ctx.checkIn, ctx.checkOut)
 	}
 
-	async loadRatePlans(ctx: SearchContext) {
+	async loadRatePlans(ctx: SearchContext<SearchUnit>) {
 		return this.deps.ratePlanRepo.getActiveByVariant(ctx.unitId)
 	}
 
-	async loadPriceRules(ctx: SearchContext) {
+	async loadPriceRules(ctx: SearchContext<SearchUnit>) {
 		const ratePlans = await this.loadRatePlans(ctx)
 
-		const rules = await Promise.all(
-			ratePlans.map((rp: any) => this.deps.priceRuleRepo.getActive(rp.id))
-		)
+		const rules = await Promise.all(ratePlans.map((rp) => this.deps.priceRuleRepo.getActive(rp.id)))
 
 		return rules.flat()
 	}
 
-	async loadRestrictions(ctx: SearchContext) {
+	async loadRestrictions(ctx: SearchContext<SearchUnit>) {
 		const nights = Math.ceil(
 			(ctx.checkOut.getTime() - ctx.checkIn.getTime()) / (1000 * 60 * 60 * 24)
 		)
@@ -53,7 +55,7 @@ export class HotelAdapter implements SellableUnitAdapterPort {
 		})
 	}
 
-	async loadPromotions(ctx: SearchContext) {
+	async loadPromotions(ctx: SearchContext<SearchUnit>): Promise<Promotion[]> {
 		return [] // hasta que tengas repo real
 	}
 }

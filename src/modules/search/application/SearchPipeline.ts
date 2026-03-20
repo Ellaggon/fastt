@@ -1,41 +1,55 @@
-import { AvailabilityGridEngine } from "@/core/availability/AvailabilityGridEngine"
-import { RatePlanEngine } from "@/modules/pricing/domain/rate-plans/RatePlanEngine"
-import { RestrictionRuleEngine } from "@/core/restrictions/RestrictionRuleEngine"
-import { PricingEngine } from "@/modules/pricing/domain/PricingEngine"
-import { PromotionEngine } from "@/modules/pricing/domain/promotions/PromotionEngine"
-import { adaptPriceRule } from "@/modules/pricing/domain/adapters/adapter.priceRule"
+import { AvailabilityGridEngine } from "@/shared/domain/availability/AvailabilityGridEngine"
 
 import type { SearchContext } from "./ports/SellableUnitAdapterPort"
 import type { SearchMemory } from "../domain/unit.types"
+import type { SellableUnit } from "../domain/unit.types"
+import type { InventorySnapshot } from "../domain/unit.types"
+import type { AppliedPriceRule } from "../domain/pricing.types"
+import type { PricingPort } from "./ports/PricingPort"
+import type { RestrictionPort } from "./ports/RestrictionPort"
+import type { PromotionPort } from "./ports/PromotionPort"
 
-export interface ISearchContextLoader {
-	load(ctx: SearchContext): Promise<SearchMemory>
+export type SearchRatePlanOffer = {
+	ratePlanId: string
+	basePrice: number
+	finalPrice: number
 }
 
-export class SearchPipeline {
+export interface ISearchContextLoader<TUnit extends SellableUnit = SellableUnit> {
+	load(ctx: SearchContext<TUnit>): Promise<SearchMemory>
+}
+
+export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 	constructor(
-		private loader: ISearchContextLoader,
+		private loader: ISearchContextLoader<TUnit>,
 		// private loader = new SearchContextLoader(globalAdapterRegistry),
 		// private loader: { load(ctx: SearchContext): Promise<SearchMemory> },
 		private availabilityEngine = new AvailabilityGridEngine(),
-		private ratePlanEngine = new RatePlanEngine(),
-		private restrictionEngine = new RestrictionRuleEngine(),
-		private pricingEngine = new PricingEngine(),
-		private promotionEngine = new PromotionEngine()
+		private deps: {
+			restrictions: RestrictionPort
+			pricing: PricingPort
+			promotions: PromotionPort
+		}
 	) {
 		if (!loader) {
 			throw new Error("SearchPipeline requires loader")
 		}
 	}
 
-	async run(ctx: SearchContext) {
+	async run(ctx: SearchContext<TUnit>): Promise<SearchRatePlanOffer[]> {
 		const memory: SearchMemory = await this.loader.load(ctx)
 		console.log("MEMORY", memory)
 
 		/* 1️⃣ AVAILABILITY */
 
+		// Preserve legacy behavior: rows with non-string dates are effectively ignored
+		// by the availability engine (string comparisons). Filter explicitly for typing.
+		const inventoryForGrid = memory.inventory.filter(
+			(d): d is InventorySnapshot & { date: string } => typeof d.date === "string"
+		)
+
 		const grid = this.availabilityEngine.buildGridFromMemory(
-			memory.inventory,
+			inventoryForGrid,
 			ctx.checkIn,
 			ctx.checkOut
 		)
@@ -54,14 +68,14 @@ export class SearchPipeline {
 
 		/* 4️⃣ RATE PLANS LOOP */
 
-		const validPlans = []
+		const validPlans: SearchRatePlanOffer[] = []
 
 		for (const rp of memory.ratePlans) {
 			/* Restricciones por rate plan */
 
 			const restrictions = memory.restrictions?.filter((r) => r.scopeId === rp.id) ?? []
 
-			const restrictionResult = this.restrictionEngine.evaluateFromMemory({
+			const restrictionResult = this.deps.restrictions.evaluateFromMemory({
 				restrictions,
 				checkIn: ctx.checkIn,
 				checkOut: ctx.checkOut,
@@ -75,9 +89,11 @@ export class SearchPipeline {
 			const priceRules =
 				memory.priceRules?.filter((r) => r.ratePlanId === rp.id && r.isActive) ?? []
 
-			const runtimeRules = priceRules.map(adaptPriceRule).filter(Boolean) as any
+			const runtimeRules = priceRules
+				.map((r) => this.deps.pricing.adaptPriceRule(r))
+				.filter((r): r is AppliedPriceRule => r !== null)
 
-			const computed = this.pricingEngine.computeStay({
+			const computed = this.deps.pricing.computeStay({
 				basePrice: ctx.basePrice,
 				nights,
 				rules: runtimeRules,
@@ -86,7 +102,7 @@ export class SearchPipeline {
 
 			/* Promotions */
 
-			const final = this.promotionEngine.applyPromotions(computed.total, memory.promotions ?? [], {
+			const final = this.deps.promotions.applyPromotions(computed.total, memory.promotions ?? [], {
 				checkIn: ctx.checkIn,
 				checkOut: ctx.checkOut,
 			})

@@ -1,14 +1,17 @@
 import type { SellableUnitAdapterPort } from "../application/ports/SellableUnitAdapterPort"
 import type { AdapterRegistryPort } from "../application/ports/AdapterRegistryPort"
+import type { SellableUnit } from "../domain/unit.types"
 
-export class AdapterRegistry implements AdapterRegistryPort {
-	private adapters = new Map<string, SellableUnitAdapterPort>()
+export class AdapterRegistry<TUnit extends SellableUnit = SellableUnit>
+	implements AdapterRegistryPort<TUnit>
+{
+	private adapters = new Map<string, SellableUnitAdapterPort<TUnit>>()
 
-	register(type: string, adapter: SellableUnitAdapterPort) {
+	register(type: string, adapter: SellableUnitAdapterPort<TUnit>) {
 		this.adapters.set(type, adapter)
 	}
 
-	get(type: string): SellableUnitAdapterPort {
+	get(type: string): SellableUnitAdapterPort<TUnit> {
 		const adapter = this.adapters.get(type)
 
 		if (!adapter) {

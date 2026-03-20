@@ -1,12 +1,20 @@
 import type { VariantQueryPort } from "../ports/VariantQueryPort"
 import { isUnitType } from "../../domain/unit.types"
 import type { SearchPipeline } from "../SearchPipeline"
+import type { SearchRatePlanOffer } from "../SearchPipeline"
+import type { SellableUnit } from "../../domain/unit.types"
 
-export class BuildOffersUseCase {
+export type SearchOffer<TUnit extends SellableUnit> = {
+	variantId: string
+	variant: TUnit
+	ratePlans: SearchRatePlanOffer[]
+}
+
+export class BuildOffersUseCase<TUnit extends SellableUnit> {
 	constructor(
 		private deps: {
-			variantQuery: VariantQueryPort
-			searchPipeline: SearchPipeline
+			variantQuery: VariantQueryPort<TUnit>
+			searchPipeline: SearchPipeline<TUnit>
 		}
 	) {}
 
@@ -16,12 +24,12 @@ export class BuildOffersUseCase {
 		checkOut: Date
 		adults: number
 		children: number
-	}) {
+	}): Promise<SearchOffer<TUnit>[]> {
 		const units = await this.deps.variantQuery.getActiveByProduct(ctx.productId)
 
 		if (!units.length) return []
 
-		const results = []
+		const results: SearchOffer<TUnit>[] = []
 
 		for (const unit of units) {
 			if (!isUnitType(unit.entityType)) continue
@@ -43,7 +51,7 @@ export class BuildOffersUseCase {
 				results.push({
 					variantId: unit.id,
 					variant: unit,
-					ratePlans: offers.map((o: any) => ({
+					ratePlans: offers.map((o) => ({
 						ratePlanId: o.ratePlanId,
 						basePrice: o.basePrice,
 						finalPrice: o.finalPrice,

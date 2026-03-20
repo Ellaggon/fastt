@@ -1,10 +1,5 @@
-export interface VariantQueryPort {
-	getActiveByProduct(productId: string): Promise<
-		Array<{
-			id: string
-			entityType: string
-			basePrice?: number
-			[key: string]: any
-		}>
-	>
+import type { SellableUnit } from "../../domain/unit.types"
+
+export interface VariantQueryPort<TUnit extends SellableUnit = SellableUnit> {
+	getActiveByProduct(productId: string): Promise<TUnit[]>
 }
