@@ -1,15 +1,11 @@
 import { db, RatePlan } from "astro:db"
-import { PricingEngine } from "@/modules/pricing/public"
-import { PricingRepository } from "@/repositories/PricingRepository"
+import { pricingEngine, pricingRepository } from "@/container"
 
 export async function runPricingRecomputeJob() {
-	const pricingRepo = new PricingRepository()
-	const pricingEngine = new PricingEngine()
-
 	const ratePlans = await db.select().from(RatePlan)
 
 	for (const rp of ratePlans) {
-		const rules = await pricingRepo.getRules(rp.id)
+		const rules = await pricingRepository.getRules(rp.id)
 
 		const result = pricingEngine.computeDaily({
 			basePrice: 100,
@@ -17,7 +13,7 @@ export async function runPricingRecomputeJob() {
 			currency: "USD",
 		})
 
-		await pricingRepo.saveEffectivePrice({
+		await pricingRepository.saveEffectivePrice({
 			variantId: rp.variantId,
 			ratePlanId: rp.id,
 			date: new Date().toISOString().split("T")[0],
