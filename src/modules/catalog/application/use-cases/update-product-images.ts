@@ -1,4 +1,3 @@
-import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { ProductImageRepositoryPort } from "../ports/ProductImageRepositoryPort"
 
@@ -78,6 +77,7 @@ export async function updateProductImages(params: {
 	}
 
 	// Best-effort delete R2 objects
+	const { r2 } = await import("@/container")
 	for (const key of r2KeysToDelete) {
 		try {
 			await r2.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }))

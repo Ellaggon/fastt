@@ -1,4 +1,3 @@
-import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 
 export async function createProductWithR2Rollback(params: {
@@ -40,6 +39,8 @@ export async function createProductWithR2Rollback(params: {
 	} catch (e) {
 		// ROLLBACK: borrar las imágenes en R2 si DB falla
 		console.error("DB insert failed, cleaning up R2…", e)
+
+		const { r2 } = await import("@/container")
 
 		for (const publicUrl of images) {
 			try {

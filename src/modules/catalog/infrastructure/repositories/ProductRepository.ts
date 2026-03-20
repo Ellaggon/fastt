@@ -13,14 +13,16 @@ import {
 	NOW,
 } from "astro:db"
 import type { ProductRepositoryPort } from "../../application/ports/ProductRepositoryPort"
-import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import type { S3Client } from "@aws-sdk/client-s3"
 
 type DrizzleDB = typeof db
 type DrizzleTx = Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0]
 type DBOrTx = DrizzleDB | DrizzleTx
 
 export class ProductRepository implements ProductRepositoryPort {
+	constructor(private r2: S3Client) {}
+
 	async createProductWithImages(params: {
 		id: string
 		name: string
@@ -171,7 +173,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			try {
 				if (!img?.url) continue
 				const key = new URL(img.url).pathname.replace(/^\/+/, "")
-				await r2.send(
+				await this.r2.send(
 					new DeleteObjectCommand({
 						Bucket: process.env.R2_BUCKET_NAME!,
 						Key: key,

@@ -4,6 +4,12 @@ export interface ProductServiceRepositoryPort {
 		services: { serviceId: string }[]
 	}): Promise<void>
 
+	ensureProductService(params: {
+		productId: string
+		serviceId: string
+		appliesTo?: string
+	}): Promise<string>
+
 	updateProductService(params: {
 		psId: string
 		price: number | null

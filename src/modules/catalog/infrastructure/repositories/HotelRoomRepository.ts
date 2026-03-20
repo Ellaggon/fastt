@@ -10,10 +10,12 @@ import {
 	EffectiveInventory,
 } from "astro:db"
 
-import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import type { S3Client } from "@aws-sdk/client-s3"
 
 export class HotelRoomRepository {
+	constructor(private r2: S3Client) {}
+
 	async getHotelRoomById(hotelRoomId: string): Promise<{ id: string; hotelId: string } | null> {
 		if (!hotelRoomId) return null
 		const row = await db
@@ -205,7 +207,7 @@ export class HotelRoomRepository {
 				if (!img?.url) continue
 				const key = new URL(img.url).pathname.replace(/^\/+/, "")
 
-				await r2.send(
+				await this.r2.send(
 					new DeleteObjectCommand({
 						Bucket: process.env.R2_BUCKET_NAME!,
 						Key: key,

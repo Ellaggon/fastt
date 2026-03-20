@@ -54,6 +54,34 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 		})
 	}
 
+	async ensureProductService(params: { productId: string; serviceId: string; appliesTo?: string }) {
+		const existing = await db
+			.select({ id: ProductService.id })
+			.from(ProductService)
+			.where(
+				and(
+					eq(ProductService.productId, params.productId),
+					eq(ProductService.serviceId, params.serviceId)
+				)
+			)
+			.get()
+
+		if (existing) return existing.id
+
+		const created = await db
+			.insert(ProductService)
+			.values({
+				id: crypto.randomUUID(),
+				productId: params.productId,
+				serviceId: params.serviceId,
+				appliesTo: params.appliesTo ?? "both",
+			})
+			.returning()
+			.get()
+
+		return created.id
+	}
+
 	async updateProductService(params: {
 		psId: string
 		price: number | null
