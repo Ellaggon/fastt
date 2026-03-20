@@ -23,10 +23,15 @@ export const PUT: APIRoute = async ({ request }) => {
 	}
 
 	try {
+		let notFound = false
+
 		await db.transaction(async (tx) => {
 			const ratePlan = await tx.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
 
-			if (!ratePlan) throw new Error("RatePlan not found")
+			if (!ratePlan) {
+				notFound = true
+				return
+			}
 
 			/* 1️⃣ RATE PLAN */
 			await tx
@@ -112,6 +117,10 @@ export const PUT: APIRoute = async ({ request }) => {
 				})
 			}
 		})
+
+		if (notFound) {
+			return new Response(JSON.stringify({ error: "RatePlan not found" }), { status: 404 })
+		}
 
 		return new Response(JSON.stringify({ success: true }), { status: 200 })
 	} catch (err) {

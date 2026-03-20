@@ -10,18 +10,31 @@ function getExtFromName(name: string) {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		if (!process.env.R2_BUCKET_NAME) throw new Error("R2_BUCKET_NAME is not defined")
+		if (!process.env.R2_BUCKET_NAME) {
+			return new Response(JSON.stringify({ error: "R2_BUCKET_NAME is not defined" }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 
 		const formData = await request.formData()
 		const files = (formData.getAll("file") as File[]) || null
 		const prefix = String(formData.get("prefix") || "uploads")
 
-		if (!files || files.length === 0) throw new Error("No file provided")
+		if (!files || files.length === 0) {
+			return new Response(JSON.stringify({ error: "No file provided" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 
 		// Validación de content-type
 		for (const f of files) {
 			if (!f.type.startsWith("image/")) {
-				throw new Error("Only image files are allowed")
+				return new Response(JSON.stringify({ error: "Only image files are allowed" }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				})
 			}
 		}
 

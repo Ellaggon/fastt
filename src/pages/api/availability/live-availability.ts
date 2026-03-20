@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { searchOffers } from "@/container"
-import { normalizeSearchResults } from "@/application/search/search.normalizer"
+import { normalizeSearchResults } from "@/modules/search/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()
