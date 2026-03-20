@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { ratePlanCommandRepository } from "@/container"
-import { createRatePlan } from "@/modules/pricing/application/use-cases/create-rateplan"
+import { createRatePlan } from "@/modules/pricing/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()

@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { productRepository } from "@/container"
+import { productRepository, productServiceRepository } from "@/container"
 import { getSession } from "auth-astro/server"
-import { deleteProductService } from "@/modules/catalog/application/use-cases/delete-product-service"
+import { deleteProductService } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const session = await getSession(request)
@@ -24,6 +24,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	return deleteProductService({
 		ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+		repo: productServiceRepository,
 		providerId,
 		productId,
 		serviceId,

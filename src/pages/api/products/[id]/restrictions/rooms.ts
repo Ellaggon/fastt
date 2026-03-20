@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
-import { getRestrictionRooms } from "@/modules/catalog/application/use-cases/get-restriction-rooms"
+import { catalogRestrictionRepository } from "@/container"
+import { getRestrictionRooms } from "@/modules/catalog/public"
 
 export const GET: APIRoute = async ({ params }) => {
-	return getRestrictionRooms(String(params.id || ""))
+	return getRestrictionRooms({ repo: catalogRestrictionRepository }, String(params.id || ""))
 }

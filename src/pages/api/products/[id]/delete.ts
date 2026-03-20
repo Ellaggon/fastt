@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { deleteProduct } from "@/modules/catalog/application/use-cases/delete-product"
+import { deleteProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {

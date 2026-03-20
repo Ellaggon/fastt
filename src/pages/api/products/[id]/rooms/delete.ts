@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { hotelRoomRepository } from "@/container"
-import { deleteHotelRoom } from "@/modules/catalog/application/use-cases/delete-hotel-room"
+import { deleteHotelRoom } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
@@ -10,6 +10,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		return await deleteHotelRoom({
 			hotelId,
 			hotelRoomId: String(hotelRoomId || ""),
+			repo: hotelRoomRepository,
 			deleteCascade: (id) => hotelRoomRepository.deleteHotelRoomCascade(id),
 		})
 	} catch (err) {

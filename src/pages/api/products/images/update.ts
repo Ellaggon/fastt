@@ -1,9 +1,9 @@
 // src/pages/api/products/images/update.ts
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { productRepository } from "@/container"
+import { productRepository, productImageRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { updateProductImages } from "@/modules/catalog/application/use-cases/update-product-images"
+import { updateProductImages } from "@/modules/catalog/public"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -34,6 +34,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const { productId, images } = parsed.data
 		return updateProductImages({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+			repo: productImageRepository,
 			providerId,
 			productId,
 			images,

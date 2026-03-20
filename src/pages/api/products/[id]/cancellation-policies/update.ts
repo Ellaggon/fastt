@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
-import { updateCancellationPolicy } from "@/modules/catalog/application/use-cases/update-cancellation-policy"
+import { cancellationPolicyRepository } from "@/container"
+import { updateCancellationPolicy } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const { groupId, name, tiers } = await request.json()
-	return updateCancellationPolicy({ groupId, name, tiers })
+	return updateCancellationPolicy({ repo: cancellationPolicyRepository, groupId, name, tiers })
 }

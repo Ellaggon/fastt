@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "astro:content"
-import { productRepository } from "@/container"
+import { productRepository, productServiceRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { syncProductServices } from "@/modules/catalog/application/use-cases/sync-product-services"
+import { syncProductServices } from "@/modules/catalog/public"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const { productId, services } = parsed.data
 		return syncProductServices({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+			repo: productServiceRepository,
 			providerId,
 			productId,
 			services,

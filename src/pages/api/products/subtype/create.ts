@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { productRepository, subtypeRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { createProductSubtype } from "@/modules/catalog/application/use-cases/create-product-subtype"
+import { createProductSubtype } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -17,9 +17,9 @@ export const POST: APIRoute = async ({ request }) => {
 		return createProductSubtype({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
 			subtypeExists: (pid, subtype) => subtypeRepository.subtypeExists(pid, subtype),
-			insertHotel: (dbOrTx, data) => subtypeRepository.insertHotel(dbOrTx, data),
-			insertTour: (dbOrTx, data) => subtypeRepository.insertTour(dbOrTx, data),
-			insertPackage: (dbOrTx, data) => subtypeRepository.insertPackage(dbOrTx, data),
+			insertHotel: (data) => subtypeRepository.insertHotelStandalone(data as any),
+			insertTour: (data) => subtypeRepository.insertTourStandalone(data as any),
+			insertPackage: (data) => subtypeRepository.insertPackageStandalone(data as any),
 			providerId,
 			form,
 		})

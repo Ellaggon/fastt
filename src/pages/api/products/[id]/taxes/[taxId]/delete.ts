@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
-import { deleteTax } from "@/modules/catalog/application/use-cases/delete-tax"
+import { taxFeeRepository } from "@/container"
+import { deleteTax } from "@/modules/catalog/public"
 
 export const DELETE: APIRoute = async ({ params }) => {
 	const { id: productId, taxId } = params
-	return deleteTax({ productId: productId || "", taxId: taxId || "" })
+	return deleteTax({ repo: taxFeeRepository }, { productId: productId || "", taxId: taxId || "" })
 }

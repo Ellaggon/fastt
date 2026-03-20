@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { getSession } from "auth-astro/server"
-import { updateHotelRoom } from "@/modules/catalog/application/use-cases/update-hotel-room"
+import { updateHotelRoom } from "@/modules/catalog/public"
+import { hotelRoomRepository } from "@/container"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	const session = await getSession(request)
@@ -9,5 +10,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 	}
 
 	const form = await request.formData()
-	return updateHotelRoom(form, { hotelId: String((params as any).hotelId || "") })
+	return updateHotelRoom({ repo: hotelRoomRepository }, form, {
+		hotelId: String((params as any).hotelId || ""),
+	})
 }

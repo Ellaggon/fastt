@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { z } from "zod"
 import { getSession } from "auth-astro/server"
 import { createProductUseCase } from "@/container"
-import { createProductWithR2Rollback } from "@/modules/catalog/application/use-cases/create-product-with-r2-rollback"
+import { createProductWithR2Rollback } from "@/modules/catalog/public"
 
 const serverSchema = z.object({
 	providerId: z.string().min(1),

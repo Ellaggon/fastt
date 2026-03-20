@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
-import { getTaxes } from "@/modules/catalog/application/use-cases/get-taxes"
+import { taxFeeRepository } from "@/container"
+import { getTaxes } from "@/modules/catalog/public"
 
 export const GET: APIRoute = async ({ params }) => {
-	return getTaxes(params.id || "")
+	return getTaxes({ repo: taxFeeRepository }, params.id || "")
 }

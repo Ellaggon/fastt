@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { updateProductAndSubtype } from "@/lib/services/productService"
-import { updateProduct } from "@/modules/catalog/application/use-cases/update-product"
+import { updateProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {

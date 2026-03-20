@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
-import { productRepository } from "@/container"
+import { productRepository, productServiceRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { updateProductService } from "@/modules/catalog/application/use-cases/update-product-service"
+import { updateProductService } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const notes = formData.get("notes")?.toString()
 		return updateProductService({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+			repo: productServiceRepository,
 			providerId,
 			productId,
 			psId,

@@ -1,6 +1,6 @@
-import { AvailabilityGridEngine } from "@/core/availability/AvailabilityGridEngine"
+import { AvailabilityGridEngine } from "@/shared/domain/availability/AvailabilityGridEngine"
 import { searchAdapterRegistry } from "@/container"
-import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
+import { SearchContextLoader } from "@/modules/search/public"
 import type { APIRoute } from "astro"
 
 export const GET: APIRoute = async ({ url }) => {
@@ -19,8 +19,13 @@ export const GET: APIRoute = async ({ url }) => {
 
 	const engine = new AvailabilityGridEngine()
 
+	const inventoryForGrid = memory.inventory.filter(
+		(d): d is { date: string; totalInventory: number; reservedCount: number; stopSell?: boolean } =>
+			typeof d.date === "string"
+	)
+
 	const grid = engine.buildGridFromMemory(
-		memory.inventory,
+		inventoryForGrid,
 		new Date(url.searchParams.get("from")!),
 		new Date(url.searchParams.get("to")!)
 	)

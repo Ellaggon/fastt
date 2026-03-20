@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
-import { deleteRestriction } from "@/modules/catalog/application/use-cases/delete-restriction"
+import { catalogRestrictionRepository } from "@/container"
+import { deleteRestriction } from "@/modules/catalog/public"
 
 export const DELETE: APIRoute = async ({ params }) => {
-	return deleteRestriction(params.ruleId || "")
+	return deleteRestriction({ repo: catalogRestrictionRepository }, params.ruleId || "")
 }

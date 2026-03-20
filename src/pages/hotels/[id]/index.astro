@@ -5,13 +5,13 @@ import { resolveHotelType } from "@/application/queries/resolveHotelType"
 import { resolveProductImages } from "@/application/queries/resolveProductImages"
 import { resolveProductServices } from "@/application/queries/resolveProductServices"
 import { resolveRoomImages } from "@/application/queries/resolveRoomImages"
-import { searchOffers } from "@/application/queries/searchOffers.query"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
 import ImageModal from "@/components/productUI/ImageModal.astro"
 import MapModal from "@/components/productUI/MapModal.astro"
 import RoomModal from "@/components/productUI/RoomModal.astro"
 import RoomSection from "@/components/productUI/RoomSection.astro"
 import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astro"
+import { searchOffers } from "@/container"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
 import type { ImageRow } from "@/types/products"
@@ -42,8 +42,6 @@ const offers = await searchOffers({
 	adults,
 	children,
 })
-// console.log(typeof checkIn, checkIn)
-// console.log("offers", offers)
 
 const searchState = {
 	checkIn: url.searchParams.get("checkin"),
@@ -51,8 +49,7 @@ const searchState = {
 	adults: Number(url.searchParams.get("adults") ?? 2),
 	children: Number(url.searchParams.get("children") ?? 0),
 }
-// console.log("searchstate", searchState)
-// console.log("searchOffers", searchOffers)
+
 const images = await resolveProductImages(productId)
 const services = await resolveProductServices(productId)
 const policies = await resolveHotelPolicies(productId)
