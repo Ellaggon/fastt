@@ -4,7 +4,7 @@ import DashboardLayout from "@/layouts/DashboardLayout.astro"
 
 const productId = Astro.params.id
 
-if (!productId) throw new Error("Product ID is required")
+if (!productId) return Astro.redirect("/dashboard")
 ---
 
 <DashboardLayout>

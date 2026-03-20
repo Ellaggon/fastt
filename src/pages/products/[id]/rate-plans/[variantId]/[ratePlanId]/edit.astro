@@ -15,15 +15,15 @@ import {
 } from "astro:db"
 
 const { id, variantId, ratePlanId } = Astro.params
-if (!id) throw new Error("id from product is required")
-if (!variantId) throw new Error("variantId is required")
-if (!ratePlanId) throw new Error("ratePlanId is required")
+if (!id) return Astro.redirect("/dashboard")
+if (!variantId) return Astro.redirect("/dashboard")
+if (!ratePlanId) return Astro.redirect("/dashboard")
 
 const ratePlan = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
-if (!ratePlan) throw new Error("Rate plan not found")
+if (!ratePlan) return Astro.redirect("/dashboard")
 
 const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
-if (!variant) throw new Error("Variant not found")
+if (!variant) return Astro.redirect("/dashboard")
 
 const template = ratePlan.templateId
 	? await db

@@ -3,13 +3,13 @@ import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { db, eq, Variant } from "astro:db"
 
 const { id, variantId } = Astro.params
-if (!variantId || !id) throw new Error("id/variantId param is required")
+if (!variantId || !id) return Astro.redirect("/dashboard")
 
 const ratePlansRes = await fetch(
 	new URL(`/api/rateplans/list?variantId=${variantId}`, Astro.request.url)
 )
 
-if (!ratePlansRes.ok) throw new Error("Failed to load rate plans")
+if (!ratePlansRes.ok) return Astro.redirect("/dashboard")
 const ratePlans = await ratePlansRes.json()
 
 const variant = await db
@@ -18,7 +18,7 @@ const variant = await db
 	.where(eq(Variant.id, variantId))
 	.get()
 
-if (!variant) throw new Error("Variant not found")
+if (!variant) return Astro.redirect("/dashboard")
 ---
 
 <DashboardLayout title="Rate Plans">

@@ -3,7 +3,7 @@ import PolicyManager from "@/components/policy/PolicyManager.astro"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
 
 const { id: productId, variantId } = Astro.params
-if (!productId || !variantId) throw new Error("Product/variant ID is required")
+if (!productId || !variantId) return Astro.redirect("/dashboard")
 ---
 
 <DashboardLayout>

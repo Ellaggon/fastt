@@ -4,7 +4,7 @@ import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { and, db, eq, Policy, PolicyGroup, Variant } from "astro:db"
 
 const { variantId, id } = Astro.params
-if (!variantId) throw new Error("variantId is required")
+if (!variantId) return Astro.redirect("/dashboard")
 
 const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
 const policies = await db
@@ -20,7 +20,7 @@ const policies = await db
 	.where(and(eq(PolicyGroup.category, "Cancellation"), eq(Policy.status, "active")))
 	.all()
 
-if (!variant) throw new Error(`Variant not found for id: ${variantId}`)
+if (!variant) return Astro.redirect("/dashboard")
 ---
 
 <DashboardLayout title="Crear Rate Plan">

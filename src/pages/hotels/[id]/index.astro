@@ -1,10 +1,4 @@
 ---
-import { resolveHotelAmenities } from "@/application/queries/resolveHotelAmenities"
-import { resolveHotelPolicies } from "@/application/queries/resolveHotelPolicies"
-import { resolveHotelType } from "@/application/queries/resolveHotelType"
-import { resolveProductImages } from "@/application/queries/resolveProductImages"
-import { resolveProductServices } from "@/application/queries/resolveProductServices"
-import { resolveRoomImages } from "@/application/queries/resolveRoomImages"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
 import ImageModal from "@/components/productUI/ImageModal.astro"
 import MapModal from "@/components/productUI/MapModal.astro"
@@ -14,12 +8,26 @@ import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astr
 import { searchOffers } from "@/container"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
+import {
+	resolveHotelAmenities,
+	resolveHotelType,
+	resolveProductImages,
+	resolveProductServices,
+	resolveRoomImages,
+} from "@/modules/catalog/public"
+import { resolveHotelPolicies } from "@/modules/policies/public"
 import type { ImageRow } from "@/types/products"
 import { db, Destination, eq, Hotel, Product } from "astro:db"
 
 const url = Astro.url
 const productId = Astro.params.id
-if (!productId) throw new Error("ID de producto no proporcionado.")
+if (!productId) {
+	return Astro.redirect("/hotels")
+}
+
+function toISODateOnly(d: Date) {
+	return d.toISOString().split("T")[0]
+}
 
 let hotelProduct: any = null
 let hotelSubtype: any = null
@@ -27,13 +35,29 @@ let errorMessage: string | null = null
 
 const checkInStr = url.searchParams.get("checkin")
 const checkOutStr = url.searchParams.get("checkout")
-if (!checkInStr || !checkOutStr) throw new Error("Fechas requeridas")
+const adults = Number(url.searchParams.get("adults") ?? 2)
+const children = Number(url.searchParams.get("children") ?? 0)
+
+// If required dates are missing/invalid, redirect to safe defaults.
+if (!checkInStr || !checkOutStr) {
+	const today = new Date()
+	const tomorrow = new Date(today)
+	tomorrow.setDate(today.getDate() + 1)
+	return Astro.redirect(
+		`/hotels/${productId}?checkin=${toISODateOnly(today)}&checkout=${toISODateOnly(tomorrow)}&adults=${adults}&children=${children}`
+	)
+}
 
 const checkIn = new Date(checkInStr)
 const checkOut = new Date(checkOutStr)
-
-const adults = Number(url.searchParams.get("adults") ?? 2)
-const children = Number(url.searchParams.get("children") ?? 0)
+if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+	const today = new Date()
+	const tomorrow = new Date(today)
+	tomorrow.setDate(today.getDate() + 1)
+	return Astro.redirect(
+		`/hotels/${productId}?checkin=${toISODateOnly(today)}&checkout=${toISODateOnly(tomorrow)}&adults=${adults}&children=${children}`
+	)
+}
 
 const offers = await searchOffers({
 	productId,
@@ -44,10 +68,10 @@ const offers = await searchOffers({
 })
 
 const searchState = {
-	checkIn: url.searchParams.get("checkin"),
-	checkOut: url.searchParams.get("checkout"),
-	adults: Number(url.searchParams.get("adults") ?? 2),
-	children: Number(url.searchParams.get("children") ?? 0),
+	checkIn: toISODateOnly(checkIn),
+	checkOut: toISODateOnly(checkOut),
+	adults,
+	children,
 }
 
 const images = await resolveProductImages(productId)
@@ -72,10 +96,12 @@ try {
 		.where(eq(Product.id, productId))
 		.get()
 
-	if (!productResult) throw new Error("Producto no encontrado.")
-
-	hotelProduct = { ...productResult.Product, destination: productResult.Destination }
-	hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+	if (!productResult) {
+		errorMessage = "Producto no encontrado."
+	} else {
+		hotelProduct = { ...productResult.Product, destination: productResult.Destination }
+		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+	}
 } catch (e) {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
