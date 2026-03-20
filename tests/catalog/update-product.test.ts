@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest"
-import { updateProduct } from "@/modules/catalog/application/use-cases/update-product"
+import { updateProduct } from "@/modules/catalog/public"
 
 describe("catalog/updateProduct (unit)", () => {
 	it("validates form, calls updateProductAndSubtype, and returns redirectUrl", async () => {
-		const updateProductAndSubtype = vi.fn(async () => {})
+		type UpdateFn = Parameters<typeof updateProduct>[0]["updateProductAndSubtype"]
+		const updateProductAndSubtype = vi.fn<UpdateFn>(async () => {})
 
 		const fd = new FormData()
 		fd.set("name", "Updated Name")
@@ -35,7 +36,8 @@ describe("catalog/updateProduct (unit)", () => {
 	})
 
 	it("returns 400 when subtype JSON is invalid (and does not call update)", async () => {
-		const updateProductAndSubtype = vi.fn(async () => {})
+		type UpdateFn = Parameters<typeof updateProduct>[0]["updateProductAndSubtype"]
+		const updateProductAndSubtype = vi.fn<UpdateFn>(async () => {})
 
 		const fd = new FormData()
 		fd.set("name", "Name")
@@ -56,7 +58,8 @@ describe("catalog/updateProduct (unit)", () => {
 	})
 
 	it("returns 400 when schema validation fails (and does not call update)", async () => {
-		const updateProductAndSubtype = vi.fn(async () => {})
+		type UpdateFn = Parameters<typeof updateProduct>[0]["updateProductAndSubtype"]
+		const updateProductAndSubtype = vi.fn<UpdateFn>(async () => {})
 
 		const fd = new FormData()
 		fd.set("name", "") // invalid (min 1)

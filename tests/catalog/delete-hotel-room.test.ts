@@ -1,25 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import type { HotelRoomQueryRepositoryPort } from "@/modules/catalog/public"
 
-const HotelRoomType = { __t: "HotelRoomType", id: "id", hotelId: "hotelId" }
-
-let mockRoom: any | null = { id: "room_1", hotelId: "hotel_1" }
-
-vi.mock("astro:db", () => {
-	const db = {
-		select: vi.fn(() => ({
-			from: vi.fn((_table: any) => ({
-				where: vi.fn(() => ({
-					get: vi.fn(async () => mockRoom),
-				})),
-			})),
-		})),
-	}
-	return {
-		db,
-		eq: (..._args: any[]) => ({ __op: "eq" }),
-		HotelRoomType,
-	}
-})
+let mockRoom: { id: string; hotelId: string } | null = { id: "room_1", hotelId: "hotel_1" }
 
 describe("catalog/deleteHotelRoom (unit)", () => {
 	beforeEach(() => {
@@ -28,12 +10,15 @@ describe("catalog/deleteHotelRoom (unit)", () => {
 	})
 
 	it("returns 400 when params are missing", async () => {
-		const { deleteHotelRoom } = await import(
-			"@/modules/catalog/application/use-cases/delete-hotel-room"
-		)
+		const { deleteHotelRoom } = await import("@/modules/catalog/public")
 		const resp = await deleteHotelRoom({
 			hotelId: "",
 			hotelRoomId: "",
+			repo: {
+				getHotelRoomById: vi.fn(async () => mockRoom),
+				getHotelRoomBundle: vi.fn(),
+				updateHotelRoom: vi.fn(),
+			} satisfies HotelRoomQueryRepositoryPort,
 			deleteCascade: vi.fn(async () => {}),
 		})
 		expect(resp.status).toBe(400)
@@ -43,12 +28,15 @@ describe("catalog/deleteHotelRoom (unit)", () => {
 	it("returns 404 when room does not exist", async () => {
 		mockRoom = null
 
-		const { deleteHotelRoom } = await import(
-			"@/modules/catalog/application/use-cases/delete-hotel-room"
-		)
+		const { deleteHotelRoom } = await import("@/modules/catalog/public")
 		const resp = await deleteHotelRoom({
 			hotelId: "hotel_1",
 			hotelRoomId: "room_missing",
+			repo: {
+				getHotelRoomById: vi.fn(async () => mockRoom),
+				getHotelRoomBundle: vi.fn(),
+				updateHotelRoom: vi.fn(),
+			} satisfies HotelRoomQueryRepositoryPort,
 			deleteCascade: vi.fn(async () => {}),
 		})
 		expect(resp.status).toBe(404)
@@ -58,13 +46,16 @@ describe("catalog/deleteHotelRoom (unit)", () => {
 	it("returns 403 when room does not belong to hotel", async () => {
 		mockRoom = { id: "room_1", hotelId: "hotel_other" }
 
-		const { deleteHotelRoom } = await import(
-			"@/modules/catalog/application/use-cases/delete-hotel-room"
-		)
+		const { deleteHotelRoom } = await import("@/modules/catalog/public")
 		const del = vi.fn(async () => {})
 		const resp = await deleteHotelRoom({
 			hotelId: "hotel_1",
 			hotelRoomId: "room_1",
+			repo: {
+				getHotelRoomById: vi.fn(async () => mockRoom),
+				getHotelRoomBundle: vi.fn(),
+				updateHotelRoom: vi.fn(),
+			} satisfies HotelRoomQueryRepositoryPort,
 			deleteCascade: del,
 		})
 		expect(del).not.toHaveBeenCalled()
@@ -73,13 +64,16 @@ describe("catalog/deleteHotelRoom (unit)", () => {
 	})
 
 	it("calls deleteCascade when authorized", async () => {
-		const { deleteHotelRoom } = await import(
-			"@/modules/catalog/application/use-cases/delete-hotel-room"
-		)
+		const { deleteHotelRoom } = await import("@/modules/catalog/public")
 		const del = vi.fn(async () => {})
 		const resp = await deleteHotelRoom({
 			hotelId: "hotel_1",
 			hotelRoomId: "room_1",
+			repo: {
+				getHotelRoomById: vi.fn(async () => mockRoom),
+				getHotelRoomBundle: vi.fn(),
+				updateHotelRoom: vi.fn(),
+			} satisfies HotelRoomQueryRepositoryPort,
 			deleteCascade: del,
 		})
 		expect(del).toHaveBeenCalledTimes(1)

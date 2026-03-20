@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { recomputeInventory } from "@/modules/inventory/application/use-cases/recompute-inventory"
+import { recomputeInventory } from "@/modules/inventory/public"
 
 describe("inventory/use-cases/recomputeInventory", () => {
 	it("computes available inventory as total - reserved", () => {

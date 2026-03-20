@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { createRoom } from "@/modules/catalog/application/use-cases/create-room"
+import { createRoom } from "@/modules/catalog/public"
 
 describe("catalog/createRoom (unit)", () => {
 	it("returns 404 when hotel does not exist", async () => {

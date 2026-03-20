@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
-import { computeAndPersistDailyPrice } from "@/modules/pricing/application/use-cases/compute-and-persist-daily-price"
-import type { ComputeAndPersistDailyPriceDeps } from "@/modules/pricing/application/use-cases/compute-and-persist-daily-price"
+import {
+	computeAndPersistDailyPrice,
+	type ComputeAndPersistDailyPriceDeps,
+} from "@/modules/pricing/public"
 
 describe("pricing/use-cases/computeAndPersistDailyPrice", () => {
 	it("loads rules, computes daily price, and persists effective price", async () => {

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { selectBestRatePlan } from "@/modules/pricing/application/use-cases/select-best-rateplan"
-import type { SelectBestRatePlanDeps } from "@/modules/pricing/application/use-cases/select-best-rateplan"
+import { selectBestRatePlan, type SelectBestRatePlanDeps } from "@/modules/pricing/public"
 
 describe("pricing/use-cases/selectBestRatePlan", () => {
 	it("throws when variant is not found", async () => {
@@ -22,7 +21,15 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 
 	it("returns empty candidates when there are no active rate plans", async () => {
 		const deps: SelectBestRatePlanDeps = {
-			variantRepo: { getById: vi.fn(async () => ({ id: "v1", basePrice: 100 })) },
+			variantRepo: {
+				getById: vi.fn(async () => ({
+					id: "v1",
+					productId: "p1",
+					entityType: "hotel_room",
+					entityId: "hr1",
+					basePrice: 100,
+				})),
+			},
 			ratePlanRepo: { getActiveByVariant: vi.fn(async () => []) },
 			priceRuleRepo: { getActive: vi.fn(async () => []) },
 			ratePlanEngine: { selectFromMemory: vi.fn(() => []) } as any,
@@ -50,7 +57,15 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 		])
 
 		const deps: SelectBestRatePlanDeps = {
-			variantRepo: { getById: vi.fn(async () => ({ id: "v1", basePrice: null })) },
+			variantRepo: {
+				getById: vi.fn(async () => ({
+					id: "v1",
+					productId: "p1",
+					entityType: "hotel_room",
+					entityId: "hr1",
+					basePrice: null,
+				})),
+			},
 			ratePlanRepo: { getActiveByVariant: vi.fn(async () => ratePlans) },
 			priceRuleRepo: {
 				getActive: vi.fn(async (ratePlanId: string) => {

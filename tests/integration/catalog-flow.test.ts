@@ -9,8 +9,7 @@ import {
 } from "@/container"
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider, upsertRoomType } from "../test-support/catalog-db-test-data"
-import { updateProduct } from "@/modules/catalog/application/use-cases/update-product"
-import { deleteProduct } from "@/modules/catalog/application/use-cases/delete-product"
+import { deleteProduct, updateProduct } from "@/modules/catalog/public"
 import { updateProductAndSubtype } from "@/lib/services/productService"
 
 describe("integration/catalog flow", () => {

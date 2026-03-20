@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { deleteProduct } from "@/modules/catalog/application/use-cases/delete-product"
+import { deleteProduct } from "@/modules/catalog/public"
 
 describe("catalog/deleteProduct (unit)", () => {
 	it("returns 403 when product is not owned", async () => {

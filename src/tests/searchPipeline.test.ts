@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
-import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
+import { SearchPipeline } from "@/modules/search/public"
 import { vi } from "vitest"
+import { PricingEngine, PromotionEngine, adaptPriceRule } from "@/modules/pricing/public"
+import { RestrictionRuleEngine } from "@/modules/policies/public"
 
 vi.mock("astro:db")
 
@@ -29,7 +31,23 @@ describe("SearchPipeline", () => {
 			}),
 		}
 
-		const pipeline = new SearchPipeline(fakeLoader)
+		const pricingEngine = new PricingEngine()
+		const restrictionEngine = new RestrictionRuleEngine()
+		const promotionEngine = new PromotionEngine()
+
+		const pipeline = new SearchPipeline(fakeLoader, undefined, {
+			pricing: {
+				adaptPriceRule,
+				computeStay: (params) => pricingEngine.computeStay(params),
+			},
+			restrictions: {
+				evaluateFromMemory: (ctx) => restrictionEngine.evaluateFromMemory(ctx),
+			},
+			promotions: {
+				applyPromotions: (basePrice, promotions, ctx) =>
+					promotionEngine.applyPromotions(basePrice, promotions, ctx),
+			},
+		})
 
 		const result = await pipeline.run({
 			productId: "hotel_test",

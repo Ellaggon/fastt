@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { createProduct } from "@/modules/catalog/application/use-cases/create-product"
+import { createProduct } from "@/modules/catalog/public"
 
 describe("catalog/createProduct (unit)", () => {
 	it("calls repo.createProductWithImages and returns id", async () => {

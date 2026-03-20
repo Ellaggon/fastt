@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
-import { AvailabilityService } from "@/services/AvailabilityServices"
-import type { DailyInventoryRepositoryPort } from "@/modules/inventory/application/ports/DailyInventoryRepositoryPort"
+import { AvailabilityService } from "@/modules/inventory/public"
+import type { DailyInventoryRepositoryPort } from "@/modules/inventory/public"
 
 describe("inventory/services/AvailabilityService", () => {
 	it("delegates to repo.getRange and returns true when can reserve", async () => {
