@@ -1,6 +1,5 @@
 import { AvailabilityGridEngine } from "@/shared/domain/availability/AvailabilityGridEngine"
-import { searchAdapterRegistry } from "@/container"
-import { SearchContextLoader } from "@/modules/search/public"
+import { searchContextLoader } from "@/container"
 import type { APIRoute } from "astro"
 
 export const GET: APIRoute = async ({ url }) => {
@@ -28,9 +27,7 @@ export const GET: APIRoute = async ({ url }) => {
 		})
 	}
 
-	const loader = new SearchContextLoader(searchAdapterRegistry)
-
-	const memory = await loader.load({
+	const memory = await searchContextLoader.load({
 		productId,
 		unitId: variantId,
 		unitType: "hotel_room",

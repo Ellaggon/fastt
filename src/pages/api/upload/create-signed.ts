@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { r2 } from "@/lib/upload/r2"
+import { r2 } from "@/container"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { PutObjectCommand } from "@aws-sdk/client-s3"
 

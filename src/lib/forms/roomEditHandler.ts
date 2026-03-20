@@ -35,21 +35,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		const hotelId = fd.get("hotelId")
 
-		const res = await fetch(`/api/products/${hotelId}/rooms/update`, {
-			method: "POST",
-			body: fd,
-		})
+		try {
+			const res = await fetch(`/api/products/${hotelId}/rooms/update`, {
+				method: "POST",
+				body: fd,
+			})
 
-		if (!res.ok) {
-			const txt = await res.text()
-			console.error("Error de actualización de habitación:", txt)
-			// Aquí deberías mostrar un mensaje en el UI en lugar de alert
-			return
+			if (!res.ok) {
+				const txt = await res.text()
+				console.error("Error de actualización de habitación:", txt)
+				alert("No se pudo actualizar la habitación.")
+				return
+			}
+
+			console.log("Habitación actualizada correctamente")
+			window.location.href = "/dashboard"
+		} catch (err) {
+			console.error("Error de red al actualizar habitación:", err)
+			alert("Error de red al actualizar la habitación.")
 		}
-
-		// Aquí deberías mostrar un mensaje de éxito en el UI en lugar de alert
-		console.log("Habitación actualizada correctamente")
-		window.location.href = "/dashboard"
 	})
 })
 

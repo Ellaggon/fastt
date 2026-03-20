@@ -15,9 +15,24 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const psId = formData.get("psId")?.toString()
 		const productId = formData.get("productId")?.toString()
 
-		if (!psId || !productId) {
+		if (!productId) {
 			return new Response(JSON.stringify({ error: "Missing IDs" }), { status: 400 })
 		}
+
+		// Ensure ownership before creating/updating any records.
+		const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+		if (!product) {
+			return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
+		}
+
+		const ensuredPsId =
+			psId && psId.length > 0
+				? psId
+				: await productServiceRepository.ensureProductService({
+						productId,
+						serviceId,
+						appliesTo: "both",
+					})
 
 		// 2. Extraer datos básicos (parsing)
 		const isIncluded = formData.get("isIncluded") === "on"
@@ -27,11 +42,11 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const appliesTo = formData.get("appliesTo")?.toString() || "both"
 		const notes = formData.get("notes")?.toString()
 		return updateProductService({
-			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+			ensureOwned: async () => product,
 			repo: productServiceRepository,
 			providerId,
 			productId,
-			psId,
+			psId: ensuredPsId,
 			price,
 			priceUnit: priceUnit ?? null,
 			currency: currency ?? null,
