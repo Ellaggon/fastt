@@ -30,6 +30,18 @@ import { CatalogRestrictionRepository } from "@/modules/catalog/infrastructure/r
 import { CancellationPolicyRepository } from "@/modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
 import { ProductServiceRepository } from "@/modules/catalog/infrastructure/repositories/ProductServiceRepository"
 import { ProductImageRepository } from "@/modules/catalog/infrastructure/repositories/ProductImageRepository"
+import { HotelAmenityQueryRepository } from "@/modules/catalog/infrastructure/repositories/HotelAmenityQueryRepository"
+import { HotelRoomTypeRepository } from "@/modules/catalog/infrastructure/repositories/HotelRoomTypeRepository"
+import { ImageQueryRepository } from "@/modules/catalog/infrastructure/repositories/ImageQueryRepository"
+import { ProductServiceQueryRepository } from "@/modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
+
+import {
+	createResolveHotelAmenitiesQuery,
+	createResolveHotelTypeQuery,
+	createResolveProductImagesQuery,
+	createResolveProductServicesQuery,
+	createResolveRoomImagesQuery,
+} from "@/modules/catalog/application/queries"
 
 // Policies
 import { RestrictionRuleEngine } from "@/modules/policies/public"
@@ -37,6 +49,7 @@ import { PolicyReadRepository } from "@/modules/policies/infrastructure/reposito
 import { PolicyCommandRepository } from "@/modules/policies/infrastructure/repositories/PolicyCommandRepository"
 import { EffectivePolicyRepository } from "@/modules/policies/infrastructure/repositories/EffectivePolicyRepository"
 import { PolicyCache } from "@/modules/policies/infrastructure/cache/policy-cache"
+import { createResolveHotelPoliciesQuery } from "@/modules/policies/application/queries"
 
 // Policies (restriction repository)
 import { RestrictionRepository } from "@/modules/policies/infrastructure/repositories/RestrictionRepository"
@@ -105,6 +118,10 @@ export const catalogRestrictionRepository = new CatalogRestrictionRepository()
 export const cancellationPolicyRepository = new CancellationPolicyRepository()
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
+export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
+export const hotelRoomTypeRepository = new HotelRoomTypeRepository()
+export const imageQueryRepository = new ImageQueryRepository()
+export const productServiceQueryRepository = new ProductServiceQueryRepository()
 
 export const policyReadRepository = new PolicyReadRepository()
 export const policyCommandRepository = new PolicyCommandRepository()
@@ -196,6 +213,23 @@ export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]
 export async function createProductUseCase(params: Parameters<typeof createProduct>[1]) {
 	return createProduct({ repo: productRepository }, params)
 }
+
+// ---- Catalog / Policies (wired read queries) ----
+export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
+	repo: hotelAmenityQueryRepository,
+})
+export const resolveHotelType = createResolveHotelTypeQuery({ repo: hotelRoomTypeRepository })
+export const resolveProductImages = createResolveProductImagesQuery({
+	repo: productImageRepository,
+})
+export const resolveProductServices = createResolveProductServicesQuery({
+	repo: productServiceQueryRepository,
+})
+export const resolveRoomImages = createResolveRoomImagesQuery({ repo: imageQueryRepository })
+
+export const resolveHotelPolicies = createResolveHotelPoliciesQuery({
+	repo: effectivePolicyRepository,
+})
 
 // ---- Policies (wired use-cases) ----
 export async function resolvePoliciesUseCase(params: Parameters<typeof resolvePolicies>[1]) {

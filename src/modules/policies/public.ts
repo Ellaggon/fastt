@@ -39,3 +39,12 @@ export * from "./application/use-cases/resolve-policies"
 export * from "./application/use-cases/resolve-policy-by-hierarchy"
 export * from "./application/use-cases/run-policy-compiler"
 export * from "./application/use-cases/unassign-policy-group"
+
+// Application queries (factories for DI wiring)
+export * from "./application/queries"
+
+// Runtime queries (wired in container). Async wrapper to avoid eager container/DB load in unit tests.
+export async function resolveHotelPolicies(productId: string) {
+	const { resolveHotelPolicies } = await import("@/container")
+	return resolveHotelPolicies(productId)
+}

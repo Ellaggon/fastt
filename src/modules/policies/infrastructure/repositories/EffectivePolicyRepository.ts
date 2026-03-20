@@ -1,7 +1,8 @@
-import { db, EffectivePolicy } from "astro:db"
+import { db, EffectivePolicy, and, asc, eq } from "astro:db"
 import type {
 	EffectivePolicyRepositoryPort,
 	EffectivePolicySnapshotRow,
+	EffectivePolicyRow,
 } from "../../application/ports/EffectivePolicyRepositoryPort"
 
 export class EffectivePolicyRepository implements EffectivePolicyRepositoryPort {
@@ -31,5 +32,16 @@ export class EffectivePolicyRepository implements EffectivePolicyRepositoryPort 
 					priority: row.priority,
 				},
 			})
+	}
+
+	async listByProduct(productId: string): Promise<EffectivePolicyRow[]> {
+		return (await db
+			.select()
+			.from(EffectivePolicy)
+			.where(
+				and(eq(EffectivePolicy.entityType, "product"), eq(EffectivePolicy.entityId, productId))
+			)
+			.orderBy(asc(EffectivePolicy.priority))
+			.all()) as unknown as EffectivePolicyRow[]
 	}
 }

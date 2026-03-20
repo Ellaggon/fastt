@@ -6,7 +6,6 @@
 export * from "./application/use-cases/create-cancellation-policy"
 export * from "./application/use-cases/create-product"
 export * from "./application/use-cases/create-product-subtype"
-export * from "./application/use-cases/create-product-with-r2-rollback"
 export * from "./application/use-cases/create-restriction"
 export * from "./application/use-cases/create-room"
 export * from "./application/use-cases/create-tax"
@@ -26,7 +25,6 @@ export * from "./application/use-cases/toggle-cancellation-policy-assignment"
 export * from "./application/use-cases/update-cancellation-policy"
 export * from "./application/use-cases/update-hotel-room"
 export * from "./application/use-cases/update-product"
-export * from "./application/use-cases/update-product-images"
 export * from "./application/use-cases/update-product-service"
 export * from "./application/use-cases/update-product-subtype"
 export * from "./application/use-cases/update-restriction"
@@ -35,9 +33,61 @@ export * from "./application/use-cases/update-tax"
 // Application ports (types/interfaces)
 export * from "./application/ports/CancellationPolicyRepositoryPort"
 export * from "./application/ports/CatalogRestrictionRepositoryPort"
+export * from "./application/ports/HotelAmenityQueryRepositoryPort"
 export * from "./application/ports/HotelRoomQueryRepositoryPort"
+export * from "./application/ports/HotelRoomTypeRepositoryPort"
+export * from "./application/ports/ImageQueryRepositoryPort"
 export * from "./application/ports/ProductImageRepositoryPort"
 export * from "./application/ports/ProductRepositoryPort"
+export * from "./application/ports/ProductServiceQueryRepositoryPort"
 export * from "./application/ports/ProductServiceRepositoryPort"
 export * from "./application/ports/RoomRepositoryPort"
 export * from "./application/ports/TaxFeeRepositoryPort"
+
+// Lazy exports: these use-cases import external libs (AWS SDK). Keep module import side-effect free.
+export type CreateProductWithR2RollbackParams = Parameters<
+	typeof import("./application/use-cases/create-product-with-r2-rollback").createProductWithR2Rollback
+>[0]
+
+export async function createProductWithR2Rollback(params: CreateProductWithR2RollbackParams) {
+	const { createProductWithR2Rollback } = await import(
+		"./application/use-cases/create-product-with-r2-rollback"
+	)
+	return createProductWithR2Rollback(params)
+}
+
+export type UpdateProductImagesParams = Parameters<
+	typeof import("./application/use-cases/update-product-images").updateProductImages
+>[0]
+
+export async function updateProductImages(params: UpdateProductImagesParams) {
+	const { updateProductImages } = await import("./application/use-cases/update-product-images")
+	return updateProductImages(params)
+}
+
+// Runtime queries (wired in container). Kept as async wrappers so importing this public API
+// doesn't eagerly load the container/DB in unit tests.
+export async function resolveHotelAmenities(roomIds: string[]) {
+	const { resolveHotelAmenities } = await import("@/container")
+	return resolveHotelAmenities(roomIds)
+}
+
+export async function resolveHotelType(ids: string[]) {
+	const { resolveHotelType } = await import("@/container")
+	return resolveHotelType(ids)
+}
+
+export async function resolveProductImages(productId: string) {
+	const { resolveProductImages } = await import("@/container")
+	return resolveProductImages(productId)
+}
+
+export async function resolveProductServices(productId: string) {
+	const { resolveProductServices } = await import("@/container")
+	return resolveProductServices(productId)
+}
+
+export async function resolveRoomImages(roomTypeIds: string[]) {
+	const { resolveRoomImages } = await import("@/container")
+	return resolveRoomImages(roomTypeIds)
+}

@@ -11,4 +11,5 @@ export interface ProductImageRepositoryPort {
 	}): Promise<void>
 	deleteImage(id: string): Promise<void>
 	listOrderedByProduct(productId: string): Promise<ProductImageRow[]>
+	listGalleryByProduct(productId: string): Promise<ProductImageRow[]>
 }

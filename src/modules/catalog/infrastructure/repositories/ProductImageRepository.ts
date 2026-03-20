@@ -1,4 +1,4 @@
-import { db, Image, eq, asc } from "astro:db"
+import { db, Image, eq, asc, desc } from "astro:db"
 import type {
 	ProductImageRepositoryPort,
 	ProductImageRow,
@@ -37,6 +37,15 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			.from(Image)
 			.where(eq(Image.entityId, productId))
 			.orderBy(asc(Image.order))
+			.all()) as any
+	}
+
+	async listGalleryByProduct(productId: string): Promise<ProductImageRow[]> {
+		return (await db
+			.select()
+			.from(Image)
+			.where(eq(Image.entityId, productId))
+			.orderBy(desc(Image.isPrimary), asc(Image.order))
 			.all()) as any
 	}
 }
