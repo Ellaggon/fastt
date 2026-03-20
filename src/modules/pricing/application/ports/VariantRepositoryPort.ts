@@ -1,5 +1,8 @@
 export interface VariantSnapshot {
 	id: string
+	productId: string
+	entityType: string
+	entityId: string
 	basePrice?: number | null
 }
 

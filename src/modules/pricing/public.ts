@@ -1,0 +1,35 @@
+// Public API for the pricing module.
+// External consumers MUST import from "@/modules/pricing/public".
+// NOTE: Infrastructure exports exist only to support composition-root wiring (container).
+
+// Domain
+export * from "./domain/PricingEngine"
+export * from "./domain/pricing.engine"
+export * from "./domain/pricing.types"
+export * from "./domain/pricing.utils"
+export * from "./domain/adapters/adapter.priceRule"
+export * from "./domain/promotions/PromotionEngine"
+export * from "./domain/promotions/promotion.rules"
+export * from "./domain/promotions/promotion.types"
+export * from "./domain/rate-plans/RatePlanEngine"
+export * from "./domain/rate-plans/ratePlan.price"
+export * from "./domain/rate-plans/ratePlan.priority"
+export * from "./domain/rate-plans/ratePlan.types"
+
+// Application use-cases
+export * from "./application/use-cases/build-create-rateplan-spec"
+export * from "./application/use-cases/compute-and-persist-daily-price"
+export * from "./application/use-cases/create-rateplan"
+export * from "./application/use-cases/select-best-rateplan"
+
+// Application services
+export * from "./application/services/RatePlanService"
+export * from "./application/services/PricingComputationService"
+
+// Application ports
+export * from "./application/ports/PricingRepositoryPort"
+export * from "./application/ports/RatePlanRepositoryPort"
+export * from "./application/ports/VariantRepositoryPort"
+export * from "./application/ports/PriceRuleRepositoryPort"
+export * from "./application/ports/RatePlanCommandRepositoryPort"
+export * from "./application/ports/index"

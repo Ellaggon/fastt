@@ -10,7 +10,7 @@ export class VariantRepository implements VariantRepositoryPort {
 	}
 
 	// Still used by non-ported legacy code paths.
-	async getActiveByProduct(productId: string) {
+	async getActiveByProduct(productId: string): Promise<VariantSnapshot[]> {
 		return db
 			.select()
 			.from(Variant)
