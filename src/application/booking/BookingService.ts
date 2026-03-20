@@ -1,8 +1,8 @@
 import { db, eq, and, DailyInventory, Booking, BookingRoomDetail } from "astro:db"
 
 import { randomUUID } from "node:crypto"
-import { InventoryReservationService } from "@/core/inventory/InventoryReservationService"
-import { RecomputeInventoryService } from "@/core/inventory/RecomputeInventoryService"
+import { InventoryReservationService } from "@/modules/inventory/public"
+import { RecomputeInventoryService } from "@/modules/inventory/infrastructure/services/RecomputeInventoryService"
 
 export class BookingService {
 	private inventoryEngine = new InventoryReservationService()

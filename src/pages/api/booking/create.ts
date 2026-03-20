@@ -1,5 +1,4 @@
 // import type { APIRoute } from "astro"
-// import { createBooking } from "@/core/booking/booking.service"
 
 // export const POST: APIRoute = async ({ request }) => {
 // 	try {
