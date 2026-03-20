@@ -1,4 +1,4 @@
-// import type { HotelPolicy } from "@/application/queries/resolveHotelPolicies"
+// NOTE: query types live under modules/policies now.
 // import {
 // 	POLICY_TYPE_TO_UI_GROUP,
 // 	type PolicyType,
