@@ -1,73 +1,88 @@
 // Composition root (manual DI). Centralize wiring here so services and use-cases stay decoupled.
 
-// Pricing infrastructure
+// Pricing
+import {
+	adaptPriceRule,
+	PricingEngine,
+	PromotionEngine,
+	RatePlanEngine,
+} from "@/modules/pricing/public"
 import { PricingRepository } from "@/modules/pricing/infrastructure/repositories/PricingRepository"
 import { RatePlanRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanRepository"
 import { VariantRepository } from "@/modules/pricing/infrastructure/repositories/VariantRepository"
 import { PriceRuleRepository } from "@/modules/pricing/infrastructure/repositories/PriceRuleRepository"
 import { RatePlanCommandRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanCommandRepository"
 
-// Inventory infrastructure
+// Inventory
 import { DailyInventoryRepository } from "@/modules/inventory/infrastructure/repositories/DailyInventoryRepository"
 import { InventoryRepository } from "@/modules/inventory/infrastructure/repositories/InventoryRepository"
 import { InventoryBootstrapper } from "@/modules/inventory/infrastructure/services/InventoryBootstrapper"
 
-// Catalog infrastructure
+// Catalog
+import { createProduct, createRoom } from "@/modules/catalog/public"
 import { RoomRepository } from "@/modules/catalog/infrastructure/repositories/RoomRepository"
 import { ProductRepository } from "@/modules/catalog/infrastructure/repositories/ProductRepository"
 import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories/SubtypeRepository"
 import { ProviderRepository } from "@/modules/catalog/infrastructure/repositories/ProviderRepository"
 import { HotelRoomRepository } from "@/modules/catalog/infrastructure/repositories/HotelRoomRepository"
+import { TaxFeeRepository } from "@/modules/catalog/infrastructure/repositories/TaxFeeRepository"
+import { CatalogRestrictionRepository } from "@/modules/catalog/infrastructure/repositories/CatalogRestrictionRepository"
+import { CancellationPolicyRepository } from "@/modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
+import { ProductServiceRepository } from "@/modules/catalog/infrastructure/repositories/ProductServiceRepository"
+import { ProductImageRepository } from "@/modules/catalog/infrastructure/repositories/ProductImageRepository"
 
-// Policies infrastructure
+// Policies
+import { RestrictionRuleEngine } from "@/modules/policies/public"
 import { PolicyReadRepository } from "@/modules/policies/infrastructure/repositories/PolicyReadRepository"
 import { PolicyCommandRepository } from "@/modules/policies/infrastructure/repositories/PolicyCommandRepository"
 import { EffectivePolicyRepository } from "@/modules/policies/infrastructure/repositories/EffectivePolicyRepository"
 import { PolicyCache } from "@/modules/policies/infrastructure/cache/policy-cache"
 
-// Domain engines / pure components
-import { RatePlanEngine } from "@/modules/pricing/domain/rate-plans/RatePlanEngine"
-import { PricingEngine } from "@/modules/pricing/domain/PricingEngine"
-import { RestrictionRuleEngine } from "@/core/restrictions/RestrictionRuleEngine"
-
-// Legacy repositories not yet migrated behind module infrastructure
-import { RestrictionRepository } from "@/repositories/RestrictionRepository"
+// Policies (restriction repository)
+import { RestrictionRepository } from "@/modules/policies/infrastructure/repositories/RestrictionRepository"
 import { DailyInventoryRepository as LegacyDailyInventoryRepository } from "@/repositories/AvailabilityRepository"
 import { RatePlanRepository as LegacyRatePlanRepository } from "@/repositories/RatePlanRepository"
 import { PriceRuleRepository as LegacyPriceRuleRepository } from "@/repositories/PriceRuleRepository"
 
 // Services (thin orchestration / adapters)
-import { AvailabilityService } from "@/services/AvailabilityServices"
-import { InventorySeederService } from "@/services/InventorySeederService"
-import { RatePlanService } from "@/services/RatePlanService"
-import { RestrictionService } from "@/services/RestrictionService"
-import { PricingComputationService } from "@/application/pricing/PricingComputationService"
-import { createRoom } from "@/modules/catalog/application/use-cases/create-room"
-import { createProduct } from "@/modules/catalog/application/use-cases/create-product"
+import { AvailabilityService } from "@/modules/inventory/public"
+import { InventorySeederService } from "@/modules/inventory/public"
+import { RatePlanService } from "@/modules/pricing/public"
+import { RestrictionService } from "@/modules/policies/public"
+import { PricingComputationService } from "@/modules/pricing/public"
 
-// Search module wiring (infrastructure + application)
+// Search
+import {
+	BuildOffersUseCase,
+	SearchContextLoader,
+	SearchPipeline,
+	type SearchUnit,
+} from "@/modules/search/public"
+import type { SearchOffer } from "@/modules/search/public"
 import { AdapterRegistry as SearchAdapterRegistry } from "@/modules/search/infrastructure/AdapterRegistry"
 import { HotelAdapter } from "@/modules/search/infrastructure/adapters/HotelAdapter"
-import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
-import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
 import { VariantQueryAdapter } from "@/modules/search/infrastructure/adapters/VariantQueryAdapter"
-import { BuildOffersUseCase } from "@/modules/search/application/use-cases/build-offers"
+import { PricingPortAdapter } from "@/modules/search/infrastructure/adapters/PricingPortAdapter"
+import { PromotionPortAdapter } from "@/modules/search/infrastructure/adapters/PromotionPortAdapter"
+import { RestrictionPortAdapter } from "@/modules/search/infrastructure/adapters/RestrictionPortAdapter"
 
 // Policies use-cases
-import { resolvePolicies } from "@/modules/policies/application/use-cases/resolve-policies"
-import { resolvePolicyByHierarchy } from "@/modules/policies/application/use-cases/resolve-policy-by-hierarchy"
-import { buildPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
-import { runPolicyCompiler } from "@/modules/policies/application/use-cases/run-policy-compiler"
-import { getPolicy } from "@/modules/policies/application/use-cases/get-policy"
-import { listAssignedPolicies } from "@/modules/policies/application/use-cases/list-assigned-policies"
-import { assignPolicyGroup } from "@/modules/policies/application/use-cases/assign-policy-group"
-import { unassignPolicyGroup } from "@/modules/policies/application/use-cases/unassign-policy-group"
-import { activatePolicy } from "@/modules/policies/application/use-cases/activate-policy"
-import { createPolicy } from "@/modules/policies/application/use-cases/create-policy"
-import { deleteDraftPolicy } from "@/modules/policies/application/use-cases/delete-draft-policy"
-import { createPolicyVersion } from "@/modules/policies/application/use-cases/create-policy-version"
-import { applyPolicyPreset } from "@/modules/policies/application/use-cases/apply-policy-preset"
-import { listPolicyHistory } from "@/modules/policies/application/use-cases/list-policy-history"
+import {
+	activatePolicy,
+	applyPolicyPreset,
+	assignPolicyGroup,
+	buildPolicySnapshot,
+	createPolicy,
+	createPolicyVersion,
+	deleteDraftPolicy,
+	getPolicy,
+	listAssignedPolicies,
+	listPolicyHistory,
+	resolvePolicies,
+	resolvePolicyByHierarchy,
+	runPolicyCompiler,
+	unassignPolicyGroup,
+} from "@/modules/policies/public"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -85,6 +100,11 @@ export const productRepository = new ProductRepository()
 export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
 export const hotelRoomRepository = new HotelRoomRepository()
+export const taxFeeRepository = new TaxFeeRepository()
+export const catalogRestrictionRepository = new CatalogRestrictionRepository()
+export const cancellationPolicyRepository = new CancellationPolicyRepository()
+export const productServiceRepository = new ProductServiceRepository()
+export const productImageRepository = new ProductImageRepository()
 
 export const policyReadRepository = new PolicyReadRepository()
 export const policyCommandRepository = new PolicyCommandRepository()
@@ -100,6 +120,7 @@ export const legacyPriceRuleRepository = new LegacyPriceRuleRepository()
 export const ratePlanEngine = new RatePlanEngine()
 export const pricingEngine = new PricingEngine()
 export const restrictionRuleEngine = new RestrictionRuleEngine()
+export const promotionEngine = new PromotionEngine()
 
 // ---- Service singletons ----
 export const availabilityService = new AvailabilityService(dailyInventoryRepository)
@@ -123,7 +144,7 @@ export const pricingComputationService = new PricingComputationService(
 )
 
 // ---- Search singletons ----
-export const searchAdapterRegistry = new SearchAdapterRegistry()
+export const searchAdapterRegistry = new SearchAdapterRegistry<SearchUnit>()
 export const hotelAdapter = new HotelAdapter({
 	inventoryRepo: legacyDailyInventoryRepository,
 	ratePlanRepo: legacyRatePlanRepository,
@@ -132,14 +153,41 @@ export const hotelAdapter = new HotelAdapter({
 })
 searchAdapterRegistry.register("hotel_room", hotelAdapter)
 
-export const searchContextLoader = new SearchContextLoader(searchAdapterRegistry)
-export const searchPipeline = new SearchPipeline(searchContextLoader)
+export const searchContextLoader = new SearchContextLoader<SearchUnit>(searchAdapterRegistry)
 
-export const variantQueryAdapter = new VariantQueryAdapter(variantRepository)
-export const buildOffers = new BuildOffersUseCase({
+const searchPricingPort = new PricingPortAdapter({
+	adaptPriceRule,
+	pricingEngine,
+})
+const searchRestrictionPort = new RestrictionPortAdapter({
+	restrictionEngine: restrictionRuleEngine,
+})
+const searchPromotionPort = new PromotionPortAdapter({
+	promotionEngine,
+})
+
+export const searchPipeline = new SearchPipeline<SearchUnit>(searchContextLoader, undefined, {
+	restrictions: searchRestrictionPort,
+	pricing: searchPricingPort,
+	promotions: searchPromotionPort,
+})
+
+export const variantQueryAdapter = new VariantQueryAdapter<SearchUnit>(variantRepository)
+export const buildOffers = new BuildOffersUseCase<SearchUnit>({
 	variantQuery: variantQueryAdapter,
 	searchPipeline,
 })
+
+// Legacy global query moved here: container is the single composition root.
+export async function searchOffers(params: {
+	productId: string
+	checkIn: Date
+	checkOut: Date
+	adults: number
+	children: number
+}): Promise<SearchOffer<SearchUnit>[]> {
+	return buildOffers.execute(params)
+}
 
 export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]) {
 	return createRoom({ roomRepo: roomRepository, inventoryBootstrap: inventoryBootstrapper }, params)

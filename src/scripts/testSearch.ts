@@ -1,12 +1,7 @@
-import { SearchPipeline } from "@/modules/search/application/SearchPipeline"
-import { SearchContextLoader } from "@/modules/search/application/SearchContextLoader"
-import { searchAdapterRegistry } from "@/container"
+import { searchPipeline } from "@/container"
 
 async function run() {
-	const loader = new SearchContextLoader(searchAdapterRegistry)
-	const pipeline = new SearchPipeline(loader)
-
-	const result = await pipeline.run({
+	const result = await searchPipeline.run({
 		productId: "YOUR_PRODUCT_ID",
 		unitId: "YOUR_VARIANT_ID",
 		unitType: "hotel_room",

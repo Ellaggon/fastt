@@ -1,7 +1,7 @@
 // src/jobs/RecomputeEffectiveInventoryJob.ts
 
 import { db, DailyInventory } from "astro:db"
-import { RecomputeInventoryService } from "@/core/inventory/RecomputeInventoryService"
+import { RecomputeInventoryService } from "@/modules/inventory/infrastructure/services/RecomputeInventoryService"
 
 export async function runInventoryRecomputeJob() {
 	const service = new RecomputeInventoryService()
