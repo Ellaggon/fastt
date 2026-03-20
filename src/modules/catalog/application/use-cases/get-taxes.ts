@@ -1,10 +1,13 @@
-import { db, TaxFee, eq } from "astro:db"
+import type { TaxFeeRepositoryPort } from "../ports/TaxFeeRepositoryPort"
 
-export async function getTaxes(productId: string): Promise<Response> {
+export async function getTaxes(
+	deps: { repo: TaxFeeRepositoryPort },
+	productId: string
+): Promise<Response> {
 	if (!productId)
 		return new Response(JSON.stringify({ error: "Missing productId" }), { status: 400 })
 
-	const taxes = await db.select().from(TaxFee).where(eq(TaxFee.productId, productId)).all()
+	const taxes = await deps.repo.listTaxFeesByProduct(productId)
 
 	return new Response(JSON.stringify({ taxes }), {
 		headers: { "Content-Type": "application/json" },

@@ -1,12 +1,12 @@
-import { computeRestrictionPriority } from "@/core/restrictions/restrictions.priority"
-import { toISODate } from "@/core/date/date.utils"
-import { db, and, eq, lte, gte, Restriction } from "astro:db"
+import { computeRestrictionPriority } from "@/modules/policies/public"
+import { toISODate } from "@/shared/domain/date/date.utils"
 import { randomUUID } from "node:crypto"
+import type { CatalogRestrictionRepositoryPort } from "../ports/CatalogRestrictionRepositoryPort"
 
-export async function createRestriction(params: {
-	productId: string
-	body: any
-}): Promise<Response> {
+export async function createRestriction(
+	deps: { repo: CatalogRestrictionRepositoryPort },
+	params: { productId: string; body: any }
+): Promise<Response> {
 	const { productId, body } = params
 	if (!productId) {
 		return new Response(JSON.stringify({ error: "Missing productId" }), { status: 400 })
@@ -21,33 +21,28 @@ export async function createRestriction(params: {
 	const startISO = toISODate(new Date(startDate))
 	const endISO = toISODate(new Date(endDate))
 
-	const overlap = await db
-		.select()
-		.from(Restriction)
-		.where(
-			and(
-				eq(Restriction.scope, scope),
-				eq(Restriction.scopeId, scopeId),
-				eq(Restriction.type, type),
-				lte(Restriction.startDate, endISO),
-				gte(Restriction.endDate, startISO)
-			)
-		)
+	const hasOverlap = await deps.repo.findOverlap({
+		scope,
+		scopeId,
+		type,
+		startDateISO: startISO,
+		endDateISO: endISO,
+	})
 
-	if (overlap.length) {
+	if (hasOverlap) {
 		return new Response(JSON.stringify({ error: "Restriction overlaps existing rule" }), {
 			status: 409,
 		})
 	}
 
-	await db.insert(Restriction).values({
+	await deps.repo.createRestriction({
 		id: randomUUID(),
 		scope,
 		scopeId,
 		type,
 		value,
-		startDate: startISO,
-		endDate: endISO,
+		startDateISO: startISO,
+		endDateISO: endISO,
 		validDays,
 		isActive: isActive ?? true,
 		priority: computeRestrictionPriority(body.scope, body.type),

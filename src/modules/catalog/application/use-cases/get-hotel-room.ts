@@ -1,9 +1,9 @@
-import { and, db, eq, HotelRoomAmenity, HotelRoomType, Image, Variant } from "astro:db"
+import type { HotelRoomQueryRepositoryPort } from "../ports/HotelRoomQueryRepositoryPort"
 
-export async function getHotelRoom(params: {
-	hotelId: string
-	hotelRoomId: string
-}): Promise<Response> {
+export async function getHotelRoom(
+	deps: { repo: HotelRoomQueryRepositoryPort },
+	params: { hotelId: string; hotelRoomId: string }
+): Promise<Response> {
 	const { hotelId, hotelRoomId } = params
 
 	if (!hotelId || !hotelRoomId)
@@ -11,36 +11,16 @@ export async function getHotelRoom(params: {
 			status: 400,
 		})
 
-	const row = await db
-		.select()
-		.from(HotelRoomType)
-		.where(and(eq(HotelRoomType.hotelId, hotelId), eq(HotelRoomType.id, hotelRoomId)))
-		.get()
-
-	if (!row) return new Response(JSON.stringify({ found: false }), { status: 200 })
-
-	const variant = await db.select().from(Variant).where(eq(Variant.entityId, row.id)).get()
-
-	const amenities = await db
-		.select({ amenityId: HotelRoomAmenity.amenityId })
-		.from(HotelRoomAmenity)
-		.where(eq(HotelRoomAmenity.hotelRoomTypeId, row.id))
-		.all()
-
-	const images = await db
-		.select()
-		.from(Image)
-		.where(and(eq(Image.entityType, "hotel_room"), eq(Image.entityId, row.id)))
-		.orderBy(Image.order)
-		.all()
+	const bundle = await deps.repo.getHotelRoomBundle({ hotelId, hotelRoomId })
+	if (!bundle) return new Response(JSON.stringify({ found: false }), { status: 200 })
 
 	return new Response(
 		JSON.stringify({
 			found: true,
-			row,
-			variant,
-			amenities: amenities.map((a) => a.amenityId),
-			images,
+			row: bundle.row,
+			variant: bundle.variant,
+			amenities: bundle.amenities,
+			images: bundle.images,
 		}),
 		{ status: 200 }
 	)

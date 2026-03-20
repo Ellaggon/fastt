@@ -1,11 +1,10 @@
-import { db, eq, and, lte, gte, ne, Restriction } from "astro:db"
-import { toISODate } from "@/core/date/date.utils"
+import { toISODate } from "@/shared/domain/date/date.utils"
+import type { CatalogRestrictionRepositoryPort } from "../ports/CatalogRestrictionRepositoryPort"
 
-export async function updateRestriction(params: {
-	productId: string
-	ruleId: string
-	body: any
-}): Promise<Response> {
+export async function updateRestriction(
+	deps: { repo: CatalogRestrictionRepositoryPort },
+	params: { productId: string; ruleId: string; body: any }
+): Promise<Response> {
 	const { productId, ruleId, body } = params
 
 	if (!productId || !ruleId) {
@@ -32,29 +31,25 @@ export async function updateRestriction(params: {
 
 	// 🔒 Validación de solapamiento por tipo + scope
 	if (type && fromISO && toISO) {
-		const overlap = await db
-			.select()
-			.from(Restriction)
-			.where(
-				and(
-					eq(Restriction.scopeId, productId),
-					eq(Restriction.type, type),
-					lte(Restriction.startDate, toISO),
-					gte(Restriction.endDate, fromISO),
-					ne(Restriction.id, ruleId)
-				)
-			)
+		const hasOverlap = await deps.repo.findOverlap({
+			scope: scope ?? "product",
+			scopeId: scopeId ?? productId,
+			type,
+			startDateISO: fromISO,
+			endDateISO: toISO,
+			excludeId: ruleId,
+		})
 
-		if (overlap.length) {
+		if (hasOverlap) {
 			return new Response(JSON.stringify({ error: "Restricción solapada en fechas" }), {
 				status: 409,
 			})
 		}
 	}
 
-	await db
-		.update(Restriction)
-		.set({
+	await deps.repo.updateRestriction({
+		ruleId,
+		patch: {
 			...(type && { type }),
 			...(value !== undefined && { value }),
 			...(fromISO && { startDate: fromISO }),
@@ -63,8 +58,8 @@ export async function updateRestriction(params: {
 			...(isActive !== undefined && { isActive }),
 			...(scope && { scope }),
 			...(scopeId !== undefined && { scopeId }),
-		})
-		.where(eq(Restriction.id, ruleId))
+		},
+	})
 
 	return new Response(JSON.stringify({ success: true }), {
 		status: 200,

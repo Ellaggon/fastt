@@ -4,14 +4,13 @@ import {
 	tourSchema,
 	packageSchema,
 } from "@/schemas/product/subtype"
-import { db } from "astro:db"
 
 export async function createProductSubtype(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
 	subtypeExists: (productId: string, subtype: "hotel" | "tour" | "package") => Promise<boolean>
-	insertHotel: (dbOrTx: any, data: any) => Promise<any>
-	insertTour: (dbOrTx: any, data: any) => Promise<any>
-	insertPackage: (dbOrTx: any, data: any) => Promise<any>
+	insertHotel: (data: any) => Promise<any>
+	insertTour: (data: any) => Promise<any>
+	insertPackage: (data: any) => Promise<any>
 	providerId: string
 	form: FormData
 }): Promise<Response> {
@@ -64,7 +63,7 @@ export async function createProductSubtype(params: {
 		if (!parsed.success) {
 			return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 		}
-		await insertHotel(db as any, parsed.data as any)
+		await insertHotel(parsed.data as any)
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	}
 
@@ -82,7 +81,7 @@ export async function createProductSubtype(params: {
 		if (!parsed.success) {
 			return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 		}
-		await insertTour(db as any, parsed.data as any)
+		await insertTour(parsed.data as any)
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	}
 
@@ -98,6 +97,6 @@ export async function createProductSubtype(params: {
 	if (!parsed.success) {
 		return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 	}
-	await insertPackage(db as any, parsed.data as any)
+	await insertPackage(parsed.data as any)
 	return new Response(JSON.stringify({ ok: true }), { status: 200 })
 }

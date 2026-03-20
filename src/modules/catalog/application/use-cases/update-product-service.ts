@@ -1,7 +1,8 @@
-import { db, eq, ProductService, ProductServiceAttribute } from "astro:db"
+import type { ProductServiceRepositoryPort } from "../ports/ProductServiceRepositoryPort"
 
 export async function updateProductService(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
+	repo: ProductServiceRepositoryPort
 	providerId: string
 	productId: string
 	psId: string
@@ -14,6 +15,7 @@ export async function updateProductService(params: {
 }): Promise<Response> {
 	const {
 		ensureOwned,
+		repo,
 		providerId,
 		productId,
 		psId,
@@ -38,35 +40,14 @@ export async function updateProductService(params: {
 		}
 	}
 
-	await db.transaction(async (tx) => {
-		// 3. Actualizar tabla principal ProductService
-		await tx
-			.update(ProductService)
-			.set({
-				price,
-				priceUnit,
-				currency,
-				appliesTo,
-				notes,
-			})
-			.where(eq(ProductService.id, psId))
-
-		// 4. Procesar Atributos Dinámicos (los que empiezan con attr_)
-		// Primero borramos los anteriores para este servicio
-		await tx
-			.delete(ProductServiceAttribute)
-			.where(eq(ProductServiceAttribute.productServiceId, psId))
-
-		if (attributes.length > 0) {
-			await tx.insert(ProductServiceAttribute).values(
-				attributes.map((a) => ({
-					id: crypto.randomUUID(),
-					productServiceId: psId,
-					key: a.key,
-					value: a.value,
-				}))
-			)
-		}
+	await repo.updateProductService({
+		psId,
+		price,
+		priceUnit,
+		currency,
+		appliesTo,
+		notes,
+		attributes,
 	})
 
 	return new Response(JSON.stringify({ ok: true }), { status: 200 })

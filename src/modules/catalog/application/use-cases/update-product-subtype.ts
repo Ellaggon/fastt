@@ -1,15 +1,14 @@
-import { db } from "astro:db"
-
 export async function updateProductSubtype(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
+	runInTransaction: (fn: (tx: any) => Promise<void>) => Promise<void>
 	subtypeExists: (
 		dbOrTx: any,
 		productId: string,
 		subtype: "hotel" | "tour" | "package"
 	) => Promise<boolean>
-	updateHotel: (dbOrTx: any, productId: string, data: any) => Promise<void>
-	updateTour: (dbOrTx: any, productId: string, data: any) => Promise<void>
-	updatePackage: (dbOrTx: any, productId: string, data: any) => Promise<void>
+	updateHotel: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
+	updateTour: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
+	updatePackage: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
 	insertHotel: (dbOrTx: any, data: any) => Promise<any>
 	insertTour: (dbOrTx: any, data: any) => Promise<any>
 	insertPackage: (dbOrTx: any, data: any) => Promise<any>
@@ -20,6 +19,7 @@ export async function updateProductSubtype(params: {
 }): Promise<Response> {
 	const {
 		ensureOwned,
+		runInTransaction,
 		subtypeExists,
 		updateHotel,
 		updateTour,
@@ -50,7 +50,7 @@ export async function updateProductSubtype(params: {
 	}
 
 	// Upsert subtype inside a transaction
-	await db.transaction(async (tx) => {
+	await runInTransaction(async (tx) => {
 		const exists = await subtypeExists(tx as any, productId, subtypeType)
 		if (exists) {
 			if (subtypeType === "hotel") await updateHotel(tx as any, productId, subtype || {})

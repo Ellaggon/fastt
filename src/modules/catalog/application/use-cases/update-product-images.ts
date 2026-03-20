@@ -1,14 +1,15 @@
-import { db, Image, eq, asc } from "astro:db"
 import { r2 } from "@/lib/upload/r2"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import type { ProductImageRepositoryPort } from "../ports/ProductImageRepositoryPort"
 
 export async function updateProductImages(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
+	repo: ProductImageRepositoryPort
 	providerId: string
 	productId: string
 	images: { id?: string; url: string; isPrimary?: boolean }[]
 }): Promise<Response> {
-	const { ensureOwned, providerId, productId, images } = params
+	const { ensureOwned, repo, providerId, productId, images } = params
 
 	// ownership
 	const product = await ensureOwned(productId, providerId)
@@ -17,7 +18,7 @@ export async function updateProductImages(params: {
 	}
 
 	// fetch existing images
-	const existing = await db.select().from(Image).where(eq(Image.entityId, productId)).all()
+	const existing = await repo.listByProduct(productId)
 
 	// determine deletion (existing rows that are not present in incoming images by id)
 	const incomingIds = new Set(images.filter((i) => i.id).map((i) => i.id!))
@@ -39,17 +40,15 @@ export async function updateProductImages(params: {
 				updates.url = img.url
 			}
 			try {
-				await db.update(Image).set(updates).where(eq(Image.id, img.id))
+				await repo.updateImage(img.id, updates)
 			} catch (e) {
 				console.error("Failed to update Image row", e)
 			}
 		} else {
 			// insert new row
 			try {
-				await db.insert(Image).values({
-					id: crypto.randomUUID(),
-					entityId: productId,
-					entityType: "Product",
+				await repo.insertImage({
+					productId,
 					url: img.url,
 					order: i,
 					isPrimary: !!img.isPrimary,
@@ -64,7 +63,7 @@ export async function updateProductImages(params: {
 	const r2KeysToDelete: string[] = []
 	for (const row of toDelete as any[]) {
 		try {
-			await db.delete(Image).where(eq(Image.id, row.id))
+			await repo.deleteImage(row.id)
 			if (row.url) {
 				try {
 					const key = new URL(row.url).pathname.replace(/^\/+/, "")
@@ -89,11 +88,6 @@ export async function updateProductImages(params: {
 	}
 
 	// return updated list
-	const updated = await db
-		.select()
-		.from(Image)
-		.where(eq(Image.entityId, productId))
-		.orderBy(asc(Image.order))
-		.all()
+	const updated = await repo.listOrderedByProduct(productId)
 	return new Response(JSON.stringify({ ok: true, images: updated }), { status: 200 })
 }

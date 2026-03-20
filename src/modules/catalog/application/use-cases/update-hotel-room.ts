@@ -1,6 +1,7 @@
-import { and, db, eq, HotelRoomAmenity, HotelRoomType, Image, Variant } from "astro:db"
+import type { HotelRoomQueryRepositoryPort } from "../ports/HotelRoomQueryRepositoryPort"
 
 export async function updateHotelRoom(
+	deps: { repo: HotelRoomQueryRepositoryPort },
 	form: FormData,
 	params: { hotelId: string }
 ): Promise<Response> {
@@ -31,68 +32,29 @@ export async function updateHotelRoom(
 		const imagesRaw = form.get("images")
 		const finalImages: string[] = imagesRaw ? JSON.parse(String(imagesRaw)) : []
 
-		await db
-			.update(HotelRoomType)
-			.set({
-				totalRooms,
-				sizeM2,
-				bathroom,
-				hasBalcony,
-				hasView,
-				maxOccupancyOverride: maxOccupancy,
-				bedType: bedTypes.length ? bedTypes : null,
-			})
-			.where(eq(HotelRoomType.id, hotelRoomId))
+		const basePriceRaw = form.get("basePrice")
+		const basePrice = basePriceRaw ? Number(basePriceRaw) : null
+		const isActive = form.has("isActive")
 
-		const variant = await db.select().from(Variant).where(eq(Variant.entityId, hotelRoomId)).get()
-
-		if (variant) {
-			const basePrice = form.get("basePrice")
-				? Number(form.get("basePrice"))
-				: (variant as any).basePrice
-			const isActive = form.has("isActive")
-
-			await db
-				.update(Variant)
-				.set({
-					name: name || "Habitación",
-					description,
-					currency,
-					basePrice,
-					isActive,
-				})
-				.where(eq(Variant.id, (variant as any).id))
-		}
-
-		await db.delete(HotelRoomAmenity).where(eq(HotelRoomAmenity.hotelRoomTypeId, hotelRoomId))
-
-		if (amenities.length > 0) {
-			await db.insert(HotelRoomAmenity).values(
-				amenities.map((amenityId) => ({
-					id: crypto.randomUUID(),
-					hotelRoomTypeId: hotelRoomId,
-					amenityId,
-					isAvailable: true,
-				}))
-			)
-		}
-
-		await db
-			.delete(Image)
-			.where(and(eq(Image.entityType, "hotel_room"), eq(Image.entityId, hotelRoomId)))
-
-		if (finalImages.length > 0) {
-			await db.insert(Image).values(
-				finalImages.map((url, idx) => ({
-					id: crypto.randomUUID(),
-					entityType: "hotel_room",
-					entityId: hotelRoomId,
-					url,
-					order: idx,
-					isPrimary: idx === 0,
-				}))
-			)
-		}
+		await deps.repo.updateHotelRoom({
+			hotelRoomId,
+			totalRooms,
+			sizeM2,
+			bathroom,
+			hasBalcony,
+			hasView,
+			maxOccupancyOverride: maxOccupancy,
+			bedType: bedTypes.length ? bedTypes : null,
+			variant: {
+				name: name || "Habitación",
+				description,
+				currency,
+				basePrice,
+				isActive,
+			},
+			amenityIds: amenities,
+			imageUrls: finalImages,
+		})
 
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	} catch (e) {

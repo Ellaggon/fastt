@@ -1,10 +1,11 @@
-import { db, eq, PolicyAssignment } from "astro:db"
+import type { CancellationPolicyRepositoryPort } from "../ports/CancellationPolicyRepositoryPort"
 
 export async function toggleCancellationPolicyAssignment(params: {
+	repo: CancellationPolicyRepositoryPort
 	assignmentId: string
 	isActive: boolean
 }): Promise<Response> {
-	const { assignmentId, isActive } = params
-	await db.update(PolicyAssignment).set({ isActive }).where(eq(PolicyAssignment.id, assignmentId))
+	const { repo, assignmentId, isActive } = params
+	await repo.toggleAssignment({ assignmentId, isActive })
 	return new Response(JSON.stringify({ success: true }))
 }

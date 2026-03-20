@@ -1,0 +1,43 @@
+// Public API for the catalog module.
+// External consumers MUST import from "@/modules/catalog/public".
+// NOTE: Infrastructure exports exist only to support composition-root wiring (container).
+
+// Application use-cases
+export * from "./application/use-cases/create-cancellation-policy"
+export * from "./application/use-cases/create-product"
+export * from "./application/use-cases/create-product-subtype"
+export * from "./application/use-cases/create-product-with-r2-rollback"
+export * from "./application/use-cases/create-restriction"
+export * from "./application/use-cases/create-room"
+export * from "./application/use-cases/create-tax"
+export * from "./application/use-cases/delete-hotel-room"
+export * from "./application/use-cases/delete-product"
+export * from "./application/use-cases/delete-product-service"
+export * from "./application/use-cases/delete-restriction"
+export * from "./application/use-cases/delete-tax"
+export * from "./application/use-cases/get-cancellation-policies"
+export * from "./application/use-cases/get-hotel-room"
+export * from "./application/use-cases/get-restriction-rate-plans"
+export * from "./application/use-cases/get-restriction-rooms"
+export * from "./application/use-cases/get-restrictions"
+export * from "./application/use-cases/get-taxes"
+export * from "./application/use-cases/sync-product-services"
+export * from "./application/use-cases/toggle-cancellation-policy-assignment"
+export * from "./application/use-cases/update-cancellation-policy"
+export * from "./application/use-cases/update-hotel-room"
+export * from "./application/use-cases/update-product"
+export * from "./application/use-cases/update-product-images"
+export * from "./application/use-cases/update-product-service"
+export * from "./application/use-cases/update-product-subtype"
+export * from "./application/use-cases/update-restriction"
+export * from "./application/use-cases/update-tax"
+
+// Application ports (types/interfaces)
+export * from "./application/ports/CancellationPolicyRepositoryPort"
+export * from "./application/ports/CatalogRestrictionRepositoryPort"
+export * from "./application/ports/HotelRoomQueryRepositoryPort"
+export * from "./application/ports/ProductImageRepositoryPort"
+export * from "./application/ports/ProductRepositoryPort"
+export * from "./application/ports/ProductServiceRepositoryPort"
+export * from "./application/ports/RoomRepositoryPort"
+export * from "./application/ports/TaxFeeRepositoryPort"

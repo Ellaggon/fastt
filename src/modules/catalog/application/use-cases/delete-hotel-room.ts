@@ -1,11 +1,12 @@
-import { db, HotelRoomType, eq } from "astro:db"
+import type { HotelRoomQueryRepositoryPort } from "../ports/HotelRoomQueryRepositoryPort"
 
 export async function deleteHotelRoom(params: {
 	hotelId: string
 	hotelRoomId: string
 	deleteCascade: (hotelRoomId: string) => Promise<void>
+	repo: HotelRoomQueryRepositoryPort
 }): Promise<Response> {
-	const { hotelId, hotelRoomId, deleteCascade } = params
+	const { hotelId, hotelRoomId, deleteCascade, repo } = params
 
 	if (!hotelId || !hotelRoomId) {
 		return new Response(JSON.stringify({ error: "Faltan parámetros obligatorios" }), {
@@ -14,7 +15,7 @@ export async function deleteHotelRoom(params: {
 	}
 
 	// 1️⃣ Verificar que exista
-	const room = await db.select().from(HotelRoomType).where(eq(HotelRoomType.id, hotelRoomId)).get()
+	const room = await repo.getHotelRoomById(hotelRoomId)
 
 	if (!room) {
 		return new Response(JSON.stringify({ error: "La habitación no existe" }), { status: 404 })

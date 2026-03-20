@@ -1,22 +1,16 @@
-import { db, eq, RatePlan, RatePlanTemplate, Variant } from "astro:db"
+import type { CatalogRestrictionRepositoryPort } from "../ports/CatalogRestrictionRepositoryPort"
 
-export async function getRestrictionRatePlans(productId: string): Promise<Response> {
+export async function getRestrictionRatePlans(
+	deps: { repo: CatalogRestrictionRepositoryPort },
+	productId: string
+): Promise<Response> {
 	const pid = String(productId || "")
 
 	if (!pid) {
 		return new Response(JSON.stringify({ ratePlans: [] }), { status: 400 })
 	}
 
-	const ratePlans = await db
-		.select({
-			id: RatePlan.id,
-			name: RatePlanTemplate.name,
-		})
-		.from(RatePlan)
-		.innerJoin(RatePlanTemplate, eq(RatePlan.templateId, RatePlanTemplate.id))
-		.innerJoin(Variant, eq(RatePlan.variantId, Variant.id))
-		.where(eq(Variant.productId, pid))
-		.all()
+	const ratePlans = await deps.repo.listRestrictionRatePlans(pid)
 
 	return new Response(JSON.stringify({ ratePlans }), { status: 200 })
 }

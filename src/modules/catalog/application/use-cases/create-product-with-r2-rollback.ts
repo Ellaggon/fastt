@@ -10,12 +10,12 @@ export async function createProductWithR2Rollback(params: {
 		providerId: string | null
 		destinationId: string
 		images: string[]
-	}) => Promise<void>
+	}) => Promise<{ id: string }>
 	id: string
 	providerId: string
 	name: string
 	productType: "Hotel" | "Tour" | "Package"
-	description: string
+	description?: string
 	destinationId: string
 	images: string[]
 }): Promise<Response> {

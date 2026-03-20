@@ -1,5 +1,5 @@
 import type { RoomRepositoryPort } from "../ports/RoomRepositoryPort"
-import type { InventoryBootstrapPort } from "@/modules/inventory/application/ports/InventoryBootstrapPort"
+import type { InventoryBootstrapPort } from "@/modules/inventory/public"
 
 export interface CreateRoomDeps {
 	roomRepo: RoomRepositoryPort

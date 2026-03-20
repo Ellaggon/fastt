@@ -30,6 +30,21 @@ type DrizzleTx = Parameters<Parameters<DrizzleDB["transaction"]>[0]>[0]
 export type DBOrTx = DrizzleDB | DrizzleTx
 
 export class SubtypeRepository {
+	async runInTransaction<T>(fn: (tx: DrizzleTx) => Promise<T>): Promise<T> {
+		return db.transaction(async (tx) => fn(tx))
+	}
+
+	// Convenience helpers so application code doesn't need to import `astro:db`.
+	async insertHotelStandalone(data: HotelPayload) {
+		return this.insertHotel(db, data)
+	}
+	async insertTourStandalone(data: TourPayload) {
+		return this.insertTour(db, data)
+	}
+	async insertPackageStandalone(data: PackagePayload) {
+		return this.insertPackage(db, data)
+	}
+
 	/* ---------- HOTEL ---------- */
 	async insertHotel(dbOrTx: DBOrTx, data: HotelPayload) {
 		return await dbOrTx.insert(Hotel).values({
