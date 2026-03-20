@@ -1,7 +1,6 @@
 import type { VariantQueryPort } from "../ports/VariantQueryPort"
 import { isUnitType } from "../../domain/unit.types"
-import type { SearchPipeline } from "../SearchPipeline"
-import type { SearchRatePlanOffer } from "../SearchPipeline"
+import type { SearchPipeline, SearchRatePlanOffer } from "../SearchPipeline"
 import type { SellableUnit } from "../../domain/unit.types"
 
 export type SearchOffer<TUnit extends SellableUnit> = {

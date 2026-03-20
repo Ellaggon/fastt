@@ -1,9 +1,7 @@
 import { AvailabilityGridEngine } from "@/shared/domain/availability/AvailabilityGridEngine"
 
 import type { SearchContext } from "./ports/SellableUnitAdapterPort"
-import type { SearchMemory } from "../domain/unit.types"
-import type { SellableUnit } from "../domain/unit.types"
-import type { InventorySnapshot } from "../domain/unit.types"
+import type { SearchMemory, SellableUnit, InventorySnapshot } from "../domain/unit.types"
 import type { AppliedPriceRule } from "../domain/pricing.types"
 import type { PricingPort } from "./ports/PricingPort"
 import type { RestrictionPort } from "./ports/RestrictionPort"
@@ -22,7 +20,7 @@ export interface ISearchContextLoader<TUnit extends SellableUnit = SellableUnit>
 export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 	constructor(
 		private loader: ISearchContextLoader<TUnit>,
-		// private loader = new SearchContextLoader(globalAdapterRegistry),
+		// private loader = new SearchContextLoader(globalRegistry),
 		// private loader: { load(ctx: SearchContext): Promise<SearchMemory> },
 		private availabilityEngine = new AvailabilityGridEngine(),
 		private deps: {
