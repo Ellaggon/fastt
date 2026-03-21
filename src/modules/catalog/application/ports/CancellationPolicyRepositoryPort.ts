@@ -5,6 +5,16 @@ export interface CancellationPolicyRepositoryPort {
 		tiers: unknown[]
 	}): Promise<void>
 
+	listActiveCancellationPolicies(): Promise<
+		Array<{
+			id: string
+			groupId: string
+			version: number
+			status: string
+			description: string
+		}>
+	>
+
 	getCancellationPolicies(productId: string): Promise<unknown[]>
 
 	updateCancellationPolicy(params: {
