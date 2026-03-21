@@ -1,9 +1,16 @@
 ---
-import { Building2, HandCoins, HandPlatter, Handshake, LogOut, PackageSearch, Scale } from "@lucide/astro"
-import { SignOut } from "auth-astro/components"
-import { getSession } from "auth-astro/server"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	Building2,
+	HandCoins,
+	HandPlatter,
+	Handshake,
+	LogOut,
+	PackageSearch,
+	Scale,
+} from "@lucide/astro"
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 const pathname = Astro.url.pathname
 const id = Astro.params.id
 ---
@@ -81,12 +88,17 @@ const id = Astro.params.id
 			<Handshake />
 			<p>Reglas Operativas</p>
 		</a>
-		<SignOut
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<LogOut />
-			<p>Salir</p>
-		</SignOut>
+		{
+			user && (
+				<a
+					href="/api/auth/logout"
+					class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+				>
+					<LogOut />
+					<p>Salir</p>
+				</a>
+			)
+		}
 	</article>
 </nav>
 
