@@ -1,17 +1,18 @@
-import { getSession } from "auth-astro/server"
 import { providerRepository } from "@/container"
+import { getUserFromRequest } from "./getUserFromRequest"
 
 /**
- * Recupera el provider.id del usuario logueado (por email).
- * Retorna null si no hay sesión o no es proveedor.
+ * Compatibility helper used by existing pages/routes.
  *
- * Nota: esto NO vive en `src/lib/db/*` para evitar que exista una “segunda capa”
- * de persistencia paralela. El acceso a DB ocurre detrás de ProviderRepository.
+ * Returns the providerId for the authenticated user's email, or null if:
+ * - no authenticated user
+ * - user has no email
+ * - user is not associated to a provider
  */
 export async function getProviderIdFromRequest(request: Request): Promise<string | null> {
-	const session = await getSession(request)
-	if (!session?.user?.email) return null
+	const user = await getUserFromRequest(request)
+	if (!user?.email) return null
 
-	const r = await providerRepository.getProviderByEmail(session.user.email)
-	return r?.id ?? null
+	const provider = await providerRepository.getProviderByEmail(user.email)
+	return provider?.id ?? null
 }
