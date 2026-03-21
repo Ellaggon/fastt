@@ -31,11 +31,9 @@
     "@lucide/astro": "^0.545.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
-    "auth-astro": "4.2.0",
     "cookie": "1.0.2",
     "dotenv": "^17.3.1",
     "leaflet": "^1.9.4",
-    "next-auth": "4.24.11",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "3.4.17",
@@ -66,8 +64,5 @@
     "tsx": "^4.21.0",
     "vitest": "^4.0.18"
   },
-  "overrides": {
-    "@auth/core": "0.40.0",
-    "path-to-regexp": "^7.0.0"
-  }
+  "overrides": {}
 }
