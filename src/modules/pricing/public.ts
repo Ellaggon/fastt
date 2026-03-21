@@ -20,6 +20,8 @@ export * from "./domain/rate-plans/ratePlan.types"
 export * from "./application/use-cases/build-create-rateplan-spec"
 export * from "./application/use-cases/compute-and-persist-daily-price"
 export * from "./application/use-cases/create-rateplan"
+export * from "./application/use-cases/update-rateplan-legacy"
+export * from "./application/use-cases/delete-rateplan-legacy"
 export * from "./application/use-cases/select-best-rateplan"
 
 // Application services
@@ -33,3 +35,19 @@ export * from "./application/ports/VariantRepositoryPort"
 export * from "./application/ports/PriceRuleRepositoryPort"
 export * from "./application/ports/RatePlanCommandRepositoryPort"
 export * from "./application/ports/index"
+
+// Runtime queries (wired in container). Async wrapper to avoid eager container/DB load in unit tests.
+export async function getVariantById(variantId: string) {
+	const { getVariantById } = await import("@/container")
+	return getVariantById(variantId)
+}
+
+export async function getRatePlanById(ratePlanId: string) {
+	const { getRatePlanById } = await import("@/container")
+	return getRatePlanById(ratePlanId)
+}
+
+export async function listRatePlansByVariant(variantId: string) {
+	const { listRatePlansByVariant } = await import("@/container")
+	return listRatePlansByVariant(variantId)
+}

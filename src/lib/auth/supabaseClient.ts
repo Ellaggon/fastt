@@ -4,20 +4,10 @@ type SupabaseConfig = {
 	serviceRoleKey?: string
 }
 
-console.log("RAW ENV:", {
-	url: process.env.SUPABASE_URL,
-	anon: process.env.SUPABASE_ANON_KEY,
-})
-
 export function getSupabaseConfig(): SupabaseConfig | null {
 	const rawUrl = process.env.SUPABASE_URL
 	const rawAnonKey = process.env.SUPABASE_ANON_KEY
 	const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-	console.log("RAW ENV:", {
-		url: process.env.SUPABASE_URL,
-		anon: process.env.SUPABASE_ANON_KEY,
-	})
 
 	if (!rawUrl || !rawAnonKey) return null
 

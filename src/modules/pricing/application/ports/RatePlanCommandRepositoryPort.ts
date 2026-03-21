@@ -40,4 +40,27 @@ export interface CreateRatePlanCommand {
 
 export interface RatePlanCommandRepositoryPort {
 	createRatePlan(cmd: CreateRatePlanCommand): Promise<void>
+	updateRatePlan(params: {
+		ratePlanId: string
+		isActive: boolean
+		template: {
+			name: string
+			description: string | null
+			paymentType: string
+			refundable: boolean
+			cancellationPolicyId: string | null
+		}
+		priceRule: null | {
+			id: string
+			ratePlanId: string
+			name: string | null
+			type: string
+			value: number
+			priority: number
+			isActive: boolean
+			createdAt: Date
+		}
+		restrictions: Array<{ type: string; value: number }>
+	}): Promise<"not_found" | "ok">
+	deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok">
 }
