@@ -12,6 +12,29 @@ import { randomUUID } from "node:crypto"
 import type { CancellationPolicyRepositoryPort } from "../../application/ports/CancellationPolicyRepositoryPort"
 
 export class CancellationPolicyRepository implements CancellationPolicyRepositoryPort {
+	async listActiveCancellationPolicies(): Promise<
+		Array<{
+			id: string
+			groupId: string
+			version: number
+			status: string
+			description: string
+		}>
+	> {
+		return db
+			.select({
+				id: Policy.id,
+				groupId: Policy.groupId,
+				version: Policy.version,
+				status: Policy.status,
+				description: Policy.description,
+			})
+			.from(Policy)
+			.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
+			.where(and(eq(PolicyGroup.category, "Cancellation"), eq(Policy.status, "active")))
+			.all()
+	}
+
 	async createCancellationPolicy(params: { productId: string; name: string; tiers: unknown[] }) {
 		const groupId = randomUUID()
 		const policyId = randomUUID()

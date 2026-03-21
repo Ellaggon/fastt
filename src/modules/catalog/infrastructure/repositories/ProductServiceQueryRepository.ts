@@ -1,8 +1,9 @@
-import { db, eq, inArray, ProductService, ProductServiceAttribute, Service } from "astro:db"
+import { db, eq, inArray, and, ProductService, ProductServiceAttribute, Service } from "astro:db"
 import type {
 	ProductServiceQueryRepositoryPort,
 	ProductServiceLinkRow,
 	ProductServiceAttributeRow,
+	ProductServiceConfigRow,
 } from "../../application/ports/ProductServiceQueryRepositoryPort"
 
 export class ProductServiceQueryRepository implements ProductServiceQueryRepositoryPort {
@@ -20,6 +21,52 @@ export class ProductServiceQueryRepository implements ProductServiceQueryReposit
 		).filter((r): r is { serviceId: string; productServiceId: string } => r.serviceId !== null)
 
 		return rows
+	}
+
+	async listServiceConfigs(productId: string): Promise<ProductServiceConfigRow[]> {
+		const rows = await db
+			.select({
+				serviceId: ProductService.serviceId,
+				productServiceId: ProductService.id,
+				price: ProductService.price,
+				priceUnit: ProductService.priceUnit,
+				currency: ProductService.currency,
+				appliesTo: ProductService.appliesTo,
+				notes: ProductService.notes,
+			})
+			.from(ProductService)
+			.where(eq(ProductService.productId, productId))
+			.all()
+
+		return rows as unknown as ProductServiceConfigRow[]
+	}
+
+	async getServiceConfig(params: {
+		productId: string
+		serviceId: string
+	}): Promise<ProductServiceConfigRow | null> {
+		const row = await db
+			.select({
+				serviceId: ProductService.serviceId,
+				productServiceId: ProductService.id,
+				price: ProductService.price,
+				priceUnit: ProductService.priceUnit,
+				currency: ProductService.currency,
+				appliesTo: ProductService.appliesTo,
+				notes: ProductService.notes,
+			})
+			.from(ProductService)
+			.where(
+				and(
+					eq(ProductService.productId, params.productId),
+					eq(ProductService.serviceId, params.serviceId)
+				)
+			)
+			.get()
+
+		// NOTE: preserve current behavior (null when not found)
+		if (!row) return null
+		return row as unknown as ProductServiceConfigRow
 	}
 
 	async listAttributesByProductServiceIds(

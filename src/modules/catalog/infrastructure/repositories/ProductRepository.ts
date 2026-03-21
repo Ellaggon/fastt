@@ -57,6 +57,11 @@ export class ProductRepository implements ProductRepositoryPort {
 		}
 	}
 
+	async getProductById(productId: string) {
+		if (!productId) return null
+		return db.select().from(Product).where(eq(Product.id, productId)).get()
+	}
+
 	/** Verifica que el product exista y pertenezca al providerId */
 	async ensureProductOwnedByProvider(productId: string, providerId: string) {
 		if (!productId || !providerId) return null

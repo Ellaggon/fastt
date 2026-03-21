@@ -5,6 +5,7 @@
 // Application use-cases
 export * from "./application/use-cases/create-cancellation-policy"
 export * from "./application/use-cases/create-product"
+export * from "./application/use-cases/create-provider"
 export * from "./application/use-cases/create-product-subtype"
 export * from "./application/use-cases/create-restriction"
 export * from "./application/use-cases/create-room"
@@ -90,4 +91,34 @@ export async function resolveProductServices(productId: string) {
 export async function resolveRoomImages(roomTypeIds: string[]) {
 	const { resolveRoomImages } = await import("@/container")
 	return resolveRoomImages(roomTypeIds)
+}
+
+export async function getProductBundle(productId: string) {
+	const { getProductBundle } = await import("@/container")
+	return getProductBundle(productId)
+}
+
+export async function getProductById(productId: string) {
+	const { getProductById } = await import("@/container")
+	return getProductById(productId)
+}
+
+export async function listProductServiceConfigs(productId: string) {
+	const { listProductServiceConfigs } = await import("@/container")
+	return listProductServiceConfigs(productId)
+}
+
+export async function getProductServiceConfig(params: { productId: string; serviceId: string }) {
+	const { getProductServiceConfig } = await import("@/container")
+	return getProductServiceConfig(params)
+}
+
+export async function listActiveCancellationPolicies() {
+	const { listActiveCancellationPolicies } = await import("@/container")
+	return listActiveCancellationPolicies()
+}
+
+export async function searchDestinations(params: { q: string; limit: number }) {
+	const { searchDestinations } = await import("@/container")
+	return searchDestinations(params)
 }
