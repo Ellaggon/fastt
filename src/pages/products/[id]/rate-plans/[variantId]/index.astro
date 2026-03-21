@@ -1,6 +1,6 @@
 ---
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { db, eq, Variant } from "astro:db"
+import { getVariantById } from "@/modules/pricing/public"
 
 const { id, variantId } = Astro.params
 if (!variantId || !id) return Astro.redirect("/dashboard")
@@ -12,11 +12,7 @@ const ratePlansRes = await fetch(
 if (!ratePlansRes.ok) return Astro.redirect("/dashboard")
 const ratePlans = await ratePlansRes.json()
 
-const variant = await db
-	.select({ name: Variant.name })
-	.from(Variant)
-	.where(eq(Variant.id, variantId))
-	.get()
+const variant = await getVariantById(variantId)
 
 if (!variant) return Astro.redirect("/dashboard")
 ---

@@ -1,13 +1,11 @@
 <!-- ---
 import { WEEK_DAYS } from "@/data/week-days"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { db,eq,Variant } from "astro:db"
 
 const { variantId, id } = Astro.params
 // if (!variantId) return Astro.redirect("/dashboard")
 
-const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
-// if (!variant) return Astro.redirect("/dashboard")
+// (legacy) variant fetching removed from comment to keep pages free of DB imports
 --- 
 
 <DashboardLayout title="Crear Temporada">

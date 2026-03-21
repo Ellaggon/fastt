@@ -3,23 +3,23 @@ import MapPicker from "@/components/MapPicker.astro"
 import HotelForm from "@/components/productForm/create/HotelForm.astro"
 import PackageForm from "@/components/productForm/create/PackageForm.astro"
 import TourForm from "@/components/productForm/create/TourForm.astro"
-import { productRepository } from "@/container"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getSession } from "auth-astro/server"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductBundle } from "@/modules/catalog/public"
 
 const { hotel } = Astro.props as { hotel: any | null }
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 const paramsId = Astro.params.id
 
 const providerId = await getProviderIdFromRequest(Astro.request)
 if (!providerId) return Astro.redirect("/provider")
 
-if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!user?.email) return Astro.redirect("/SignInPage")
 if (!paramsId) return Astro.redirect("/dashboard")
 
-const productBundle = await productRepository.getProductWithImagesAndSubtype(paramsId)
+const productBundle = await getProductBundle(paramsId)
 if (!productBundle) return Astro.redirect("/dashboard")
 
 if (String(productBundle.product.providerId) !== String(providerId)) {

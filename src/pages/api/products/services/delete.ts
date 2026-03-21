@@ -1,13 +1,17 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { productRepository, productServiceRepository } from "@/container"
-import { getSession } from "auth-astro/server"
 import { deleteProductService } from "@/modules/catalog/public"
+import { requireAuth } from "@/lib/auth/requireAuth"
 
 export const POST: APIRoute = async ({ request }) => {
-	const session = await getSession(request)
-	if (!session?.user?.email) {
-		return new Response("Unauthorized", { status: 401 })
+	try {
+		await requireAuth(request, {
+			unauthorizedResponse: new Response("Unauthorized", { status: 401 }),
+		})
+	} catch (e) {
+		if (e instanceof Response) return e
+		throw e
 	}
 
 	const { productId, serviceId } = await request.json()

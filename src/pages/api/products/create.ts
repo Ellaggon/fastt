@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { getSession } from "auth-astro/server"
 import { createProductUseCase } from "@/container"
 import { createProductWithR2Rollback } from "@/modules/catalog/public"
+import { requireAuth } from "@/lib/auth/requireAuth"
 
 const serverSchema = z.object({
 	providerId: z.string().min(1),
@@ -14,14 +14,16 @@ const serverSchema = z.object({
 })
 
 export const POST: APIRoute = async ({ request }) => {
-	const session = await getSession(request)
-	const email = session?.user?.email
-
-	if (!email) {
-		return new Response(JSON.stringify({ error: "User not authenticated" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
+	try {
+		await requireAuth(request, {
+			unauthorizedResponse: new Response(JSON.stringify({ error: "User not authenticated" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			}),
 		})
+	} catch (e) {
+		if (e instanceof Response) return e
+		throw e
 	}
 
 	try {

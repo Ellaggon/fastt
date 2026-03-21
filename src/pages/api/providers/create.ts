@@ -1,12 +1,13 @@
 import type { APIRoute } from "astro"
-import { db, eq, Provider, User } from "astro:db"
-import { getSession } from "auth-astro/server"
+import { providerRepository } from "@/container"
+import { createProvider } from "@/modules/catalog/public"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		// Obtenemos la session
-		const session = await getSession(request)
-		const email = session?.user?.email
+		// Obtenemos el usuario autenticado (Supabase-ready).
+		const user = await getUserFromRequest(request)
+		const email = user?.email
 
 		const formData = await request.formData()
 		const userEmail = formData.get("userEmail")?.toString()
@@ -24,25 +25,17 @@ export const POST: APIRoute = async ({ request }) => {
 			return new Response(JSON.stringify({ error: "Faltan campos obligatorios" }), { status: 400 })
 		}
 
-		// Insertar el nuevo proveedor en la base de datos
-		const newProviderId = crypto.randomUUID()
-
-		const providerData = {
-			id: newProviderId,
-			userEmail,
-			companyName,
-			contactName,
-			contactEmail,
-			phone,
-			type,
-		}
-
-		await db.insert(Provider).values(providerData)
-		await db.update(User).set({ providerId: newProviderId }).where(eq(User.email, email))
-
-		return new Response(
-			JSON.stringify({ message: "Proveedor creado con éxito", providerId: newProviderId }),
-			{ status: 200 }
+		return createProvider(
+			{ repo: providerRepository },
+			{
+				sessionEmail: email,
+				userEmail: userEmail ?? null,
+				companyName,
+				contactName: contactName ?? null,
+				contactEmail,
+				phone: phone ?? null,
+				type,
+			}
 		)
 	} catch (error) {
 		console.error("Error creando proveedor:", error)

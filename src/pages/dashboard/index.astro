@@ -4,10 +4,10 @@ import DashboardTabs from "@/components/dashboard/DashboardTabs.astro"
 import { productRepository } from "@/container"
 import Layout from "@/layouts/Layout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { db, inArray, PolicyAssignment, Variant } from "astro:db"
-import { getSession } from "auth-astro/server"
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 
 let userProducts: any[] = []
 let hotelRoomTypes: any[] = []
@@ -16,7 +16,7 @@ let roomsByHotel: Record<string, any[]> = {}
 let errorMessage: string | null = null
 
 try {
-	if (!session?.user?.email) {
+	if (!user?.email) {
 		return Astro.redirect("/SignInPage")
 	}
 	const providerId = await getProviderIdFromRequest(Astro.request)

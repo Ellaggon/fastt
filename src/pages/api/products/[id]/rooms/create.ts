@@ -1,17 +1,19 @@
 import type { APIRoute } from "astro"
 
-import { getSession } from "auth-astro/server"
 import { createRoomUseCase } from "@/container"
+import { requireAuth } from "@/lib/auth/requireAuth"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	const hotelIdParam = String(params.hotelId || "")
-	const session = await getSession(request)
-	const email = session?.user?.email
-
-	if (!email) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
+	try {
+		await requireAuth(request, {
+			unauthorizedResponse: new Response(JSON.stringify({ error: "Unauthorized" }), {
+				status: 401,
+			}),
 		})
+	} catch (e) {
+		if (e instanceof Response) return e
+		throw e
 	}
 
 	try {

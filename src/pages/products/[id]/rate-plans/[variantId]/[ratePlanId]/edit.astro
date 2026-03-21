@@ -1,62 +1,38 @@
 ---
 // import { WEEK_DAYS } from "@/data/week-days"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import {
-	and,
-	db,
-	eq,
-	Policy,
-	PolicyGroup,
-	PriceRule,
-	RatePlan,
-	RatePlanTemplate,
-	Restriction,
-	Variant,
-} from "astro:db"
+import { listActiveCancellationPolicies } from "@/modules/catalog/public"
+import { getVariantById } from "@/modules/pricing/public"
 
 const { id, variantId, ratePlanId } = Astro.params
 if (!id) return Astro.redirect("/dashboard")
 if (!variantId) return Astro.redirect("/dashboard")
 if (!ratePlanId) return Astro.redirect("/dashboard")
 
-const ratePlan = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
+const rpRes = await fetch(new URL(`/api/rateplans/get?id=${ratePlanId}`, Astro.request.url))
+if (!rpRes.ok) return Astro.redirect("/dashboard")
+const rpData = await rpRes.json()
+const ratePlan = rpData
 if (!ratePlan) return Astro.redirect("/dashboard")
 
-const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
+const variant = await getVariantById(variantId)
 if (!variant) return Astro.redirect("/dashboard")
 
-const template = ratePlan.templateId
-	? await db
-			.select()
-			.from(RatePlanTemplate)
-			.where(eq(RatePlanTemplate.id, ratePlan.templateId))
-			.get()
-	: null
-
-const priceRules = await db
-	.select()
-	.from(PriceRule)
-	.where(eq(PriceRule.ratePlanId, ratePlan.id))
-	.all()
-
-const restrictions = await db
-	.select()
-	.from(Restriction)
-	.where(eq(Restriction.scopeId, ratePlan.id))
-	.all()
-
-const policies = await db
-	.select({
-		id: Policy.id,
-		groupId: Policy.groupId,
-		version: Policy.version,
-		status: Policy.status,
-		description: Policy.description,
-	})
-	.from(Policy)
-	.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
-	.where(and(eq(PolicyGroup.category, "Cancellation"), eq(Policy.status, "active")))
-	.all()
+const template = rpData.template ?? null
+const priceRules = rpData.priceRules ?? []
+type RestrictionLike = { type: string; [key: string]: unknown }
+function isRestrictionLike(v: unknown): v is RestrictionLike {
+	return (
+		typeof v === "object" &&
+		v !== null &&
+		"type" in v &&
+		typeof (v as { type?: unknown }).type === "string"
+	)
+}
+const restrictions: RestrictionLike[] = Array.isArray(rpData.restrictions)
+	? rpData.restrictions.filter(isRestrictionLike)
+	: []
+const policies = await listActiveCancellationPolicies()
 
 const priceRule = priceRules[0] ?? null
 const priceType = priceRule?.type ?? "fixed_adjustment"
@@ -69,6 +45,16 @@ const minLos = getRestriction("min_los")
 const maxLos = getRestriction("max_los")
 const minLead = getRestriction("min_lead_time")
 const maxLead = getRestriction("max_lead_time")
+
+function toInputValue(v: unknown, fallback: string | number) {
+	if (typeof v === "string" || typeof v === "number") return v
+	return fallback
+}
+
+const minNightsValue = toInputValue(minLos?.value, 1)
+const maxNightsValue = toInputValue(maxLos?.value, "")
+const minAdvanceDaysValue = toInputValue(minLead?.value, 0)
+const maxAdvanceDaysValue = toInputValue(maxLead?.value, "")
 
 // fechas y días: salen de cualquiera (todas comparten rango)
 // const base = restrictions[0] ?? null
@@ -276,7 +262,7 @@ const maxLead = getRestriction("max_lead_time")
 							<input
 								type="number"
 								name="minNights"
-								value={minLos?.value ?? 1}
+								value={minNightsValue}
 								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-base"
 							/>
 						</label>
@@ -286,7 +272,7 @@ const maxLead = getRestriction("max_lead_time")
 							<input
 								type="number"
 								name="maxNights"
-								value={maxLos?.value ?? ""}
+								value={maxNightsValue}
 								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-base"
 							/>
 						</label>
@@ -300,7 +286,7 @@ const maxLead = getRestriction("max_lead_time")
 							<input
 								type="number"
 								name="minAdvanceDays"
-								value={minLead?.value ?? 0}
+								value={minAdvanceDaysValue}
 								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-base"
 							/>
 						</label>
@@ -310,7 +296,7 @@ const maxLead = getRestriction("max_lead_time")
 							<input
 								type="number"
 								name="maxAdvanceDays"
-								value={maxLead?.value ?? ""}
+								value={maxAdvanceDaysValue}
 								class="mt-1 rounded-md bg-neutral-100 px-3 py-2 text-base"
 							/>
 						</label>

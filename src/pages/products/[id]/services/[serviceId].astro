@@ -2,16 +2,22 @@
 import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { and, db, eq, ProductService, ProductServiceAttribute } from "astro:db"
+import { getProductServiceConfig } from "@/modules/catalog/public"
 
 const { id: productId, serviceId } = Astro.params
 if (!productId || !serviceId) return Astro.redirect("/dashboard")
 
-let productService = await db
-	.select()
-	.from(ProductService)
-	.where(and(eq(ProductService.productId, productId), eq(ProductService.serviceId, serviceId)))
-	.get()
+const cfg = await getProductServiceConfig({ productId, serviceId })
+const productService = cfg.productService
+	? {
+			id: cfg.productService.productServiceId,
+			price: cfg.productService.price,
+			priceUnit: cfg.productService.priceUnit,
+			currency: cfg.productService.currency,
+			appliesTo: cfg.productService.appliesTo,
+			notes: cfg.productService.notes,
+		}
+	: null
 
 // SSR must be read-only. If this row doesn't exist yet, it will be created via the POST endpoint.
 const ps =
@@ -28,13 +34,7 @@ const ps =
 const attributesDef = SERVICE_ATTRIBUTES[serviceId] ?? []
 const serviceDef = SERVICE_CATALOG.find((s) => s.id === serviceId)
 
-const existingAttrs = productService
-	? await db
-			.select()
-			.from(ProductServiceAttribute)
-			.where(eq(ProductServiceAttribute.productServiceId, productService.id))
-			.all()
-	: []
+const existingAttrs = cfg.attributes ?? []
 
 const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
 const isInitiallyIncluded = ps.price === null || ps.price === 0

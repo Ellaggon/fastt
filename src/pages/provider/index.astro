@@ -1,15 +1,15 @@
 ---
 import Layout from "@/layouts/Layout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { db, eq, Provider } from "astro:db"
-import { getSession } from "auth-astro/server"
 
-const session = await getSession(Astro.request)
-if (!session) return Astro.redirect("/SignInPage")
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
 
 const existing = await db
 	.select()
 	.from(Provider)
-	.where(eq(Provider.userEmail, session.user?.email || ""))
+	.where(eq(Provider.userEmail, user.email || ""))
 	.get()
 
 if (existing) return Astro.redirect("/dashboard")
@@ -24,7 +24,7 @@ if (existing) return Astro.redirect("/dashboard")
 			Ingresa los datos de tu empresa para empezar a publicar tus servicios.
 		</p>
 		<form id="providerForm" method="post" class="flex flex-col gap-4" data-form-type="provider">
-			<input type="hidden" name="userEmail" value={session.user?.email} />
+			<input type="hidden" name="userEmail" value={user.email} />
 
 			<label for="companyName" class="block text-xs font-medium text-neutral-500 md:text-sm">
 				Nombre de la Compañía

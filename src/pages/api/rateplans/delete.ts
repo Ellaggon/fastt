@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro"
-import { db, RatePlan, RatePlanTemplate, PriceRule, Restriction, eq } from "astro:db"
+import { ratePlanCommandRepository } from "@/container"
+import { deleteRatePlanLegacy } from "@/modules/pricing/public"
 
 export const DELETE: APIRoute = async ({ request, url }) => {
 	try {
@@ -13,37 +14,7 @@ export const DELETE: APIRoute = async ({ request, url }) => {
 		if (!id) {
 			return new Response(JSON.stringify({ error: "Missing id" }), { status: 400 })
 		}
-
-		let notFound = false
-
-		await db.transaction(async (tx) => {
-			const ratePlan = await tx.select().from(RatePlan).where(eq(RatePlan.id, id)).get()
-
-			if (!ratePlan) {
-				notFound = true
-				return
-			}
-
-			// Price rules
-			await tx.delete(PriceRule).where(eq(PriceRule.ratePlanId, id))
-
-			// 🔥 Restrictions (reemplaza ApplicabilityRule)
-			await tx.delete(Restriction).where(eq(Restriction.scopeId, id))
-
-			// Rate plan
-			await tx.delete(RatePlan).where(eq(RatePlan.id, id))
-
-			// Template
-			if (ratePlan.templateId) {
-				await tx.delete(RatePlanTemplate).where(eq(RatePlanTemplate.id, ratePlan.templateId))
-			}
-		})
-
-		if (notFound) {
-			return new Response(JSON.stringify({ error: "RatePlan not found" }), { status: 404 })
-		}
-
-		return new Response(JSON.stringify({ success: true }), { status: 200 })
+		return deleteRatePlanLegacy({ repo: ratePlanCommandRepository }, { id })
 	} catch (e) {
 		console.error("rateplans:delete", e)
 		return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })

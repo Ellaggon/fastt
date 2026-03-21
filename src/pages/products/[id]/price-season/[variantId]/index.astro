@@ -1,6 +1,5 @@
 <!-- ---
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { db,eq,Variant } from "astro:db"
 
 const { id, variantId } = Astro.params
 // if (!variantId || !id) return Astro.redirect("/dashboard")
@@ -12,13 +11,7 @@ const seasonRes = await fetch(
 // if (!seasonRes.ok) return Astro.redirect("/dashboard")
 const season = await seasonRes.json()
 
-const variant = await db
-	.select({ name: Variant.name })
-	.from(Variant)
-	.where(eq(Variant.id, variantId))
-	.get()
-
-// if (!variant) return Astro.redirect("/dashboard")
+// (legacy) variant fetching removed from comment to keep pages free of DB imports
 --- 
 
 <DashboardLayout title="Temporadas de Precio">
