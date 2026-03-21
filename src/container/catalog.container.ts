@@ -17,6 +17,7 @@ import { HotelAmenityQueryRepository } from "../modules/catalog/infrastructure/r
 import { HotelRoomTypeRepository } from "../modules/catalog/infrastructure/repositories/HotelRoomTypeRepository"
 import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
+import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
 
 import {
 	createResolveHotelAmenitiesQuery,
@@ -24,6 +25,12 @@ import {
 	createResolveProductImagesQuery,
 	createResolveProductServicesQuery,
 	createResolveRoomImagesQuery,
+	createGetProductBundleQuery,
+	createGetProductByIdQuery,
+	createListProductServiceConfigsQuery,
+	createGetProductServiceConfigQuery,
+	createListActiveCancellationPoliciesQuery,
+	createSearchDestinationsQuery,
 } from "../modules/catalog/application/queries"
 
 // ---- Infrastructure singletons ----
@@ -42,6 +49,7 @@ export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
 export const hotelRoomTypeRepository = new HotelRoomTypeRepository()
 export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
+export const destinationQueryRepository = new DestinationQueryRepository()
 
 // ---- Wired read queries ----
 export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
@@ -55,6 +63,22 @@ export const resolveProductServices = createResolveProductServicesQuery({
 	repo: productServiceQueryRepository,
 })
 export const resolveRoomImages = createResolveRoomImagesQuery({ repo: imageQueryRepository })
+
+export const getProductBundle = createGetProductBundleQuery({ repo: productRepository })
+export const getProductById = createGetProductByIdQuery({ repo: productRepository })
+export const listProductServiceConfigs = createListProductServiceConfigsQuery({
+	repo: productServiceQueryRepository,
+})
+export const getProductServiceConfig = createGetProductServiceConfigQuery({
+	repo: productServiceQueryRepository,
+})
+export const listActiveCancellationPolicies = createListActiveCancellationPoliciesQuery({
+	repo: cancellationPolicyRepository,
+})
+
+export const searchDestinations = createSearchDestinationsQuery({
+	repo: destinationQueryRepository,
+})
 
 // ---- Wired use-cases ----
 export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]) {
