@@ -17,7 +17,10 @@ import { pathToFileURL } from "node:url"
 import { createLocalDatabaseClient, asDrizzleTable } from "@astrojs/db/runtime"
 import { sql } from "@astrojs/db/dist/runtime/virtual.js"
 
-export const dbUrl = `file:${path.resolve(process.cwd(), `.vitest/astro-${process.pid}.db`)}`
+// Vitest runs tests in parallel workers (threads). If they share a sqlite/libsql file,
+// we can hit `SQLITE_BUSY` flakiness. Give each worker its own DB file.
+const vitestWorkerId = process.env.VITEST_WORKER_ID ?? "0"
+export const dbUrl = `file:${path.resolve(process.cwd(), `.vitest/astro-${process.pid}-${vitestWorkerId}.db`)}`
 
 export let db: any
 
@@ -41,6 +44,7 @@ export let Variant: any
 export let VariantCapacity: any
 export let VariantHotelRoom: any
 export let VariantReadiness: any
+export let VariantInventoryConfig: any
 export let DailyInventory: any
 export let EffectiveInventory: any
 export let RatePlanTemplate: any
@@ -49,6 +53,7 @@ export let PriceRule: any
 export let EffectivePricing: any
 export let PricingBaseRate: any
 export let Restriction: any
+export let InventoryLock: any
 
 async function init() {
 	// Ensure local folder exists
@@ -66,6 +71,9 @@ async function init() {
 
 	// Create and migrate local database
 	db = createLocalDatabaseClient({ dbUrl })
+	// Make short-lived write contention deterministic in tests.
+	await db.run(sql.raw("PRAGMA journal_mode=WAL;"))
+	await db.run(sql.raw("PRAGMA busy_timeout=5000;"))
 
 	// Import internal migration helpers via absolute file URL to avoid package export restrictions.
 	const migrationUrl = pathToFileURL(
@@ -109,6 +117,7 @@ async function init() {
 	VariantCapacity = drizzleTables.VariantCapacity
 	VariantHotelRoom = drizzleTables.VariantHotelRoom
 	VariantReadiness = drizzleTables.VariantReadiness
+	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveInventory = drizzleTables.EffectiveInventory
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
@@ -117,6 +126,7 @@ async function init() {
 	EffectivePricing = drizzleTables.EffectivePricing
 	PricingBaseRate = drizzleTables.PricingBaseRate
 	Restriction = drizzleTables.Restriction
+	InventoryLock = drizzleTables.InventoryLock
 }
 
 // Top-level await so imports are ready before tests execute.
