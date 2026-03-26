@@ -63,13 +63,10 @@ export async function updateProductImages(params: {
 	for (const row of toDelete as any[]) {
 		try {
 			await repo.deleteImage(row.id)
-			if (row.url) {
-				try {
-					const key = new URL(row.url).pathname.replace(/^\/+/, "")
-					r2KeysToDelete.push(key)
-				} catch (err) {
-					console.warn("Could not parse r2 key from url:", row.url)
-				}
+			// SAFE MINIMUM: delete only managed objects (objectKey present).
+			// Never derive storage keys from arbitrary URLs.
+			if (row.objectKey && typeof row.objectKey === "string" && row.objectKey.trim().length > 0) {
+				r2KeysToDelete.push(row.objectKey.trim())
 			}
 		} catch (e) {
 			console.error("Failed to delete image row:", e)

@@ -1,4 +1,16 @@
-import { db, HotelRoomType, Hotel, HotelRoomAmenity, Image, Variant, eq } from "astro:db"
+import {
+	db,
+	HotelRoomType,
+	Hotel,
+	HotelRoomAmenity,
+	Image,
+	Variant,
+	VariantCapacity,
+	VariantHotelRoom,
+	PricingBaseRate,
+	RoomType,
+	eq,
+} from "astro:db"
 import type {
 	CreateHotelRoomParams,
 	CreateHotelRoomResult,
@@ -16,6 +28,16 @@ export class RoomRepository implements RoomRepositoryPort {
 		const variantId = crypto.randomUUID()
 
 		await db.transaction(async (tx) => {
+			const roomType = await tx
+				.select()
+				.from(RoomType)
+				.where(eq(RoomType.id, params.roomTypeId))
+				.get()
+			const inferredMax = (roomType as any)?.maxOccupancy
+				? Number((roomType as any).maxOccupancy)
+				: 1
+			const maxOcc = params.maxOccupancyOverride ?? inferredMax
+
 			await tx.insert(HotelRoomType).values({
 				id: hotelRoomId,
 				hotelId: params.hotelId,
@@ -36,9 +58,34 @@ export class RoomRepository implements RoomRepositoryPort {
 				entityId: hotelRoomId,
 				name: params.variant.name,
 				description: params.variant.description,
+				kind: "hotel_room",
+				status: "ready",
+				createdAt: new Date(),
 				currency: params.variant.currency,
 				basePrice: params.variant.basePrice,
 				isActive: true,
+			})
+
+			// CAPA 4A: dual-write base pricing into pricing_base_rate (new source of truth).
+			await tx.insert(PricingBaseRate).values({
+				variantId,
+				currency: params.variant.currency,
+				basePrice: params.variant.basePrice,
+				createdAt: new Date(),
+			} as any)
+
+			// CAPA 3: subtype + capacity (new source of truth). Does not affect legacy flows.
+			await tx.insert(VariantHotelRoom).values({
+				variantId,
+				roomTypeId: params.roomTypeId,
+			})
+
+			await tx.insert(VariantCapacity).values({
+				variantId,
+				minOccupancy: 1,
+				maxOccupancy: maxOcc,
+				maxAdults: maxOcc,
+				maxChildren: 0,
 			})
 
 			if (params.amenityIds.length > 0) {

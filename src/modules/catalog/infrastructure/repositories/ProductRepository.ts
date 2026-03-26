@@ -10,6 +10,7 @@ import {
 	Image,
 	HotelRoomType,
 	Variant,
+	PricingBaseRate,
 	NOW,
 } from "astro:db"
 import type { ProductRepositoryPort } from "../../application/ports/ProductRepositoryPort"
@@ -81,8 +82,9 @@ export class ProductRepository implements ProductRepositoryPort {
 			.where(eq(Product.providerId, providerId))
 			.leftJoin(Tour, eq(Product.id, Tour.productId))
 			.leftJoin(Package, eq(Product.id, Package.productId))
-			// Unimos con Variant para traer el precio base
+			// Unimos con Variant + PricingBaseRate para traer el precio base (CAPA 4A).
 			.leftJoin(Variant, eq(Product.id, Variant.productId))
+			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.groupBy(Product.id)
 
 		// Formatear los resultados en un array limpio
@@ -97,8 +99,8 @@ export class ProductRepository implements ProductRepositoryPort {
 				id: combinedData.id,
 				name: combinedData.name,
 				productType: combinedData.productType,
-				basePrice: el.Variant?.basePrice ?? 0,
-				currency: el.Variant?.currency ?? "USD",
+				basePrice: el.PricingBaseRate?.basePrice ?? 0,
+				currency: el.PricingBaseRate?.currency ?? "USD",
 				destinationId: combinedData.destinationId,
 			}
 		})

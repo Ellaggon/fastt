@@ -31,6 +31,24 @@ export * from "./application/use-cases/update-product-subtype"
 export * from "./application/use-cases/update-restriction"
 export * from "./application/use-cases/update-tax"
 
+// Provider V2 (parallel system)
+export { registerProviderV2 } from "./application/use-cases/provider-v2/register-provider-v2"
+export { upsertProviderProfileV2 } from "./application/use-cases/provider-v2/upsert-provider-profile-v2"
+export { setProviderVerificationV2 } from "./application/use-cases/provider-v2/set-provider-verification-v2"
+
+// Product V2 (parallel system)
+export { createProductV2 } from "./application/use-cases/product-v2/create-product-v2"
+export { upsertProductContentV2 } from "./application/use-cases/product-v2/upsert-product-content-v2"
+export { upsertProductLocationV2 } from "./application/use-cases/product-v2/upsert-product-location-v2"
+export { evaluateProductReadinessV2 } from "./application/use-cases/product-v2/evaluate-product-readiness-v2"
+
+// Variant (CAPA 3)
+export * from "./application/use-cases/variant/create-variant"
+export * from "./application/use-cases/variant/set-variant-capacity"
+export * from "./application/use-cases/variant/attach-hotel-room-subtype"
+export * from "./application/use-cases/variant/evaluate-variant-readiness"
+export * from "./application/use-cases/variant/update-variant-status"
+
 // Application ports (types/interfaces)
 export * from "./application/ports/CancellationPolicyRepositoryPort"
 export * from "./application/ports/CatalogRestrictionRepositoryPort"
@@ -44,6 +62,9 @@ export * from "./application/ports/ProductServiceQueryRepositoryPort"
 export * from "./application/ports/ProductServiceRepositoryPort"
 export * from "./application/ports/RoomRepositoryPort"
 export * from "./application/ports/TaxFeeRepositoryPort"
+export * from "./application/ports/ProviderV2RepositoryPort"
+export * from "./application/ports/ProductV2RepositoryPort"
+export * from "./application/ports/VariantManagementRepositoryPort"
 
 // Lazy exports: these use-cases import external libs (AWS SDK). Keep module import side-effect free.
 export type CreateProductWithR2RollbackParams = Parameters<

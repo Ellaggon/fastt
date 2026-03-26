@@ -8,6 +8,7 @@ import {
 	HotelRoomAmenity,
 	DailyInventory,
 	EffectiveInventory,
+	PricingBaseRate,
 } from "astro:db"
 
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
@@ -38,8 +39,20 @@ export class HotelRoomRepository {
 		if (!row) return null
 
 		const variant = await db
-			.select()
+			.select({
+				id: Variant.id,
+				productId: Variant.productId,
+				entityType: Variant.entityType,
+				entityId: Variant.entityId,
+				name: Variant.name,
+				description: Variant.description,
+				isActive: Variant.isActive,
+				// CAPA 4A: canonical base pricing is stored in PricingBaseRate (legacy Variant pricing fields are deprecated).
+				basePrice: PricingBaseRate.basePrice,
+				currency: PricingBaseRate.currency,
+			})
 			.from(Variant)
+			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.where(eq(Variant.entityId, (row as any).id))
 			.get()
 
@@ -97,22 +110,48 @@ export class HotelRoomRepository {
 			.where(eq(HotelRoomType.id, params.hotelRoomId))
 
 		const variant = await db
-			.select()
+			.select({ id: Variant.id })
 			.from(Variant)
 			.where(eq(Variant.entityId, params.hotelRoomId))
 			.get()
 
 		if (variant) {
+			const nextCurrency = params.variant.currency
+			const nextBasePrice = params.variant.basePrice
+
 			await db
 				.update(Variant)
 				.set({
 					name: params.variant.name || "Habitación",
 					description: params.variant.description,
-					currency: params.variant.currency,
-					basePrice: params.variant.basePrice ?? (variant as any).basePrice,
+					currency: nextCurrency,
+					...(typeof nextBasePrice === "number" && Number.isFinite(nextBasePrice)
+						? { basePrice: nextBasePrice }
+						: {}),
 					isActive: params.variant.isActive,
-				})
-				.where(eq(Variant.id, (variant as any).id))
+				} as any)
+				.where(eq(Variant.id, variant.id))
+
+			// CAPA 4A: dual-write base pricing into pricing_base_rate (new source of truth).
+			// Only write when we have a concrete number; legacy flows allow null.
+			if (typeof nextBasePrice === "number" && Number.isFinite(nextBasePrice)) {
+				await db
+					.insert(PricingBaseRate)
+					.values({
+						variantId: variant.id,
+						currency: nextCurrency,
+						basePrice: nextBasePrice,
+						createdAt: new Date(),
+					} as any)
+					.onConflictDoUpdate({
+						target: [PricingBaseRate.variantId],
+						set: {
+							currency: nextCurrency,
+							basePrice: nextBasePrice,
+							createdAt: new Date(),
+						},
+					})
+			}
 		}
 
 		await db

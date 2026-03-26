@@ -16,11 +16,19 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			.where(eq(Image.id, id))
 	}
 
-	async insertImage(params: { productId: string; url: string; order: number; isPrimary: boolean }) {
+	async insertImage(params: {
+		id?: string
+		productId: string
+		url: string
+		objectKey?: string | null
+		order: number
+		isPrimary: boolean
+	}) {
 		await db.insert(Image).values({
-			id: crypto.randomUUID(),
+			id: params.id ?? crypto.randomUUID(),
 			entityId: params.productId,
 			entityType: "Product",
+			objectKey: params.objectKey ?? null,
 			url: params.url,
 			order: params.order,
 			isPrimary: params.isPrimary,
