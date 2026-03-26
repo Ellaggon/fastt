@@ -2,14 +2,13 @@ import type { APIRoute } from "astro"
 import { buildClearAuthCookieHeaders } from "@/lib/auth/authCookies"
 
 export const GET: APIRoute = async () => {
-	const headers = new Headers()
+	// IMPORTANT: do NOT collapse headers into a plain object.
+	// Multiple `Set-Cookie` headers must be preserved as separate header entries.
+	const headers = new Headers({ Location: "/" })
 	for (const c of buildClearAuthCookieHeaders()) headers.append("Set-Cookie", c)
 
 	return new Response(null, {
 		status: 302,
-		headers: {
-			...Object.fromEntries(headers.entries()),
-			Location: "/",
-		},
+		headers,
 	})
 }
