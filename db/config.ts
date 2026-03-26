@@ -435,6 +435,17 @@ const EffectivePolicy = defineTable({
 
 // 5. Inventory / Availability base
 
+// CAPA 5 (Inventory foundation): per-variant inventory configuration for generating DailyInventory rows.
+// Intentionally minimal; completeness is enforced in application logic.
+const VariantInventoryConfig = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		defaultTotalUnits: column.number(),
+		horizonDays: column.number({ default: 365 }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+
 const DailyInventory = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -443,7 +454,10 @@ const DailyInventory = defineTable({
 		totalInventory: column.number(), // Ej: 10 habitaciones físicas
 		reservedCount: column.number({ default: 0 }),
 		priceOverride: column.number({ optional: true }), // opcional si quieres override por día
+		// CAPA 5 (Inventory Calendar): operational stop-sell flag. Search treats stopSell=true as unavailable.
+		stopSell: column.boolean({ default: false }),
 		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
@@ -618,6 +632,9 @@ const BookingRoomDetail = defineTable({
 const InventoryLock = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
+		// CAPA 5 Phase 2: hold identifier (UUID) for temporary inventory locks.
+		// NOT a FK. Booking integration can later set bookingId separately.
+		holdId: column.text({ optional: true }),
 		variantId: column.text({ references: () => Variant.columns.id }),
 		date: column.text(),
 		quantity: column.number({ default: 1 }),
@@ -625,7 +642,7 @@ const InventoryLock = defineTable({
 		bookingId: column.text({ references: () => Booking.columns.id, optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["variantId", "date"] }],
+	indexes: [{ on: ["variantId", "date"] }, { on: ["holdId"] }],
 })
 const BookingPolicySnapshot = defineTable({
 	columns: {
@@ -734,6 +751,7 @@ export default defineDb({
 
 		// 5 inventory
 		// DailyAvailability,
+		VariantInventoryConfig,
 		DailyInventory,
 		EffectiveInventory,
 
