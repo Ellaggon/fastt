@@ -77,6 +77,7 @@ export async function searchOffers(params: {
 	productId: string
 	checkIn: Date
 	checkOut: Date
+	rooms?: number
 	adults: number
 	children: number
 }): Promise<SearchOffer<SearchUnit>[]> {
