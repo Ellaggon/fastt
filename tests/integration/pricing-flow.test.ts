@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { ratePlanService } from "@/container"
+import { ratePlanService, baseRateRepository } from "@/container"
 import {
 	seedTestProductVariant,
 	seedTestRatePlan,
@@ -20,6 +20,10 @@ describe("integration/pricing flow", () => {
 			ratePlanId: "rp_int_pricing",
 			priceRuleId: "prule_int_pricing",
 		})
+
+		// CAPA 4C: pricing reads no longer fall back to Variant.basePrice.
+		// Ensure the canonical PricingBaseRate exists for this variant.
+		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
 
 		const candidates = await ratePlanService.getAvailableRatePlans(
 			variantId,

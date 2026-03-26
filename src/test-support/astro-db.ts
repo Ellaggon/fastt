@@ -24,7 +24,11 @@ export let db: any
 // Tables (add as needed when repositories/services import more)
 export let Destination: any
 export let Product: any
+export let ProductStatus: any
+export let ProductContent: any
+export let ProductLocation: any
 export let Image: any
+export let ImageUpload: any
 export let Provider: any
 export let Hotel: any
 export let Tour: any
@@ -34,12 +38,16 @@ export let AmenityRoom: any
 export let HotelRoomType: any
 export let HotelRoomAmenity: any
 export let Variant: any
+export let VariantCapacity: any
+export let VariantHotelRoom: any
+export let VariantReadiness: any
 export let DailyInventory: any
 export let EffectiveInventory: any
 export let RatePlanTemplate: any
 export let RatePlan: any
 export let PriceRule: any
 export let EffectivePricing: any
+export let PricingBaseRate: any
 export let Restriction: any
 
 async function init() {
@@ -84,7 +92,11 @@ async function init() {
 
 	Destination = drizzleTables.Destination
 	Product = drizzleTables.Product
+	ProductStatus = drizzleTables.ProductStatus
+	ProductContent = drizzleTables.ProductContent
+	ProductLocation = drizzleTables.ProductLocation
 	Image = drizzleTables.Image
+	ImageUpload = drizzleTables.ImageUpload
 	Provider = drizzleTables.Provider
 	Hotel = drizzleTables.Hotel
 	Tour = drizzleTables.Tour
@@ -94,12 +106,16 @@ async function init() {
 	HotelRoomType = drizzleTables.HotelRoomType
 	HotelRoomAmenity = drizzleTables.HotelRoomAmenity
 	Variant = drizzleTables.Variant
+	VariantCapacity = drizzleTables.VariantCapacity
+	VariantHotelRoom = drizzleTables.VariantHotelRoom
+	VariantReadiness = drizzleTables.VariantReadiness
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveInventory = drizzleTables.EffectiveInventory
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
 	PriceRule = drizzleTables.PriceRule
 	EffectivePricing = drizzleTables.EffectivePricing
+	PricingBaseRate = drizzleTables.PricingBaseRate
 	Restriction = drizzleTables.Restriction
 }
 

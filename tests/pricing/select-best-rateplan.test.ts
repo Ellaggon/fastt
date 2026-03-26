@@ -5,7 +5,10 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 	it("throws when variant is not found", async () => {
 		const deps: SelectBestRatePlanDeps = {
 			variantRepo: { getById: vi.fn(async () => null) },
-			ratePlanRepo: { getActiveByVariant: vi.fn(async () => []) },
+			ratePlanRepo: {
+				getActiveByVariant: vi.fn(async () => []),
+				getDefaultByVariant: vi.fn(async () => null),
+			},
 			priceRuleRepo: { getActive: vi.fn(async () => []) },
 			ratePlanEngine: { selectFromMemory: vi.fn(() => []) } as any,
 		}
@@ -30,7 +33,10 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 					basePrice: 100,
 				})),
 			},
-			ratePlanRepo: { getActiveByVariant: vi.fn(async () => []) },
+			ratePlanRepo: {
+				getActiveByVariant: vi.fn(async () => []),
+				getDefaultByVariant: vi.fn(async () => null),
+			},
 			priceRuleRepo: { getActive: vi.fn(async () => []) },
 			ratePlanEngine: { selectFromMemory: vi.fn(() => []) } as any,
 		}
@@ -66,7 +72,10 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 					basePrice: null,
 				})),
 			},
-			ratePlanRepo: { getActiveByVariant: vi.fn(async () => ratePlans) },
+			ratePlanRepo: {
+				getActiveByVariant: vi.fn(async () => ratePlans),
+				getDefaultByVariant: vi.fn(async () => null),
+			},
 			priceRuleRepo: {
 				getActive: vi.fn(async (ratePlanId: string) => {
 					if (ratePlanId === "rp1") return priceRulesForRp1

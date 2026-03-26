@@ -15,6 +15,7 @@ describe("pricing/services/RatePlanService", () => {
 
 		const ratePlanRepo = {
 			getActiveByVariant: vi.fn(async () => [{ id: "rp1" }]),
+			getDefaultByVariant: vi.fn(async () => null),
 		}
 
 		const priceRuleRepo = {

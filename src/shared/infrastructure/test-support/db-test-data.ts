@@ -166,6 +166,7 @@ export async function upsertRatePlan(row: {
 	templateId: string
 	variantId: string
 	isActive: boolean
+	isDefault?: boolean
 }) {
 	await db
 		.insert(RatePlan)
@@ -173,6 +174,7 @@ export async function upsertRatePlan(row: {
 			id: row.id,
 			templateId: row.templateId,
 			variantId: row.variantId,
+			isDefault: row.isDefault ?? false,
 			isActive: row.isActive,
 			createdAt: new Date(),
 		})
@@ -181,6 +183,7 @@ export async function upsertRatePlan(row: {
 			set: {
 				templateId: row.templateId,
 				variantId: row.variantId,
+				isDefault: row.isDefault ?? false,
 				isActive: row.isActive,
 			},
 		})
@@ -194,6 +197,7 @@ export async function upsertPriceRule(row: {
 	priority?: number
 	isActive?: boolean
 	name?: string | null
+	createdAt?: Date
 }) {
 	await db
 		.insert(PriceRule)
@@ -205,7 +209,7 @@ export async function upsertPriceRule(row: {
 			value: row.value,
 			priority: row.priority ?? 10,
 			isActive: row.isActive ?? true,
-			createdAt: new Date(),
+			createdAt: row.createdAt ?? new Date(),
 		})
 		.onConflictDoUpdate({
 			target: [PriceRule.id],
@@ -216,6 +220,7 @@ export async function upsertPriceRule(row: {
 				value: row.value,
 				priority: row.priority ?? 10,
 				isActive: row.isActive ?? true,
+				createdAt: row.createdAt ?? new Date(),
 			},
 		})
 }

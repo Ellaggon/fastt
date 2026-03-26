@@ -19,7 +19,7 @@ describe("pricing/use-cases/computeAndPersistDailyPrice", () => {
 		const computeDaily = vi.fn(() => ({ total: 123 }))
 
 		const deps: ComputeAndPersistDailyPriceDeps = {
-			pricingRepo: { getRules, saveEffectivePrice },
+			pricingRepo: { getRules, saveEffectivePrice, getPreviewRules: vi.fn(async () => []) },
 			pricingEngine: { computeDaily } as any,
 		}
 

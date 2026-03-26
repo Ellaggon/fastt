@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest"
 import { SearchPipeline } from "@/modules/search/public"
-import { PricingEngine, PromotionEngine, adaptPriceRule } from "@/modules/pricing/public"
+import {
+	PromotionEngine,
+	computeBasePriceWithRules,
+	parseStrictMinimalRules,
+} from "@/modules/pricing/public"
 import { RestrictionRuleEngine } from "@/modules/policies/public"
 
 const baseDate = new Date("2026-03-01")
@@ -29,8 +33,8 @@ describe("SearchPipeline E2E", () => {
 					{
 						id: "rule1",
 						ratePlanId: "rp1",
-						type: "percentage_discount",
-						value: 10,
+						type: "percentage",
+						value: -10,
 						isActive: true,
 					},
 				],
@@ -39,14 +43,23 @@ describe("SearchPipeline E2E", () => {
 			}),
 		}
 
-		const pricingEngine = new PricingEngine()
 		const restrictionEngine = new RestrictionRuleEngine()
 		const promotionEngine = new PromotionEngine()
 
 		const pipeline = new SearchPipeline(fakeLoader, undefined, {
 			pricing: {
-				adaptPriceRule,
-				computeStay: (params) => pricingEngine.computeStay(params),
+				computeStayBasePriceWithRulesStrict: ({ basePricePerNight, nights, priceRules }) => {
+					const stayBase = basePricePerNight * nights
+					const minimal = parseStrictMinimalRules({
+						basePrice: stayBase,
+						rules: priceRules.map((r) => ({
+							id: r.id,
+							type: String(r.type),
+							value: Number(r.value),
+						})),
+					})
+					return computeBasePriceWithRules(stayBase, minimal)
+				},
 			},
 			restrictions: {
 				evaluateFromMemory: (ctx) => restrictionEngine.evaluateFromMemory(ctx),
@@ -107,14 +120,23 @@ describe("SearchPipeline E2E", () => {
 			}),
 		}
 
-		const pricingEngine = new PricingEngine()
 		const restrictionEngine = new RestrictionRuleEngine()
 		const promotionEngine = new PromotionEngine()
 
 		const pipeline = new SearchPipeline(fakeLoader, undefined, {
 			pricing: {
-				adaptPriceRule,
-				computeStay: (params) => pricingEngine.computeStay(params),
+				computeStayBasePriceWithRulesStrict: ({ basePricePerNight, nights, priceRules }) => {
+					const stayBase = basePricePerNight * nights
+					const minimal = parseStrictMinimalRules({
+						basePrice: stayBase,
+						rules: priceRules.map((r) => ({
+							id: r.id,
+							type: String(r.type),
+							value: Number(r.value),
+						})),
+					})
+					return computeBasePriceWithRules(stayBase, minimal)
+				},
 			},
 			restrictions: {
 				evaluateFromMemory: (ctx) => restrictionEngine.evaluateFromMemory(ctx),
