@@ -1,0 +1,300 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+
+if (!productId) return Astro.redirect("/product-v2/create")
+if (!variantId) return Astro.redirect(`/product-v2/${encodeURIComponent(productId)}/variants`)
+---
+
+<Layout title="Inventory Calendar">
+	<main style="max-width: 980px; margin: 40px auto; padding: 0 16px;">
+		<h1>Inventory Calendar</h1>
+
+		<p>
+			Product: <code>{productId}</code><br />
+			Variant: <code>{variantId}</code>
+		</p>
+
+		<div style="margin: 12px 0 20px; display:flex; gap:16px; align-items:center;">
+			<a href={`/product-v2/${encodeURIComponent(productId)}/variants`}>Back to Rooms list</a>
+			<a
+				href={`/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`}
+				>Back to Pricing</a
+			>
+		</div>
+
+		<section style="border:1px solid #ddd; border-radius:8px; padding:12px;">
+			<h2 style="margin: 0 0 8px;">Bulk update</h2>
+			<form id="bulkForm">
+				<input type="hidden" name="variantId" value={variantId} />
+				<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+					<label>
+						Start date<br />
+						<input type="date" name="startDate" required />
+					</label>
+					<label>
+						End date (exclusive)<br />
+						<input type="date" name="endDate" required />
+					</label>
+					<label>
+						Total units (optional)<br />
+						<input type="number" name="totalInventory" min="0" step="1" />
+					</label>
+					<label>
+						Status (optional)<br />
+						<select name="stopSell">
+							<option value="">(no change)</option>
+							<option value="false">Open</option>
+							<option value="true">Closed (stop sell)</option>
+						</select>
+					</label>
+					<button id="bulkBtn" type="submit">Apply</button>
+				</div>
+				<p id="bulkError" style="color:#b00; white-space:pre-wrap; margin: 10px 0 0;"></p>
+			</form>
+		</section>
+
+		<section style="margin-top: 16px;">
+			<div
+				style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"
+			>
+				<h2 style="margin: 0;">Days</h2>
+				<form id="rangeForm" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+					<label>
+						Start<br />
+						<input type="date" name="startDate" required />
+					</label>
+					<label>
+						End (exclusive)<br />
+						<input type="date" name="endDate" required />
+					</label>
+					<button type="submit">Load</button>
+				</form>
+			</div>
+
+			<p id="state" style="margin-top: 8px;"></p>
+			<div id="tableWrap" style="margin-top: 10px;"></div>
+		</section>
+	</main>
+
+	<script type="module" define:vars={{ variantId, productId }}>
+		const stateEl = document.getElementById("state")
+		const tableWrap = document.getElementById("tableWrap")
+
+		const rangeForm = document.getElementById("rangeForm")
+		const bulkForm = document.getElementById("bulkForm")
+		const bulkBtn = document.getElementById("bulkBtn")
+		const bulkError = document.getElementById("bulkError")
+
+		function todayISO() {
+			const d = new Date()
+			return d.toISOString().slice(0, 10)
+		}
+
+		function addDaysISO(iso, days) {
+			const d = new Date(iso + "T00:00:00")
+			d.setDate(d.getDate() + days)
+			return d.toISOString().slice(0, 10)
+		}
+
+		function esc(s) {
+			return String(s || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#039;")
+		}
+
+		function rowColor(row) {
+			if (row.stopSell) return "#f2f2f2"
+			if (row.available <= 0) return "#ffecec"
+			return "#ecffef"
+		}
+
+		function render(rows) {
+			if (!Array.isArray(rows) || rows.length === 0) {
+				tableWrap.innerHTML = "<p>No days in range.</p>"
+				return
+			}
+
+			const html = `
+				<table style="width:100%; border-collapse: collapse;">
+					<thead>
+						<tr>
+							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Date</th>
+							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Total</th>
+							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Reserved</th>
+							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Available</th>
+							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Status</th>
+							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Edit</th>
+						</tr>
+					</thead>
+					<tbody>
+						${rows
+							.map((r) => {
+								const bg = rowColor(r)
+								const status = r.stopSell ? "Closed" : r.available > 0 ? "Open" : "Sold out"
+								return `
+									<tr style="background:${bg}">
+										<td style="padding:8px; border-bottom:1px solid #eee;"><code>${esc(r.date)}</code></td>
+										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.totalInventory)}</td>
+										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.reservedCount)}</td>
+										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.available)}</td>
+										<td style="padding:8px; border-bottom:1px solid #eee;">${esc(status)}</td>
+										<td style="padding:8px; border-bottom:1px solid #eee;">
+											<form data-day-form="1" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+												<input type="hidden" name="variantId" value="${esc(variantId)}" />
+												<input type="hidden" name="date" value="${esc(r.date)}" />
+												<label style="font-size:12px;">
+													Total
+													<input type="number" name="totalInventory" min="0" step="1" value="${esc(r.totalInventory)}" style="width:90px;" />
+												</label>
+												<label style="font-size:12px;">
+													Stop sell
+													<select name="stopSell">
+														<option value="">(no change)</option>
+														<option value="false" ${r.stopSell ? "" : "selected"}>Open</option>
+														<option value="true" ${r.stopSell ? "selected" : ""}>Closed</option>
+													</select>
+												</label>
+												<button type="submit">Save</button>
+												<span data-day-msg="1" style="font-size:12px; color:#444;"></span>
+											</form>
+										</td>
+									</tr>
+								`
+							})
+							.join("")}
+					</tbody>
+				</table>
+			`
+			tableWrap.innerHTML = html
+
+			for (const f of Array.from(tableWrap.querySelectorAll("form[data-day-form]"))) {
+				f.addEventListener("submit", async (e) => {
+					e.preventDefault()
+					const msg = f.querySelector("[data-day-msg]")
+					const btn = f.querySelector("button[type='submit']")
+					if (btn) btn.disabled = true
+					if (msg) msg.textContent = "Saving..."
+					try {
+						const fd = new FormData(f)
+						const res = await fetch("/api/inventory/update-day", { method: "POST", body: fd })
+						if (res.status === 401) {
+							window.location.href = "/SignInPage"
+							return
+						}
+						if (res.status === 404) {
+							if (msg) msg.textContent = "Not found"
+							return
+						}
+						if (!res.ok) {
+							const txt = await res.text()
+							if (msg) msg.textContent = res.status >= 500 ? "Server error" : txt
+							return
+						}
+						if (msg) msg.textContent = "Saved"
+						await loadCurrentRange()
+					} catch (err) {
+						if (msg) msg.textContent = `Network error: ${String(err)}`
+					} finally {
+						if (btn) btn.disabled = false
+					}
+				})
+			}
+		}
+
+		function getRangeValues() {
+			const fd = new FormData(rangeForm)
+			const startDate = String(fd.get("startDate") || "").trim()
+			const endDate = String(fd.get("endDate") || "").trim()
+			return { startDate, endDate }
+		}
+
+		async function loadCurrentRange() {
+			const { startDate, endDate } = getRangeValues()
+			if (!startDate || !endDate) return
+
+			stateEl.textContent = "Loading..."
+			tableWrap.innerHTML = ""
+			try {
+				const url = `/api/inventory/calendar?variantId=${encodeURIComponent(variantId)}&startDate=${encodeURIComponent(
+					startDate
+				)}&endDate=${encodeURIComponent(endDate)}`
+				const res = await fetch(url)
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				if (res.status === 404) {
+					stateEl.textContent = "Not found"
+					return
+				}
+				if (!res.ok) {
+					stateEl.textContent = `Failed to load (status=${res.status})`
+					tableWrap.textContent = await res.text()
+					return
+				}
+				const json = await res.json()
+				stateEl.textContent = ""
+				render(json)
+			} catch (err) {
+				stateEl.textContent = `Network error: ${String(err)}`
+			}
+		}
+
+		rangeForm.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			await loadCurrentRange()
+		})
+
+		bulkForm.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			bulkError.textContent = ""
+			bulkBtn.disabled = true
+			try {
+				const fd = new FormData(bulkForm)
+				const res = await fetch("/api/inventory/bulk-update", { method: "POST", body: fd })
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				if (res.status === 404) {
+					bulkError.textContent = "Not found"
+					return
+				}
+				if (!res.ok) {
+					const txt = await res.text()
+					bulkError.textContent = res.status >= 500 ? "Something went wrong. Try again." : txt
+					return
+				}
+				await loadCurrentRange()
+			} catch (err) {
+				bulkError.textContent = `Network error: ${String(err)}`
+			} finally {
+				bulkBtn.disabled = false
+			}
+		})
+
+		// Defaults: next 30 days.
+		const start = todayISO()
+		const end = addDaysISO(start, 31)
+		rangeForm.elements.startDate.value = start
+		rangeForm.elements.endDate.value = end
+		bulkForm.elements.startDate.value = start
+		bulkForm.elements.endDate.value = end
+
+		loadCurrentRange()
+	</script>
+</Layout>

@@ -1,0 +1,239 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product-v2/create")
+---
+
+<Layout title="Product V2 - Variants">
+	<main style="max-width: 860px; margin: 40px auto; padding: 0 16px;">
+		<h1>Rooms / Units</h1>
+
+		<p>Product: <code>{productId}</code></p>
+
+		<div style="margin: 12px 0 20px; display:flex; gap:16px; align-items:center;">
+			<a href={`/product-v2/${encodeURIComponent(productId)}/review`}>Back to review</a>
+			<a href={`/product-v2/${encodeURIComponent(productId)}/variants/new`}>Add room</a>
+		</div>
+
+		<div id="state" style="margin-top: 10px;"></div>
+		<div id="list" style="margin-top: 16px;"></div>
+	</main>
+
+	<script type="module">
+		const stateEl = document.getElementById("state")
+		const listEl = document.getElementById("list")
+		const productId = String(document.getElementById("productId")?.textContent || "").trim()
+
+		function setState(kind, msg, showRetry = false) {
+			stateEl.dataset.kind = kind
+			stateEl.innerHTML = ""
+			if (msg) {
+				const p = document.createElement("p")
+				p.textContent = msg
+				stateEl.appendChild(p)
+			}
+			if (showRetry) {
+				const btn = document.createElement("button")
+				btn.type = "button"
+				btn.textContent = "Retry"
+				btn.addEventListener("click", () => load())
+				stateEl.appendChild(btn)
+			}
+		}
+
+		function esc(s) {
+			return String(s || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#039;")
+		}
+
+		function computeMissing(v) {
+			const missing = []
+			if (!v?.capacity) missing.push("Capacity")
+			if (!v?.subtype) missing.push("Room type")
+			if (!v?.pricing?.hasBaseRate) missing.push("Pricing")
+			else if (!v?.pricing?.hasDefaultRatePlan) missing.push("Rate plan")
+			return missing
+		}
+
+		function computeContinueUrl(pid, v) {
+			if (!v?.capacity)
+				return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(v.id)}/capacity`
+			if (!v?.subtype)
+				return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(v.id)}/room-type`
+			if (!v?.pricing?.hasBaseRate || !v?.pricing?.hasDefaultRatePlan) {
+				return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(v.id)}/pricing`
+			}
+			return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(v.id)}/inventory`
+		}
+
+		async function evaluateVariant(variantId, statusEl, errorsEl, btnEl) {
+			btnEl.disabled = true
+			statusEl.textContent = "Evaluating..."
+			errorsEl.textContent = ""
+
+			try {
+				const fd = new FormData()
+				fd.set("variantId", variantId)
+				const res = await fetch("/api/variant/evaluate", { method: "POST", body: fd })
+
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				if (res.status === 404) {
+					statusEl.textContent = "Not found"
+					return
+				}
+				if (!res.ok) {
+					statusEl.textContent =
+						res.status >= 500 ? "Something went wrong. Try again." : "Request failed."
+					return
+				}
+
+				const json = await res.json()
+				const state = String(json?.state || "unknown")
+				statusEl.textContent = `state: ${state}`
+				const errs = Array.isArray(json?.validationErrors) ? json.validationErrors : []
+				errorsEl.textContent = errs.length
+					? `validationErrors:\n- ${errs.map((e) => e?.code || e).join("\n- ")}`
+					: ""
+			} catch (err) {
+				statusEl.textContent = `Network error: ${String(err)}`
+			} finally {
+				btnEl.disabled = false
+			}
+		}
+
+		function renderVariants(items) {
+			if (!Array.isArray(items) || items.length === 0) {
+				listEl.innerHTML = "<p>No rooms yet.</p>"
+				return
+			}
+
+			const rows = items
+				.map((v) => {
+					const missing = computeMissing(v)
+					const configured = missing.length === 0
+					const continueUrl = computeContinueUrl(productId, v)
+					const cap = v.capacity
+						? `cap: ${v.capacity.minOccupancy}-${v.capacity.maxOccupancy}` +
+							(v.capacity.maxAdults != null ? `, adults<=${v.capacity.maxAdults}` : "") +
+							(v.capacity.maxChildren != null ? `, children<=${v.capacity.maxChildren}` : "")
+						: "Capacity not set"
+					const sub = v.subtype
+						? `Room type: ${esc(v.subtype.name || v.subtype.roomTypeId)}`
+						: "Room type not set"
+					const pricing = v.pricing?.hasBaseRate
+						? v.pricing?.hasDefaultRatePlan
+							? "Pricing: configured"
+							: "Pricing: missing default rate plan"
+						: "Pricing: missing base rate"
+					return `
+						<div style="border:1px solid #ddd; border-radius:8px; padding:12px; margin:10px 0;">
+							<div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start;">
+								<div>
+									<div><strong>${esc(v.name)}</strong></div>
+									<div style="font-size: 12px; color:#444;">status: ${esc(v.status)} | kind: ${esc(v.kind)}</div>
+									<div style="font-size: 12px; color:#444; margin-top: 6px;">${esc(cap)}</div>
+									<div style="font-size: 12px; color:#444;">${esc(sub)}</div>
+									<div style="font-size: 12px; color:#444;">${esc(pricing)}</div>
+
+									<div style="margin-top: 8px; font-size: 12px;">
+										<strong>${configured ? "Configured" : "Incomplete"}</strong>
+									</div>
+
+									${
+										missing.length
+											? `<div style="margin-top: 6px; font-size: 12px;">
+													Missing:
+													<ul style="margin: 6px 0 0 18px;">
+														${missing.map((m) => `<li>${esc(m)}</li>`).join("")}
+													</ul>
+												</div>`
+											: ""
+									}
+
+									<div style="margin-top: 8px; font-size: 12px; color:#444;">
+										Coming next:
+										<ul style="margin: 6px 0 0 18px;">
+											<li>Availability</li>
+										</ul>
+									</div>
+
+									<div data-eval="wrap" style="margin-top: 8px; font-size: 12px; color:#444;">
+										<div data-eval="status"></div>
+										<pre data-eval="errors" style="white-space: pre-wrap; margin: 6px 0 0;"></pre>
+									</div>
+								</div>
+								<div style="display:flex; gap:8px;">
+									<a href="${continueUrl}">Continue setup</a>
+									<a href="/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(v.id)}/pricing">Configure pricing</a>
+									<a href="/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(v.id)}/inventory">Configure inventory</a>
+									<button type="button" data-eval-btn="1" data-variant-id="${esc(v.id)}">Evaluate</button>
+								</div>
+							</div>
+						</div>
+					`
+				})
+				.join("")
+
+			listEl.innerHTML = rows
+
+			// Wire per-card Evaluate buttons without global state.
+			for (const btn of Array.from(listEl.querySelectorAll("button[data-eval-btn]"))) {
+				btn.addEventListener("click", async () => {
+					const variantId = String(btn.getAttribute("data-variant-id") || "").trim()
+					if (!variantId) return
+					const card = btn.closest("div[style*='border:1px solid']") || btn.parentElement
+					const statusEl = card?.querySelector("[data-eval='status']")
+					const errorsEl = card?.querySelector("[data-eval='errors']")
+					if (!statusEl || !errorsEl) return
+					await evaluateVariant(variantId, statusEl, errorsEl, btn)
+				})
+			}
+		}
+
+		async function load() {
+			setState("loading", "Loading variants...")
+			listEl.innerHTML = ""
+			try {
+				if (!productId) {
+					setState("error", "Missing productId")
+					return
+				}
+				const res = await fetch(`/api/variant/list?productId=${encodeURIComponent(productId)}`)
+				if (!res.ok) {
+					const txt = await res.text()
+					setState("error", `Failed to load variants (status=${res.status})`, true)
+					listEl.textContent = txt
+					return
+				}
+				const json = await res.json()
+				if (!res.ok) {
+					setState("error", "Failed to load variants", true)
+					return
+				}
+				setState("ready", "")
+				renderVariants(json)
+			} catch (err) {
+				setState("error", `Network error: ${String(err)}`, true)
+			}
+		}
+
+		load()
+	</script>
+</Layout>
+<span id="productId" style="display:none">{productId}</span>

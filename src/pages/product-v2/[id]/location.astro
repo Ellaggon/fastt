@@ -1,0 +1,74 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product-v2/create")
+---
+
+<Layout title="Product V2 - Location">
+	<main style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+		<h1>Product V2: Location</h1>
+		<p>Product: <code>{productId}</code></p>
+
+		<form id="locationForm">
+			<input type="hidden" name="productId" value={productId} />
+
+			<label>
+				Address (optional)
+				<input name="address" placeholder="Av. Example 123" />
+			</label>
+			<br />
+			<label>
+				Lat
+				<input name="lat" required placeholder="-16.4958" />
+			</label>
+			<br />
+			<label>
+				Lng
+				<input name="lng" required placeholder="-68.1333" />
+			</label>
+			<br />
+
+			<button id="submitBtn" type="submit">Save location</button>
+		</form>
+
+		<pre id="out" style="white-space: pre-wrap; margin-top: 16px;"></pre>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("locationForm")
+		const btn = document.getElementById("submitBtn")
+		const out = document.getElementById("out")
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			out.textContent = ""
+			btn.disabled = true
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product-v2/location", { method: "POST", body: fd })
+				const txt = await res.text()
+
+				if (!res.ok) {
+					out.textContent = `status=${res.status}\n${txt}`
+					btn.disabled = false
+					return
+				}
+
+				window.location.href = `/product-v2/${encodeURIComponent(fd.get("productId"))}/images`
+			} catch (err) {
+				out.textContent = `network error: ${String(err)}`
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>

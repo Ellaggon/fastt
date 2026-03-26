@@ -1,0 +1,85 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+---
+
+<Layout title="Product V2 - Create">
+	<main style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+		<h1>Product V2: Create</h1>
+		<p>Creates base Product identity (parallel system).</p>
+
+		<form id="createForm">
+			<label>
+				Name
+				<input name="name" required />
+			</label>
+			<br />
+			<label>
+				Product Type
+				<select name="productType" required>
+					<option value="">Select...</option>
+					<option value="Hotel">Hotel</option>
+					<option value="Tour">Tour</option>
+					<option value="Package">Package</option>
+				</select>
+			</label>
+			<br />
+			<label>
+				Destination ID
+				<input name="destinationId" required placeholder="e.g. la-paz" />
+			</label>
+			<br />
+
+			<button id="submitBtn" type="submit">Create</button>
+		</form>
+
+		<pre id="out" style="white-space: pre-wrap; margin-top: 16px;"></pre>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("createForm")
+		const btn = document.getElementById("submitBtn")
+		const out = document.getElementById("out")
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			out.textContent = ""
+			btn.disabled = true
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product-v2/create", { method: "POST", body: fd })
+				const txt = await res.text()
+
+				if (!res.ok) {
+					out.textContent = `status=${res.status}\n${txt}`
+					btn.disabled = false
+					return
+				}
+
+				let json = null
+				try {
+					json = JSON.parse(txt)
+				} catch {}
+
+				if (!json?.id) {
+					out.textContent = `status=${res.status}\n${txt}`
+					btn.disabled = false
+					return
+				}
+
+				window.location.href = `/product-v2/${json.id}/content`
+			} catch (err) {
+				out.textContent = `network error: ${String(err)}`
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>
