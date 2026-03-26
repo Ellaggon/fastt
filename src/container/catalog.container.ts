@@ -7,12 +7,16 @@ import { RoomRepository } from "../modules/catalog/infrastructure/repositories/R
 import { ProductRepository } from "../modules/catalog/infrastructure/repositories/ProductRepository"
 import { SubtypeRepository } from "../modules/catalog/infrastructure/repositories/SubtypeRepository"
 import { ProviderRepository } from "../modules/catalog/infrastructure/repositories/ProviderRepository"
+import { ProviderV2Repository } from "../modules/catalog/infrastructure/repositories/ProviderV2Repository"
+import { ProductV2Repository } from "../modules/catalog/infrastructure/repositories/ProductV2Repository"
 import { HotelRoomRepository } from "../modules/catalog/infrastructure/repositories/HotelRoomRepository"
 import { TaxFeeRepository } from "../modules/catalog/infrastructure/repositories/TaxFeeRepository"
 import { CatalogRestrictionRepository } from "../modules/catalog/infrastructure/repositories/CatalogRestrictionRepository"
 import { CancellationPolicyRepository } from "../modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
 import { ProductServiceRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceRepository"
 import { ProductImageRepository } from "../modules/catalog/infrastructure/repositories/ProductImageRepository"
+import { ImageUploadRepository } from "../modules/catalog/infrastructure/repositories/ImageUploadRepository"
+import { VariantManagementRepository } from "../modules/catalog/infrastructure/repositories/VariantManagementRepository"
 import { HotelAmenityQueryRepository } from "../modules/catalog/infrastructure/repositories/HotelAmenityQueryRepository"
 import { HotelRoomTypeRepository } from "../modules/catalog/infrastructure/repositories/HotelRoomTypeRepository"
 import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
@@ -38,12 +42,29 @@ export const roomRepository = new RoomRepository()
 export const productRepository = new ProductRepository(r2)
 export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
+export const providerV2Repository = new ProviderV2Repository()
+export const productV2Repository = new ProductV2Repository()
 export const hotelRoomRepository = new HotelRoomRepository(r2)
 export const taxFeeRepository = new TaxFeeRepository()
 export const catalogRestrictionRepository = new CatalogRestrictionRepository()
 export const cancellationPolicyRepository = new CancellationPolicyRepository()
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
+export const imageUploadRepository = new ImageUploadRepository()
+export const variantManagementRepository = new VariantManagementRepository()
+
+export async function cleanupStaleUploads(params: { olderThanMinutes: number }) {
+	if (!process.env.R2_BUCKET_NAME) throw new Error("R2_BUCKET_NAME is not defined")
+	const { cleanupStaleUploads } = await import(
+		"../modules/catalog/infrastructure/uploads/cleanupStaleUploads"
+	)
+	return cleanupStaleUploads({
+		repo: imageUploadRepository,
+		r2,
+		bucket: process.env.R2_BUCKET_NAME,
+		olderThanMinutes: params.olderThanMinutes,
+	})
+}
 
 export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
 export const hotelRoomTypeRepository = new HotelRoomTypeRepository()
