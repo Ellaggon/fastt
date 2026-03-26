@@ -15,13 +15,12 @@ import { RestrictionPortAdapter } from "../modules/search/infrastructure/adapter
 
 import { dailyInventoryRepository } from "./inventory.container"
 import {
-	adaptPriceRule,
 	priceRuleRepository,
-	pricingEngine,
 	promotionEngine,
 	ratePlanRepository,
 	variantRepository,
 } from "./pricing.container"
+import { computeBasePriceWithRules, parseStrictMinimalRules } from "@/modules/pricing/public"
 import { restrictionRepository, restrictionRuleEngine } from "./policies.container"
 
 // ---- Search singletons ----
@@ -38,8 +37,21 @@ searchAdapterRegistry.register("hotel_room", hotelAdapter)
 export const searchContextLoader = new SearchContextLoader<SearchUnit>(searchAdapterRegistry)
 
 const searchPricingPort = new PricingPortAdapter({
-	adaptPriceRule,
-	pricingEngine,
+	computeStayBasePriceWithRulesStrict: ({ basePricePerNight, nights, priceRules }) => {
+		const stayBase = basePricePerNight * nights
+
+		// Ensure identical semantics with preview: strict rule model.
+		const minimal = parseStrictMinimalRules({
+			basePrice: stayBase,
+			rules: priceRules.map((r) => ({
+				id: r.id,
+				type: String(r.type),
+				value: Number(r.value),
+			})),
+		})
+
+		return computeBasePriceWithRules(stayBase, minimal)
+	},
 })
 const searchRestrictionPort = new RestrictionPortAdapter({
 	restrictionEngine: restrictionRuleEngine,

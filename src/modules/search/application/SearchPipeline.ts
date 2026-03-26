@@ -2,7 +2,6 @@ import { AvailabilityGridEngine } from "@/shared/domain/availability/Availabilit
 
 import type { SearchContext } from "./ports/SellableUnitAdapterPort"
 import type { SearchMemory, SellableUnit, InventorySnapshot } from "../domain/unit.types"
-import type { AppliedPriceRule } from "../domain/pricing.types"
 import type { PricingPort } from "./ports/PricingPort"
 import type { RestrictionPort } from "./ports/RestrictionPort"
 import type { PromotionPort } from "./ports/PromotionPort"
@@ -87,27 +86,28 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 			const priceRules =
 				memory.priceRules?.filter((r) => r.ratePlanId === rp.id && r.isActive) ?? []
 
-			const runtimeRules = priceRules
-				.map((r) => this.deps.pricing.adaptPriceRule(r))
-				.filter((r): r is AppliedPriceRule => r !== null)
-
-			const computed = this.deps.pricing.computeStay({
-				basePrice: ctx.basePrice,
-				nights,
-				rules: runtimeRules,
-				currency: "USD",
-			})
+			let computedTotal: number
+			try {
+				computedTotal = this.deps.pricing.computeStayBasePriceWithRulesStrict({
+					basePricePerNight: ctx.basePrice,
+					nights,
+					priceRules,
+				})
+			} catch {
+				// Strict rule model: invalid rule types/values make the plan non-applicable.
+				continue
+			}
 
 			/* Promotions */
 
-			const final = this.deps.promotions.applyPromotions(computed.total, memory.promotions ?? [], {
+			const final = this.deps.promotions.applyPromotions(computedTotal, memory.promotions ?? [], {
 				checkIn: ctx.checkIn,
 				checkOut: ctx.checkOut,
 			})
 
 			validPlans.push({
 				ratePlanId: rp.id,
-				basePrice: computed.total,
+				basePrice: computedTotal,
 				finalPrice: final,
 			})
 		}
