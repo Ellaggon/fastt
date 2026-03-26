@@ -21,6 +21,7 @@ export class BuildOffersUseCase<TUnit extends SellableUnit> {
 		productId: string
 		checkIn: Date
 		checkOut: Date
+		rooms?: number
 		adults: number
 		children: number
 	}): Promise<SearchOffer<TUnit>[]> {
@@ -40,6 +41,7 @@ export class BuildOffersUseCase<TUnit extends SellableUnit> {
 					unitType: unit.entityType,
 					checkIn: ctx.checkIn,
 					checkOut: ctx.checkOut,
+					rooms: ctx.rooms,
 					adults: ctx.adults,
 					children: ctx.children,
 					basePrice: unit.basePrice ?? 0,

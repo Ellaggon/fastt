@@ -14,6 +14,8 @@ export interface SearchContext<TUnit extends SellableUnit = SellableUnit> {
 	unitType: UnitType
 	checkIn: Date
 	checkOut: Date
+	// Optional. When absent, search defaults to 1 unit requested.
+	rooms?: number
 	adults: number
 	children: number
 	basePrice: number
