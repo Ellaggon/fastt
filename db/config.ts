@@ -7,6 +7,14 @@ const Provider = defineTable({
 		id: column.text({ primaryKey: true }),
 		userEmail: column.text({ optional: true }),
 		companyName: column.text(),
+		// v2 (incremental): keep v1 fields intact while adding OTA-grade provider identity/lifecycle.
+		legalName: column.text({ optional: true }),
+		displayName: column.text({ optional: true }),
+		// IMPORTANT (SQLite/Turso safe migration):
+		// Keep these optional to avoid table-rebuild migrations that can fail under FK enforcement on remote DBs.
+		// Defaults can be enforced at the application layer and tightened in a later migration.
+		status: column.text({ optional: true }), // draft | active | archived (verification handled separately)
+		createdAt: column.date({ optional: true }),
 		contactName: column.text({ optional: true }),
 		contactEmail: column.text({ optional: true }),
 		phone: column.text({ optional: true }),
@@ -61,11 +69,30 @@ const Image = defineTable({
 		id: column.text({ primaryKey: true }),
 		entityType: column.text({ optional: true }), // e.g. "Product", "Hotel", "City"
 		entityId: column.text({ optional: true }), // ID de la entidad
+		// Storage key for managed objects (R2). Optional for backward compatibility with legacy rows.
+		objectKey: column.text({ optional: true }),
 		url: column.text(),
 		altText: column.text({ optional: true }),
 		order: column.number({ default: 0 }),
 		isPrimary: column.boolean({ default: false }),
 	},
+})
+
+// Safe-minimum upload tracking for R2. Used to clean up incomplete uploads.
+// NOTE: This is not an outbox/worker system; just enough metadata for cleanup + integrity checks.
+const ImageUpload = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }), // imageId
+		productId: column.text(),
+		providerId: column.text({ optional: true }),
+		objectKey: column.text(),
+		expectedContentType: column.text({ optional: true }),
+		expectedBytes: column.number({ optional: true }),
+		status: column.text({ default: "pending" }), // pending | completed
+		createdAt: column.date({ default: NOW }),
+		completedAt: column.date({ optional: true }),
+	},
+	indexes: [{ on: ["productId", "status"] }],
 })
 const Translation = defineTable({
 	columns: {
@@ -94,6 +121,41 @@ const User = defineTable({
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 	},
 })
+
+// Provider v2 extensions (parallel system): profile, verification, and provider-user mapping.
+// NOTE: These tables intentionally coexist with v1 flows. No existing routes/pages are changed here.
+const ProviderProfile = defineTable({
+	columns: {
+		providerId: column.text({ primaryKey: true, references: () => Provider.columns.id }),
+		timezone: column.text(),
+		defaultCurrency: column.text({ default: "USD" }),
+		supportEmail: column.text({ optional: true }),
+		supportPhone: column.text({ optional: true }),
+	},
+})
+const ProviderVerification = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		status: column.text({ default: "pending" }), // pending | approved | rejected
+		reason: column.text({ optional: true }),
+		reviewedAt: column.date({ optional: true }),
+		reviewedBy: column.text({ optional: true }),
+		metadataJson: column.json({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "status"] }],
+})
+const ProviderUser = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		userId: column.text({ references: () => User.columns.id }),
+		role: column.text({ default: "owner" }), // owner | admin | staff
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "userId"], unique: true }],
+})
 const Product = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -104,6 +166,34 @@ const Product = defineTable({
 		lastUpdated: column.date({ default: NOW }),
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 		destinationId: column.text({ references: () => Destination.columns.id }),
+	},
+})
+
+// Product V2 (parallel, non-breaking): additional 1:1 tables owned by the catalog domain.
+// IMPORTANT: Keep these tables loosely coupled during incremental rollout. We intentionally
+// do NOT enforce completeness at the DB level; use-cases (Zod) will do that.
+// NOTE: We also avoid FK references in Phase 1 to keep remote SQLite/Turso migrations safe.
+const ProductStatus = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true }),
+		state: column.text({ default: "draft" }), // draft | ready | published
+		validationErrorsJson: column.json({ optional: true }),
+	},
+})
+const ProductContent = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true }),
+		highlightsJson: column.json({ optional: true }),
+		rules: column.text({ optional: true }),
+		seoJson: column.json({ optional: true }),
+	},
+})
+const ProductLocation = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true }),
+		address: column.text({ optional: true }),
+		lat: column.number({ optional: true }),
+		lng: column.number({ optional: true }),
 	},
 })
 const Hotel = defineTable({
@@ -140,11 +230,20 @@ const Variant = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
+		// Legacy subtype pointer (deprecated for new flows; kept for backward compatibility).
+		// New flows should use `kind` + subtype extension tables.
 		entityType: column.text(), // 'hotel_room', 'tour_slot', 'package_base'
 		entityId: column.text(),
 		name: column.text(),
 		description: column.text({ optional: true }),
 
+		// CAPA 3: clean variant identity + lifecycle (safe incremental: optional to avoid risky rebuilds).
+		kind: column.text({ optional: true }), // hotel_room | tour_slot | package_base
+		status: column.text({ optional: true }), // draft | ready | sellable | archived
+		createdAt: column.date({ optional: true }),
+
+		// Legacy fields (deprecated): pricing + capacity on Variant.
+		// Do not remove yet; existing pricing/inventory/search code depends on them.
 		maxOccupancy: column.number({ default: 1 }),
 		minOccupancy: column.number({ default: 1 }),
 		currency: column.text({ default: "USD" }),
@@ -161,6 +260,66 @@ const Variant = defineTable({
 		isActive: column.boolean({ default: true }),
 	},
 	indexes: [{ on: ["entityId", "entityType"] }],
+})
+
+// Legacy table present in remote DB from an earlier iteration.
+// Keep it declared (deprecated) to allow safe incremental remote migrations without force-reset.
+// NOTE: This table must not be used by runtime code; current Variant lives in `Variant`.
+const VariantV2 = defineTable({
+	deprecated: true,
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text(),
+		kind: column.text(),
+		name: column.text(),
+		description: column.text({ optional: true }),
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+
+// Legacy table present in remote DB from an earlier iteration.
+// Kept as deprecated to avoid drop+add in the same remote push batch.
+const VariantCapacityV2 = defineTable({
+	deprecated: true,
+	columns: {
+		variantId: column.text({ primaryKey: true }),
+		minOccupancy: column.number({ optional: true }),
+		maxOccupancy: column.number({ optional: true }),
+		maxAdults: column.number({ optional: true }),
+		maxChildren: column.number({ optional: true }),
+	},
+})
+
+// CAPA 3 (Variant): strong capacity model (new source of truth for capacity).
+const VariantCapacity = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		minOccupancy: column.number(),
+		maxOccupancy: column.number(),
+		maxAdults: column.number({ optional: true }),
+		maxChildren: column.number({ optional: true }),
+	},
+})
+
+// CAPA 3 (Variant): hotel_room subtype extension.
+// Links a variant to a RoomType (e.g. "double"). ProductId is on Variant.
+const VariantHotelRoom = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		roomTypeId: column.text({ references: () => RoomType.columns.id }),
+	},
+	indexes: [{ on: ["roomTypeId"] }],
+})
+
+// CAPA 3 (Variant): readiness snapshot (catalog completeness only).
+const VariantReadiness = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		state: column.text({ default: "draft" }), // draft | ready
+		validationErrorsJson: column.json({ optional: true }),
+		updatedAt: column.date({ default: NOW }),
+	},
 })
 
 // 3. Configuración estructural de producto
@@ -276,18 +435,6 @@ const EffectivePolicy = defineTable({
 
 // 5. Inventory / Availability base
 
-// const DailyAvailability = defineTable({
-// 	columns: {
-// 		id: column.text({ primaryKey: true }),
-// 		entityType: column.text(), // hotel_room | tour_slot | package_base
-// 		entityId: column.text(),
-// 		// hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
-// 		date: column.text(),
-// 		availableCount: column.number(), // Ej: 10 habitaciones
-// 		priceOverride: column.number({ optional: true }), // Las OTAs permiten cambiar el precio por día específico aquí
-// 	},
-// })
-
 const DailyInventory = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -329,6 +476,9 @@ const RatePlan = defineTable({
 		id: column.text({ primaryKey: true }),
 		templateId: column.text({ references: () => RatePlanTemplate.columns.id }),
 		variantId: column.text({ references: () => Variant.columns.id }),
+		// CAPA 4B (Pricing Engine minimal): allow one default rate plan per variant.
+		// Enforced at application layer (SQLite-safe incremental schema).
+		isDefault: column.boolean({ default: false }),
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -403,6 +553,17 @@ const EffectivePricing = defineTable({
 			unique: true,
 		},
 	],
+})
+
+// CAPA 4A (Pricing Base Rate): 1:1 base pricing per Variant (sellable unit).
+// This replaces Variant.basePrice/currency as the canonical source of truth (legacy fields remain for compatibility).
+const PricingBaseRate = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		currency: column.text({ default: "USD" }),
+		basePrice: column.number(),
+		createdAt: column.date({ default: NOW }),
+	},
 })
 const TaxFee = defineTable({
 	columns: {
@@ -530,20 +691,32 @@ export default defineDb({
 	tables: {
 		// 1 master
 		Provider,
+		ProviderProfile,
+		ProviderVerification,
+		ProviderUser,
 		Destination,
 		RoomType,
 		AmenityRoom,
 		Service,
 		Image,
+		ImageUpload,
 		Translation,
 
 		// 2 core entities
 		User,
 		Product,
+		ProductStatus,
+		ProductContent,
+		ProductLocation,
 		Hotel,
 		Tour,
 		Package,
 		Variant,
+		VariantV2,
+		VariantCapacityV2,
+		VariantCapacity,
+		VariantHotelRoom,
+		VariantReadiness,
 
 		// 3 product structure
 		HotelRoomType,
@@ -571,6 +744,7 @@ export default defineDb({
 		Restriction,
 		EffectiveRestriction,
 		EffectivePricing,
+		PricingBaseRate,
 		TaxFee,
 
 		// 7 booking
