@@ -1,4 +1,4 @@
-import { db, eq, PriceRule, EffectivePricing } from "astro:db"
+import { db, eq, PriceRule, EffectivePricing, asc } from "astro:db"
 import { adaptPriceRule } from "../../domain/adapters/adapter.priceRule"
 import type { AppliedPriceRule } from "../../domain/pricing.types"
 import type { PricingRepositoryPort } from "../../application/ports/PricingRepositoryPort"
@@ -8,6 +8,33 @@ export class PricingRepository implements PricingRepositoryPort {
 		const rows = await db.select().from(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId))
 
 		return rows.map(adaptPriceRule).filter((r): r is AppliedPriceRule => r !== null)
+	}
+
+	async getPreviewRules(ratePlanId: string) {
+		// Deterministic ordering for preview computations: createdAt ASC.
+		// (id ASC tie-breaker is implicit in SQLite row ordering only sometimes; we do it explicitly.)
+		const rows = await db
+			.select({
+				id: PriceRule.id,
+				type: PriceRule.type,
+				value: PriceRule.value,
+				createdAt: PriceRule.createdAt,
+				isActive: PriceRule.isActive,
+			})
+			.from(PriceRule)
+			.where(eq(PriceRule.ratePlanId, ratePlanId))
+			.orderBy(asc(PriceRule.createdAt), asc(PriceRule.id))
+			.all()
+
+		// Only active rules should affect preview computations.
+		const active = rows.filter((r) => r.isActive)
+		// NOTE: We intentionally do NOT adapt types here. Use-cases validate allowed types.
+		return active.map((r) => ({
+			id: r.id,
+			type: r.type,
+			value: r.value,
+			createdAt: r.createdAt,
+		})) as Array<{ id: string; type: string; value: number; createdAt: Date }>
 	}
 
 	async saveEffectivePrice(params: {

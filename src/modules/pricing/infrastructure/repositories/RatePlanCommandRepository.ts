@@ -24,6 +24,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				id: cmd.ratePlan.id,
 				variantId: cmd.ratePlan.variantId,
 				templateId: cmd.ratePlan.templateId,
+				isDefault: Boolean(cmd.ratePlan.isDefault),
 				isActive: cmd.ratePlan.isActive,
 				createdAt: cmd.ratePlan.createdAt,
 			})

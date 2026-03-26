@@ -12,6 +12,7 @@ export interface CreateRatePlanCommand {
 		id: string
 		variantId: string
 		templateId: string
+		isDefault?: boolean
 		isActive: boolean
 		createdAt: Date
 	}
