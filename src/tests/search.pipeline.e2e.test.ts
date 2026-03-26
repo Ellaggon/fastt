@@ -16,7 +16,7 @@ describe("SearchPipeline E2E", () => {
 			load: async () => ({
 				inventory: [
 					{
-						date: baseDate,
+						date: "2026-03-01",
 						totalInventory: 5,
 						reservedCount: 0,
 						stopSell: false,
@@ -92,7 +92,7 @@ describe("SearchPipeline E2E", () => {
 			load: async () => ({
 				inventory: [
 					{
-						date: baseDate,
+						date: "2026-03-01",
 						totalInventory: 5,
 						reservedCount: 0,
 						stopSell: false,
