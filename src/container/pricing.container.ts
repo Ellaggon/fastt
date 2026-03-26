@@ -18,6 +18,9 @@ import { VariantRepository } from "../modules/pricing/infrastructure/repositorie
 import { PriceRuleRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleRepository"
 import { RatePlanCommandRepository } from "../modules/pricing/infrastructure/repositories/RatePlanCommandRepository"
 import { RatePlanQueryRepository } from "../modules/pricing/infrastructure/repositories/RatePlanQueryRepository"
+import { BaseRateRepository } from "../modules/pricing/infrastructure/repositories/BaseRateRepository"
+import { PriceRuleCommandRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleCommandRepository"
+import { PriceRuleQueryRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleQueryRepository"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -26,6 +29,16 @@ export const variantRepository = new VariantRepository()
 export const priceRuleRepository = new PriceRuleRepository()
 export const ratePlanCommandRepository = new RatePlanCommandRepository()
 export const ratePlanQueryRepository = new RatePlanQueryRepository()
+export const baseRateRepository = new BaseRateRepository()
+export const priceRuleCommandRepository = new PriceRuleCommandRepository()
+export const priceRuleQueryRepository = new PriceRuleQueryRepository()
+
+export async function backfillPricingBaseRates() {
+	const { backfillPricingBaseRate } = await import(
+		"../modules/pricing/infrastructure/backfill/backfillPricingBaseRate"
+	)
+	return backfillPricingBaseRate()
+}
 
 // ---- Engine singletons ----
 export const ratePlanEngine = new RatePlanEngine()
