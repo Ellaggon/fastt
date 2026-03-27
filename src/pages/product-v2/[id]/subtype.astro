@@ -31,97 +31,97 @@ const pt = String(product.productType || "")
 
 			{
 				pt === "hotel" ? (
-					<>
+					<div>
 						<h2>Hotel</h2>
-						<>
+						<div>
 							<label>
 								Stars <input name="stars" placeholder="1-5" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Phone <input name="phone" placeholder="Optional" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Email <input name="email" placeholder="Optional" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Website <input name="website" placeholder="Optional" />
 							</label>
 							<br />
-						</>
-					</>
+						</div>
+					</div>
 				) : null
 			}
 
 			{
 				pt === "tour" ? (
-					<>
+					<div>
 						<h2>Tour</h2>
-						<>
+						<div>
 							<label>
 								Duration <input name="duration" placeholder="Optional" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Difficulty <input name="difficultyLevel" placeholder="Optional" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Guide languages (comma) <input name="guideLanguages" placeholder="es,en" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Includes <textarea name="includes" rows="3" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Excludes <textarea name="excludes" rows="3" />
 							</label>
 							<br />
-						</>
-					</>
+						</div>
+					</div>
 				) : null
 			}
 
 			{
 				pt === "package" ? (
-					<>
+					<div>
 						<h2>Package</h2>
-						<>
+						<div>
 							<label>
 								Itinerary <textarea name="itinerary" rows="3" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Days <input name="days" placeholder="0+" />
 							</label>
 							<br />
-						</>
-						<>
+						</div>
+						<div>
 							<label>
 								Nights <input name="nights" placeholder="0+" />
 							</label>
 							<br />
-						</>
-					</>
+						</div>
+					</div>
 				) : null
 			}
 
