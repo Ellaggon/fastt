@@ -143,3 +143,11 @@ export async function searchDestinations(params: { q: string; limit: number }) {
 	const { searchDestinations } = await import("@/container")
 	return searchDestinations(params)
 }
+
+export async function listMarketplaceHotelsByDestination(params: {
+	destinationId: string
+	limit?: number
+}) {
+	const { listMarketplaceHotelsByDestination } = await import("@/container")
+	return listMarketplaceHotelsByDestination(params)
+}
