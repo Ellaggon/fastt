@@ -22,6 +22,7 @@ import { HotelRoomTypeRepository } from "../modules/catalog/infrastructure/repos
 import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
 import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
+import { MarketplaceHotelSearchRepository } from "../modules/catalog/infrastructure/repositories/MarketplaceHotelSearchRepository"
 
 import {
 	createResolveHotelAmenitiesQuery,
@@ -35,6 +36,7 @@ import {
 	createGetProductServiceConfigQuery,
 	createListActiveCancellationPoliciesQuery,
 	createSearchDestinationsQuery,
+	createListMarketplaceHotelsByDestinationQuery,
 } from "../modules/catalog/application/queries"
 
 // ---- Infrastructure singletons ----
@@ -71,6 +73,7 @@ export const hotelRoomTypeRepository = new HotelRoomTypeRepository()
 export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
 export const destinationQueryRepository = new DestinationQueryRepository()
+export const marketplaceHotelSearchRepository = new MarketplaceHotelSearchRepository()
 
 // ---- Wired read queries ----
 export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
@@ -99,6 +102,10 @@ export const listActiveCancellationPolicies = createListActiveCancellationPolici
 
 export const searchDestinations = createSearchDestinationsQuery({
 	repo: destinationQueryRepository,
+})
+
+export const listMarketplaceHotelsByDestination = createListMarketplaceHotelsByDestinationQuery({
+	repo: marketplaceHotelSearchRepository,
 })
 
 // ---- Wired use-cases ----
