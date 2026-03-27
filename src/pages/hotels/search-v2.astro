@@ -1,0 +1,140 @@
+---
+import SearchLayout from "@/layouts/SearchLayout.astro"
+
+type SearchResult = {
+	productId: string
+	name: string
+	destinationId: string
+	heroImage?: string
+	fromPrice: number
+	currency: string
+	available: boolean
+	availableVariants: number
+}
+
+const url = new URL(Astro.request.url)
+const params = url.searchParams
+
+const destinationId = (params.get("destinationId") || "").trim()
+const checkIn = (params.get("checkIn") || "").trim()
+const checkOut = (params.get("checkOut") || "").trim()
+const rooms = (params.get("rooms") || "1").trim()
+const adults = (params.get("adults") || "2").trim()
+const children = (params.get("children") || "0").trim()
+
+let results: SearchResult[] = []
+let error: string | null = null
+
+const hasRequired = Boolean(destinationId && checkIn && checkOut)
+
+if (hasRequired) {
+	try {
+		const apiUrl = new URL("/api/search-v2", url.origin)
+		apiUrl.searchParams.set("destinationId", destinationId)
+		apiUrl.searchParams.set("checkIn", checkIn)
+		apiUrl.searchParams.set("checkOut", checkOut)
+		apiUrl.searchParams.set("rooms", rooms)
+		apiUrl.searchParams.set("adults", adults)
+		apiUrl.searchParams.set("children", children)
+
+		const res = await fetch(apiUrl)
+		if (!res.ok) {
+			const body = await res.text()
+			error = `Search failed (${res.status}): ${body || res.statusText}`
+		} else {
+			const json = (await res.json()) as { results: SearchResult[] }
+			results = Array.isArray(json?.results) ? json.results : []
+		}
+	} catch (e) {
+		error = e instanceof Error ? e.message : "Unknown error"
+	}
+}
+---
+
+<SearchLayout title="Marketplace Search (v2)" producType="hotels">
+	<main class="mx-auto my-6 w-[96%] max-w-5xl space-y-6">
+		<h1 class="text-xl font-semibold">Hotels search (v2)</h1>
+
+		<form method="GET" class="grid grid-cols-1 gap-3 rounded border p-4 md:grid-cols-3">
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Destination id/slug</span>
+				<input name="destinationId" value={destinationId} required />
+			</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Check-in</span>
+				<input type="date" name="checkIn" value={checkIn} required />
+			</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Check-out</span>
+				<input type="date" name="checkOut" value={checkOut} required />
+			</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Rooms</span>
+				<input type="number" min="1" name="rooms" value={rooms} />
+			</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Adults</span>
+				<input type="number" min="0" name="adults" value={adults} />
+			</label>
+			<label class="flex flex-col gap-1">
+				<span class="text-sm">Children</span>
+				<input type="number" min="0" name="children" value={children} />
+			</label>
+
+			<div class="md:col-span-3">
+				<button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white">Search</button>
+			</div>
+		</form>
+
+		{
+			error && (
+				<p class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+			)
+		}
+
+		{
+			hasRequired && !error && results.length === 0 && (
+				<p class="text-sm text-neutral-600">No availability for selected dates.</p>
+			)
+		}
+
+		{
+			results.length > 0 && (
+				<div class="grid grid-cols-1 gap-3">
+					{results.map((r) => (
+						<article class="flex gap-3 rounded border p-3">
+							{r.heroImage ? (
+								<img src={r.heroImage} alt={r.name} class="h-20 w-28 rounded object-cover" />
+							) : (
+								<div class="h-20 w-28 rounded bg-neutral-100" />
+							)}
+							<div class="flex-1">
+								<div class="flex items-center justify-between gap-3">
+									<h2 class="font-semibold">{r.name}</h2>
+									<span class="rounded bg-green-100 px-2 py-1 text-xs text-green-800">
+										Available
+									</span>
+								</div>
+								<p class="text-sm text-neutral-600">
+									From {r.currency} {r.fromPrice} (variants: {r.availableVariants})
+								</p>
+								<a
+									class="text-sm text-blue-700 underline"
+									href={`/hotels/${encodeURIComponent(r.productId)}?destinationId=${encodeURIComponent(
+										destinationId
+									)}&checkin=${encodeURIComponent(checkIn)}&checkout=${encodeURIComponent(
+										checkOut
+									)}&adults=${encodeURIComponent(adults)}&children=${encodeURIComponent(children)}&rooms=${encodeURIComponent(
+										rooms
+									)}`}
+								>
+									View hotel
+								</a>
+							</div>
+						</article>
+					))}
+				</div>
+			)
+		}
+	</main>
+</SearchLayout>
