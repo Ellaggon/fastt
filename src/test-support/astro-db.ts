@@ -27,6 +27,7 @@ export let db: any
 // Tables (add as needed when repositories/services import more)
 export let Destination: any
 export let Product: any
+export let HouseRule: any
 export let ProductStatus: any
 export let ProductContent: any
 export let ProductLocation: any
@@ -54,6 +55,14 @@ export let EffectivePricing: any
 export let PricingBaseRate: any
 export let Restriction: any
 export let InventoryLock: any
+export let PolicyGroup: any
+export let Policy: any
+export let PolicyAssignment: any
+export let CancellationTier: any
+export let PolicyRule: any
+export let EffectivePolicy: any
+export let Booking: any
+export let BookingPolicySnapshot: any
 
 async function init() {
 	// Ensure local folder exists
@@ -100,6 +109,7 @@ async function init() {
 
 	Destination = drizzleTables.Destination
 	Product = drizzleTables.Product
+	HouseRule = drizzleTables.HouseRule
 	ProductStatus = drizzleTables.ProductStatus
 	ProductContent = drizzleTables.ProductContent
 	ProductLocation = drizzleTables.ProductLocation
@@ -127,6 +137,14 @@ async function init() {
 	PricingBaseRate = drizzleTables.PricingBaseRate
 	Restriction = drizzleTables.Restriction
 	InventoryLock = drizzleTables.InventoryLock
+	PolicyGroup = drizzleTables.PolicyGroup
+	Policy = drizzleTables.Policy
+	PolicyAssignment = drizzleTables.PolicyAssignment
+	CancellationTier = drizzleTables.CancellationTier
+	PolicyRule = drizzleTables.PolicyRule
+	EffectivePolicy = drizzleTables.EffectivePolicy
+	Booking = drizzleTables.Booking
+	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
 }
 
 // Top-level await so imports are ready before tests execute.

@@ -1,9 +1,25 @@
 ---
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { getVariantById } from "@/modules/pricing/public"
+import { db, eq, RatePlan, Variant } from "astro:db"
 
 const { id, variantId } = Astro.params
 if (!variantId || !id) return Astro.redirect("/dashboard")
+
+// Routing bridge (CAPA 6 UX):
+// `/products/:productId/rate-plans/:ratePlanId` is required, but this slot is historically `:variantId`.
+// If the segment matches an existing RatePlan.id that belongs to this product, redirect to the policy assignment page.
+const maybeRp = await db.select().from(RatePlan).where(eq(RatePlan.id, variantId)).get()
+if (maybeRp) {
+	const v = await db
+		.select()
+		.from(Variant)
+		.where(eq(Variant.id, (maybeRp as any).variantId))
+		.get()
+	if (v && String((v as any).productId) === String(id)) {
+		return Astro.redirect(`/products/${id}/rate-plans/${variantId}/policies`)
+	}
+}
 
 const ratePlansRes = await fetch(
 	new URL(`/api/rateplans/list?variantId=${variantId}`, Astro.request.url)
