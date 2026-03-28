@@ -1,30 +1,52 @@
 import type { APIRoute } from "astro"
-import { createPolicyUseCase } from "@/container"
+import { z } from "zod"
+import {
+	assignPolicyCapa6,
+	createPolicyCapa6,
+	PolicyValidationError,
+} from "@/modules/policies/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()
 
-	const { previousPolicyId, description, scope, scopeId, category, cancellationTiers } = body
+	const { previousPolicyId, description, scope, scopeId, category, cancellationTiers, rules } = body
 
 	if (!scope || !scopeId || !category) {
 		return new Response("Missing fields", { status: 400 })
 	}
 
 	try {
-		const res = await createPolicyUseCase({
+		// CAPA 6 write path: create the (active) policy version, then assign it to the requested scope.
+		const created = await createPolicyCapa6({
 			previousPolicyId,
-			description,
-			scope,
-			scopeId,
 			category,
+			description,
+			rules,
 			cancellationTiers,
 		})
-		return Response.json(res)
+
+		await assignPolicyCapa6({
+			policyId: created.policyId,
+			scope,
+			scopeId,
+			channel: null,
+		})
+
+		// Preserve legacy response shape.
+		return Response.json({ id: created.policyId, groupId: created.groupId })
 	} catch (err: any) {
-		if (String(err?.message || err) === "Policy not found")
-			return new Response("Policy not found", { status: 404 })
-		if (String(err?.message || err) === "Cancellation tiers required")
-			return new Response("Cancellation tiers required", { status: 400 })
+		if (err instanceof z.ZodError) {
+			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (err instanceof PolicyValidationError) {
+			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		if (String(err?.message || err) === "Missing fields")
 			return new Response("Missing fields", { status: 400 })
 		throw err
