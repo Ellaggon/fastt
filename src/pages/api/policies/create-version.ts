@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro"
-import { createPolicyVersionUseCase } from "@/container"
+import { z } from "zod"
+import { createPolicyVersionCapa6, PolicyValidationError } from "@/modules/policies/public"
 
 type CreateVersionBody = {
 	previousPolicyId: string
 	description?: string
+	rules?: Record<string, unknown>
 	cancellationTiers?: {
 		daysBeforeArrival: number
 		penaltyType: "percentage" | "nights"
@@ -12,7 +14,7 @@ type CreateVersionBody = {
 }
 
 export const POST: APIRoute = async ({ request }) => {
-	const { previousPolicyId, description, cancellationTiers } =
+	const { previousPolicyId, description, rules, cancellationTiers } =
 		(await request.json()) as CreateVersionBody
 
 	if (!previousPolicyId) {
@@ -20,17 +22,37 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	try {
-		const res = await createPolicyVersionUseCase({
+		// CAPA 6 versioning: create a new active version within the existing group (assignment remains unchanged).
+		const res = await createPolicyVersionCapa6({
 			previousPolicyId,
-			description,
+			description: description ?? "",
+			rules,
 			cancellationTiers,
 		})
-		return new Response(JSON.stringify(res), {
-			headers: { "Content-Type": "application/json" },
-		})
+		return new Response(
+			JSON.stringify({
+				success: true,
+				id: res.policyId,
+				groupId: res.groupId,
+				version: res.version,
+			}),
+			{
+				headers: { "Content-Type": "application/json" },
+			}
+		)
 	} catch (err: any) {
-		if (String(err?.message || err) === "Policy not found")
-			return new Response("Policy not found", { status: 404 })
+		if (err instanceof z.ZodError) {
+			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (err instanceof PolicyValidationError) {
+			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		throw err
 	}
 }
