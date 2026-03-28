@@ -1,0 +1,130 @@
+---
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+
+// Provider-only page. If unauthenticated or no provider, redirect to existing flows.
+try {
+	await requireProvider(Astro.request)
+} catch (e: any) {
+	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
+	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
+	throw e
+}
+
+const res = await fetch(new URL("/api/policies/list-active", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const policies = res.ok ? ((await res.json()) as any[]) : []
+const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+
+const categories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+const byCategory: Record<string, any[]> = {}
+for (const c of categories) byCategory[c] = []
+for (const p of policies) {
+	const c = String(p.category ?? "")
+	if (!byCategory[c]) continue
+	byCategory[c].push(p)
+}
+
+// Keep only the latest active version per group within each category (provider UX).
+for (const c of categories) {
+	const latestByGroup = new Map<string, any>()
+	for (const p of byCategory[c]) {
+		const gid = String(p.groupId ?? "")
+		const prev = latestByGroup.get(gid)
+		if (!prev || Number(p.version ?? 0) > Number(prev.version ?? 0)) {
+			latestByGroup.set(gid, p)
+		}
+	}
+	byCategory[c] = Array.from(latestByGroup.values()).sort((a, b) =>
+		String(a.description ?? "").localeCompare(String(b.description ?? ""))
+	)
+}
+---
+
+<DashboardLayout>
+	<main class="mt-10 space-y-4 p-6">
+		<header class="flex items-center justify-between">
+			<h1 class="text-xl font-semibold">Policies</h1>
+			<nav class="space-x-3">
+				<a href="/dashboard" class="underline">Dashboard</a>
+				<a href="/provider/policies/new" class="underline">Create policy</a>
+			</nav>
+		</header>
+
+		<p class="text-sm text-neutral-700">
+			Create policies and assign them to rate plans to make them active.
+		</p>
+		<p class="text-sm">
+			<a class="underline" href="/dashboard">Go to products</a>
+			{" "}→ choose a product → Rate plans → Policies.
+		</p>
+
+		{
+			success === "created" && (
+				<div class="border p-3">
+					<strong>OK:</strong> Policy created.
+					<div class="text-sm">
+						<a class="underline" href="/dashboard">
+							Assign to a rate plan
+						</a>
+					</div>
+				</div>
+			)
+		}
+		{
+			success === "updated" && (
+				<div class="border p-3">
+					<strong>OK:</strong> New policy version created.
+				</div>
+			)
+		}
+
+		{
+			!res.ok ? (
+				<p>Failed to load policies.</p>
+			) : policies.length === 0 ? (
+				<p>No policies yet.</p>
+			) : null
+		}
+
+		{
+			res.ok &&
+				categories.map((cat) => (
+					<section class="space-y-2">
+						<h2 class="text-lg font-semibold">{cat}</h2>
+						{byCategory[cat].length === 0 ? (
+							<p class="text-sm">No policies in this category.</p>
+						) : (
+							<table class="w-full border-collapse">
+								<thead>
+									<tr>
+										<th class="border-b p-2 text-left">Name</th>
+										<th class="border-b p-2 text-left">Version</th>
+										<th class="border-b p-2 text-left">Actions</th>
+										<th class="border-b p-2 text-left">ID</th>
+									</tr>
+								</thead>
+								<tbody>
+									{byCategory[cat].map((p) => (
+										<tr>
+											<td class="border-b p-2">{p.description}</td>
+											<td class="border-b p-2">{p.version}</td>
+											<td class="border-b p-2">
+												<a class="underline" href={`/provider/policies/${p.id}/edit`}>
+													Edit
+												</a>
+											</td>
+											<td class="border-b p-2">
+												<code>{p.id}</code>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						)}
+					</section>
+				))
+		}
+	</main>
+</DashboardLayout>
