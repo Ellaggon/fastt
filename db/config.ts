@@ -169,6 +169,18 @@ const Product = defineTable({
 	},
 })
 
+// House Rules (CAPA 6.5): UI-driven property information. Not part of booking contract.
+const HouseRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		productId: column.text({ references: () => Product.columns.id }),
+		type: column.text(), // Children | Pets | Smoking | ExtraBeds | Access | Other
+		description: column.text(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["productId", "type"] }],
+})
+
 // Product V2 (parallel, non-breaking): additional 1:1 tables owned by the catalog domain.
 // IMPORTANT: Keep these tables loosely coupled during incremental rollout. We intentionally
 // do NOT enforce completeness at the DB level; use-cases (Zod) will do that.
@@ -651,6 +663,12 @@ const BookingPolicySnapshot = defineTable({
 		policyType: column.text(),
 		description: column.text(),
 		cancellationJson: column.json({ optional: true }),
+		// CAPA 6 (Booking snapshot): canonical immutable policy snapshot at booking time.
+		// Keep legacy columns above for backward compatibility.
+		category: column.text({ optional: true }),
+		policyId: column.text({ optional: true }),
+		policySnapshotJson: column.json({ optional: true }),
+		createdAt: column.date({ optional: true }),
 	},
 })
 const BookingTaxFee = defineTable({
@@ -722,6 +740,7 @@ export default defineDb({
 		// 2 core entities
 		User,
 		Product,
+		HouseRule,
 		ProductStatus,
 		ProductContent,
 		ProductLocation,

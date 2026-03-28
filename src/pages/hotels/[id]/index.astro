@@ -1,4 +1,5 @@
 ---
+import PolicyCard from "@/components/policy/PolicyCard.astro"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
 import ImageModal from "@/components/productUI/ImageModal.astro"
 import MapModal from "@/components/productUI/MapModal.astro"
@@ -15,7 +16,8 @@ import {
 	resolveProductServices,
 	resolveRoomImages,
 } from "@/modules/catalog/public"
-import { resolveHotelPolicies } from "@/modules/policies/public"
+import { listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import type { ImageRow } from "@/types/products"
 import { db, Destination, eq, Hotel, Product } from "astro:db"
 
@@ -76,7 +78,48 @@ const searchState = {
 
 const images = await resolveProductImages(productId)
 const services = await resolveProductServices(productId)
-const policies = await resolveHotelPolicies(productId)
+
+const houseRules = await listHouseRulesByProduct(String(productId))
+const HOUSE_RULE_TYPES = ["Children", "Pets", "Smoking", "ExtraBeds", "Access", "Other"] as const
+const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, r: any) => {
+	const t = String(r.type ?? "")
+	if (!acc[t]) acc[t] = []
+	acc[t].push(r)
+	return acc
+}, {})
+
+// CAPA 6: resolve policies using the same scope context the user is actually shopping with.
+// For rate-plan scoped policies, we need a concrete {variantId, ratePlanId}. Pick the cheapest offer context.
+let policyVariantId: string | undefined = undefined
+let policyRatePlanId: string | undefined = undefined
+let minOfferPrice = Number.POSITIVE_INFINITY
+for (const o of offers) {
+	for (const rp of o.ratePlans ?? []) {
+		const price = Number((rp as any).finalPrice ?? NaN)
+		if (!Number.isFinite(price)) continue
+		if (price < minOfferPrice) {
+			minOfferPrice = price
+			policyVariantId = String(o.variantId)
+			policyRatePlanId = String((rp as any).ratePlanId)
+		}
+	}
+}
+
+const resolvedPolicies = await resolveEffectivePolicies({
+	productId,
+	variantId: policyVariantId,
+	ratePlanId: policyRatePlanId,
+	channel: "web",
+})
+let policies: any[] = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
+if (policies.length === 0) {
+	console.warn(
+		"[policies] canonical resolver returned 0 policies (no fallback; hotel scope removed)",
+		{
+			productId,
+		}
+	)
+}
 
 const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) => {
 	if (!acc[p.category]) acc[p.category] = []
@@ -113,7 +156,6 @@ try {
 		class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-7 overflow-x-hidden py-3 md:space-y-20 md:py-7 lg:p-12"
 	>
 		<BreadcrumProduct productData={hotelProduct} productId={productId} />
-		<pre>{JSON.stringify(offers, null, 2)}</pre>
 
 		{
 			errorMessage ? (
@@ -270,26 +312,55 @@ try {
 								{Object.values(POLICY_UI_GROUPS)
 									.flat()
 									.map((category) => {
-										const group = policiesByCategory[category]
-										if (!group) return null
+										const group = policiesByCategory[category] ?? []
+										const first = group[0] ?? null
+										const source = String(first?.resolvedFromScope ?? "global") as any
+										const state = first
+											? source === "rate_plan"
+												? "override"
+												: "inherited"
+											: "missing"
 
 										return (
 											<div class="space-y-3">
-												<h4 class="text-lg font-semibold text-neutral-800">
-													{POLICY_CATEGORY_ORDER[category]}
-												</h4>
-
-												<ul class="list-disc space-y-2 pl-5 text-sm text-neutral-600 md:text-base">
-													{group.map((policy) => {
-														return policy.description
-															.split("\n")
-															.filter((line: string) => line.trim() !== "")
-															.map((line: string) => <li>{line.replace(/^- /, "")}</li>)
-													})}
-												</ul>
+												<PolicyCard
+													category={POLICY_CATEGORY_ORDER[category] ?? category}
+													description={String(first?.description ?? "")}
+													version={Number(first?.version ?? 0)}
+													source={source}
+													state={state}
+												/>
 											</div>
 										)
 									})}
+							</div>
+						</article>
+					</section>
+
+					<section>
+						<article class="space-y-6 rounded-2xl bg-neutral-100 p-3 py-6 shadow-sm md:p-8">
+							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
+								House Rules
+							</h3>
+							<p class="text-sm text-neutral-700">
+								Information provided by the property. House rules are not part of booking policies.
+							</p>
+
+							<div class="space-y-6">
+								{HOUSE_RULE_TYPES.map((t) => {
+									const items = houseRulesByType[t] ?? []
+									if (!items.length) return null
+									return (
+										<div class="space-y-2">
+											<h4 class="text-lg font-semibold text-neutral-800">{t}</h4>
+											<ul class="list-disc space-y-2 pl-5 text-sm text-neutral-600 md:text-base">
+												{items.map((r: any) => (
+													<li class="whitespace-pre-line">{String(r.description ?? "")}</li>
+												))}
+											</ul>
+										</div>
+									)
+								})}
 							</div>
 						</article>
 					</section>
