@@ -14,18 +14,17 @@ import {
 	PolicyRule,
 	CancellationTier,
 	Variant,
-	Hotel,
 } from "astro:db"
 
 import type {
 	PolicyQueryRepositoryPort,
 	ResolvePoliciesParams,
 } from "../../application/ports/PolicyQueryRepositoryPort"
+import type { PolicyScope } from "../../domain/policy.scope"
 
 export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 	async resolvePolicyRows(params: ResolvePoliciesParams) {
 		const {
-			hotelId,
 			productId,
 			variantId,
 			channel,
@@ -37,7 +36,6 @@ export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 		const scopeOrder = [
 			{ scope: "variant", id: variantId },
 			{ scope: "product", id: productId },
-			{ scope: "hotel", id: hotelId },
 		].filter((s) => s.id)
 
 		const scopeIds = scopeOrder.map((s) => s.id!)
@@ -78,7 +76,7 @@ export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 				category: PolicyGroup.category,
 				description: Policy.description,
 				version: Policy.version,
-				scope: PolicyAssignment.scope,
+				scope: PolicyAssignment.scope as any,
 				scopeId: PolicyAssignment.scopeId,
 			})
 			.from(PolicyAssignment)
@@ -97,7 +95,7 @@ export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 		return db.select().from(CancellationTier).where(inArray(CancellationTier.policyId, policyIds))
 	}
 
-	async findAssignment(scope: string, scopeId: string, category: string) {
+	async findAssignment(scope: PolicyScope, scopeId: string, category: string) {
 		const rows = await db
 			.select()
 			.from(PolicyAssignment)
@@ -130,15 +128,7 @@ export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 			return { type: "product", id: row.productId }
 		}
 
-		if (type === "product") {
-			const hotel = await db.select().from(Hotel).where(eq(Hotel.productId, id)).get()
-
-			if (!hotel) return null
-
-			return { type: "hotel", id: id }
-		}
-
-		if (type === "hotel") return null
+		if (type === "product") return null
 
 		return null
 	}

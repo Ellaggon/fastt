@@ -18,7 +18,6 @@ export class PolicyCache<TValue> implements PolicyCachePort<TValue> {
 	}
 
 	private makeKey(params: {
-		hotelId?: string | null
 		productId?: string | null
 		variantId?: string | null
 		channel?: string | null
@@ -28,7 +27,7 @@ export class PolicyCache<TValue> implements PolicyCachePort<TValue> {
 		includeRules?: boolean
 	}) {
 		// Preserve the legacy cache key shape (pipe-separated) to keep hit rates stable.
-		const hotelId = params.hotelId ?? ""
+		// NOTE: "hotel" scope was removed (CAPA 6). Policy resolution must no longer depend on it.
 		const productId = params.productId ?? ""
 		const variantId = params.variantId ?? ""
 		const channel = params.channel ?? ""
@@ -37,6 +36,6 @@ export class PolicyCache<TValue> implements PolicyCachePort<TValue> {
 		const includeCancellation = Boolean(params.includeCancellation)
 		const includeRules = Boolean(params.includeRules)
 
-		return `${hotelId}|${productId}|${variantId}|${channel}|${category}|${arrivalDate}|${includeCancellation}|${includeRules}`
+		return `${productId}|${variantId}|${channel}|${category}|${arrivalDate}|${includeCancellation}|${includeRules}`
 	}
 }

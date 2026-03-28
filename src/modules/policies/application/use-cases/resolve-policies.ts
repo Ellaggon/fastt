@@ -26,12 +26,11 @@ export async function resolvePolicies(
 	const cached = deps.cache.get(params)
 	if (cached) return cached
 
-	const { hotelId, productId, variantId, includeCancellation = false, includeRules } = params
+	const { productId, variantId, includeCancellation = false, includeRules } = params
 
 	const scopeOrder = [
 		{ scope: "variant", id: variantId },
 		{ scope: "product", id: productId },
-		{ scope: "hotel", id: hotelId },
 	].filter((s) => s.id)
 
 	const scopeIds = scopeOrder.map((s) => s.id!)

@@ -1,5 +1,6 @@
+import type { PolicyScope } from "../../domain/policy.scope"
+
 export type ResolvePoliciesParams = {
-	hotelId?: string | null
 	productId?: string | null
 	variantId?: string | null
 	channel?: string | null
@@ -15,7 +16,7 @@ export type ResolvedPolicyRow = {
 	category: string
 	description: string
 	version: number
-	scope: string
+	scope: PolicyScope
 	scopeId: string
 }
 
@@ -24,7 +25,7 @@ export interface PolicyQueryRepositoryPort {
 	listPolicyRulesByPolicyIds(policyIds: string[]): Promise<any[]>
 	listCancellationTiersByPolicyIds(policyIds: string[]): Promise<any[]>
 
-	findAssignment(scope: string, scopeId: string, category: string): Promise<any | null>
+	findAssignment(scope: PolicyScope, scopeId: string, category: string): Promise<any | null>
 	findActivePolicy(groupId: string): Promise<any | null>
 	findParent(type: string, id: string): Promise<{ type: string; id: string } | null>
 	listPolicyRulesByPolicyId(policyId: string): Promise<any[]>

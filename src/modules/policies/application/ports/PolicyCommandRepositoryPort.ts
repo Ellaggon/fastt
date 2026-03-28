@@ -1,3 +1,5 @@
+import type { PolicyScope } from "../../domain/policy.scope"
+
 export type ActivatePolicyParams = {
 	policyId: string
 	effectiveFromIso: string
@@ -6,7 +8,7 @@ export type ActivatePolicyParams = {
 export type CreatePolicyParams = {
 	previousPolicyId?: string
 	description?: string
-	scope: string
+	scope: PolicyScope
 	scopeId: string
 	category: string
 	cancellationTiers?: {

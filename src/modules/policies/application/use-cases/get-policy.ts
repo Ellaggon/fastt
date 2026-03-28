@@ -8,9 +8,11 @@ export async function getPolicy(
 	if (!policy) return null
 
 	const tiers = await deps.queryRepo.listCancellationTiersByPolicyId(params.policyId)
+	const rules = await deps.queryRepo.listPolicyRulesByPolicyId(params.policyId)
 
 	return {
 		...policy,
+		policyRules: rules,
 		cancellationTiers: tiers,
 	}
 }

@@ -1,5 +1,6 @@
 import { POLICY_PRIORITY } from "../../domain/policy.priority"
 import type { PolicyQueryRepositoryPort } from "../ports/PolicyQueryRepositoryPort"
+import type { PolicyScope } from "../../domain/policy.scope"
 
 export async function resolvePolicyByHierarchy(
 	deps: { queryRepo: PolicyQueryRepositoryPort },
@@ -9,7 +10,10 @@ export async function resolvePolicyByHierarchy(
 	let best: any = null
 
 	for (const node of hierarchy) {
-		const assignment = await deps.queryRepo.findAssignment(node.type, node.id, params.category)
+		const scope = normalizeLegacyScope(node.type)
+		if (!scope) continue
+
+		const assignment = await deps.queryRepo.findAssignment(scope, node.id, params.category)
 		if (!assignment) continue
 
 		const activePolicy = await deps.queryRepo.findActivePolicy(
@@ -23,7 +27,7 @@ export async function resolvePolicyByHierarchy(
 			deps.queryRepo.listCancellationTiersByPolicyId(activePolicy.id),
 		])
 
-		const priority = POLICY_PRIORITY[node.type as keyof typeof POLICY_PRIORITY]
+		const priority = POLICY_PRIORITY[scope as keyof typeof POLICY_PRIORITY]
 
 		if (!best || priority > best.priority) {
 			best = {
@@ -62,4 +66,15 @@ async function getHierarchyChain(
 	chain.push({ type: "global", id: "global" })
 
 	return chain
+}
+
+function normalizeLegacyScope(t: string): PolicyScope | null {
+	const type = String(t ?? "").trim()
+	if (!type) return null
+	if (type === "global") return "global"
+	if (type === "product") return "product"
+	if (type === "variant") return "variant"
+	if (type === "rate_plan" || type === "rateplan" || type === "ratePlan") return "rate_plan"
+	// "hotel" and other deprecated scopes are intentionally not supported.
+	return null
 }
