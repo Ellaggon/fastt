@@ -6,8 +6,8 @@ import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-s
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
+import { POST as setDefaultInventoryPost } from "@/pages/api/inventory/set-default"
 import { DailyInventoryRepository } from "@/modules/inventory/infrastructure/repositories/DailyInventoryRepository"
-import { VariantInventoryBackfillService } from "@/modules/inventory/infrastructure/services/VariantInventoryBackfillService"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -182,11 +182,13 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		expect(byDate.get("2026-03-11")?.stopSell).toBe(true)
 	})
 
-	it("backfillVariantInventory creates config + inventory for variants missing DailyInventory", async () => {
+	it("inventory/set-default creates config + inventory for variants missing DailyInventory", async () => {
 		const destinationId = "dest_inv_backfill"
 		const providerId = "prov_inv_backfill"
 		const productId = `prod_inv_backfill_${crypto.randomUUID()}`
 		const variantId = `var_inv_backfill_${crypto.randomUUID()}`
+		const token = "t_inv_backfill"
+		const email = "backfill@example.com"
 
 		await upsertDestination({
 			id: destinationId,
@@ -198,7 +200,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		await upsertProvider({
 			id: providerId,
 			companyName: "Backfill Provider",
-			userEmail: "backfill@example.com",
+			userEmail: email,
 		})
 		await upsertProduct({
 			id: productId,
@@ -230,12 +232,17 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 				.get()
 		).toBeFalsy()
 
-		const svc = new VariantInventoryBackfillService()
-		const { processed } = await svc.backfill({
-			defaultTotalUnitsFallback: 1,
-			horizonDaysFallback: 3,
+		await withSupabaseAuthStub({ [token]: { id: "u_inv_backfill", email } }, async () => {
+			const fd = new FormData()
+			fd.set("variantId", variantId)
+			fd.set("totalUnits", "1")
+			fd.set("horizonDays", "3")
+
+			const res = await setDefaultInventoryPost({
+				request: makeAuthedFormRequest({ path: "/api/inventory/set-default", token, form: fd }),
+			} as any)
+			expect(res.status).toBe(200)
 		})
-		expect(processed).toBeGreaterThan(0)
 
 		const cfg = await db
 			.select()
