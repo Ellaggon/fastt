@@ -2,11 +2,13 @@
 import Layout from "@/layouts/Layout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderByUserEmail } from "@/modules/catalog/application/use-cases/get-provider-by-user-email"
+import { ProviderRepository } from "@/modules/catalog/infrastructure/repositories/ProviderRepository"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const existing = await getProviderByUserEmail({ email: user.email || "" })
+const providerRepo = new ProviderRepository()
+const existing = await getProviderByUserEmail({ repo: providerRepo }, { email: user.email || "" })
 
 if (existing) return Astro.redirect("/dashboard")
 ---

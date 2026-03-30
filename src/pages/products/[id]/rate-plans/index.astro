@@ -2,7 +2,8 @@
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProductById } from "@/modules/catalog/public"
-import { db, eq, inArray, RatePlan, RatePlanTemplate, Variant } from "astro:db"
+import { listRatePlansByProduct } from "@/modules/pricing/application/use-cases/list-rateplans-by-product"
+import { RatePlanListByProductRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanListByProductRepository"
 
 const productId = String(Astro.params.id ?? "").trim()
 if (!productId) return Astro.redirect("/dashboard")
@@ -22,24 +23,8 @@ if (!product || !product.providerId || product.providerId !== providerId) {
 	return new Response("Not found", { status: 404 })
 }
 
-const variants = await db.select().from(Variant).where(eq(Variant.productId, productId))
-const variantIds = variants.map((v: any) => String(v.id))
-
-const ratePlans =
-	variantIds.length === 0
-		? []
-		: await db
-				.select({
-					id: RatePlan.id,
-					variantId: RatePlan.variantId,
-					isDefault: RatePlan.isDefault,
-					isActive: RatePlan.isActive,
-					templateId: RatePlan.templateId,
-					templateName: RatePlanTemplate.name,
-				})
-				.from(RatePlan)
-				.innerJoin(RatePlanTemplate, eq(RatePlan.templateId, RatePlanTemplate.id))
-				.where(inArray(RatePlan.variantId, variantIds))
+const ratePlanRepo = new RatePlanListByProductRepository()
+const ratePlans = await listRatePlansByProduct({ repo: ratePlanRepo }, { productId })
 ---
 
 <DashboardLayout>

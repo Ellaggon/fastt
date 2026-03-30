@@ -8,7 +8,8 @@ import {
 	replacePolicyAssignmentCapa6,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { db, eq, RatePlan, Variant } from "astro:db"
+import { getRatePlanOwnerContext } from "@/modules/pricing/application/use-cases/get-rateplan-owner-context"
+import { RatePlanOwnerContextRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanOwnerContextRepository"
 import { z } from "zod"
 
 const productId = String(Astro.params.id ?? "").trim()
@@ -33,15 +34,11 @@ if (!product || !product.providerId || product.providerId !== providerId) {
 }
 
 // Basic consistency: rate plan must exist and belong to this product via its variant.
-const rp = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
-if (!rp) return new Response("Not found", { status: 404 })
-const v = await db
-	.select()
-	.from(Variant)
-	.where(eq(Variant.id, (rp as any).variantId))
-	.get()
-if (!v || String((v as any).productId) !== productId)
+const ratePlanCtxRepo = new RatePlanOwnerContextRepository()
+const ratePlanCtx = await getRatePlanOwnerContext({ repo: ratePlanCtxRepo }, { ratePlanId })
+if (!ratePlanCtx || ratePlanCtx.productId !== productId) {
 	return new Response("Not found", { status: 404 })
+}
 
 let error: string | null = null
 let success: string | null = null
@@ -95,7 +92,7 @@ for (const p of allPolicies) {
 
 const resolved = await resolveEffectivePolicies({
 	productId,
-	variantId: String((v as any).id),
+	variantId: ratePlanCtx.variantId,
 	ratePlanId,
 })
 const resolvedByCategory: Record<string, any> = {}
