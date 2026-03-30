@@ -1,36 +1,15 @@
 ---
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, eq, User } from "astro:db"
+import { ensureUserForSession } from "@/modules/identity/public"
 import ProfileHover from "./ProfileHover.astro"
 
 const user = await getUserFromRequest(Astro.request)
 const pathname = Astro.url.pathname
 const id = Astro.params.id
 
-const username = user?.email ?? ""
-const email = user?.email ?? ""
-const userUid = crypto.randomUUID()
-
-try {
-	if (user) {
-		const existingUser = await db.select().from(User).where(eq(User.email, email))
-
-		if (typeof userUid === "string" && typeof username === "string" && typeof email === "string") {
-			if (existingUser.length === 0) {
-				await db.insert(User).values({
-					id: userUid,
-					username,
-					email,
-				})
-			}
-		}
-	}
-} catch (e) {
-	if (e instanceof Error) {
-		console.error("No se pudo guardar el usuario en DB", e.message)
-	} else {
-		console.error("No se pudo guardar el usuario en DB", e)
-	}
+// Use identity module to ensure user is persisted
+if (user?.email) {
+	await ensureUserForSession({ email: user.email })
 }
 ---
 
