@@ -1,16 +1,12 @@
 ---
 import Layout from "@/layouts/Layout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, eq, Provider } from "astro:db"
+import { getProviderByUserEmail } from "@/modules/catalog/application/use-cases/get-provider-by-user-email"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const existing = await db
-	.select()
-	.from(Provider)
-	.where(eq(Provider.userEmail, user.email || ""))
-	.get()
+const existing = await getProviderByUserEmail({ email: user.email || "" })
 
 if (existing) return Astro.redirect("/dashboard")
 ---
