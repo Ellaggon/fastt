@@ -2,7 +2,8 @@
 import Layout from "@/layouts/Layout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, RoomType as RoomTypeTable } from "astro:db"
+import { listRoomTypes } from "@/modules/catalog/application/use-cases/list-room-types"
+import { RoomTypeQueryRepository } from "@/modules/catalog/infrastructure/repositories/RoomTypeQueryRepository"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -15,14 +16,8 @@ const variantId = String(Astro.params.variantId ?? "")
 if (!productId) return Astro.redirect("/product-v2/create")
 if (!variantId) return Astro.redirect(`/product-v2/${encodeURIComponent(productId)}/variants`)
 
-const roomTypes = await db
-	.select({
-		id: RoomTypeTable.id,
-		name: RoomTypeTable.name,
-		maxOccupancy: RoomTypeTable.maxOccupancy,
-	})
-	.from(RoomTypeTable)
-	.all()
+const roomTypeRepo = new RoomTypeQueryRepository()
+const roomTypes = await listRoomTypes({ repo: roomTypeRepo })
 roomTypes.sort((a, b) => String(a.name).localeCompare(String(b.name)))
 ---
 
