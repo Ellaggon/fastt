@@ -2,21 +2,20 @@
 import { SERVICE_CATEGORY_ORDER } from "@/data/service/service-categories"
 import { servicesByCategory } from "@/data/service/service-grouped"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { getProductWithImagesAndSubtype } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { db, eq, ProductService } from "astro:db"
-import { getSession } from "auth-astro/server"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductBundle, listProductServiceConfigs } from "@/modules/catalog/public"
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 const productId = Astro.params.id
 
-if (!session?.user?.email) return Astro.redirect("/SignInPage")
+if (!user?.email) return Astro.redirect("/SignInPage")
 if (!productId) return Astro.redirect("/dashboard")
 
 const providerId = await getProviderIdFromRequest(Astro.request)
 if (!providerId) return Astro.redirect("/forms/provider?message=not_registered")
 
-const bundle = await getProductWithImagesAndSubtype(productId)
+const bundle = await getProductBundle(productId)
 if (!bundle) return Astro.redirect("/dashboard")
 
 if (String(bundle.product.providerId) !== String(providerId)) {
@@ -25,16 +24,7 @@ if (String(bundle.product.providerId) !== String(providerId)) {
 
 const product = bundle.product
 
-const existing = await db
-	.select({
-		serviceId: ProductService.serviceId,
-		price: ProductService.price,
-		priceUnit: ProductService.priceUnit,
-		currency: ProductService.currency,
-	})
-	.from(ProductService)
-	.where(eq(ProductService.productId, product.id))
-	.all()
+const existing = await listProductServiceConfigs(product.id)
 
 const serviceConfig = Object.fromEntries(existing.map((s) => [s.serviceId, s]))
 
@@ -46,7 +36,7 @@ const categorizedServiceList = SERVICE_CATEGORY_ORDER.map((category) => ({
 
 <DashboardLayout title={`Servicios · ${product.name}`}>
 	<main
-		class="mx-auto mt-6 md:mt-20 w-[98%] max-w-4xl rounded-3xl bg-neutral-200 px-3 py-10 shadow-lg lg:px-6"
+		class="mx-auto mt-6 w-[98%] max-w-4xl rounded-3xl bg-neutral-200 px-3 py-10 shadow-lg md:mt-20 lg:px-6"
 	>
 		<form id="servicesForm">
 			<h1 class="text-xl font-semibold uppercase text-neutral-800 md:text-2xl">

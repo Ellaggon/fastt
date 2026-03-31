@@ -1,26 +1,14 @@
 import type { APIRoute } from "astro"
-import { db, TaxFee } from "astro:db"
+import { taxFeeRepository } from "@/container"
+import { createTax } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ params, request }) => {
 	const productId = params.id
 	const body = await request.json()
 
-	if (!productId) {
-		return new Response(JSON.stringify({ error: "Missing productId" }), { status: 400 })
-	}
-
 	const { type, value, currency, isIncluded, isActive } = body
-
-	await db.insert(TaxFee).values({
-		id: crypto.randomUUID(),
-		productId,
-		type,
-		value,
-		currency,
-		isIncluded,
-		isActive,
-		createdAt: new Date(),
-	})
-
-	return new Response(JSON.stringify({ success: true }), { status: 200 })
+	return createTax(
+		{ repo: taxFeeRepository },
+		{ productId: productId || "", type, value, currency, isIncluded, isActive }
+	)
 }

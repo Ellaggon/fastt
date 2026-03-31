@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { db, Product, Image, NOW } from "astro:db"
-import { getSession } from "auth-astro/server"
-import { r2 } from "@/lib/upload/r2"
-import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { createProductUseCase } from "@/container"
+import { createProductWithR2Rollback } from "@/modules/catalog/public"
+import { requireAuth } from "@/lib/auth/requireAuth"
 
 const serverSchema = z.object({
 	providerId: z.string().min(1),
@@ -15,14 +14,16 @@ const serverSchema = z.object({
 })
 
 export const POST: APIRoute = async ({ request }) => {
-	const session = await getSession(request)
-	const email = session?.user?.email
-
-	if (!email) {
-		return new Response(JSON.stringify({ error: "User not authenticated" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
+	try {
+		await requireAuth(request, {
+			unauthorizedResponse: new Response(JSON.stringify({ error: "User not authenticated" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			}),
 		})
+	} catch (e) {
+		if (e instanceof Response) return e
+		throw e
 	}
 
 	try {
@@ -45,59 +46,16 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const id = crypto.randomUUID()
-
-		try {
-			// 1 Insertar producto
-			await db.insert(Product).values({
-				id,
-				name: parsed.data.name,
-				description: parsed.data.description || null,
-				productType: parsed.data.productType,
-				creationDate: NOW,
-				lastUpdated: NOW,
-				providerId: parsed.data.providerId || null,
-				destinationId: parsed.data.destinationId,
-			})
-
-			// 2 Guardar imágenes en la tabla Image
-			for (let i = 0; i < parsed.data.images.length; i++) {
-				const url = parsed.data.images[i]
-				await db.insert(Image).values({
-					id: crypto.randomUUID(),
-					entityId: id,
-					entityType: "Product",
-					url,
-					order: i,
-					isPrimary: i === 0,
-				})
-			}
-			return new Response(JSON.stringify({ id }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			})
-		} catch (e) {
-			// ROLLBACK: borrar las imágenes en R2 si DB falla
-			console.error("DB insert failed, cleaning up R2…", e)
-
-			for (const publicUrl of parsed.data.images) {
-				try {
-					const key = new URL(publicUrl).pathname.replace(/^\//, "")
-					await r2.send(
-						new DeleteObjectCommand({
-							Bucket: process.env.R2_BUCKET_NAME!,
-							Key: key,
-						})
-					)
-					console.log("Rollback: deleted", key)
-				} catch (e) {
-					console.error("Rollback failed to delete key:", e)
-				}
-			}
-			return new Response(JSON.stringify({ error: "DB error, rollback executed" }), {
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
+		return createProductWithR2Rollback({
+			createProduct: createProductUseCase,
+			id,
+			providerId: parsed.data.providerId,
+			name: parsed.data.name,
+			productType: parsed.data.productType,
+			description: parsed.data.description,
+			destinationId: parsed.data.destinationId,
+			images: parsed.data.images,
+		})
 	} catch (e) {
 		console.error("Error creando producto:", e)
 

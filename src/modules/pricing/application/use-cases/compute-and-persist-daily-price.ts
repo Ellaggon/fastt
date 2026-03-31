@@ -1,4 +1,4 @@
-import { PricingEngine } from "@/core/pricing/PricingEngine"
+import { PricingEngine } from "../../domain/PricingEngine"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 
 export interface ComputeAndPersistDailyPriceDeps {

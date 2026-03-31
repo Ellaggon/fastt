@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
-import { computeAndPersistDailyPrice } from "@/modules/pricing/application/use-cases/compute-and-persist-daily-price"
-import type { ComputeAndPersistDailyPriceDeps } from "@/modules/pricing/application/use-cases/compute-and-persist-daily-price"
+import {
+	computeAndPersistDailyPrice,
+	type ComputeAndPersistDailyPriceDeps,
+} from "@/modules/pricing/public"
 
 describe("pricing/use-cases/computeAndPersistDailyPrice", () => {
 	it("loads rules, computes daily price, and persists effective price", async () => {
@@ -17,7 +19,7 @@ describe("pricing/use-cases/computeAndPersistDailyPrice", () => {
 		const computeDaily = vi.fn(() => ({ total: 123 }))
 
 		const deps: ComputeAndPersistDailyPriceDeps = {
-			pricingRepo: { getRules, saveEffectivePrice },
+			pricingRepo: { getRules, saveEffectivePrice, getPreviewRules: vi.fn(async () => []) },
 			pricingEngine: { computeDaily } as any,
 		}
 

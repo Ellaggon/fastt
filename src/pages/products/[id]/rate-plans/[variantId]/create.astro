@@ -1,26 +1,16 @@
 ---
 // import { WEEK_DAYS } from "@/data/week-days"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { and, db, eq, Policy, PolicyGroup, Variant } from "astro:db"
+import { listActiveCancellationPolicies } from "@/modules/catalog/public"
+import { getVariantById } from "@/modules/pricing/public"
 
 const { variantId, id } = Astro.params
-if (!variantId) throw new Error("variantId is required")
+if (!variantId) return Astro.redirect("/dashboard")
 
-const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
-const policies = await db
-	.select({
-		id: Policy.id,
-		groupId: Policy.groupId,
-		version: Policy.version,
-		status: Policy.status,
-		description: Policy.description,
-	})
-	.from(Policy)
-	.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
-	.where(and(eq(PolicyGroup.category, "Cancellation"), eq(Policy.status, "active")))
-	.all()
+const variant = await getVariantById(variantId)
+const policies = await listActiveCancellationPolicies()
 
-if (!variant) throw new Error(`Variant not found for id: ${variantId}`)
+if (!variant) return Astro.redirect("/dashboard")
 ---
 
 <DashboardLayout title="Crear Rate Plan">
@@ -102,7 +92,7 @@ if (!variant) throw new Error(`Variant not found for id: ${variantId}`)
 							Define cómo se maneja la cancelación para este plan. Las políticas se administran en
 							la sección de <a
 								target="_blank"
-								href={`/products/${variant?.productId}/policies/cancellation`}
+								href={`/products/${variant?.productId}/rate-plans`}
 								class="inline-block max-w-full break-words border-b border-neutral-900 font-semibold text-neutral-900 hover:border-blue-500 hover:text-blue-500"
 								>Políticas</a
 							>.

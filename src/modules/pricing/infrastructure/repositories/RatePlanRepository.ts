@@ -1,4 +1,4 @@
-import { db, RatePlan, RatePlanTemplate, eq } from "astro:db"
+import { asc, db, RatePlan, RatePlanTemplate, eq, and } from "astro:db"
 import type { RatePlanRepositoryPort } from "../../application/ports/RatePlanRepositoryPort"
 
 type RatePlanWithTemplate = typeof RatePlan.$inferSelect & {
@@ -29,6 +29,39 @@ export class RatePlanRepository implements RatePlanRepositoryPort {
 		}
 
 		return results
+	}
+
+	async getDefaultByVariant(variantId: string): Promise<RatePlanWithTemplate | null> {
+		// CAPA 4B hardening:
+		// - No silent fallback. If there's no explicit default plan, return null.
+		// - Deterministic selection: oldest default plan wins (createdAt ASC).
+		const chosen = await db
+			.select()
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, variantId),
+					eq(RatePlan.isActive, true),
+					eq(RatePlan.isDefault, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
+			.get()
+
+		if (!chosen) return null
+
+		const template = await db
+			.select()
+			.from(RatePlanTemplate)
+			.where(eq(RatePlanTemplate.id, chosen.templateId))
+			.get()
+
+		if (!template) return null
+
+		return {
+			...chosen,
+			template,
+		}
 	}
 
 	// Still used by non-ported legacy code paths.

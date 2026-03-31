@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, eq, Policy, CancellationTier } from "astro:db"
+import { db, eq, Policy, PolicyRule, CancellationTier } from "astro:db"
 
 export const GET: APIRoute = async ({ params }) => {
 	const { id } = params
@@ -14,12 +14,17 @@ export const GET: APIRoute = async ({ params }) => {
 		return new Response("Policy not found", { status: 404 })
 	}
 
-	const tiers = await db.select().from(CancellationTier).where(eq(CancellationTier.policyId, id))
+	const policyRules = await db.select().from(PolicyRule).where(eq(PolicyRule.policyId, id))
+	const cancellationTiers = await db
+		.select()
+		.from(CancellationTier)
+		.where(eq(CancellationTier.policyId, id))
 
 	return new Response(
 		JSON.stringify({
 			...policy,
-			cancellationTiers: tiers,
+			policyRules,
+			cancellationTiers,
 		}),
 		{
 			headers: { "Content-Type": "application/json" },

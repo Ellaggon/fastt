@@ -1,6 +1,5 @@
 import type { APIRoute } from "astro"
-import { searchOffers } from "@/application/queries/searchOffers.query"
-import { normalizeSearchResults } from "@/application/search/search.normalizer"
+import { searchOffers } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json()
@@ -13,6 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
 		checkOut: new Date(checkOut),
 		adults,
 		children,
+		rooms: body.rooms,
 	})
 
 	const response = {
@@ -20,8 +20,13 @@ export const POST: APIRoute = async ({ request }) => {
 		checkIn,
 		checkOut,
 		nights: (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000,
-		variants: normalizeSearchResults(raw),
+		// Legacy endpoint: keep the contract stable but align payload to the new SearchPipeline output.
+		// IMPORTANT: do NOT call the old normalizeSearchResults (it expects the pre-refactor SQL DTO).
+		offers: raw,
 	}
 
-	return new Response(JSON.stringify(response), { status: 200 })
+	return new Response(JSON.stringify(response), {
+		status: 200,
+		headers: { "Content-Type": "application/json" },
+	})
 }

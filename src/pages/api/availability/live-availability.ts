@@ -1,9 +1,7 @@
 import type { APIRoute } from "astro"
-import { searchOffers } from "@/application/queries/searchOffers.query"
-import { normalizeSearchResults } from "@/application/search/search.normalizer"
+import { searchOffers } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
-
 	const body = await request.json()
 
 	const raw = await searchOffers({
@@ -12,9 +10,11 @@ export const POST: APIRoute = async ({ request }) => {
 		checkOut: new Date(body.checkOut),
 		adults: body.adults,
 		children: body.children,
+		rooms: body.rooms,
 	})
 
-	return new Response(
-		JSON.stringify(normalizeSearchResults(raw))
-	)
+	return new Response(JSON.stringify({ offers: raw }), {
+		status: 200,
+		headers: { "Content-Type": "application/json" },
+	})
 }

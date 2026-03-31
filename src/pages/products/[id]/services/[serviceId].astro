@@ -2,41 +2,42 @@
 import { SERVICE_ATTRIBUTES } from "@/data/service/service-attributes"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { and, db, eq, ProductService, ProductServiceAttribute } from "astro:db"
+import { getProductServiceConfig } from "@/modules/catalog/public"
 
 const { id: productId, serviceId } = Astro.params
 if (!productId || !serviceId) return Astro.redirect("/dashboard")
 
-let productService = await db
-	.select()
-	.from(ProductService)
-	.where(and(eq(ProductService.productId, productId), eq(ProductService.serviceId, serviceId)))
-	.get()
+const cfg = await getProductServiceConfig({ productId, serviceId })
+const productService = cfg.productService
+	? {
+			id: cfg.productService.productServiceId,
+			price: cfg.productService.price,
+			priceUnit: cfg.productService.priceUnit,
+			currency: cfg.productService.currency,
+			appliesTo: cfg.productService.appliesTo,
+			notes: cfg.productService.notes,
+		}
+	: null
 
-if (!productService) {
-	productService = await db
-		.insert(ProductService)
-		.values({
-			id: crypto.randomUUID(),
-			productId,
-			serviceId,
-			appliesTo: "both",
-		})
-		.returning()
-		.get()
-}
+// SSR must be read-only. If this row doesn't exist yet, it will be created via the POST endpoint.
+const ps =
+	productService ??
+	({
+		id: "",
+		price: null,
+		priceUnit: null,
+		currency: null,
+		appliesTo: "both",
+		notes: "",
+	} as const)
 
 const attributesDef = SERVICE_ATTRIBUTES[serviceId] ?? []
 const serviceDef = SERVICE_CATALOG.find((s) => s.id === serviceId)
 
-const existingAttrs = await db
-	.select()
-	.from(ProductServiceAttribute)
-	.where(eq(ProductServiceAttribute.productServiceId, productService.id))
-	.all()
+const existingAttrs = cfg.attributes ?? []
 
 const attrMap = Object.fromEntries(existingAttrs.map((a) => [a.key, a.value]))
-const isInitiallyIncluded = productService.price === null || productService.price === 0
+const isInitiallyIncluded = ps.price === null || ps.price === 0
 ---
 
 <DashboardLayout title={`Configurar ${serviceDef?.name}`}>
@@ -53,8 +54,8 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 			</header>
 
 			<form id="serviceConfigForm" class="space-y-12">
-				<input type="hidden" name="psId" value={productService.id} />
-				<input type="hidden" name="mode" value={productService.id ? "update" : "create"} />
+				<input type="hidden" name="psId" value={ps.id} />
+				<input type="hidden" name="mode" value={ps.id ? "update" : "create"} />
 				<input type="hidden" name="productId" value={productId} />
 
 				<fieldset class="space-y-4 rounded-2xl border p-6 shadow-sm">
@@ -92,7 +93,7 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 								type="number"
 								name="price"
 								step="0.01"
-								value={productService.price ?? ""}
+								value={ps.price ?? ""}
 								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
 								placeholder="0.00"
 							/>
@@ -104,15 +105,9 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 								name="priceUnit"
 								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
 							>
-								<option value="night" selected={productService.priceUnit === "night"}
-									>Por noche</option
-								>
-								<option value="stay" selected={productService.priceUnit === "stay"}
-									>Por estadía</option
-								>
-								<option value="person" selected={productService.priceUnit === "person"}
-									>Por persona</option
-								>
+								<option value="night" selected={ps.priceUnit === "night"}>Por noche</option>
+								<option value="stay" selected={ps.priceUnit === "stay"}>Por estadía</option>
+								<option value="person" selected={ps.priceUnit === "person"}>Por persona</option>
 							</select>
 						</div>
 
@@ -122,8 +117,8 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 								name="currency"
 								class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
 							>
-								<option value="BOB" selected={productService.currency === "BOB"}>BOB</option>
-								<option value="USD" selected={productService.currency === "USD"}>USD</option>
+								<option value="BOB" selected={ps.currency === "BOB"}>BOB</option>
+								<option value="USD" selected={ps.currency === "USD"}>USD</option>
 							</select>
 						</div>
 					</div>
@@ -137,13 +132,11 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 							name="appliesTo"
 							class="text-medium rounded-lg border border-neutral-300 bg-white px-3 py-2 outline-none"
 						>
-							<option value="room" selected={productService.appliesTo === "room"}
-								>Solo en Habitaciones</option
-							>
-							<option value="common" selected={productService.appliesTo === "common"}
+							<option value="room" selected={ps.appliesTo === "room"}>Solo en Habitaciones</option>
+							<option value="common" selected={ps.appliesTo === "common"}
 								>Solo en Áreas Comunes</option
 							>
-							<option value="both" selected={productService.appliesTo === "both"}
+							<option value="both" selected={ps.appliesTo === "both"}
 								>En todo el establecimiento</option
 							>
 						</select>
@@ -203,8 +196,7 @@ const isInitiallyIncluded = productService.price === null || productService.pric
 						name="notes"
 						rows="3"
 						class="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-						placeholder="Ej: Solo disponible bajo petición previa..."
-						>{productService.notes || ""}</textarea
+						placeholder="Ej: Solo disponible bajo petición previa...">{ps.notes || ""}</textarea
 					>
 				</div>
 

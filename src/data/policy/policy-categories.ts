@@ -1,29 +1,12 @@
 import type { PolicyType } from "./policy-types"
 
 export const POLICY_CATEGORY_ORDER: Record<PolicyType, string> = {
-	// Cancellation: "Cancelación",
-	Smoking: "Política de fumar",
-	Pets: "Mascotas",
-	CheckIn: "Check In",
-	CheckOut: "Check Out",
-	Children: "Niños",
-	Access: "Acceso",
-	ExtraBeds: "Camas Adicionales",
-	Payment: "Pago",
-	Other: "Otros",
+	Cancellation: "Cancellation policy",
+	Payment: "Payment policy",
+	CheckIn: "Check-in / Check-out",
+	NoShow: "No-show",
 }
 
 export const POLICY_UI_GROUPS = {
-	establishment: [
-		"CheckIn",
-		"CheckOut",
-		"Children",
-		"Pets",
-		"Smoking",
-		"Access",
-		"ExtraBeds",
-		"Other",
-	],
-	// cancellation: ["Cancellation"],
-	payment: ["Payment"],
+	booking: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 } as const

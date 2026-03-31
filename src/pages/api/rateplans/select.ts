@@ -1,5 +1,4 @@
 // import type { APIRoute } from "astro"
-// import { selectRatePlans } from "@/core/rate-plans/ratePlan.selector"
 
 // export const POST: APIRoute = async ({ request }) => {
 // 	const body = await request.json()

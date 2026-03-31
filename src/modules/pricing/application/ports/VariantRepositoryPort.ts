@@ -1,6 +1,11 @@
 export interface VariantSnapshot {
 	id: string
+	productId: string
+	entityType: string
+	entityId: string
 	basePrice?: number | null
+	currency?: string | null
+	name?: string | null
 }
 
 export interface VariantRepositoryPort {

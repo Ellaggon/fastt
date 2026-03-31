@@ -8,3 +8,8 @@ export type {
 	EffectiveInventoryUpsertRow,
 	InventoryRepositoryPort,
 } from "./InventoryRepositoryPort"
+
+export type {
+	VariantInventoryConfigRow,
+	VariantInventoryConfigRepositoryPort,
+} from "./VariantInventoryConfigRepositoryPort"

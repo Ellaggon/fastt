@@ -1,0 +1,115 @@
+---
+import Layout from "@/layouts/Layout.astro"
+---
+
+<Layout title="Auth Callback">
+	<main
+		class="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center justify-center px-6 py-10"
+	>
+		<section
+			class="w-full rounded-xl border border-neutral-700 bg-neutral-900/40 p-6 text-neutral-200"
+		>
+			<h1 class="text-xl font-semibold">Procesando autenticacion...</h1>
+			<p class="mt-2 text-sm text-neutral-400" id="status">
+				Si esto tarda, revisa tu configuracion de Redirect URLs en Supabase.
+			</p>
+			<pre
+				id="debug"
+				class="mt-4 hidden overflow-auto rounded-lg bg-black/50 p-3 text-xs text-neutral-300">
+			</pre>
+			<div class="mt-6 flex gap-3">
+				<a
+					href="/"
+					class="rounded-lg bg-neutral-800 px-4 py-2 text-sm text-neutral-100 hover:bg-neutral-700"
+					>Inicio</a
+				>
+				<a
+					href="/SignInPage"
+					class="rounded-lg bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-600"
+					>Volver a login</a
+				>
+			</div>
+		</section>
+	</main>
+
+	<script is:inline>
+		;(async function () {
+			const $status = document.getElementById("status")
+			const $debug = document.getElementById("debug")
+
+			const setStatus = (msg) => {
+				if ($status) $status.textContent = msg
+			}
+			const showDebug = (obj) => {
+				if (!$debug) return
+				$debug.classList.remove("hidden")
+				$debug.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2)
+			}
+
+			const hash =
+				window.location.hash && window.location.hash.startsWith("#")
+					? window.location.hash.slice(1)
+					: ""
+
+			if (!hash) {
+				setStatus("No se encontraron tokens en la URL.")
+				showDebug({ hash: window.location.hash })
+				return
+			}
+
+			const params = new URLSearchParams(hash)
+
+			const error = params.get("error")
+			const errorDescription = params.get("error_description")
+			if (error) {
+				setStatus(`Error de autenticacion: ${error}`)
+				showDebug({ error, error_description: errorDescription })
+				return
+			}
+
+			const access_token = params.get("access_token")
+			const refresh_token = params.get("refresh_token")
+			const expires_in_raw = params.get("expires_in")
+			const expires_in = expires_in_raw ? Number(expires_in_raw) : 0
+
+			// Remove hash to avoid leaking tokens via copy/paste or screenshots.
+			try {
+				window.history.replaceState(null, "", window.location.pathname + window.location.search)
+			} catch {}
+
+			if (!access_token || !refresh_token || !Number.isFinite(expires_in) || expires_in <= 0) {
+				setStatus("Tokens invalidos o incompletos.")
+				showDebug({
+					access_token: Boolean(access_token),
+					refresh_token: Boolean(refresh_token),
+					expires_in: expires_in_raw,
+				})
+				return
+			}
+
+			setStatus("Guardando sesion...")
+
+			try {
+				const res = await fetch("/api/auth/set-session", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					credentials: "include",
+					body: JSON.stringify({ access_token, refresh_token, expires_in }),
+				})
+
+				if (!res.ok) {
+					setStatus("No se pudo guardar la sesion.")
+					const text = await res.text().catch(() => "")
+					showDebug({ status: res.status, type: res.type, body: text })
+					return
+				}
+
+				setStatus("Listo. Redirigiendo...")
+				window.location.replace("/dashboard")
+			} catch (e) {
+				setStatus("Error de red guardando sesion.")
+				showDebug({ error: String(e) })
+			}
+		})()
+	</script>
+</Layout>

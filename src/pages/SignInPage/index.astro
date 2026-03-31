@@ -1,12 +1,14 @@
 ---
 import Layout from "@/layouts/Layout.astro"
-import { SignIn } from "auth-astro/components"
-import { getSession } from "auth-astro/server"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
-const session = await getSession(Astro.request)
-if (session) {
+const user = await getUserFromRequest(Astro.request)
+if (user) {
 	return Astro.redirect("/dashboard")
 }
+
+const error = Astro.url.searchParams.get("error")
+const message = Astro.url.searchParams.get("message")
 ---
 
 <Layout title="Iniciar Sesión">
@@ -17,16 +19,76 @@ if (session) {
 			<h1 class="mb-20 text-3xl">Iniciar Sesión</h1>
 
 			<article class="flex flex-col gap-4">
+				{
+					error && (
+						<p class="rounded-md bg-red-900/40 px-3 py-2 text-sm text-red-200">Error: {error}</p>
+					)
+				}
+				{
+					message && (
+						<p class="rounded-md bg-blue-900/40 px-3 py-2 text-sm text-blue-200">{message}</p>
+					)
+				}
 				<div>
-					<label for="title" class="mb-4 block text-sm font-medium text-gray-400">
-						Ingresar con Google
-					</label>
-
-					<SignIn
-						class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm transition-transform hover:scale-105 focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+					<form
+						method="post"
+						action="/api/auth/signin"
+						class="mt-6 flex flex-col gap-3"
+						autocomplete="on"
 					>
-						Ingresar
-					</SignIn>
+						<label class="block text-sm font-medium text-gray-400">
+							Email
+							<input
+								type="email"
+								name="email"
+								required
+								class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+							/>
+						</label>
+						<label class="block text-sm font-medium text-gray-400">
+							Password
+							<input
+								type="password"
+								name="password"
+								required
+								class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+							/>
+						</label>
+						<button
+							type="submit"
+							class="mt-2 w-full rounded-xl bg-blue-600 px-3 py-2 text-white shadow-sm transition hover:bg-blue-700"
+						>
+							Ingresar
+						</button>
+					</form>
+
+					<form method="post" action="/api/auth/signup" class="mt-6 flex flex-col gap-3">
+						<p class="text-xs text-gray-400">O crear cuenta:</p>
+						<label class="block text-sm font-medium text-gray-400">
+							Email
+							<input
+								type="email"
+								name="email"
+								required
+								class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+							/>
+						</label>
+						<label class="block text-sm font-medium text-gray-400">
+							Password
+							<input
+								type="password"
+								name="password"
+								required
+								class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-blue-100 focus:outline-none focus:ring-blue-100 sm:text-sm"
+							/>
+						</label>
+						<button
+							type="submit"
+							class="w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm transition hover:bg-gray-600"
+						>
+							Crear cuenta
+						</button>
+					</form>
 				</div>
 			</article>
 		</section>

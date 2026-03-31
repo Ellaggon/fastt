@@ -17,7 +17,7 @@ Tour,
 } from "astro:db"
 
 const deptId = Astro.params.dept || null
-if (!deptId) throw new Error("Departamento no especificado")
+if (!deptId) return Astro.redirect("/tours")
 
 let tours: any[] = []
 let depts = null
@@ -25,7 +25,7 @@ let depts = null
 try {
 	depts = DEPARTMENTS.find((d) => d.id === deptId)
 	if (!depts) {
-		throw new Error("Departamento no exncontrado")
+		return Astro.redirect("/tours")
 	}
 
 	tours = await db

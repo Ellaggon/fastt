@@ -1,13 +1,13 @@
 ---
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTabs from "@/components/dashboard/DashboardTabs.astro"
+import { productRepository } from "@/container"
 import Layout from "@/layouts/Layout.astro"
-import { getProductsByProvider } from "@/lib/db/product"
-import { getProviderIdFromRequest } from "@/lib/db/provider"
-import { db, inArray, Policy, PolicyAssignment, Variant } from "astro:db"
-import { getSession } from "auth-astro/server"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { db, inArray, PolicyAssignment, Variant } from "astro:db"
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 
 let userProducts: any[] = []
 let hotelRoomTypes: any[] = []
@@ -16,7 +16,7 @@ let roomsByHotel: Record<string, any[]> = {}
 let errorMessage: string | null = null
 
 try {
-	if (!session?.user?.email) {
+	if (!user?.email) {
 		return Astro.redirect("/SignInPage")
 	}
 	const providerId = await getProviderIdFromRequest(Astro.request)
@@ -24,13 +24,16 @@ try {
 		return Astro.redirect("/provider")
 	}
 
-	userProducts = await getProductsByProvider(providerId)
+	userProducts = await productRepository.getProductsByProvider(providerId)
 
 	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
 
 	if (hotelIds.length > 0) {
 		hotelRoomTypes = await db.select().from(Variant).where(inArray(Variant.productId, hotelIds))
-		hotelPolicies = await db.select().from(PolicyAssignment).where(inArray(PolicyAssignment.scopeId, hotelIds))
+		hotelPolicies = await db
+			.select()
+			.from(PolicyAssignment)
+			.where(inArray(PolicyAssignment.scopeId, hotelIds))
 
 		for (const room of hotelRoomTypes) {
 			if (!roomsByHotel[room.productId]) roomsByHotel[room.productId] = []
@@ -56,6 +59,12 @@ try {
 				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
 			>
 				Crea un Nuevo Producto
+			</a>
+			<a
+				href="/provider/policies"
+				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
+			>
+				Políticas (CAPA 6)
 			</a>
 		</navbar>
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">

@@ -1,17 +1,5 @@
 import { db } from "astro:db"
-import { ensureProductOwnedByProvider, updateProductFields } from "@/lib/db/product"
-import {
-	insertHotel,
-	updateHotel,
-	deleteHotel,
-	insertTour,
-	updateTour,
-	deleteTour,
-	insertPackage,
-	updatePackage,
-	deletePackage,
-	subtypeExists,
-} from "@/lib/db/subtype"
+import { productRepository, subtypeRepository } from "@/container"
 
 /**
  * Actualiza product y subtipo (orquesta lógica) dentro de una transacción:
@@ -28,7 +16,7 @@ export async function updateProductAndSubtype(
 	subtypePayload?: Record<string, any>
 ) {
 	// ownership (esto puede ir fuera de la tx, no modifica nada)
-	const product = await ensureProductOwnedByProvider(productId, providerId)
+	const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 	if (!product) throw new Error("Product not found or not owned")
 
 	const prevType = String(product.productType || "").toLowerCase()
@@ -43,7 +31,8 @@ export async function updateProductAndSubtype(
 		for (const k of allowed) if (k in productFields) toSet[k] = productFields[k]
 
 		// aquí pasamos tx a la función, para que use la transacción
-		await updateProductFields(tx, productId, toSet)
+		// tx es compatible con el repositorio (mismo objeto que esperaba el helper legacy).
+		await productRepository.updateProductFields(tx as any, productId, toSet)
 
 		// 2) if no subtype provided, finish here
 		if (!subtypeType) return
@@ -52,27 +41,36 @@ export async function updateProductAndSubtype(
 
 		// If product type changed: delete old subtype rows & insert new
 		if (st !== prevType) {
-			if (prevType === "hotel") await deleteHotel(tx, productId)
-			if (prevType === "tour") await deleteTour(tx, productId)
-			if (prevType === "package") await deletePackage(tx, productId)
+			if (prevType === "hotel") await subtypeRepository.deleteHotel(tx as any, productId)
+			if (prevType === "tour") await subtypeRepository.deleteTour(tx as any, productId)
+			if (prevType === "package") await subtypeRepository.deletePackage(tx as any, productId)
 
-			if (st === "hotel") await insertHotel(tx, { productId, ...(subtypePayload || {}) })
-			if (st === "tour") await insertTour(tx, { productId, ...(subtypePayload || {}) })
-			if (st === "package") await insertPackage(tx, { productId, ...(subtypePayload || {}) })
+			if (st === "hotel")
+				await subtypeRepository.insertHotel(tx as any, { productId, ...(subtypePayload || {}) })
+			if (st === "tour")
+				await subtypeRepository.insertTour(tx as any, { productId, ...(subtypePayload || {}) })
+			if (st === "package")
+				await subtypeRepository.insertPackage(tx as any, { productId, ...(subtypePayload || {}) })
 
 			return
 		}
 
 		// same type: upsert subtype
-		const exists = await subtypeExists(tx, productId, st)
+		const exists = await subtypeRepository.subtypeExists(tx as any, productId, st)
 		if (exists) {
-			if (st === "hotel") await updateHotel(tx, productId, subtypePayload || {})
-			if (st === "tour") await updateTour(tx, productId, subtypePayload || {})
-			if (st === "package") await updatePackage(tx, productId, subtypePayload || {})
+			if (st === "hotel")
+				await subtypeRepository.updateHotel(tx as any, productId, subtypePayload || {})
+			if (st === "tour")
+				await subtypeRepository.updateTour(tx as any, productId, subtypePayload || {})
+			if (st === "package")
+				await subtypeRepository.updatePackage(tx as any, productId, subtypePayload || {})
 		} else {
-			if (st === "hotel") await insertHotel(tx, { productId, ...(subtypePayload || {}) })
-			if (st === "tour") await insertTour(tx, { productId, ...(subtypePayload || {}) })
-			if (st === "package") await insertPackage(tx, { productId, ...(subtypePayload || {}) })
+			if (st === "hotel")
+				await subtypeRepository.insertHotel(tx as any, { productId, ...(subtypePayload || {}) })
+			if (st === "tour")
+				await subtypeRepository.insertTour(tx as any, { productId, ...(subtypePayload || {}) })
+			if (st === "package")
+				await subtypeRepository.insertPackage(tx as any, { productId, ...(subtypePayload || {}) })
 		}
 	})
 }

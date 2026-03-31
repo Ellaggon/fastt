@@ -1,14 +1,21 @@
 import { describe, it, expect, vi } from "vitest"
-import { RatePlanService } from "@/services/RatePlanService"
+import { RatePlanService } from "@/modules/pricing/public"
 
 describe("pricing/services/RatePlanService", () => {
 	it("returns candidates from selectBestRatePlan flow", async () => {
 		const variantRepo = {
-			getById: vi.fn(async () => ({ id: "v1", basePrice: 100 })),
+			getById: vi.fn(async () => ({
+				id: "v1",
+				productId: "p1",
+				entityType: "hotel_room",
+				entityId: "hr1",
+				basePrice: 100,
+			})),
 		}
 
 		const ratePlanRepo = {
 			getActiveByVariant: vi.fn(async () => [{ id: "rp1" }]),
+			getDefaultByVariant: vi.fn(async () => null),
 		}
 
 		const priceRuleRepo = {

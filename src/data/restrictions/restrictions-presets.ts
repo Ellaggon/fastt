@@ -1,4 +1,4 @@
-import type { RestrictionKey } from "@/core/restrictions/restrictions.types"
+import type { RestrictionKey } from "@/modules/policies/public"
 import type { RestrictionCategory, RestrictionPreset } from "./restrictions-types"
 
 export const SCOPE_EXPLANATIONS = {
@@ -7,9 +7,7 @@ export const SCOPE_EXPLANATIONS = {
 	rate_plan: "Tarifa específica",
 } as const
 
-export const INCOMPATIBLE_PRESETS: Partial<
-	Record<RestrictionKey, readonly RestrictionKey[]>
-> = {
+export const INCOMPATIBLE_PRESETS: Partial<Record<RestrictionKey, readonly RestrictionKey[]>> = {
 	stop_sell: ["open_sell"],
 	open_sell: ["stop_sell"],
 

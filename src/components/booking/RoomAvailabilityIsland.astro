@@ -36,7 +36,7 @@ const { productId, searchState, offers } = Astro.props
 		)
 
 		try {
-			const res = await fetch("/api/search", {
+			const res = await fetch(`/api/products/${PRODUCT_ID}/offers`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -45,7 +45,6 @@ const { productId, searchState, offers } = Astro.props
 					checkOut: CHECK_OUT,
 					adults: ADULTS,
 					children: CHILDREN,
-					currency: "USD",
 				}),
 			})
 

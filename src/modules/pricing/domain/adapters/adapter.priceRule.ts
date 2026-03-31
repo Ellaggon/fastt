@@ -1,4 +1,4 @@
-import type { AppliedPriceRule } from "@/core/pricing/pricing.types"
+import type { AppliedPriceRule } from "../pricing.types"
 
 export function adaptPriceRule(dbRule: any | null): AppliedPriceRule | null {
 	if (!dbRule?.isActive) return null
@@ -11,7 +11,17 @@ export function adaptPriceRule(dbRule: any | null): AppliedPriceRule | null {
 			type = "fixed"
 			break
 
+		// CAPA 4B minimal: allow rules stored directly as runtime types.
+		// This does not change behavior for existing types; it only broadens accepted input.
+		case "fixed":
+			type = "fixed"
+			break
+
 		case "fixed_adjustment":
+			type = "modifier"
+			break
+
+		case "modifier":
 			type = "modifier"
 			break
 
@@ -23,6 +33,10 @@ export function adaptPriceRule(dbRule: any | null): AppliedPriceRule | null {
 		case "percentage_markup":
 			type = "percentage"
 			value = Math.abs(value)
+			break
+
+		case "percentage":
+			type = "percentage"
 			break
 
 		default:

@@ -1,0 +1,120 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product-v2/create")
+---
+
+<Layout title="Product V2 - New Variant">
+	<main style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+		<h1>Add room</h1>
+		<p>
+			Product: <code>{productId}</code>
+		</p>
+
+		<form id="newVariantForm">
+			<input type="hidden" name="productId" value={productId} />
+
+			<label>
+				Name *
+				<input name="name" required minlength="1" placeholder="Double room" />
+			</label>
+			<br />
+
+			<label>
+				Description (optional)
+				<textarea name="description" rows="4" placeholder="Optional description"></textarea>
+			</label>
+			<br />
+
+			<button id="submitBtn" type="submit">Create variant</button>
+		</form>
+
+		<pre id="out" style="white-space: pre-wrap; margin-top: 16px;"></pre>
+
+		<p style="margin-top: 16px;">
+			<a href={`/product-v2/${encodeURIComponent(productId)}/variants`}>Back to variants</a>
+		</p>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("newVariantForm")
+		const btn = document.getElementById("submitBtn")
+		const out = document.getElementById("out")
+
+		function safeJsonParse(txt) {
+			try {
+				return txt ? JSON.parse(txt) : null
+			} catch {
+				return null
+			}
+		}
+
+		function formatFieldErrors(issues) {
+			if (!Array.isArray(issues)) return null
+			const byField = {}
+			for (const i of issues) {
+				const p = Array.isArray(i?.path) && i.path.length ? String(i.path[0]) : ""
+				if (!p) continue
+				if (!byField[p]) byField[p] = []
+				byField[p].push(i?.message || "Invalid")
+			}
+			return byField
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			out.textContent = ""
+			btn.disabled = true
+			try {
+				const fd = new FormData(form)
+				fd.set("kind", "hotel_room")
+				const res = await fetch("/api/variant/create", { method: "POST", body: fd })
+				const txt = await res.text()
+				const json = safeJsonParse(txt)
+
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+
+				if (!res.ok) {
+					if (res.status === 400 && json?.error === "validation_error") {
+						const fe = formatFieldErrors(json?.details)
+						out.textContent = fe ? JSON.stringify(fe, null, 2) : txt
+						return
+					}
+					if (res.status === 404) {
+						out.textContent = "Not found"
+						return
+					}
+					out.textContent = res.status >= 500 ? "Try again" : txt
+					return
+				}
+
+				const variantId = String(json?.variantId || "").trim()
+				const productId = String(fd.get("productId") || "").trim()
+				if (!variantId || !productId) {
+					out.textContent = "Unexpected response"
+					return
+				}
+
+				window.location.href = `/product-v2/${encodeURIComponent(
+					productId
+				)}/variants/${encodeURIComponent(variantId)}/capacity`
+			} catch (err) {
+				out.textContent = `network error: ${String(err)}`
+			} finally {
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>

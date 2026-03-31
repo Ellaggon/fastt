@@ -1,7 +1,19 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, Destination, eq, Image, or, Product, sql, Tour, Variant } from "astro:db"
+import {
+	and,
+	db,
+	Destination,
+	eq,
+	Image,
+	or,
+	PricingBaseRate,
+	Product,
+	sql,
+	Tour,
+	Variant,
+} from "astro:db"
 
 type ProductResult = {
 	id: string
@@ -58,12 +70,12 @@ try {
 			description: Product.description,
 			basePriceUSD: sql<
 				number | null
-			>`min(case when ${Variant.currency} = 'USD' then ${Variant.basePrice} end)`.as(
+			>`min(case when ${PricingBaseRate.currency} = 'USD' then ${PricingBaseRate.basePrice} end)`.as(
 				"basePriceUSD"
 			),
 			basePriceBOB: sql<
 				number | null
-			>`min(case when ${Variant.currency} = 'BOB' then ${Variant.basePrice} end)`.as(
+			>`min(case when ${PricingBaseRate.currency} = 'BOB' then ${PricingBaseRate.basePrice} end)`.as(
 				"basePriceBOB"
 			),
 			duration: Tour.duration,
@@ -75,6 +87,7 @@ try {
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
+		.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 		.where(whereClause)
 		.groupBy(Product.id)
 		.limit(50)

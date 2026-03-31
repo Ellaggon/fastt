@@ -1,7 +1,7 @@
 // Source: legacy implementation from src/core/inventory/RecomputeInventoryService.ts
 
 import { db, eq, and, DailyInventory, EffectiveInventory } from "astro:db"
-import { recomputeInventory } from "@/modules/inventory/application/use-cases/recompute-inventory"
+import { recomputeInventory } from "../../application/use-cases/recompute-inventory"
 
 export class RecomputeInventoryService {
 	async recompute(variantId: string, date: string, tx = db /* permite usar transacción */) {

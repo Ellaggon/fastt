@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { PricingEngine } from "@/core/pricing/PricingEngine"
-import { adaptPriceRule } from "@/core/pricing/adapters/adapter.priceRule"
+import { PricingEngine, adaptPriceRule } from "@/modules/pricing/public"
 
 describe("Pricing Engine Math", () => {
 	it("applies rateplan correctly", () => {

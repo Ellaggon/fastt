@@ -1,0 +1,261 @@
+import { db, Destination, Product, Variant, RatePlanTemplate, RatePlan, PriceRule } from "astro:db"
+
+export async function upsertDestination(row: {
+	id: string
+	name: string
+	type: string
+	country: string
+	slug: string
+}) {
+	await db
+		.insert(Destination)
+		.values(row)
+		.onConflictDoUpdate({
+			target: [Destination.id],
+			set: {
+				name: row.name,
+				type: row.type,
+				country: row.country,
+				slug: row.slug,
+			},
+		})
+}
+
+export async function upsertProduct(row: {
+	id: string
+	name: string
+	description?: string | null
+	productType: string
+	destinationId: string
+	providerId?: string | null
+}) {
+	await db
+		.insert(Product)
+		.values({
+			id: row.id,
+			name: row.name,
+			description: row.description ?? null,
+			productType: row.productType,
+			destinationId: row.destinationId,
+			providerId: row.providerId ?? null,
+		})
+		.onConflictDoUpdate({
+			target: [Product.id],
+			set: {
+				name: row.name,
+				description: row.description ?? null,
+				productType: row.productType,
+				destinationId: row.destinationId,
+				providerId: row.providerId ?? null,
+				lastUpdated: new Date(),
+			},
+		})
+}
+
+export async function upsertVariant(row: {
+	id: string
+	productId: string
+	entityType: string
+	entityId: string
+	name: string
+	description?: string | null
+	currency?: string
+	basePrice?: number | null
+	isActive?: boolean
+}) {
+	await db
+		.insert(Variant)
+		.values({
+			id: row.id,
+			productId: row.productId,
+			entityType: row.entityType,
+			entityId: row.entityId,
+			name: row.name,
+			description: row.description ?? null,
+			currency: row.currency ?? "USD",
+			basePrice: row.basePrice ?? null,
+			isActive: row.isActive ?? true,
+		})
+		.onConflictDoUpdate({
+			target: [Variant.id],
+			set: {
+				productId: row.productId,
+				entityType: row.entityType,
+				entityId: row.entityId,
+				name: row.name,
+				description: row.description ?? null,
+				currency: row.currency ?? "USD",
+				basePrice: row.basePrice ?? null,
+				isActive: row.isActive ?? true,
+			},
+		})
+}
+
+export async function seedTestProductVariant(params?: {
+	destinationId?: string
+	productId?: string
+	variantId?: string
+	basePrice?: number
+}) {
+	const destinationId = params?.destinationId ?? "dest_test"
+	const productId = params?.productId ?? "prod_test"
+	const variantId = params?.variantId ?? "variant_test"
+
+	await upsertDestination({
+		id: destinationId,
+		name: "Test Destination",
+		type: "city",
+		country: "CL",
+		slug: "test-destination",
+	})
+
+	await upsertProduct({
+		id: productId,
+		name: "Test Product",
+		productType: "hotel",
+		destinationId,
+	})
+
+	await upsertVariant({
+		id: variantId,
+		productId,
+		entityType: "hotel_room",
+		entityId: "entity_test",
+		name: "Test Variant",
+		currency: "USD",
+		basePrice: params?.basePrice ?? 100,
+		isActive: true,
+	})
+
+	return { destinationId, productId, variantId }
+}
+
+export async function upsertRatePlanTemplate(row: {
+	id: string
+	name: string
+	description?: string | null
+	paymentType: string
+	refundable: boolean
+	cancellationPolicyId?: string | null
+}) {
+	await db
+		.insert(RatePlanTemplate)
+		.values({
+			id: row.id,
+			name: row.name,
+			description: row.description ?? null,
+			paymentType: row.paymentType,
+			refundable: row.refundable,
+			cancellationPolicyId: row.cancellationPolicyId ?? null,
+			createdAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [RatePlanTemplate.id],
+			set: {
+				name: row.name,
+				description: row.description ?? null,
+				paymentType: row.paymentType,
+				refundable: row.refundable,
+				cancellationPolicyId: row.cancellationPolicyId ?? null,
+			},
+		})
+}
+
+export async function upsertRatePlan(row: {
+	id: string
+	templateId: string
+	variantId: string
+	isActive: boolean
+	isDefault?: boolean
+}) {
+	await db
+		.insert(RatePlan)
+		.values({
+			id: row.id,
+			templateId: row.templateId,
+			variantId: row.variantId,
+			isDefault: row.isDefault ?? false,
+			isActive: row.isActive,
+			createdAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [RatePlan.id],
+			set: {
+				templateId: row.templateId,
+				variantId: row.variantId,
+				isDefault: row.isDefault ?? false,
+				isActive: row.isActive,
+			},
+		})
+}
+
+export async function upsertPriceRule(row: {
+	id: string
+	ratePlanId: string
+	type: string
+	value: number
+	priority?: number
+	isActive?: boolean
+	name?: string | null
+	createdAt?: Date
+}) {
+	await db
+		.insert(PriceRule)
+		.values({
+			id: row.id,
+			ratePlanId: row.ratePlanId,
+			name: row.name ?? null,
+			type: row.type,
+			value: row.value,
+			priority: row.priority ?? 10,
+			isActive: row.isActive ?? true,
+			createdAt: row.createdAt ?? new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [PriceRule.id],
+			set: {
+				ratePlanId: row.ratePlanId,
+				name: row.name ?? null,
+				type: row.type,
+				value: row.value,
+				priority: row.priority ?? 10,
+				isActive: row.isActive ?? true,
+				createdAt: row.createdAt ?? new Date(),
+			},
+		})
+}
+
+export async function seedTestRatePlan(params: {
+	variantId: string
+	templateId?: string
+	ratePlanId?: string
+	priceRuleId?: string
+}) {
+	const templateId = params.templateId ?? "rpt_test"
+	const ratePlanId = params.ratePlanId ?? "rp_test"
+	const priceRuleId = params.priceRuleId ?? "prule_test"
+
+	await upsertRatePlanTemplate({
+		id: templateId,
+		name: "Test Rate Plan",
+		paymentType: "prepaid",
+		refundable: false,
+	})
+
+	await upsertRatePlan({
+		id: ratePlanId,
+		templateId,
+		variantId: params.variantId,
+		isActive: true,
+	})
+
+	await upsertPriceRule({
+		id: priceRuleId,
+		ratePlanId,
+		type: "percentage_discount",
+		value: 10,
+		isActive: true,
+	})
+
+	return { templateId, ratePlanId, priceRuleId }
+}

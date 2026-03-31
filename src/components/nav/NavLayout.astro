@@ -1,34 +1,13 @@
 ---
-import { db, eq, User } from "astro:db"
-import { SignIn } from "auth-astro/components"
-import { getSession } from "auth-astro/server"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { ensureUserForSession } from "@/modules/identity/public"
 import ProfileHover from "./ProfileHover.astro"
 
-const session = await getSession(Astro.request)
-const userUid = crypto.randomUUID()
-const username = session?.user?.name
-const email = session?.user?.email ?? ""
+const user = await getUserFromRequest(Astro.request)
 
-try {
-	if (session?.user) {
-		const existingUser = await db.select().from(User).where(eq(User.email, email))
-
-		if (typeof userUid === "string" && typeof username === "string" && typeof email === "string") {
-			if (existingUser.length === 0) {
-				await db.insert(User).values({
-					id: userUid,
-					username,
-					email,
-				})
-			}
-		}
-	}
-} catch (e) {
-	if (e instanceof Error) {
-		console.error("No se pudo guardar el usuario en DB", e.message)
-	} else {
-		console.error("No se pudo guardar el usuario en DB", e)
-	}
+// Use identity module to ensure user is persisted
+if (user?.email) {
+	await ensureUserForSession({ email: user.email })
 }
 ---
 
@@ -57,7 +36,7 @@ try {
 				<a href="/packages" class="p-6 transition hover:border-b hover:text-white"> Paquetes </a>
 			</div>
 			{
-				session && (
+				user && (
 					<div class="flex justify-center">
 						<a href="/dashboard" class="p-6 transition hover:border-b hover:text-white">
 							Dashboard
@@ -70,7 +49,7 @@ try {
 
 	<div class="flex items-center gap-x-4">
 		{
-			session ? (
+			user ? (
 				<>
 					<ProfileHover />
 					{/* <a
@@ -82,19 +61,12 @@ try {
 				</>
 			) : (
 				<>
-					<SignIn
-						provider="google"
+					<a
+						href="/SignInPage"
 						class="hidden items-center justify-center rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors duration-200 hover:bg-white/20 md:flex"
 					>
 						Ingresar
-					</SignIn>
-					{/* <SignIn
-						id="fixedSessionPost"
-						provider="google"
-						class="flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95"
-					>
-						Publicar
-					</SignIn> */}
+					</a>
 				</>
 			)
 		}

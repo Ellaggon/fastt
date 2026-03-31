@@ -1,25 +1,35 @@
 ---
-import { resolveHotelAmenities } from "@/application/queries/resolveHotelAmenities"
-import { resolveHotelPolicies } from "@/application/queries/resolveHotelPolicies"
-import { resolveHotelType } from "@/application/queries/resolveHotelType"
-import { resolveProductImages } from "@/application/queries/resolveProductImages"
-import { resolveProductServices } from "@/application/queries/resolveProductServices"
-import { resolveRoomImages } from "@/application/queries/resolveRoomImages"
-import { searchOffers } from "@/application/queries/searchOffers.query"
+import PolicyCard from "@/components/policy/PolicyCard.astro"
 import BreadcrumProduct from "@/components/productUI/BreadcrumProduct.astro"
 import ImageModal from "@/components/productUI/ImageModal.astro"
 import MapModal from "@/components/productUI/MapModal.astro"
 import RoomModal from "@/components/productUI/RoomModal.astro"
 import RoomSection from "@/components/productUI/RoomSection.astro"
 import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astro"
+import { searchOffers } from "@/container"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
+import {
+	resolveHotelAmenities,
+	resolveHotelType,
+	resolveProductImages,
+	resolveProductServices,
+	resolveRoomImages,
+} from "@/modules/catalog/public"
+import { listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import type { ImageRow } from "@/types/products"
 import { db, Destination, eq, Hotel, Product } from "astro:db"
 
 const url = Astro.url
 const productId = Astro.params.id
-if (!productId) throw new Error("ID de producto no proporcionado.")
+if (!productId) {
+	return Astro.redirect("/hotels")
+}
+
+function toISODateOnly(d: Date) {
+	return d.toISOString().split("T")[0]
+}
 
 let hotelProduct: any = null
 let hotelSubtype: any = null
@@ -27,13 +37,29 @@ let errorMessage: string | null = null
 
 const checkInStr = url.searchParams.get("checkin")
 const checkOutStr = url.searchParams.get("checkout")
-if (!checkInStr || !checkOutStr) throw new Error("Fechas requeridas")
+const adults = Number(url.searchParams.get("adults") ?? 2)
+const children = Number(url.searchParams.get("children") ?? 0)
+
+// If required dates are missing/invalid, redirect to safe defaults.
+if (!checkInStr || !checkOutStr) {
+	const today = new Date()
+	const tomorrow = new Date(today)
+	tomorrow.setDate(today.getDate() + 1)
+	return Astro.redirect(
+		`/hotels/${productId}?checkin=${toISODateOnly(today)}&checkout=${toISODateOnly(tomorrow)}&adults=${adults}&children=${children}`
+	)
+}
 
 const checkIn = new Date(checkInStr)
 const checkOut = new Date(checkOutStr)
-
-const adults = Number(url.searchParams.get("adults") ?? 2)
-const children = Number(url.searchParams.get("children") ?? 0)
+if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+	const today = new Date()
+	const tomorrow = new Date(today)
+	tomorrow.setDate(today.getDate() + 1)
+	return Astro.redirect(
+		`/hotels/${productId}?checkin=${toISODateOnly(today)}&checkout=${toISODateOnly(tomorrow)}&adults=${adults}&children=${children}`
+	)
+}
 
 const offers = await searchOffers({
 	productId,
@@ -42,20 +68,58 @@ const offers = await searchOffers({
 	adults,
 	children,
 })
-// console.log(typeof checkIn, checkIn)
-// console.log("offers", offers)
 
 const searchState = {
-	checkIn: url.searchParams.get("checkin"),
-	checkOut: url.searchParams.get("checkout"),
-	adults: Number(url.searchParams.get("adults") ?? 2),
-	children: Number(url.searchParams.get("children") ?? 0),
+	checkIn: toISODateOnly(checkIn),
+	checkOut: toISODateOnly(checkOut),
+	adults,
+	children,
 }
-// console.log("searchstate", searchState)
-// console.log("searchOffers", searchOffers)
+
 const images = await resolveProductImages(productId)
 const services = await resolveProductServices(productId)
-const policies = await resolveHotelPolicies(productId)
+
+const houseRules = await listHouseRulesByProduct(String(productId))
+const HOUSE_RULE_TYPES = ["Children", "Pets", "Smoking", "ExtraBeds", "Access", "Other"] as const
+const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, r: any) => {
+	const t = String(r.type ?? "")
+	if (!acc[t]) acc[t] = []
+	acc[t].push(r)
+	return acc
+}, {})
+
+// CAPA 6: resolve policies using the same scope context the user is actually shopping with.
+// For rate-plan scoped policies, we need a concrete {variantId, ratePlanId}. Pick the cheapest offer context.
+let policyVariantId: string | undefined = undefined
+let policyRatePlanId: string | undefined = undefined
+let minOfferPrice = Number.POSITIVE_INFINITY
+for (const o of offers) {
+	for (const rp of o.ratePlans ?? []) {
+		const price = Number((rp as any).finalPrice ?? NaN)
+		if (!Number.isFinite(price)) continue
+		if (price < minOfferPrice) {
+			minOfferPrice = price
+			policyVariantId = String(o.variantId)
+			policyRatePlanId = String((rp as any).ratePlanId)
+		}
+	}
+}
+
+const resolvedPolicies = await resolveEffectivePolicies({
+	productId,
+	variantId: policyVariantId,
+	ratePlanId: policyRatePlanId,
+	channel: "web",
+})
+let policies: any[] = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
+if (policies.length === 0) {
+	console.warn(
+		"[policies] canonical resolver returned 0 policies (no fallback; hotel scope removed)",
+		{
+			productId,
+		}
+	)
+}
 
 const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) => {
 	if (!acc[p.category]) acc[p.category] = []
@@ -75,10 +139,12 @@ try {
 		.where(eq(Product.id, productId))
 		.get()
 
-	if (!productResult) throw new Error("Producto no encontrado.")
-
-	hotelProduct = { ...productResult.Product, destination: productResult.Destination }
-	hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+	if (!productResult) {
+		errorMessage = "Producto no encontrado."
+	} else {
+		hotelProduct = { ...productResult.Product, destination: productResult.Destination }
+		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+	}
 } catch (e) {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
@@ -90,7 +156,6 @@ try {
 		class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-7 overflow-x-hidden py-3 md:space-y-20 md:py-7 lg:p-12"
 	>
 		<BreadcrumProduct productData={hotelProduct} productId={productId} />
-		<pre>{JSON.stringify(offers, null, 2)}</pre>
 
 		{
 			errorMessage ? (
@@ -247,26 +312,55 @@ try {
 								{Object.values(POLICY_UI_GROUPS)
 									.flat()
 									.map((category) => {
-										const group = policiesByCategory[category]
-										if (!group) return null
+										const group = policiesByCategory[category] ?? []
+										const first = group[0] ?? null
+										const source = String(first?.resolvedFromScope ?? "global") as any
+										const state = first
+											? source === "rate_plan"
+												? "override"
+												: "inherited"
+											: "missing"
 
 										return (
 											<div class="space-y-3">
-												<h4 class="text-lg font-semibold text-neutral-800">
-													{POLICY_CATEGORY_ORDER[category]}
-												</h4>
-
-												<ul class="list-disc space-y-2 pl-5 text-sm text-neutral-600 md:text-base">
-													{group.map((policy) => {
-														return policy.description
-															.split("\n")
-															.filter((line: string) => line.trim() !== "")
-															.map((line: string) => <li>{line.replace(/^- /, "")}</li>)
-													})}
-												</ul>
+												<PolicyCard
+													category={POLICY_CATEGORY_ORDER[category] ?? category}
+													description={String(first?.description ?? "")}
+													version={Number(first?.version ?? 0)}
+													source={source}
+													state={state}
+												/>
 											</div>
 										)
 									})}
+							</div>
+						</article>
+					</section>
+
+					<section>
+						<article class="space-y-6 rounded-2xl bg-neutral-100 p-3 py-6 shadow-sm md:p-8">
+							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
+								House Rules
+							</h3>
+							<p class="text-sm text-neutral-700">
+								Information provided by the property. House rules are not part of booking policies.
+							</p>
+
+							<div class="space-y-6">
+								{HOUSE_RULE_TYPES.map((t) => {
+									const items = houseRulesByType[t] ?? []
+									if (!items.length) return null
+									return (
+										<div class="space-y-2">
+											<h4 class="text-lg font-semibold text-neutral-800">{t}</h4>
+											<ul class="list-disc space-y-2 pl-5 text-sm text-neutral-600 md:text-base">
+												{items.map((r: any) => (
+													<li class="whitespace-pre-line">{String(r.description ?? "")}</li>
+												))}
+											</ul>
+										</div>
+									)
+								})}
 							</div>
 						</article>
 					</section>

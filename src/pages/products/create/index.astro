@@ -1,22 +1,14 @@
 ---
 import DashboardLayout from "@/layouts/DashboardLayout.astro"
-import { db, eq, User } from "astro:db"
-import { getSession } from "auth-astro/server"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
-const session = await getSession(Astro.request)
-if (!session) return Astro.redirect("/SignInPage")
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
 let providerId = ""
 
-if (session?.user?.email) {
-	const user = await db.select().from(User).where(eq(User.email, session.user.email)).get()
-
-	if (user?.providerId) {
-		providerId = user.providerId
-	} else {
-		console.error("No se encontró providerId para el usuario:", session.user.email)
-		return Astro.redirect("/provider")
-	}
-}
+providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
 ---
 
 <DashboardLayout title="Crear Nuevo Producto">

@@ -1,8 +1,7 @@
 ---
-import { SignOut } from "auth-astro/components"
-import { getSession } from "auth-astro/server"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
-const session = await getSession(Astro.request)
+const user = await getUserFromRequest(Astro.request)
 ---
 
 <div
@@ -12,26 +11,17 @@ const session = await getSession(Astro.request)
 	<div
 		class="flex h-12 cursor-pointer items-center justify-between rounded-full transition-transform duration-300 group-hover:scale-90"
 	>
-		{
-			session?.user?.image ? (
-				<img
-					class="mx-2 h-8 w-8 sm:mx-3 md:h-10 md:w-10"
-					src={session?.user?.image || ""}
-					alt={session?.user?.name || ""}
-				/>
-			) : (
-				""
-			)
-		}
-		<p>{`${session?.user?.name || ""}`}</p>
+		{""}
+		<p>{`${user?.email || ""}`}</p>
 	</div>
 	<div
 		class="absolute top-1/2 hidden translate-x-2 translate-y-6 rounded-md py-1 shadow-md transition-opacity duration-300 group-hover:block"
 	>
-		<SignOut
-			class="rounded-b-md bg-black py-1 text-xs text-white transition hover:scale-110 hover:bg-slate-800 sm:text-sm md:w-32"
+		<a
+			href="/api/auth/logout"
+			class="block rounded-b-md bg-black py-1 text-center text-xs text-white transition hover:scale-110 hover:bg-slate-800 sm:text-sm md:w-32"
 		>
-			Cerrar Sesión
-		</SignOut>
+			Cerrar Sesion
+		</a>
 	</div>
 </div>

@@ -1,26 +1,22 @@
 import type { APIRoute } from "astro"
-import { db, TaxFee, eq } from "astro:db"
+import { taxFeeRepository } from "@/container"
+import { updateTax } from "@/modules/catalog/public"
 
 export const PUT: APIRoute = async ({ params, request }) => {
 	const { id: productId, taxId } = params
 	const body = await request.json()
 
-	if (!productId || !taxId) {
-		return new Response(JSON.stringify({ error: "Missing params" }), { status: 400 })
-	}
-
 	const { type, value, currency, isIncluded, isActive } = body
-
-	await db
-		.update(TaxFee)
-		.set({
+	return updateTax(
+		{ repo: taxFeeRepository },
+		{
+			productId: productId || "",
+			taxId: taxId || "",
 			type,
 			value,
 			currency,
 			isIncluded,
 			isActive,
-		})
-		.where(eq(TaxFee.id, taxId))
-
-	return new Response(JSON.stringify({ success: true }), { status: 200 })
+		}
+	)
 }

@@ -1,7 +1,9 @@
 ---
 import "@/styles/modals.css"
 
-interface Props { title: string }
+interface Props {
+	title: string
+}
 const { title } = Astro.props
 ---
 
@@ -22,6 +24,18 @@ const { title } = Astro.props
 	</head>
 	<body class="py-12">
 		<slot />
+		<script is:inline>
+			;(function () {
+				// Supabase email confirmation can redirect to Site URL with tokens in the hash.
+				// Forward them to /auth/callback so the server can persist them into httpOnly cookies.
+				const h = window.location.hash || ""
+				if (!h) return
+				if (window.location.pathname.startsWith("/auth/callback")) return
+				if (h.includes("access_token=") && h.includes("refresh_token=")) {
+					window.location.replace("/auth/callback" + h)
+				}
+			})()
+		</script>
 	</body>
 </html>
 

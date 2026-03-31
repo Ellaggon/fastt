@@ -6,15 +6,15 @@ Aplicacion SSR en Astro para una plataforma tipo OTA (tours/hoteles) con panel d
 
 - Astro 5 (SSR), Tailwind, React islands
 - Astro DB (`astro:db`) con backend libsql/Turso (via `ASTRO_DB_REMOTE_URL` y `ASTRO_DB_APP_TOKEN`)
-- Auth: `auth-astro` + Google (basado en NextAuth)
+- Auth: base Supabase-ready (validacion por token via cookies/Authorization; dev bypass configurable)
 - Storage: Cloudflare R2 (S3 compatible) para imagenes (URLs firmadas)
 
 ## Estructura del proyecto
 
 - `src/pages`: UI (home/tours/hotels/dashboard/products)
 - `src/pages/api`: endpoints (search offers, rate plans, policies, upload signed URLs, etc.)
-- `src/core`: motores de negocio (search pipeline, pricing, offers)
-- `src/repositories`: acceso a `astro:db`
+- `src/modules`: modular monolith (domain/application/infrastructure por bounded context)
+- `src/container`: composition root (DI manual)
 - `db/`: schema y seed de Astro DB
 
 ## Requisitos

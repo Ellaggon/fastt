@@ -24,7 +24,7 @@ let services: Array<ServiceRow & { iconId?: string | null }> = []
 let errorMessage: string | null = null
 
 try {
-	if (!productId) throw new Error("ID de producto no proporcionado.")
+	if (!productId) return Astro.redirect("/tours")
 
 	const productResult = await db
 		.select()
@@ -33,7 +33,7 @@ try {
 		.where(eq(Product.id, productId))
 		.get()
 
-	if (!productResult) throw new Error("Producto no encontrado.")
+	if (!productResult) return Astro.redirect("/tours")
 	product = { ...productResult.Product, destination: productResult.Destination }
 
 	const servicesResult = await db

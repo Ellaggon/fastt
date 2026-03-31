@@ -1,0 +1,63 @@
+---
+export type PolicyCardSource = "rate_plan" | "variant" | "product" | "global"
+export type PolicyCardState = "override" | "inherited" | "missing"
+
+export type Props = {
+	category: string
+	description: string
+	version?: number
+	source?: PolicyCardSource
+	state?: PolicyCardState
+}
+
+const { category, description, version = 0, source = "global", state = "missing" } = Astro.props
+
+const sourceLabel = (() => {
+	if (state === "missing") return "No policy assigned"
+	if (source === "rate_plan") return "Overridden at rate plan"
+	if (source === "variant") return "Inherited from variant"
+	if (source === "product") return "Inherited from product"
+	return "Default (global)"
+})()
+
+const badge = (() => {
+	if (state === "missing") return { label: "Default", className: "bg-neutral-100 text-neutral-800" }
+	if (source === "rate_plan") return { label: "Override", className: "bg-green-100 text-green-900" }
+	if (source === "variant")
+		return { label: "Inherited (Variant)", className: "bg-yellow-100 text-yellow-900" }
+	if (source === "product")
+		return { label: "Inherited (Product)", className: "bg-blue-100 text-blue-900" }
+	return { label: "Default", className: "bg-neutral-100 text-neutral-800" }
+})()
+
+const lines = String(description ?? "")
+	.split("\n")
+	.map((s) => s.trim())
+	.filter(Boolean)
+---
+
+<article class="space-y-2 rounded border p-3">
+	<header class="flex items-start justify-between gap-3">
+		<div class="space-y-1">
+			<h3 class="font-semibold">{category}</h3>
+			<p class="text-xs text-neutral-600">
+				{sourceLabel} | Version: {version ? `v${version}` : "—"}
+			</p>
+		</div>
+		<span class={`text-xs px-2 py-1 rounded ${badge.className}`}>{badge.label}</span>
+	</header>
+
+	{
+		state === "missing" ? (
+			<p class="text-sm text-neutral-700">No policy assigned.</p>
+		) : lines.length ? (
+			<ul class="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+				{lines.map((l) => (
+					<li>{l.replace(/^- /, "")}</li>
+				))}
+			</ul>
+		) : (
+			<p class="text-sm text-neutral-700">No details.</p>
+		)
+	}
+</article>

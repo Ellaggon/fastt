@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { SearchPipeline } from "@/core/search/SearchPipeline"
+import { SearchPipeline } from "@/modules/search/public"
+import {
+	PromotionEngine,
+	computeBasePriceWithRules,
+	parseStrictMinimalRules,
+} from "@/modules/pricing/public"
+import { RestrictionRuleEngine } from "@/modules/policies/public"
 
 const baseDate = new Date("2026-03-01")
 
@@ -10,7 +16,7 @@ describe("SearchPipeline E2E", () => {
 			load: async () => ({
 				inventory: [
 					{
-						date: baseDate,
+						date: "2026-03-01",
 						totalInventory: 5,
 						reservedCount: 0,
 						stopSell: false,
@@ -27,8 +33,8 @@ describe("SearchPipeline E2E", () => {
 					{
 						id: "rule1",
 						ratePlanId: "rp1",
-						type: "percentage_discount",
-						value: 10,
+						type: "percentage",
+						value: -10,
 						isActive: true,
 					},
 				],
@@ -37,9 +43,32 @@ describe("SearchPipeline E2E", () => {
 			}),
 		}
 
-		const pipeline = new SearchPipeline(
-			fakeLoader // override loader
-		)
+		const restrictionEngine = new RestrictionRuleEngine()
+		const promotionEngine = new PromotionEngine()
+
+		const pipeline = new SearchPipeline(fakeLoader, undefined, {
+			pricing: {
+				computeStayBasePriceWithRulesStrict: ({ basePricePerNight, nights, priceRules }) => {
+					const stayBase = basePricePerNight * nights
+					const minimal = parseStrictMinimalRules({
+						basePrice: stayBase,
+						rules: priceRules.map((r) => ({
+							id: r.id,
+							type: String(r.type),
+							value: Number(r.value),
+						})),
+					})
+					return computeBasePriceWithRules(stayBase, minimal)
+				},
+			},
+			restrictions: {
+				evaluateFromMemory: (ctx) => restrictionEngine.evaluateFromMemory(ctx),
+			},
+			promotions: {
+				applyPromotions: (basePrice, promotions, ctx) =>
+					promotionEngine.applyPromotions(basePrice, promotions, ctx),
+			},
+		})
 
 		const result = await pipeline.run({
 			productId: "p1",
@@ -57,13 +86,13 @@ describe("SearchPipeline E2E", () => {
 		expect(result[0].basePrice).toBe(180)
 		expect(result[0].finalPrice).toBe(180)
 	})
-	
+
 	it("applies promotion after pricing", async () => {
 		const fakeLoader: any = {
 			load: async () => ({
 				inventory: [
 					{
-						date: baseDate,
+						date: "2026-03-01",
 						totalInventory: 5,
 						reservedCount: 0,
 						stopSell: false,
@@ -91,7 +120,32 @@ describe("SearchPipeline E2E", () => {
 			}),
 		}
 
-		const pipeline = new SearchPipeline(fakeLoader)
+		const restrictionEngine = new RestrictionRuleEngine()
+		const promotionEngine = new PromotionEngine()
+
+		const pipeline = new SearchPipeline(fakeLoader, undefined, {
+			pricing: {
+				computeStayBasePriceWithRulesStrict: ({ basePricePerNight, nights, priceRules }) => {
+					const stayBase = basePricePerNight * nights
+					const minimal = parseStrictMinimalRules({
+						basePrice: stayBase,
+						rules: priceRules.map((r) => ({
+							id: r.id,
+							type: String(r.type),
+							value: Number(r.value),
+						})),
+					})
+					return computeBasePriceWithRules(stayBase, minimal)
+				},
+			},
+			restrictions: {
+				evaluateFromMemory: (ctx) => restrictionEngine.evaluateFromMemory(ctx),
+			},
+			promotions: {
+				applyPromotions: (basePrice, promotions, ctx) =>
+					promotionEngine.applyPromotions(basePrice, promotions, ctx),
+			},
+		})
 
 		const result = await pipeline.run({
 			productId: "p1",

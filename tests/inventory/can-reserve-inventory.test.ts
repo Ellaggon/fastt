@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { canReserveInventory } from "@/modules/inventory/application/use-cases/can-reserve-inventory"
+import { canReserveInventory } from "@/modules/inventory/public"
 
 describe("inventory/use-cases/canReserveInventory", () => {
 	it("returns false when there are no days", () => {

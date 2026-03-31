@@ -8,17 +8,19 @@ import DashboardLayout from "@/layouts/DashboardLayout.astro"
 const hotelId = Astro.params.id
 const hotelRoomId = Astro.params.hotelRoomTypeId
 
-if (!hotelId) throw new Error("Falta :id")
-if (!hotelRoomId) throw new Error("Falta :hotelRoomTypeId")
+if (!hotelId) return Astro.redirect("/dashboard")
+if (!hotelRoomId) return Astro.redirect("/dashboard")
 
 const base = Astro.site?.href || "http://localhost:4321/"
 const apiUrl = `${base}api/products/${hotelId}/rooms/get?hotelRoomId=${hotelRoomId}`
 
 const res = await fetch(apiUrl)
-const data = await res.json()
+if (!res.ok) return Astro.redirect(`/products/${hotelId}/rooms`)
+const data = await res.json().catch(() => null)
+if (!data) return Astro.redirect(`/products/${hotelId}/rooms`)
 
 if (!data.found || !data.row) {
-	throw new Error("No se encontró la habitación solicitada.")
+	return Astro.redirect(`/products/${hotelId}/rooms`)
 }
 
 const room = data.row

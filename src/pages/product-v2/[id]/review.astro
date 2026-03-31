@@ -1,0 +1,78 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product-v2/create")
+---
+
+<Layout title="Product V2 - Review">
+	<main style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+		<h1>Product V2: Review</h1>
+		<p>Product: <code>{productId}</code></p>
+
+		<button id="evalBtn" type="button">Evaluate readiness</button>
+		<pre id="out" style="white-space: pre-wrap; margin-top: 16px;"></pre>
+
+		<p style="margin-top: 16px;">
+			<a href="/product-v2/create">Create another</a>
+		</p>
+	</main>
+
+	<script type="module">
+		const out = document.getElementById("out")
+		const btn = document.getElementById("evalBtn")
+		const productId = String(document.getElementById("productId")?.textContent || "").trim()
+
+		function safeJsonParse(txt) {
+			try {
+				return txt ? JSON.parse(txt) : null
+			} catch {
+				return null
+			}
+		}
+
+		async function run() {
+			out.textContent = ""
+			btn.disabled = true
+			try {
+				if (!productId) {
+					out.textContent = "Missing productId"
+					return
+				}
+				const fd = new FormData()
+				fd.set("productId", productId)
+				const res = await fetch("/api/product-v2/evaluate", { method: "POST", body: fd })
+				const txt = await res.text()
+				const json = safeJsonParse(txt)
+				if (!res.ok) {
+					out.textContent = `status=${res.status}\n${txt}`
+					return
+				}
+
+				const state = json?.state || json?.status?.state || "unknown"
+				const errors = Array.isArray(json?.validationErrors) ? json.validationErrors : []
+				out.textContent =
+					`state=${state}\n` +
+					(errors.length
+						? `validationErrors:\n- ${errors.map((e) => e.code || e).join("\n- ")}\n`
+						: "validationErrors: []\n")
+			} catch (err) {
+				out.textContent = `network error: ${String(err)}`
+			} finally {
+				btn.disabled = false
+			}
+		}
+
+		btn?.addEventListener("click", run)
+		run()
+	</script>
+</Layout>
+<span id="productId" style="display:none">{productId}</span>
