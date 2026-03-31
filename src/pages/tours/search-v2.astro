@@ -1,0 +1,7 @@
+---
+// Temporary compatibility wrapper for the new tours search entrypoint.
+// Intentionally does not implement any new logic; it only redirects to the legacy route
+// preserving the original query string.
+const url = new URL(Astro.request.url)
+return Astro.redirect(`/tours/search${url.search}`)
+---
