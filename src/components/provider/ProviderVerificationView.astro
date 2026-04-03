@@ -1,0 +1,50 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+
+const { latestVerification } = Astro.props
+---
+
+<section class="space-y-4">
+	<header class="space-y-1">
+		<h2 class="text-lg font-semibold text-slate-100">Estado de verificación</h2>
+		<p class="text-sm text-slate-300">Estado de verificación gestionado por revisión interna.</p>
+	</header>
+	<Card class="bg-slate-100">
+		<div class="space-y-6">
+			<div class="grid gap-4 md:grid-cols-2">
+				<div class="space-y-1">
+					<p class="text-sm font-medium text-slate-700">Estado</p>
+					<p class="text-sm text-slate-900">
+						{
+							latestVerification?.status === "approved"
+								? "Aprobado"
+								: (latestVerification?.status ?? "Pendiente")
+						}
+					</p>
+				</div>
+				<div class="space-y-1">
+					<p class="text-sm font-medium text-slate-700">Última actualización</p>
+					<p class="text-sm text-slate-900">
+						{
+							latestVerification?.createdAt
+								? new Date(latestVerification.createdAt).toLocaleString()
+								: "Sin registro de verificación"
+						}
+					</p>
+				</div>
+				<div class="space-y-1 md:col-span-2">
+					<p class="text-sm font-medium text-slate-700">Motivo</p>
+					<p class="text-sm text-slate-900">
+						{latestVerification?.reason || "Sin motivo informado"}
+					</p>
+				</div>
+			</div>
+			<div class="flex justify-end">
+				<Button href="/provider" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+					>Volver</Button
+				>
+			</div>
+		</div>
+	</Card>
+</section>
