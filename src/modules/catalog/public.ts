@@ -34,6 +34,7 @@ export * from "./application/use-cases/update-tax"
 // Provider V2 (parallel system)
 export { registerProviderV2 } from "./application/use-cases/provider-v2/register-provider-v2"
 export { upsertProviderProfileV2 } from "./application/use-cases/provider-v2/upsert-provider-profile-v2"
+export { updateProviderIdentityV2 } from "./application/use-cases/provider-v2/update-provider-identity-v2"
 export { setProviderVerificationV2 } from "./application/use-cases/provider-v2/set-provider-verification-v2"
 
 // Product V2 (parallel system)

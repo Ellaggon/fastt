@@ -3,19 +3,17 @@ export type ProviderV2Status = "draft" | "active" | "archived"
 export type ProviderVerificationStatus = "pending" | "approved" | "rejected"
 
 export interface ProviderV2RepositoryPort {
-	getProviderIdByUserEmail(email: string): Promise<string | null>
+	updateProviderIdentity?(params: {
+		providerId: string
+		displayName?: string | null
+		legalName?: string | null
+	}): Promise<void>
 
 	registerProvider(params: {
 		provider: {
 			id: string
-			userEmail: string
-			companyName: string
 			legalName?: string | null
 			displayName?: string | null
-			type?: string | null
-			contactName?: string | null
-			contactEmail?: string | null
-			phone?: string | null
 			status?: ProviderV2Status
 		}
 		userEmailForLink: string
