@@ -27,8 +27,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Product V2 Test Provider",
-			userEmail: "provider-v2@example.com",
+			displayName: "Product V2 Test Provider",
+			ownerEmail: "provider-v2@example.com",
 		})
 
 		await createProductV2(
@@ -100,8 +100,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Product V2 Test Provider",
-			userEmail: "provider-v2@example.com",
+			displayName: "Product V2 Test Provider",
+			ownerEmail: "provider-v2@example.com",
 		})
 
 		await createProductV2(
@@ -155,8 +155,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Product V2 Test Provider",
-			userEmail: "provider-v2@example.com",
+			displayName: "Product V2 Test Provider",
+			ownerEmail: "provider-v2@example.com",
 		})
 
 		await createProductV2(
@@ -209,8 +209,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Product V2 Test Provider",
-			userEmail: "provider-v2@example.com",
+			displayName: "Product V2 Test Provider",
+			ownerEmail: "provider-v2@example.com",
 		})
 
 		await createProductV2(
@@ -266,8 +266,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Product V2 Test Provider",
-			userEmail: "provider-v2@example.com",
+			displayName: "Product V2 Test Provider",
+			ownerEmail: "provider-v2@example.com",
 		})
 
 		await createProductV2(

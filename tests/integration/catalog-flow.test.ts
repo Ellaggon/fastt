@@ -29,8 +29,8 @@ describe("integration/catalog flow", () => {
 
 		await upsertProvider({
 			id: providerId,
-			companyName: "Catalog Test Provider",
-			userEmail: "provider@example.com",
+			displayName: "Catalog Test Provider",
+			ownerEmail: "provider@example.com",
 		})
 
 		// Seed required lookup row for HotelRoomType.roomTypeId FK.
@@ -96,7 +96,7 @@ describe("integration/catalog flow", () => {
 		const v = await variantRepository.getById(variantId)
 		expect(v).not.toBeNull()
 		expect(v!.productId).toBe(productWithRoomId)
-		expect(v!.basePrice).toBe(150)
+		expect(v!.pricing.basePrice).toBe(150)
 
 		const checkIn = new Date()
 		const checkOut = new Date()

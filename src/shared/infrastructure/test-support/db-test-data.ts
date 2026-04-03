@@ -1,4 +1,13 @@
-import { db, Destination, Product, Variant, RatePlanTemplate, RatePlan, PriceRule } from "astro:db"
+import {
+	db,
+	Destination,
+	Product,
+	Variant,
+	VariantCapacity,
+	RatePlanTemplate,
+	RatePlan,
+	PriceRule,
+} from "astro:db"
 
 export async function upsertDestination(row: {
 	id: string
@@ -62,6 +71,8 @@ export async function upsertVariant(row: {
 	currency?: string
 	basePrice?: number | null
 	isActive?: boolean
+	minOccupancy?: number
+	maxOccupancy?: number
 }) {
 	await db
 		.insert(Variant)
@@ -87,6 +98,24 @@ export async function upsertVariant(row: {
 				currency: row.currency ?? "USD",
 				basePrice: row.basePrice ?? null,
 				isActive: row.isActive ?? true,
+			},
+		})
+
+	const minOcc = row.minOccupancy ?? 1
+	const maxOcc = row.maxOccupancy ?? Math.max(minOcc, 2)
+
+	await db
+		.insert(VariantCapacity)
+		.values({
+			variantId: row.id,
+			minOccupancy: minOcc,
+			maxOccupancy: maxOcc,
+		})
+		.onConflictDoUpdate({
+			target: [VariantCapacity.variantId],
+			set: {
+				minOccupancy: minOcc,
+				maxOccupancy: maxOcc,
 			},
 		})
 }

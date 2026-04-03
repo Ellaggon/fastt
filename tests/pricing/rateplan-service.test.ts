@@ -9,8 +9,10 @@ describe("pricing/services/RatePlanService", () => {
 				productId: "p1",
 				entityType: "hotel_room",
 				entityId: "hr1",
-				basePrice: 100,
+				pricing: { basePrice: 100, currency: "USD" },
+				capacity: { minOccupancy: 1, maxOccupancy: 2 },
 			})),
+			existsById: vi.fn(async () => true),
 		}
 
 		const ratePlanRepo = {

@@ -185,8 +185,8 @@ const maxAdvanceDaysValue = toInputValue(maxLead?.value, "")
 						<p class="text-neutral-600">
 							Precio base habitación:
 							<strong class="ml-2 text-neutral-800">
-								{variant.currency}
-								{variant.basePrice}
+								{variant.pricing.currency}
+								{variant.pricing.basePrice}
 							</strong>
 						</p>
 					</div>
@@ -241,12 +241,12 @@ const maxAdvanceDaysValue = toInputValue(maxLead?.value, "")
 						<p
 							class="mt-1 text-lg font-bold"
 							id="pricePreview"
-							data-base-price={variant.basePrice}
-							data-currency={variant.currency}
+							data-base-price={variant.pricing.basePrice}
+							data-currency={variant.pricing.currency}
 						>
 							<strong>
-								<span id="newCurrency">{variant.currency}</span>
-								<span id="newPrice">{variant.basePrice}</span>
+								<span id="newCurrency">{variant.pricing.currency}</span>
+								<span id="newPrice">{variant.pricing.basePrice}</span>
 							</strong>
 						</p>
 						<p id="priceHelper" class="mt-3 text-xs"></p>

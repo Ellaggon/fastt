@@ -1,11 +1,10 @@
 import { describe, it, expect, vi } from "vitest"
-import { ZodError } from "zod"
 import type { ProviderV2RepositoryPort } from "@/modules/catalog/public"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
+import { ValidationError } from "@/lib/validation/ValidationError"
 
 function makeRepo(overrides?: Partial<ProviderV2RepositoryPort>): ProviderV2RepositoryPort {
 	return {
-		getProviderIdByUserEmail: vi.fn(async () => "prov_1"),
 		registerProvider: vi.fn(async () => ({ providerId: "prov_1", created: true })),
 		upsertProfile: vi.fn(async () => {}),
 		setVerificationStatus: vi.fn(async () => {}),
@@ -16,57 +15,56 @@ function makeRepo(overrides?: Partial<ProviderV2RepositoryPort>): ProviderV2Repo
 describe("catalog/provider-v2/upsertProviderProfileV2 (unit)", () => {
 	it("fails without timezone", async () => {
 		const repo = makeRepo()
-		await expect(
-			upsertProviderProfileV2(
-				{ repo },
-				{
-					sessionEmail: "user@example.com",
-					timezone: "",
-					defaultCurrency: "USD",
-				}
-			)
-		).rejects.toBeInstanceOf(ZodError)
+		const promise = upsertProviderProfileV2(
+			{ repo },
+			{
+				providerId: "prov_1",
+				timezone: "",
+				defaultCurrency: "USD",
+			}
+		)
+		await expect(promise).rejects.toBeInstanceOf(ValidationError)
+		await expect(promise).rejects.toMatchObject({ errors: { timezone: expect.any(String) } })
 	})
 
 	it("fails without defaultCurrency", async () => {
 		const repo = makeRepo()
-		await expect(
-			upsertProviderProfileV2(
-				{ repo },
-				{
-					sessionEmail: "user@example.com",
-					timezone: "UTC",
-					defaultCurrency: "",
-				}
-			)
-		).rejects.toBeInstanceOf(ZodError)
+		const promise = upsertProviderProfileV2(
+			{ repo },
+			{
+				providerId: "prov_1",
+				timezone: "UTC",
+				defaultCurrency: "",
+			}
+		)
+		await expect(promise).rejects.toBeInstanceOf(ValidationError)
+		await expect(promise).rejects.toMatchObject({ errors: { defaultCurrency: expect.any(String) } })
 	})
 
 	it("fails with invalid supportEmail", async () => {
 		const repo = makeRepo()
-		await expect(
-			upsertProviderProfileV2(
-				{ repo },
-				{
-					sessionEmail: "user@example.com",
-					timezone: "UTC",
-					defaultCurrency: "USD",
-					supportEmail: "not-an-email",
-				}
-			)
-		).rejects.toBeInstanceOf(ZodError)
+		const promise = upsertProviderProfileV2(
+			{ repo },
+			{
+				providerId: "prov_1",
+				timezone: "UTC",
+				defaultCurrency: "USD",
+				supportEmail: "not-an-email",
+			}
+		)
+		await expect(promise).rejects.toBeInstanceOf(ValidationError)
+		await expect(promise).rejects.toMatchObject({ errors: { supportEmail: expect.any(String) } })
 	})
 
 	it("upserts profile when valid", async () => {
 		const repo = makeRepo({
-			getProviderIdByUserEmail: vi.fn(async () => "prov_abc"),
 			upsertProfile: vi.fn(async () => {}),
 		})
 
 		const res = await upsertProviderProfileV2(
 			{ repo },
 			{
-				sessionEmail: "user@example.com",
+				providerId: "prov_abc",
 				timezone: "America/Santiago",
 				defaultCurrency: "USD",
 				supportEmail: "support@test.com",

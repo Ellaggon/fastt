@@ -91,7 +91,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 			country: "CL",
 			slug: "br-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "BR Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "BR Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "BR Hotel",
@@ -162,7 +162,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 			country: "CL",
 			slug: "br-bad-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "BR Bad Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "BR Bad Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "BR Bad Hotel",
@@ -213,8 +213,8 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 			country: "CL",
 			slug: "br-own-dest",
 		})
-		await upsertProvider({ id: providerA, companyName: "BR Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "BR Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "BR Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "BR Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "BR Own Hotel",
@@ -270,8 +270,8 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		})
 		await upsertProvider({
 			id: providerId,
-			companyName: "BF Provider",
-			userEmail: "bf@example.com",
+			displayName: "BF Provider",
+			ownerEmail: "bf@example.com",
 		})
 		await upsertProduct({
 			id: productId,
@@ -302,7 +302,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		// Overwrite base rate and ensure reads prefer it.
 		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 50 })
 		const snap = await variantRepository.getById(variantId)
-		expect(snap?.basePrice).toBe(50)
+		expect(snap?.pricing.basePrice).toBe(50)
 	})
 
 	it("readiness removes pricing_missing when base rate exists", async () => {
@@ -319,7 +319,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 			country: "CL",
 			slug: "ready-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Ready Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Ready Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Ready Hotel",

@@ -12,8 +12,8 @@ export async function setBaseRate(
 		basePrice: params.basePrice,
 	})
 
-	const v = await deps.variantRepo.getById(parsed.variantId)
-	if (!v) throw new Error("Variant not found")
+	const exists = await deps.variantRepo.existsById(parsed.variantId)
+	if (!exists) throw new Error("Variant not found")
 
 	await deps.baseRateRepo.upsert({
 		variantId: parsed.variantId,

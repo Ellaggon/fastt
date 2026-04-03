@@ -86,7 +86,7 @@ describe("integration/api/variant/list", () => {
 			country: "CL",
 			slug: "list-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "List Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "List Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "List Hotel",
@@ -143,7 +143,7 @@ describe("integration/api/variant/list", () => {
 			country: "CL",
 			slug: "empty-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Empty Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Empty Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Empty Hotel",
@@ -182,8 +182,8 @@ describe("integration/api/variant/list", () => {
 			country: "CL",
 			slug: "own-dest-l",
 		})
-		await upsertProvider({ id: providerA, companyName: "Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Own Hotel",

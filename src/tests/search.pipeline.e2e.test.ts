@@ -45,6 +45,15 @@ describe("SearchPipeline E2E", () => {
 
 		const restrictionEngine = new RestrictionRuleEngine()
 		const promotionEngine = new PromotionEngine()
+		const taxPort = {
+			resolveEffectiveTaxFees: async () => ({ definitions: [] }),
+			computeTaxBreakdown: ({ base }: { base: number }) => ({
+				base,
+				taxes: { included: [], excluded: [] },
+				fees: { included: [], excluded: [] },
+				total: base,
+			}),
+		}
 
 		const pipeline = new SearchPipeline(fakeLoader, undefined, {
 			pricing: {
@@ -68,6 +77,7 @@ describe("SearchPipeline E2E", () => {
 				applyPromotions: (basePrice, promotions, ctx) =>
 					promotionEngine.applyPromotions(basePrice, promotions, ctx),
 			},
+			taxes: taxPort,
 		})
 
 		const result = await pipeline.run({
@@ -122,6 +132,15 @@ describe("SearchPipeline E2E", () => {
 
 		const restrictionEngine = new RestrictionRuleEngine()
 		const promotionEngine = new PromotionEngine()
+		const taxPort = {
+			resolveEffectiveTaxFees: async () => ({ definitions: [] }),
+			computeTaxBreakdown: ({ base }: { base: number }) => ({
+				base,
+				taxes: { included: [], excluded: [] },
+				fees: { included: [], excluded: [] },
+				total: base,
+			}),
+		}
 
 		const pipeline = new SearchPipeline(fakeLoader, undefined, {
 			pricing: {
@@ -145,6 +164,7 @@ describe("SearchPipeline E2E", () => {
 				applyPromotions: (basePrice, promotions, ctx) =>
 					promotionEngine.applyPromotions(basePrice, promotions, ctx),
 			},
+			taxes: taxPort,
 		})
 
 		const result = await pipeline.run({

@@ -24,9 +24,15 @@ export type SearchV2Result = {
 	destinationId: string
 	heroImage?: string
 	fromPrice: number
+	basePrice: number
+	totalPrice: number
 	currency: string
 	available: boolean
 	availableVariants: number
+	taxes: {
+		hasIncluded: boolean
+		hasExcluded: boolean
+	}
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -76,16 +82,30 @@ export const GET: APIRoute = async ({ request }) => {
 			// Exclude variants that have no rate plans or missing/zero base price.
 			const validOffers = offers
 				.filter((o) => (o.ratePlans?.length ?? 0) > 0)
-				.filter((o) => Number(o.variant?.basePrice ?? 0) > 0)
+				.filter((o) => Number(o.variant?.pricing?.basePrice ?? 0) > 0)
 
 			if (!validOffers.length) continue
 
 			// Compute "fromPrice" across all variants + rate plans (stay total).
 			let fromPrice = Infinity
+			let basePrice = 0
+			let totalPrice = 0
+			let hasIncluded = false
+			let hasExcluded = false
 			for (const o of validOffers) {
 				for (const rp of o.ratePlans) {
-					const total = Number(rp.finalPrice ?? 0)
-					if (total > 0 && total < fromPrice) fromPrice = total
+					const total = Number(rp.totalPrice ?? 0)
+					if (total > 0 && total < fromPrice) {
+						fromPrice = total
+						basePrice = Number(rp.finalPrice ?? 0)
+						totalPrice = total
+						hasIncluded =
+							(rp.taxesAndFees?.taxes?.included?.length ?? 0) > 0 ||
+							(rp.taxesAndFees?.fees?.included?.length ?? 0) > 0
+						hasExcluded =
+							(rp.taxesAndFees?.taxes?.excluded?.length ?? 0) > 0 ||
+							(rp.taxesAndFees?.fees?.excluded?.length ?? 0) > 0
+					}
 				}
 			}
 
@@ -97,9 +117,12 @@ export const GET: APIRoute = async ({ request }) => {
 				destinationId: c.destinationId,
 				heroImage: c.heroImageUrl ?? undefined,
 				fromPrice,
+				basePrice,
+				totalPrice,
 				currency: "USD",
 				available: true,
 				availableVariants: validOffers.length,
+				taxes: { hasIncluded, hasExcluded },
 			})
 		}
 

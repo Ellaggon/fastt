@@ -87,7 +87,7 @@ describe("integration/pricing preview vs search parity", () => {
 			country: "CL",
 			slug: "dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prov", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prov", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Hotel",

@@ -1,14 +1,14 @@
 import {
 	db,
 	eq,
-	Provider,
+	// Provider,
 	Destination,
-	Product,
-	Hotel,
-	Tour,
-	Package,
+	// Product,
+	// Hotel,
+	// Tour,
+	// Package,
 	Service,
-	ProductService,
+	// ProductService,
 	RoomType,
 	AmenityRoom,
 } from "astro:db"
@@ -228,12 +228,12 @@ export default async function seed() {
 	]
 
 	// --- 2. Datos de Proveedores ---
-	const providersData = [
-		{ id: "prov-1", companyName: "EcoTours Bolivia", type: "Tour Operator" },
-		{ id: "prov-2", companyName: "Hoteles Altiplano S.A.", type: "Hotel" },
-		{ id: "prov-3", companyName: "Aventuras del Sur", type: "Tour Operator" },
-		{ id: "prov-4", companyName: "Transporte Aéreo Boliviano", type: "Transport" },
-	]
+	// const providersData = [
+	// 	{ id: "prov-1", companyName: "EcoTours Bolivia", type: "Tour Operator" },
+	// 	{ id: "prov-2", companyName: "Hoteles Altiplano S.A.", type: "Hotel" },
+	// 	{ id: "prov-3", companyName: "Aventuras del Sur", type: "Tour Operator" },
+	// 	{ id: "prov-4", companyName: "Transporte Aéreo Boliviano", type: "Transport" },
+	// ]
 
 	// --- 3. Datos de Servicios (Para Tours/Hoteles) ---
 	const servicesData = [

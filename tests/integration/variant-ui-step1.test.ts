@@ -78,7 +78,7 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 			country: "CL",
 			slug: "ui-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "UI Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "UI Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "UI Hotel",

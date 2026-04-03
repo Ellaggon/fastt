@@ -93,7 +93,7 @@ describe("integration/r2 upload hardening", () => {
 			country: "CL",
 			slug: "cleanup-destination",
 		})
-		await upsertProvider({ id: providerId, companyName: "Cleanup Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Cleanup Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Cleanup Product",
@@ -142,7 +142,7 @@ describe("integration/r2 upload hardening", () => {
 			country: "CL",
 			slug: "missing",
 		})
-		await upsertProvider({ id: providerId, companyName: "Missing Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Missing Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Missing Product",
@@ -194,7 +194,7 @@ describe("integration/r2 upload hardening", () => {
 			country: "CL",
 			slug: "ct",
 		})
-		await upsertProvider({ id: providerId, companyName: "CT Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "CT Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "CT Product",
@@ -247,7 +247,7 @@ describe("integration/r2 upload hardening", () => {
 			country: "CL",
 			slug: "limit",
 		})
-		await upsertProvider({ id: providerId, companyName: "Limit Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Limit Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Limit Product",
@@ -295,7 +295,7 @@ describe("integration/r2 upload hardening", () => {
 			country: "CL",
 			slug: "dup",
 		})
-		await upsertProvider({ id: providerId, companyName: "Dup Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Dup Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Dup Product",

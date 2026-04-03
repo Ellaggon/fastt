@@ -87,7 +87,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 		const token = "token_create_signed"
 		const email = "signed@example.com"
-		await upsertProvider({ id: "prov_create_signed", companyName: "Signed", userEmail: email })
+		await upsertProvider({ id: "prov_create_signed", displayName: "Signed", ownerEmail: email })
 
 		const fd = new FormData()
 		fd.append("prefix", "products")
@@ -116,7 +116,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 		const token = "token_create_signed_2"
 		const email = "signed2@example.com"
-		await upsertProvider({ id: "prov_create_signed_2", companyName: "Signed2", userEmail: email })
+		await upsertProvider({ id: "prov_create_signed_2", displayName: "Signed2", ownerEmail: email })
 
 		const fd = new FormData()
 		fd.append("prefix", "products")
@@ -147,7 +147,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			country: "CL",
 			slug: "r2-test-destination",
 		})
-		await upsertProvider({ id: providerId, companyName: "R2 Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "R2 Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "R2 Product",
@@ -254,8 +254,8 @@ describe("integration/r2 image upload system (Product V2)", () => {
 		})
 		await upsertProvider({
 			id: providerId,
-			companyName: "R2 Provider",
-			userEmail: "reorder@example.com",
+			displayName: "R2 Provider",
+			ownerEmail: "reorder@example.com",
 		})
 		await upsertProduct({
 			id: productId,

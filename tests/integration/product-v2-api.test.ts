@@ -101,7 +101,7 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider A", userEmail: emailA })
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
 
 		await withSupabaseAuthStub(
 			{
@@ -270,7 +270,7 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination-plain",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider Plain", userEmail: emailA })
+		await upsertProvider({ id: providerA, displayName: "Provider Plain", ownerEmail: emailA })
 
 		await withSupabaseAuthStub(
 			{
@@ -327,8 +327,8 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination-own",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Provider B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Provider B", ownerEmail: emailB })
 
 		await withSupabaseAuthStub(
 			{
@@ -382,7 +382,7 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination-idem",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider A", userEmail: emailA })
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
 
 		await withSupabaseAuthStub(
 			{
@@ -473,7 +473,7 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination-consistency",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider A", userEmail: emailA })
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
 
 		await withSupabaseAuthStub(
 			{
@@ -527,7 +527,7 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination-invalid",
 		})
-		await upsertProvider({ id: providerA, companyName: "Provider A", userEmail: emailA })
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
 
 		await withSupabaseAuthStub(
 			{

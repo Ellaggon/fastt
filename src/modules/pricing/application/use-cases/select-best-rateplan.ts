@@ -37,7 +37,7 @@ export async function selectBestRatePlan(
 	const candidates = deps.ratePlanEngine.selectFromMemory({
 		ratePlans,
 		priceRules,
-		basePrice: variant.basePrice ?? 0,
+		basePrice: variant.pricing.basePrice,
 		checkIn: params.checkIn,
 	})
 

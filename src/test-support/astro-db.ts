@@ -34,6 +34,8 @@ export let ProductLocation: any
 export let Image: any
 export let ImageUpload: any
 export let Provider: any
+export let User: any
+export let ProviderUser: any
 export let Hotel: any
 export let Tour: any
 export let Package: any
@@ -53,6 +55,8 @@ export let RatePlan: any
 export let PriceRule: any
 export let EffectivePricing: any
 export let PricingBaseRate: any
+export let TaxFeeDefinition: any
+export let TaxFeeAssignment: any
 export let Restriction: any
 export let InventoryLock: any
 export let PolicyGroup: any
@@ -63,6 +67,7 @@ export let PolicyRule: any
 export let EffectivePolicy: any
 export let Booking: any
 export let BookingPolicySnapshot: any
+export let BookingTaxFee: any
 
 async function init() {
 	// Ensure local folder exists
@@ -116,6 +121,8 @@ async function init() {
 	Image = drizzleTables.Image
 	ImageUpload = drizzleTables.ImageUpload
 	Provider = drizzleTables.Provider
+	User = drizzleTables.User
+	ProviderUser = drizzleTables.ProviderUser
 	Hotel = drizzleTables.Hotel
 	Tour = drizzleTables.Tour
 	Package = drizzleTables.Package
@@ -135,6 +142,8 @@ async function init() {
 	PriceRule = drizzleTables.PriceRule
 	EffectivePricing = drizzleTables.EffectivePricing
 	PricingBaseRate = drizzleTables.PricingBaseRate
+	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
+	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
 	Restriction = drizzleTables.Restriction
 	InventoryLock = drizzleTables.InventoryLock
 	PolicyGroup = drizzleTables.PolicyGroup
@@ -145,6 +154,7 @@ async function init() {
 	EffectivePolicy = drizzleTables.EffectivePolicy
 	Booking = drizzleTables.Booking
 	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
+	BookingTaxFee = drizzleTables.BookingTaxFee
 }
 
 // Top-level await so imports are ready before tests execute.

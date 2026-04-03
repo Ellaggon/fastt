@@ -97,7 +97,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			country: "CL",
 			slug: "dash-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Dash Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Dash Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Dash Hotel",
@@ -132,7 +132,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			country: "CL",
 			slug: "route-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Route Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Route Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Route Hotel",
@@ -239,7 +239,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			country: "CL",
 			slug: "eval-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Eval Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Eval Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Eval Hotel",
@@ -315,8 +315,8 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			country: "CL",
 			slug: "own-dash",
 		})
-		await upsertProvider({ id: providerA, companyName: "Own Dash A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Own Dash B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Own Dash A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Own Dash B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Own Dash Hotel",

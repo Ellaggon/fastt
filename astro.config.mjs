@@ -27,6 +27,11 @@ export default defineConfig({
 		service: passthroughImageService(),
 	},
 	vite: {
+		optimizeDeps: {
+			disabled: false,
+			force: true,
+			include: ["zod"],
+		},
 		resolve: {
 			alias: {
 				"@": path.resolve("./src"),

@@ -84,7 +84,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			country: "CL",
 			slug: "sub-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Sub Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Sub Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Sub Hotel",
@@ -150,7 +150,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			country: "CL",
 			slug: "dup-sub-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Dup Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Dup Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Dup Hotel",
@@ -229,8 +229,8 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			country: "CL",
 			slug: "own-sub-dest",
 		})
-		await upsertProvider({ id: providerA, companyName: "Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Own Hotel",

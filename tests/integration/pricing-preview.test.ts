@@ -88,7 +88,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Hotel",
@@ -137,7 +137,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-nodef-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev NoDef Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev NoDef Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev NoDef Hotel",
@@ -209,7 +209,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-pct-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev Pct Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev Pct Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Pct Hotel",
@@ -274,7 +274,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-order-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev Order Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev Order Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Order Hotel",
@@ -353,7 +353,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-neg-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev Neg Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev Neg Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Neg Hotel",
@@ -417,7 +417,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-badtype-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev BadType Provider", userEmail: email })
+		await upsertProvider({
+			id: providerId,
+			displayName: "Prev BadType Provider",
+			ownerEmail: email,
+		})
 		await upsertProduct({
 			id: productId,
 			name: "Prev BadType Hotel",
@@ -480,7 +484,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-fix-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Prev Fix Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Prev Fix Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Fix Hotel",
@@ -548,8 +552,8 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			country: "CL",
 			slug: "prev-own-dest",
 		})
-		await upsertProvider({ id: providerA, companyName: "Prev Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Prev Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Prev Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Prev Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Prev Own Hotel",

@@ -82,7 +82,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			country: "CL",
 			slug: "inv-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Inv Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Inv Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Inv Hotel",
@@ -137,8 +137,8 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		})
 		await upsertProvider({
 			id: providerId,
-			companyName: "Range Provider",
-			userEmail: "range@example.com",
+			displayName: "Range Provider",
+			ownerEmail: "range@example.com",
 		})
 		await upsertProduct({
 			id: productId,
@@ -199,8 +199,8 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		})
 		await upsertProvider({
 			id: providerId,
-			companyName: "Backfill Provider",
-			userEmail: email,
+			displayName: "Backfill Provider",
+			ownerEmail: email,
 		})
 		await upsertProduct({
 			id: productId,

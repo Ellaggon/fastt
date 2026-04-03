@@ -91,7 +91,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "v-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "V Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "V Provider", ownerEmail: email })
 		await upsertRoomType({ id: "double", name: "Double", maxOccupancy: 2 })
 		await upsertProduct({
 			id: productId,
@@ -173,7 +173,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "v-dest-b",
 		})
-		await upsertProvider({ id: providerId, companyName: "V Provider B", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "V Provider B", ownerEmail: email })
 		await upsertRoomType({ id: "double_b", name: "DoubleB", maxOccupancy: 2 })
 		await upsertProduct({
 			id: productId,
@@ -231,7 +231,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "v-dest-c",
 		})
-		await upsertProvider({ id: providerId, companyName: "V Provider C", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "V Provider C", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "V Hotel C",
@@ -286,7 +286,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "sell-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Sell Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Sell Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Sell Hotel",
@@ -332,7 +332,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "cap-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Cap Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Cap Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Cap Hotel",
@@ -404,7 +404,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "dup-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Dup Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Dup Provider", ownerEmail: email })
 		await upsertRoomType({ id: "rt_dup", name: "RTDup", maxOccupancy: 2 })
 		await upsertProduct({
 			id: productId,
@@ -473,8 +473,8 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "own-dest",
 		})
-		await upsertProvider({ id: providerA, companyName: "Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Own Hotel",
@@ -529,7 +529,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "m-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "M Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "M Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "M Tour",
@@ -566,7 +566,7 @@ describe("integration/variant (CAPA 3)", () => {
 			country: "CL",
 			slug: "occ-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Occ Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Occ Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Occ Hotel",
