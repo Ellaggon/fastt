@@ -1,15 +1,28 @@
 import type { APIRoute } from "astro"
-import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
+import { ValidationError } from "@/lib/validation/ValidationError"
 
-export const POST: APIRoute = async ({ request }) => {
+function shouldReturnHtmlRedirect(request: Request): boolean {
+	const accept = (request.headers.get("accept") || "").toLowerCase()
+	return accept.includes("text/html")
+}
+
+export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	try {
 		const user = await getUserFromRequest(request)
 		if (!user?.email) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {
 				status: 401,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		const providerId = await getProviderIdFromRequest(request)
+		if (!providerId) {
+			return new Response(JSON.stringify({ error: "Provider not found" }), {
+				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
@@ -24,16 +37,21 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const result = await upsertProviderProfileV2(
 			{ repo: providerV2Repository },
-			{ sessionEmail: user.email, ...raw }
+			{ providerId, ...raw }
 		)
+
+		if (shouldReturnHtmlRedirect(request)) {
+			const url = new URL("/provider?success=saved", request.url)
+			return Response.redirect(url, 303)
+		}
 
 		return new Response(JSON.stringify(result), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (e) {
-		if (e instanceof ZodError) {
-			return new Response(JSON.stringify({ error: "validation_error", details: e.issues }), {
+		if (e instanceof ValidationError) {
+			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
@@ -46,3 +64,6 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 }
+
+export const POST: APIRoute = handleProviderProfilePost
+export const PATCH: APIRoute = handleProviderProfilePost

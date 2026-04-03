@@ -30,7 +30,7 @@ async function handleProviderForm(e: Event) {
 	const formData = new FormData(form)
 
 	try {
-		const res = await fetch("/api/providers/create", {
+		const res = await fetch("/api/providers", {
 			method: "POST",
 			body: formData,
 		})
