@@ -6,11 +6,15 @@ import type { SearchMemory, SellableUnit, InventorySnapshot } from "../domain/un
 import type { PricingPort } from "./ports/PricingPort"
 import type { RestrictionPort } from "./ports/RestrictionPort"
 import type { PromotionPort } from "./ports/PromotionPort"
+import type { TaxFeePort } from "./ports/TaxFeePort"
+import type { TaxFeeBreakdown } from "@/modules/taxes-fees/domain/tax-fee.types"
 
 export type SearchRatePlanOffer = {
 	ratePlanId: string
 	basePrice: number
 	finalPrice: number
+	taxesAndFees: TaxFeeBreakdown
+	totalPrice: number
 }
 
 export interface ISearchContextLoader<TUnit extends SellableUnit = SellableUnit> {
@@ -65,6 +69,7 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 			restrictions: RestrictionPort
 			pricing: PricingPort
 			promotions: PromotionPort
+			taxes: TaxFeePort
 		}
 	) {
 		if (!loader) {
@@ -145,10 +150,24 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 				checkOut: ctx.checkOut,
 			})
 
+			const taxes = await this.deps.taxes.resolveEffectiveTaxFees({
+				productId: ctx.productId,
+				variantId: ctx.unitId,
+				ratePlanId: rp.id,
+			})
+			const taxBreakdown = this.deps.taxes.computeTaxBreakdown({
+				base: final,
+				definitions: taxes.definitions,
+				nights,
+				guests: ctx.adults + ctx.children,
+			})
+
 			validPlans.push({
 				ratePlanId: rp.id,
 				basePrice: computedTotal,
 				finalPrice: final,
+				taxesAndFees: taxBreakdown,
+				totalPrice: taxBreakdown.total,
 			})
 		}
 

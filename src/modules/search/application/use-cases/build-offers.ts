@@ -44,7 +44,7 @@ export class BuildOffersUseCase<TUnit extends SellableUnit> {
 					rooms: ctx.rooms,
 					adults: ctx.adults,
 					children: ctx.children,
-					basePrice: unit.basePrice ?? 0,
+					basePrice: unit.pricing.basePrice,
 				})
 
 				if (!offers.length) continue
@@ -56,6 +56,8 @@ export class BuildOffersUseCase<TUnit extends SellableUnit> {
 						ratePlanId: o.ratePlanId,
 						basePrice: o.basePrice,
 						finalPrice: o.finalPrice,
+						taxesAndFees: o.taxesAndFees,
+						totalPrice: o.totalPrice,
 					})),
 				})
 			} catch (err) {

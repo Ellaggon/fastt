@@ -12,6 +12,7 @@ import { VariantQueryAdapter } from "../modules/search/infrastructure/adapters/V
 import { PricingPortAdapter } from "../modules/search/infrastructure/adapters/PricingPortAdapter"
 import { PromotionPortAdapter } from "../modules/search/infrastructure/adapters/PromotionPortAdapter"
 import { RestrictionPortAdapter } from "../modules/search/infrastructure/adapters/RestrictionPortAdapter"
+import { TaxFeePortAdapter } from "../modules/search/infrastructure/adapters/TaxFeePortAdapter"
 
 import { dailyInventoryRepository } from "./inventory.container"
 import {
@@ -21,7 +22,9 @@ import {
 	variantRepository,
 } from "./pricing.container"
 import { computeBasePriceWithRules, parseStrictMinimalRules } from "@/modules/pricing/public"
+import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import { restrictionRepository, restrictionRuleEngine } from "./policies.container"
+import { resolveEffectiveTaxFeesUseCase } from "./taxes-fees.container"
 
 // ---- Search singletons ----
 export const searchAdapterRegistry = new SearchAdapterRegistry<SearchUnit>()
@@ -59,14 +62,31 @@ const searchRestrictionPort = new RestrictionPortAdapter({
 const searchPromotionPort = new PromotionPortAdapter({
 	promotionEngine,
 })
+const searchTaxFeePort = new TaxFeePortAdapter({
+	resolveEffectiveTaxFees: resolveEffectiveTaxFeesUseCase,
+	computeTaxBreakdown,
+})
 
 export const searchPipeline = new SearchPipeline<SearchUnit>(searchContextLoader, undefined, {
 	restrictions: searchRestrictionPort,
 	pricing: searchPricingPort,
 	promotions: searchPromotionPort,
+	taxes: searchTaxFeePort,
 })
 
-export const variantQueryAdapter = new VariantQueryAdapter<SearchUnit>(variantRepository)
+export const variantQueryAdapter = new VariantQueryAdapter<SearchUnit>({
+	async getActiveByProduct(productId: string) {
+		const rows = await variantRepository.getActiveByProduct(productId)
+		return rows.map((v) => ({
+			id: v.id,
+			productId: v.productId,
+			entityType: v.entityType,
+			entityId: v.entityId,
+			pricing: v.pricing,
+			capacity: v.capacity,
+		}))
+	},
+})
 
 export const buildOffers = new BuildOffersUseCase<SearchUnit>({
 	variantQuery: variantQueryAdapter,
