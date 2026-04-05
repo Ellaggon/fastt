@@ -1,0 +1,187 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductAggregate } from "@/modules/catalog/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+
+const aggregate = await getProductAggregate(productId)
+if (!aggregate) return Astro.redirect("/product/create")
+
+const descriptionValue = aggregate.content.description ?? ""
+
+const highlightsValue = Array.isArray(aggregate.content.highlights)
+	? aggregate.content.highlights.map((item) => String(item)).join("\n")
+	: typeof aggregate.content.highlights === "string"
+		? aggregate.content.highlights
+		: ""
+
+const rulesValue = aggregate.content.rules ?? ""
+---
+
+<Layout title="Producto · Contenido">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h1 class="text-3xl font-semibold text-slate-100">Contenido del producto</h1>
+				<p class="text-sm text-slate-400">Completa la descripción y destacados del producto.</p>
+			</header>
+
+			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+				<form
+					id="contentForm"
+					method="POST"
+					action="/api/product/content"
+					class="max-w-3xl space-y-6"
+				>
+					<Input type="hidden" name="productId" value={productId} />
+					<Input type="hidden" name="flow" value={flow} />
+					<div class="space-y-4">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
+							<p class="text-sm text-slate-600">
+								Este bloque define la información visible del producto.
+							</p>
+						</div>
+
+						<FormField label="Descripción" htmlFor="description" required>
+							<Textarea
+								id="description"
+								name="description"
+								value={descriptionValue}
+								rows="5"
+								required
+								placeholder="Describe el producto con claridad para el huésped."
+							/>
+							<p id="descriptionError" class="hidden text-sm text-red-600"></p>
+						</FormField>
+
+						<FormField label="Destacados (uno por línea)" htmlFor="highlightsJson" required>
+							<Textarea
+								id="highlightsJson"
+								name="highlightsJson"
+								value={highlightsValue}
+								rows="4"
+								required
+								placeholder={"Ubicación céntrica\nDesayuno incluido"}
+							/>
+						</FormField>
+
+						<FormField label="Reglas (opcional)" htmlFor="rules">
+							<Textarea
+								id="rules"
+								name="rules"
+								value={rulesValue}
+								rows="4"
+								placeholder="No fumar"
+							/>
+						</FormField>
+					</div>
+
+					<div class="space-y-1">
+						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</div>
+
+					<div class="flex items-center justify-end gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
+						>
+							Guardar contenido
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</section>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("contentForm")
+		const btn = document.getElementById("submitBtn")
+		const stateLabel = document.getElementById("stateLabel")
+		const stateDetail = document.getElementById("stateDetail")
+		const descriptionInput = document.getElementById("description")
+		const descriptionError = document.getElementById("descriptionError")
+
+		function setState(state, detail = "") {
+			const labels = {
+				empty: "Vacío: sin cambios guardados.",
+				loading: "Cargando: guardando contenido...",
+				success: "Éxito: contenido guardado correctamente.",
+				error: "Error: no se pudo guardar el contenido.",
+				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			}
+			stateLabel.textContent = labels[state] || labels.empty
+			stateDetail.textContent = detail
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			setState("loading")
+			descriptionError?.classList.add("hidden")
+			descriptionError.textContent = ""
+
+			const description = String(descriptionInput?.value || "").trim()
+			if (!description) {
+				setState("empty")
+				descriptionError.textContent = "La descripción es obligatoria."
+				descriptionError?.classList.remove("hidden")
+				descriptionInput?.focus()
+				return
+			}
+
+			btn.disabled = true
+			setState("disabled")
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product/content", { method: "POST", body: fd })
+				const txt = await res.text()
+
+				if (!res.ok) {
+					btn.disabled = false
+					setState("error", `status=${res.status}\n${txt}`)
+					return
+				}
+
+				setState("success", "Guardado correctamente")
+				setTimeout(() => {
+					const targetProductId = encodeURIComponent(String(fd.get("productId") || ""))
+					const mode = String(fd.get("flow") || "")
+						.trim()
+						.toLowerCase()
+					if (mode !== "create") {
+						window.location.href = `/product/${targetProductId}`
+						return
+					}
+					window.location.href = `/product/${targetProductId}/location?flow=create`
+				}, 350)
+			} catch (err) {
+				btn.disabled = false
+				setState("error", `Error de red: ${String(err)}`)
+			}
+		})
+	</script>
+</Layout>

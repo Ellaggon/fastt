@@ -1,0 +1,203 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+---
+
+<Layout title="Product - Variant Capacity">
+	<main class="mx-auto max-w-3xl space-y-6 px-6 py-10 text-neutral-100">
+		<Card class="space-y-2 bg-white text-slate-900">
+			<h1 class="text-2xl font-semibold">Capacidad</h1>
+			<p class="text-sm text-slate-600">
+				Producto: <code>{productId}</code> | Unidad: <code>{variantId}</code>
+			</p>
+		</Card>
+
+		<form id="capForm" class="space-y-6">
+			<Input type="hidden" name="variantId" value={variantId} />
+			<FormSection title="Límites de ocupación">
+				<FormField label="Huéspedes mínimos" htmlFor="minOccupancy" required>
+					<Input id="minOccupancy" name="minOccupancy" type="number" min="0" step="1" required />
+					<p id="err-minOccupancy" class="text-sm text-red-600"></p>
+				</FormField>
+				<FormField label="Huéspedes máximos" htmlFor="maxOccupancy" required>
+					<Input id="maxOccupancy" name="maxOccupancy" type="number" min="0" step="1" required />
+					<p id="err-maxOccupancy" class="text-sm text-red-600"></p>
+				</FormField>
+				<FormField label="Máximo adultos (opcional)" htmlFor="maxAdults">
+					<Input id="maxAdults" name="maxAdults" type="number" min="0" step="1" />
+					<p id="err-maxAdults" class="text-sm text-red-600"></p>
+				</FormField>
+				<FormField label="Máximo niños (opcional)" htmlFor="maxChildren">
+					<Input id="maxChildren" name="maxChildren" type="number" min="0" step="1" />
+					<p id="err-maxChildren" class="text-sm text-red-600"></p>
+				</FormField>
+			</FormSection>
+			<div class="flex justify-end">
+				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+					Guardar y continuar
+				</Button>
+			</div>
+		</form>
+
+		<div id="generalError" class="text-sm text-red-600"></div>
+
+		<p class="text-sm text-neutral-300">
+			<a href={`/product/${encodeURIComponent(productId)}/variants`}>Back to Rooms list</a>
+		</p>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("capForm")
+		const btn = document.getElementById("submitBtn")
+		const generalError = document.getElementById("generalError")
+
+		const fieldErrIds = ["minOccupancy", "maxOccupancy", "maxAdults", "maxChildren"]
+		function clearErrors() {
+			generalError.textContent = ""
+			for (const f of fieldErrIds) {
+				const el = document.getElementById(`err-${f}`)
+				if (el) el.textContent = ""
+			}
+		}
+
+		function setFieldError(field, msg) {
+			const el = document.getElementById(`err-${field}`)
+			if (el) el.textContent = msg
+		}
+
+		function parseIntOrNull(v) {
+			const s = String(v ?? "").trim()
+			if (!s) return null
+			const n = Number(s)
+			return Number.isFinite(n) ? Math.trunc(n) : null
+		}
+
+		function validate({ minOccupancy, maxOccupancy }) {
+			let ok = true
+
+			if (minOccupancy === null) {
+				setFieldError("minOccupancy", "Required field")
+				ok = false
+			} else if (minOccupancy < 0) {
+				setFieldError("minOccupancy", "Must be >= 0")
+				ok = false
+			}
+
+			if (maxOccupancy === null) {
+				setFieldError("maxOccupancy", "Required field")
+				ok = false
+			} else if (maxOccupancy < 0) {
+				setFieldError("maxOccupancy", "Must be >= 0")
+				ok = false
+			}
+
+			if (minOccupancy !== null && maxOccupancy !== null && minOccupancy > maxOccupancy) {
+				setFieldError("minOccupancy", "Min cannot exceed Max")
+				setFieldError("maxOccupancy", "Max cannot be below Min")
+				ok = false
+			}
+
+			return ok
+		}
+
+		function mapZodIssues(details) {
+			if (!Array.isArray(details)) return false
+			let mapped = false
+			for (const issue of details) {
+				const path = Array.isArray(issue?.path) ? issue.path : []
+				const field = path.length ? String(path[0]) : ""
+				if (!field) continue
+				setFieldError(field, issue?.message || "Invalid")
+				mapped = true
+			}
+			return mapped
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			clearErrors()
+			btn.disabled = true
+
+			try {
+				const fd = new FormData(form)
+				const variantId = String(fd.get("variantId") || "").trim()
+				const productId = String(document.getElementById("productId")?.textContent || "").trim()
+
+				const minOccupancy = parseIntOrNull(fd.get("minOccupancy"))
+				const maxOccupancy = parseIntOrNull(fd.get("maxOccupancy"))
+				const maxAdults = parseIntOrNull(fd.get("maxAdults"))
+				const maxChildren = parseIntOrNull(fd.get("maxChildren"))
+
+				if (!variantId) {
+					generalError.textContent = "Variant not found"
+					return
+				}
+				if (!validate({ minOccupancy, maxOccupancy })) return
+
+				const req = new FormData()
+				req.set("variantId", variantId)
+				req.set("minOccupancy", String(minOccupancy))
+				req.set("maxOccupancy", String(maxOccupancy))
+				if (maxAdults !== null) req.set("maxAdults", String(maxAdults))
+				if (maxChildren !== null) req.set("maxChildren", String(maxChildren))
+
+				const res = await fetch("/api/variant/capacity", { method: "POST", body: req })
+
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				if (res.status === 404) {
+					generalError.textContent = "Variant not found"
+					return
+				}
+
+				if (!res.ok) {
+					let payload = null
+					try {
+						payload = await res.json()
+					} catch {
+						payload = null
+					}
+
+					if (res.status === 400 && payload?.error === "validation_error") {
+						const mapped = mapZodIssues(payload?.details)
+						if (!mapped) generalError.textContent = "Validation error"
+						return
+					}
+
+					generalError.textContent =
+						res.status >= 500 ? "Something went wrong. Try again." : "Request failed."
+					return
+				}
+
+				// Next step placeholder.
+				window.location.href = `/product/${encodeURIComponent(
+					productId
+				)}/variants/${encodeURIComponent(variantId)}/room-type`
+			} catch (err) {
+				generalError.textContent = `Network error: ${String(err)}`
+			} finally {
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>
+<span id="productId" style="display:none">{productId}</span>
