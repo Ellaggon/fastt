@@ -153,7 +153,6 @@ const Product = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
-		description: column.text({ optional: true }),
 		productType: column.text(),
 		creationDate: column.date({ default: NOW }),
 		lastUpdated: column.date({ default: NOW }),
@@ -174,20 +173,18 @@ const HouseRule = defineTable({
 	indexes: [{ on: ["productId", "type"] }],
 })
 
-// Product V2 (parallel, non-breaking): additional 1:1 tables owned by the catalog domain.
-// IMPORTANT: Keep these tables loosely coupled during incremental rollout. We intentionally
-// do NOT enforce completeness at the DB level; use-cases (Zod) will do that.
-// NOTE: We also avoid FK references in Phase 1 to keep remote SQLite/Turso migrations safe.
+// Product (canonical): additional 1:1 tables owned by the catalog domain.
 const ProductStatus = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
 		state: column.text({ default: "draft" }), // draft | ready | published
 		validationErrorsJson: column.json({ optional: true }),
 	},
 })
 const ProductContent = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
+		description: column.text({ optional: true }),
 		highlightsJson: column.json({ optional: true }),
 		rules: column.text({ optional: true }),
 		seoJson: column.json({ optional: true }),
@@ -195,7 +192,7 @@ const ProductContent = defineTable({
 })
 const ProductLocation = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
 		address: column.text({ optional: true }),
 		lat: column.number({ optional: true }),
 		lng: column.number({ optional: true }),

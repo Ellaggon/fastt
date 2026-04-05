@@ -33,7 +33,6 @@ export async function upsertDestination(row: {
 export async function upsertProduct(row: {
 	id: string
 	name: string
-	description?: string | null
 	productType: string
 	destinationId: string
 	providerId?: string | null
@@ -43,7 +42,6 @@ export async function upsertProduct(row: {
 		.values({
 			id: row.id,
 			name: row.name,
-			description: row.description ?? null,
 			productType: row.productType,
 			destinationId: row.destinationId,
 			providerId: row.providerId ?? null,
@@ -52,7 +50,6 @@ export async function upsertProduct(row: {
 			target: [Product.id],
 			set: {
 				name: row.name,
-				description: row.description ?? null,
 				productType: row.productType,
 				destinationId: row.destinationId,
 				providerId: row.providerId ?? null,
