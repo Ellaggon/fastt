@@ -33,7 +33,7 @@ try {
 			id: Product.id,
 			name: Product.name,
 			imageUrl: sql`min(${Image.url})`.as("imageUrl"),
-			description: Product.description,
+			description: ProductContent.description,
 			basePriceUSD: Product.basePriceUSD,
 			basePriceBOB: Product.basePriceBOB,
 			duration: Tour.duration,

@@ -16,7 +16,7 @@ const breadcrumbItems = [
 	},
 	{
 		name: productData?.name || "/",
-		href: `/products/${productId}`,
+		href: `/${String(productData?.productType || "").toLowerCase()}s/${productId}`,
 		current: true,
 	},
 ]

@@ -2,7 +2,7 @@
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { and, db, Destination, eq, Hotel, Image, or, Product, sql } from "astro:db"
+import { and, db, Destination, eq, Hotel, Image, or, Product, ProductContent, sql } from "astro:db"
 
 type ProductResult = {
 	id: string
@@ -63,7 +63,7 @@ try {
 				ORDER BY isPrimary DESC, "order" ASC
 				LIMIT 1
 			)`.as("imageUrl"),
-			description: Product.description,
+			description: ProductContent.description,
 			address: Hotel.address,
 			stars: Hotel.stars,
 			services: sql<string>`(
@@ -79,6 +79,7 @@ try {
 		})
 		.from(Product)
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
+		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(whereClause)
