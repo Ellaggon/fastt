@@ -4,7 +4,6 @@
 
 // Application use-cases
 export * from "./application/use-cases/create-cancellation-policy"
-export * from "./application/use-cases/create-product"
 export * from "./application/use-cases/create-provider"
 export * from "./application/use-cases/create-product-subtype"
 export * from "./application/use-cases/create-restriction"
@@ -25,7 +24,6 @@ export * from "./application/use-cases/sync-product-services"
 export * from "./application/use-cases/toggle-cancellation-policy-assignment"
 export * from "./application/use-cases/update-cancellation-policy"
 export * from "./application/use-cases/update-hotel-room"
-export * from "./application/use-cases/update-product"
 export * from "./application/use-cases/update-product-service"
 export * from "./application/use-cases/update-product-subtype"
 export * from "./application/use-cases/update-restriction"
@@ -37,11 +35,12 @@ export { upsertProviderProfileV2 } from "./application/use-cases/provider-v2/ups
 export { updateProviderIdentityV2 } from "./application/use-cases/provider-v2/update-provider-identity-v2"
 export { setProviderVerificationV2 } from "./application/use-cases/provider-v2/set-provider-verification-v2"
 
-// Product V2 (parallel system)
-export { createProductV2 } from "./application/use-cases/product-v2/create-product-v2"
-export { upsertProductContentV2 } from "./application/use-cases/product-v2/upsert-product-content-v2"
-export { upsertProductLocationV2 } from "./application/use-cases/product-v2/upsert-product-location-v2"
-export { evaluateProductReadinessV2 } from "./application/use-cases/product-v2/evaluate-product-readiness-v2"
+// Product (canonical system)
+export { createProduct } from "./application/use-cases/product/create-product"
+export { upsertProductContent } from "./application/use-cases/product/upsert-product-content"
+export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"
+export { evaluateProductReadiness } from "./application/use-cases/product/evaluate-product-readiness"
+export { getProductAggregate } from "./application/queries/getProductAggregate"
 
 // Variant (CAPA 3)
 export * from "./application/use-cases/variant/create-variant"
@@ -64,21 +63,9 @@ export * from "./application/ports/ProductServiceRepositoryPort"
 export * from "./application/ports/RoomRepositoryPort"
 export * from "./application/ports/TaxFeeRepositoryPort"
 export * from "./application/ports/ProviderV2RepositoryPort"
-export * from "./application/ports/ProductV2RepositoryPort"
 export * from "./application/ports/VariantManagementRepositoryPort"
 
 // Lazy exports: these use-cases import external libs (AWS SDK). Keep module import side-effect free.
-export type CreateProductWithR2RollbackParams = Parameters<
-	typeof import("./application/use-cases/create-product-with-r2-rollback").createProductWithR2Rollback
->[0]
-
-export async function createProductWithR2Rollback(params: CreateProductWithR2RollbackParams) {
-	const { createProductWithR2Rollback } = await import(
-		"./application/use-cases/create-product-with-r2-rollback"
-	)
-	return createProductWithR2Rollback(params)
-}
-
 export type UpdateProductImagesParams = Parameters<
 	typeof import("./application/use-cases/update-product-images").updateProductImages
 >[0]
@@ -113,11 +100,6 @@ export async function resolveProductServices(productId: string) {
 export async function resolveRoomImages(roomTypeIds: string[]) {
 	const { resolveRoomImages } = await import("@/container")
 	return resolveRoomImages(roomTypeIds)
-}
-
-export async function getProductBundle(productId: string) {
-	const { getProductBundle } = await import("@/container")
-	return getProductBundle(productId)
 }
 
 export async function getProductById(productId: string) {
