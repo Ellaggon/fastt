@@ -14,6 +14,12 @@ const { title } = Astro.props
 		<meta name="description" content="Astro description" />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon-sbg.webp" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+			rel="stylesheet"
+		/>
 		<link
 			rel="stylesheet"
 			href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -22,7 +28,7 @@ const { title } = Astro.props
 		/>
 		<title>{title}</title>
 	</head>
-	<body class="py-12">
+	<body class="py-12 font-sans">
 		<slot />
 		<script is:inline>
 			;(function () {
@@ -41,7 +47,7 @@ const { title } = Astro.props
 
 <style is:global>
 	html {
-		font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+		font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
 		/* background: linear-gradient(135deg, #101010, #151515, #101010); */
 		background: black;
@@ -52,6 +58,25 @@ const { title } = Astro.props
 
 		color: #e0e0e0;
 		min-height: 100vh;
+	}
+
+	body {
+		font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+		font-weight: 400;
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-weight: 700;
+	}
+
+	label {
+		font-weight: 500;
+	}
+
+	button {
+		font-weight: 600;
 	}
 
 	@keyframes gradientFlowDark {
