@@ -156,7 +156,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			providerId,
 		})
 
-		const { POST } = await import("@/pages/api/product-v2/images")
+		const { POST } = await import("@/pages/api/product/images")
 
 		await withSupabaseAuthStub({ [token]: { id: "u_r2", email } }, async () => {
 			const prevSend = r2.send.bind(r2)
@@ -194,7 +194,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			fd1.append("imageId", initJson1.imageId)
 
 			const res1 = await POST({
-				request: makeAuthedFormRequest({ path: "/api/product-v2/images", token, form: fd1 }),
+				request: makeAuthedFormRequest({ path: "/api/product/images", token, form: fd1 }),
 			} as any)
 			expect(res1.status).toBe(200)
 
@@ -226,7 +226,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			fd2.append("imageId", initJson2.imageId)
 
 			const res2 = await POST({
-				request: makeAuthedFormRequest({ path: "/api/product-v2/images", token, form: fd2 }),
+				request: makeAuthedFormRequest({ path: "/api/product/images", token, form: fd2 }),
 			} as any)
 			expect(res2.status).toBe(200)
 

@@ -2,14 +2,14 @@ import { describe, it, expect, vi } from "vitest"
 
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-import { productV2Repository, subtypeRepository } from "@/container"
+import { productRepository, subtypeRepository } from "@/container"
 
-import { POST as createProductPost } from "@/pages/api/product-v2/create"
-import { POST as upsertContentPost } from "@/pages/api/product-v2/content"
-import { POST as upsertLocationPost } from "@/pages/api/product-v2/location"
-import { POST as upsertImagesPost } from "@/pages/api/product-v2/images"
-import { POST as upsertSubtypePost } from "@/pages/api/product-v2/subtype"
-import { POST as evaluatePost } from "@/pages/api/product-v2/evaluate"
+import { POST as createProductPost } from "@/pages/api/product/create"
+import { POST as upsertContentPost } from "@/pages/api/product/content"
+import { POST as upsertLocationPost } from "@/pages/api/product/location"
+import { POST as upsertImagesPost } from "@/pages/api/product/images"
+import { POST as upsertSubtypePost } from "@/pages/api/product/subtype"
+import { POST as evaluatePost } from "@/pages/api/product/evaluate"
 import { POST as uploadInitPost } from "@/pages/api/uploads/init"
 import { POST as uploadCompletePost } from "@/pages/api/uploads/complete"
 import { r2 } from "@/container"
@@ -124,7 +124,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -142,7 +142,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const contentRes = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: contentForm,
 					}),
@@ -158,7 +158,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const locRes = await upsertLocationPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/location",
+						path: "/api/product/location",
 						token: tokenA,
 						form: locForm,
 					}),
@@ -207,7 +207,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const imgRes = await upsertImagesPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/images",
+						path: "/api/product/images",
 						token: tokenA,
 						form: imgSetFd,
 					}),
@@ -220,7 +220,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const subtypeRes = await upsertSubtypePost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/subtype",
+						path: "/api/product/subtype",
 						token: tokenA,
 						form: subtypeForm,
 					}),
@@ -233,7 +233,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const evalRes = await evaluatePost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/evaluate",
+						path: "/api/product/evaluate",
 						token: tokenA,
 						form: evalForm,
 					}),
@@ -247,7 +247,7 @@ describe("integration/catalog Product V2 API", () => {
 				expect(Array.isArray(evaluated.validationErrors)).toBe(true)
 				expect((evaluated.validationErrors as any[]).length).toBe(0)
 
-				const agg = await productV2Repository.getProductAggregate(productId)
+				const agg = await productRepository.getProductAggregate(productId)
 				expect(agg?.status?.state).toBe("ready")
 				expect(agg?.status?.validationErrorsJson).toBeNull()
 				expect(agg?.imagesCount).toBeGreaterThanOrEqual(1)
@@ -284,7 +284,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -298,14 +298,14 @@ describe("integration/catalog Product V2 API", () => {
 				contentForm.set("highlightsJson", "Great location\nBreakfast included")
 				const contentRes = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: contentForm,
 					}),
 				} as any)
 				expect(contentRes.status).toBe(200)
 
-				const agg = await productV2Repository.getProductAggregate(productId)
+				const agg = await productRepository.getProductAggregate(productId)
 				expect(agg?.content?.highlightsJson).toEqual(["Great location", "Breakfast included"])
 			}
 		)
@@ -343,7 +343,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -359,7 +359,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const contentRes = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenB,
 						form: contentForm,
 					}),
@@ -395,7 +395,7 @@ describe("integration/catalog Product V2 API", () => {
 				createForm.set("destinationId", destinationId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -407,7 +407,7 @@ describe("integration/catalog Product V2 API", () => {
 				contentForm1.set("highlightsJson", JSON.stringify(["v1"]))
 				const contentRes1 = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: contentForm1,
 					}),
@@ -419,7 +419,7 @@ describe("integration/catalog Product V2 API", () => {
 				contentForm2.set("highlightsJson", JSON.stringify(["v2"]))
 				const contentRes2 = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: contentForm2,
 					}),
@@ -432,7 +432,7 @@ describe("integration/catalog Product V2 API", () => {
 				locForm1.set("lng", "2")
 				const locRes1 = await upsertLocationPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/location",
+						path: "/api/product/location",
 						token: tokenA,
 						form: locForm1,
 					}),
@@ -445,14 +445,14 @@ describe("integration/catalog Product V2 API", () => {
 				locForm2.set("lng", "4")
 				const locRes2 = await upsertLocationPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/location",
+						path: "/api/product/location",
 						token: tokenA,
 						form: locForm2,
 					}),
 				} as any)
 				expect(locRes2.status).toBe(200)
 
-				const agg = await productV2Repository.getProductAggregate(productId)
+				const agg = await productRepository.getProductAggregate(productId)
 				expect(agg?.content?.highlightsJson).toEqual(["v2"])
 				expect(agg?.location?.lat).toBe(3)
 				expect(agg?.location?.lng).toBe(4)
@@ -486,7 +486,7 @@ describe("integration/catalog Product V2 API", () => {
 				createForm.set("destinationId", destinationId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -501,7 +501,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const subtypeRes = await upsertSubtypePost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/subtype",
+						path: "/api/product/subtype",
 						token: tokenA,
 						form: subtypeForm,
 					}),
@@ -541,7 +541,7 @@ describe("integration/catalog Product V2 API", () => {
 				createForm.set("destinationId", destinationId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: createForm,
 					}),
@@ -558,7 +558,7 @@ describe("integration/catalog Product V2 API", () => {
 				okForm.set("destinationId", destinationId)
 				const okRes = await createProductPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/create",
+						path: "/api/product/create",
 						token: tokenA,
 						form: okForm,
 					}),
@@ -571,7 +571,7 @@ describe("integration/catalog Product V2 API", () => {
 				contentForm.set("highlightsJson", "{not-json")
 				const contentRes = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: contentForm,
 					}),
@@ -586,7 +586,7 @@ describe("integration/catalog Product V2 API", () => {
 				emptyContentForm.set("highlightsJson", "")
 				const emptyContentRes = await upsertContentPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/content",
+						path: "/api/product/content",
 						token: tokenA,
 						form: emptyContentForm,
 					}),
@@ -602,7 +602,7 @@ describe("integration/catalog Product V2 API", () => {
 				locForm.set("lng", "NaN")
 				const locRes = await upsertLocationPost({
 					request: makeAuthedFormRequest({
-						path: "/api/product-v2/location",
+						path: "/api/product/location",
 						token: tokenA,
 						form: locForm,
 					}),

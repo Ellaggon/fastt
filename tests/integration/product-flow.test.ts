@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest"
 
-import { productV2Repository, productImageRepository, subtypeRepository } from "@/container"
+import { productRepository, productImageRepository, subtypeRepository } from "@/container"
 import {
-	createProductV2,
-	upsertProductContentV2,
-	upsertProductLocationV2,
-	evaluateProductReadinessV2,
+	createProduct,
+	upsertProductContent,
+	upsertProductLocation,
+	evaluateProductReadiness,
 } from "@/modules/catalog/public"
 
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
@@ -31,20 +31,19 @@ describe("integration/catalog Product V2 flow", () => {
 			ownerEmail: "provider-v2@example.com",
 		})
 
-		await createProductV2(
-			{ repo: productV2Repository },
+		await createProduct(
+			{ repo: productRepository },
 			{
 				id: productId,
 				name: "Product V2 Integration",
 				productType: "Hotel",
-				description: "Integration test product",
 				providerId,
 				destinationId,
 			}
 		)
 
-		await upsertProductContentV2(
-			{ repo: productV2Repository },
+		await upsertProductContent(
+			{ repo: productRepository },
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
@@ -52,8 +51,8 @@ describe("integration/catalog Product V2 flow", () => {
 			}
 		)
 
-		await upsertProductLocationV2(
-			{ repo: productV2Repository },
+		await upsertProductLocation(
+			{ repo: productRepository },
 			{
 				productId,
 				address: "Test Address",
@@ -73,11 +72,11 @@ describe("integration/catalog Product V2 flow", () => {
 		// Attach subtype using the real repository (minimal hotel row).
 		await subtypeRepository.insertHotelStandalone({ productId })
 
-		const evaluated = await evaluateProductReadinessV2({ repo: productV2Repository }, { productId })
+		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("ready")
 		expect(evaluated.validationErrors).toEqual([])
 
-		const agg = await productV2Repository.getProductAggregate(productId)
+		const agg = await productRepository.getProductAggregate(productId)
 		expect(agg).not.toBeNull()
 		expect(agg!.status?.state).toBe("ready")
 		expect(agg!.status?.validationErrorsJson).toBeNull()
@@ -104,20 +103,19 @@ describe("integration/catalog Product V2 flow", () => {
 			ownerEmail: "provider-v2@example.com",
 		})
 
-		await createProductV2(
-			{ repo: productV2Repository },
+		await createProduct(
+			{ repo: productRepository },
 			{
 				id: productId,
 				name: "Product V2 Missing Content",
 				productType: "Hotel",
-				description: null,
 				providerId,
 				destinationId,
 			}
 		)
 
-		await upsertProductLocationV2(
-			{ repo: productV2Repository },
+		await upsertProductLocation(
+			{ repo: productRepository },
 			{
 				productId,
 				address: null,
@@ -135,7 +133,7 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await subtypeRepository.insertHotelStandalone({ productId })
 
-		const evaluated = await evaluateProductReadinessV2({ repo: productV2Repository }, { productId })
+		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("draft")
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_content")).toBe(true)
 	})
@@ -159,20 +157,19 @@ describe("integration/catalog Product V2 flow", () => {
 			ownerEmail: "provider-v2@example.com",
 		})
 
-		await createProductV2(
-			{ repo: productV2Repository },
+		await createProduct(
+			{ repo: productRepository },
 			{
 				id: productId,
 				name: "Product V2 Missing Location",
 				productType: "Hotel",
-				description: null,
 				providerId,
 				destinationId,
 			}
 		)
 
-		await upsertProductContentV2(
-			{ repo: productV2Repository },
+		await upsertProductContent(
+			{ repo: productRepository },
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
@@ -189,7 +186,7 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await subtypeRepository.insertHotelStandalone({ productId })
 
-		const evaluated = await evaluateProductReadinessV2({ repo: productV2Repository }, { productId })
+		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("draft")
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_location")).toBe(true)
 	})
@@ -213,20 +210,19 @@ describe("integration/catalog Product V2 flow", () => {
 			ownerEmail: "provider-v2@example.com",
 		})
 
-		await createProductV2(
-			{ repo: productV2Repository },
+		await createProduct(
+			{ repo: productRepository },
 			{
 				id: productId,
 				name: "Product V2 Missing Images",
 				productType: "Hotel",
-				description: null,
 				providerId,
 				destinationId,
 			}
 		)
 
-		await upsertProductContentV2(
-			{ repo: productV2Repository },
+		await upsertProductContent(
+			{ repo: productRepository },
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
@@ -234,8 +230,8 @@ describe("integration/catalog Product V2 flow", () => {
 			}
 		)
 
-		await upsertProductLocationV2(
-			{ repo: productV2Repository },
+		await upsertProductLocation(
+			{ repo: productRepository },
 			{
 				productId,
 				address: null,
@@ -246,7 +242,7 @@ describe("integration/catalog Product V2 flow", () => {
 
 		await subtypeRepository.insertHotelStandalone({ productId })
 
-		const evaluated = await evaluateProductReadinessV2({ repo: productV2Repository }, { productId })
+		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("draft")
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_images")).toBe(true)
 	})
@@ -270,20 +266,19 @@ describe("integration/catalog Product V2 flow", () => {
 			ownerEmail: "provider-v2@example.com",
 		})
 
-		await createProductV2(
-			{ repo: productV2Repository },
+		await createProduct(
+			{ repo: productRepository },
 			{
 				id: productId,
 				name: "Product V2 Missing Subtype",
 				productType: "Hotel",
-				description: null,
 				providerId,
 				destinationId,
 			}
 		)
 
-		await upsertProductContentV2(
-			{ repo: productV2Repository },
+		await upsertProductContent(
+			{ repo: productRepository },
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
@@ -291,8 +286,8 @@ describe("integration/catalog Product V2 flow", () => {
 			}
 		)
 
-		await upsertProductLocationV2(
-			{ repo: productV2Repository },
+		await upsertProductLocation(
+			{ repo: productRepository },
 			{
 				productId,
 				address: null,
@@ -308,7 +303,7 @@ describe("integration/catalog Product V2 flow", () => {
 			isPrimary: true,
 		})
 
-		const evaluated = await evaluateProductReadinessV2({ repo: productV2Repository }, { productId })
+		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("draft")
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_subtype")).toBe(true)
 	})

@@ -76,10 +76,10 @@ async function readJson(res: Response) {
 
 function continueSetupUrl(pid: string, variant: any): string {
 	if (!variant.capacity)
-		return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/capacity`
+		return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/capacity`
 	if (!variant.subtype)
-		return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/room-type`
-	return `/product-v2/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/pricing`
+		return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/room-type`
+	return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/pricing`
 }
 
 describe("integration/variant dashboard behavior (API + routing decisions)", () => {

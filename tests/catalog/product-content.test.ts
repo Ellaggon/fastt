@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 import { ZodError } from "zod"
-import type { ProductV2RepositoryPort } from "@/modules/catalog/public"
-import { upsertProductContentV2 } from "@/modules/catalog/public"
+import type { ProductRepositoryPort } from "@/modules/catalog/public"
+import { upsertProductContent } from "@/modules/catalog/public"
 
-function makeRepo(overrides?: Partial<ProductV2RepositoryPort>): ProductV2RepositoryPort {
+function makeRepo(overrides?: Partial<ProductRepositoryPort>): ProductRepositoryPort {
 	return {
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
@@ -14,11 +14,11 @@ function makeRepo(overrides?: Partial<ProductV2RepositoryPort>): ProductV2Reposi
 	}
 }
 
-describe("catalog/product-v2/upsertProductContentV2 (unit)", () => {
+describe("catalog/product/upsertProductContent (unit)", () => {
 	it("fails without highlights", async () => {
 		const repo = makeRepo()
 		await expect(
-			upsertProductContentV2(
+			upsertProductContent(
 				{ repo },
 				{
 					productId: "prod_1",
@@ -33,7 +33,7 @@ describe("catalog/product-v2/upsertProductContentV2 (unit)", () => {
 			upsertProductContent: vi.fn(async () => {}),
 		})
 
-		await upsertProductContentV2(
+		await upsertProductContent(
 			{ repo },
 			{
 				productId: "prod_plain",
@@ -52,7 +52,7 @@ describe("catalog/product-v2/upsertProductContentV2 (unit)", () => {
 	it("rejects non-array JSON (object)", async () => {
 		const repo = makeRepo()
 		await expect(
-			upsertProductContentV2(
+			upsertProductContent(
 				{ repo },
 				{
 					productId: "prod_obj",
@@ -65,7 +65,7 @@ describe("catalog/product-v2/upsertProductContentV2 (unit)", () => {
 	it("rejects invalid JSON when it looks like an array", async () => {
 		const repo = makeRepo()
 		await expect(
-			upsertProductContentV2(
+			upsertProductContent(
 				{ repo },
 				{
 					productId: "prod_bad_json",
@@ -80,7 +80,7 @@ describe("catalog/product-v2/upsertProductContentV2 (unit)", () => {
 			upsertProductContent: vi.fn(async () => {}),
 		})
 
-		const res = await upsertProductContentV2(
+		const res = await upsertProductContent(
 			{ repo },
 			{
 				productId: "prod_abc",

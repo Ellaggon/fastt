@@ -101,10 +101,10 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 			const json = (await readJson(res)) as any
 			expect(typeof json?.variantId).toBe("string")
 
-			const expectedNext = `/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const expectedNext = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
 				json.variantId
 			)}/capacity`
-			expect(expectedNext).toContain(`/product-v2/${encodeURIComponent(productId)}/variants/`)
+			expect(expectedNext).toContain(`/product/${encodeURIComponent(productId)}/variants/`)
 			expect(expectedNext).toContain("/capacity")
 		})
 	})

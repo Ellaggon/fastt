@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 import { ZodError } from "zod"
-import type { ProductV2RepositoryPort } from "@/modules/catalog/public"
-import { upsertProductLocationV2 } from "@/modules/catalog/public"
+import type { ProductRepositoryPort } from "@/modules/catalog/public"
+import { upsertProductLocation } from "@/modules/catalog/public"
 
-function makeRepo(overrides?: Partial<ProductV2RepositoryPort>): ProductV2RepositoryPort {
+function makeRepo(overrides?: Partial<ProductRepositoryPort>): ProductRepositoryPort {
 	return {
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
@@ -14,11 +14,11 @@ function makeRepo(overrides?: Partial<ProductV2RepositoryPort>): ProductV2Reposi
 	}
 }
 
-describe("catalog/product-v2/upsertProductLocationV2 (unit)", () => {
+describe("catalog/product/upsertProductLocation (unit)", () => {
 	it("fails without lat/lng", async () => {
 		const repo = makeRepo()
 		await expect(
-			upsertProductLocationV2(
+			upsertProductLocation(
 				{ repo },
 				{
 					productId: "prod_1",
@@ -34,7 +34,7 @@ describe("catalog/product-v2/upsertProductLocationV2 (unit)", () => {
 			upsertProductLocation: vi.fn(async () => {}),
 		})
 
-		const res = await upsertProductLocationV2(
+		const res = await upsertProductLocation(
 			{ repo },
 			{
 				productId: "prod_abc",

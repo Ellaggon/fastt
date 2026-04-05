@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
-import type { ProductV2Aggregate, ProductV2RepositoryPort } from "@/modules/catalog/public"
-import { evaluateProductReadinessV2 } from "@/modules/catalog/public"
+import type { ProductAggregate, ProductRepositoryPort } from "@/modules/catalog/public"
+import { evaluateProductReadiness } from "@/modules/catalog/public"
 
-function makeRepo(agg: ProductV2Aggregate | null): ProductV2RepositoryPort {
+function makeRepo(agg: ProductAggregate | null): ProductRepositoryPort {
 	return {
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
@@ -12,14 +12,13 @@ function makeRepo(agg: ProductV2Aggregate | null): ProductV2RepositoryPort {
 	}
 }
 
-describe("catalog/product-v2/evaluateProductReadinessV2 (unit)", () => {
+describe("catalog/product/evaluateProductReadiness (unit)", () => {
 	it("draft when content/location missing", async () => {
-		const agg: ProductV2Aggregate = {
+		const agg: ProductAggregate = {
 			product: {
 				id: "prod_1",
 				name: "P",
 				productType: "Hotel",
-				description: null,
 				providerId: "prov_1",
 				destinationId: "dest_1",
 			},
@@ -31,7 +30,7 @@ describe("catalog/product-v2/evaluateProductReadinessV2 (unit)", () => {
 		}
 		const repo = makeRepo(agg)
 
-		const res = await evaluateProductReadinessV2({ repo }, { productId: "prod_1" })
+		const res = await evaluateProductReadiness({ repo }, { productId: "prod_1" })
 
 		expect(res.state).toBe("draft")
 		expect(res.validationErrors.length).toBeGreaterThan(0)
@@ -43,12 +42,11 @@ describe("catalog/product-v2/evaluateProductReadinessV2 (unit)", () => {
 	})
 
 	it("ready when content has highlights and location has coords", async () => {
-		const agg: ProductV2Aggregate = {
+		const agg: ProductAggregate = {
 			product: {
 				id: "prod_1",
 				name: "P",
 				productType: "Hotel",
-				description: null,
 				providerId: "prov_1",
 				destinationId: "dest_1",
 			},
@@ -70,7 +68,7 @@ describe("catalog/product-v2/evaluateProductReadinessV2 (unit)", () => {
 		}
 		const repo = makeRepo(agg)
 
-		const res = await evaluateProductReadinessV2({ repo }, { productId: "prod_1" })
+		const res = await evaluateProductReadiness({ repo }, { productId: "prod_1" })
 
 		expect(res.state).toBe("ready")
 		expect(res.validationErrors).toEqual([])

@@ -112,7 +112,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			} as any)
 			expect(capRes.status).toBe(200)
 
-			const next = `/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const next = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
 				variantId
 			)}/room-type`
 			expect(next).toContain("/room-type")

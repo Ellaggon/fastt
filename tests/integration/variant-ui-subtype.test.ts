@@ -129,7 +129,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			} as any)
 			expect(subRes.status).toBe(200)
 
-			const next = `/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const next = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
 				variantId
 			)}/review`
 			expect(next).toContain("/review")

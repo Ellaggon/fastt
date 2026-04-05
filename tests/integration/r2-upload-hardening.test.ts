@@ -7,7 +7,7 @@ import { r2, productImageRepository, cleanupStaleUploads, imageUploadRepository 
 
 import { POST as uploadInitPost } from "@/pages/api/uploads/init"
 import { POST as uploadCompletePost } from "@/pages/api/uploads/complete"
-import { POST as setImagesPost } from "@/pages/api/product-v2/images"
+import { POST as setImagesPost } from "@/pages/api/product/images"
 
 vi.mock("@aws-sdk/s3-request-presigner", () => {
 	return { getSignedUrl: vi.fn(async () => "https://signed.r2.test/put-object?sig=test") }
@@ -322,7 +322,7 @@ describe("integration/r2 upload hardening", () => {
 			fd.append("imageId", imgId) // duplicate
 
 			const res = await setImagesPost({
-				request: makeAuthedFormRequest({ path: "/api/product-v2/images", token, form: fd }),
+				request: makeAuthedFormRequest({ path: "/api/product/images", token, form: fd }),
 			} as any)
 			expect(res.status).toBe(400)
 		})
