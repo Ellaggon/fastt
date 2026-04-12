@@ -93,7 +93,7 @@ describe("integration/pricing rules (CAPA 4D minimal)", () => {
 			country: "CL",
 			slug: "rules-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Rules Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Rules Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Rules Hotel",
@@ -181,8 +181,8 @@ describe("integration/pricing rules (CAPA 4D minimal)", () => {
 			country: "CL",
 			slug: "rules-own-dest",
 		})
-		await upsertProvider({ id: providerA, companyName: "Rules Own A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Rules Own B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Rules Own A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Rules Own B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Rules Own Hotel",

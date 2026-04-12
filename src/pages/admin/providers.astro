@@ -1,0 +1,309 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { db, desc, Provider, ProviderVerification } from "astro:db"
+
+const ADMIN_EMAILS = ["ellaggon@proton.me"]
+
+type VerificationState = "pending" | "approved" | "rejected"
+type ProviderRow = {
+	id: string
+	displayName: string
+	legalName: string
+	providerStatus: string
+	verificationStatus: VerificationState
+	verificationReason: string | null
+	verificationUpdatedAt: Date | null
+}
+
+const user = await getUserFromRequest(Astro.request)
+if (!user?.email) return Astro.redirect("/SignInPage")
+
+const isAdmin = ADMIN_EMAILS.includes(user.email)
+const filter =
+	String(Astro.url.searchParams.get("filter") ?? "all") === "pending" ? "pending" : "all"
+
+let rows: ProviderRow[] = []
+
+if (isAdmin) {
+	const providers = await db
+		.select({
+			id: Provider.id,
+			displayName: Provider.displayName,
+			legalName: Provider.legalName,
+			status: Provider.status,
+		})
+		.from(Provider)
+		.orderBy(desc(Provider.createdAt), desc(Provider.id))
+
+	const verificationRows = await db
+		.select({
+			id: ProviderVerification.id,
+			providerId: ProviderVerification.providerId,
+			status: ProviderVerification.status,
+			reason: ProviderVerification.reason,
+			createdAt: ProviderVerification.createdAt,
+		})
+		.from(ProviderVerification)
+		.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
+
+	const latestVerificationByProvider = new Map<string, (typeof verificationRows)[number]>()
+	for (const row of verificationRows) {
+		if (!latestVerificationByProvider.has(row.providerId)) {
+			latestVerificationByProvider.set(row.providerId, row)
+		}
+	}
+
+	rows = providers
+		.map((provider) => {
+			const latest = latestVerificationByProvider.get(provider.id)
+			const verificationStatus = (latest?.status ?? "pending") as VerificationState
+			return {
+				id: provider.id,
+				displayName: provider.displayName ?? "Sin nombre",
+				legalName: provider.legalName ?? "Sin razón social",
+				providerStatus: provider.status ?? "draft",
+				verificationStatus,
+				verificationReason: latest?.reason ?? null,
+				verificationUpdatedAt: latest?.createdAt ?? null,
+			}
+		})
+		.filter((row) => (filter === "pending" ? row.verificationStatus === "pending" : true))
+}
+
+const fmt = new Intl.DateTimeFormat("es-CL", {
+	dateStyle: "short",
+	timeStyle: "short",
+})
+---
+
+<DashboardLayout title="Admin · Verificación de proveedores">
+	<main class="min-h-screen bg-black text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-6 px-6">
+			<header class="space-y-2">
+				<h1 class="text-2xl font-semibold text-white">Verificación de proveedores</h1>
+				<p class="text-sm text-slate-300">Aprobación y rechazo de proveedores (flujo interno).</p>
+			</header>
+
+			{
+				!isAdmin ? (
+					<Card class="bg-slate-100">
+						<div class="space-y-2">
+							<p class="text-xl font-semibold text-slate-900">Forbidden</p>
+							<p class="text-sm text-slate-600">Su usuario no tiene permisos para esta sección.</p>
+						</div>
+					</Card>
+				) : (
+					<>
+						<Card class="bg-slate-100">
+							<div class="flex items-center justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-medium text-slate-700">Filtro</p>
+									<p class="text-sm text-slate-600">Seleccione qué proveedores visualizar.</p>
+								</div>
+								<div class="flex gap-2">
+									<Button
+										href="/admin/providers?filter=all"
+										variant={filter === "all" ? "primary" : "secondary"}
+									>
+										Todos
+									</Button>
+									<Button
+										href="/admin/providers?filter=pending"
+										variant={filter === "pending" ? "primary" : "secondary"}
+									>
+										Solo pendientes
+									</Button>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="bg-slate-100">
+							<div
+								id="admin-verification-feedback"
+								class="mb-4 hidden rounded-lg border px-3 py-2 text-sm"
+							/>
+
+							<div class="overflow-x-auto">
+								<table class="min-w-full divide-y divide-slate-200">
+									<thead>
+										<tr class="text-left text-xs uppercase tracking-wide text-slate-600">
+											<th class="px-3 py-2">Proveedor</th>
+											<th class="px-3 py-2">Estado verificación</th>
+											<th class="px-3 py-2">Actualizado</th>
+											<th class="px-3 py-2">Acciones</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-200">
+										{rows.map((row) => (
+											<tr data-provider-row={row.id}>
+												<td class="px-3 py-3 align-top">
+													<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
+													<p class="text-sm text-slate-700">{row.legalName}</p>
+													<p class="text-xs text-slate-500">ID: {row.id}</p>
+												</td>
+												<td class="px-3 py-3 align-top">
+													{row.verificationStatus === "approved" ? (
+														<Badge variant="success">Aprobado</Badge>
+													) : row.verificationStatus === "rejected" ? (
+														<div class="space-y-2">
+															<Badge variant="error">Rechazado</Badge>
+															<p class="text-xs text-slate-700">
+																{row.verificationReason || "Sin motivo informado"}
+															</p>
+														</div>
+													) : (
+														<Badge variant="warning">Pendiente</Badge>
+													)}
+												</td>
+												<td class="px-3 py-3 align-top text-sm text-slate-700">
+													{row.verificationUpdatedAt
+														? fmt.format(new Date(row.verificationUpdatedAt))
+														: "Sin registros"}
+												</td>
+												<td class="px-3 py-3 align-top">
+													<div class="flex min-w-[340px] flex-col gap-2">
+														{row.verificationStatus !== "approved" && (
+															<Button
+																variant="primary"
+																data-approve-provider={row.id}
+																className="w-fit bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+															>
+																Aprobar
+															</Button>
+														)}
+
+														{row.verificationStatus === "pending" && (
+															<form
+																class="flex flex-col gap-2"
+																data-reject-form
+																data-provider-id={row.id}
+															>
+																<textarea
+																	name="reason"
+																	rows="2"
+																	required
+																	minlength="2"
+																	class="w-full rounded-lg border border-slate-300 p-2 text-sm text-slate-900"
+																	placeholder="Motivo del rechazo"
+																/>
+																<Button
+																	type="submit"
+																	variant="secondary"
+																	className="w-fit border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
+																>
+																	Rechazar
+																</Button>
+															</form>
+														)}
+													</div>
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+								{rows.length === 0 && (
+									<p class="px-3 py-6 text-sm text-slate-600">
+										No hay proveedores para este filtro.
+									</p>
+								)}
+							</div>
+						</Card>
+					</>
+				)
+			}
+		</div>
+	</main>
+</DashboardLayout>
+
+<script is:inline>
+	const feedback = document.getElementById("admin-verification-feedback")
+
+	function showFeedback(kind, message) {
+		if (!feedback) return
+		feedback.classList.remove(
+			"hidden",
+			"border-green-300",
+			"bg-green-50",
+			"text-green-800",
+			"border-red-300",
+			"bg-red-50",
+			"text-red-800",
+			"border-amber-300",
+			"bg-amber-50",
+			"text-amber-800"
+		)
+		if (kind === "success") {
+			feedback.classList.add("border-green-300", "bg-green-50", "text-green-800")
+		} else if (kind === "warning") {
+			feedback.classList.add("border-amber-300", "bg-amber-50", "text-amber-800")
+		} else {
+			feedback.classList.add("border-red-300", "bg-red-50", "text-red-800")
+		}
+		feedback.textContent = message
+	}
+
+	async function sendVerification(payload) {
+		const res = await fetch("/api/admin/providers/verification", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload),
+		})
+
+		if (res.status === 200) {
+			showFeedback("success", "Estado actualizado. Recargando...")
+			window.location.reload()
+			return
+		}
+
+		if (res.status === 403) {
+			showFeedback("error", "Not authorized")
+			return
+		}
+
+		if (res.status === 400) {
+			let msg = "Validation error"
+			try {
+				const body = await res.json()
+				msg = body?.error || msg
+			} catch {}
+			showFeedback("warning", msg)
+			return
+		}
+
+		showFeedback("error", "Ocurrió un error inesperado.")
+	}
+
+	document.querySelectorAll("[data-approve-provider]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const providerId = button.getAttribute("data-approve-provider")
+			if (!providerId) return
+			button.setAttribute("disabled", "true")
+			await sendVerification({ providerId, status: "approved" })
+			button.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-reject-form]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const providerId = form.getAttribute("data-provider-id")
+			const reasonInput = form.querySelector("textarea[name='reason']")
+			const submitButton = form.querySelector("button[type='submit']")
+			if (!providerId || !reasonInput) return
+
+			const reason = reasonInput.value.trim()
+			if (reason.length < 2) {
+				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+				return
+			}
+
+			if (submitButton) submitButton.setAttribute("disabled", "true")
+			await sendVerification({ providerId, status: "rejected", reason })
+			if (submitButton) submitButton.removeAttribute("disabled")
+		})
+	})
+</script>

@@ -1,0 +1,176 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { listRoomTypes } from "@/modules/catalog/application/use-cases/list-room-types"
+import { RoomTypeQueryRepository } from "@/modules/catalog/infrastructure/repositories/RoomTypeQueryRepository"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+
+const roomTypeRepo = new RoomTypeQueryRepository()
+const roomTypes = await listRoomTypes({ repo: roomTypeRepo })
+roomTypes.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+---
+
+<Layout title="Product - Variant Room Type">
+	<main class="mx-auto max-w-3xl space-y-6 px-6 py-10 text-neutral-100">
+		<Card class="space-y-2 bg-white text-slate-900">
+			<h1 class="text-2xl font-semibold">Tipo de habitación</h1>
+			<p class="text-sm text-slate-600">
+				Producto: <code>{productId}</code> | Unidad: <code>{variantId}</code>
+			</p>
+		</Card>
+
+		<form id="subtypeForm" class="space-y-6">
+			<Input type="hidden" name="productId" value={productId} />
+			<Input type="hidden" name="variantId" value={variantId} />
+			<FormSection title="Configuración de subtipo">
+				<FormField label="Room type" htmlFor="roomTypeId" required>
+					<Select id="roomTypeId" name="roomTypeId" required>
+						<option value="">Select…</option>
+						{
+							roomTypes.map((rt) => (
+								<option value={rt.id}>
+									{rt.name}
+									{rt.maxOccupancy != null ? ` (max ${rt.maxOccupancy})` : ""}
+								</option>
+							))
+						}
+					</Select>
+					<p id="err-roomTypeId" class="text-sm text-red-600"></p>
+				</FormField>
+			</FormSection>
+			<div class="flex justify-end">
+				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+					Guardar y continuar
+				</Button>
+			</div>
+		</form>
+
+		<div id="generalError" class="text-sm text-red-600"></div>
+		<div id="generalOk" class="text-sm text-emerald-400"></div>
+
+		<p class="text-sm text-neutral-300">
+			<a href={`/product/${encodeURIComponent(productId)}/variants`}>Back to Rooms list</a>
+		</p>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("subtypeForm")
+		const btn = document.getElementById("submitBtn")
+		const errRoomType = document.getElementById("err-roomTypeId")
+		const generalError = document.getElementById("generalError")
+		const generalOk = document.getElementById("generalOk")
+
+		function clear() {
+			errRoomType.textContent = ""
+			generalError.textContent = ""
+			generalOk.textContent = ""
+		}
+
+		function redirectToReview(productId, variantId) {
+			window.location.href = `/product/${encodeURIComponent(
+				productId
+			)}/variants/${encodeURIComponent(variantId)}/pricing`
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			clear()
+			btn.disabled = true
+
+			try {
+				const fd = new FormData(form)
+				const productId = String(fd.get("productId") || "").trim()
+				const variantId = String(fd.get("variantId") || "").trim()
+				const roomTypeId = String(fd.get("roomTypeId") || "").trim()
+
+				if (!roomTypeId) {
+					errRoomType.textContent = "Required field"
+					return
+				}
+
+				const req = new FormData()
+				req.set("variantId", variantId)
+				req.set("roomTypeId", roomTypeId)
+
+				const res = await fetch("/api/variant/subtype/hotel-room", { method: "POST", body: req })
+
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				if (res.status === 404) {
+					generalError.textContent = "Variant not found"
+					return
+				}
+
+				let payload = null
+				try {
+					payload = await res.json()
+				} catch {
+					payload = null
+				}
+
+				if (!res.ok) {
+					// Backend returns either:
+					// - { error: "validation_error", details: [...] } for ZodError
+					// - { error: "<message>" } for business errors
+					if (res.status === 400 && payload?.error === "validation_error") {
+						const issues = Array.isArray(payload?.details) ? payload.details : []
+						const combined = issues.map((i) => String(i?.message || "")).join(" | ")
+						if (combined.toLowerCase().includes("already exists")) {
+							generalOk.textContent = "Room type already configured"
+							setTimeout(() => redirectToReview(productId, variantId), 250)
+							return
+						}
+						// Fallback: map first issue to the select field.
+						if (issues.some((i) => (i?.path || [])[0] === "roomTypeId")) {
+							errRoomType.textContent =
+								issues.find((i) => (i?.path || [])[0] === "roomTypeId")?.message || "Invalid"
+							return
+						}
+						generalError.textContent = "Validation error"
+						return
+					}
+
+					const msg = typeof payload?.error === "string" ? payload.error : ""
+					if (msg.toLowerCase().includes("already exists")) {
+						generalOk.textContent = "Room type already configured"
+						setTimeout(() => redirectToReview(productId, variantId), 250)
+						return
+					}
+					if (msg.toLowerCase().includes("must be hotel_room")) {
+						generalError.textContent = "Invalid variant type"
+						return
+					}
+					generalError.textContent =
+						res.status >= 500 ? "Something went wrong. Try again." : "Request failed."
+					return
+				}
+
+				redirectToReview(productId, variantId)
+			} catch (err) {
+				generalError.textContent = `Network error: ${String(err)}`
+			} finally {
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>
+<span id="productId" style="display:none">{productId}</span>

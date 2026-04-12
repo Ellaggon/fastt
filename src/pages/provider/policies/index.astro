@@ -43,88 +43,90 @@ for (const c of categories) {
 ---
 
 <DashboardLayout>
-	<main class="mt-10 space-y-4 p-6">
-		<header class="flex items-center justify-between">
-			<h1 class="text-xl font-semibold">Policies</h1>
-			<nav class="space-x-3">
-				<a href="/dashboard" class="underline">Dashboard</a>
-				<a href="/provider/policies/new" class="underline">Create policy</a>
-			</nav>
-		</header>
+	<main class="min-h-screen text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-8 px-6">
+			<header class="flex items-center justify-between">
+				<h1 class="text-xl font-semibold">Políticas</h1>
+				<nav class="space-x-3">
+					<a href="/dashboard" class="underline">Panel</a>
+					<a href="/provider/policies/new" class="underline">Crear política</a>
+				</nav>
+			</header>
 
-		<p class="text-sm text-neutral-700">
-			Create policies and assign them to rate plans to make them active.
-		</p>
-		<p class="text-sm">
-			<a class="underline" href="/dashboard">Go to products</a>
-			{" "}→ choose a product → Rate plans → Policies.
-		</p>
+			<p class="text-sm text-neutral-700">
+				Cree políticas y asígnelas a planes de tarifa para activarlas.
+			</p>
+			<p class="text-sm">
+				<a class="underline" href="/dashboard">Ir a productos</a>
+				{" "}→ elija un producto → Planes de tarifa → Políticas.
+			</p>
 
-		{
-			success === "created" && (
-				<div class="border p-3">
-					<strong>OK:</strong> Policy created.
-					<div class="text-sm">
-						<a class="underline" href="/dashboard">
-							Assign to a rate plan
-						</a>
+			{
+				success === "created" && (
+					<div class="border p-3">
+						<strong>OK:</strong> Política creada.
+						<div class="text-sm">
+							<a class="underline" href="/dashboard">
+								Asignar a un plan de tarifa
+							</a>
+						</div>
 					</div>
-				</div>
-			)
-		}
-		{
-			success === "updated" && (
-				<div class="border p-3">
-					<strong>OK:</strong> New policy version created.
-				</div>
-			)
-		}
+				)
+			}
+			{
+				success === "updated" && (
+					<div class="border p-3">
+						<strong>OK:</strong> Se creó una nueva versión de política.
+					</div>
+				)
+			}
 
-		{
-			!res.ok ? (
-				<p>Failed to load policies.</p>
-			) : policies.length === 0 ? (
-				<p>No policies yet.</p>
-			) : null
-		}
+			{
+				!res.ok ? (
+					<p>No se pudieron cargar las políticas.</p>
+				) : policies.length === 0 ? (
+					<p>Aún no hay políticas.</p>
+				) : null
+			}
 
-		{
-			res.ok &&
-				categories.map((cat) => (
-					<section class="space-y-2">
-						<h2 class="text-lg font-semibold">{cat}</h2>
-						{byCategory[cat].length === 0 ? (
-							<p class="text-sm">No policies in this category.</p>
-						) : (
-							<table class="w-full border-collapse">
-								<thead>
-									<tr>
-										<th class="border-b p-2 text-left">Name</th>
-										<th class="border-b p-2 text-left">Version</th>
-										<th class="border-b p-2 text-left">Actions</th>
-										<th class="border-b p-2 text-left">ID</th>
-									</tr>
-								</thead>
-								<tbody>
-									{byCategory[cat].map((p) => (
+			{
+				res.ok &&
+					categories.map((cat) => (
+						<section class="space-y-2">
+							<h2 class="text-lg font-semibold">{cat}</h2>
+							{byCategory[cat].length === 0 ? (
+								<p class="text-sm">No policies in this category.</p>
+							) : (
+								<table class="w-full border-collapse">
+									<thead>
 										<tr>
-											<td class="border-b p-2">{p.description}</td>
-											<td class="border-b p-2">{p.version}</td>
-											<td class="border-b p-2">
-												<a class="underline" href={`/provider/policies/${p.id}/edit`}>
-													Edit
-												</a>
-											</td>
-											<td class="border-b p-2">
-												<code>{p.id}</code>
-											</td>
+											<th class="border-b p-2 text-left">Nombre</th>
+											<th class="border-b p-2 text-left">Versión</th>
+											<th class="border-b p-2 text-left">Acciones</th>
+											<th class="border-b p-2 text-left">ID</th>
 										</tr>
-									))}
-								</tbody>
-							</table>
-						)}
-					</section>
-				))
-		}
+									</thead>
+									<tbody>
+										{byCategory[cat].map((p) => (
+											<tr>
+												<td class="border-b p-2">{p.description}</td>
+												<td class="border-b p-2">{p.version}</td>
+												<td class="border-b p-2">
+													<a class="underline" href={`/provider/policies/${p.id}/edit`}>
+														Editar
+													</a>
+												</td>
+												<td class="border-b p-2">
+													<code>{p.id}</code>
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							)}
+						</section>
+					))
+			}
+		</div>
 	</main>
 </DashboardLayout>

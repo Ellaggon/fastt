@@ -7,9 +7,15 @@ type SearchResult = {
 	destinationId: string
 	heroImage?: string
 	fromPrice: number
+	basePrice?: number
+	totalPrice?: number
 	currency: string
 	available: boolean
 	availableVariants: number
+	taxes?: {
+		hasIncluded: boolean
+		hasExcluded: boolean
+	}
 }
 
 const url = new URL(Astro.request.url)
@@ -118,6 +124,11 @@ if (hasRequired) {
 								<p class="text-sm text-neutral-600">
 									From {r.currency} {r.fromPrice} (variants: {r.availableVariants})
 								</p>
+								{(r.taxes?.hasExcluded || r.taxes?.hasIncluded) && (
+									<p class="text-xs text-neutral-500">
+										{r.taxes?.hasExcluded ? "+ taxes & fees" : "taxes included"}
+									</p>
+								)}
 								<a
 									class="text-sm text-blue-700 underline"
 									href={`/hotels/${encodeURIComponent(r.productId)}?destinationId=${encodeURIComponent(

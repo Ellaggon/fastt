@@ -78,7 +78,7 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 			country: "CL",
 			slug: "ui-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "UI Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "UI Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "UI Hotel",
@@ -101,10 +101,10 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 			const json = (await readJson(res)) as any
 			expect(typeof json?.variantId).toBe("string")
 
-			const expectedNext = `/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const expectedNext = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
 				json.variantId
 			)}/capacity`
-			expect(expectedNext).toContain(`/product-v2/${encodeURIComponent(productId)}/variants/`)
+			expect(expectedNext).toContain(`/product/${encodeURIComponent(productId)}/variants/`)
 			expect(expectedNext).toContain("/capacity")
 		})
 	})

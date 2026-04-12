@@ -1,0 +1,196 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { db, eq, ProductLocation } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+
+const existingLocation =
+	(await db
+		.select({
+			address: ProductLocation.address,
+			lat: ProductLocation.lat,
+			lng: ProductLocation.lng,
+		})
+		.from(ProductLocation)
+		.where(eq(ProductLocation.productId, productId))
+		.get()) ?? null
+
+const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -33.4489
+const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -70.6693
+---
+
+<Layout title="Producto · Ubicación">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h1 class="text-3xl font-semibold text-slate-100">Ubicación del producto</h1>
+				<p class="text-sm text-slate-400">
+					Define la ubicación con el mapa para mejorar la visibilidad del producto.
+				</p>
+			</header>
+
+			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+				<form
+					id="locationForm"
+					method="POST"
+					action="/api/product/location"
+					class="max-w-3xl space-y-6"
+				>
+					<Input type="hidden" name="productId" value={productId} />
+					<Input type="hidden" name="flow" value={flow} />
+					<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
+					<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
+
+					<div class="space-y-4">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Datos de ubicación</h2>
+							<p class="text-sm text-slate-600">Selecciona el punto en el mapa y guarda.</p>
+						</div>
+
+						<FormField label="Dirección (opcional)" htmlFor="address">
+							<Input
+								id="address"
+								name="address"
+								value={existingLocation?.address ?? ""}
+								placeholder="Av. Ejemplo 123"
+							/>
+						</FormField>
+
+						<FormField
+							label="Ubicación del producto"
+							htmlFor="map"
+							required
+							description="Haz clic en el mapa para seleccionar la ubicación"
+						>
+							<div id="map" class="h-72 w-full overflow-hidden rounded-lg border border-slate-300">
+							</div>
+							<p id="coordsText" class="mt-2 text-sm text-slate-600"></p>
+						</FormField>
+					</div>
+
+					<div class="space-y-1">
+						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</div>
+
+					<div class="flex items-center justify-end gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/content`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
+						>
+							Guardar ubicación
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</section>
+	</main>
+
+	<script
+		src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+		crossorigin=""></script>
+	<script type="module" define:vars={{ initialLat, initialLng }}>
+		const form = document.getElementById("locationForm")
+		const btn = document.getElementById("submitBtn")
+		const stateLabel = document.getElementById("stateLabel")
+		const stateDetail = document.getElementById("stateDetail")
+		const latInput = document.getElementById("lat")
+		const lngInput = document.getElementById("lng")
+		const coordsText = document.getElementById("coordsText")
+
+		function setState(state, detail = "") {
+			const labels = {
+				empty: "Vacío: sin cambios guardados.",
+				loading: "Cargando: guardando ubicación...",
+				success: "Éxito: ubicación guardada correctamente.",
+				error: "Error: no se pudo guardar la ubicación.",
+				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			}
+			stateLabel.textContent = labels[state] || labels.empty
+			stateDetail.textContent = detail
+		}
+
+		function updateCoords(lat, lng) {
+			latInput.value = String(lat)
+			lngInput.value = String(lng)
+			coordsText.textContent = `Coordenadas seleccionadas: ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`
+		}
+
+		const map = window.L.map("map").setView([Number(initialLat), Number(initialLng)], 12)
+		window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			maxZoom: 19,
+			attribution: "&copy; OpenStreetMap",
+		}).addTo(map)
+
+		const marker = window.L.marker([Number(initialLat), Number(initialLng)], {
+			draggable: true,
+		}).addTo(map)
+		updateCoords(initialLat, initialLng)
+
+		map.on("click", (event) => {
+			const { lat, lng } = event.latlng
+			marker.setLatLng([lat, lng])
+			updateCoords(lat, lng)
+		})
+
+		marker.on("dragend", () => {
+			const { lat, lng } = marker.getLatLng()
+			updateCoords(lat, lng)
+		})
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			setState("loading")
+			btn.disabled = true
+			setState("disabled")
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product/location", { method: "POST", body: fd })
+				const txt = await res.text()
+
+				if (!res.ok) {
+					btn.disabled = false
+					setState("error", `status=${res.status}\n${txt}`)
+					return
+				}
+
+				setState("success", "Guardado correctamente")
+				const targetProductId = encodeURIComponent(String(fd.get("productId") || ""))
+				const mode = String(fd.get("flow") || "")
+					.trim()
+					.toLowerCase()
+				if (mode !== "create") {
+					window.location.href = `/product/${targetProductId}`
+					return
+				}
+				window.location.href = `/product/${targetProductId}/images?flow=create`
+			} catch (err) {
+				btn.disabled = false
+				setState("error", `Error de red: ${String(err)}`)
+			}
+		})
+	</script>
+</Layout>

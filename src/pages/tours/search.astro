@@ -10,6 +10,7 @@ import {
 	or,
 	PricingBaseRate,
 	Product,
+	ProductContent,
 	sql,
 	Tour,
 	Variant,
@@ -67,7 +68,7 @@ try {
 		.select({
 			id: Product.id,
 			name: Product.name,
-			description: Product.description,
+			description: ProductContent.description,
 			basePriceUSD: sql<
 				number | null
 			>`min(case when ${PricingBaseRate.currency} = 'USD' then ${PricingBaseRate.basePrice} end)`.as(
@@ -83,6 +84,7 @@ try {
 			imageUrl: Image.url,
 		})
 		.from(Product)
+		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
@@ -95,7 +97,6 @@ try {
 } catch (err) {
 	console.error("error querying hotels", err)
 }
-console.log("tours: ", tours)
 ---
 
 <SearchLayout title="Resultados de búsqueda" producType="tours">

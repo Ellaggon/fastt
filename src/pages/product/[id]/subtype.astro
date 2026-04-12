@@ -1,0 +1,289 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductById } from "@/modules/catalog/public"
+import { db, eq, Hotel, Package, Tour } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+
+const product = await getProductById(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const pt = String(product.productType || "")
+	.trim()
+	.toLowerCase()
+
+const hotelSubtype =
+	pt === "hotel"
+		? await db
+				.select({
+					stars: Hotel.stars,
+					phone: Hotel.phone,
+					email: Hotel.email,
+					website: Hotel.website,
+				})
+				.from(Hotel)
+				.where(eq(Hotel.productId, productId))
+				.get()
+		: null
+
+const tourSubtype =
+	pt === "tour"
+		? await db
+				.select({
+					duration: Tour.duration,
+					difficultyLevel: Tour.difficultyLevel,
+					guideLanguages: Tour.guideLanguages,
+					includes: Tour.includes,
+					excludes: Tour.excludes,
+				})
+				.from(Tour)
+				.where(eq(Tour.productId, productId))
+				.get()
+		: null
+
+const packageSubtype =
+	pt === "package"
+		? await db
+				.select({
+					itinerary: Package.itinerary,
+					days: Package.days,
+					nights: Package.nights,
+				})
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.get()
+		: null
+---
+
+<Layout title="Producto · Subtipo">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h1 class="text-3xl font-semibold text-slate-100">Detalle de subtipo</h1>
+				<p class="text-sm text-slate-400">
+					Completa la configuración específica del tipo de producto.
+				</p>
+			</header>
+
+			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+				<form
+					id="subtypeForm"
+					method="POST"
+					action="/api/product/subtype"
+					class="max-w-3xl space-y-6"
+				>
+					<Input type="hidden" name="productId" value={productId} />
+					<Input type="hidden" name="flow" value={flow} />
+					<div class="space-y-4">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Configuración de subtipo</h2>
+							<p class="text-sm text-slate-600">
+								Completa los campos específicos del tipo de producto seleccionado.
+							</p>
+						</div>
+
+						{
+							pt === "hotel" ? (
+								<div class="space-y-4">
+									<FormField label="Estrellas" htmlFor="stars">
+										<Input
+											id="stars"
+											name="stars"
+											value={hotelSubtype?.stars != null ? String(hotelSubtype.stars) : ""}
+											placeholder="1-5"
+										/>
+									</FormField>
+									<FormField label="Teléfono" htmlFor="phone">
+										<Input
+											id="phone"
+											name="phone"
+											value={hotelSubtype?.phone ?? ""}
+											placeholder="Opcional"
+										/>
+									</FormField>
+									<FormField label="Correo" htmlFor="email">
+										<Input
+											id="email"
+											name="email"
+											value={hotelSubtype?.email ?? ""}
+											placeholder="Opcional"
+										/>
+									</FormField>
+									<FormField label="Sitio web" htmlFor="website">
+										<Input
+											id="website"
+											name="website"
+											value={hotelSubtype?.website ?? ""}
+											placeholder="Opcional"
+										/>
+									</FormField>
+								</div>
+							) : null
+						}
+
+						{
+							pt === "tour" ? (
+								<div class="space-y-4">
+									<FormField label="Duración" htmlFor="duration">
+										<Input
+											id="duration"
+											name="duration"
+											value={tourSubtype?.duration ?? ""}
+											placeholder="Opcional"
+										/>
+									</FormField>
+									<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
+										<Input
+											id="difficultyLevel"
+											name="difficultyLevel"
+											value={tourSubtype?.difficultyLevel ?? ""}
+											placeholder="Opcional"
+										/>
+									</FormField>
+									<FormField label="Idiomas guía (separados por coma)" htmlFor="guideLanguages">
+										<Input
+											id="guideLanguages"
+											name="guideLanguages"
+											value={
+												Array.isArray(tourSubtype?.guideLanguages)
+													? tourSubtype.guideLanguages.join(",")
+													: ""
+											}
+											placeholder="es,en"
+										/>
+									</FormField>
+									<FormField label="Incluye" htmlFor="includes">
+										<Textarea
+											id="includes"
+											name="includes"
+											value={tourSubtype?.includes ?? ""}
+											rows="3"
+										/>
+									</FormField>
+									<FormField label="No incluye" htmlFor="excludes">
+										<Textarea
+											id="excludes"
+											name="excludes"
+											value={tourSubtype?.excludes ?? ""}
+											rows="3"
+										/>
+									</FormField>
+								</div>
+							) : null
+						}
+
+						{
+							pt === "package" ? (
+								<div class="space-y-4">
+									<FormField label="Itinerario" htmlFor="itinerary">
+										<Textarea
+											id="itinerary"
+											name="itinerary"
+											value={packageSubtype?.itinerary ?? ""}
+											rows="3"
+										/>
+									</FormField>
+									<FormField label="Días" htmlFor="days">
+										<Input
+											id="days"
+											name="days"
+											value={packageSubtype?.days != null ? String(packageSubtype.days) : ""}
+											placeholder="0 o más"
+										/>
+									</FormField>
+									<FormField label="Noches" htmlFor="nights">
+										<Input
+											id="nights"
+											name="nights"
+											value={packageSubtype?.nights != null ? String(packageSubtype.nights) : ""}
+											placeholder="0 o más"
+										/>
+									</FormField>
+								</div>
+							) : null
+						}
+					</div>
+
+					<div class="space-y-1">
+						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</div>
+
+					<div class="flex items-center justify-end gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/images`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
+						>
+							Guardar subtipo
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</section>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("subtypeForm")
+		const stateLabel = document.getElementById("stateLabel")
+		const stateDetail = document.getElementById("stateDetail")
+		const btn = document.getElementById("submitBtn")
+
+		function setState(state, detail = "") {
+			const labels = {
+				empty: "Vacío: sin cambios guardados.",
+				loading: "Cargando: guardando subtipo...",
+				success: "Éxito: subtipo guardado correctamente.",
+				error: "Error: no se pudo guardar el subtipo.",
+				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			}
+			stateLabel.textContent = labels[state] || labels.empty
+			stateDetail.textContent = detail
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			setState("loading")
+			btn.disabled = true
+			setState("disabled")
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product/subtype", { method: "POST", body: fd })
+				const txt = await res.text()
+				if (!res.ok) {
+					btn.disabled = false
+					setState("error", `status=${res.status}\n${txt}`)
+					return
+				}
+				const id = String(fd.get("productId") || "")
+				setState("success", "Guardado correctamente")
+				window.location.href = `/product/${encodeURIComponent(id)}`
+			} catch (err) {
+				btn.disabled = false
+				setState("error", `Error de red: ${String(err)}`)
+			}
+		})
+	</script>
+</Layout>

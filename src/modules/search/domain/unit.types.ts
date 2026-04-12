@@ -13,7 +13,14 @@ export function isUnitType(value: string): value is UnitType {
 export interface SellableUnit {
 	id: string
 	entityType: string
-	basePrice?: number | null
+	pricing: {
+		basePrice: number
+		currency: string
+	}
+	capacity?: {
+		minOccupancy: number
+		maxOccupancy: number
+	}
 }
 
 export interface HotelRoomUnit extends SellableUnit {

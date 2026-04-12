@@ -1,0 +1,20 @@
+---
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+const email = user?.email?.trim() || "Sin sesión"
+---
+
+<header class="h-14 border-b border-slate-800 bg-slate-950">
+	<div class="mx-auto flex h-full max-w-7xl items-center justify-end px-6">
+		<div class="flex items-center gap-4 text-sm">
+			<span class="text-slate-300">{email}</span>
+			<a
+				href="/api/auth/logout"
+				class="rounded-md border border-slate-700 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-800"
+			>
+				Salir
+			</a>
+		</div>
+	</div>
+</header>

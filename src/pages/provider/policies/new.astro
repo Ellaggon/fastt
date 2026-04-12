@@ -137,174 +137,180 @@ if (Astro.request.method === "POST") {
 ---
 
 <DashboardLayout>
-	<main class="space-y-4 p-6">
-		<header class="flex items-center justify-between">
-			<h1 class="text-xl font-semibold">Create policy</h1>
-			<nav class="space-x-3">
-				<a href="/provider/policies" class="underline">Back</a>
-				<a href="/dashboard" class="underline">Dashboard</a>
-			</nav>
-		</header>
+	<main class="min-h-screen text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-8 px-6">
+			<header class="flex items-center justify-between">
+				<h1 class="text-xl font-semibold">Crear política</h1>
+				<nav class="space-x-3">
+					<a href="/provider/policies" class="underline">Volver</a>
+					<a href="/dashboard" class="underline">Panel</a>
+				</nav>
+			</header>
 
-		{
-			error && (
-				<div class="border p-3">
-					<strong>Error:</strong> {error}
-				</div>
-			)
-		}
-
-		<form method="POST" class="space-y-4" id="policyCreateForm" novalidate>
-			<div id="clientErrorBox" class="hidden border p-3">
-				<strong>Error:</strong>
-				<span id="clientErrorText"></span>
-			</div>
-			<div class="space-y-1">
-				<label class="block">Name</label>
-				<input name="name" minlength="2" class="w-full border p-2" />
-				<p class="text-sm" id="err-name"></p>
-				{fieldErrors["description"] && <p class="text-sm">{fieldErrors["description"]}</p>}
-			</div>
-
-			<div class="space-y-1">
-				<label class="block">Category</label>
-				<select name="category" id="category" class="w-full border p-2">
-					<option value="">Select…</option>
-					<option value="Cancellation">Cancellation policy</option>
-					<option value="Payment">Payment policy</option>
-					<option value="CheckIn">Check-in / Check-out</option>
-					<option value="NoShow">No-show (guest does not arrive)</option>
-				</select>
-				<p class="text-sm" id="err-category"></p>
-				{fieldErrors["category"] && <p class="text-sm">{fieldErrors["category"]}</p>}
-			</div>
-
-			<section class="space-y-2" id="cancellationFields">
-				<h2 class="font-semibold">Cancellation tiers</h2>
-				<p class="text-sm">Define penalties by days before arrival.</p>
-
-				<div id="tiers" class="space-y-2">
-					<div class="tier-row flex items-end gap-2">
-						<div class="flex-1 space-y-1">
-							<label class="block text-sm">Days before arrival</label>
-							<input name="daysBeforeArrival" type="number" min="0" class="w-full border p-2" />
-						</div>
-						<div class="flex-1 space-y-1">
-							<label class="block text-sm">Penalty (%)</label>
-							<input
-								name="penaltyPercent"
-								type="number"
-								min="0"
-								max="1000"
-								class="w-full border p-2"
-							/>
-						</div>
-						<button type="button" class="border px-3 py-2" data-remove-tier>Remove</button>
+			{
+				error && (
+					<div class="border p-3">
+						<strong>Error:</strong> {error}
 					</div>
+				)
+			}
+
+			<form method="POST" class="space-y-4" id="policyCreateForm" novalidate>
+				<div id="clientErrorBox" class="hidden border p-3">
+					<strong>Error:</strong>
+					<span id="clientErrorText"></span>
 				</div>
-
-				<button type="button" class="border px-3 py-2" id="addTier">Add tier</button>
-				<p class="text-sm" id="err-cancellationTiers"></p>
-				{
-					fieldErrors["cancellationTiers"] && (
-						<p class="text-sm">{fieldErrors["cancellationTiers"]}</p>
-					)
-				}
-			</section>
-
-			<section class="hidden space-y-2" id="paymentFields">
-				<h2 class="font-semibold">Payment</h2>
 				<div class="space-y-1">
-					<label class="block text-sm">Payment type</label>
-					<select name="paymentType" id="paymentType" class="w-full border p-2">
-						<option value="">Select…</option>
-						<option value="pay_at_property">Pay at property</option>
-						<option value="prepayment">Prepayment</option>
-					</select>
-					<p class="text-sm" id="err-paymentType"></p>
-					{fieldErrors["paymentType"] && <p class="text-sm">{fieldErrors["paymentType"]}</p>}
+					<label class="block">Nombre</label>
+					<input name="name" minlength="2" class="w-full border p-2" />
+					<p class="text-sm" id="err-name"></p>
+					{fieldErrors["description"] && <p class="text-sm">{fieldErrors["description"]}</p>}
 				</div>
-				<div class="space-y-1" id="prepaymentFields">
-					<label class="block text-sm">Prepayment percentage</label>
-					<input
-						name="prepaymentPercentage"
-						type="number"
-						min="0"
-						max="100"
-						class="w-full border p-2"
-					/>
-					<p class="text-sm" id="err-prepaymentPercentage"></p>
-					<label class="block text-sm">Days before arrival (optional)</label>
-					<input
-						name="prepaymentDaysBeforeArrival"
-						type="number"
-						min="0"
-						class="w-full border p-2"
-					/>
-				</div>
-			</section>
 
-			<section class="hidden space-y-2" id="checkinFields">
-				<h2 class="font-semibold">Check-in / Check-out</h2>
-				<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-					<div class="space-y-1">
-						<label class="block text-sm">Check-in from</label>
-						<input name="checkInFrom" type="time" class="w-full border p-2" />
-						<p class="text-sm" id="err-checkInFrom"></p>
-						{fieldErrors["checkInFrom"] && <p class="text-sm">{fieldErrors["checkInFrom"]}</p>}
-					</div>
-					<div class="space-y-1">
-						<label class="block text-sm">Check-in until</label>
-						<input name="checkInUntil" type="time" class="w-full border p-2" />
-						<p class="text-sm" id="err-checkInUntil"></p>
-						{fieldErrors["checkInUntil"] && <p class="text-sm">{fieldErrors["checkInUntil"]}</p>}
-					</div>
-					<div class="space-y-1">
-						<label class="block text-sm">Check-out until</label>
-						<input name="checkOutUntil" type="time" class="w-full border p-2" />
-						<p class="text-sm" id="err-checkOutUntil"></p>
-						{fieldErrors["checkOutUntil"] && <p class="text-sm">{fieldErrors["checkOutUntil"]}</p>}
-					</div>
-				</div>
-			</section>
-
-			<section class="hidden space-y-2" id="noshowFields">
-				<h2 class="font-semibold">No-show</h2>
 				<div class="space-y-1">
-					<label class="block text-sm">Penalty type</label>
-					<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
-						<option value="">Select…</option>
-						<option value="first_night">First night</option>
-						<option value="full">Full stay</option>
-						<option value="percentage">Percentage</option>
+					<label class="block">Categoría</label>
+					<select name="category" id="category" class="w-full border p-2">
+						<option value="">Seleccionar…</option>
+						<option value="Cancellation">Política de cancelación</option>
+						<option value="Payment">Política de pago</option>
+						<option value="CheckIn">Check-in / Check-out</option>
+						<option value="NoShow">No-show (el huésped no llega)</option>
 					</select>
-					<p class="text-sm" id="err-noShowPenaltyType"></p>
+					<p class="text-sm" id="err-category"></p>
+					{fieldErrors["category"] && <p class="text-sm">{fieldErrors["category"]}</p>}
+				</div>
+
+				<section class="space-y-2" id="cancellationFields">
+					<h2 class="font-semibold">Tramos de cancelación</h2>
+					<p class="text-sm">Defina penalidades según los días antes de la llegada.</p>
+
+					<div id="tiers" class="space-y-2">
+						<div class="tier-row flex items-end gap-2">
+							<div class="flex-1 space-y-1">
+								<label class="block text-sm">Días antes de la llegada</label>
+								<input name="daysBeforeArrival" type="number" min="0" class="w-full border p-2" />
+							</div>
+							<div class="flex-1 space-y-1">
+								<label class="block text-sm">Penalidad (%)</label>
+								<input
+									name="penaltyPercent"
+									type="number"
+									min="0"
+									max="1000"
+									class="w-full border p-2"
+								/>
+							</div>
+							<button type="button" class="border px-3 py-2" data-remove-tier>Quitar</button>
+						</div>
+					</div>
+
+					<button type="button" class="border px-3 py-2" id="addTier">Agregar tramo</button>
+					<p class="text-sm" id="err-cancellationTiers"></p>
 					{
-						fieldErrors["noShowPenaltyType"] && (
-							<p class="text-sm">{fieldErrors["noShowPenaltyType"]}</p>
+						fieldErrors["cancellationTiers"] && (
+							<p class="text-sm">{fieldErrors["cancellationTiers"]}</p>
 						)
 					}
-				</div>
-				<div class="space-y-1" id="noshowAmountRow">
-					<label class="block text-sm">Penalty amount (%)</label>
-					<input
-						name="noShowPenaltyAmount"
-						type="number"
-						min="0"
-						max="100"
-						class="w-full border p-2"
-					/>
-					<p class="text-sm" id="err-noShowPenaltyAmount"></p>
-					{
-						fieldErrors["noShowPenaltyAmount"] && (
-							<p class="text-sm">{fieldErrors["noShowPenaltyAmount"]}</p>
-						)
-					}
-				</div>
-			</section>
+				</section>
 
-			<button type="submit" class="border px-4 py-2">Create</button>
-		</form>
+				<section class="hidden space-y-2" id="paymentFields">
+					<h2 class="font-semibold">Pago</h2>
+					<div class="space-y-1">
+						<label class="block text-sm">Tipo de pago</label>
+						<select name="paymentType" id="paymentType" class="w-full border p-2">
+							<option value="">Seleccionar…</option>
+							<option value="pay_at_property">Pago en la propiedad</option>
+							<option value="prepayment">Prepago</option>
+						</select>
+						<p class="text-sm" id="err-paymentType"></p>
+						{fieldErrors["paymentType"] && <p class="text-sm">{fieldErrors["paymentType"]}</p>}
+					</div>
+					<div class="space-y-1" id="prepaymentFields">
+						<label class="block text-sm">Porcentaje de prepago</label>
+						<input
+							name="prepaymentPercentage"
+							type="number"
+							min="0"
+							max="100"
+							class="w-full border p-2"
+						/>
+						<p class="text-sm" id="err-prepaymentPercentage"></p>
+						<label class="block text-sm">Días antes de la llegada (opcional)</label>
+						<input
+							name="prepaymentDaysBeforeArrival"
+							type="number"
+							min="0"
+							class="w-full border p-2"
+						/>
+					</div>
+				</section>
+
+				<section class="hidden space-y-2" id="checkinFields">
+					<h2 class="font-semibold">Check-in / Check-out</h2>
+					<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+						<div class="space-y-1">
+							<label class="block text-sm">Check-in desde</label>
+							<input name="checkInFrom" type="time" class="w-full border p-2" />
+							<p class="text-sm" id="err-checkInFrom"></p>
+							{fieldErrors["checkInFrom"] && <p class="text-sm">{fieldErrors["checkInFrom"]}</p>}
+						</div>
+						<div class="space-y-1">
+							<label class="block text-sm">Check-in hasta</label>
+							<input name="checkInUntil" type="time" class="w-full border p-2" />
+							<p class="text-sm" id="err-checkInUntil"></p>
+							{fieldErrors["checkInUntil"] && <p class="text-sm">{fieldErrors["checkInUntil"]}</p>}
+						</div>
+						<div class="space-y-1">
+							<label class="block text-sm">Check-out hasta</label>
+							<input name="checkOutUntil" type="time" class="w-full border p-2" />
+							<p class="text-sm" id="err-checkOutUntil"></p>
+							{
+								fieldErrors["checkOutUntil"] && (
+									<p class="text-sm">{fieldErrors["checkOutUntil"]}</p>
+								)
+							}
+						</div>
+					</div>
+				</section>
+
+				<section class="hidden space-y-2" id="noshowFields">
+					<h2 class="font-semibold">No-show</h2>
+					<div class="space-y-1">
+						<label class="block text-sm">Penalty type</label>
+						<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
+							<option value="">Select…</option>
+							<option value="first_night">First night</option>
+							<option value="full">Full stay</option>
+							<option value="percentage">Percentage</option>
+						</select>
+						<p class="text-sm" id="err-noShowPenaltyType"></p>
+						{
+							fieldErrors["noShowPenaltyType"] && (
+								<p class="text-sm">{fieldErrors["noShowPenaltyType"]}</p>
+							)
+						}
+					</div>
+					<div class="space-y-1" id="noshowAmountRow">
+						<label class="block text-sm">Penalty amount (%)</label>
+						<input
+							name="noShowPenaltyAmount"
+							type="number"
+							min="0"
+							max="100"
+							class="w-full border p-2"
+						/>
+						<p class="text-sm" id="err-noShowPenaltyAmount"></p>
+						{
+							fieldErrors["noShowPenaltyAmount"] && (
+								<p class="text-sm">{fieldErrors["noShowPenaltyAmount"]}</p>
+							)
+						}
+					</div>
+				</section>
+
+				<button type="submit" class="border px-4 py-2">Create</button>
+			</form>
+		</div>
 	</main>
 </DashboardLayout>
 

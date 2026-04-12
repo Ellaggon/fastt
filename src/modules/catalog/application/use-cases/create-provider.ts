@@ -4,12 +4,8 @@ export async function createProvider(
 	deps: { repo: ProviderRepositoryPort },
 	params: {
 		sessionEmail: string
-		userEmail?: string | null
-		companyName: string
-		contactName?: string | null
-		contactEmail: string
-		phone?: string | null
-		type: string
+		displayName: string
+		legalName: string
 	}
 ): Promise<Response> {
 	const newProviderId = crypto.randomUUID()
@@ -19,12 +15,9 @@ export async function createProvider(
 		sessionEmail: params.sessionEmail,
 		provider: {
 			id: newProviderId,
-			userEmail: params.userEmail ?? null,
-			companyName: params.companyName,
-			contactName: params.contactName ?? null,
-			contactEmail: params.contactEmail,
-			phone: params.phone ?? null,
-			type: params.type,
+			displayName: params.displayName,
+			legalName: params.legalName,
+			status: "draft",
 		},
 	})
 

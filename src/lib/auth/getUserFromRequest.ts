@@ -1,4 +1,5 @@
 import { parse as parseCookie } from "cookie"
+import { db, eq, User } from "astro:db"
 import { fetchSupabaseUser } from "./supabaseClient"
 
 export type AuthUser = { id: string; email: string }
@@ -32,7 +33,22 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 		if (!token) return null
 		const u = await fetchSupabaseUser(token)
 		if (!u?.id || !u.email) return null
-		return { id: u.id, email: u.email }
+		const email = String(u.email).trim().toLowerCase()
+		if (!email) return null
+
+		try {
+			const existing = await db
+				.select({ id: User.id })
+				.from(User)
+				.where(eq(User.email, email))
+				.get()
+			if (existing?.id) return { id: existing.id, email }
+
+			await db.insert(User).values({ id: u.id, email }).onConflictDoNothing()
+		} catch {
+			// Keep auth non-blocking even if persistence sync fails.
+		}
+		return { id: u.id, email }
 	}
 
 	return null

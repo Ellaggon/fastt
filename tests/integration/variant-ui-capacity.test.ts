@@ -79,7 +79,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			country: "CL",
 			slug: "cap-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Cap Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Cap Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Cap Hotel",
@@ -112,7 +112,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			} as any)
 			expect(capRes.status).toBe(200)
 
-			const next = `/product-v2/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const next = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
 				variantId
 			)}/room-type`
 			expect(next).toContain("/room-type")
@@ -133,7 +133,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			country: "CL",
 			slug: "bad-dest",
 		})
-		await upsertProvider({ id: providerId, companyName: "Bad Provider", userEmail: email })
+		await upsertProvider({ id: providerId, displayName: "Bad Provider", ownerEmail: email })
 		await upsertProduct({
 			id: productId,
 			name: "Bad Hotel",
@@ -183,8 +183,8 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			country: "CL",
 			slug: "own-dest-c",
 		})
-		await upsertProvider({ id: providerA, companyName: "Own Cap A", userEmail: emailA })
-		await upsertProvider({ id: providerB, companyName: "Own Cap B", userEmail: emailB })
+		await upsertProvider({ id: providerA, displayName: "Own Cap A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Own Cap B", ownerEmail: emailB })
 		await upsertProduct({
 			id: productId,
 			name: "Own Cap Hotel",

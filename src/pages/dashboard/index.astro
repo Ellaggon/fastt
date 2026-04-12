@@ -1,11 +1,11 @@
 ---
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTabs from "@/components/dashboard/DashboardTabs.astro"
-import { productRepository } from "@/container"
 import Layout from "@/layouts/Layout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, inArray, PolicyAssignment, Variant } from "astro:db"
+import { getProductAggregate } from "@/modules/catalog/public"
+import { db, eq, inArray, PolicyAssignment, Product, Variant } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 
@@ -24,7 +24,27 @@ try {
 		return Astro.redirect("/provider")
 	}
 
-	userProducts = await productRepository.getProductsByProvider(providerId)
+	userProducts = await db
+		.select({
+			id: Product.id,
+			name: Product.name,
+			productType: Product.productType,
+			destinationId: Product.destinationId,
+		})
+		.from(Product)
+		.where(eq(Product.providerId, providerId))
+	if (userProducts.length > 0) {
+		const enrichedProducts = await Promise.all(
+			userProducts.map(async (legacy) => {
+				const v2 = await getProductAggregate(String(legacy.id))
+				return {
+					...legacy,
+					description: v2?.content.description ?? null,
+				}
+			})
+		)
+		userProducts = enrichedProducts
+	}
 
 	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
 
@@ -55,7 +75,7 @@ try {
 				Dashboard
 			</h2>
 			<a
-				href="/products/create"
+				href="/product/create"
 				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
 			>
 				Crea un Nuevo Producto
@@ -65,6 +85,12 @@ try {
 				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
 			>
 				Políticas (CAPA 6)
+			</a>
+			<a
+				href="/provider/tax-fees"
+				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
+			>
+				Impuestos y cargos (CAPA 7)
 			</a>
 		</navbar>
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">

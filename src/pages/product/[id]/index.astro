@@ -1,0 +1,331 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductAggregate, getProductById } from "@/modules/catalog/public"
+import { db, eq, Hotel, Package, Tour } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+
+const aggregate = await getProductAggregate(productId)
+if (!aggregate) return Astro.redirect("/product/create")
+
+const productBase = await getProductById(productId)
+const productType = String(productBase?.productType ?? "")
+	.trim()
+	.toLowerCase()
+
+const productImages = aggregate.images || []
+const imagesCount = productImages.length
+const imagePreviews = productImages.slice(0, 3)
+
+const hotelSubtype =
+	productType === "hotel"
+		? await db
+				.select({
+					stars: Hotel.stars,
+					phone: Hotel.phone,
+					email: Hotel.email,
+				})
+				.from(Hotel)
+				.where(eq(Hotel.productId, productId))
+				.get()
+		: null
+
+const tourSubtype =
+	productType === "tour"
+		? await db
+				.select({
+					duration: Tour.duration,
+					difficultyLevel: Tour.difficultyLevel,
+					guideLanguages: Tour.guideLanguages,
+				})
+				.from(Tour)
+				.where(eq(Tour.productId, productId))
+				.get()
+		: null
+
+const packageSubtype =
+	productType === "package"
+		? await db
+				.select({
+					days: Package.days,
+					nights: Package.nights,
+				})
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.get()
+		: null
+
+const hasContent = Boolean(aggregate.content.description?.trim())
+const hasLocation = Boolean(aggregate.location.lat !== null && aggregate.location.lng !== null)
+const hasImages = imagesCount > 0
+const hasSubtype = Boolean(hotelSubtype || tourSubtype || packageSubtype)
+const hasVariants = false // CAPA 3 no se evalúa todavía
+
+const steps = [
+	{ key: "content", label: "Contenido", complete: hasContent },
+	{ key: "location", label: "Ubicación", complete: hasLocation },
+	{ key: "images", label: "Imágenes", complete: hasImages },
+	{ key: "subtype", label: "Subtipo", complete: hasSubtype },
+	{ key: "variants", label: "Variantes", complete: hasVariants },
+]
+
+const completedSteps = steps.filter((item) => item.complete).length
+const missingSteps = steps.length - completedSteps
+const progressPercent = Math.round((completedSteps / steps.length) * 100)
+
+const status = String(aggregate.status || "draft")
+	.trim()
+	.toLowerCase()
+
+const statusBadgeVariant =
+	status === "published" ? "success" : status === "ready" ? "info" : "warning"
+const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
+
+const descriptionPreview = hasContent
+	? String(aggregate.content.description).slice(0, 180)
+	: "Falta completar descripción"
+
+const highlightsCount = Array.isArray(aggregate.content.highlights)
+	? aggregate.content.highlights.length
+	: 0
+
+const subtypeSummary = hotelSubtype
+	? `Hotel · ${hotelSubtype.stars ? `${hotelSubtype.stars}★` : "Sin estrellas"}`
+	: tourSubtype
+		? `Tour · ${tourSubtype.duration || "Duración no definida"}`
+		: packageSubtype
+			? `Paquete · ${packageSubtype.days ?? 0} días / ${packageSubtype.nights ?? 0} noches`
+			: "Subtipo no configurado"
+---
+
+<Layout title="Producto · Superficie">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<header class="space-y-4">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<h1 class="text-3xl font-semibold uppercase tracking-wide text-slate-100">
+						{aggregate.displayName}
+					</h1>
+					<p class="text-sm text-slate-300">
+						{
+							missingSteps === 0
+								? "Producto completo. Puedes continuar con publicación y variantes."
+								: `Te faltan ${missingSteps} pasos para completar este producto`
+						}
+					</p>
+				</div>
+				<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
+			</div>
+		</header>
+
+		<Section title="Configuración del producto" className="space-y-4">
+			<Card class="border-slate-700 bg-slate-900 text-white">
+				<div class="space-y-4">
+					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+						<div class="h-full bg-[#1E3A8A]" style={`width: ${progressPercent}%`}></div>
+					</div>
+					<p class="text-sm text-slate-200">
+						{completedSteps} de {steps.length} bloques completados.
+					</p>
+					<div class="grid gap-4 md:grid-cols-2">
+						<Card class="bg-slate-100">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Contenido</p>
+									<p class="text-sm text-slate-600">Descripción, destacados y reglas.</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
+									<Badge variant={hasContent ? "success" : "warning"} class="whitespace-nowrap">
+										{hasContent ? "✅ Completo" : "⚠️ Incompleto"}
+									</Badge>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/content`}
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Editar contenido</Button
+									>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="bg-slate-100">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Ubicación</p>
+									<p class="text-sm text-slate-600">Dirección y coordenadas del producto.</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
+									<Badge variant={hasLocation ? "success" : "warning"} class="whitespace-nowrap">
+										{hasLocation ? "✅ Completo" : "⚠️ Incompleto"}
+									</Badge>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/location`}
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Editar ubicación</Button
+									>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="bg-slate-100">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Imágenes</p>
+									<p class="text-sm text-slate-600">Galería de presentación del producto.</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
+									<Badge variant={hasImages ? "success" : "warning"} class="whitespace-nowrap">
+										{hasImages ? "✅ Completo" : "⚠️ Incompleto"}
+									</Badge>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/images`}
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Gestionar imágenes</Button
+									>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="bg-slate-100">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Subtipo</p>
+									<p class="text-sm text-slate-600">
+										Configuración específica por tipo de producto.
+									</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
+									<Badge variant={hasSubtype ? "success" : "warning"} class="whitespace-nowrap">
+										{hasSubtype ? "✅ Completo" : "⚠️ Incompleto"}
+									</Badge>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/subtype`}
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Configurar subtipo</Button
+									>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="bg-slate-100 md:col-span-2">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Variantes</p>
+									<p class="text-sm text-slate-600">
+										Configuración CAPA 3 (pendiente en esta fase).
+									</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 text-xs lg:flex-row">
+									<Badge variant="warning" class="whitespace-nowrap">⚠️ Pendiente</Badge>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/variants`}
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Ir a variantes</Button
+									>
+								</div>
+							</div>
+						</Card>
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section title="Resumen operativo" description="Vista rápida del estado actual de cada bloque.">
+			<div class="grid gap-4 md:grid-cols-2">
+				<Card class="bg-slate-100">
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Contenido</p>
+						<p class="text-sm text-slate-600">{descriptionPreview}</p>
+						<p class="text-sm text-slate-600">Destacados: {highlightsCount}</p>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/content`}
+								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+								>Editar contenido</Button
+							>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-slate-100">
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Ubicación</p>
+						<p class="text-sm text-slate-600">
+							{aggregate.location.address || "Sin dirección registrada"}
+						</p>
+						<p class="text-sm text-slate-600">
+							{
+								aggregate.location.lat !== null && aggregate.location.lng !== null
+									? `${aggregate.location.lat.toFixed(6)}, ${aggregate.location.lng.toFixed(6)}`
+									: "Sin coordenadas"
+							}
+						</p>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/location`}
+								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+								>Editar ubicación</Button
+							>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-slate-100">
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Imágenes</p>
+						<p class="text-sm text-slate-600">Total de imágenes: {imagesCount}</p>
+						<div class="grid grid-cols-3 gap-2">
+							{
+								imagePreviews.length > 0 ? (
+									imagePreviews.map((img) => (
+										<img
+											src={img.url}
+											alt="Vista previa"
+											class="h-16 w-full rounded-md border border-slate-200 object-cover"
+										/>
+									))
+								) : (
+									<p class="col-span-3 text-sm text-slate-500">Sin imágenes cargadas.</p>
+								)
+							}
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/images`}
+								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+								>Gestionar imágenes</Button
+							>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-slate-100">
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Subtipo</p>
+						<p class="text-sm text-slate-600">Tipo: {productType || "No definido"}</p>
+						<p class="text-sm text-slate-600">{subtypeSummary}</p>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/subtype`}
+								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+								>Configurar subtipo</Button
+							>
+						</div>
+					</div>
+				</Card>
+			</div>
+		</Section>
+	</main>
+</Layout>

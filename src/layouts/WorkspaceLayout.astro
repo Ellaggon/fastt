@@ -1,0 +1,54 @@
+---
+import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
+import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
+import Layout from "@/layouts/Layout.astro"
+
+interface Props {
+	title?: string
+}
+
+const { title = "Workspace" } = Astro.props
+---
+
+<Layout title={title}>
+	<div class="min-h-screen bg-black text-slate-100">
+		<div class="flex min-h-screen">
+			<aside class="w-64 border-r border-slate-800 bg-slate-900 p-4">
+				<DashboardSidebar pathname={Astro.url.pathname} />
+			</aside>
+
+			<div class="flex min-h-screen flex-1 flex-col">
+				<DashboardTopBar />
+				<main class="flex-1">
+					<div class="mx-auto max-w-7xl px-6 py-8">
+						<slot />
+					</div>
+				</main>
+			</div>
+		</div>
+	</div>
+	<script is:inline>
+		;(function () {
+			if (typeof document === "undefined") return
+			if (typeof window === "undefined") return
+			if (!("startViewTransition" in document)) return
+
+			document.addEventListener("click", (event) => {
+				const target = event.target
+				if (!(target instanceof Element)) return
+				const anchor = target.closest("a[data-workspace-nav], a[data-astro-prefetch]")
+				if (!(anchor instanceof HTMLAnchorElement)) return
+				if (event.defaultPrevented) return
+				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+				if (anchor.target && anchor.target !== "_self") return
+				if (anchor.origin !== window.location.origin) return
+				if (anchor.href === window.location.href) return
+
+				event.preventDefault()
+				document.startViewTransition(() => {
+					window.location.assign(anchor.href)
+				})
+			})
+		})()
+	</script>
+</Layout>

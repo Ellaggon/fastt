@@ -3,14 +3,17 @@ import { toISODate } from "@/shared/domain/date/date.utils"
 
 import type { SearchContext } from "./ports/SellableUnitAdapterPort"
 import type { SearchMemory, SellableUnit, InventorySnapshot } from "../domain/unit.types"
-import type { PricingPort } from "./ports/PricingPort"
 import type { RestrictionPort } from "./ports/RestrictionPort"
 import type { PromotionPort } from "./ports/PromotionPort"
+import type { TaxFeePort } from "./ports/TaxFeePort"
+import type { TaxFeeBreakdown } from "@/modules/taxes-fees/domain/tax-fee.types"
 
 export type SearchRatePlanOffer = {
 	ratePlanId: string
 	basePrice: number
 	finalPrice: number
+	taxesAndFees: TaxFeeBreakdown
+	totalPrice: number
 }
 
 export interface ISearchContextLoader<TUnit extends SellableUnit = SellableUnit> {
@@ -63,8 +66,25 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 		private availabilityEngine = new AvailabilityGridEngine(),
 		private deps: {
 			restrictions: RestrictionPort
-			pricing: PricingPort
 			promotions: PromotionPort
+			taxes: TaxFeePort
+			effectivePricing: {
+				getEffectiveTotalForRange(params: {
+					variantId: string
+					ratePlanId: string
+					checkIn: Date
+					checkOut: Date
+				}): Promise<{ total: number | null; missingDates: string[] }>
+			}
+			coverage?: {
+				ensureCoverage(params: {
+					variantId: string
+					ratePlanId: string
+					checkIn: Date
+					checkOut: Date
+					missingDates: string[]
+				}): Promise<void>
+			}
 		}
 	) {
 		if (!loader) {
@@ -74,7 +94,6 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 
 	async run(ctx: SearchContext<TUnit>): Promise<SearchRatePlanOffer[]> {
 		const memory: SearchMemory = await this.loader.load(ctx)
-		console.log("MEMORY", memory)
 
 		/* 1️⃣ AVAILABILITY */
 
@@ -98,60 +117,98 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 		const availability = isVariantAvailable({ grid, nights, requestedQuantity })
 		if (!availability.ok) return []
 
-		/* 4️⃣ RATE PLANS LOOP */
+		/* 4️⃣ DEFAULT RATE PLAN ONLY + EFFECTIVE PRICING */
+		const defaultRatePlan =
+			memory.ratePlans.find((rp) => Boolean((rp as { isDefault?: unknown }).isDefault)) ??
+			memory.ratePlans[0]
+		if (!defaultRatePlan) return []
+		const defaultRatePlanId = String((defaultRatePlan as { id?: unknown }).id ?? "").trim()
+		if (!defaultRatePlanId) return []
 
-		const validPlans: SearchRatePlanOffer[] = []
+		// Apply restrictions at product, variant, and rate-plan level.
+		// The restriction engine itself is scope-agnostic, so the pipeline must filter by scopeId.
+		const restrictions =
+			memory.restrictions?.filter(
+				(r) =>
+					r.scopeId === defaultRatePlanId || r.scopeId === ctx.unitId || r.scopeId === ctx.productId
+			) ?? []
+		const restrictionResult = this.deps.restrictions.evaluateFromMemory({
+			restrictions,
+			checkIn: ctx.checkIn,
+			checkOut: ctx.checkOut,
+			nights,
+		})
+		if (!restrictionResult.allowed) return []
 
-		for (const rp of memory.ratePlans) {
-			/* Restricciones por rate plan */
-
-			// Apply restrictions at product, variant, and rate-plan level.
-			// The restriction engine itself is scope-agnostic, so the pipeline must filter by scopeId.
-			const restrictions =
-				memory.restrictions?.filter(
-					(r) => r.scopeId === rp.id || r.scopeId === ctx.unitId || r.scopeId === ctx.productId
-				) ?? []
-
-			const restrictionResult = this.deps.restrictions.evaluateFromMemory({
-				restrictions,
-				checkIn: ctx.checkIn,
-				checkOut: ctx.checkOut,
-				nights,
+		const effective = await this.deps.effectivePricing.getEffectiveTotalForRange({
+			variantId: ctx.unitId,
+			ratePlanId: defaultRatePlanId,
+			checkIn: ctx.checkIn,
+			checkOut: ctx.checkOut,
+		})
+		if (effective.missingDates.length > 0 || effective.total === null) {
+			console.warn("pricing_coverage_gap_detected", {
+				variantId: ctx.unitId,
+				ratePlanId: defaultRatePlanId,
+				missingDatesCount: effective.missingDates.length,
+				checkIn: toISODate(ctx.checkIn),
+				checkOut: toISODate(ctx.checkOut),
 			})
-
-			if (!restrictionResult.allowed) continue
-
-			/* Pricing con rule */
-
-			const priceRules =
-				memory.priceRules?.filter((r) => r.ratePlanId === rp.id && r.isActive) ?? []
-
-			let computedTotal: number
-			try {
-				computedTotal = this.deps.pricing.computeStayBasePriceWithRulesStrict({
-					basePricePerNight: ctx.basePrice,
-					nights,
-					priceRules,
-				})
-			} catch {
-				// Strict rule model: invalid rule types/values make the plan non-applicable.
-				continue
+			if (this.deps.coverage?.ensureCoverage) {
+				void this.deps.coverage
+					.ensureCoverage({
+						variantId: ctx.unitId,
+						ratePlanId: defaultRatePlanId,
+						checkIn: ctx.checkIn,
+						checkOut: ctx.checkOut,
+						missingDates: effective.missingDates,
+					})
+					.catch((error) => {
+						console.warn("pricing_auto_heal_failed", {
+							variantId: ctx.unitId,
+							ratePlanId: defaultRatePlanId,
+							message: error instanceof Error ? error.message : String(error),
+						})
+					})
 			}
-
-			/* Promotions */
-
-			const final = this.deps.promotions.applyPromotions(computedTotal, memory.promotions ?? [], {
-				checkIn: ctx.checkIn,
-				checkOut: ctx.checkOut,
-			})
-
-			validPlans.push({
-				ratePlanId: rp.id,
-				basePrice: computedTotal,
-				finalPrice: final,
-			})
+			for (const missingDate of effective.missingDates) {
+				console.error("effective_pricing_missing_blocking", {
+					variantId: ctx.unitId,
+					date: missingDate,
+					ratePlanId: defaultRatePlanId,
+				})
+			}
+			return []
 		}
 
-		return validPlans
+		const final = this.deps.promotions.applyPromotions(
+			Number(effective.total),
+			memory.promotions ?? [],
+			{
+				checkIn: ctx.checkIn,
+				checkOut: ctx.checkOut,
+			}
+		)
+		const taxes = await this.deps.taxes.resolveEffectiveTaxFees({
+			productId: ctx.productId,
+			variantId: ctx.unitId,
+			ratePlanId: defaultRatePlanId,
+		})
+		const taxBreakdown = this.deps.taxes.computeTaxBreakdown({
+			base: final,
+			definitions: taxes.definitions,
+			nights,
+			guests: ctx.adults + ctx.children,
+		})
+
+		return [
+			{
+				ratePlanId: defaultRatePlanId,
+				basePrice: Number(effective.total),
+				finalPrice: final,
+				taxesAndFees: taxBreakdown,
+				totalPrice: taxBreakdown.total,
+			},
+		]
 	}
 }

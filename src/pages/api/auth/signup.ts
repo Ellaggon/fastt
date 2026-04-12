@@ -20,10 +20,26 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const result = await signUp({ email, password, redirectTo })
 	if (!result.ok) {
-		return new Response(null, {
-			status: 302,
-			headers: { Location: `/SignInPage?error=signup_failed` },
-		})
+		console.error(
+			JSON.stringify({
+				type: "auth_signup_failed",
+				email,
+				status: result.status,
+				error: result.error,
+			})
+		)
+
+		return new Response(
+			JSON.stringify({
+				error: "signup_failed",
+				providerError: result.error,
+				providerStatus: result.status,
+			}),
+			{
+				status: result.status >= 400 ? result.status : 400,
+				headers: { "Content-Type": "application/json" },
+			}
+		)
 	}
 
 	// If email confirmation is enabled, Supabase may return no session.

@@ -1,11 +1,10 @@
 import { describe, it, expect, vi } from "vitest"
-import { ZodError } from "zod"
 import type { ProviderV2RepositoryPort } from "@/modules/catalog/public"
 import { registerProviderV2 } from "@/modules/catalog/public"
+import { ValidationError } from "@/lib/validation/ValidationError"
 
 function makeRepo(overrides?: Partial<ProviderV2RepositoryPort>): ProviderV2RepositoryPort {
 	return {
-		getProviderIdByUserEmail: vi.fn(async () => null),
 		registerProvider: vi.fn(async () => ({ providerId: "prov_1", created: true })),
 		upsertProfile: vi.fn(async () => {}),
 		setVerificationStatus: vi.fn(async () => {}),
@@ -16,32 +15,30 @@ function makeRepo(overrides?: Partial<ProviderV2RepositoryPort>): ProviderV2Repo
 describe("catalog/provider-v2/registerProviderV2 (unit)", () => {
 	it("fails without legalName", async () => {
 		const repo = makeRepo()
-		await expect(
-			registerProviderV2(
-				{ repo },
-				{
-					sessionEmail: "user@example.com",
-					companyName: "QA Co",
-					legalName: undefined,
-					displayName: "QA Display",
-				}
-			)
-		).rejects.toBeInstanceOf(ZodError)
+		const promise = registerProviderV2(
+			{ repo },
+			{
+				sessionEmail: "user@example.com",
+				legalName: undefined,
+				displayName: "QA Display",
+			}
+		)
+		await expect(promise).rejects.toBeInstanceOf(ValidationError)
+		await expect(promise).rejects.toMatchObject({ errors: { legalName: expect.any(String) } })
 	})
 
 	it("fails without displayName", async () => {
 		const repo = makeRepo()
-		await expect(
-			registerProviderV2(
-				{ repo },
-				{
-					sessionEmail: "user@example.com",
-					companyName: "QA Co",
-					legalName: "QA Legal",
-					displayName: undefined,
-				}
-			)
-		).rejects.toBeInstanceOf(ZodError)
+		const promise = registerProviderV2(
+			{ repo },
+			{
+				sessionEmail: "user@example.com",
+				legalName: "QA Legal",
+				displayName: undefined,
+			}
+		)
+		await expect(promise).rejects.toBeInstanceOf(ValidationError)
+		await expect(promise).rejects.toMatchObject({ errors: { displayName: expect.any(String) } })
 	})
 
 	it("calls repo.registerProvider and returns providerId/created when valid", async () => {
@@ -53,12 +50,8 @@ describe("catalog/provider-v2/registerProviderV2 (unit)", () => {
 			{ repo },
 			{
 				sessionEmail: "user@example.com",
-				companyName: "QA Co",
 				legalName: "QA Legal",
 				displayName: "QA Display",
-				contactEmail: "qa@test.com",
-				phone: "+56912345678",
-				type: "Hotel",
 			}
 		)
 
@@ -66,14 +59,8 @@ describe("catalog/provider-v2/registerProviderV2 (unit)", () => {
 		expect(repo.registerProvider).toHaveBeenCalledWith({
 			provider: {
 				id: expect.any(String),
-				userEmail: "user@example.com",
-				companyName: "QA Co",
 				legalName: "QA Legal",
 				displayName: "QA Display",
-				contactName: null,
-				contactEmail: "qa@test.com",
-				phone: "+56912345678",
-				type: "Hotel",
 				status: "draft",
 			},
 			userEmailForLink: "user@example.com",

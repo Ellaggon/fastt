@@ -12,13 +12,13 @@ const { products, roomsByHotel } = Astro.props
 				</div>
 				<div class="flex gap-3">
 					<a
-						href={`/products/${el.id}/rate-plans`}
+						href={`/product/${el.id}/review`}
 						class="btn-primary flex items-center rounded-xl border border-neutral-800 px-3 py-1 text-blue-400 transition-colors hover:border-neutral-500 hover:text-blue-300"
 					>
 						Políticas
 					</a>
 					<a
-						href={`/products/${el.id}/rate-plans`}
+						href={`/product/${el.id}/review`}
 						class="btn-primary flex items-center rounded-xl border border-neutral-800 px-3 py-1 text-blue-400 transition-colors hover:border-neutral-500 hover:text-blue-300"
 					>
 						Políticas (Cancelación)
@@ -29,7 +29,7 @@ const { products, roomsByHotel } = Astro.props
 			<div class="grid grid-cols-2 gap-3 text-xs text-neutral-400 md:grid-cols-3 md:gap-6 md:gap-9 md:text-base lg:grid-cols-4">
 				{roomsByHotel[el.id]?.map((room: any) => (
 					<a
-						href={`/products/${el.id}/rate-plans`}
+						href={`/product/${el.id}/review`}
 						class="rounded-lg border border-neutral-800 p-2 text-center hover:text-white md:px-3"
 					>
 						{room.name}

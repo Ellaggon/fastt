@@ -1,4 +1,4 @@
-import { db, Destination, Product, Image, and, eq, or, sql } from "astro:db"
+import { db, Destination, Product, and, eq, or, sql } from "astro:db"
 import type {
 	MarketplaceHotelCandidate,
 	MarketplaceHotelSearchRepositoryPort,
@@ -29,13 +29,18 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 				heroImageUrl: sql<string>`(
 					SELECT url
 					FROM Image
-					WHERE entityId = ${Product.id}
+					WHERE (entityType = 'Product' AND entityId = ${Product.id})
+					   OR (
+					      entityType = 'Variant'
+					      AND entityId IN (
+					         SELECT id FROM Variant WHERE productId = ${Product.id}
+					      )
+					   )
 					ORDER BY isPrimary DESC, "order" ASC
 					LIMIT 1
 				)`.as("heroImageUrl"),
 			})
 			.from(Product)
-			.leftJoin(Image, eq(Image.entityId, Product.id))
 			.where(and(eq(Product.productType, "Hotel"), eq(Product.destinationId, dest.id)))
 			.limit(limit)
 			.all()

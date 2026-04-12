@@ -11,6 +11,7 @@ import {
 	Hotel,
 	Image,
 	Product,
+	ProductContent,
 	ProductService,
 	Service,
 	sql,
@@ -39,7 +40,7 @@ try {
 				ORDER BY isPrimary DESC, "order" ASC
 				LIMIT 1
 			)`.as("imageUrl"),
-			description: Product.description,
+			description: ProductContent.description,
 			address: Hotel.address,
 			stars: Hotel.stars,
 			services: sql`(
@@ -55,6 +56,7 @@ try {
 		})
 		.from(Product)
 		.leftJoin(Image, eq(Image.entityId, Product.id))
+		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
 		.leftJoin(ProductService, eq(ProductService.productId, Product.id))
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))

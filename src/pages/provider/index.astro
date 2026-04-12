@@ -1,102 +1,322 @@
 ---
-import Layout from "@/layouts/Layout.astro"
+import ProviderDashboard from "@/components/provider/ProviderDashboard.astro"
+import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
+import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
+import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DashboardLayout from "@/layouts/DashboardLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProviderByUserEmail } from "@/modules/catalog/application/use-cases/get-provider-by-user-email"
-import { ProviderRepository } from "@/modules/catalog/infrastructure/repositories/ProviderRepository"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	Provider,
+	ProviderProfile,
+	ProviderUser,
+	ProviderVerification,
+	User,
+} from "astro:db"
+
+type DerivedProviderState = "draft" | "setup_incomplete" | "ready" | "active"
+type ProviderStep = "register" | "profile" | "verification" | null
+
+let providerId: string | null = null
+let userId: string | null = null
+let authError: Response | null = null
+let loadError: string | null = null
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerRepo = new ProviderRepository()
-const existing = await getProviderByUserEmail({ repo: providerRepo }, { email: user.email || "" })
+const stepParam = String(Astro.url.searchParams.get("step") ?? "").trim()
+const currentStep: ProviderStep =
+	stepParam === "register" || stepParam === "profile" || stepParam === "verification"
+		? stepParam
+		: null
 
-if (existing) return Astro.redirect("/dashboard")
+try {
+	const auth = await requireProvider(Astro.request)
+	providerId = auth.providerId
+	userId = auth.user.id
+} catch (error: unknown) {
+	if (error instanceof Response) authError = error
+	else loadError = "No pudimos cargar su sesión de proveedor."
+}
+
+if (authError?.status === 401) return Astro.redirect("/SignInPage")
+if (authError?.status === 403 && currentStep !== "register")
+	return Astro.redirect("/provider?step=register")
+if (authError?.status && authError.status !== 401 && authError.status !== 403) {
+	loadError = "No pudimos autorizar esta sesión de proveedor."
+}
+
+userId = user.id
+
+const successParam = String(Astro.url.searchParams.get("success") ?? "").trim()
+const showSuccess = successParam === "saved" || successParam === "updated"
+
+let provider: typeof Provider.$inferSelect | null = null
+let profile: typeof ProviderProfile.$inferSelect | null = null
+let latestVerification: typeof ProviderVerification.$inferSelect | null = null
+let ownerUser: Pick<typeof User.$inferSelect, "id" | "email"> | null = null
+
+if (userId && !loadError) {
+	try {
+		provider =
+			(providerId
+				? await db.select().from(Provider).where(eq(Provider.id, providerId)).get()
+				: null) ?? null
+
+		if (provider) {
+			profile =
+				(await db
+					.select()
+					.from(ProviderProfile)
+					.where(eq(ProviderProfile.providerId, provider.id))
+					.get()) ?? null
+
+			latestVerification =
+				(await db
+					.select()
+					.from(ProviderVerification)
+					.where(eq(ProviderVerification.providerId, provider.id))
+					.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
+					.get()) ?? null
+
+			const ownerLink =
+				(await db
+					.select()
+					.from(ProviderUser)
+					.where(and(eq(ProviderUser.providerId, provider.id), eq(ProviderUser.role, "owner")))
+					.get()) ??
+				(await db
+					.select()
+					.from(ProviderUser)
+					.where(and(eq(ProviderUser.providerId, provider.id), eq(ProviderUser.userId, userId)))
+					.get()) ??
+				null
+
+			ownerUser = ownerLink
+				? ((await db
+						.select({ id: User.id, email: User.email })
+						.from(User)
+						.where(eq(User.id, ownerLink.userId))
+						.get()) ?? null)
+				: null
+		}
+	} catch {
+		loadError = "No pudimos cargar los datos del proveedor en este momento."
+	}
+}
+
+const isLoading = false
+const isEmpty = !loadError && !provider
+
+const isMissingLegalName = !provider?.legalName?.trim()
+const isMissingTimezone = !profile?.timezone?.trim()
+const isMissingCurrency = !profile?.defaultCurrency?.trim()
+const isMissingContactOrSupport = !profile?.supportEmail?.trim()
+
+const requiredMissingCount = [
+	isMissingLegalName,
+	isMissingTimezone,
+	isMissingCurrency,
+	isMissingContactOrSupport,
+].filter(Boolean).length
+
+const providerStatus = String(provider?.status ?? "").toLowerCase()
+const derivedState: DerivedProviderState =
+	providerStatus === "active"
+		? "active"
+		: providerStatus === "draft"
+			? "draft"
+			: requiredMissingCount > 0
+				? "setup_incomplete"
+				: "ready"
+
+const identityComplete = Boolean(provider?.displayName?.trim() && provider?.legalName?.trim())
+
+const operationalComplete = Boolean(
+	profile?.timezone?.trim() && profile?.defaultCurrency?.trim() && profile?.supportEmail?.trim()
+)
+
+const verificationComplete = latestVerification?.status === "approved"
+
+const remainingSteps = [identityComplete, operationalComplete, verificationComplete].filter(
+	(state) => !state
+).length
+
+const progressMessage =
+	derivedState === "active"
+		? "Su cuenta de proveedor está activa."
+		: remainingSteps > 0
+			? `${remainingSteps} paso${remainingSteps === 1 ? "" : "s"} obligatorio${remainingSteps === 1 ? "" : "s"} pendiente${remainingSteps === 1 ? "" : "s"}.`
+			: "Todos los pasos obligatorios están completos."
+
+const badgeVariant =
+	derivedState === "active"
+		? "success"
+		: derivedState === "ready"
+			? "info"
+			: derivedState === "setup_incomplete"
+				? "warning"
+				: "neutral"
+
+const stateLabel =
+	derivedState === "active"
+		? "Activa"
+		: derivedState === "ready"
+			? "Lista"
+			: derivedState === "setup_incomplete"
+				? "Configuración incompleta"
+				: "Borrador"
+
+const primaryCtaAction = !identityComplete
+	? "/provider?step=register"
+	: !operationalComplete
+		? "/provider?step=profile"
+		: !verificationComplete
+			? "/provider?step=verification"
+			: "/dashboard"
+
+const primaryCtaLabel =
+	primaryCtaAction === "/dashboard"
+		? "Ir al panel"
+		: primaryCtaAction === "/provider?step=register"
+			? "Completar identidad"
+			: primaryCtaAction === "/provider?step=profile"
+				? "Completar perfil"
+				: "Ver detalles"
+
+const completedSteps = [identityComplete, operationalComplete, verificationComplete].filter(
+	Boolean
+).length
+const progressPercent = Math.round((completedSteps / 3) * 100)
+
+const isStepView =
+	currentStep === "register" || currentStep === "profile" || currentStep === "verification"
 ---
 
-<Layout title="Registrar Proveedor">
-	<article
-		class="mx-auto mt-20 w-10/12 rounded-2xl border border-neutral-300 bg-neutral-200 p-8 text-neutral-800 shadow-lg sm:p-10 md:max-w-lg lg:max-w-2xl lg:p-20"
-	>
-		<h2 class="mb-2 text-2xl font-semibold">REGISTRAR MI EMPRESA</h2>
-		<p class="mb-8 text-xs text-neutral-500">
-			Ingresa los datos de tu empresa para empezar a publicar tus servicios.
-		</p>
-		<form id="providerForm" method="post" class="flex flex-col gap-4" data-form-type="provider">
-			<input type="hidden" name="userEmail" value={user.email} />
+<DashboardLayout title="Proveedor">
+	<main class="min-h-screen bg-black text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-8 px-6">
+			{
+				showSuccess && (
+					<Card>
+						<div class="flex items-center justify-between gap-4">
+							<div class="space-y-1">
+								<p class="text-lg font-semibold text-slate-900">Guardado</p>
+								<p class="text-sm text-slate-600">
+									La información del proveedor se actualizó correctamente.
+								</p>
+							</div>
+							<Badge variant="success">Guardado</Badge>
+						</div>
+					</Card>
+				)
+			}
 
-			<label for="companyName" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Nombre de la Compañía
-				<input
-					type="text"
-					id="companyName"
-					name="companyName"
-					placeholder="Ej: Hotel del Mar S.A."
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
+			{
+				isLoading && (
+					<Card>
+						<div class="space-y-2">
+							<p class="text-2xl font-semibold text-slate-900">Cargando panel del proveedor...</p>
+							<p class="text-sm text-slate-600">
+								Espere mientras cargamos el estado de configuración.
+							</p>
+						</div>
+					</Card>
+				)
+			}
 
-			<label for="contactName" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Nombre de Contacto
-				<input
-					type="text"
-					id="contactName"
-					name="contactName"
-					placeholder="Ej: Juan Pérez"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
+			{
+				loadError && (
+					<Card>
+						<div class="space-y-4">
+							<div class="flex items-center justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-2xl font-semibold text-slate-900">Ocurrió un error de carga</p>
+									<p class="text-sm text-slate-600">{loadError}</p>
+								</div>
+								<Badge variant="error">Error</Badge>
+							</div>
+							<Button
+								href="/provider?step=register"
+								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							>
+								Abrir configuración
+							</Button>
+						</div>
+					</Card>
+				)
+			}
 
-			<label for="contactEmail" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Email de Contacto
-				<input
-					type="email"
-					id="contactEmail"
-					name="contactEmail"
-					placeholder="ejemplo@empresa.com"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-					required
-				/>
-			</label>
+			{
+				isEmpty && !isLoading && !loadError && (
+					<Card>
+						<div class="space-y-4">
+							<div class="flex items-center justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-2xl font-semibold text-slate-900">No se encontró proveedor</p>
+									<p class="text-sm text-slate-600">
+										Inicie la configuración para habilitar las herramientas operativas.
+									</p>
+								</div>
+								<Badge variant="warning">Vacío</Badge>
+							</div>
+							<Button
+								href="/provider?step=register"
+								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							>
+								Iniciar configuración
+							</Button>
+						</div>
+					</Card>
+				)
+			}
 
-			<label for="phone" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Teléfono
-				<input
-					type="tel"
-					id="phone"
-					name="phone"
-					placeholder="Ej: +56 9 1234 5678"
-					class="mt-2 block w-full rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-neutral-800 placeholder-neutral-400 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
-				/>
-			</label>
+			{
+				provider && !isLoading && !loadError && !isStepView && (
+					<ProviderDashboard
+						provider={provider}
+						profile={profile}
+						latestVerification={latestVerification}
+						ownerEmail={ownerUser?.email || "Sin vincular"}
+						progressMessage={progressMessage}
+						badgeVariant={badgeVariant}
+						stateLabel={stateLabel}
+						derivedState={derivedState}
+						primaryCtaAction={primaryCtaAction}
+						primaryCtaLabel={primaryCtaLabel}
+						identityComplete={identityComplete}
+						operationalComplete={operationalComplete}
+						verificationComplete={verificationComplete}
+						progressPercent={progressPercent}
+					/>
+				)
+			}
 
-			<label for="type" class="block text-xs font-medium text-neutral-500 md:text-sm">
-				Tipo de Proveedor
-				<select
-					name="type"
-					id="type"
-					class="mt-2 block w-full cursor-pointer rounded-lg border-transparent bg-neutral-100 px-4 py-3 text-sm font-medium text-neutral-800 shadow-sm transition-colors duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-					required
-				>
-					<option value="">Selecciona un tipo...</option>
-					<option value="Hotel">Hotel</option>
-					<option value="Tour Operator">Tour Operator</option>
-					<option value="Transport">Transporte</option>
-					<option value="Restaurant">Restaurante</option>
-				</select>
-			</label>
+			{
+				currentStep === "register" && (
+					<ProviderRegisterForm provider={provider} hasProvider={Boolean(provider)} />
+				)
+			}
 
-			<div class="mt-10 flex justify-end">
-				<button
-					type="submit"
-					class="h-10 w-40 rounded-lg bg-blue-600 px-4 py-1 font-medium text-white shadow-md transition-colors duration-200 hover:bg-blue-700"
-				>
-					Registrarme
-				</button>
-			</div>
-		</form>
-	</article>
+			{
+				currentStep === "profile" && (
+					<ProviderProfileForm isProviderAvailable={Boolean(provider)} profile={profile} />
+				)
+			}
 
-	<script src="/src/lib/forms/formHandler"></script>
-</Layout>
+			{
+				currentStep === "verification" && (
+					<ProviderVerificationView latestVerification={latestVerification} />
+				)
+			}
+		</div>
+	</main>
+</DashboardLayout>

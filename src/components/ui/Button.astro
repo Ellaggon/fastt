@@ -1,0 +1,47 @@
+---
+const {
+	variant = "primary",
+	size = "md",
+	type = "button",
+	href,
+	className = "",
+	class: classProp = "",
+	...props
+} = Astro.props
+
+const baseClass =
+	"inline-flex items-center justify-center rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+
+const variantClass = {
+	primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+	secondary:
+		"bg-neutral-100 text-neutral-900 border border-neutral-300 hover:bg-neutral-200 focus:ring-neutral-400",
+	ghost: "bg-transparent text-neutral-800 hover:bg-neutral-100 focus:ring-neutral-400",
+}
+
+const sizeClass = {
+	sm: "h-8 px-3 text-sm",
+	md: "h-10 px-4 text-sm",
+	lg: "h-12 px-5 text-base",
+}
+
+const isValidVariant = typeof variant === "string" && Object.hasOwn(variantClass, variant)
+const isValidSize = typeof size === "string" && Object.hasOwn(sizeClass, size)
+const resolvedVariant = (isValidVariant ? variant : "primary") as keyof typeof variantClass
+const resolvedSize = (isValidSize ? size : "md") as keyof typeof sizeClass
+
+const finalClass =
+	`${baseClass} ${variantClass[resolvedVariant]} ${sizeClass[resolvedSize]} ${className} ${classProp}`.trim()
+---
+
+{
+	href ? (
+		<a href={href} class={finalClass} {...props}>
+			<slot />
+		</a>
+	) : (
+		<button type={type} class={finalClass} {...props}>
+			<slot />
+		</button>
+	)
+}

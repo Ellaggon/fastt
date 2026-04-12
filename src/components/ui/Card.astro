@@ -1,0 +1,9 @@
+---
+const { className = "", class: classProp = "", ...props } = Astro.props
+const finalClass =
+	`rounded-xl border border-neutral-200 p-6 shadow-sm ${className} ${classProp}`.trim()
+---
+
+<div class={finalClass} {...props}>
+	<slot />
+</div>

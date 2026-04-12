@@ -1,0 +1,144 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+---
+
+<Layout title="Producto · Crear">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h1 class="text-3xl font-semibold text-slate-100">Crear producto</h1>
+				<p class="text-sm text-slate-400">
+					Crea la identidad base del producto para comenzar su configuración operativa.
+				</p>
+			</header>
+
+			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+				<form
+					id="createForm"
+					method="POST"
+					action="/api/product/create"
+					class="max-w-3xl space-y-6"
+				>
+					<div class="space-y-4">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Datos base del producto</h2>
+							<p class="text-sm text-slate-600">Solo se piden los campos mínimos obligatorios.</p>
+						</div>
+
+						<FormField label="Nombre" htmlFor="name" required>
+							<Input id="name" name="name" required placeholder="Ej: Tour al Salar de Uyuni" />
+						</FormField>
+
+						<FormField label="Tipo de producto" htmlFor="productType" required>
+							<Select id="productType" name="productType" required>
+								<option value="">Selecciona una opción</option>
+								<option value="Hotel">Hotel</option>
+								<option value="Tour">Tour</option>
+								<option value="Package">Paquete</option>
+							</Select>
+						</FormField>
+
+						<FormField label="Destino (ID)" htmlFor="destinationId" required>
+							<Input id="destinationId" name="destinationId" required placeholder="Ej: la-paz" />
+						</FormField>
+					</div>
+
+					<div class="space-y-1">
+						<p id="stateLabel" class="text-sm text-slate-600">
+							Vacío: completa el formulario para crear.
+						</p>
+						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</div>
+
+					<div class="flex items-center justify-end gap-3">
+						<a
+							href="/dashboard"
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
+						>
+							Crear producto
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</section>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("createForm")
+		const btn = document.getElementById("submitBtn")
+		const stateLabel = document.getElementById("stateLabel")
+		const stateDetail = document.getElementById("stateDetail")
+
+		function setState(state, detail = "") {
+			const labels = {
+				empty: "Vacío: completa el formulario para crear.",
+				loading: "Cargando: creando producto...",
+				success: "Éxito: producto creado correctamente.",
+				error: "Error: no se pudo crear el producto.",
+				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			}
+			stateLabel.textContent = labels[state] || labels.empty
+			stateDetail.textContent = detail
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			setState("loading")
+			btn.disabled = true
+			setState("disabled")
+
+			try {
+				const fd = new FormData(form)
+				const res = await fetch("/api/product/create", { method: "POST", body: fd })
+				const txt = await res.text()
+
+				if (!res.ok) {
+					btn.disabled = false
+					setState("error", `status=${res.status}\n${txt}`)
+					return
+				}
+
+				let json = null
+				try {
+					json = JSON.parse(txt)
+				} catch {
+					btn.disabled = false
+					setState("error", `Respuesta inválida:\n${txt}`)
+					return
+				}
+
+				if (!json?.id) {
+					btn.disabled = false
+					setState("error", `Respuesta sin ID:\n${txt}`)
+					return
+				}
+
+				setState("success", "Guardado correctamente")
+				window.location.href = `/product/${json.id}/content?flow=create`
+			} catch (err) {
+				btn.disabled = false
+				setState("error", `Error de red: ${String(err)}`)
+			}
+		})
+	</script>
+</Layout>

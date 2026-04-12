@@ -1,0 +1,110 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductAggregate } from "@/modules/catalog/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+
+const product = await getProductAggregate(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const existingImages = product.images || []
+---
+
+<Layout title="Producto · Imágenes">
+	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h1 class="text-3xl font-semibold text-slate-100">Imágenes del producto</h1>
+				<p class="text-sm text-slate-400">Sube imágenes para mostrar tu producto a los clientes.</p>
+			</header>
+
+			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+				<form
+					id="imagesForm"
+					method="POST"
+					action="/api/product/images"
+					class="max-w-3xl space-y-6"
+				>
+					<Input type="hidden" name="productId" value={productId} />
+					<Input type="hidden" name="flow" value={flow} />
+					<div class="space-y-4">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Galería del producto</h2>
+							<p class="text-sm text-slate-600">
+								Arrastra imágenes aquí o haz clic para seleccionarlas.
+							</p>
+						</div>
+
+						<FormField label="Carga de imágenes" htmlFor="files" required>
+							<Input
+								id="files"
+								type="file"
+								name="files"
+								accept="image/*"
+								multiple
+								required
+								className="hidden"
+							/>
+							<div
+								id="dropzone"
+								class="rounded-lg border-2 border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 transition"
+							>
+								<p class="font-medium text-slate-700">Suelta imágenes aquí</p>
+								<p class="mt-1 text-slate-500">o haz clic para abrir el selector</p>
+							</div>
+						</FormField>
+
+						<div class="space-y-2">
+							<p class="text-sm font-medium text-slate-700">Vista previa</p>
+							<div id="previewGrid" class="grid grid-cols-2 gap-4 sm:grid-cols-3"></div>
+						</div>
+					</div>
+
+					<div class="space-y-1">
+						<p id="stateLabel" class="text-sm text-slate-600">
+							Vacío: selecciona imágenes para continuar.
+						</p>
+						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</div>
+
+					<div class="flex items-center justify-end gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/location`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
+						>
+							Subir y asociar
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</section>
+	</main>
+
+	<script
+		id="existingImagesData"
+		type="application/json"
+		set:html={JSON.stringify(existingImages)}
+	/>
+	<script src="/src/lib/forms/productImagesHandler.ts"></script>
+</Layout>

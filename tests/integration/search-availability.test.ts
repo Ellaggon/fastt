@@ -85,7 +85,7 @@ async function seedSearchableVariant(params: {
 		country: "CL",
 		slug: `dest-${params.destinationId}`,
 	})
-	await upsertProvider({ id: params.providerId, companyName: "Prov", userEmail: params.email })
+	await upsertProvider({ id: params.providerId, displayName: "Prov", ownerEmail: params.email })
 	await upsertProduct({
 		id: params.productId,
 		name: "Hotel",

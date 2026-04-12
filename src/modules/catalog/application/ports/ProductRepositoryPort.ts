@@ -1,19 +1,71 @@
-import type { ProductBundle, ProductRow } from "../../domain/product.types"
+export type ProductStatusState = "draft" | "ready" | "published"
 
-export interface CreateProductParams {
-	id: string
-	name: string
-	description: string | null
-	productType: string
-	providerId: string | null
-	destinationId: string
-	images: string[]
+export type ProductAggregate = {
+	product: {
+		id: string
+		name: string
+		productType: string
+		providerId?: string | null
+		destinationId: string
+	}
+	imagesCount: number
+	subtypeExists: boolean
+	content: {
+		productId: string
+		description?: string | null
+		highlightsJson?: unknown | null
+		rules?: string | null
+		seoJson?: unknown | null
+	} | null
+	location: {
+		productId: string
+		address?: string | null
+		lat?: number | null
+		lng?: number | null
+	} | null
+	status: {
+		productId: string
+		state: ProductStatusState
+		validationErrorsJson?: unknown | null
+	} | null
 }
 
 export interface ProductRepositoryPort {
-	createProductWithImages(params: CreateProductParams): Promise<void>
+	createProductBase(params: {
+		id: string
+		name: string
+		productType: string
+		providerId?: string | null
+		destinationId: string
+	}): Promise<void>
 
-	// Read APIs used by SSR/admin pages (queries). Kept on the same port to avoid parallel persistence layers.
-	getProductById(productId: string): Promise<ProductRow | null | undefined>
-	getProductWithImagesAndSubtype(productId: string): Promise<ProductBundle | null>
+	upsertProductContent(params: {
+		productId: string
+		description?: string | null
+		highlightsJson?: unknown | null
+		rules?: string | null
+		seoJson?: unknown | null
+	}): Promise<void>
+
+	upsertProductLocation(params: {
+		productId: string
+		address?: string | null
+		lat?: number | null
+		lng?: number | null
+	}): Promise<void>
+
+	upsertProductStatus(params: {
+		productId: string
+		state: ProductStatusState
+		validationErrorsJson?: unknown | null
+	}): Promise<void>
+
+	getProductAggregate(productId: string): Promise<ProductAggregate | null>
+	getProductById?(productId: string): Promise<{
+		id: string
+		name: string
+		productType: string
+		providerId?: string | null
+		destinationId: string
+	} | null>
 }

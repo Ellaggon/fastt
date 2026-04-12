@@ -1,4 +1,5 @@
 import {
+	and,
 	db,
 	eq,
 	Provider,
@@ -13,65 +14,100 @@ import type {
 } from "../../application/ports/ProviderV2RepositoryPort"
 
 export class ProviderV2Repository implements ProviderV2RepositoryPort {
-	async getProviderIdByUserEmail(email: string): Promise<string | null> {
+	private async getProviderIdByUserLinkEmail(email: string): Promise<string | null> {
 		if (!email) return null
-		const row = await db
-			.select({ id: Provider.id })
-			.from(Provider)
-			.where(eq(Provider.userEmail, email))
+		const user = await db.select({ id: User.id }).from(User).where(eq(User.email, email)).get()
+		if (!user?.id) return null
+		const link = await db
+			.select({ providerId: ProviderUser.providerId })
+			.from(ProviderUser)
+			.where(eq(ProviderUser.userId, user.id))
 			.get()
-		return row?.id ?? null
+		return link?.providerId ?? null
 	}
 
-	async registerProvider(params: {
-		provider: {
-			id: string
-			userEmail: string
-			companyName: string
-			legalName?: string | null
-			displayName?: string | null
-			type?: string | null
-			contactName?: string | null
-			contactEmail?: string | null
-			phone?: string | null
-			status?: "draft" | "active" | "archived"
-		}
+	private async ensureOwnerLink(params: {
+		providerId: string
 		userEmailForLink: string
-		role?: "owner" | "admin" | "staff"
-	}): Promise<{ providerId: string; created: boolean }> {
-		// Idempotency by email: if provider already exists for this user, return it.
-		const existing = await this.getProviderIdByUserEmail(params.provider.userEmail)
-		if (existing) return { providerId: existing, created: false }
-
-		// Create provider.
-		await db.insert(Provider).values({
-			id: params.provider.id,
-			userEmail: params.provider.userEmail,
-			companyName: params.provider.companyName,
-			legalName: params.provider.legalName ?? null,
-			displayName: params.provider.displayName ?? null,
-			status: params.provider.status ?? "draft",
-			contactName: params.provider.contactName ?? null,
-			contactEmail: params.provider.contactEmail ?? null,
-			phone: params.provider.phone ?? null,
-			type: params.provider.type ?? null,
-		})
-
-		// Link provider to local User row (same behavior as v1, but only for v2 endpoint call sites).
+		role: "owner" | "admin" | "staff"
+	}): Promise<void> {
 		const user = await db
 			.select({ id: User.id })
 			.from(User)
 			.where(eq(User.email, params.userEmailForLink))
 			.get()
-		if (user?.id) {
-			await db.update(User).set({ providerId: params.provider.id }).where(eq(User.id, user.id))
+		if (!user?.id) return
+
+		const existingLink = await db
+			.select({ id: ProviderUser.id })
+			.from(ProviderUser)
+			.where(and(eq(ProviderUser.providerId, params.providerId), eq(ProviderUser.userId, user.id)))
+			.get()
+
+		if (!existingLink) {
 			await db.insert(ProviderUser).values({
 				id: crypto.randomUUID(),
-				providerId: params.provider.id,
+				providerId: params.providerId,
 				userId: user.id,
-				role: params.role ?? "owner",
+				role: params.role,
 			})
 		}
+	}
+
+	async updateProviderIdentity(params: {
+		providerId: string
+		displayName?: string | null
+		legalName?: string | null
+	}): Promise<void> {
+		const updateResult = await db
+			.update(Provider)
+			.set({
+				displayName: params.displayName ?? null,
+				legalName: params.legalName ?? null,
+			})
+			.where(eq(Provider.id, params.providerId))
+
+		console.log({
+			step: "repo_update_provider_identity",
+			whereProviderId: params.providerId,
+			updateResult,
+		})
+	}
+
+	async registerProvider(params: {
+		provider: {
+			id: string
+			legalName?: string | null
+			displayName?: string | null
+			status?: "draft" | "active" | "archived"
+		}
+		userEmailForLink: string
+		role?: "owner" | "admin" | "staff"
+	}): Promise<{ providerId: string; created: boolean }> {
+		// Idempotency by canonical user-provider link.
+		const existing = await this.getProviderIdByUserLinkEmail(params.userEmailForLink)
+		if (existing) {
+			await this.ensureOwnerLink({
+				providerId: existing,
+				userEmailForLink: params.userEmailForLink,
+				role: params.role ?? "owner",
+			})
+			return { providerId: existing, created: false }
+		}
+
+		// Create provider.
+		await db.insert(Provider).values({
+			id: params.provider.id,
+			legalName: params.provider.legalName ?? null,
+			displayName: params.provider.displayName ?? null,
+			status: params.provider.status ?? "draft",
+		})
+
+		await this.ensureOwnerLink({
+			providerId: params.provider.id,
+			userEmailForLink: params.userEmailForLink,
+			role: params.role ?? "owner",
+		})
 
 		// Create initial verification row in pending state (parallel system).
 		await db.insert(ProviderVerification).values({

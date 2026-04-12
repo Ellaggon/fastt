@@ -60,6 +60,15 @@ describe("SearchPipeline", () => {
 				applyPromotions: (basePrice, promotions, ctx) =>
 					promotionEngine.applyPromotions(basePrice, promotions, ctx),
 			},
+			taxes: {
+				resolveEffectiveTaxFees: async () => ({ definitions: [] }),
+				computeTaxBreakdown: ({ base }) => ({
+					base,
+					taxes: { included: [], excluded: [] },
+					fees: { included: [], excluded: [] },
+					total: base,
+				}),
+			},
 		})
 
 		const result = await pipeline.run({

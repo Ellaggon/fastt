@@ -1,0 +1,23 @@
+---
+const {
+	label,
+	htmlFor,
+	required = false,
+	error,
+	description,
+	className = "",
+	class: classProp = "",
+} = Astro.props
+
+const finalClass = `space-y-2 ${className} ${classProp}`.trim()
+---
+
+<div class={finalClass}>
+	<label for={htmlFor} class="block text-sm font-medium text-neutral-800">
+		{label}
+		{required ? <span class="ml-1 text-red-600">*</span> : null}
+	</label>
+	{description ? <p class="text-xs text-neutral-500">{description}</p> : null}
+	<slot />
+	{error ? <p class="text-sm text-red-600">{error}</p> : null}
+</div>

@@ -1,27 +1,30 @@
 import type { ProviderV2RepositoryPort } from "../../ports/ProviderV2RepositoryPort"
-import { providerProfileSchema } from "../../schemas/provider-v2/providerProfileSchema"
+import { providerProfileSchema } from "@/schemas/provider"
+import { ValidationError } from "@/lib/validation/ValidationError"
 
 export async function upsertProviderProfileV2(
 	deps: { repo: ProviderV2RepositoryPort },
 	params: {
-		sessionEmail: string
+		providerId: string
 		timezone: string
 		defaultCurrency: string
 		supportEmail?: string | null
 		supportPhone?: string | null
 	}
 ): Promise<{ providerId: string }> {
-	const parsed = providerProfileSchema.parse({
+	const result = providerProfileSchema.safeParse({
 		timezone: params.timezone,
 		defaultCurrency: params.defaultCurrency,
 		supportEmail: params.supportEmail ?? undefined,
 		supportPhone: params.supportPhone ?? undefined,
 	})
-
-	const providerId = await deps.repo.getProviderIdByUserEmail(params.sessionEmail)
-	if (!providerId) {
-		throw new Error("Provider not found for current user")
+	if (!result.success) {
+		throw new ValidationError(result.error)
 	}
+	const parsed = result.data
+
+	const providerId = String(params.providerId || "").trim()
+	if (!providerId) throw new Error("Provider not found for current user")
 
 	await deps.repo.upsertProfile({
 		providerId,

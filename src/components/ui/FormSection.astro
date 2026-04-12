@@ -1,0 +1,15 @@
+---
+import Card from "./Card.astro"
+import Section from "./Section.astro"
+
+const { title, description, className = "", class: classProp = "" } = Astro.props
+const finalClass = `${className} ${classProp}`.trim()
+---
+
+<Card class={finalClass}>
+	<Section title={title} description={description}>
+		<div class="grid gap-4">
+			<slot />
+		</div>
+	</Section>
+</Card>

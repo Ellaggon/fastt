@@ -1,5 +1,5 @@
-import { providerRepository } from "@/container"
 import type { AuthUser } from "./getUserFromRequest"
+import { getProviderIdFromRequest } from "./getProviderIdFromRequest"
 import { requireAuth } from "./requireAuth"
 
 export async function requireProvider(
@@ -8,8 +8,7 @@ export async function requireProvider(
 ): Promise<{ user: AuthUser; providerId: string }> {
 	const user = await requireAuth(request, { unauthorizedResponse: opts?.unauthorizedResponse })
 
-	const provider = await providerRepository.getProviderByEmail(user.email)
-	const providerId = provider?.id ?? null
+	const providerId = await getProviderIdFromRequest(request)
 
 	if (!providerId) {
 		throw (

@@ -4,7 +4,10 @@ import { selectBestRatePlan, type SelectBestRatePlanDeps } from "@/modules/prici
 describe("pricing/use-cases/selectBestRatePlan", () => {
 	it("throws when variant is not found", async () => {
 		const deps: SelectBestRatePlanDeps = {
-			variantRepo: { getById: vi.fn(async () => null) },
+			variantRepo: {
+				getById: vi.fn(async () => null),
+				existsById: vi.fn(async () => false),
+			},
 			ratePlanRepo: {
 				getActiveByVariant: vi.fn(async () => []),
 				getDefaultByVariant: vi.fn(async () => null),
@@ -30,8 +33,10 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 					productId: "p1",
 					entityType: "hotel_room",
 					entityId: "hr1",
-					basePrice: 100,
+					pricing: { basePrice: 100, currency: "USD" },
+					capacity: { minOccupancy: 1, maxOccupancy: 2 },
 				})),
+				existsById: vi.fn(async () => true),
 			},
 			ratePlanRepo: {
 				getActiveByVariant: vi.fn(async () => []),
@@ -52,7 +57,7 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 		expect((deps.ratePlanEngine as any).selectFromMemory).not.toHaveBeenCalled()
 	})
 
-	it("loads price rules per plan and delegates to engine with basePrice fallback", async () => {
+	it("loads price rules per plan and delegates to engine with strict pricing model", async () => {
 		const ratePlans = [{ id: "rp1" }, { id: "rp2" }]
 		const priceRulesForRp1 = [{ id: "r1" }]
 		const priceRulesForRp2 = [{ id: "r2" }]
@@ -69,8 +74,10 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 					productId: "p1",
 					entityType: "hotel_room",
 					entityId: "hr1",
-					basePrice: null,
+					pricing: { basePrice: 100, currency: "USD" },
+					capacity: { minOccupancy: 1, maxOccupancy: 2 },
 				})),
+				existsById: vi.fn(async () => true),
 			},
 			ratePlanRepo: {
 				getActiveByVariant: vi.fn(async () => ratePlans),
@@ -101,7 +108,7 @@ describe("pricing/use-cases/selectBestRatePlan", () => {
 		expect(selectFromMemory).toHaveBeenCalledWith({
 			ratePlans,
 			priceRules: [priceRulesForRp1, priceRulesForRp2],
-			basePrice: 0,
+			basePrice: 100,
 			checkIn,
 		})
 

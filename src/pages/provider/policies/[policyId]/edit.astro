@@ -31,222 +31,233 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 ---
 
 <DashboardLayout>
-	<main class="space-y-4 p-6">
-		<header class="flex items-center justify-between">
-			<h1 class="text-xl font-semibold">Edit policy (creates new version)</h1>
-			<nav class="space-x-3">
-				<a href="/provider/policies" class="underline">Back</a>
-				<a href="/dashboard" class="underline">Dashboard</a>
-			</nav>
-		</header>
+	<main class="min-h-screen text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-8 px-6">
+			<header class="flex items-center justify-between">
+				<h1 class="text-xl font-semibold">Editar política (crea nueva versión)</h1>
+				<nav class="space-x-3">
+					<a href="/provider/policies" class="underline">Volver</a>
+					<a href="/dashboard" class="underline">Panel</a>
+				</nav>
+			</header>
 
-		<p class="border p-3 text-sm">
-			Editing will <strong>create a new version</strong> in the same group. Existing bookings are safe
-			because they read snapshots.
-		</p>
+			<p class="border p-3 text-sm">
+				Editar <strong>creará una nueva versión</strong> dentro del mismo grupo. Las reservas existentes
+				se mantienen seguras porque leen snapshots.
+			</p>
 
-		<form id="editForm" class="space-y-4" novalidate>
-			<input type="hidden" name="previousPolicyId" value={policyId} />
+			<form id="editForm" class="space-y-4" novalidate>
+				<input type="hidden" name="previousPolicyId" value={policyId} />
 
-			<div class="space-y-1">
-				<label class="block">Category</label>
-				<input class="w-full border p-2" value={category} readonly />
-			</div>
+				<div class="space-y-1">
+					<label class="block">Categoría</label>
+					<input class="w-full border p-2" value={category} readonly />
+				</div>
 
-			<div class="space-y-1">
-				<label class="block">Name</label>
-				<input
-					name="description"
-					minlength="2"
-					class="w-full border p-2"
-					value={policy.description ?? ""}
-				/>
-				<p class="text-sm" id="err-description"></p>
-			</div>
+				<div class="space-y-1">
+					<label class="block">Nombre</label>
+					<input
+						name="description"
+						minlength="2"
+						class="w-full border p-2"
+						value={policy.description ?? ""}
+					/>
+					<p class="text-sm" id="err-description"></p>
+				</div>
 
-			<section
-				class:list={["space-y-2", category === "Cancellation" ? "" : "hidden"]}
-				id="cancellationFields"
-			>
-				<h2 class="font-semibold">Cancellation tiers</h2>
-				<div id="tiers" class="space-y-2">
-					{
-						(policy.cancellationTiers ?? []).length ? (
-							(policy.cancellationTiers ?? []).map((t: any) => (
+				<section
+					class:list={["space-y-2", category === "Cancellation" ? "" : "hidden"]}
+					id="cancellationFields"
+				>
+					<h2 class="font-semibold">Tramos de cancelación</h2>
+					<div id="tiers" class="space-y-2">
+						{
+							(policy.cancellationTiers ?? []).length ? (
+								(policy.cancellationTiers ?? []).map((t: any) => (
+									<div class="tier-row flex items-end gap-2">
+										<div class="flex-1 space-y-1">
+											<label class="block text-sm">Días antes de la llegada</label>
+											<input
+												name="daysBeforeArrival"
+												type="number"
+												min="0"
+												class="w-full border p-2"
+												value={t.daysBeforeArrival}
+											/>
+										</div>
+										<div class="flex-1 space-y-1">
+											<label class="block text-sm">Penalidad (%)</label>
+											<input
+												name="penaltyPercent"
+												type="number"
+												min="0"
+												max="1000"
+												class="w-full border p-2"
+												value={t.penaltyAmount}
+											/>
+										</div>
+										<button type="button" class="border px-3 py-2" data-remove-tier>
+											Quitar
+										</button>
+									</div>
+								))
+							) : (
 								<div class="tier-row flex items-end gap-2">
 									<div class="flex-1 space-y-1">
-										<label class="block text-sm">Days before arrival</label>
+										<label class="block text-sm">Días antes de la llegada</label>
 										<input
 											name="daysBeforeArrival"
 											type="number"
 											min="0"
 											class="w-full border p-2"
-											value={t.daysBeforeArrival}
 										/>
 									</div>
 									<div class="flex-1 space-y-1">
-										<label class="block text-sm">Penalty (%)</label>
+										<label class="block text-sm">Penalidad (%)</label>
 										<input
 											name="penaltyPercent"
 											type="number"
 											min="0"
 											max="1000"
 											class="w-full border p-2"
-											value={t.penaltyAmount}
 										/>
 									</div>
 									<button type="button" class="border px-3 py-2" data-remove-tier>
-										Remove
+										Quitar
 									</button>
 								</div>
-							))
-						) : (
-							<div class="tier-row flex items-end gap-2">
-								<div class="flex-1 space-y-1">
-									<label class="block text-sm">Days before arrival</label>
-									<input name="daysBeforeArrival" type="number" min="0" class="w-full border p-2" />
-								</div>
-								<div class="flex-1 space-y-1">
-									<label class="block text-sm">Penalty (%)</label>
-									<input
-										name="penaltyPercent"
-										type="number"
-										min="0"
-										max="1000"
-										class="w-full border p-2"
-									/>
-								</div>
-								<button type="button" class="border px-3 py-2" data-remove-tier>
-									Remove
-								</button>
-							</div>
-						)
-					}
-				</div>
-				<button type="button" class="border px-3 py-2" id="addTier">Add tier</button>
-				<p class="text-sm" id="err-cancellationTiers"></p>
-			</section>
-
-			<section
-				class:list={["space-y-2", category === "Payment" ? "" : "hidden"]}
-				id="paymentFields"
-			>
-				<h2 class="font-semibold">Payment</h2>
-				<div class="space-y-1">
-					<label class="block text-sm">Payment type</label>
-					<select name="paymentType" id="paymentType" class="w-full border p-2">
-						<option value="">Select…</option>
-						<option
-							value="pay_at_property"
-							selected={String(rules.paymentType ?? "") === "pay_at_property"}
-							>Pay at property</option
-						>
-						<option value="prepayment" selected={String(rules.paymentType ?? "") === "prepayment"}
-							>Prepayment</option
-						>
-					</select>
-					<p class="text-sm" id="err-paymentType"></p>
-				</div>
-				<div class="space-y-1" id="prepaymentFields">
-					<label class="block text-sm">Prepayment percentage</label>
-					<input
-						name="prepaymentPercentage"
-						type="number"
-						min="0"
-						max="100"
-						class="w-full border p-2"
-						value={String(rules.prepaymentPercentage ?? "")}
-					/>
-					<p class="text-sm" id="err-prepaymentPercentage"></p>
-					<label class="block text-sm">Days before arrival (optional)</label>
-					<input
-						name="prepaymentDaysBeforeArrival"
-						type="number"
-						min="0"
-						class="w-full border p-2"
-						value={String(rules.prepaymentDaysBeforeArrival ?? "")}
-					/>
-				</div>
-			</section>
-
-			<section
-				class:list={["space-y-2", category === "CheckIn" ? "" : "hidden"]}
-				id="checkinFields"
-			>
-				<h2 class="font-semibold">Check-in / Check-out</h2>
-				<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-					<div class="space-y-1">
-						<label class="block text-sm">Check-in from</label>
-						<input
-							name="checkInFrom"
-							type="time"
-							class="w-full border p-2"
-							value={String(rules.checkInFrom ?? "")}
-						/>
-						<p class="text-sm" id="err-checkInFrom"></p>
+							)
+						}
 					</div>
+					<button type="button" class="border px-3 py-2" id="addTier">Agregar tramo</button>
+					<p class="text-sm" id="err-cancellationTiers"></p>
+				</section>
+
+				<section
+					class:list={["space-y-2", category === "Payment" ? "" : "hidden"]}
+					id="paymentFields"
+				>
+					<h2 class="font-semibold">Payment</h2>
 					<div class="space-y-1">
-						<label class="block text-sm">Check-in until</label>
-						<input
-							name="checkInUntil"
-							type="time"
-							class="w-full border p-2"
-							value={String(rules.checkInUntil ?? "")}
-						/>
-						<p class="text-sm" id="err-checkInUntil"></p>
+						<label class="block text-sm">Payment type</label>
+						<select name="paymentType" id="paymentType" class="w-full border p-2">
+							<option value="">Select…</option>
+							<option
+								value="pay_at_property"
+								selected={String(rules.paymentType ?? "") === "pay_at_property"}
+								>Pay at property</option
+							>
+							<option value="prepayment" selected={String(rules.paymentType ?? "") === "prepayment"}
+								>Prepayment</option
+							>
+						</select>
+						<p class="text-sm" id="err-paymentType"></p>
 					</div>
+					<div class="space-y-1" id="prepaymentFields">
+						<label class="block text-sm">Prepayment percentage</label>
+						<input
+							name="prepaymentPercentage"
+							type="number"
+							min="0"
+							max="100"
+							class="w-full border p-2"
+							value={String(rules.prepaymentPercentage ?? "")}
+						/>
+						<p class="text-sm" id="err-prepaymentPercentage"></p>
+						<label class="block text-sm">Days before arrival (optional)</label>
+						<input
+							name="prepaymentDaysBeforeArrival"
+							type="number"
+							min="0"
+							class="w-full border p-2"
+							value={String(rules.prepaymentDaysBeforeArrival ?? "")}
+						/>
+					</div>
+				</section>
+
+				<section
+					class:list={["space-y-2", category === "CheckIn" ? "" : "hidden"]}
+					id="checkinFields"
+				>
+					<h2 class="font-semibold">Check-in / Check-out</h2>
+					<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+						<div class="space-y-1">
+							<label class="block text-sm">Check-in from</label>
+							<input
+								name="checkInFrom"
+								type="time"
+								class="w-full border p-2"
+								value={String(rules.checkInFrom ?? "")}
+							/>
+							<p class="text-sm" id="err-checkInFrom"></p>
+						</div>
+						<div class="space-y-1">
+							<label class="block text-sm">Check-in until</label>
+							<input
+								name="checkInUntil"
+								type="time"
+								class="w-full border p-2"
+								value={String(rules.checkInUntil ?? "")}
+							/>
+							<p class="text-sm" id="err-checkInUntil"></p>
+						</div>
+						<div class="space-y-1">
+							<label class="block text-sm">Check-out until</label>
+							<input
+								name="checkOutUntil"
+								type="time"
+								class="w-full border p-2"
+								value={String(rules.checkOutUntil ?? "")}
+							/>
+							<p class="text-sm" id="err-checkOutUntil"></p>
+						</div>
+					</div>
+				</section>
+
+				<section
+					class:list={["space-y-2", category === "NoShow" ? "" : "hidden"]}
+					id="noshowFields"
+				>
+					<h2 class="font-semibold">No-show</h2>
 					<div class="space-y-1">
-						<label class="block text-sm">Check-out until</label>
-						<input
-							name="checkOutUntil"
-							type="time"
-							class="w-full border p-2"
-							value={String(rules.checkOutUntil ?? "")}
-						/>
-						<p class="text-sm" id="err-checkOutUntil"></p>
+						<label class="block text-sm">Penalty type</label>
+						<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
+							<option value="">Select…</option>
+							<option
+								value="first_night"
+								selected={String(rules.penaltyType ?? "") === "first_night"}>First night</option
+							>
+							<option value="full" selected={String(rules.penaltyType ?? "") === "full"}
+								>Full stay</option
+							>
+							<option value="percentage" selected={String(rules.penaltyType ?? "") === "percentage"}
+								>Percentage</option
+							>
+						</select>
+						<p class="text-sm" id="err-noShowPenaltyType"></p>
 					</div>
-				</div>
-			</section>
+					<div class="space-y-1" id="noshowAmountRow">
+						<label class="block text-sm">Penalty amount (%)</label>
+						<input
+							name="noShowPenaltyAmount"
+							type="number"
+							min="0"
+							max="100"
+							class="w-full border p-2"
+							value={String(rules.penaltyAmount ?? "")}
+						/>
+						<p class="text-sm" id="err-noShowPenaltyAmount"></p>
+					</div>
+				</section>
 
-			<section class:list={["space-y-2", category === "NoShow" ? "" : "hidden"]} id="noshowFields">
-				<h2 class="font-semibold">No-show</h2>
-				<div class="space-y-1">
-					<label class="block text-sm">Penalty type</label>
-					<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
-						<option value="">Select…</option>
-						<option value="first_night" selected={String(rules.penaltyType ?? "") === "first_night"}
-							>First night</option
-						>
-						<option value="full" selected={String(rules.penaltyType ?? "") === "full"}
-							>Full stay</option
-						>
-						<option value="percentage" selected={String(rules.penaltyType ?? "") === "percentage"}
-							>Percentage</option
-						>
-					</select>
-					<p class="text-sm" id="err-noShowPenaltyType"></p>
+				<div id="clientErrorBox" class="hidden border p-3">
+					<strong>Error:</strong>
+					<span id="clientErrorText"></span>
 				</div>
-				<div class="space-y-1" id="noshowAmountRow">
-					<label class="block text-sm">Penalty amount (%)</label>
-					<input
-						name="noShowPenaltyAmount"
-						type="number"
-						min="0"
-						max="100"
-						class="w-full border p-2"
-						value={String(rules.penaltyAmount ?? "")}
-					/>
-					<p class="text-sm" id="err-noShowPenaltyAmount"></p>
-				</div>
-			</section>
 
-			<div id="clientErrorBox" class="hidden border p-3">
-				<strong>Error:</strong>
-				<span id="clientErrorText"></span>
-			</div>
-
-			<button type="submit" class="border px-4 py-2">Save new version</button>
-		</form>
+				<button type="submit" class="border px-4 py-2">Save new version</button>
+			</form>
+		</div>
 	</main>
 </DashboardLayout>
 

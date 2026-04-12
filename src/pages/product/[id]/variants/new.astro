@@ -1,0 +1,134 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+---
+
+<Layout title="Product - New Variant">
+	<main class="mx-auto max-w-3xl space-y-6 px-6 py-10 text-neutral-100">
+		<Card class="space-y-2 bg-white text-slate-900">
+			<h1 class="text-2xl font-semibold">Nueva unidad</h1>
+			<p class="text-sm text-slate-600">
+				Producto: <code>{productId}</code>
+			</p>
+		</Card>
+
+		<form id="newVariantForm" class="space-y-6">
+			<Input type="hidden" name="productId" value={productId} />
+			<FormSection title="Datos de la unidad">
+				<FormField label="Nombre" htmlFor="name" required>
+					<Input id="name" name="name" required minlength="1" placeholder="Double room" />
+				</FormField>
+				<FormField label="Descripción (opcional)" htmlFor="description">
+					<Textarea
+						id="description"
+						name="description"
+						rows="4"
+						placeholder="Descripción opcional"
+					/>
+				</FormField>
+			</FormSection>
+			<div class="flex justify-end">
+				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+					Crear unidad
+				</Button>
+			</div>
+		</form>
+
+		<Card class="bg-white text-slate-900">
+			<pre id="out" class="whitespace-pre-wrap text-sm text-slate-700"></pre>
+		</Card>
+
+		<p class="text-sm text-neutral-300">
+			<a href={`/product/${encodeURIComponent(productId)}/variants`}>Back to variants</a>
+		</p>
+	</main>
+
+	<script type="module">
+		const form = document.getElementById("newVariantForm")
+		const btn = document.getElementById("submitBtn")
+		const out = document.getElementById("out")
+
+		function safeJsonParse(txt) {
+			try {
+				return txt ? JSON.parse(txt) : null
+			} catch {
+				return null
+			}
+		}
+
+		function formatFieldErrors(issues) {
+			if (!Array.isArray(issues)) return null
+			const byField = {}
+			for (const i of issues) {
+				const p = Array.isArray(i?.path) && i.path.length ? String(i.path[0]) : ""
+				if (!p) continue
+				if (!byField[p]) byField[p] = []
+				byField[p].push(i?.message || "Invalid")
+			}
+			return byField
+		}
+
+		form?.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			out.textContent = ""
+			btn.disabled = true
+			try {
+				const fd = new FormData(form)
+				fd.set("kind", "hotel_room")
+				const res = await fetch("/api/variant/create", { method: "POST", body: fd })
+				const txt = await res.text()
+				const json = safeJsonParse(txt)
+
+				if (res.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+
+				if (!res.ok) {
+					if (res.status === 400 && json?.error === "validation_error") {
+						const fe = formatFieldErrors(json?.details)
+						out.textContent = fe ? JSON.stringify(fe, null, 2) : txt
+						return
+					}
+					if (res.status === 404) {
+						out.textContent = "Not found"
+						return
+					}
+					out.textContent = res.status >= 500 ? "Try again" : txt
+					return
+				}
+
+				const variantId = String(json?.variantId || "").trim()
+				const productId = String(fd.get("productId") || "").trim()
+				if (!variantId || !productId) {
+					out.textContent = "Unexpected response"
+					return
+				}
+
+				window.location.href = `/product/${encodeURIComponent(
+					productId
+				)}/variants/${encodeURIComponent(variantId)}/capacity`
+			} catch (err) {
+				out.textContent = `network error: ${String(err)}`
+			} finally {
+				btn.disabled = false
+			}
+		})
+	</script>
+</Layout>

@@ -5,8 +5,6 @@ import { defineDb, defineTable, column, NOW } from "astro:db"
 const Provider = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		userEmail: column.text({ optional: true }),
-		companyName: column.text(),
 		// v2 (incremental): keep v1 fields intact while adding OTA-grade provider identity/lifecycle.
 		legalName: column.text({ optional: true }),
 		displayName: column.text({ optional: true }),
@@ -15,10 +13,6 @@ const Provider = defineTable({
 		// Defaults can be enforced at the application layer and tightened in a later migration.
 		status: column.text({ optional: true }), // draft | active | archived (verification handled separately)
 		createdAt: column.date({ optional: true }),
-		contactName: column.text({ optional: true }),
-		contactEmail: column.text({ optional: true }),
-		phone: column.text({ optional: true }),
-		type: column.text({ optional: true }),
 	},
 })
 const Destination = defineTable({
@@ -118,7 +112,6 @@ const User = defineTable({
 		firstName: column.text({ optional: true }),
 		lastName: column.text({ optional: true }),
 		registrationDate: column.date({ default: NOW }),
-		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 	},
 })
 
@@ -160,7 +153,6 @@ const Product = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
-		description: column.text({ optional: true }),
 		productType: column.text(),
 		creationDate: column.date({ default: NOW }),
 		lastUpdated: column.date({ default: NOW }),
@@ -181,20 +173,18 @@ const HouseRule = defineTable({
 	indexes: [{ on: ["productId", "type"] }],
 })
 
-// Product V2 (parallel, non-breaking): additional 1:1 tables owned by the catalog domain.
-// IMPORTANT: Keep these tables loosely coupled during incremental rollout. We intentionally
-// do NOT enforce completeness at the DB level; use-cases (Zod) will do that.
-// NOTE: We also avoid FK references in Phase 1 to keep remote SQLite/Turso migrations safe.
+// Product (canonical): additional 1:1 tables owned by the catalog domain.
 const ProductStatus = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
 		state: column.text({ default: "draft" }), // draft | ready | published
 		validationErrorsJson: column.json({ optional: true }),
 	},
 })
 const ProductContent = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
+		description: column.text({ optional: true }),
 		highlightsJson: column.json({ optional: true }),
 		rules: column.text({ optional: true }),
 		seoJson: column.json({ optional: true }),
@@ -202,7 +192,7 @@ const ProductContent = defineTable({
 })
 const ProductLocation = defineTable({
 	columns: {
-		productId: column.text({ primaryKey: true }),
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
 		address: column.text({ optional: true }),
 		lat: column.number({ optional: true }),
 		lng: column.number({ optional: true }),
@@ -523,6 +513,9 @@ const PriceRule = defineTable({
 		// validDays: column.json({ optional: true }), // [1,2,3,4,5]
 
 		priority: column.number({ default: 10 }), // Para saber qué regla se aplica primero
+		// CAPA 4: optional schedule metadata for deterministic OTA-style evaluation.
+		dateRangeJson: column.json({ optional: true }), // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
+		dayOfWeekJson: column.json({ optional: true }), // number[] 0..6
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -594,12 +587,51 @@ const PricingBaseRate = defineTable({
 const TaxFee = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		productId: column.text({ references: () => Product.columns.id }),
+		// Legacy tax table kept for compatibility during CAPA 7 rollout.
+		// Plain text avoids remote reset failures caused by FK teardown order.
+		productId: column.text(),
 		type: column.text({ default: "percentage" }), // 'percentage'|'fixed'|'perPerson'|'perNight'|'perBooking'
 		value: column.number(), // 13 => 13% si type=percentage, o 50 (moneda) si fixed
 		currency: column.text({ default: "USD" }),
 		isIncluded: column.boolean({ default: false }), // si está incluido en el precio mostrado
 		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+})
+// CAPA 7 (Taxes & Fees): canonical additive tax/fee definitions.
+const TaxFeeDefinition = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		// Plain text for now to keep CAPA 7 schema resets deterministic in remote dev DBs.
+		providerId: column.text({ optional: true }),
+		code: column.text(),
+		name: column.text(),
+		kind: column.text(), // tax | fee
+		calculationType: column.text(), // percentage | fixed
+		value: column.number(),
+		currency: column.text({ optional: true }),
+		inclusionType: column.text(), // included | excluded
+		appliesPer: column.text(), // stay | night | guest | guest_night
+		priority: column.number({ default: 0 }),
+		jurisdictionJson: column.json({ optional: true }),
+		effectiveFrom: column.date({ optional: true }),
+		effectiveTo: column.date({ optional: true }),
+		status: column.text({ default: "active" }), // active | archived
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+})
+// CAPA 7 (Taxes & Fees): assignment-based application (no dedupe).
+const TaxFeeAssignment = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		// CAPA 7: keep as plain text for now to avoid FK-related remote reset failures.
+		// Domain logic enforces integrity until we reintroduce DB-level constraints safely.
+		taxFeeDefinitionId: column.text(),
+		scope: column.text(), // global | provider | product | variant | rate_plan
+		scopeId: column.text({ optional: true }),
+		channel: column.text({ optional: true }),
+		status: column.text({ default: "active" }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -638,6 +670,8 @@ const BookingRoomDetail = defineTable({
 		basePrice: column.number(),
 		taxes: column.number(),
 		totalPrice: column.number(),
+		// CAPA 4/6: immutable pricing snapshot consumed by booking confirmation.
+		pricingBreakdownJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -672,17 +706,20 @@ const BookingPolicySnapshot = defineTable({
 	},
 })
 const BookingTaxFee = defineTable({
-	/* --- Tax/fee cobrado en booking (registro de qué se cobró) --- */
+	// CAPA 7: immutable tax/fee snapshot at booking confirmation.
 	columns: {
 		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		type: column.text(), // percentage | fixed | perNight | perPerson
-		isIncluded: column.boolean(),
-		bookingId: column.text({ references: () => Booking.columns.id }),
-		taxFeeId: column.text({ references: () => TaxFee.columns.id }),
-		amountUSD: column.number({ optional: true }),
-		amountBOB: column.number({ optional: true }),
+		// Keep as plain text for now to avoid FK-related remote reset failures during CAPA 7 rollout.
+		bookingId: column.text(),
+		// Legacy snapshot line kept as deprecated so remote migrations do not attempt a rename/drop.
+		lineJson: column.json({ optional: true, deprecated: true }),
+		// New additive snapshot label kept separate from legacy lineJson.
+		name: column.text({ optional: true }),
+		breakdownJson: column.json(),
+		totalAmount: column.number(),
+		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [{ on: ["bookingId"] }],
 })
 
 // 8. Payments / Finance
@@ -783,6 +820,8 @@ export default defineDb({
 		EffectivePricing,
 		PricingBaseRate,
 		TaxFee,
+		TaxFeeDefinition,
+		TaxFeeAssignment,
 
 		// 7 booking
 		Booking,
