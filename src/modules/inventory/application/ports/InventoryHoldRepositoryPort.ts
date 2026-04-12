@@ -1,8 +1,13 @@
 export type HoldInventoryResult =
-	| { success: true; holdId: string }
+	| { success: true; holdId: string; expiresAt: Date }
 	| { success: false; reason: "not_available" }
 
 export interface InventoryHoldRepositoryPort {
+	findActiveHold(params: {
+		holdId: string
+		now: Date
+	}): Promise<{ holdId: string; expiresAt: Date } | null>
+
 	holdInventory(params: {
 		holdId: string
 		variantId: string
@@ -14,5 +19,5 @@ export interface InventoryHoldRepositoryPort {
 
 	releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }>
 
-	listExpiredHoldIds(params: { now: Date }): Promise<string[]>
+	listExpiredHolds(params: { now: Date }): Promise<Array<{ holdId: string; variantId: string }>>
 }

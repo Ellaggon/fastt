@@ -10,9 +10,17 @@ export interface PricingRepositoryPort {
 	 * - Ordering is deterministic: createdAt ASC (and id ASC as tie-breaker)
 	 * - Callers MUST validate allowed rule types at the use-case layer
 	 */
-	getPreviewRules(
-		ratePlanId: string
-	): Promise<Array<{ id: string; type: string; value: number; createdAt: Date }>>
+	getPreviewRules(ratePlanId: string): Promise<
+		Array<{
+			id: string
+			type: string
+			value: number
+			priority: number
+			dateRangeJson?: { from?: string | null; to?: string | null } | null
+			dayOfWeekJson?: number[] | null
+			createdAt: Date
+		}>
+	>
 	saveEffectivePrice(params: {
 		variantId: string
 		ratePlanId: string
