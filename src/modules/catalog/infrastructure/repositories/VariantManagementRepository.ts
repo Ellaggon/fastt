@@ -9,9 +9,12 @@ import {
 	PricingBaseRate,
 	RatePlan,
 	PriceRule,
+	EffectivePricing,
+	DailyInventory,
 	eq,
 	and,
 	asc,
+	count,
 } from "astro:db"
 import type {
 	VariantLifecycleStatus,
@@ -305,8 +308,8 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async getDefaultRatePlanWithRules(variantId: string) {
-		const plan = await db
-			.select({ id: RatePlan.id })
+		const plans = await db
+			.select({ id: RatePlan.id, createdAt: RatePlan.createdAt })
 			.from(RatePlan)
 			.where(
 				and(
@@ -315,7 +318,22 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 					eq(RatePlan.isActive, true)
 				)
 			)
-			.get()
+			.all()
+		if (plans.length > 1) {
+			console.warn("multiple_default_rateplans_detected", {
+				variantId,
+				count: plans.length,
+				ratePlanIds: plans.map((plan) => String(plan.id)),
+			})
+		}
+		const plan = plans.slice().sort((a, b) => {
+			const at = new Date(a.createdAt as unknown as Date).getTime()
+			const bt = new Date(b.createdAt as unknown as Date).getTime()
+			if (Number.isNaN(at) && Number.isNaN(bt)) return 0
+			if (Number.isNaN(at)) return 1
+			if (Number.isNaN(bt)) return -1
+			return at - bt
+		})[0]
 		if (!plan?.id) return null
 
 		const rules = await db
@@ -323,11 +341,14 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				id: PriceRule.id,
 				type: PriceRule.type,
 				value: PriceRule.value,
+				priority: PriceRule.priority,
+				dateRangeJson: PriceRule.dateRangeJson,
+				dayOfWeekJson: PriceRule.dayOfWeekJson,
 				createdAt: PriceRule.createdAt,
 			})
 			.from(PriceRule)
 			.where(and(eq(PriceRule.ratePlanId, plan.id), eq(PriceRule.isActive, true)))
-			.orderBy(asc(PriceRule.createdAt))
+			.orderBy(asc(PriceRule.priority), asc(PriceRule.createdAt), asc(PriceRule.id))
 			.all()
 
 		return {
@@ -336,8 +357,47 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				id: r.id,
 				type: String(r.type),
 				value: Number(r.value),
+				priority: Number(r.priority ?? 10),
+				dateRange:
+					r.dateRangeJson && typeof r.dateRangeJson === "object"
+						? {
+								from: String((r.dateRangeJson as any).from ?? "").trim() || null,
+								to: String((r.dateRangeJson as any).to ?? "").trim() || null,
+							}
+						: null,
+				dayOfWeek: Array.isArray(r.dayOfWeekJson)
+					? (r.dayOfWeekJson as unknown[])
+							.map((value) => Number(value))
+							.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+					: null,
 				createdAt: r.createdAt,
 			})),
 		}
+	}
+
+	async countEffectivePricingDays(params: {
+		variantId: string
+		ratePlanId: string
+	}): Promise<number> {
+		const row = await db
+			.select({ value: count() })
+			.from(EffectivePricing)
+			.where(
+				and(
+					eq(EffectivePricing.variantId, params.variantId),
+					eq(EffectivePricing.ratePlanId, params.ratePlanId)
+				)
+			)
+			.get()
+		return Number(row?.value ?? 0)
+	}
+
+	async countDailyInventoryDays(variantId: string): Promise<number> {
+		const row = await db
+			.select({ value: count() })
+			.from(DailyInventory)
+			.where(eq(DailyInventory.variantId, variantId))
+			.get()
+		return Number(row?.value ?? 0)
 	}
 }

@@ -1,12 +1,9 @@
-import { db, ImageUpload, eq, and, lt } from "astro:db"
+import { db, ImageUpload, eq, and, lt, Image } from "astro:db"
 
 export type ImageUploadRow = {
 	id: string
-	productId: string
-	providerId?: string | null
+	imageId: string
 	objectKey: string
-	expectedContentType?: string | null
-	expectedBytes?: number | null
 	status: "pending" | "completed"
 	createdAt: Date
 	completedAt?: Date | null
@@ -15,20 +12,39 @@ export type ImageUploadRow = {
 export class ImageUploadRepository {
 	async createPending(params: {
 		id: string
-		productId: string
-		providerId?: string | null
+		imageId?: string
 		objectKey: string
-		expectedContentType?: string | null
-		expectedBytes?: number | null
 		createdAt?: Date
 	}): Promise<void> {
+		const imageId = params.imageId ?? params.id
+		const base = (
+			process.env.R2_PUBLIC_BASE_URL || "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev"
+		).replace(/\/+$/, "")
+		await db
+			.insert(Image)
+			.values({
+				id: imageId,
+				entityType: "pending",
+				entityId: imageId,
+				objectKey: params.objectKey,
+				url: `${base}/${params.objectKey}`,
+				order: 0,
+				isPrimary: false,
+			})
+			.onConflictDoUpdate({
+				target: [Image.id],
+				set: {
+					entityType: "pending",
+					entityId: imageId,
+					objectKey: params.objectKey,
+					url: `${base}/${params.objectKey}`,
+				},
+			})
+
 		await db.insert(ImageUpload).values({
 			id: params.id,
-			productId: params.productId,
-			providerId: params.providerId ?? null,
+			imageId,
 			objectKey: params.objectKey,
-			expectedContentType: params.expectedContentType ?? null,
-			expectedBytes: params.expectedBytes ?? null,
 			status: "pending",
 			createdAt: params.createdAt ?? new Date(),
 			completedAt: null,
@@ -37,13 +53,23 @@ export class ImageUploadRepository {
 
 	async getById(id: string): Promise<ImageUploadRow | null> {
 		const row = await db.select().from(ImageUpload).where(eq(ImageUpload.id, id)).get()
-		return (row as any) ?? null
+		const normalized = (row as any) ?? null
+		if (normalized) {
+			if (!normalized.imageId) {
+				normalized.imageId = String(normalized.id)
+			}
+		}
+		return normalized
 	}
 
-	async markCompleted(id: string): Promise<void> {
+	async markCompleted(id: string, objectKey?: string): Promise<void> {
 		await db
 			.update(ImageUpload)
-			.set({ status: "completed", completedAt: new Date() })
+			.set({
+				status: "completed",
+				completedAt: new Date(),
+				objectKey: objectKey ?? undefined,
+			})
 			.where(eq(ImageUpload.id, id))
 	}
 
@@ -51,13 +77,13 @@ export class ImageUploadRepository {
 		await db.delete(ImageUpload).where(eq(ImageUpload.id, id))
 	}
 
-	async countPendingByProduct(productId: string): Promise<number> {
+	async countPendingByObjectKeyPrefix(prefix: string): Promise<number> {
 		const rows = await db
-			.select({ id: ImageUpload.id })
+			.select({ id: ImageUpload.id, objectKey: ImageUpload.objectKey })
 			.from(ImageUpload)
-			.where(and(eq(ImageUpload.productId, productId), eq(ImageUpload.status, "pending")))
+			.where(eq(ImageUpload.status, "pending"))
 			.all()
-		return rows.length
+		return rows.filter((row: any) => String(row.objectKey ?? "").startsWith(prefix)).length
 	}
 
 	async listPendingOlderThan(cutoff: Date): Promise<ImageUploadRow[]> {
