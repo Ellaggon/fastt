@@ -3,9 +3,12 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { setBaseRate } from "@/modules/pricing/public"
+import { invalidateVariant } from "@/lib/cache/invalidation"
+import { ensureDefaultRatePlan, setBaseRate } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
+	ratePlanCommandRepository,
+	ratePlanRepository,
 	variantRepository,
 	variantManagementRepository,
 	productRepository,
@@ -54,11 +57,29 @@ export const POST: APIRoute = async ({ request }) => {
 			{ baseRateRepo: baseRateRepository, variantRepo: variantRepository },
 			{ variantId, currency, basePrice }
 		)
+		const ensuredDefault = await ensureDefaultRatePlan(
+			{
+				ratePlanRepo: ratePlanRepository,
+				ratePlanCmdRepo: ratePlanCommandRepository,
+			},
+			{ variantId }
+		)
+		await invalidateVariant(variantId, v.productId)
 
-		return new Response(JSON.stringify(result), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
+		return new Response(
+			JSON.stringify({
+				...result,
+				defaultRatePlanId: ensuredDefault.ratePlanId,
+				defaultRatePlanCreated: ensuredDefault.created,
+				nextStep: "inventory",
+				pricingCoverageReady: false,
+				note: "Tarifa base guardada. Falta generar pricing efectivo para vender.",
+			}),
+			{
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}
+		)
 	} catch (e) {
 		if (e instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: e.issues }), {

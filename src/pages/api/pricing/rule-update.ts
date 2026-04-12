@@ -4,23 +4,16 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { createDefaultPriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
+import { ensurePricingCoverageRuntime, updateDefaultPriceRule } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
-	ratePlanRepository,
-	ratePlanCommandRepository,
 	priceRuleCommandRepository,
+	priceRuleQueryRepository,
 	variantManagementRepository,
 	productRepository,
 } from "@/container"
 
 const REMATERIALIZE_HORIZON_DAYS = 60
-
-function parseDateOnly(value: string): Date | null {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-	const parsed = new Date(`${value}T00:00:00.000Z`)
-	return Number.isNaN(parsed.getTime()) ? null : parsed
-}
 
 function toDateOnly(value: Date): string {
 	return value.toISOString().slice(0, 10)
@@ -30,6 +23,12 @@ function addDays(value: Date, days: number): Date {
 	const next = new Date(value)
 	next.setUTCDate(next.getUTCDate() + days)
 	return next
+}
+
+function parseDateOnly(value: string): Date | null {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+	const parsed = new Date(`${value}T00:00:00.000Z`)
+	return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function resolveRematerializationRange(
@@ -42,31 +41,18 @@ function resolveRematerializationRange(
 	const dateTo = dateToRaw ? parseDateOnly(dateToRaw) : null
 
 	if (dateFrom && dateTo) {
-		const toExclusive = addDays(dateTo, 1)
-		return {
-			from: toDateOnly(dateFrom),
-			to: toDateOnly(toExclusive),
-		}
+		return { from: toDateOnly(dateFrom), to: toDateOnly(addDays(dateTo, 1)) }
 	}
-
 	if (dateFrom) {
 		return {
 			from: toDateOnly(dateFrom),
 			to: toDateOnly(addDays(dateFrom, REMATERIALIZE_HORIZON_DAYS)),
 		}
 	}
-
 	if (dateTo) {
-		return {
-			from: toDateOnly(today),
-			to: toDateOnly(addDays(dateTo, 1)),
-		}
+		return { from: toDateOnly(today), to: toDateOnly(addDays(dateTo, 1)) }
 	}
-
-	return {
-		from: toDateOnly(today),
-		to: toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS)),
-	}
+	return { from: toDateOnly(today), to: toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS)) }
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -88,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
-		const variantId = String(form.get("variantId") ?? "").trim()
+		const ruleId = String(form.get("ruleId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -100,8 +86,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const dayOfWeek = dayOfWeekRaw
 			? dayOfWeekRaw
 					.split(",")
-					.map((value) => Number(value.trim()))
-					.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+					.map((item) => Number(item.trim()))
+					.filter((item) => Number.isInteger(item) && item >= 0 && item <= 6)
 			: undefined
 		const contextKeyRaw = String(form.get("contextKey") ?? "").trim()
 		const contextKey =
@@ -112,14 +98,24 @@ export const POST: APIRoute = async ({ request }) => {
 				? contextKeyRaw
 				: undefined
 
-		const v = await variantManagementRepository.getVariantById(variantId)
-		if (!v) {
+		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
+		if (!variantId) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const owned = await productRepository.ensureProductOwnedByProvider(v.productId, providerId)
+		const variant = await variantManagementRepository.getVariantById(variantId)
+		if (!variant) {
+			return new Response(JSON.stringify({ error: "Not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		const owned = await productRepository.ensureProductOwnedByProvider(
+			variant.productId,
+			providerId
+		)
 		if (!owned) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -127,14 +123,13 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const result = await createDefaultPriceRule(
+		const result = await updateDefaultPriceRule(
 			{
 				baseRateRepo: baseRateRepository,
-				ratePlanRepo: ratePlanRepository,
-				ratePlanCmdRepo: ratePlanCommandRepository,
 				priceRuleCmdRepo: priceRuleCommandRepository,
 			},
 			{
+				ruleId,
 				variantId,
 				type: type as any,
 				value,
@@ -145,28 +140,37 @@ export const POST: APIRoute = async ({ request }) => {
 				contextKey,
 			}
 		)
+		if (!result.updated) {
+			return new Response(JSON.stringify({ error: "Not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 
-		const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
-		const rematerializeResult = await ensurePricingCoverageRuntime({
-			variantId,
-			ratePlanId: result.ratePlanId,
-			from: rematerializationRange.from,
-			to: rematerializationRange.to,
-			recomputeExisting: true,
-		})
-		console.debug("pricing_rule_materialized", {
-			variantId,
-			ruleId: result.ruleId,
-			ratePlanId: result.ratePlanId,
-			from: rematerializationRange.from,
-			to: rematerializationRange.to,
-			generatedDatesCount: rematerializeResult.generatedDatesCount,
-		})
+		const defaultPlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantId)
+		if (defaultPlan) {
+			const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
+			const rematerialize = await ensurePricingCoverageRuntime({
+				variantId,
+				ratePlanId: defaultPlan.ratePlanId,
+				from: rematerializationRange.from,
+				to: rematerializationRange.to,
+				recomputeExisting: true,
+			})
+			console.debug("pricing_rule_updated_materialized", {
+				ruleId,
+				variantId,
+				ratePlanId: defaultPlan.ratePlanId,
+				from: rematerializationRange.from,
+				to: rematerializationRange.to,
+				generatedDatesCount: rematerialize.generatedDatesCount,
+			})
+		}
 
-		await invalidateVariant(variantId, v.productId)
+		await invalidateVariant(variantId, variant.productId)
 
-		return new Response(JSON.stringify({ ...result, rematerialization: rematerializeResult }), {
-			status: 201,
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (e) {

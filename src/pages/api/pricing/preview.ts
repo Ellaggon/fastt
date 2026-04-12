@@ -3,7 +3,7 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { computePricePreview } from "@/modules/pricing/public"
+import { computePricePreview, PricingPreviewValidationError } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
 	ratePlanRepository,
@@ -63,6 +63,15 @@ export const POST: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (e) {
+		if (e instanceof PricingPreviewValidationError) {
+			return new Response(
+				JSON.stringify({ error: "validation_error", details: [{ path: ["rules"] }] }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		if (e instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: e.issues }), {
 				status: 400,
