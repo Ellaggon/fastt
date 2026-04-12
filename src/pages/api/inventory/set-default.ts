@@ -3,6 +3,7 @@ import { ZodError, z } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateVariant } from "@/lib/cache/invalidation"
 import {
 	inventoryBootstrapper,
 	variantInventoryConfigRepository,
@@ -68,6 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
 			totalInventory: parsed.totalUnits,
 			days: parsed.horizonDays ?? 365,
 		})
+		await invalidateVariant(parsed.variantId, v.productId)
 
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
