@@ -1,0 +1,587 @@
+---
+import PricingHeader from "@/components/pricing/PricingHeader.astro"
+import PricingSubnav from "@/components/pricing/PricingSubnav.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { loadVariantPricingData } from "@/lib/pricing/loadVariantPricingData"
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+const loaded = await loadVariantPricingData({
+	request: Astro.request,
+	productId,
+	variantId,
+})
+if ("redirectTo" in loaded) return Astro.redirect(loaded.redirectTo)
+const pathname = Astro.url.pathname
+
+const typeLabels: Record<string, string> = {
+	percentage_markup: "Incremento %",
+	percentage_discount: "Descuento %",
+	fixed_adjustment: "Ajuste fijo",
+	fixed_override: "Precio fijo manual",
+	base_adjustment: "Ajuste base",
+}
+
+const priorityLabels: Record<number, string> = {
+	0: "Muy alta",
+	5: "Alta",
+	10: "Media",
+	25: "Baja",
+	50: "Muy baja",
+}
+
+const weekDayLabels: Record<number, string> = {
+	1: "L",
+	2: "M",
+	3: "X",
+	4: "J",
+	5: "V",
+	6: "S",
+	0: "D",
+}
+
+function getRuleContext(rule: (typeof loaded.activeRulesForUi)[number]) {
+	if (rule.contextKey === "manual") return { key: "manual", label: "Ajustes manuales" }
+	if (rule.contextKey === "promotion") return { key: "promotion", label: "Promociones" }
+	if (rule.contextKey === "day") return { key: "day", label: "Reglas por día" }
+	return { key: "season", label: "Temporadas" }
+}
+
+function getReadableDays(days: number[]): string {
+	if (!days.length) return "Todos los días"
+	return days
+		.filter((day) => Object.prototype.hasOwnProperty.call(weekDayLabels, day))
+		.map((day) => weekDayLabels[day])
+		.join(" · ")
+}
+
+const rulesWithUx = loaded.activeRulesForUi.map((rule) => {
+	const context = getRuleContext(rule)
+	const priority = Number(rule.priority ?? 10)
+	return {
+		...rule,
+		contextKey: context.key,
+		contextLabel: context.label,
+		typeLabel: typeLabels[rule.type] ?? rule.type,
+		priorityLabel: priorityLabels[priority] ?? `Personalizada (${priority})`,
+		daysLabel: getReadableDays(rule.dayOfWeek),
+	}
+})
+
+const ruleTypeTotals = rulesWithUx.reduce<Record<string, number>>((acc, rule) => {
+	const key = String(rule.type)
+	acc[key] = (acc[key] ?? 0) + 1
+	return acc
+}, {})
+
+const sortedRuleTypeTotals = Object.entries(ruleTypeTotals).sort((a, b) => b[1] - a[1])
+const contextOrder = ["season", "promotion", "day", "manual"]
+const contextLabels: Record<string, string> = {
+	season: "Temporadas",
+	promotion: "Promociones",
+	day: "Reglas por día",
+	manual: "Ajustes manuales",
+}
+const groupedRules = contextOrder
+	.map((key) => ({
+		key,
+		label: contextLabels[key],
+		rules: rulesWithUx.filter((rule) => rule.contextKey === key),
+	}))
+	.filter((group) => group.rules.length > 0)
+---
+
+<WorkspaceLayout title="Producto · Pricing overview">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Pricing OTA</h1>
+			<p class="text-sm text-slate-400">
+				Panel comercial para gestionar cobertura, reglas y comportamiento de precios.
+			</p>
+		</header>
+		<PricingSubnav productId={productId} variantId={variantId} pathname={pathname} />
+		<PricingHeader
+			variantName={loaded.variant.name}
+			currency={loaded.initialCurrency}
+			basePrice={loaded.initialBasePrice || "No configurada"}
+			defaultRatePlanLabel={loaded.defaultPlanLabel}
+			coverageStart={loaded.effectivePricingStart}
+			coverageEnd={loaded.effectivePricingEnd}
+			coverageDays={loaded.effectivePricingDays}
+		/>
+
+		<Section
+			title="Resumen operativo"
+			description="Estado rápido de pricing para toma de decisiones."
+		>
+			<div class="grid gap-4 md:grid-cols-3">
+				<Card class="space-y-2 bg-slate-100">
+					<p class="text-xs uppercase tracking-wide text-slate-500">Rate plan por defecto</p>
+					<p class="text-base font-semibold text-slate-900">{loaded.defaultPlanLabel}</p>
+					<a
+						href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing/rateplans`}
+						data-astro-prefetch
+						class="text-sm font-medium text-[#1E3A8A] hover:text-[#1e40af]"
+					>
+						Gestionar rate plans
+					</a>
+				</Card>
+				<Card class="space-y-2 bg-slate-100">
+					<p class="text-xs uppercase tracking-wide text-slate-500">Cobertura</p>
+					<p class="text-base font-semibold text-slate-900">
+						{loaded.effectivePricingDays} día(s)
+						{loaded.coverageGaps > 0 ? ` · Faltan ${loaded.coverageGaps}` : " · Completa"}
+					</p>
+					<a
+						href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing/calendar`}
+						data-astro-prefetch
+						class="text-sm font-medium text-[#1E3A8A] hover:text-[#1e40af]"
+					>
+						Ver calendario
+					</a>
+				</Card>
+				<Card class="space-y-2 bg-slate-100">
+					<p class="text-xs uppercase tracking-wide text-slate-500">Reglas activas</p>
+					<p class="text-base font-semibold text-slate-900">
+						{loaded.activeRulesForUi.length} regla(s)
+					</p>
+					<div class="flex flex-wrap gap-2 text-sm">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing/seasons`}
+							data-astro-prefetch
+							class="font-medium text-[#1E3A8A] hover:text-[#1e40af]"
+						>
+							Editar temporadas
+						</a>
+						<span class="text-slate-500">·</span>
+						<a
+							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing/promotions`}
+							data-astro-prefetch
+							class="font-medium text-[#1E3A8A] hover:text-[#1e40af]"
+						>
+							Gestionar promociones
+						</a>
+					</div>
+				</Card>
+			</div>
+		</Section>
+
+		<Section
+			title="Reglas activas aplicadas"
+			description="Visibilidad inmediata de reglas que afectan el precio final materializado."
+		>
+			<Card class="space-y-4 bg-slate-100">
+				{
+					loaded.invalidActiveRuleRanges > 0 ? (
+						<div class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+							Se detectaron {loaded.invalidActiveRuleRanges} regla(s) con rango inválido (`dateFrom`
+							mayor que `dateTo`). Corrígelas para evitar inconsistencia entre reglas y
+							materialización.
+						</div>
+					) : null
+				}
+				{
+					loaded.activeRulesForUi.length > 0 ? (
+						<>
+							<div class="flex flex-wrap gap-2">
+								{sortedRuleTypeTotals.map(([type, total]) => (
+									<span class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+										{typeLabels[type] ?? type}: {total}
+									</span>
+								))}
+							</div>
+							<div class="space-y-4">
+								{groupedRules.map((group) => (
+									<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+										<div class="border-b border-slate-200 bg-slate-50 px-3 py-2">
+											<p class="text-xs font-semibold uppercase tracking-wide text-slate-600">
+												{group.label}
+											</p>
+										</div>
+										<table class="min-w-full text-sm">
+											<thead>
+												<tr class="text-left text-slate-600">
+													<th class="px-3 py-2">Regla</th>
+													<th class="px-3 py-2">Valor</th>
+													<th class="px-3 py-2">Prioridad</th>
+													<th class="px-3 py-2">Rango</th>
+													<th class="px-3 py-2">Días</th>
+													<th class="px-3 py-2">Acciones</th>
+												</tr>
+											</thead>
+											<tbody>
+												{group.rules.map((rule) => (
+													<tr
+														class={`border-t text-slate-700 ${rule.hasInvalidDateRange ? "border-amber-200 bg-amber-50" : "border-slate-200"}`}
+													>
+														<td class="px-3 py-2 text-slate-900">{rule.typeLabel}</td>
+														<td class="px-3 py-2">{rule.value}</td>
+														<td class="px-3 py-2">{rule.priorityLabel}</td>
+														<td class="px-3 py-2">
+															{rule.dateFrom || rule.dateTo
+																? `${rule.dateFrom ?? "—"} → ${rule.dateTo ?? "—"}`
+																: "Sin rango"}
+															{rule.hasInvalidDateRange ? (
+																<span class="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+																	Inválido
+																</span>
+															) : null}
+														</td>
+														<td class="px-3 py-2">{rule.daysLabel}</td>
+														<td class="px-3 py-2">
+															<div class="flex items-center gap-2">
+																<button
+																	type="button"
+																	class="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900"
+																	data-action="edit-rule"
+																	data-rule-id={rule.id}
+																	data-context-key={rule.contextKey}
+																	data-context-label={rule.contextLabel}
+																	data-type={rule.type}
+																	data-value={String(rule.value)}
+																	data-priority={String(rule.priority)}
+																	data-date-from={rule.dateFrom ?? ""}
+																	data-date-to={rule.dateTo ?? ""}
+																	data-day-of-week={rule.dayOfWeek.join(",")}
+																>
+																	Editar
+																</button>
+																<button
+																	type="button"
+																	class="inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:border-red-400 hover:text-red-800"
+																	data-action="delete-rule"
+																	data-rule-id={rule.id}
+																>
+																	Eliminar
+																</button>
+															</div>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								))}
+							</div>
+						</>
+					) : (
+						<p class="text-sm text-slate-700">
+							No hay reglas activas. Puedes crearlas desde Temporadas, Promociones o Ajustes
+							manuales.
+						</p>
+					)
+				}
+				<p id="pricingRuleActionFeedback" class="text-sm text-slate-700"></p>
+			</Card>
+		</Section>
+	</section>
+
+	<div
+		id="pricingRuleEditorOverlay"
+		class="fixed inset-0 z-40 hidden items-center justify-center bg-black/40 p-4"
+	>
+		<div class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+			<div class="mb-4 flex items-center justify-between">
+				<h3 class="text-base font-semibold text-slate-900">Editar regla de pricing</h3>
+				<button
+					id="pricingRuleEditorClose"
+					type="button"
+					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:border-slate-400 hover:text-slate-900"
+				>
+					×
+				</button>
+			</div>
+			<form id="pricingRuleEditorForm" class="space-y-4">
+				<input id="pricingRuleEditId" name="ruleId" type="hidden" />
+				<input id="pricingRuleEditContextKey" name="contextKey" type="hidden" />
+				<div
+					id="pricingRuleEditContext"
+					class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+				>
+				</div>
+				<div class="grid gap-4 md:grid-cols-2">
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Tipo</span>
+						<select
+							id="pricingRuleEditType"
+							name="type"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						>
+							<option value="percentage_markup">Incremento %</option>
+							<option value="percentage_discount">Descuento %</option>
+							<option value="fixed_adjustment">Ajuste fijo</option>
+							<option value="fixed_override">Precio fijo manual</option>
+							<option value="base_adjustment">Ajuste base</option>
+						</select>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Valor</span>
+						<input
+							id="pricingRuleEditValue"
+							name="value"
+							type="number"
+							step="0.01"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Prioridad</span>
+						<select
+							id="pricingRuleEditPriority"
+							name="priority"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						>
+							<option value="0">Muy alta (se impone primero)</option>
+							<option value="5">Alta</option>
+							<option value="10">Media</option>
+							<option value="25">Baja</option>
+							<option value="50">Muy baja (aplica al final)</option>
+						</select>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Días de semana</span>
+						<input id="pricingRuleEditDays" name="dayOfWeek" type="hidden" />
+						<div id="pricingRuleEditDayButtons" class="flex flex-wrap gap-2">
+							{
+								[
+									{ label: "L", value: 1 },
+									{ label: "M", value: 2 },
+									{ label: "X", value: 3 },
+									{ label: "J", value: 4 },
+									{ label: "V", value: 5 },
+									{ label: "S", value: 6 },
+									{ label: "D", value: 0 },
+								].map((item) => (
+									<button
+										type="button"
+										data-day={String(item.value)}
+										class="inline-flex h-9 w-9 items-center justify-center rounded border border-slate-300 bg-white text-sm text-slate-700 transition hover:border-slate-400"
+									>
+										{item.label}
+									</button>
+								))
+							}
+						</div>
+						<p class="text-xs text-slate-500">Si no seleccionas ninguno, aplica todos los días.</p>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Fecha desde</span>
+						<input
+							id="pricingRuleEditDateFrom"
+							name="dateFrom"
+							type="text"
+							placeholder="YYYY-MM-DD"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Fecha hasta</span>
+						<input
+							id="pricingRuleEditDateTo"
+							name="dateTo"
+							type="text"
+							placeholder="YYYY-MM-DD"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+				</div>
+				<p id="pricingRuleEditorFeedback" class="text-sm text-slate-700"></p>
+				<div class="flex items-center justify-end gap-2">
+					<button
+						id="pricingRuleEditorCancel"
+						type="button"
+						class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900"
+					>
+						Cancelar
+					</button>
+					<button
+						id="pricingRuleEditorSubmit"
+						type="submit"
+						class="inline-flex items-center rounded-md border border-[#1E3A8A] bg-[#1E3A8A] px-3 py-2 text-sm font-medium text-white hover:bg-[#1e40af]"
+					>
+						Guardar cambios
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</WorkspaceLayout>
+
+<script type="module">
+	function parseErrorPayload(payload, fallback = "Error de validación") {
+		if (!payload) return fallback
+		if (payload?.error === "validation_error" && Array.isArray(payload?.details)) {
+			const messages = payload.details.map((item) => String(item?.message || "")).filter(Boolean)
+			if (messages.length) return messages.join("\n")
+		}
+		if (typeof payload?.error === "string" && payload.error.trim()) return payload.error
+		return fallback
+	}
+
+	const actionFeedback = document.getElementById("pricingRuleActionFeedback")
+	const overlay = document.getElementById("pricingRuleEditorOverlay")
+	const closeBtn = document.getElementById("pricingRuleEditorClose")
+	const cancelBtn = document.getElementById("pricingRuleEditorCancel")
+	const form = document.getElementById("pricingRuleEditorForm")
+	const formFeedback = document.getElementById("pricingRuleEditorFeedback")
+	const submitBtn = document.getElementById("pricingRuleEditorSubmit")
+	const contextLabel = document.getElementById("pricingRuleEditContext")
+	const fieldRuleId = document.getElementById("pricingRuleEditId")
+	const fieldContextKey = document.getElementById("pricingRuleEditContextKey")
+	const fieldType = document.getElementById("pricingRuleEditType")
+	const fieldValue = document.getElementById("pricingRuleEditValue")
+	const fieldPriority = document.getElementById("pricingRuleEditPriority")
+	const fieldDays = document.getElementById("pricingRuleEditDays")
+	const fieldDateFrom = document.getElementById("pricingRuleEditDateFrom")
+	const fieldDateTo = document.getElementById("pricingRuleEditDateTo")
+	const dayButtonsContainer = document.getElementById("pricingRuleEditDayButtons")
+	let selectedDays = new Set()
+
+	const syncSelectedDays = () => {
+		if (fieldDays instanceof HTMLInputElement) {
+			fieldDays.value = selectedDays.size ? Array.from(selectedDays).sort().join(",") : ""
+		}
+		if (!(dayButtonsContainer instanceof HTMLElement)) return
+		dayButtonsContainer.querySelectorAll("button[data-day]").forEach((button) => {
+			if (!(button instanceof HTMLButtonElement)) return
+			const day = Number(button.dataset.day)
+			if (selectedDays.has(day)) {
+				button.classList.add("bg-blue-600", "text-white", "border-blue-600")
+				button.classList.remove("bg-white", "text-slate-700")
+			} else {
+				button.classList.remove("bg-blue-600", "text-white", "border-blue-600")
+				button.classList.add("bg-white", "text-slate-700")
+			}
+		})
+	}
+
+	dayButtonsContainer?.querySelectorAll("button[data-day]").forEach((button) => {
+		button.addEventListener("click", () => {
+			if (!(button instanceof HTMLButtonElement)) return
+			const day = Number(button.dataset.day)
+			if (!Number.isInteger(day)) return
+			if (selectedDays.has(day)) selectedDays.delete(day)
+			else selectedDays.add(day)
+			syncSelectedDays()
+		})
+	})
+
+	const openEditor = (button) => {
+		if (!(overlay instanceof HTMLElement)) return
+		if (fieldRuleId instanceof HTMLInputElement)
+			fieldRuleId.value = String(button.dataset.ruleId ?? "")
+		if (fieldContextKey instanceof HTMLInputElement)
+			fieldContextKey.value = String(button.dataset.contextKey ?? "season")
+		if (fieldType instanceof HTMLSelectElement)
+			fieldType.value = String(button.dataset.type ?? "fixed_adjustment")
+		if (fieldValue instanceof HTMLInputElement)
+			fieldValue.value = String(button.dataset.value ?? "")
+		if (fieldPriority instanceof HTMLSelectElement) {
+			const priorityValue = String(button.dataset.priority ?? "10")
+			const allowed = new Set(["0", "5", "10", "25", "50"])
+			if (!allowed.has(priorityValue)) {
+				const existingOption = Array.from(fieldPriority.options).find(
+					(option) => option.value === priorityValue
+				)
+				if (!existingOption) {
+					const customOption = document.createElement("option")
+					customOption.value = priorityValue
+					customOption.textContent = `Personalizada (${priorityValue})`
+					fieldPriority.appendChild(customOption)
+				}
+			}
+			fieldPriority.value = priorityValue || "10"
+		}
+		selectedDays = new Set(
+			String(button.dataset.dayOfWeek ?? "")
+				.split(",")
+				.map((value) => Number(value.trim()))
+				.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+		)
+		syncSelectedDays()
+		if (fieldDateFrom instanceof HTMLInputElement)
+			fieldDateFrom.value = String(button.dataset.dateFrom ?? "")
+		if (fieldDateTo instanceof HTMLInputElement)
+			fieldDateTo.value = String(button.dataset.dateTo ?? "")
+		if (contextLabel) {
+			contextLabel.textContent = `Contexto comercial: ${String(button.dataset.contextLabel ?? "Regla de pricing")}`
+		}
+		if (formFeedback) formFeedback.textContent = ""
+		overlay.classList.remove("hidden")
+		overlay.classList.add("flex")
+	}
+
+	const closeEditor = () => {
+		if (!(overlay instanceof HTMLElement)) return
+		overlay.classList.add("hidden")
+		overlay.classList.remove("flex")
+	}
+
+	closeBtn?.addEventListener("click", closeEditor)
+	cancelBtn?.addEventListener("click", closeEditor)
+	overlay?.addEventListener("click", (event) => {
+		if (event.target === overlay) closeEditor()
+	})
+
+	document.querySelectorAll('[data-action="edit-rule"]').forEach((element) => {
+		element.addEventListener("click", () => {
+			if (!(element instanceof HTMLButtonElement)) return
+			openEditor(element)
+		})
+	})
+
+	document.querySelectorAll('[data-action="delete-rule"]').forEach((element) => {
+		element.addEventListener("click", async () => {
+			if (!(element instanceof HTMLButtonElement)) return
+			const ruleId = String(element.dataset.ruleId ?? "").trim()
+			if (!ruleId) return
+			if (!window.confirm("¿Seguro que deseas eliminar esta regla?")) return
+			element.disabled = true
+			if (actionFeedback) actionFeedback.textContent = "Eliminando regla y recalculando pricing..."
+			try {
+				const formData = new FormData()
+				formData.set("ruleId", ruleId)
+				const response = await fetch("/api/pricing/rule-delete", { method: "POST", body: formData })
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (actionFeedback) {
+						actionFeedback.textContent = `No se pudo eliminar: ${parseErrorPayload(payload, `status=${response.status}`)}`
+					}
+					return
+				}
+				if (actionFeedback) actionFeedback.textContent = "Regla eliminada. Actualizando vista..."
+				window.location.reload()
+			} catch (error) {
+				if (actionFeedback) actionFeedback.textContent = `Error de red: ${String(error)}`
+			} finally {
+				element.disabled = false
+			}
+		})
+	})
+
+	form?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!(form instanceof HTMLFormElement)) return
+		if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true
+		if (formFeedback) formFeedback.textContent = "Guardando cambios y recalculando pricing..."
+		try {
+			const formData = new FormData(form)
+			const response = await fetch("/api/pricing/rule-update", { method: "POST", body: formData })
+			const payload = await response.json().catch(() => ({}))
+			if (!response.ok) {
+				if (formFeedback) {
+					formFeedback.textContent = `No se pudo actualizar: ${parseErrorPayload(payload, `status=${response.status}`)}`
+				}
+				return
+			}
+			if (formFeedback) formFeedback.textContent = "Regla actualizada correctamente."
+			window.location.reload()
+		} catch (error) {
+			if (formFeedback) formFeedback.textContent = `Error de red: ${String(error)}`
+		} finally {
+			if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false
+		}
+	})
+</script>

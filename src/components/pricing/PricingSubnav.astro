@@ -1,0 +1,38 @@
+---
+interface Props {
+	productId: string
+	variantId: string
+	pathname: string
+}
+
+const { productId, variantId, pathname } = Astro.props
+const base = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`
+const items = [
+	{ href: base, label: "Resumen" },
+	{ href: `${base}/rateplans`, label: "Rate plans" },
+	{ href: `${base}/calendar`, label: "Calendario" },
+	{ href: `${base}/seasons`, label: "Temporadas" },
+	{ href: `${base}/promotions`, label: "Promociones" },
+	{ href: `${base}/overrides`, label: "Ajustes" },
+]
+const isActive = (href: string) =>
+	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+---
+
+<nav class="flex flex-wrap gap-2">
+	{
+		items.map((item) => (
+			<a
+				href={item.href}
+				data-astro-prefetch
+				class={`inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium ${
+					isActive(item.href)
+						? "border-blue-200 bg-blue-100 text-blue-800"
+						: "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+				}`}
+			>
+				{item.label}
+			</a>
+		))
+	}
+</nav>

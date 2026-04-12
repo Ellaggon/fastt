@@ -1,0 +1,72 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+
+interface Props {
+	coverageDays: number
+	coverageStart: string | null
+	coverageEnd: string | null
+}
+
+const { coverageDays, coverageStart, coverageEnd } = Astro.props
+---
+
+<Section
+	title="Cobertura de precios"
+	description="Asegura que exista pricing diario para futuras fechas de venta."
+>
+	<Card class="space-y-6 bg-slate-100">
+		<div class="grid gap-3 md:grid-cols-2">
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Rango cubierto actualmente</p>
+				<p class="text-sm font-semibold text-slate-900">
+					{
+						coverageStart && coverageEnd
+							? `${coverageStart} → ${coverageEnd}`
+							: "Sin cobertura diaria"
+					}
+				</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Días generados</p>
+				<p class="text-sm font-semibold text-slate-900">
+					{coverageDays > 0 ? `${coverageDays} día(s)` : "0 días"}
+				</p>
+			</div>
+		</div>
+
+		<form id="effectivePricingForm" class="mx-auto max-w-3xl space-y-6">
+			<FormSection title="Extender o regenerar cobertura">
+				<FormField label="Horizonte (días)" htmlFor="effectiveDays" required>
+					<Input
+						id="effectiveDays"
+						name="effectiveDays"
+						type="number"
+						min="1"
+						max="365"
+						value="60"
+						required
+					/>
+				</FormField>
+			</FormSection>
+			<p id="effectivePricingWarning" class="whitespace-pre-wrap text-sm text-amber-700"></p>
+			<p id="effectivePricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+			<div class="flex flex-wrap items-center justify-end gap-3">
+				<Button
+					id="effectivePricingSubmitBtn"
+					type="submit"
+					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+				>
+					Extender cobertura
+				</Button>
+				<Button id="effectivePricingOverwriteBtn" type="button" variant="outline">
+					Regenerar cobertura
+				</Button>
+			</div>
+		</form>
+	</Card>
+</Section>
