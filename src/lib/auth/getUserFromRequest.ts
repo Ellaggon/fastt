@@ -1,4 +1,5 @@
 import { parse as parseCookie } from "cookie"
+import { createHash } from "node:crypto"
 import { db, eq, User } from "astro:db"
 import { fetchSupabaseUser } from "./supabaseClient"
 
@@ -20,6 +21,16 @@ function readCookieToken(req: Request): string | null {
 	return (
 		c["sb-access-token"] || c["sb:token"] || c["access_token"] || c["supabase_access_token"] || null
 	)
+}
+
+function hashToken(value: string): string {
+	return createHash("sha256").update(value).digest("hex")
+}
+
+export function getSessionIdFromRequest(request: Request): string | null {
+	const token = readBearerToken(request) || readCookieToken(request)
+	if (!token) return null
+	return hashToken(token)
 }
 
 /**
