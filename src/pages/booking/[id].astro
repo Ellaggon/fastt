@@ -1,0 +1,143 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const bookingId = String(Astro.params.id ?? "").trim()
+if (!bookingId) return Astro.redirect("/dashboard")
+---
+
+<WorkspaceLayout title="Reserva">
+	<section class="space-y-8">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Reserva confirmada</h1>
+			<p class="text-sm text-slate-400">Revisa el detalle final de tu reserva.</p>
+		</header>
+
+		<Section title="Estado de reserva" description="Información principal de confirmación.">
+			<Card class="min-h-[180px] space-y-6 bg-slate-100">
+				<div class="flex items-center justify-between gap-4">
+					<p id="bookingIdText" class="text-sm text-slate-600">Reserva: {bookingId}</p>
+					<div class="flex items-center gap-3">
+						<p id="bookingSummaryLatency" class="text-xs text-slate-500"></p>
+						<Badge id="bookingStatusBadge" variant="neutral">Cargando...</Badge>
+					</div>
+				</div>
+				<div id="bookingSummary" class="grid gap-4 md:grid-cols-2">
+					<div class="h-20 animate-pulse rounded bg-slate-200"></div>
+					<div class="h-20 animate-pulse rounded bg-slate-200"></div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section title="Impuestos y cargos" description="Detalle agregado aplicado en la confirmación.">
+			<Card class="min-h-[140px] bg-slate-100">
+				<ul id="bookingTaxesList" class="space-y-2 text-sm text-slate-700">
+					<li class="text-slate-500">Cargando detalle...</li>
+				</ul>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline define:vars={{ bookingId }}>
+		;(function () {
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "booking-detail",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+			}
+
+			if (!bookingId) return
+			const hydrationStart = performance.now()
+
+			fetch(`/api/internal/booking-summary?bookingId=${encodeURIComponent(bookingId)}`, {
+				headers: { accept: "application/json" },
+			})
+				.then(async (response) => {
+					if (!response.ok) throw new Error(`booking_summary_${response.status}`)
+					return await response.json()
+				})
+				.then((payload) => {
+					const booking = payload?.booking ?? {}
+					const badge = document.getElementById("bookingStatusBadge")
+					const latencyLabel = document.getElementById("bookingSummaryLatency")
+					const summary = document.getElementById("bookingSummary")
+					const taxesList = document.getElementById("bookingTaxesList")
+
+					if (badge) {
+						const isConfirmed = String(booking?.status ?? "").toLowerCase() === "confirmed"
+						badge.textContent = isConfirmed ? "Confirmada" : String(booking?.status ?? "Pendiente")
+						badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+							isConfirmed
+								? "bg-green-100 text-green-800 border-green-200"
+								: "bg-orange-100 text-orange-800 border-orange-200"
+						}`
+					}
+
+					if (summary) {
+						summary.innerHTML = ""
+						const items = [
+							`Fechas: ${String(booking?.checkIn ?? "—")} a ${String(booking?.checkOut ?? "—")}`,
+							`Huéspedes: ${Number(booking?.adults ?? 0)} adultos, ${Number(booking?.children ?? 0)} niños`,
+							`Moneda: ${String(booking?.currency ?? "USD")}`,
+							`Total: ${String(booking?.currency ?? "USD")} ${Number(booking?.total ?? 0).toFixed(2)}`,
+							`Creada: ${booking?.createdAt ? new Date(String(booking.createdAt)).toLocaleString("es-CL") : "—"}`,
+						]
+						for (const item of items) {
+							const p = document.createElement("p")
+							p.className = "rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
+							p.textContent = item
+							summary.appendChild(p)
+						}
+					}
+
+					if (taxesList) {
+						taxesList.innerHTML = ""
+						const taxes = Array.isArray(payload?.taxes) ? payload.taxes : []
+						if (!taxes.length) {
+							const li = document.createElement("li")
+							li.className = "text-slate-500"
+							li.textContent = "No hay líneas de impuestos adicionales."
+							taxesList.appendChild(li)
+						} else {
+							for (const tax of taxes) {
+								const li = document.createElement("li")
+								li.className = "rounded-lg border border-slate-200 bg-white p-3"
+								li.textContent = `${String(tax?.name ?? "Impuesto")} · ${Number(tax?.totalAmount ?? 0).toFixed(2)}`
+								taxesList.appendChild(li)
+							}
+						}
+					}
+
+					console.debug("data hydrated", {
+						page: "booking-detail",
+						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
+					})
+					if (latencyLabel) {
+						latencyLabel.textContent = `Latencia endpoint: ${Number(
+							(performance.now() - hydrationStart).toFixed(1)
+						)}ms`
+					}
+				})
+				.catch(() => {
+					const taxesList = document.getElementById("bookingTaxesList")
+					if (taxesList) {
+						taxesList.innerHTML =
+							'<li class="text-red-600">No se pudo cargar el detalle de la reserva.</li>'
+					}
+				})
+		})()
+	</script>
+</WorkspaceLayout>
