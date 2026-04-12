@@ -1,5 +1,6 @@
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { ProductImageRepositoryPort } from "../ports/ProductImageRepositoryPort"
+import { ensureObjectKey } from "@/lib/images/objectKey"
 
 export async function updateProductImages(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
@@ -46,9 +47,19 @@ export async function updateProductImages(params: {
 		} else {
 			// insert new row
 			try {
+				const objectKey = ensureObjectKey({
+					url: img.url,
+					context: "update-product-images.insert",
+					imageId: `new-${i}`,
+				})
+				if (!objectKey) {
+					console.error("Failed to insert Image row: missing objectKey", { index: i })
+					continue
+				}
 				await repo.insertImage({
 					productId,
 					url: img.url,
+					objectKey,
 					order: i,
 					isPrimary: !!img.isPrimary,
 				})

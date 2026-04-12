@@ -1,14 +1,9 @@
-import { createRoom } from "@/modules/catalog/public"
-
 import { r2 } from "./shared.container"
-import { inventoryBootstrapper } from "./inventory.container"
 
-import { RoomRepository } from "../modules/catalog/infrastructure/repositories/RoomRepository"
 import { SubtypeRepository } from "../modules/catalog/infrastructure/repositories/SubtypeRepository"
 import { ProviderRepository } from "../modules/catalog/infrastructure/repositories/ProviderRepository"
 import { ProviderV2Repository } from "../modules/catalog/infrastructure/repositories/ProviderV2Repository"
 import { ProductRepository } from "../modules/catalog/infrastructure/repositories/ProductRepository"
-import { HotelRoomRepository } from "../modules/catalog/infrastructure/repositories/HotelRoomRepository"
 import { TaxFeeRepository } from "../modules/catalog/infrastructure/repositories/TaxFeeRepository"
 import { CatalogRestrictionRepository } from "../modules/catalog/infrastructure/repositories/CatalogRestrictionRepository"
 import { CancellationPolicyRepository } from "../modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
@@ -38,12 +33,10 @@ import {
 } from "../modules/catalog/application/queries"
 
 // ---- Infrastructure singletons ----
-export const roomRepository = new RoomRepository()
 export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
 export const providerV2Repository = new ProviderV2Repository()
 export const productRepository = new ProductRepository(r2)
-export const hotelRoomRepository = new HotelRoomRepository(r2)
 export const taxFeeRepository = new TaxFeeRepository()
 export const catalogRestrictionRepository = new CatalogRestrictionRepository()
 export const cancellationPolicyRepository = new CancellationPolicyRepository()
@@ -103,8 +96,3 @@ export const searchDestinations = createSearchDestinationsQuery({
 export const listMarketplaceHotelsByDestination = createListMarketplaceHotelsByDestinationQuery({
 	repo: marketplaceHotelSearchRepository,
 })
-
-// ---- Wired use-cases ----
-export async function createRoomUseCase(params: Parameters<typeof createRoom>[1]) {
-	return createRoom({ roomRepo: roomRepository, inventoryBootstrap: inventoryBootstrapper }, params)
-}

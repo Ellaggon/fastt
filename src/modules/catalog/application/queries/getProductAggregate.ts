@@ -4,15 +4,18 @@ import {
 	db,
 	eq,
 	Image,
+	inArray,
 	Product,
 	ProductContent,
 	ProductLocation,
 	ProductStatus,
 } from "astro:db"
+import { ensureObjectKey } from "@/lib/images/objectKey"
 
 type ProductAggregate = {
 	id: string
 	displayName: string
+	productType: string
 	status: string
 	content: {
 		description: string | null
@@ -27,6 +30,7 @@ type ProductAggregate = {
 	images: Array<{
 		id: string
 		url: string
+		objectKey: string
 		isPrimary: boolean
 		order: number
 	}>
@@ -43,6 +47,7 @@ export async function getProductAggregate(productId: string): Promise<ProductAgg
 		.select({
 			id: Product.id,
 			displayName: Product.name,
+			productType: Product.productType,
 			contentDescription: ProductContent.description,
 			status: ProductStatus.state,
 			contentRules: ProductContent.rules,
@@ -66,11 +71,12 @@ export async function getProductAggregate(productId: string): Promise<ProductAgg
 		.select({
 			id: Image.id,
 			url: Image.url,
+			objectKey: Image.objectKey,
 			isPrimary: Image.isPrimary,
 			order: Image.order,
 		})
 		.from(Image)
-		.where(and(eq(Image.entityId, productId), eq(Image.entityType, "Product")))
+		.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
 		.orderBy(asc(Image.order))
 		.all()
 
@@ -80,6 +86,7 @@ export async function getProductAggregate(productId: string): Promise<ProductAgg
 	return {
 		id: row.id,
 		displayName: row.displayName,
+		productType: row.productType,
 		status: row.status || "draft",
 		content: {
 			description,
@@ -94,6 +101,13 @@ export async function getProductAggregate(productId: string): Promise<ProductAgg
 		images: images.map((image) => ({
 			id: image.id,
 			url: image.url,
+			objectKey:
+				ensureObjectKey({
+					objectKey: image.objectKey ? String(image.objectKey) : null,
+					url: String(image.url),
+					context: "getProductAggregate",
+					imageId: String(image.id),
+				}) ?? "",
 			isPrimary: Boolean(image.isPrimary),
 			order: Number(image.order ?? 0),
 		})),

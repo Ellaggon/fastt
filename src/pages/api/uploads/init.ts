@@ -109,7 +109,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// Enforce bounds (existing images + pending uploads)
 		const existingImages = await productImageRepository.listByProduct(productId)
-		const pendingCount = await imageUploadRepository.countPendingByProduct(productId)
+		const pendingCount = await imageUploadRepository.countPendingByObjectKeyPrefix(
+			`products/${productId}/`
+		)
 		if (existingImages.length + pendingCount >= MAX_IMAGES_PER_PRODUCT) {
 			return new Response(
 				JSON.stringify({
@@ -124,12 +126,14 @@ export const POST: APIRoute = async ({ request }) => {
 
 		await imageUploadRepository.createPending({
 			id: imageId,
-			productId,
-			providerId,
+			imageId,
 			objectKey,
-			expectedContentType: file.type,
-			expectedBytes: typeof (file as any).size === "number" ? (file as any).size : null,
 		})
+
+		const base = (
+			process.env.R2_PUBLIC_BASE_URL || "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev"
+		).replace(/\/+$/, "")
+		const publicUrl = `${base}/${objectKey}`
 
 		const signedUrl = await getSignedUrl(
 			r2,
@@ -140,11 +144,6 @@ export const POST: APIRoute = async ({ request }) => {
 			}),
 			{ expiresIn: 60 }
 		)
-
-		const base = (
-			process.env.R2_PUBLIC_BASE_URL || "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev"
-		).replace(/\/+$/, "")
-		const publicUrl = `${base}/${objectKey}`
 
 		console.log(JSON.stringify({ action: "upload_init", productId, imageId, objectKey, ok: true }))
 		return new Response(JSON.stringify({ imageId, objectKey, signedUrl, publicUrl }), {

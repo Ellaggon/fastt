@@ -1,9 +1,17 @@
 import type { APIRoute } from "astro"
+import { and, db, eq, Image } from "astro:db"
 import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 
-import { r2, productImageRepository, productRepository, imageUploadRepository } from "@/container"
+import {
+	r2,
+	productImageRepository,
+	productRepository,
+	imageUploadRepository,
+	variantManagementRepository,
+} from "@/container"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { ensureObjectKey } from "@/lib/images/objectKey"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -32,30 +40,65 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const productId = String(form.get("productId") ?? "").trim()
+		const entityTypeRaw = String(form.get("entityType") ?? "")
+			.trim()
+			.toLowerCase()
+		const entityIdRaw = String(form.get("entityId") ?? "").trim()
 		const imageId = String(form.get("imageId") ?? "").trim()
-		const objectKey = String(form.get("objectKey") ?? "").trim()
-
-		if (!productId || !imageId || !objectKey) {
+		const objectKeyRaw = String(form.get("objectKey") ?? "").trim()
+		if (!imageId || !objectKeyRaw) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
-					details: [{ message: "productId, imageId and objectKey are required" }],
+					details: [{ message: "imageId and objectKey are required" }],
 				}),
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
 		}
 
-		// Ownership
-		const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+		const normalizedEntityType = entityTypeRaw === "variant" ? "variant" : "product"
+		let normalizedEntityId = entityIdRaw
+		let owningProductId = productId
+
+		if (normalizedEntityType === "variant") {
+			if (!normalizedEntityId) {
+				return new Response(
+					JSON.stringify({
+						error: "validation_error",
+						details: [{ path: ["entityId"], message: "entityId is required for variant images" }],
+					}),
+					{ status: 400, headers: { "Content-Type": "application/json" } }
+				)
+			}
+			const variant = await variantManagementRepository.getVariantById(normalizedEntityId)
+			if (!variant) {
+				return new Response(JSON.stringify({ error: "Not found" }), {
+					status: 404,
+					headers: { "Content-Type": "application/json" },
+				})
+			}
+			owningProductId = String(variant.productId)
+		} else {
+			if (!owningProductId) {
+				return new Response(
+					JSON.stringify({
+						error: "validation_error",
+						details: [{ path: ["productId"], message: "productId is required for product images" }],
+					}),
+					{ status: 400, headers: { "Content-Type": "application/json" } }
+				)
+			}
+			normalizedEntityId = owningProductId
+		}
+
+		const owned = await productRepository.ensureProductOwnedByProvider(owningProductId, providerId)
 		if (!owned) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-
-		// Key must be scoped to this product.
-		if (!objectKey.startsWith(`products/${productId}/`)) {
+		if (!objectKeyRaw.startsWith(`products/${owningProductId}/`)) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
@@ -65,7 +108,6 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		// Validate against pending upload record (prevents tampering).
 		const upload = await imageUploadRepository.getById(imageId)
 		if (!upload) {
 			return new Response(
@@ -76,33 +118,30 @@ export const POST: APIRoute = async ({ request }) => {
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
 		}
-		if (upload.status === "completed") {
-			return new Response(
-				JSON.stringify({ ok: true, imageId, objectKey: upload.objectKey, verified: true }),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}
-			)
-		}
-		if (
-			String(upload.productId) !== String(productId) ||
-			String(upload.objectKey) !== String(objectKey)
-		) {
+		// Linking is imageId-driven. product/provider metadata is not used for linkage.
+		if (String(upload.objectKey) !== objectKeyRaw) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
-					details: [{ message: "Upload record mismatch" }],
+					details: [{ message: "Upload record mismatch by imageId/objectKey" }],
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
+		if (String(upload.imageId ?? "") !== imageId) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [{ message: "Upload record mismatch by imageId" }],
 				}),
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
 		}
 
-		// Verify object exists (HEAD) before writing DB.
 		let head: any
 		try {
 			head = await r2.send(
-				new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: objectKey })
+				new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: objectKeyRaw })
 			)
 		} catch {
 			console.log(
@@ -110,7 +149,7 @@ export const POST: APIRoute = async ({ request }) => {
 					action: "upload_complete",
 					productId,
 					imageId,
-					objectKey,
+					objectKey: objectKeyRaw,
 					ok: false,
 					reason: "missing_object",
 				})
@@ -124,7 +163,6 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		// Integrity: validate content-type and size if available.
 		const ct = typeof head?.ContentType === "string" ? head.ContentType : null
 		if (!ct || !ct.startsWith("image/")) {
 			return new Response(
@@ -135,82 +173,91 @@ export const POST: APIRoute = async ({ request }) => {
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
 		}
-		if (upload.expectedContentType && ct !== upload.expectedContentType) {
-			return new Response(
-				JSON.stringify({
-					error: "validation_error",
-					details: [{ path: ["ContentType"], message: "ContentType mismatch" }],
-				}),
-				{ status: 400, headers: { "Content-Type": "application/json" } }
-			)
-		}
-		const len = typeof head?.ContentLength === "number" ? head.ContentLength : null
-		if (
-			typeof upload.expectedBytes === "number" &&
-			typeof len === "number" &&
-			len !== upload.expectedBytes
-		) {
-			return new Response(
-				JSON.stringify({
-					error: "validation_error",
-					details: [{ path: ["ContentLength"], message: "ContentLength mismatch" }],
-				}),
-				{ status: 400, headers: { "Content-Type": "application/json" } }
-			)
-		}
-
-		// Idempotency: if already inserted, just return OK.
-		const existing = await productImageRepository.listByProduct(productId)
-		const found = existing.find((r: any) => String(r.id) === imageId)
-		if (found) {
-			await imageUploadRepository.markCompleted(imageId)
-			return new Response(JSON.stringify({ ok: true, imageId, objectKey, verified: true }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
 
 		const base = (
 			process.env.R2_PUBLIC_BASE_URL || "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev"
 		).replace(/\/+$/, "")
-		const publicUrl = `${base}/${objectKey}`
+		const publicUrl = `${base}/${objectKeyRaw}`
+		const normalizedObjectKey = ensureObjectKey({
+			objectKey: objectKeyRaw,
+			url: publicUrl,
+			context: "uploads.complete",
+			imageId,
+		})
+		if (!normalizedObjectKey) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [{ path: ["objectKey"], message: "Missing objectKey for image" }],
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
 
-		// Append at end by default; ordering will be finalized by the image-set endpoint.
-		const order = existing.length
-
+		const existingProductImages = await productImageRepository.listByProduct(owningProductId)
+		const order = normalizedEntityType === "product" ? existingProductImages.length : 0
 		try {
-			await productImageRepository.insertImage({
-				id: imageId,
-				productId,
-				objectKey,
-				url: publicUrl,
-				order,
-				isPrimary: false,
-			})
-			await imageUploadRepository.markCompleted(imageId)
+			await db
+				.insert(Image)
+				.values({
+					id: imageId,
+					entityType: normalizedEntityType,
+					entityId: normalizedEntityId,
+					objectKey: normalizedObjectKey,
+					url: publicUrl,
+					order,
+					isPrimary: false,
+				})
+				.onConflictDoUpdate({
+					target: [Image.id],
+					set: {
+						entityType: normalizedEntityType,
+						entityId: normalizedEntityId,
+						objectKey: normalizedObjectKey,
+						url: publicUrl,
+						order,
+						isPrimary: false,
+					},
+				})
+			await imageUploadRepository.markCompleted(imageId, normalizedObjectKey)
 		} catch (err) {
-			// Compensation: if DB insert fails after successful upload, delete the object to avoid orphans.
+			// Compensation: if DB write fails after upload, clean the storage object.
 			try {
 				await r2.send(
-					new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: objectKey })
+					new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: objectKeyRaw })
 				)
-			} catch {
-				// swallow; caller sees DB error below
-			}
-			try {
-				await imageUploadRepository.deleteById(imageId)
 			} catch {}
 			throw err
 		}
 
+		const image = await db
+			.select()
+			.from(Image)
+			.where(and(eq(Image.id, imageId), eq(Image.entityType, normalizedEntityType)))
+			.get()
+		if (!image) {
+			return new Response(JSON.stringify({ error: "internal_error" }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+
 		console.log(
-			JSON.stringify({ action: "upload_complete", productId, imageId, objectKey, ok: true })
+			JSON.stringify({
+				action: "upload_complete",
+				productId: owningProductId,
+				entityType: normalizedEntityType,
+				entityId: normalizedEntityId,
+				imageId,
+				objectKey: normalizedObjectKey,
+				ok: true,
+			})
 		)
 		return new Response(
 			JSON.stringify({
 				ok: true,
 				imageId,
-				objectKey,
+				objectKey: normalizedObjectKey,
 				verified: true,
 				etag: (head as any)?.ETag ?? null,
 			}),
