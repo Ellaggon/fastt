@@ -373,24 +373,31 @@ const variants = (offers ?? []).map((room: any) => ({
 	if (childrenInput) childrenInput.oninput = updateGuestsLabel
 	updateGuestsLabel()
 
-	async function fetchAvailability() {
-		const variantId = getSelectedVariantId()
-		const occupancy = updateGuestsLabel()
+	async function fetchCanonicalOffers() {
 		const dateRange = getDateRange()
-		if (!variantId || !dateRange.from || !dateRange.to) return
+		const adults = Math.max(1, Number(adultsInput?.value ?? 1) || 1)
+		const children = Math.max(0, Number(childrenInput?.value ?? 0) || 0)
+		if (!dateRange.from || !dateRange.to) return { offers: [] }
 
-		const params = new URLSearchParams({
-			variantId,
-			from: dateRange.from,
-			to: dateRange.to,
-			occupancy: String(Math.max(1, occupancy)),
-			currency: "USD",
+		const response = await fetch(`/api/products/${encodeURIComponent(String(productId))}/offers`, {
+			method: "POST",
+			headers: {
+				"accept": "application/json",
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				checkIn: dateRange.from,
+				checkOut: dateRange.to,
+				adults,
+				children,
+				rooms: 1,
+			}),
 		})
-		const res = await fetch(`/api/internal/availability-summary?${params.toString()}`, {
-			headers: { accept: "application/json" },
-		})
-		if (!res.ok) throw new Error(`availability_${res.status}`)
-		return await res.json()
+		if (!response.ok) throw new Error(`offers_${response.status}`)
+		const payload = await response.json().catch(() => ({}))
+		return {
+			offers: Array.isArray(payload?.offers) ? payload.offers : [],
+		}
 	}
 
 	document.getElementById("searchBtn")?.addEventListener("click", async () => {
@@ -403,11 +410,17 @@ const variants = (offers ?? []).map((room: any) => ({
 
 		try {
 			if (summaryText) summaryText.textContent = "Consultando disponibilidad..."
-			const availability = await fetchAvailability()
-			const total = availability?.summary?.totalPrice
-			const sellable = Boolean(availability?.summary?.sellable)
+			const offersPayload = await fetchCanonicalOffers()
+			const selectedVariantId = getSelectedVariantId()
+			const selectedOffer =
+				offersPayload.offers.find(
+					(offer) => String(offer?.variantId ?? offer?.variant?.id ?? "") === selectedVariantId
+				) ?? offersPayload.offers[0]
+			const availabilitySummary = selectedOffer?.availabilitySummary ?? null
+			const total = availabilitySummary?.totalPrice
+			const sellable = Boolean(availabilitySummary?.sellable)
 			if (summaryText) {
-				summaryText.textContent = `Estado del rango: ${sellable ? "VENDIBLE" : "NO VENDIBLE"} · Noches: ${Number(availability?.summary?.nights ?? 0)} · Total: ${total == null ? "—" : `USD ${Number(total).toFixed(2)}`}`
+				summaryText.textContent = `Estado del rango: ${sellable ? "VENDIBLE" : "NO VENDIBLE"} · Noches: ${Number(availabilitySummary?.nights ?? 0)} · Total: ${total == null ? "—" : `USD ${Number(total).toFixed(2)}`}`
 			}
 		} catch {
 			if (summaryText)
