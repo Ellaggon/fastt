@@ -1,3 +1,7 @@
+---
+import DatesModal from "@/components/ui/DatesModal.astro"
+---
+
 <div class="sticky top-0 mx-auto w-full max-w-4xl">
 	<form
 		id="searchForm"
@@ -32,18 +36,16 @@
 		<div class="col-span-1 md:col-span-1">
 			<label class="text-md mb-1 block text-left font-medium text-gray-800">Fechas</label>
 			<div class="flex gap-2 text-gray-400">
-				<input
+				<DatesModal
 					id="checkin"
 					name="checkin"
-					type="date"
-					class="w-1/2 rounded border border-gray-500 px-3 py-2"
+					className="w-1/2 rounded border border-gray-500 px-3 py-2"
 					required
 				/>
-				<input
+				<DatesModal
 					id="checkout"
 					name="checkout"
-					type="date"
-					class="w-1/2 rounded border border-gray-500 px-3 py-2"
+					className="w-1/2 rounded border border-gray-500 px-3 py-2"
 					required
 				/>
 			</div>

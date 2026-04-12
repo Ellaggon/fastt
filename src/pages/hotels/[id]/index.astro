@@ -9,17 +9,17 @@ import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astr
 import { searchOffers } from "@/container"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
+import { ensureObjectKey } from "@/lib/images/objectKey"
 import {
 	resolveHotelAmenities,
 	resolveHotelType,
 	resolveProductImages,
 	resolveProductServices,
-	resolveRoomImages,
 } from "@/modules/catalog/public"
 import { listHouseRulesByProduct } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import type { ImageRow } from "@/types/products"
-import { db, Destination, eq, Hotel, Product } from "astro:db"
+import { and, asc, db, Destination, eq, Hotel, Image, inArray, Product } from "astro:db"
 
 const url = Astro.url
 const productId = Astro.params.id
@@ -69,14 +69,85 @@ const offers = await searchOffers({
 	children,
 })
 
+const variantIds = Array.from(
+	new Set(offers.map((offer: any) => String(offer?.variantId ?? "")).filter(Boolean))
+)
+const variantImageRows =
+	variantIds.length > 0
+		? await db
+				.select({
+					id: Image.id,
+					entityId: Image.entityId,
+					url: Image.url,
+					objectKey: Image.objectKey,
+					isPrimary: Image.isPrimary,
+					order: Image.order,
+				})
+				.from(Image)
+				.where(
+					and(
+						inArray(Image.entityType, ["variant", "Variant"]),
+						inArray(Image.entityId, variantIds)
+					)
+				)
+				.orderBy(asc(Image.order))
+				.all()
+		: []
+const variantImagesByVariantId = new Map<
+	string,
+	Array<{ id: string; url: string; objectKey: string; isPrimary: boolean; order: number }>
+>()
+for (const image of variantImageRows) {
+	const variantId = String(image.entityId ?? "")
+	if (!variantId) continue
+	const bucket = variantImagesByVariantId.get(variantId) ?? []
+	bucket.push({
+		id: String(image.id),
+		url: String(image.url),
+		objectKey:
+			ensureObjectKey({
+				objectKey: image.objectKey ? String(image.objectKey) : null,
+				url: String(image.url),
+				context: "hotels.variant",
+				imageId: String(image.id),
+			}) ?? "",
+		isPrimary: Boolean(image.isPrimary),
+		order: Number(image.order ?? 0),
+	})
+	variantImagesByVariantId.set(variantId, bucket)
+}
+const offersWithImages = offers.map((offer: any) => ({
+	...offer,
+	variantImages: variantImagesByVariantId.get(String(offer?.variantId ?? "")) ?? [],
+}))
+for (const offer of offersWithImages) {
+	const variantId = String(offer?.variantId ?? "")
+	const imageCount = Array.isArray(offer?.variantImages) ? offer.variantImages.length : 0
+	console.debug("variant_images_loaded", { variantId, imageCount })
+	if (imageCount === 0) {
+		console.warn("variant_has_no_images", { productId, variantId })
+	}
+}
+console.debug("variant_images_payload", {
+	productId,
+	offers: offersWithImages.map((offer: any) => ({
+		variantId: String(offer?.variantId ?? ""),
+		variantImagesCount: Array.isArray(offer?.variantImages) ? offer.variantImages.length : 0,
+	})),
+})
+
 const searchState = {
 	checkIn: toISODateOnly(checkIn),
 	checkOut: toISODateOnly(checkOut),
 	adults,
 	children,
+	selectedVariantId: String(url.searchParams.get("variantId") ?? "").trim(),
 }
 
 const images = await resolveProductImages(productId)
+if (!images.length) {
+	console.warn("product_has_no_images", { productId })
+}
 const services = await resolveProductServices(productId)
 
 const houseRules = await listHouseRulesByProduct(String(productId))
@@ -129,7 +200,6 @@ const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) 
 
 const hotelRoom = await resolveHotelType(offers.map((o) => o.variant.entityId))
 const amenities = await resolveHotelAmenities(offers.map((o) => o.variant.entityId))
-const roomImages = await resolveRoomImages(offers.map((o) => o.variant.entityId))
 
 try {
 	const productResult = await db
@@ -293,9 +363,11 @@ try {
 						<RoomSection
 							searchState={searchState}
 							productId={productId}
-							offers={offers}
+							offers={offersWithImages}
+							productFallbackImage={
+								images[0]?.url || "https://placehold.co/800x600?text=Sin+imagen"
+							}
 							amenities={amenities}
-							roomImages={roomImages}
 							hotelRoom={hotelRoom}
 						/>
 					</section>
@@ -381,9 +453,10 @@ try {
 	<RoomModal
 		searchState={searchState}
 		productId={productId}
-		offers={offers}
+		offers={offersWithImages}
+		productFallbackImage={images[0]?.url || "https://placehold.co/1200x800?text=Sin+imagen"}
+		productFallbackGallery={images.map((image: any) => String(image?.url ?? "")).filter(Boolean)}
 		amenities={amenities}
-		roomImages={roomImages}
 		hotelRoom={hotelRoom}
 	/>
 

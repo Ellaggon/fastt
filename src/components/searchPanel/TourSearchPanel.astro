@@ -1,4 +1,6 @@
 ---
+import DatesModal from "@/components/ui/DatesModal.astro"
+
 const activitiesList = [
 	"Trekking",
 	"City Tour",
@@ -62,7 +64,7 @@ const sortOptions = [
 		<!-- START DATE -->
 		<div class="col-span-1 md:col-span-1">
 			<label class="mb-1 block text-sm font-medium text-gray-700">Fecha de inicio</label>
-			<input id="startDate" name="startDate" type="date" class="w-full rounded border px-3 py-2" />
+			<DatesModal id="startDate" name="startDate" className="w-full rounded border px-3 py-2" />
 		</div>
 
 		<!-- DURATION -->
