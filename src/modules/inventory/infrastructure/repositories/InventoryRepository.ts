@@ -1,4 +1,4 @@
-import { db, EffectiveInventory } from "astro:db"
+import { db, EffectiveAvailability } from "astro:db"
 import type { InventoryRepositoryPort } from "../../application/ports/InventoryRepositoryPort"
 
 export class InventoryRepository implements InventoryRepositoryPort {
@@ -9,7 +9,7 @@ export class InventoryRepository implements InventoryRepositoryPort {
 		computedAt: Date
 	}): Promise<void> {
 		await db
-			.insert(EffectiveInventory)
+			.insert(EffectiveAvailability)
 			.values({
 				variantId: row.variantId,
 				date: row.date,
@@ -17,7 +17,7 @@ export class InventoryRepository implements InventoryRepositoryPort {
 				computedAt: row.computedAt,
 			})
 			.onConflictDoUpdate({
-				target: [EffectiveInventory.variantId, EffectiveInventory.date],
+				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
 				set: {
 					availableInventory: row.availableInventory,
 					computedAt: row.computedAt,

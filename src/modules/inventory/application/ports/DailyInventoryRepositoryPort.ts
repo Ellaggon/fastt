@@ -10,7 +10,6 @@ export interface DailyInventoryUpsertRow {
 	date: string
 	totalInventory: number
 	reservedCount: number
-	priceOverride?: number | null
 }
 
 export interface DailyInventoryRepositoryPort {
