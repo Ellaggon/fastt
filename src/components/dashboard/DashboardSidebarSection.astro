@@ -1,0 +1,21 @@
+---
+interface Props {
+	title: string
+	subtitle?: string
+	withDivider?: boolean
+}
+
+const { title, subtitle = "", withDivider = false } = Astro.props
+---
+
+<section
+	class={`space-y-3 rounded-xl border border-slate-800/80 bg-slate-900/40 p-2 ${withDivider ? "mt-1" : ""}`}
+>
+	<div class="space-y-1 px-3 pt-1">
+		<p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</p>
+		{subtitle ? <p class="text-xs font-medium text-slate-300">{subtitle}</p> : null}
+	</div>
+	<div class="space-y-1 pb-1">
+		<slot />
+	</div>
+</section>
