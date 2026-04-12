@@ -421,7 +421,6 @@ const DailyInventory = defineTable({
 		date: column.text(), // YYYY-MM-DD
 		totalInventory: column.number(), // Ej: 10 habitaciones físicas
 		reservedCount: column.number({ default: 0 }),
-		priceOverride: column.number({ optional: true }), // opcional si quieres override por día
 		// CAPA 5 (Inventory Calendar): operational stop-sell flag. Search treats stopSell=true as unavailable.
 		stopSell: column.boolean({ default: false }),
 		createdAt: column.date({ default: NOW }),
@@ -429,7 +428,7 @@ const DailyInventory = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
-const EffectiveInventory = defineTable({
+const EffectiveAvailability = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		variantId: column.text({ references: () => Variant.columns.id }),
@@ -774,7 +773,7 @@ export default defineDb({
 		// DailyAvailability,
 		VariantInventoryConfig,
 		DailyInventory,
-		EffectiveInventory,
+		EffectiveAvailability,
 
 		// 6 pricing
 		RatePlanTemplate,

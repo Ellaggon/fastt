@@ -49,7 +49,7 @@ export let VariantHotelRoom: any
 export let VariantReadiness: any
 export let VariantInventoryConfig: any
 export let DailyInventory: any
-export let EffectiveInventory: any
+export let EffectiveAvailability: any
 export let RatePlanTemplate: any
 export let RatePlan: any
 export let PriceRule: any
@@ -136,7 +136,7 @@ async function init() {
 	VariantReadiness = drizzleTables.VariantReadiness
 	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory
-	EffectiveInventory = drizzleTables.EffectiveInventory
+	EffectiveAvailability = drizzleTables.EffectiveAvailability
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
 	PriceRule = drizzleTables.PriceRule

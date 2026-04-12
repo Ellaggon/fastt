@@ -1,6 +1,6 @@
 // Source: legacy implementation from src/core/inventory/RecomputeInventoryService.ts
 
-import { db, eq, and, DailyInventory, EffectiveInventory } from "astro:db"
+import { db, eq, and, DailyInventory, EffectiveAvailability } from "astro:db"
 import { recomputeInventory } from "../../application/use-cases/recompute-inventory"
 
 export class RecomputeInventoryService {
@@ -19,7 +19,7 @@ export class RecomputeInventoryService {
 		})
 
 		await tx
-			.insert(EffectiveInventory)
+			.insert(EffectiveAvailability)
 			.values({
 				variantId,
 				date,
@@ -27,7 +27,7 @@ export class RecomputeInventoryService {
 				computedAt: new Date(),
 			})
 			.onConflictDoUpdate({
-				target: [EffectiveInventory.variantId, EffectiveInventory.date],
+				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
 				set: {
 					availableInventory: available,
 					computedAt: new Date(),
