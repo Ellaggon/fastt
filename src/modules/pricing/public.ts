@@ -3,38 +3,29 @@
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
 // Domain
-export * from "./domain/PricingEngine"
-export * from "./domain/pricing.engine"
 export * from "./domain/pricing.types"
 export * from "./domain/pricing.utils"
 export * from "./domain/computeBasePriceWithRules"
 export * from "./domain/strictMinimalRules"
+export * from "./domain/evaluatePricingRules"
 export * from "./domain/adapters/adapter.priceRule"
 export * from "./domain/promotions/PromotionEngine"
 export * from "./domain/promotions/promotion.rules"
 export * from "./domain/promotions/promotion.types"
-export * from "./domain/rate-plans/RatePlanEngine"
-export * from "./domain/rate-plans/ratePlan.price"
 export * from "./domain/rate-plans/ratePlan.priority"
 export * from "./domain/rate-plans/ratePlan.types"
 
 // Application use-cases
 export * from "./application/use-cases/build-create-rateplan-spec"
-export * from "./application/use-cases/compute-and-persist-daily-price"
 export * from "./application/use-cases/create-rateplan"
-export * from "./application/use-cases/update-rateplan-legacy"
-export * from "./application/use-cases/delete-rateplan-legacy"
-export * from "./application/use-cases/select-best-rateplan"
 export * from "./application/use-cases/set-base-rate"
 export * from "./application/use-cases/compute-price-preview"
 export * from "./application/use-cases/ensure-default-rateplan"
 export * from "./application/use-cases/create-default-price-rule"
+export * from "./application/use-cases/update-default-price-rule"
 export * from "./application/use-cases/list-default-price-rules"
 export * from "./application/use-cases/delete-price-rule"
-
-// Application services
-export * from "./application/services/RatePlanService"
-export * from "./application/services/PricingComputationService"
+export * from "./application/use-cases/preview-pricing-rules"
 
 // Application ports
 export * from "./application/ports/PricingRepositoryPort"
@@ -58,4 +49,22 @@ export async function getRatePlanById(ratePlanId: string) {
 export async function listRatePlansByVariant(variantId: string) {
 	const { listRatePlansByVariant } = await import("@/container")
 	return listRatePlansByVariant(variantId)
+}
+
+export async function ensurePricingCoverageRuntime(params: {
+	variantId: string
+	ratePlanId: string
+	from: string
+	to: string
+	recomputeExisting?: boolean
+}) {
+	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
+	const { pricingRepository, variantManagementRepository } = await import("@/container")
+	return ensurePricingCoverage(
+		{
+			pricingRepo: pricingRepository,
+			variantRepo: variantManagementRepository,
+		},
+		params
+	)
 }

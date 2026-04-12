@@ -1,10 +1,6 @@
 import { z } from "zod"
 
-import {
-	computeBasePriceWithRules,
-	type MinimalPriceRule,
-} from "../../domain/computeBasePriceWithRules"
-import { parseStrictMinimalRules } from "../../domain/strictMinimalRules"
+import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type { Currency } from "../../domain/pricing.types"
 import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
@@ -13,6 +9,22 @@ import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 const computePricePreviewSchema = z.object({
 	variantId: z.string().trim().min(1),
 })
+
+const allowedRuleTypes = new Set([
+	"percentage",
+	"fixed",
+	"override",
+	"percentage_markup",
+	"percentage_discount",
+	"fixed_adjustment",
+])
+
+export class PricingPreviewValidationError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "PricingPreviewValidationError"
+	}
+}
 
 export async function computePricePreview(
 	deps: {
@@ -38,12 +50,38 @@ export async function computePricePreview(
 	}
 
 	const dbRules = await deps.pricingRepo.getPreviewRules(defaultPlan.id)
-	const minimalRules: MinimalPriceRule[] = parseStrictMinimalRules({
+	for (const rule of dbRules) {
+		const rawType = String(rule.type ?? "").trim()
+		if (!allowedRuleTypes.has(rawType)) {
+			throw new PricingPreviewValidationError(`Unsupported rule type: ${rawType}`)
+		}
+	}
+	const previewDate = new Date().toISOString().slice(0, 10)
+	const finalPrice = evaluatePricingRules({
 		basePrice,
-		rules: dbRules.map((r) => ({ id: r.id, type: r.type, value: Number(r.value) })),
-	})
-
-	const finalPrice = computeBasePriceWithRules(basePrice, minimalRules)
+		date: previewDate,
+		ratePlanId: defaultPlan.id,
+		rules: dbRules.map((rule) => {
+			const rawType = String(rule.type ?? "").trim()
+			const rawValue = Number(rule.value ?? 0)
+			let type = rawType
+			let value = rawValue
+			if (rawType === "percentage") {
+				type = rawValue < 0 ? "percentage_discount" : "percentage_markup"
+				value = Math.abs(rawValue)
+			} else if (rawType === "fixed") {
+				type = "override"
+			}
+			return {
+				id: String(rule.id),
+				type,
+				value,
+				priority: 10,
+				createdAt: rule.createdAt,
+				isActive: true,
+			}
+		}),
+	}).price
 
 	return {
 		basePrice,

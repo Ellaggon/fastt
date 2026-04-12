@@ -1,11 +1,4 @@
-import {
-	adaptPriceRule,
-	PricingComputationService,
-	PricingEngine,
-	PromotionEngine,
-	RatePlanEngine,
-	RatePlanService,
-} from "@/modules/pricing/public"
+import { adaptPriceRule, PromotionEngine } from "@/modules/pricing/public"
 
 import {
 	createGetVariantByIdQuery,
@@ -41,22 +34,7 @@ export async function backfillPricingBaseRates() {
 }
 
 // ---- Engine singletons ----
-export const ratePlanEngine = new RatePlanEngine()
-export const pricingEngine = new PricingEngine()
 export const promotionEngine = new PromotionEngine()
-
-// ---- Service singletons ----
-export const ratePlanService = new RatePlanService({
-	variantRepo: variantRepository,
-	ratePlanRepo: ratePlanRepository,
-	priceRuleRepo: priceRuleRepository,
-	ratePlanEngine,
-})
-
-export const pricingComputationService = new PricingComputationService(
-	pricingRepository,
-	pricingEngine
-)
 
 // ---- Wired read queries ----
 export const getVariantById = createGetVariantByIdQuery({ repo: variantRepository })

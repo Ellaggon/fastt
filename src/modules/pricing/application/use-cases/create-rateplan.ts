@@ -47,6 +47,7 @@ export async function createRatePlan(
 			id: ratePlanId,
 			variantId: body.variantId,
 			templateId,
+			isDefault: Boolean(body.isDefault),
 			isActive: Boolean(body.isActive),
 			createdAt: now,
 		},

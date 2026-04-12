@@ -1,13 +1,10 @@
-import { randomUUID } from "node:crypto"
 import { z } from "zod"
 
 import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
-import type { RatePlanCommandRepositoryPort } from "../ports/RatePlanCommandRepositoryPort"
-import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRepositoryPort"
-import { ensureDefaultRatePlan } from "./ensure-default-rateplan"
 
-const createRuleSchema = z.object({
+const updateRuleSchema = z.object({
+	ruleId: z.string().trim().min(1),
 	variantId: z.string().trim().min(1),
 	type: z.enum([
 		"base_adjustment",
@@ -38,21 +35,13 @@ function isValidDateOnly(value: string): boolean {
 	)
 }
 
-/**
- * CAPA 4D minimal: create a rule on the variant's DEFAULT rate plan.
- *
- * Validations are aligned with the hardened engine:
- * - percentage: [-100, 1000]
- * - fixed: >= -basePrice (basePrice comes from PricingBaseRate; missing base rate => basePrice=0)
- */
-export async function createDefaultPriceRule(
+export async function updateDefaultPriceRule(
 	deps: {
 		baseRateRepo: BaseRateRepositoryPort
-		ratePlanRepo: RatePlanRepositoryPort
-		ratePlanCmdRepo: RatePlanCommandRepositoryPort
 		priceRuleCmdRepo: PriceRuleCommandRepositoryPort
 	},
 	params: {
+		ruleId: string
 		variantId: string
 		type:
 			| "base_adjustment"
@@ -70,8 +59,8 @@ export async function createDefaultPriceRule(
 		dayOfWeek?: number[]
 		contextKey?: "season" | "promotion" | "day" | "manual"
 	}
-): Promise<{ ruleId: string; ratePlanId: string }> {
-	const parsed = createRuleSchema.parse(params)
+): Promise<{ updated: boolean }> {
+	const parsed = updateRuleSchema.parse(params)
 	const canonicalType =
 		parsed.type === "percentage"
 			? "percentage_markup"
@@ -101,7 +90,6 @@ export async function createDefaultPriceRule(
 			},
 		])
 	}
-
 	if (isFixedLike && canonicalType === "fixed_override" && parsed.value < 0) {
 		throw new z.ZodError([
 			{
@@ -155,26 +143,14 @@ export async function createDefaultPriceRule(
 		}
 	}
 
-	const { ratePlanId } = await ensureDefaultRatePlan(
-		{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
-		{ variantId: parsed.variantId }
-	)
-
-	const createdAt = new Date()
-	const ruleId = randomUUID()
-
-	await deps.priceRuleCmdRepo.create({
-		id: ruleId,
-		ratePlanId,
-		name: parsed.contextKey ? `ctx:${parsed.contextKey}` : null,
+	const updated = await deps.priceRuleCmdRepo.updateById(parsed.ruleId, {
+		name: parsed.contextKey ? `ctx:${parsed.contextKey}` : undefined,
 		type: canonicalType,
 		value: parsed.value,
 		priority: Number(parsed.priority ?? 10),
 		dateRangeJson: parsed.dateRange ?? null,
 		dayOfWeekJson: parsed.dayOfWeek ?? null,
-		isActive: true,
-		createdAt,
 	})
 
-	return { ruleId, ratePlanId }
+	return { updated: updated === "ok" }
 }

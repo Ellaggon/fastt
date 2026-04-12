@@ -8,6 +8,16 @@ import { randomUUID } from "node:crypto"
 export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort {
 	async createRatePlan(cmd: CreateRatePlanCommand): Promise<void> {
 		await db.transaction(async (tx) => {
+			// INVARIANT:
+			// A variant can have only one default rate plan.
+			// If the incoming plan is default, clear previous defaults first.
+			if (cmd.ratePlan.isDefault) {
+				await tx
+					.update(RatePlan)
+					.set({ isDefault: false })
+					.where(eq(RatePlan.variantId, cmd.ratePlan.variantId))
+			}
+
 			/* ---------------- TEMPLATE ---------------- */
 			await tx.insert(RatePlanTemplate).values({
 				id: cmd.template.id,
