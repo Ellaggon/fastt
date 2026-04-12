@@ -1,0 +1,401 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DatesModal from "@/components/ui/DatesModal.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+
+type RuleItem = {
+	id: string
+	type: string
+	value: number
+	priority: number
+	dateFrom: string | null
+	dateTo: string | null
+	dayOfWeek: number[]
+}
+
+interface Props {
+	variantId: string
+	rules: RuleItem[]
+	mode?: "all" | "seasons" | "promotions" | "overrides" | "day"
+}
+
+const { variantId, rules, mode = "all" } = Astro.props
+
+const sections = [
+	{
+		title: "Temporadas",
+		description: "Reglas por rango de fechas para alta/baja demanda.",
+		typeOptions: [
+			{ value: "percentage_markup", label: "Incremento de temporada alta" },
+			{ value: "percentage_discount", label: "Descuento temporada baja" },
+			{ value: "fixed_adjustment", label: "Ajuste fijo" },
+		],
+		mode: "season",
+	},
+	{
+		title: "Promociones",
+		description: "Promociones comerciales sobre tarifa base o tarifa final.",
+		typeOptions: [
+			{ value: "percentage_discount", label: "Descuento porcentual" },
+			{ value: "fixed_adjustment", label: "Descuento/ajuste fijo" },
+		],
+		mode: "promotion",
+	},
+	{
+		title: "Reglas por día",
+		description: "Ajustes por día de semana (0=Domingo, 6=Sábado).",
+		typeOptions: [
+			{ value: "percentage_markup", label: "Incremento porcentual" },
+			{ value: "percentage_discount", label: "Descuento porcentual" },
+			{ value: "fixed_adjustment", label: "Ajuste fijo" },
+		],
+		mode: "day",
+	},
+	{
+		title: "Ajustes manuales",
+		description: "Sobrescribe precio final para fechas específicas.",
+		typeOptions: [{ value: "fixed_override", label: "Precio fijo manual" }],
+		mode: "manual",
+	},
+]
+const visibleSections =
+	mode === "all"
+		? sections
+		: mode === "seasons"
+			? sections.filter((section) => section.mode === "season")
+			: mode === "promotions"
+				? sections.filter((section) => section.mode === "promotion")
+				: mode === "overrides"
+					? sections.filter((section) => section.mode === "manual")
+					: sections.filter((section) => section.mode === "day")
+---
+
+<Section
+	id="pricing-rules-section"
+	title="Reglas de pricing"
+	description="Gestiona temporadas, promociones, reglas por día y ajustes manuales."
+>
+	<Card class="space-y-6 bg-slate-100">
+		<div class="rounded-lg border border-slate-200 bg-white p-4">
+			<p class="text-sm text-slate-700">
+				Los precios se calculan en orden de prioridad (menor número = mayor prioridad) y luego se
+				materializan en pricing efectivo.
+			</p>
+		</div>
+
+		{
+			visibleSections.map((section, index) => (
+				<div class="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+					<div class="space-y-1">
+						<h4 class="text-sm font-semibold text-slate-900">{section.title}</h4>
+						<p class="text-xs text-slate-600">{section.description}</p>
+					</div>
+					<form class="pricing-rule-form space-y-4" data-form-kind={section.mode}>
+						<Input type="hidden" name="variantId" value={variantId} />
+						<Input type="hidden" name="contextKey" value={section.mode} />
+						<FormSection title="Nueva regla" class="text-neutral-800">
+							<FormField label="Tipo de regla" htmlFor={`ruleType-${index}`} required>
+								<Select
+									id={`ruleType-${index}`}
+									name="type"
+									value={section.typeOptions[0]?.value ?? "fixed_adjustment"}
+									required
+								>
+									{section.typeOptions.map((option) => (
+										<option value={option.value}>{option.label}</option>
+									))}
+								</Select>
+							</FormField>
+							<FormField label="Valor" htmlFor={`ruleValue-${index}`} required>
+								<div class="relative">
+									<Input
+										id={`ruleValue-${index}`}
+										name="value"
+										type="number"
+										step="0.01"
+										required
+									/>
+									<span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-xs text-slate-500">
+										% / monto
+									</span>
+								</div>
+							</FormField>
+							<FormField label="Prioridad" htmlFor={`rulePriority-${index}`} required>
+								<Select id={`rulePriority-${index}`} name="priority" value="10" required>
+									<option value="0">Muy alta</option>
+									<option value="5">Alta</option>
+									<option value="10">Media</option>
+									<option value="25">Baja</option>
+									<option value="50">Muy baja</option>
+								</Select>
+							</FormField>
+							<FormField label="Fecha desde" htmlFor={`ruleDateFrom-${index}`}>
+								<DatesModal id={`ruleDateFrom-${index}`} name="dateFrom" />
+							</FormField>
+							<FormField label="Fecha hasta" htmlFor={`ruleDateTo-${index}`}>
+								<DatesModal id={`ruleDateTo-${index}`} name="dateTo" />
+							</FormField>
+							<FormField label="Días de semana" htmlFor={`ruleDaysHidden-${index}`}>
+								<input id={`ruleDaysHidden-${index}`} name="dayOfWeek" type="hidden" />
+								<div class="flex flex-wrap gap-2" data-day-toggle>
+									{[
+										{ label: "L", value: 1 },
+										{ label: "M", value: 2 },
+										{ label: "X", value: 3 },
+										{ label: "J", value: 4 },
+										{ label: "V", value: 5 },
+										{ label: "S", value: 6 },
+										{ label: "D", value: 0 },
+									].map((item) => (
+										<button
+											type="button"
+											data-day={item.value}
+											class="day-btn inline-flex h-9 w-9 items-center justify-center rounded border text-sm transition"
+										>
+											{item.label}
+										</button>
+									))}
+								</div>
+							</FormField>
+						</FormSection>
+						<div class="flex justify-end gap-3">
+							<Button type="button" variant="outline" data-action="preview-rule">
+								Previsualizar impacto
+							</Button>
+							<Button type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+								Crear regla
+							</Button>
+						</div>
+						<p class="pricing-rule-feedback whitespace-pre-wrap text-sm text-slate-600" />
+						<div
+							data-preview-panel
+							class="hidden space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+						>
+							<div class="flex items-center justify-between gap-3">
+								<h4 class="text-sm font-semibold text-slate-900">Impacto estimado de la regla</h4>
+								<span data-preview-meta class="text-xs text-slate-500" />
+							</div>
+							<div class="overflow-x-auto">
+								<table class="min-w-full text-sm">
+									<thead>
+										<tr class="text-left text-slate-600">
+											<th class="px-2 py-1">Fecha</th>
+											<th class="px-2 py-1">Antes</th>
+											<th class="px-2 py-1">Después</th>
+											<th class="px-2 py-1">Delta</th>
+										</tr>
+									</thead>
+									<tbody data-preview-rows />
+								</table>
+							</div>
+						</div>
+					</form>
+				</div>
+			))
+		}
+
+		<div class="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+			<div class="flex items-center justify-between gap-3">
+				<h4 class="text-sm font-semibold text-slate-900">Reglas activas</h4>
+				<span class="text-xs text-slate-500">{rules.length} regla(s)</span>
+			</div>
+			{
+				rules.length > 0 ? (
+					<div class="overflow-x-auto">
+						<table class="min-w-full text-sm">
+							<thead>
+								<tr class="text-left text-slate-600">
+									<th class="px-2 py-1">Tipo</th>
+									<th class="px-2 py-1">Valor</th>
+									<th class="px-2 py-1">Prioridad</th>
+									<th class="px-2 py-1">Rango</th>
+									<th class="px-2 py-1">Días</th>
+								</tr>
+							</thead>
+							<tbody>
+								{rules.map((rule) => (
+									<tr class="border-t border-slate-200">
+										<td class="px-2 py-1 text-slate-900">{rule.type}</td>
+										<td class="px-2 py-1 text-slate-700">{rule.value}</td>
+										<td class="px-2 py-1 text-slate-700">{rule.priority}</td>
+										<td class="px-2 py-1 text-slate-700">
+											{rule.dateFrom || rule.dateTo
+												? `${rule.dateFrom ?? "—"} → ${rule.dateTo ?? "—"}`
+												: "Sin rango"}
+										</td>
+										<td class="px-2 py-1 text-slate-700">
+											{rule.dayOfWeek.length > 0 ? rule.dayOfWeek.join(",") : "Todos"}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				) : (
+					<p class="text-sm text-slate-600">No hay reglas configuradas.</p>
+				)
+			}
+		</div>
+	</Card>
+</Section>
+<script type="module">
+	function parseErrorPayload(payload, fallback = "Error de validación") {
+		if (!payload) return fallback
+		if (payload?.error === "validation_error" && Array.isArray(payload?.details)) {
+			const messages = payload.details.map((item) => String(item?.message || "")).filter(Boolean)
+			if (messages.length) return messages.join("\n")
+		}
+		if (typeof payload?.error === "string" && payload.error.trim()) return payload.error
+		return fallback
+	}
+
+	document.querySelectorAll("[data-day-toggle]").forEach((container) => {
+		const hiddenInput = container.parentElement?.querySelector("input[name='dayOfWeek']")
+		const buttons = container.querySelectorAll("[data-day]")
+		if (!hiddenInput) return
+
+		// hiddenInput.value = selected.size > 0 ? Array.from(selected).join(",") : ""
+
+		let selected = new Set()
+
+		buttons.forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const value = Number(btn.dataset.day)
+
+				if (selected.has(value)) {
+					selected.delete(value)
+					btn.classList.remove("bg-blue-600", "text-white", "border-blue-600")
+					btn.classList.add("bg-white", "text-slate-700")
+				} else {
+					selected.add(value)
+					btn.classList.add("bg-blue-600", "text-white", "border-blue-600")
+					btn.classList.remove("bg-white", "text-slate-700")
+				}
+
+				hiddenInput.value = Array.from(selected).join(",")
+			})
+		})
+	})
+
+	document.querySelectorAll(".pricing-rule-form").forEach((formElement) => {
+		const form = formElement
+		if (!(form instanceof HTMLFormElement)) return
+		const previewBtn = form.querySelector('[data-action="preview-rule"]')
+		const submitBtn = form.querySelector('button[type="submit"]')
+		const feedback = form.querySelector(".pricing-rule-feedback")
+		const previewPanel = form.querySelector("[data-preview-panel]")
+		const previewRows = form.querySelector("[data-preview-rows]")
+		const previewMeta = form.querySelector("[data-preview-meta]")
+		const variantIdInput = form.querySelector('input[name="variantId"]')
+		const formKind = String(form.dataset.formKind || "rule")
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true
+			if (feedback) {
+				feedback.textContent =
+					formKind === "manual" ? "Guardando ajuste manual..." : "Guardando regla..."
+			}
+			try {
+				const formData = new FormData(form)
+				if (!formData.get("variantId") && variantIdInput instanceof HTMLInputElement) {
+					formData.set("variantId", String(variantIdInput.value || "").trim())
+				}
+				const response = await fetch("/api/pricing/rule", { method: "POST", body: formData })
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (feedback) {
+						feedback.textContent =
+							formKind === "manual"
+								? `No se pudo crear el ajuste manual: ${parseErrorPayload(payload, `status=${response.status}`)}`
+								: `No se pudo crear la regla: ${parseErrorPayload(payload, `status=${response.status}`)}`
+					}
+					if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false
+					return
+				}
+				if (feedback) {
+					feedback.textContent =
+						formKind === "manual"
+							? "Ajuste manual creado correctamente."
+							: "Regla creada correctamente."
+				}
+				window.location.reload()
+			} catch (error) {
+				if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+				if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false
+			}
+		})
+
+		previewBtn?.addEventListener("click", async (event) => {
+			event.preventDefault()
+			if (feedback) feedback.textContent = "Calculando impacto..."
+			if (previewBtn instanceof HTMLButtonElement) previewBtn.disabled = true
+			try {
+				const formData = new FormData(form)
+				if (!formData.get("previewDays")) formData.set("previewDays", "30")
+				if (!formData.get("previewFrom")) {
+					const from = String(formData.get("dateFrom") || "").trim()
+					if (from) formData.set("previewFrom", from)
+				}
+				if (!formData.get("variantId") && variantIdInput instanceof HTMLInputElement) {
+					formData.set("variantId", String(variantIdInput.value || "").trim())
+				}
+
+				const response = await fetch("/api/pricing/preview-rules", {
+					method: "POST",
+					body: formData,
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (feedback)
+						feedback.textContent = `No se pudo previsualizar: ${parseErrorPayload(payload, `status=${response.status}`)}`
+					return
+				}
+				const days = Array.isArray(payload?.days) ? payload.days : []
+				if (previewRows) {
+					previewRows.innerHTML = ""
+					for (const day of days.slice(0, 30)) {
+						const row = document.createElement("tr")
+						row.className = "border-t border-slate-200"
+
+						const tdDate = document.createElement("td")
+						tdDate.className = "px-2 py-1 text-slate-900"
+						tdDate.textContent = String(day?.date ?? "—")
+
+						const tdBefore = document.createElement("td")
+						tdBefore.className = "px-2 py-1 text-slate-700"
+						tdBefore.textContent = Number(day?.before ?? 0).toFixed(2)
+
+						const tdAfter = document.createElement("td")
+						tdAfter.className = "px-2 py-1 text-slate-700"
+						tdAfter.textContent = Number(day?.after ?? 0).toFixed(2)
+
+						const tdDelta = document.createElement("td")
+						tdDelta.className = `px-2 py-1 ${Number(day?.delta ?? 0) < 0 ? "text-green-700" : "text-slate-700"}`
+						tdDelta.textContent = Number(day?.delta ?? 0).toFixed(2)
+
+						row.appendChild(tdDate)
+						row.appendChild(tdBefore)
+						row.appendChild(tdAfter)
+						row.appendChild(tdDelta)
+						previewRows.appendChild(row)
+					}
+				}
+				if (previewMeta) {
+					previewMeta.textContent = `${String(payload?.currency ?? "")} · ${days.length} día(s) simulados`
+				}
+				previewPanel?.classList.remove("hidden")
+				if (feedback) feedback.textContent = "Previsualización lista."
+			} catch (error) {
+				if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+			} finally {
+				if (previewBtn instanceof HTMLButtonElement) previewBtn.disabled = false
+			}
+		})
+	})
+</script>

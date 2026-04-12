@@ -1,0 +1,59 @@
+---
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+
+interface Props {
+	variantName: string
+	currency: string
+	basePrice: string
+	defaultRatePlanLabel: string
+	coverageStart: string | null
+	coverageEnd: string | null
+	coverageDays: number
+}
+
+const {
+	variantName,
+	currency,
+	basePrice,
+	defaultRatePlanLabel,
+	coverageStart,
+	coverageEnd,
+	coverageDays,
+} = Astro.props
+---
+
+<Section title="Resumen de pricing" description="Vista rápida del estado comercial de la variante.">
+	<Card class="bg-slate-100">
+		<div class="grid gap-3 md:grid-cols-3">
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Variante</p>
+				<p class="text-sm font-semibold text-slate-900">{variantName}</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Moneda / tarifa base</p>
+				<p class="text-sm font-semibold text-slate-900">{currency} {basePrice}</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Rate plan por defecto</p>
+				<p class="text-sm font-semibold text-slate-900">{defaultRatePlanLabel}</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Cobertura actual</p>
+				<p class="text-sm font-semibold text-slate-900">
+					{
+						coverageStart && coverageEnd
+							? `${coverageStart} → ${coverageEnd}`
+							: "Sin cobertura diaria"
+					}
+				</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-4">
+				<p class="text-xs text-slate-500">Días materializados</p>
+				<p class="text-sm font-semibold text-slate-900">
+					{coverageDays > 0 ? `${coverageDays} día(s)` : "0 días"}
+				</p>
+			</div>
+		</div>
+	</Card>
+</Section>

@@ -14,6 +14,7 @@ const isVercel = process.env.VERCEL === "1"
 // https://astro.build/config
 export default defineConfig({
 	integrations: [tailwind(), db(), react()],
+	site: "https://fastt-five.vercel.app",
 	db: {
 		connection: {
 			client: "@libsql/client",

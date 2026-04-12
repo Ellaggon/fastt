@@ -105,11 +105,8 @@ describe("integration/r2 upload hardening", () => {
 		const imageId = crypto.randomUUID()
 		await imageUploadRepository.createPending({
 			id: imageId,
-			productId,
-			providerId,
+			imageId,
 			objectKey: `products/${productId}/${imageId}.png`,
-			expectedContentType: "image/png",
-			expectedBytes: 1,
 			createdAt: new Date(Date.now() - 120 * 60_000), // 2h ago
 		})
 

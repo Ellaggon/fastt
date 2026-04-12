@@ -10,7 +10,17 @@ export async function listDefaultPriceRules(
 		pricingRepo: PricingRepositoryPort
 	},
 	params: { variantId: string }
-): Promise<Array<{ id: string; type: string; value: number; createdAt: Date }>> {
+): Promise<
+	Array<{
+		id: string
+		type: string
+		value: number
+		priority: number
+		dateRangeJson?: { from?: string | null; to?: string | null } | null
+		dayOfWeekJson?: number[] | null
+		createdAt: Date
+	}>
+> {
 	const { ratePlanId } = await ensureDefaultRatePlan(
 		{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
 		{ variantId: params.variantId }

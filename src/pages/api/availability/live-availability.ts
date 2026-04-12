@@ -1,20 +1,32 @@
+// @deprecated — Use /api/products/[productId]/offers instead
 import type { APIRoute } from "astro"
-import { searchOffers } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
-	const body = await request.json()
-
-	const raw = await searchOffers({
-		productId: body.productId,
-		checkIn: new Date(body.checkIn),
-		checkOut: new Date(body.checkOut),
-		adults: body.adults,
-		children: body.children,
-		rooms: body.rooms,
+	console.warn("DEPRECATED: live-availability endpoint called", {
+		path: request.url,
 	})
 
-	return new Response(JSON.stringify({ offers: raw }), {
-		status: 200,
+	const body = await request.json().catch(() => ({}))
+	const productId = String(body?.productId ?? "").trim()
+	if (!productId) {
+		return new Response(
+			JSON.stringify({ error: "validation_error", details: "productId is required" }),
+			{
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			}
+		)
+	}
+
+	const proxyUrl = new URL(`/api/products/${encodeURIComponent(productId)}/offers`, request.url)
+	const proxyResponse = await fetch(proxyUrl, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	})
+
+	return new Response(proxyResponse.body, {
+		status: proxyResponse.status,
 		headers: { "Content-Type": "application/json" },
 	})
 }

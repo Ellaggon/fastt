@@ -82,10 +82,19 @@ export interface VariantManagementRepositoryPort {
 	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
 
 	// CAPA 4B: default rate plan + minimal rule snapshot for readiness signals.
-	getDefaultRatePlanWithRules(
-		variantId: string
-	): Promise<{
+	getDefaultRatePlanWithRules(variantId: string): Promise<{
 		ratePlanId: string
-		rules: Array<{ id: string; type: string; value: number; createdAt: Date }>
+		rules: Array<{
+			id: string
+			type: string
+			value: number
+			priority: number
+			dateRange?: { from?: string | null; to?: string | null } | null
+			dayOfWeek?: number[] | null
+			createdAt: Date
+		}>
 	} | null>
+
+	countEffectivePricingDays(params: { variantId: string; ratePlanId: string }): Promise<number>
+	countDailyInventoryDays(variantId: string): Promise<number>
 }

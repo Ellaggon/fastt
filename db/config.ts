@@ -61,12 +61,10 @@ const Service = defineTable({
 const Image = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		entityType: column.text({ optional: true }), // e.g. "Product", "Hotel", "City"
+		entityType: column.text({ optional: true }), // product | variant | pending (legacy values can still exist)
 		entityId: column.text({ optional: true }), // ID de la entidad
-		// Storage key for managed objects (R2). Optional for backward compatibility with legacy rows.
-		objectKey: column.text({ optional: true }),
+		objectKey: column.text(),
 		url: column.text(),
-		altText: column.text({ optional: true }),
 		order: column.number({ default: 0 }),
 		isPrimary: column.boolean({ default: false }),
 	},
@@ -76,17 +74,14 @@ const Image = defineTable({
 // NOTE: This is not an outbox/worker system; just enough metadata for cleanup + integrity checks.
 const ImageUpload = defineTable({
 	columns: {
-		id: column.text({ primaryKey: true }), // imageId
-		productId: column.text(),
-		providerId: column.text({ optional: true }),
+		id: column.text({ primaryKey: true }), // upload record id
+		imageId: column.text({ references: () => Image.columns.id }), // FK to Image.id
 		objectKey: column.text(),
-		expectedContentType: column.text({ optional: true }),
-		expectedBytes: column.number({ optional: true }),
 		status: column.text({ default: "pending" }), // pending | completed
 		createdAt: column.date({ default: NOW }),
 		completedAt: column.date({ optional: true }),
 	},
-	indexes: [{ on: ["productId", "status"] }],
+	indexes: [{ on: ["objectKey", "status"] }],
 })
 const Translation = defineTable({
 	columns: {
@@ -264,35 +259,6 @@ const Variant = defineTable({
 	indexes: [{ on: ["entityId", "entityType"] }],
 })
 
-// Legacy table present in remote DB from an earlier iteration.
-// Keep it declared (deprecated) to allow safe incremental remote migrations without force-reset.
-// NOTE: This table must not be used by runtime code; current Variant lives in `Variant`.
-const VariantV2 = defineTable({
-	deprecated: true,
-	columns: {
-		id: column.text({ primaryKey: true }),
-		productId: column.text(),
-		kind: column.text(),
-		name: column.text(),
-		description: column.text({ optional: true }),
-		isActive: column.boolean({ default: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-})
-
-// Legacy table present in remote DB from an earlier iteration.
-// Kept as deprecated to avoid drop+add in the same remote push batch.
-const VariantCapacityV2 = defineTable({
-	deprecated: true,
-	columns: {
-		variantId: column.text({ primaryKey: true }),
-		minOccupancy: column.number({ optional: true }),
-		maxOccupancy: column.number({ optional: true }),
-		maxAdults: column.number({ optional: true }),
-		maxChildren: column.number({ optional: true }),
-	},
-})
-
 // CAPA 3 (Variant): strong capacity model (new source of truth for capacity).
 const VariantCapacity = defineTable({
 	columns: {
@@ -324,7 +290,7 @@ const VariantReadiness = defineTable({
 	},
 })
 
-// 3. Configuración estructural de producto
+// 3. Configuración estructural de producto delete hotelroomtype
 
 const HotelRoomType = defineTable({
 	columns: {
@@ -514,6 +480,7 @@ const PriceRule = defineTable({
 
 		priority: column.number({ default: 10 }), // Para saber qué regla se aplica primero
 		// CAPA 4: optional schedule metadata for deterministic OTA-style evaluation.
+		// Backward compatible with existing rules that do not define schedule.
 		dateRangeJson: column.json({ optional: true }), // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
 		dayOfWeekJson: column.json({ optional: true }), // number[] 0..6
 		isActive: column.boolean({ default: true }),
@@ -785,8 +752,6 @@ export default defineDb({
 		Tour,
 		Package,
 		Variant,
-		VariantV2,
-		VariantCapacityV2,
 		VariantCapacity,
 		VariantHotelRoom,
 		VariantReadiness,

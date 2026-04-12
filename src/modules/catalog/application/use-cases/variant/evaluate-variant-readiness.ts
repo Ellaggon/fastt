@@ -47,8 +47,6 @@ export async function evaluateVariantReadiness(
 	const v = await deps.repo.getVariantById(parsed.variantId)
 	if (!v) throw new Error("Variant not found")
 
-	// "Ready" in CAPA 3 means: catalog complete (capacity + subtype).
-	// We also emit forward-looking flags (pricing/inventory) without blocking readiness yet.
 	const blockingErrors: ValidationError[] = []
 	const allErrors: ValidationError[] = []
 
@@ -59,30 +57,20 @@ export async function evaluateVariantReadiness(
 		allErrors.push(e)
 	}
 
-	const kind = String(v.kind ?? v.entityType ?? "").trim()
-	if (kind === "hotel_room") {
-		const subtype = await deps.repo.getHotelRoomSubtype(parsed.variantId)
-		if (!subtype) {
-			const e = { code: "missing_subtype", message: "Hotel room subtype is required" }
-			blockingErrors.push(e)
-			allErrors.push(e)
-		}
-	}
+	// CAPA 4.6:
+	// Room type is optional for now to avoid blocking environments without seed data.
+	// Keep subtype out of blocking readiness until reference data setup is enforced.
 
-	// Future-layer flags (non-blocking until CAPA 4/5 exist).
-	// CAPA 4A/4B: pricing readiness signals.
+	// CAPA 4 signals (non-blocking in lifecycle status).
 	const baseRate = await deps.repo.getBaseRate(parsed.variantId)
 	if (!baseRate) {
-		allErrors.push({ code: "pricing_missing", message: "Base rate not configured" })
+		const e = { code: "pricing_missing", message: "Base rate not configured" }
+		allErrors.push(e)
 	} else {
 		const plan = await deps.repo.getDefaultRatePlanWithRules(parsed.variantId)
 		if (!plan) {
 			allErrors.push({ code: "no_default_rate_plan", message: "No default rate plan configured" })
 		} else {
-			if (plan.rules.length === 0) {
-				allErrors.push({ code: "rules_empty", message: "No pricing rules configured" })
-			}
-
 			const check = validateMinimalPricingRules({
 				basePrice: Number(baseRate.basePrice),
 				rules: plan.rules.map((r) => ({ id: r.id, type: r.type, value: r.value })),

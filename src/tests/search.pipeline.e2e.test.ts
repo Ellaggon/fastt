@@ -78,6 +78,9 @@ describe("SearchPipeline E2E", () => {
 					promotionEngine.applyPromotions(basePrice, promotions, ctx),
 			},
 			taxes: taxPort,
+			effectivePricing: {
+				getEffectiveTotalForRange: async () => ({ total: 180, missingDates: [] }),
+			},
 		})
 
 		const result = await pipeline.run({
@@ -165,6 +168,9 @@ describe("SearchPipeline E2E", () => {
 					promotionEngine.applyPromotions(basePrice, promotions, ctx),
 			},
 			taxes: taxPort,
+			effectivePricing: {
+				getEffectiveTotalForRange: async () => ({ total: 200, missingDates: [] }),
+			},
 		})
 
 		const result = await pipeline.run({

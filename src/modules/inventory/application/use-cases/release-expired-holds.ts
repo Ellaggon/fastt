@@ -3,14 +3,16 @@ import type { InventoryHoldRepositoryPort } from "../ports/InventoryHoldReposito
 export async function releaseExpiredHolds(
 	deps: { repo: InventoryHoldRepositoryPort },
 	params: { now: Date }
-): Promise<{ releasedHolds: number }> {
-	const holdIds = await deps.repo.listExpiredHoldIds({ now: params.now })
+): Promise<{ releasedHolds: number; releasedVariantIds: string[] }> {
+	const expiredHolds = await deps.repo.listExpiredHolds({ now: params.now })
 
 	let released = 0
-	for (const holdId of holdIds) {
-		const r = await deps.repo.releaseHold({ holdId })
+	const variants = new Set<string>()
+	for (const item of expiredHolds) {
+		const r = await deps.repo.releaseHold({ holdId: item.holdId })
 		if (r.released) released++
+		if (r.released) variants.add(item.variantId)
 	}
 
-	return { releasedHolds: released }
+	return { releasedHolds: released, releasedVariantIds: [...variants] }
 }

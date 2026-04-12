@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { invalidateProvider } from "@/lib/cache/invalidation"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { setProviderVerificationV2 } from "@/modules/catalog/public"
 
@@ -73,6 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
 				metadataJson: null,
 			}
 		)
+		await invalidateProvider(payload.providerId)
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

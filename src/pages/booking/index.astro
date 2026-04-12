@@ -1,0 +1,256 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DatesModal from "@/components/ui/DatesModal.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const initialFrom = String(Astro.url.searchParams.get("from") ?? "").trim()
+const initialTo = String(Astro.url.searchParams.get("to") ?? "").trim()
+const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
+	.trim()
+	.toLowerCase()
+---
+
+<WorkspaceLayout title="Reservas">
+	<section class="space-y-8">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Reservas realizadas por clientes</h1>
+			<p class="text-sm text-slate-400">
+				Cada fila representa una reserva confirmada o en proceso con su estado operativo.
+			</p>
+		</header>
+
+		<Section title="Filtros" description="Acota por rango de fechas o estado.">
+			<Card class="bg-slate-100">
+				<form id="bookingFilters" class="grid gap-4 md:grid-cols-4">
+					<FormField label="Desde" htmlFor="from">
+						<DatesModal id="from" name="from" value={initialFrom} />
+					</FormField>
+					<FormField label="Hasta" htmlFor="to">
+						<DatesModal id="to" name="to" value={initialTo} />
+					</FormField>
+					<FormField label="Estado" htmlFor="status">
+						<Select id="status" name="status" value={initialStatus}>
+							<option value="all">Todos</option>
+							<option value="draft">Borrador</option>
+							<option value="confirmed">Confirmada</option>
+							<option value="cancelled">Cancelada</option>
+							<option value="expired">Expirada</option>
+						</Select>
+					</FormField>
+					<div class="flex items-end justify-end">
+						<Button
+							id="applyFiltersBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Aplicar filtros
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</Section>
+
+		<Section title="Listado de reservas" description="Resumen por reserva con acceso a detalle.">
+			<Card class="min-h-[280px] space-y-4 bg-slate-100">
+				<div class="flex items-center justify-between gap-4">
+					<p id="bookingListSummary" class="text-sm text-slate-700">Cargando reservas...</p>
+					<p id="bookingListLatency" class="text-xs text-slate-500"></p>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-slate-200 text-sm">
+						<thead>
+							<tr class="text-left text-slate-700">
+								<th class="px-3 py-2">Reserva</th>
+								<th class="px-3 py-2">Producto / Variante</th>
+								<th class="px-3 py-2">Fechas</th>
+								<th class="px-3 py-2">Total</th>
+								<th class="px-3 py-2">Estado</th>
+								<th class="px-3 py-2">Creada</th>
+								<th class="px-3 py-2 text-right">Acción</th>
+							</tr>
+						</thead>
+						<tbody id="bookingRows">
+							{
+								Array.from({ length: 5 }).map(() => (
+									<tr class="border-t border-slate-200">
+										<td class="px-3 py-2">
+											<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-48 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2 text-right">
+											<div class="ml-auto h-8 w-24 animate-pulse rounded bg-slate-200" />
+										</td>
+									</tr>
+								))
+							}
+						</tbody>
+					</table>
+				</div>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline define:vars={{ initialFrom, initialTo, initialStatus }}>
+		;(function () {
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "bookings-list",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+			}
+
+			const form = document.getElementById("bookingFilters")
+			const rows = document.getElementById("bookingRows")
+			const summary = document.getElementById("bookingListSummary")
+			const latency = document.getElementById("bookingListLatency")
+			const applyBtn = document.getElementById("applyFiltersBtn")
+			const fromInput = document.getElementById("from")
+			const toInput = document.getElementById("to")
+			const statusInput = document.getElementById("status")
+
+			const statusLabel = (status) => {
+				const value = String(status || "").toLowerCase()
+				if (value === "confirmed") return "Confirmada"
+				if (value === "cancelled") return "Cancelada"
+				if (value === "expired") return "Expirada"
+				if (value === "locked") return "Bloqueada"
+				return "Borrador"
+			}
+
+			const formatDateTime = (value) => {
+				if (!value) return "—"
+				const date = new Date(String(value))
+				if (Number.isNaN(date.getTime())) return "—"
+				return date.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })
+			}
+
+			const render = (items) => {
+				if (!rows) return
+				rows.innerHTML = ""
+				if (!Array.isArray(items) || items.length === 0) {
+					const row = document.createElement("tr")
+					row.innerHTML =
+						'<td colspan="7" class="px-3 py-6 text-center text-slate-500">No hay reservas para los filtros seleccionados.</td>'
+					rows.appendChild(row)
+					return
+				}
+
+				for (const item of items) {
+					const row = document.createElement("tr")
+					row.className = "border-t border-slate-200"
+					const total = `${String(item?.currency ?? "USD")} ${Number(item?.totalPrice ?? 0).toFixed(2)}`
+					const productVariant = `${String(item?.productName ?? "Producto sin nombre")} · ${String(item?.variantName ?? "Variante")}`
+					const created = formatDateTime(item?.createdAt)
+					const checkIn = String(item?.checkIn ?? "—")
+					const checkOut = String(item?.checkOut ?? "—")
+					const confirmationLatency =
+						item?.createdAt && item?.confirmedAt
+							? Math.max(
+									0,
+									Math.round(
+										(new Date(String(item.confirmedAt)).getTime() -
+											new Date(String(item.createdAt)).getTime()) /
+											1000
+									)
+								)
+							: null
+					const confirmText =
+						confirmationLatency === null
+							? ""
+							: `<div class="text-xs text-slate-500">Confirmación: ${confirmationLatency}s</div>`
+
+					row.innerHTML = `
+						<td class="px-3 py-2 text-slate-900">${String(item?.bookingId ?? "—")}</td>
+						<td class="px-3 py-2 text-slate-700">${productVariant}</td>
+						<td class="px-3 py-2 text-slate-700">${checkIn} → ${checkOut}</td>
+						<td class="px-3 py-2 text-slate-700">${total}</td>
+						<td class="px-3 py-2 text-slate-700">${statusLabel(item?.status)}</td>
+						<td class="px-3 py-2 text-slate-700">${created}${confirmText}</td>
+						<td class="px-3 py-2 text-right">
+							<a href="/booking/${encodeURIComponent(String(item?.bookingId ?? ""))}" class="inline-flex h-8 items-center justify-center rounded-md bg-[#1E3A8A] px-3 text-xs font-medium text-white hover:bg-[#1e40af]" data-astro-prefetch>Ver detalle</a>
+						</td>
+					`
+					rows.appendChild(row)
+				}
+			}
+
+			const fetchBookings = async () => {
+				const started = performance.now()
+				const from = String(fromInput?.value ?? initialFrom ?? "").trim()
+				const to = String(toInput?.value ?? initialTo ?? "").trim()
+				const status = String(statusInput?.value ?? initialStatus ?? "all")
+					.trim()
+					.toLowerCase()
+				if (applyBtn) {
+					applyBtn.setAttribute("disabled", "true")
+					applyBtn.textContent = "Cargando..."
+				}
+				if (summary) summary.textContent = "Cargando reservas..."
+				try {
+					const qs = new URLSearchParams()
+					if (from) qs.set("from", from)
+					if (to) qs.set("to", to)
+					if (status && status !== "all") qs.set("status", status)
+					const response = await fetch(`/api/internal/provider-bookings-summary?${qs.toString()}`, {
+						headers: { accept: "application/json" },
+					})
+					if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
+					const payload = await response.json()
+					const items = Array.isArray(payload?.items) ? payload.items : []
+					render(items)
+					if (summary) summary.textContent = `${items.length} reserva(s) encontrada(s).`
+					const durationMs = Number((performance.now() - started).toFixed(1))
+					if (latency) latency.textContent = `Latencia endpoint: ${durationMs}ms`
+					console.debug("data hydrated", {
+						page: "bookings-list",
+						durationMs,
+					})
+				} catch {
+					render([])
+					if (summary) summary.textContent = "No se pudo cargar el listado de reservas."
+					if (latency) latency.textContent = ""
+				} finally {
+					if (applyBtn) {
+						applyBtn.removeAttribute("disabled")
+						applyBtn.textContent = "Aplicar filtros"
+					}
+				}
+			}
+
+			form?.addEventListener("submit", (event) => {
+				event.preventDefault()
+				void fetchBookings()
+			})
+
+			void fetchBookings()
+		})()
+	</script>
+</WorkspaceLayout>

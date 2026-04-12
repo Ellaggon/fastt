@@ -18,6 +18,9 @@ export class PricingRepository implements PricingRepositoryPort {
 				id: PriceRule.id,
 				type: PriceRule.type,
 				value: PriceRule.value,
+				priority: PriceRule.priority,
+				dateRangeJson: (PriceRule as any).dateRangeJson,
+				dayOfWeekJson: (PriceRule as any).dayOfWeekJson,
 				createdAt: PriceRule.createdAt,
 				isActive: PriceRule.isActive,
 			})
@@ -33,8 +36,21 @@ export class PricingRepository implements PricingRepositoryPort {
 			id: r.id,
 			type: r.type,
 			value: r.value,
+			priority: Number(r.priority ?? 10),
+			dateRangeJson: (r as any).dateRangeJson ?? null,
+			dayOfWeekJson: Array.isArray((r as any).dayOfWeekJson)
+				? (r as any).dayOfWeekJson.map((value: unknown) => Number(value))
+				: null,
 			createdAt: r.createdAt,
-		})) as Array<{ id: string; type: string; value: number; createdAt: Date }>
+		})) as Array<{
+			id: string
+			type: string
+			value: number
+			priority: number
+			dateRangeJson?: { from?: string | null; to?: string | null } | null
+			dayOfWeekJson?: number[] | null
+			createdAt: Date
+		}>
 	}
 
 	async saveEffectivePrice(params: {

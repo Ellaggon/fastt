@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
+import { db, EffectivePricing } from "astro:db"
 
 import {
 	upsertDestination,
@@ -87,6 +88,28 @@ async function seedHotelVariant(params: {
 		isActive: true,
 		isDefault: true,
 	})
+
+	if (params.baseRate !== undefined) {
+		await db
+			.insert(EffectivePricing)
+			.values({
+				variantId: params.variantId,
+				ratePlanId: params.ratePlanId,
+				date: params.date,
+				basePrice: params.baseRate,
+				finalBasePrice: params.baseRate,
+				yieldMultiplier: 1,
+				computedAt: new Date(),
+			} as any)
+			.onConflictDoUpdate({
+				target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+				set: {
+					basePrice: params.baseRate,
+					finalBasePrice: params.baseRate,
+					computedAt: new Date(),
+				},
+			})
+	}
 }
 
 describe("integration/search-v2 marketplace search", () => {

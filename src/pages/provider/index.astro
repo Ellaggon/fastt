@@ -1,28 +1,17 @@
 ---
-import ProviderDashboard from "@/components/provider/ProviderDashboard.astro"
 import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
 import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import {
-	and,
-	db,
-	desc,
-	eq,
-	Provider,
-	ProviderProfile,
-	ProviderUser,
-	ProviderVerification,
-	User,
-} from "astro:db"
+import { getProviderFullAggregate } from "@/modules/catalog/public"
 
-type DerivedProviderState = "draft" | "setup_incomplete" | "ready" | "active"
 type ProviderStep = "register" | "profile" | "verification" | null
+type ProviderAggregate = NonNullable<Awaited<ReturnType<typeof getProviderFullAggregate>>>
 
 let providerId: string | null = null
 let userId: string | null = null
@@ -37,6 +26,8 @@ const currentStep: ProviderStep =
 	stepParam === "register" || stepParam === "profile" || stepParam === "verification"
 		? stepParam
 		: null
+const isStepView =
+	currentStep === "register" || currentStep === "profile" || currentStep === "verification"
 
 try {
 	const auth = await requireProvider(Astro.request)
@@ -59,264 +50,412 @@ userId = user.id
 const successParam = String(Astro.url.searchParams.get("success") ?? "").trim()
 const showSuccess = successParam === "saved" || successParam === "updated"
 
-let provider: typeof Provider.$inferSelect | null = null
-let profile: typeof ProviderProfile.$inferSelect | null = null
-let latestVerification: typeof ProviderVerification.$inferSelect | null = null
-let ownerUser: Pick<typeof User.$inferSelect, "id" | "email"> | null = null
+let provider: ProviderAggregate["provider"] | null = null
+let profile: ProviderAggregate["profile"] | null = null
+let latestVerification: ProviderAggregate["latestVerification"] | null = null
 
-if (userId && !loadError) {
+if (isStepView && userId && providerId && !loadError) {
 	try {
-		provider =
-			(providerId
-				? await db.select().from(Provider).where(eq(Provider.id, providerId)).get()
-				: null) ?? null
-
-		if (provider) {
-			profile =
-				(await db
-					.select()
-					.from(ProviderProfile)
-					.where(eq(ProviderProfile.providerId, provider.id))
-					.get()) ?? null
-
-			latestVerification =
-				(await db
-					.select()
-					.from(ProviderVerification)
-					.where(eq(ProviderVerification.providerId, provider.id))
-					.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-					.get()) ?? null
-
-			const ownerLink =
-				(await db
-					.select()
-					.from(ProviderUser)
-					.where(and(eq(ProviderUser.providerId, provider.id), eq(ProviderUser.role, "owner")))
-					.get()) ??
-				(await db
-					.select()
-					.from(ProviderUser)
-					.where(and(eq(ProviderUser.providerId, provider.id), eq(ProviderUser.userId, userId)))
-					.get()) ??
-				null
-
-			ownerUser = ownerLink
-				? ((await db
-						.select({ id: User.id, email: User.email })
-						.from(User)
-						.where(eq(User.id, ownerLink.userId))
-						.get()) ?? null)
-				: null
-		}
+		const aggregate = await getProviderFullAggregate(providerId, userId)
+		provider = aggregate?.provider ?? null
+		profile = aggregate?.profile ?? null
+		latestVerification = aggregate?.latestVerification ?? null
 	} catch {
 		loadError = "No pudimos cargar los datos del proveedor en este momento."
 	}
 }
-
-const isLoading = false
-const isEmpty = !loadError && !provider
-
-const isMissingLegalName = !provider?.legalName?.trim()
-const isMissingTimezone = !profile?.timezone?.trim()
-const isMissingCurrency = !profile?.defaultCurrency?.trim()
-const isMissingContactOrSupport = !profile?.supportEmail?.trim()
-
-const requiredMissingCount = [
-	isMissingLegalName,
-	isMissingTimezone,
-	isMissingCurrency,
-	isMissingContactOrSupport,
-].filter(Boolean).length
-
-const providerStatus = String(provider?.status ?? "").toLowerCase()
-const derivedState: DerivedProviderState =
-	providerStatus === "active"
-		? "active"
-		: providerStatus === "draft"
-			? "draft"
-			: requiredMissingCount > 0
-				? "setup_incomplete"
-				: "ready"
-
-const identityComplete = Boolean(provider?.displayName?.trim() && provider?.legalName?.trim())
-
-const operationalComplete = Boolean(
-	profile?.timezone?.trim() && profile?.defaultCurrency?.trim() && profile?.supportEmail?.trim()
-)
-
-const verificationComplete = latestVerification?.status === "approved"
-
-const remainingSteps = [identityComplete, operationalComplete, verificationComplete].filter(
-	(state) => !state
-).length
-
-const progressMessage =
-	derivedState === "active"
-		? "Su cuenta de proveedor está activa."
-		: remainingSteps > 0
-			? `${remainingSteps} paso${remainingSteps === 1 ? "" : "s"} obligatorio${remainingSteps === 1 ? "" : "s"} pendiente${remainingSteps === 1 ? "" : "s"}.`
-			: "Todos los pasos obligatorios están completos."
-
-const badgeVariant =
-	derivedState === "active"
-		? "success"
-		: derivedState === "ready"
-			? "info"
-			: derivedState === "setup_incomplete"
-				? "warning"
-				: "neutral"
-
-const stateLabel =
-	derivedState === "active"
-		? "Activa"
-		: derivedState === "ready"
-			? "Lista"
-			: derivedState === "setup_incomplete"
-				? "Configuración incompleta"
-				: "Borrador"
-
-const primaryCtaAction = !identityComplete
-	? "/provider?step=register"
-	: !operationalComplete
-		? "/provider?step=profile"
-		: !verificationComplete
-			? "/provider?step=verification"
-			: "/dashboard"
-
-const primaryCtaLabel =
-	primaryCtaAction === "/dashboard"
-		? "Ir al panel"
-		: primaryCtaAction === "/provider?step=register"
-			? "Completar identidad"
-			: primaryCtaAction === "/provider?step=profile"
-				? "Completar perfil"
-				: "Ver detalles"
-
-const completedSteps = [identityComplete, operationalComplete, verificationComplete].filter(
-	Boolean
-).length
-const progressPercent = Math.round((completedSteps / 3) * 100)
-
-const isStepView =
-	currentStep === "register" || currentStep === "profile" || currentStep === "verification"
 ---
 
-<DashboardLayout title="Proveedor">
-	<main class="min-h-screen bg-black text-slate-200">
-		<div class="mx-auto max-w-7xl space-y-8 px-6">
-			{
-				showSuccess && (
-					<Card>
-						<div class="flex items-center justify-between gap-4">
-							<div class="space-y-1">
-								<p class="text-lg font-semibold text-slate-900">Guardado</p>
-								<p class="text-sm text-slate-600">
-									La información del proveedor se actualizó correctamente.
-								</p>
-							</div>
-							<Badge variant="success">Guardado</Badge>
-						</div>
-					</Card>
-				)
-			}
-
-			{
-				isLoading && (
-					<Card>
-						<div class="space-y-2">
-							<p class="text-2xl font-semibold text-slate-900">Cargando panel del proveedor...</p>
+<WorkspaceLayout title="Proveedor">
+	<section class="space-y-8 text-slate-200">
+		{
+			showSuccess && (
+				<Card>
+					<div class="flex items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-lg font-semibold text-slate-900">Guardado</p>
 							<p class="text-sm text-slate-600">
-								Espere mientras cargamos el estado de configuración.
+								La información del proveedor se actualizó correctamente.
 							</p>
 						</div>
-					</Card>
-				)
-			}
+						<Badge variant="success">Guardado</Badge>
+					</div>
+				</Card>
+			)
+		}
 
-			{
-				loadError && (
-					<Card>
-						<div class="space-y-4">
-							<div class="flex items-center justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-2xl font-semibold text-slate-900">Ocurrió un error de carga</p>
-									<p class="text-sm text-slate-600">{loadError}</p>
-								</div>
-								<Badge variant="error">Error</Badge>
+		{
+			loadError && (
+				<Card>
+					<div class="space-y-4">
+						<div class="flex items-center justify-between gap-4">
+							<div class="space-y-1">
+								<p class="text-2xl font-semibold text-slate-900">Ocurrió un error de carga</p>
+								<p class="text-sm text-slate-600">{loadError}</p>
 							</div>
-							<Button
-								href="/provider?step=register"
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-							>
-								Abrir configuración
-							</Button>
+							<Badge variant="error">Error</Badge>
 						</div>
-					</Card>
-				)
-			}
+						<Button
+							href="/provider?step=register"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Abrir configuración
+						</Button>
+					</div>
+				</Card>
+			)
+		}
 
-			{
-				isEmpty && !isLoading && !loadError && (
-					<Card>
-						<div class="space-y-4">
-							<div class="flex items-center justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-2xl font-semibold text-slate-900">No se encontró proveedor</p>
-									<p class="text-sm text-slate-600">
-										Inicie la configuración para habilitar las herramientas operativas.
-									</p>
-								</div>
-								<Badge variant="warning">Vacío</Badge>
+		{
+			currentStep === "register" && (
+				<ProviderRegisterForm provider={provider} hasProvider={Boolean(provider)} />
+			)
+		}
+		{
+			currentStep === "profile" && (
+				<ProviderProfileForm isProviderAvailable={Boolean(provider)} profile={profile} />
+			)
+		}
+		{
+			currentStep === "verification" && (
+				<ProviderVerificationView latestVerification={latestVerification} />
+			)
+		}
+
+		{
+			!isStepView && !loadError && (
+				<>
+					<header class="space-y-6">
+						<div class="flex flex-wrap items-start justify-between gap-6">
+							<div class="space-y-2">
+								<h1
+									id="providerTitle"
+									class="text-3xl font-semibold uppercase tracking-wide text-slate-100"
+								>
+									Cargando proveedor...
+								</h1>
+								<p id="providerProgressMessage" class="text-sm text-slate-300">
+									Cargando estado de configuración...
+								</p>
+								<p id="providerOwnerEmail" class="text-xs text-slate-400">
+									Propietario: —
+								</p>
 							</div>
-							<Button
-								href="/provider?step=register"
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-							>
-								Iniciar configuración
-							</Button>
+							<div class="flex items-center gap-3">
+								<Badge id="providerStateBadge" variant="neutral">
+									Cargando...
+								</Badge>
+								<a
+									id="providerPrimaryAction"
+									href="/provider?step=register"
+									class="inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
+								>
+									Cargando...
+								</a>
+							</div>
 						</div>
-					</Card>
-				)
+					</header>
+
+					<section class="space-y-4">
+						<Card class="min-h-[130px] border-slate-700 bg-slate-900 text-white">
+							<div class="space-y-4">
+								<h2 class="text-xl font-semibold text-white">
+									Lista de verificación de activación
+								</h2>
+								<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+									<div id="providerProgressBar" class="h-full w-0 bg-[#1E3A8A]" />
+								</div>
+								<p id="providerProgressDescription" class="text-sm text-slate-200">
+									Cargando progreso...
+								</p>
+							</div>
+						</Card>
+
+						<div class="space-y-4">
+							<Card class="min-h-[220px] bg-slate-100">
+								<div class="space-y-6">
+									<div class="flex items-start justify-between gap-4">
+										<div class="space-y-1">
+											<h2 class="text-xl font-semibold text-slate-900">Identidad del proveedor</h2>
+											<p class="text-sm text-slate-600">Nombre comercial y razón social.</p>
+										</div>
+										<div class="flex items-center gap-3">
+											<Badge id="providerIdentityBadge" variant="warning">
+												Cargando...
+											</Badge>
+											<Button
+												href="/provider?step=register"
+												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+											>
+												Editar
+											</Button>
+										</div>
+									</div>
+									<div class="grid gap-4 md:grid-cols-2">
+										<div class="space-y-2">
+											<p class="text-sm text-slate-500">Nombre comercial</p>
+											<p id="providerDisplayName" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+										<div class="space-y-2 md:col-span-2">
+											<p class="text-sm text-slate-500">Razón social</p>
+											<p id="providerLegalName" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+									</div>
+								</div>
+							</Card>
+
+							<Card class="min-h-[244px] bg-slate-100">
+								<div class="space-y-6">
+									<div class="flex items-start justify-between gap-4">
+										<div class="space-y-1">
+											<h2 class="text-xl font-semibold text-slate-900">Perfil operativo</h2>
+											<p class="text-sm text-slate-600">
+												Zona horaria, moneda por defecto y contacto de soporte.
+											</p>
+										</div>
+										<div class="flex items-center gap-3">
+											<Badge id="providerProfileBadge" variant="warning">
+												Cargando...
+											</Badge>
+											<Button
+												href="/provider?step=profile"
+												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+											>
+												Editar
+											</Button>
+										</div>
+									</div>
+									<div class="grid gap-4 md:grid-cols-2">
+										<div class="space-y-2">
+											<p class="text-sm text-slate-500">Zona horaria</p>
+											<p id="providerTimezone" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+										<div class="space-y-2">
+											<p class="text-sm text-slate-500">Moneda por defecto</p>
+											<p id="providerCurrency" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+										<div class="space-y-2 md:col-span-2">
+											<p class="text-sm text-slate-500">Correo de soporte</p>
+											<p id="providerSupportEmail" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+									</div>
+								</div>
+							</Card>
+
+							<Card class="min-h-[220px] bg-slate-100">
+								<div class="space-y-6">
+									<div class="flex items-start justify-between gap-4">
+										<div class="space-y-1">
+											<h2 class="text-xl font-semibold text-slate-900">Estado de verificación</h2>
+											<p class="text-sm text-slate-600">Estado de verificación de solo lectura.</p>
+										</div>
+										<div class="flex items-center gap-3">
+											<Badge id="providerVerificationBadge" variant="warning">
+												Cargando...
+											</Badge>
+											<Button
+												href="/provider?step=verification"
+												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+											>
+												Ver detalles
+											</Button>
+										</div>
+									</div>
+									<div class="grid gap-4 md:grid-cols-2">
+										<div class="space-y-2">
+											<p class="text-sm text-slate-500">Estado</p>
+											<p id="providerVerificationStatus" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+										<div class="space-y-2 md:col-span-2">
+											<p class="text-sm text-slate-500">Motivo</p>
+											<p id="providerVerificationReason" class="text-sm text-slate-900">
+												—
+											</p>
+										</div>
+									</div>
+								</div>
+							</Card>
+						</div>
+					</section>
+
+					<section class="space-y-4">
+						<header class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">Equipo y acceso</h2>
+							<p class="text-sm text-slate-300">Usuarios vinculados al proveedor.</p>
+						</header>
+						<Card class="min-h-[164px] bg-slate-100">
+							<div class="space-y-3">
+								<ul id="providerUsersList" class="space-y-2 text-sm text-slate-700">
+									<li class="text-slate-500">Cargando usuarios...</li>
+								</ul>
+							</div>
+						</Card>
+					</section>
+				</>
+			)
+		}
+	</section>
+
+	<script define:vars={{ isStepView, loadError }} is:inline>
+		;(function () {
+			if (isStepView || loadError) return
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "provider-surface",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
 			}
 
-			{
-				provider && !isLoading && !loadError && !isStepView && (
-					<ProviderDashboard
-						provider={provider}
-						profile={profile}
-						latestVerification={latestVerification}
-						ownerEmail={ownerUser?.email || "Sin vincular"}
-						progressMessage={progressMessage}
-						badgeVariant={badgeVariant}
-						stateLabel={stateLabel}
-						derivedState={derivedState}
-						primaryCtaAction={primaryCtaAction}
-						primaryCtaLabel={primaryCtaLabel}
-						identityComplete={identityComplete}
-						operationalComplete={operationalComplete}
-						verificationComplete={verificationComplete}
-						progressPercent={progressPercent}
-					/>
-				)
+			const setBadge = (id, complete) => {
+				const el = document.getElementById(id)
+				if (!el) return
+				el.textContent = complete ? "✅ Completo" : "⚠️ Incompleto"
+				el.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+					complete
+						? "bg-green-100 text-green-800 border-green-200"
+						: "bg-orange-100 text-orange-800 border-orange-200"
+				}`
 			}
 
-			{
-				currentStep === "register" && (
-					<ProviderRegisterForm provider={provider} hasProvider={Boolean(provider)} />
-				)
-			}
+			const hydrationStart = performance.now()
+			fetch("/api/internal/provider-summary", {
+				headers: { accept: "application/json" },
+			})
+				.then(async (response) => {
+					if (!response.ok) throw new Error(`provider_summary_${response.status}`)
+					return await response.json()
+				})
+				.then((payload) => {
+					const providerTitle = document.getElementById("providerTitle")
+					const progressMessage = document.getElementById("providerProgressMessage")
+					const ownerEmail = document.getElementById("providerOwnerEmail")
+					const stateBadge = document.getElementById("providerStateBadge")
+					const primaryAction = document.getElementById("providerPrimaryAction")
+					const progressBar = document.getElementById("providerProgressBar")
+					const progressDescription = document.getElementById("providerProgressDescription")
+					const displayName = document.getElementById("providerDisplayName")
+					const legalName = document.getElementById("providerLegalName")
+					const timezone = document.getElementById("providerTimezone")
+					const currency = document.getElementById("providerCurrency")
+					const supportEmail = document.getElementById("providerSupportEmail")
+					const verificationStatus = document.getElementById("providerVerificationStatus")
+					const verificationReason = document.getElementById("providerVerificationReason")
+					const usersList = document.getElementById("providerUsersList")
 
-			{
-				currentStep === "profile" && (
-					<ProviderProfileForm isProviderAvailable={Boolean(provider)} profile={profile} />
-				)
-			}
+					if (providerTitle)
+						providerTitle.textContent = String(payload?.provider?.displayName ?? "Proveedor")
+					if (progressMessage)
+						progressMessage.textContent = String(payload?.progress?.progressMessage ?? "")
+					if (ownerEmail)
+						ownerEmail.textContent = `Propietario: ${String(payload?.ownerEmail ?? "Sin vincular")}`
 
-			{
-				currentStep === "verification" && (
-					<ProviderVerificationView latestVerification={latestVerification} />
-				)
-			}
-		</div>
-	</main>
-</DashboardLayout>
+					if (stateBadge) {
+						stateBadge.textContent = String(payload?.state?.stateLabel ?? "Borrador")
+						stateBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+							payload?.state?.badgeVariant === "success"
+								? "bg-green-100 text-green-800 border-green-200"
+								: payload?.state?.badgeVariant === "info"
+									? "bg-blue-100 text-blue-800 border-blue-200"
+									: payload?.state?.badgeVariant === "warning"
+										? "bg-orange-100 text-orange-800 border-orange-200"
+										: "bg-neutral-100 text-neutral-800 border-neutral-200"
+						}`
+					}
+
+					if (primaryAction) {
+						primaryAction.textContent = String(payload?.actions?.primaryCtaLabel ?? "Continuar")
+						primaryAction.setAttribute(
+							"href",
+							String(payload?.actions?.primaryCtaAction ?? "/provider?step=register")
+						)
+					}
+
+					const percent = Number(payload?.progress?.progressPercent ?? 0)
+					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
+					if (progressDescription)
+						progressDescription.textContent = `${Number(payload?.progress?.completedSteps ?? 0)} de ${Number(payload?.progress?.totalSteps ?? 0)} pasos completos`
+
+					setBadge("providerIdentityBadge", Boolean(payload?.checks?.identityComplete))
+					setBadge("providerProfileBadge", Boolean(payload?.checks?.operationalComplete))
+					setBadge("providerVerificationBadge", Boolean(payload?.checks?.verificationComplete))
+
+					if (displayName)
+						displayName.textContent = String(payload?.provider?.displayName || "Falta completar")
+					if (legalName)
+						legalName.textContent = String(payload?.provider?.legalName || "Falta completar")
+					if (timezone)
+						timezone.textContent = String(payload?.profile?.timezone || "Falta completar")
+					if (currency)
+						currency.textContent = String(payload?.profile?.defaultCurrency || "Falta completar")
+					if (supportEmail)
+						supportEmail.textContent = String(payload?.profile?.supportEmail || "Falta completar")
+
+					const verification = String(payload?.verification?.status ?? "pending")
+					if (verificationStatus) {
+						verificationStatus.textContent =
+							verification === "approved" ? "Aprobado" : verification || "Pendiente"
+					}
+					if (verificationReason)
+						verificationReason.textContent = String(
+							payload?.verification?.reason || "Sin motivo informado"
+						)
+
+					if (usersList) {
+						usersList.innerHTML = ""
+						const users = Array.isArray(payload?.users) ? payload.users : []
+						if (users.length === 0) {
+							const li = document.createElement("li")
+							li.className = "text-slate-500"
+							li.textContent = "No hay usuarios vinculados."
+							usersList.append(li)
+						} else {
+							for (const entry of users) {
+								const li = document.createElement("li")
+								li.className =
+									"flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+								const email = document.createElement("span")
+								email.className = "text-slate-700"
+								email.textContent = String(entry?.email ?? "sin correo")
+								const role = document.createElement("span")
+								role.className =
+									"inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800"
+								role.textContent =
+									String(entry?.role ?? "member") === "owner" ? "Propietario" : "Miembro"
+								li.append(email, role)
+								usersList.append(li)
+							}
+						}
+					}
+
+					console.debug("data hydrated", {
+						page: "provider-surface",
+						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
+					})
+				})
+				.catch(() => {
+					const progressDescription = document.getElementById("providerProgressDescription")
+					if (progressDescription) {
+						progressDescription.textContent = "No se pudo cargar el resumen del proveedor."
+					}
+				})
+		})()
+	</script>
+</WorkspaceLayout>

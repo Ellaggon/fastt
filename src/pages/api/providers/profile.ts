@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProvider } from "@/lib/cache/invalidation"
 import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
@@ -39,6 +40,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			{ repo: providerV2Repository },
 			{ providerId, ...raw }
 		)
+		await invalidateProvider(providerId)
 
 		if (shouldReturnHtmlRedirect(request)) {
 			const url = new URL("/provider?success=saved", request.url)

@@ -102,6 +102,13 @@
 		return text.charAt(0).toUpperCase() + text.slice(1)
 	}
 
+	function toISODateOnly(date: Date): string {
+		const yyyy = date.getFullYear()
+		const mm = String(date.getMonth() + 1).padStart(2, "0")
+		const dd = String(date.getDate()).padStart(2, "0")
+		return `${yyyy}-${mm}-${dd}`
+	}
+
 	function formatMonth(date: Date): string {
 		const formatted = date.toLocaleDateString("es-CL", {
 			month: "long",
@@ -251,10 +258,14 @@
 	confirmBtn.onclick = () => {
 		const inEl = document.getElementById("checkinText") as HTMLElement
 		const outEl = document.getElementById("checkoutText") as HTMLElement
+		const inBtn = document.getElementById("checkinBtn") as HTMLButtonElement | null
+		const outBtn = document.getElementById("checkoutBtn") as HTMLButtonElement | null
 
 		if (checkIn && checkOut) {
 			inEl.textContent = checkIn.toLocaleDateString("es-CL")
 			outEl.textContent = checkOut.toLocaleDateString("es-CL")
+			if (inBtn) inBtn.value = toISODateOnly(checkIn)
+			if (outBtn) outBtn.value = toISODateOnly(checkOut)
 			saveDates(checkIn, checkOut)
 		}
 		document.querySelector('[data-modal="dates"]')?.classList.add("hidden")
@@ -263,7 +274,12 @@
 	}
 
 	const saved = loadDates()
-	if (saved) {
+	const inBtn = document.getElementById("checkinBtn") as HTMLButtonElement | null
+	const outBtn = document.getElementById("checkoutBtn") as HTMLButtonElement | null
+	const hasExplicitQueryValues =
+		Boolean(inBtn?.value && String(inBtn.value).trim()) &&
+		Boolean(outBtn?.value && String(outBtn.value).trim())
+	if (saved && !hasExplicitQueryValues) {
 		checkIn = saved.checkIn
 		checkOut = saved.checkOut
 		const inEl = document.getElementById("checkinText")
@@ -272,6 +288,8 @@
 			inEl.textContent = checkIn.toLocaleDateString("es-CL")
 			outEl.textContent = checkOut.toLocaleDateString("es-CL")
 		}
+		if (inBtn) inBtn.value = toISODateOnly(checkIn)
+		if (outBtn) outBtn.value = toISODateOnly(checkOut)
 		stepText.textContent = "Fechas seleccionadas"
 		confirmBtn.disabled = false
 	}

@@ -4,19 +4,19 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import Layout from "@/layouts/Layout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 ---
 
-<Layout title="Producto · Crear">
-	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+<WorkspaceLayout title="Producto · Crear">
+	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Crear producto</h1>
@@ -81,11 +81,12 @@ if (!providerId) return Astro.redirect("/provider")
 				</form>
 			</Card>
 		</section>
-	</main>
+	</section>
 
 	<script type="module">
 		const form = document.getElementById("createForm")
 		const btn = document.getElementById("submitBtn")
+		const btnText = btn?.textContent || "Crear producto"
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
 
@@ -105,6 +106,7 @@ if (!providerId) return Astro.redirect("/provider")
 			e.preventDefault()
 			setState("loading")
 			btn.disabled = true
+			btn.textContent = "Cargando..."
 			setState("disabled")
 
 			try {
@@ -114,6 +116,7 @@ if (!providerId) return Astro.redirect("/provider")
 
 				if (!res.ok) {
 					btn.disabled = false
+					btn.textContent = btnText
 					setState("error", `status=${res.status}\n${txt}`)
 					return
 				}
@@ -123,12 +126,14 @@ if (!providerId) return Astro.redirect("/provider")
 					json = JSON.parse(txt)
 				} catch {
 					btn.disabled = false
+					btn.textContent = btnText
 					setState("error", `Respuesta inválida:\n${txt}`)
 					return
 				}
 
 				if (!json?.id) {
 					btn.disabled = false
+					btn.textContent = btnText
 					setState("error", `Respuesta sin ID:\n${txt}`)
 					return
 				}
@@ -137,8 +142,9 @@ if (!providerId) return Astro.redirect("/provider")
 				window.location.href = `/product/${json.id}/content?flow=create`
 			} catch (err) {
 				btn.disabled = false
+				btn.textContent = btnText
 				setState("error", `Error de red: ${String(err)}`)
 			}
 		})
 	</script>
-</Layout>
+</WorkspaceLayout>

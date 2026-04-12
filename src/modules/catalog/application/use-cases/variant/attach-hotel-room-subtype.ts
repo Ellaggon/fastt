@@ -4,9 +4,10 @@ import { ZodError } from "zod"
 
 export async function attachHotelRoomSubtype(
 	deps: { repo: VariantManagementRepositoryPort },
-	params: { variantId: string; roomTypeId: string }
+	params: { variantId: string; roomTypeId?: string | null }
 ): Promise<{ variantId: string }> {
 	const parsed = attachHotelRoomSubtypeSchema.parse(params)
+	const roomTypeId = String(parsed.roomTypeId ?? "").trim()
 
 	const v = await deps.repo.getVariantById(parsed.variantId)
 	if (!v) throw new Error("Variant not found")
@@ -23,7 +24,7 @@ export async function attachHotelRoomSubtype(
 	}
 
 	const exists = await deps.repo.getHotelRoomSubtype(parsed.variantId)
-	if (exists) {
+	if (exists && roomTypeId) {
 		throw new ZodError([
 			{
 				code: "custom",
@@ -33,12 +34,19 @@ export async function attachHotelRoomSubtype(
 		])
 	}
 
+	// CAPA 4.6 hardening:
+	// Room type data can be absent in some environments.
+	// Do not block the flow when roomTypeId is missing.
+	if (!roomTypeId) {
+		return { variantId: parsed.variantId }
+	}
+
 	const dup = await deps.repo.existsHotelRoomSubtypeForProductRoomType({
 		productId: v.productId,
-		roomTypeId: parsed.roomTypeId,
+		roomTypeId,
 	})
 	if (dup) throw new Error("A hotel_room variant already exists for this roomTypeId")
 
-	await deps.repo.attachHotelRoomSubtype(parsed)
+	await deps.repo.attachHotelRoomSubtype({ variantId: parsed.variantId, roomTypeId })
 	return { variantId: parsed.variantId }
 }

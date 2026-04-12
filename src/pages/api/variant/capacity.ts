@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateVariant } from "@/lib/cache/invalidation"
 import { setVariantCapacity } from "@/modules/catalog/public"
 import { variantManagementRepository, productRepository } from "@/container"
 
@@ -48,6 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
 					maxChildrenRaw === null || maxChildrenRaw === "" ? null : Number(maxChildrenRaw),
 			}
 		)
+		await invalidateVariant(variantId, v.productId)
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

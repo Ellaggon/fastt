@@ -1,4 +1,5 @@
 ---
+import DatesModal from "@/components/ui/DatesModal.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 
 type SearchResult = {
@@ -68,11 +69,11 @@ if (hasRequired) {
 			</label>
 			<label class="flex flex-col gap-1">
 				<span class="text-sm">Check-in</span>
-				<input type="date" name="checkIn" value={checkIn} required />
+				<DatesModal id="searchV2CheckIn" name="checkIn" value={checkIn} required />
 			</label>
 			<label class="flex flex-col gap-1">
 				<span class="text-sm">Check-out</span>
-				<input type="date" name="checkOut" value={checkOut} required />
+				<DatesModal id="searchV2CheckOut" name="checkOut" value={checkOut} required />
 			</label>
 			<label class="flex flex-col gap-1">
 				<span class="text-sm">Rooms</span>

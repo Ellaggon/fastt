@@ -1,0 +1,160 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+
+type RatePlanItem = {
+	id: string
+	name: string
+	currency: string
+	isDefault: boolean
+	isActive: boolean
+	modifierLabel: string
+}
+
+interface Props {
+	ratePlans: RatePlanItem[]
+	initialCurrency: string
+	hasDefaultPlan: boolean
+	initialBasePrice: string
+	variantId: string
+	productId: string
+}
+
+const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId, productId } =
+	Astro.props
+---
+
+<Section
+	title="Gestión de rate plans"
+	description="Administra planes tarifarios y plan por defecto."
+>
+	<Card class="space-y-6 bg-slate-100">
+		<form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
+			<Input type="hidden" name="variantId" value={variantId} />
+			<FormSection title="Tarifa base" class="text-neutral-800">
+				<FormField label="Moneda" htmlFor="currency" required>
+					<Select id="currency" name="currency" value={initialCurrency} required>
+						<option value="USD">USD</option>
+						<option value="BOB">BOB</option>
+					</Select>
+				</FormField>
+				<FormField label="Tarifa base" htmlFor="basePrice" required>
+					<Input
+						id="basePrice"
+						name="basePrice"
+						type="number"
+						min="0"
+						step="1"
+						value={initialBasePrice}
+						required
+					/>
+				</FormField>
+			</FormSection>
+			<p id="pricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+			<div class="flex items-center justify-between gap-3">
+				<a
+					href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`}
+					class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+				>
+					Volver
+				</a>
+				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+					Guardar tarifa base
+				</Button>
+			</div>
+		</form>
+
+		<div class="space-y-3">
+			{
+				ratePlans.length > 0 ? (
+					ratePlans.map((plan) => (
+						<article
+							class={`rounded-lg border p-4 ${
+								plan.isDefault ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white"
+							}`}
+						>
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">{plan.name}</p>
+									<p class="text-xs text-slate-500">Moneda: {plan.currency}</p>
+									<p class="text-xs text-slate-500">{plan.modifierLabel}</p>
+								</div>
+								<div class="flex items-center gap-2">
+									<span
+										class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+											plan.isDefault
+												? "border-blue-200 bg-blue-100 text-blue-800"
+												: "border-slate-200 bg-slate-100 text-slate-700"
+										}`}
+									>
+										{plan.isDefault ? "Default" : "Secundario"}
+									</span>
+									<span
+										class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+											plan.isActive
+												? "border-green-200 bg-green-100 text-green-800"
+												: "border-slate-200 bg-slate-100 text-slate-700"
+										}`}
+									>
+										{plan.isActive ? "Activo" : "Inactivo"}
+									</span>
+								</div>
+							</div>
+						</article>
+					))
+				) : (
+					<article class="rounded-lg border border-slate-200 bg-white p-4">
+						<p class="text-sm text-slate-600">Aún no hay rate plans configurados.</p>
+					</article>
+				)
+			}
+		</div>
+
+		<form id="ratePlanForm" class="mx-auto max-w-3xl space-y-6">
+			<FormSection title="Crear rate plan" class="text-neutral-800">
+				<FormField label="Nombre del plan" htmlFor="ratePlanName" required>
+					<Input id="ratePlanName" name="ratePlanName" value="Default" required />
+				</FormField>
+				<FormField label="Moneda de referencia" htmlFor="ratePlanCurrency" required>
+					<Select id="ratePlanCurrency" name="ratePlanCurrency" value={initialCurrency} required>
+						<option value="USD">USD</option>
+						<option value="BOB">BOB</option>
+					</Select>
+				</FormField>
+				<FormField label="Marcar como default" htmlFor="ratePlanDefault">
+					<div class="flex items-center gap-3">
+						<input
+							id="ratePlanDefault"
+							name="ratePlanDefault"
+							type="checkbox"
+							class="h-4 w-4"
+							checked={!hasDefaultPlan}
+						/>
+						<span class="text-sm text-slate-700">
+							{
+								hasDefaultPlan
+									? "Ya existe un plan por defecto activo (solo puede existir uno)."
+									: "Se creará como plan por defecto."
+							}
+						</span>
+					</div>
+				</FormField>
+			</FormSection>
+			<p id="ratePlanFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+			<div class="flex justify-end">
+				<Button
+					id="ratePlanSubmitBtn"
+					type="submit"
+					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+				>
+					Crear rate plan
+				</Button>
+			</div>
+		</form>
+	</Card>
+</Section>

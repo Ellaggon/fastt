@@ -4,7 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import Layout from "@/layouts/Layout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductAggregate } from "@/modules/catalog/public"
@@ -33,8 +33,8 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 const rulesValue = aggregate.content.rules ?? ""
 ---
 
-<Layout title="Producto · Contenido">
-	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+<WorkspaceLayout title="Producto · Contenido">
+	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Contenido del producto</h1>
@@ -115,7 +115,7 @@ const rulesValue = aggregate.content.rules ?? ""
 				</form>
 			</Card>
 		</section>
-	</main>
+	</section>
 
 	<script type="module">
 		const form = document.getElementById("contentForm")
@@ -184,4 +184,4 @@ const rulesValue = aggregate.content.rules ?? ""
 			}
 		})
 	</script>
-</Layout>
+</WorkspaceLayout>

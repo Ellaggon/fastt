@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProduct } from "@/lib/cache/invalidation"
 import { upsertProductContent } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 
@@ -48,6 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
 				rules: raw.rules || null,
 			}
 		)
+		await invalidateProduct(raw.productId)
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

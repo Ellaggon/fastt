@@ -2,7 +2,12 @@
 import { formatBedType } from "@/data/room/room-beds"
 import { Bath, BedDouble, DoorClosed, Ruler, User } from "@lucide/astro"
 
-const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
+const {
+	offers = [],
+	hotelRoom = [],
+	productFallbackImage = "https://placehold.co/1200x800",
+	productFallbackGallery = [],
+} = Astro.props
 ---
 
 {
@@ -13,15 +18,22 @@ const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
 		const room = hotelRoom.find((r: any) => r.id === variant.entityId)
 		if (!room) return null
 
-		// 🔹 imágenes reales desde roomImages
-		const images = roomImages
-			.filter((img: any) => img.entityId === room.id)
-			.sort((a: any, b: any) => a.order - b.order)
+		// Variant-level gallery (OTA): room card/modal uses variant images, with product fallback.
+		const variantImages = (Array.isArray(offer?.variantImages) ? offer.variantImages : []).sort(
+			(a: any, b: any) => Number(a?.order ?? 0) - Number(b?.order ?? 0)
+		)
+		const fallbackImages = Array.isArray(productFallbackGallery)
+			? productFallbackGallery.map((url: string, index: number) => ({
+					id: `fallback-${index}`,
+					url,
+					order: index,
+					isPrimary: index === 0,
+				}))
+			: []
+		const images = variantImages.length > 0 ? variantImages : fallbackImages
 
 		const mainImage =
-			images.find((img: any) => img.isPrimary)?.url ??
-			images[0]?.url ??
-			"https://placehold.co/1200x800"
+			images.find((img: any) => img.isPrimary)?.url ?? images[0]?.url ?? productFallbackImage
 
 		return (
 			<article
@@ -35,8 +47,11 @@ const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
 					✕
 				</button>
 
-				<div data-close class="fixed inset-0 overflow-y-auto flex items-start justify-center px-2 py-10 sm:p-12">
-					<div class="pointer-events-auto relative w-full max-w-5xl rounded-3xl bg-neutral-100 shadow-2xl max-h-[90vh] overflow-y-auto">
+				<div
+					data-close
+					class="fixed inset-0 flex items-start justify-center overflow-y-auto px-2 py-10 sm:p-12"
+				>
+					<div class="pointer-events-auto relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-neutral-100 shadow-2xl">
 						{/* HEADER */}
 						<header class="border-b px-8 py-6">
 							<h2 class="text-2xl font-semibold text-neutral-900">{variant.name}</h2>
@@ -92,7 +107,7 @@ const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
 							</section>
 
 							{/* DETALLES */}
-							<section class="space-y-8 mx-8">
+							<section class="mx-8 space-y-8">
 								<div class="space-y-3 text-sm text-neutral-700">
 									{room.maxOccupancyOverride > 0 && (
 										<div class="flex items-center gap-2">
@@ -151,12 +166,13 @@ const { offers = [], roomImages = [], hotelRoom = [] } = Astro.props
 
 													<div class="text-right">
 														<p class="font-semibold text-neutral-800">${finalPrice}</p>
-														<a
-															href={`/book/${variant.id}?ratePlan=${rp.id}`}
+														<button
+															type="button"
+															data-select-variant-id={variant.id}
 															class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
 														>
 															Reservar
-														</a>
+														</button>
 													</div>
 												</div>
 											)

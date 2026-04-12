@@ -4,8 +4,6 @@ import { ensureUserForSession } from "@/modules/identity/public"
 import ProfileHover from "./ProfileHover.astro"
 
 const user = await getUserFromRequest(Astro.request)
-const pathname = Astro.url.pathname
-const id = Astro.params.id
 
 // Use identity module to ensure user is persisted
 if (user?.email) {
@@ -52,32 +50,13 @@ if (user?.email) {
 			}
 		</div>
 	</section>
-	<ul class="hidden grid-cols-6 text-center text-xs font-medium sm:grid md:text-sm">
-		<li class="main-tab">
-			<a href="/">Inicio</a>
-		</li>
-		<li class="main-tab">
-			<a href="/dashboard">Dashboard</a>
-		</li>
-		<!-- <li class={`main-tab ${pathname.includes("/services") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Empresa</a>
-		</li>
-		<li class={`main-tab ${pathname.includes("/services") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Productos</a>
-		</li>
-		<li class={`main-tab ${pathname.includes("/services") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Tarifas</a>
-		</li> -->
-		<li class={`main-tab ${pathname.includes("/services") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Servicios</a>
-		</li>
-		<li class={`main-tab ${pathname.includes("/rate-plans") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Políticas</a>
-		</li>
-		<li class={`main-tab md:px-0 ${pathname.includes("/operating-rules") ? "active" : ""}`}>
-			<a href={`/product/${id}/review`}>Reglas Operativas</a>
-		</li>
-	</ul>
+	<div class="hidden grid-cols-5 text-center text-xs font-medium sm:grid md:text-sm">
+		<a href="/" class="dashboard-link">Inicio</a>
+		<a href="/dashboard" class="dashboard-link">Dashboard</a>
+		<a href="/product/create" class="dashboard-link">Productos</a>
+		<a href="/provider/policies" class="dashboard-link">Políticas</a>
+		<a href="/provider/tax-fees" class="dashboard-link">Impuestos y cargos</a>
+	</div>
 </nav>
 <div class="absolute top-9 h-2 w-full bg-white"></div>
 
@@ -98,28 +77,10 @@ if (user?.email) {
 	window.addEventListener("scroll", handleScroll)
 </script>
 <style>
-	.main-tab a {
-		@apply flex justify-center py-3 text-neutral-300 transition lg:px-12;
+	.dashboard-link {
+		@apply flex justify-center py-3 text-neutral-300 transition lg:px-8;
 	}
-
-	.main-tab a:hover {
+	.dashboard-link:hover {
 		@apply text-white;
-	}
-
-	.main-tab.active a {
-		@apply border-b border-white text-white;
-	}
-	.main-tab a {
-		position: relative;
-	}
-
-	.main-tab.active a::after {
-		content: "";
-		position: absolute;
-		bottom: 0;
-		left: 0;
-		height: 2px;
-		width: 100%;
-		background: white;
 	}
 </style>

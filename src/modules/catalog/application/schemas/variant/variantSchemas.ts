@@ -20,7 +20,7 @@ export const setCapacitySchema = z.object({
 
 export const attachHotelRoomSubtypeSchema = z.object({
 	variantId: z.string().trim().min(1),
-	roomTypeId: z.string().trim().min(1),
+	roomTypeId: z.string().trim().optional(),
 })
 
 export const evaluateVariantReadinessSchema = z.object({

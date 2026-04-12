@@ -3,128 +3,48 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
-import Layout from "@/layouts/Layout.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductAggregate, getProductById } from "@/modules/catalog/public"
-import { db, eq, Hotel, Package, Tour } from "astro:db"
+import { db, eq, ProductStatus } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 
-const aggregate = await getProductAggregate(productId)
-if (!aggregate) return Astro.redirect("/product/create")
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
 
-const productBase = await getProductById(productId)
-const productType = String(productBase?.productType ?? "")
+const statusRow = await db
+	.select({ state: ProductStatus.state })
+	.from(ProductStatus)
+	.where(eq(ProductStatus.productId, productId))
+	.get()
+
+const status = String(statusRow?.state || "draft")
 	.trim()
 	.toLowerCase()
-
-const productImages = aggregate.images || []
-const imagesCount = productImages.length
-const imagePreviews = productImages.slice(0, 3)
-
-const hotelSubtype =
-	productType === "hotel"
-		? await db
-				.select({
-					stars: Hotel.stars,
-					phone: Hotel.phone,
-					email: Hotel.email,
-				})
-				.from(Hotel)
-				.where(eq(Hotel.productId, productId))
-				.get()
-		: null
-
-const tourSubtype =
-	productType === "tour"
-		? await db
-				.select({
-					duration: Tour.duration,
-					difficultyLevel: Tour.difficultyLevel,
-					guideLanguages: Tour.guideLanguages,
-				})
-				.from(Tour)
-				.where(eq(Tour.productId, productId))
-				.get()
-		: null
-
-const packageSubtype =
-	productType === "package"
-		? await db
-				.select({
-					days: Package.days,
-					nights: Package.nights,
-				})
-				.from(Package)
-				.where(eq(Package.productId, productId))
-				.get()
-		: null
-
-const hasContent = Boolean(aggregate.content.description?.trim())
-const hasLocation = Boolean(aggregate.location.lat !== null && aggregate.location.lng !== null)
-const hasImages = imagesCount > 0
-const hasSubtype = Boolean(hotelSubtype || tourSubtype || packageSubtype)
-const hasVariants = false // CAPA 3 no se evalúa todavía
-
-const steps = [
-	{ key: "content", label: "Contenido", complete: hasContent },
-	{ key: "location", label: "Ubicación", complete: hasLocation },
-	{ key: "images", label: "Imágenes", complete: hasImages },
-	{ key: "subtype", label: "Subtipo", complete: hasSubtype },
-	{ key: "variants", label: "Variantes", complete: hasVariants },
-]
-
-const completedSteps = steps.filter((item) => item.complete).length
-const missingSteps = steps.length - completedSteps
-const progressPercent = Math.round((completedSteps / steps.length) * 100)
-
-const status = String(aggregate.status || "draft")
-	.trim()
-	.toLowerCase()
-
 const statusBadgeVariant =
 	status === "published" ? "success" : status === "ready" ? "info" : "warning"
 const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
-
-const descriptionPreview = hasContent
-	? String(aggregate.content.description).slice(0, 180)
-	: "Falta completar descripción"
-
-const highlightsCount = Array.isArray(aggregate.content.highlights)
-	? aggregate.content.highlights.length
-	: 0
-
-const subtypeSummary = hotelSubtype
-	? `Hotel · ${hotelSubtype.stars ? `${hotelSubtype.stars}★` : "Sin estrellas"}`
-	: tourSubtype
-		? `Tour · ${tourSubtype.duration || "Duración no definida"}`
-		: packageSubtype
-			? `Paquete · ${packageSubtype.days ?? 0} días / ${packageSubtype.nights ?? 0} noches`
-			: "Subtipo no configurado"
 ---
 
-<Layout title="Producto · Superficie">
-	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+<WorkspaceLayout title="Producto · Superficie">
+	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
 					<h1 class="text-3xl font-semibold uppercase tracking-wide text-slate-100">
-						{aggregate.displayName}
+						{owned.name}
 					</h1>
-					<p class="text-sm text-slate-300">
-						{
-							missingSteps === 0
-								? "Producto completo. Puedes continuar con publicación y variantes."
-								: `Te faltan ${missingSteps} pasos para completar este producto`
-						}
+					<p id="productMissingStepsText" class="text-sm text-slate-300">
+						Cargando resumen del producto...
 					</p>
 				</div>
 				<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
@@ -135,24 +55,23 @@ const subtypeSummary = hotelSubtype
 			<Card class="border-slate-700 bg-slate-900 text-white">
 				<div class="space-y-4">
 					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-						<div class="h-full bg-[#1E3A8A]" style={`width: ${progressPercent}%`}></div>
+						<div id="productProgressBar" class="h-full bg-[#1E3A8A]" style="width: 0%"></div>
 					</div>
-					<p class="text-sm text-slate-200">
-						{completedSteps} de {steps.length} bloques completados.
-					</p>
+					<p id="productProgressText" class="text-sm text-slate-200">Cargando progreso...</p>
 					<div class="grid gap-4 md:grid-cols-2">
-						<Card class="bg-slate-100">
+						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Contenido</p>
 									<p class="text-sm text-slate-600">Descripción, destacados y reglas.</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge variant={hasContent ? "success" : "warning"} class="whitespace-nowrap">
-										{hasContent ? "✅ Completo" : "⚠️ Incompleto"}
+									<Badge id="blockBadge-content" variant="warning" class="whitespace-nowrap">
+										Cargando...
 									</Badge>
 									<Button
 										href={`/product/${encodeURIComponent(productId)}/content`}
+										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Editar contenido</Button
 									>
@@ -160,18 +79,19 @@ const subtypeSummary = hotelSubtype
 							</div>
 						</Card>
 
-						<Card class="bg-slate-100">
+						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Ubicación</p>
 									<p class="text-sm text-slate-600">Dirección y coordenadas del producto.</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge variant={hasLocation ? "success" : "warning"} class="whitespace-nowrap">
-										{hasLocation ? "✅ Completo" : "⚠️ Incompleto"}
+									<Badge id="blockBadge-location" variant="warning" class="whitespace-nowrap">
+										Cargando...
 									</Badge>
 									<Button
 										href={`/product/${encodeURIComponent(productId)}/location`}
+										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Editar ubicación</Button
 									>
@@ -179,18 +99,19 @@ const subtypeSummary = hotelSubtype
 							</div>
 						</Card>
 
-						<Card class="bg-slate-100">
+						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Imágenes</p>
 									<p class="text-sm text-slate-600">Galería de presentación del producto.</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge variant={hasImages ? "success" : "warning"} class="whitespace-nowrap">
-										{hasImages ? "✅ Completo" : "⚠️ Incompleto"}
+									<Badge id="blockBadge-images" variant="warning" class="whitespace-nowrap">
+										Cargando...
 									</Badge>
 									<Button
 										href={`/product/${encodeURIComponent(productId)}/images`}
+										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Gestionar imágenes</Button
 									>
@@ -198,7 +119,7 @@ const subtypeSummary = hotelSubtype
 							</div>
 						</Card>
 
-						<Card class="bg-slate-100">
+						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Subtipo</p>
@@ -207,11 +128,12 @@ const subtypeSummary = hotelSubtype
 									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge variant={hasSubtype ? "success" : "warning"} class="whitespace-nowrap">
-										{hasSubtype ? "✅ Completo" : "⚠️ Incompleto"}
+									<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
+										Cargando...
 									</Badge>
 									<Button
 										href={`/product/${encodeURIComponent(productId)}/subtype`}
+										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Configurar subtipo</Button
 									>
@@ -219,7 +141,7 @@ const subtypeSummary = hotelSubtype
 							</div>
 						</Card>
 
-						<Card class="bg-slate-100 md:col-span-2">
+						<Card class="min-h-[118px] bg-slate-100 md:col-span-2">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Variantes</p>
@@ -228,9 +150,12 @@ const subtypeSummary = hotelSubtype
 									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 text-xs lg:flex-row">
-									<Badge variant="warning" class="whitespace-nowrap">⚠️ Pendiente</Badge>
+									<Badge id="blockBadge-variants" variant="warning" class="whitespace-nowrap">
+										Cargando...
+									</Badge>
 									<Button
 										href={`/product/${encodeURIComponent(productId)}/variants`}
+										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Ir a variantes</Button
 									>
@@ -244,14 +169,15 @@ const subtypeSummary = hotelSubtype
 
 		<Section title="Resumen operativo" description="Vista rápida del estado actual de cada bloque.">
 			<div class="grid gap-4 md:grid-cols-2">
-				<Card class="bg-slate-100">
+				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
 						<p class="text-sm font-semibold text-slate-900">Contenido</p>
-						<p class="text-sm text-slate-600">{descriptionPreview}</p>
-						<p class="text-sm text-slate-600">Destacados: {highlightsCount}</p>
+						<p id="summaryDescription" class="text-sm text-slate-600">Cargando contenido...</p>
+						<p id="summaryHighlights" class="text-sm text-slate-600">Destacados: —</p>
 						<div class="flex justify-end">
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/content`}
+								data-astro-prefetch
 								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 								>Editar contenido</Button
 							>
@@ -259,22 +185,15 @@ const subtypeSummary = hotelSubtype
 					</div>
 				</Card>
 
-				<Card class="bg-slate-100">
+				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
 						<p class="text-sm font-semibold text-slate-900">Ubicación</p>
-						<p class="text-sm text-slate-600">
-							{aggregate.location.address || "Sin dirección registrada"}
-						</p>
-						<p class="text-sm text-slate-600">
-							{
-								aggregate.location.lat !== null && aggregate.location.lng !== null
-									? `${aggregate.location.lat.toFixed(6)}, ${aggregate.location.lng.toFixed(6)}`
-									: "Sin coordenadas"
-							}
-						</p>
+						<p id="summaryAddress" class="text-sm text-slate-600">Cargando dirección...</p>
+						<p id="summaryCoordinates" class="text-sm text-slate-600">Cargando coordenadas...</p>
 						<div class="flex justify-end">
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/location`}
+								data-astro-prefetch
 								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 								>Editar ubicación</Button
 							>
@@ -282,28 +201,19 @@ const subtypeSummary = hotelSubtype
 					</div>
 				</Card>
 
-				<Card class="bg-slate-100">
+				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
 						<p class="text-sm font-semibold text-slate-900">Imágenes</p>
-						<p class="text-sm text-slate-600">Total de imágenes: {imagesCount}</p>
-						<div class="grid grid-cols-3 gap-2">
-							{
-								imagePreviews.length > 0 ? (
-									imagePreviews.map((img) => (
-										<img
-											src={img.url}
-											alt="Vista previa"
-											class="h-16 w-full rounded-md border border-slate-200 object-cover"
-										/>
-									))
-								) : (
-									<p class="col-span-3 text-sm text-slate-500">Sin imágenes cargadas.</p>
-								)
-							}
+						<p id="summaryImagesCount" class="text-sm text-slate-600">Total de imágenes: —</p>
+						<div id="summaryImageGrid" class="grid min-h-[74px] grid-cols-3 gap-2">
+							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
+							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
+							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
 						</div>
 						<div class="flex justify-end">
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/images`}
+								data-astro-prefetch
 								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 								>Gestionar imágenes</Button
 							>
@@ -311,14 +221,15 @@ const subtypeSummary = hotelSubtype
 					</div>
 				</Card>
 
-				<Card class="bg-slate-100">
+				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
 						<p class="text-sm font-semibold text-slate-900">Subtipo</p>
-						<p class="text-sm text-slate-600">Tipo: {productType || "No definido"}</p>
-						<p class="text-sm text-slate-600">{subtypeSummary}</p>
+						<p id="summaryProductType" class="text-sm text-slate-600">Tipo: cargando...</p>
+						<p id="summarySubtype" class="text-sm text-slate-600">Cargando subtipo...</p>
 						<div class="flex justify-end">
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/subtype`}
+								data-astro-prefetch
 								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 								>Configurar subtipo</Button
 							>
@@ -327,5 +238,124 @@ const subtypeSummary = hotelSubtype
 				</Card>
 			</div>
 		</Section>
-	</main>
-</Layout>
+	</section>
+	<script is:inline define:vars={{ productId }}>
+		;(function () {
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "product-surface",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+			}
+
+			const setBadgeState = (key, complete) => {
+				const badge = document.getElementById(`blockBadge-${key}`)
+				if (!badge) return
+				badge.textContent = complete ? "✅ Completo" : "⚠️ Incompleto"
+				badge.classList.remove("bg-amber-100", "text-amber-800", "bg-green-100", "text-green-800")
+				if (complete) {
+					badge.classList.add("bg-green-100", "text-green-800")
+				} else {
+					badge.classList.add("bg-amber-100", "text-amber-800")
+				}
+			}
+
+			if (!productId) return
+
+			const hydrationStart = performance.now()
+			fetch(`/api/internal/product-summary?productId=${encodeURIComponent(productId)}`, {
+				headers: { accept: "application/json" },
+			})
+				.then(async (response) => {
+					if (!response.ok) throw new Error(`summary_${response.status}`)
+					return await response.json()
+				})
+				.then((payload) => {
+					const missingStepsText = document.getElementById("productMissingStepsText")
+					const progressBar = document.getElementById("productProgressBar")
+					const progressText = document.getElementById("productProgressText")
+
+					const missing = Number(payload?.progress?.missingSteps ?? 0)
+					const completed = Number(payload?.progress?.completedSteps ?? 0)
+					const total = Number(payload?.progress?.totalSteps ?? 0)
+					const percent = Number(payload?.progress?.progressPercent ?? 0)
+
+					if (missingStepsText) {
+						missingStepsText.textContent =
+							missing === 0
+								? "Producto completo. Puedes continuar con publicación y variantes."
+								: `Te faltan ${missing} pasos para completar este producto`
+					}
+					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
+					if (progressText)
+						progressText.textContent = `${completed} de ${total} bloques completados.`
+
+					setBadgeState("content", Boolean(payload?.checks?.hasContent))
+					setBadgeState("location", Boolean(payload?.checks?.hasLocation))
+					setBadgeState("images", Boolean(payload?.checks?.hasImages))
+					setBadgeState("subtype", Boolean(payload?.checks?.hasSubtype))
+					setBadgeState("variants", Boolean(payload?.checks?.hasVariants))
+
+					const summaryDescription = document.getElementById("summaryDescription")
+					const summaryHighlights = document.getElementById("summaryHighlights")
+					const summaryAddress = document.getElementById("summaryAddress")
+					const summaryCoordinates = document.getElementById("summaryCoordinates")
+					const summaryImagesCount = document.getElementById("summaryImagesCount")
+					const summaryProductType = document.getElementById("summaryProductType")
+					const summarySubtype = document.getElementById("summarySubtype")
+					const summaryImageGrid = document.getElementById("summaryImageGrid")
+
+					if (summaryDescription)
+						summaryDescription.textContent = String(payload?.content?.descriptionPreview ?? "")
+					if (summaryHighlights)
+						summaryHighlights.textContent = `Destacados: ${Number(payload?.content?.highlightsCount ?? 0)}`
+					if (summaryAddress) summaryAddress.textContent = String(payload?.location?.address ?? "")
+					if (summaryCoordinates)
+						summaryCoordinates.textContent = String(payload?.location?.coordinates ?? "")
+					if (summaryImagesCount)
+						summaryImagesCount.textContent = `Total de imágenes: ${Number(payload?.images?.count ?? 0)}`
+					if (summaryProductType)
+						summaryProductType.textContent = `Tipo: ${String(payload?.productType || "no definido")}`
+					if (summarySubtype) summarySubtype.textContent = String(payload?.subtype?.summary ?? "")
+
+					if (summaryImageGrid) {
+						summaryImageGrid.innerHTML = ""
+						const previews = Array.isArray(payload?.images?.previews) ? payload.images.previews : []
+						if (previews.length === 0) {
+							const empty = document.createElement("p")
+							empty.className = "col-span-3 text-sm text-slate-500"
+							empty.textContent = "Sin imágenes cargadas."
+							summaryImageGrid.appendChild(empty)
+						} else {
+							for (const item of previews) {
+								const img = document.createElement("img")
+								img.src = String(item.url)
+								img.alt = "Vista previa"
+								img.className = "h-16 w-full rounded-md border border-slate-200 object-cover"
+								summaryImageGrid.appendChild(img)
+							}
+						}
+					}
+
+					console.debug("data hydrated", {
+						page: "product-surface",
+						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
+					})
+				})
+				.catch(() => {
+					const progressText = document.getElementById("productProgressText")
+					if (progressText)
+						progressText.textContent = "No se pudo cargar el progreso en este momento."
+					;["content", "location", "images", "subtype", "variants"].forEach((key) =>
+						setBadgeState(key, false)
+					)
+				})
+		})()
+	</script>
+</WorkspaceLayout>

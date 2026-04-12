@@ -1,0 +1,128 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { db, eq, inArray, Product, ProductStatus } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const products = await db
+	.select({
+		id: Product.id,
+		name: Product.name,
+		productType: Product.productType,
+	})
+	.from(Product)
+	.where(eq(Product.providerId, providerId))
+
+const productIds = products.map((product) => product.id)
+const statuses = productIds.length
+	? await db
+			.select({
+				productId: ProductStatus.productId,
+				state: ProductStatus.state,
+			})
+			.from(ProductStatus)
+			.where(inArray(ProductStatus.productId, productIds))
+	: []
+
+const statusMap = new Map(
+	statuses.map((status) => [status.productId, String(status.state ?? "draft")])
+)
+
+const getStatusMeta = (rawState: string | undefined) => {
+	const state = String(rawState ?? "draft")
+		.trim()
+		.toLowerCase()
+	if (state === "published") return { label: "Publicado", variant: "success" as const }
+	if (state === "ready") return { label: "Listo", variant: "info" as const }
+	return { label: "Borrador", variant: "warning" as const }
+}
+---
+
+<WorkspaceLayout title="Productos">
+	<section class="space-y-8">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Productos</h1>
+			<p class="text-sm text-slate-400">Administra todos tus productos desde un solo lugar.</p>
+		</header>
+
+		<Section
+			title="Listado de productos"
+			description="Accede al detalle y configuración de cada producto."
+		>
+			{
+				products.length === 0 ? (
+					<Card class="space-y-4 bg-slate-100">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes productos</h2>
+							<p class="text-sm text-slate-600">
+								Crea tu primer producto para empezar la configuración operativa.
+							</p>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href="/product/create"
+								data-astro-prefetch
+								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							>
+								Crear producto
+							</Button>
+						</div>
+					</Card>
+				) : (
+					<div class="space-y-4">
+						{products.map((product) => {
+							const status = getStatusMeta(statusMap.get(product.id))
+							return (
+								<Card class="space-y-4 bg-slate-100">
+									<div class="flex flex-wrap items-start justify-between gap-4">
+										<div class="space-y-1">
+											<p class="text-lg font-semibold text-slate-900">{product.name}</p>
+											<p class="text-sm text-slate-600">
+												Tipo: {String(product.productType ?? "No definido")}
+											</p>
+										</div>
+										<div class="flex items-center gap-3">
+											<Badge variant={status.variant}>{status.label}</Badge>
+											<Button
+												href={`/product/${encodeURIComponent(product.id)}`}
+												data-astro-prefetch
+												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+											>
+												Ver producto
+											</Button>
+										</div>
+									</div>
+								</Card>
+							)
+						})}
+					</div>
+				)
+			}
+		</Section>
+
+		<Section title="Acción principal" description="Crea nuevos productos cuando lo necesites.">
+			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
+				<p class="text-sm text-slate-600">
+					El alta crea la identidad base del producto para continuar con su configuración.
+				</p>
+				<Button
+					href="/product/create"
+					data-astro-prefetch
+					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+				>
+					Crear producto
+				</Button>
+			</Card>
+		</Section>
+	</section>
+</WorkspaceLayout>

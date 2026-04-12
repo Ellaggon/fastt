@@ -1,0 +1,258 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DatesModal from "@/components/ui/DatesModal.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import { productRepository, variantManagementRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+
+const variant = await variantManagementRepository.getVariantById(variantId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+}
+
+const now = new Date()
+const from = now.toISOString().slice(0, 10)
+const toDate = new Date(now)
+toDate.setDate(now.getDate() + 2)
+const to = toDate.toISOString().slice(0, 10)
+---
+
+<WorkspaceLayout title="Disponibilidad de variante">
+	<section class="space-y-8">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad de variante</h1>
+			<p class="text-sm text-slate-400">Consulta capacidad, precio y estado de venta por fecha.</p>
+			<div class="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+				<span>Variante: {variant.name}</span>
+				<Badge variant="neutral">{variant.kind ?? "hotel_room"}</Badge>
+			</div>
+		</header>
+
+		<Section
+			title="Rango de consulta"
+			description="Actualiza fechas y ocupación para revisar disponibilidad."
+		>
+			<Card class="space-y-6 bg-slate-100">
+				<div class="grid gap-4 md:grid-cols-4">
+					<FormField label="Desde">
+						<DatesModal id="availabilityFrom" name="availabilityFrom" value={from} />
+					</FormField>
+					<FormField label="Hasta">
+						<DatesModal id="availabilityTo" name="availabilityTo" value={to} />
+					</FormField>
+					<FormField label="Ocupación">
+						<Input
+							id="availabilityOccupancy"
+							name="availabilityOccupancy"
+							type="number"
+							min="1"
+							value="2"
+						/>
+					</FormField>
+					<div class="flex items-end">
+						<Button
+							id="availabilityLoadBtn"
+							type="button"
+							className="w-full bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Consultar disponibilidad
+						</Button>
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Calendario de disponibilidad"
+			description="Estado diario para el rango seleccionado."
+		>
+			<Card class="min-h-[260px] space-y-4 bg-slate-100">
+				<div class="flex items-center justify-between gap-4">
+					<p id="availabilitySummary" class="text-sm text-slate-600">Cargando disponibilidad...</p>
+					<p id="availabilityLatency" class="text-xs text-slate-500"></p>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-slate-200 text-sm">
+						<thead>
+							<tr class="text-left text-slate-700">
+								<th class="py-2 pr-4">Fecha</th>
+								<th class="py-2 pr-4">Capacidad</th>
+								<th class="py-2 pr-4">Precio</th>
+								<th class="py-2 pr-4">Estado</th>
+								<th class="py-2 pr-4">Reglas</th>
+							</tr>
+						</thead>
+						<tbody id="availabilityRows">
+							{
+								Array.from({ length: 4 }).map(() => (
+									<tr class="border-b border-slate-200">
+										<td class="py-2 pr-4">
+											<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="py-2 pr-4">
+											<div class="h-4 w-12 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="py-2 pr-4">
+											<div class="h-4 w-16 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="py-2 pr-4">
+											<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="py-2 pr-4">
+											<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+										</td>
+									</tr>
+								))
+							}
+						</tbody>
+					</table>
+				</div>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline define:vars={{ productId, variantId }}>
+		;(function () {
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "variant-availability",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+			}
+
+			if (!productId || !variantId) return
+
+			const fromInput = document.getElementById("availabilityFrom")
+			const toInput = document.getElementById("availabilityTo")
+			const occupancyInput = document.getElementById("availabilityOccupancy")
+			const summary = document.getElementById("availabilitySummary")
+			const latency = document.getElementById("availabilityLatency")
+			const rows = document.getElementById("availabilityRows")
+			const loadBtn = document.getElementById("availabilityLoadBtn")
+
+			const hydrateRows = (days) => {
+				if (!rows) return
+				rows.innerHTML = ""
+				for (const day of days) {
+					const tr = document.createElement("tr")
+					tr.className = "border-b border-slate-200"
+					const status = day.sellable
+						? "Disponible"
+						: day.price == null
+							? "Sin pricing configurado"
+							: Number(day.capacity ?? 0) <= 0
+								? "Sin inventario disponible"
+								: day.closed
+									? "Cerrado"
+									: "No disponible"
+					const minStay = day.minStay == null ? "Sin mínimo" : `Mín. ${day.minStay} noche(s)`
+					tr.innerHTML = `
+						<td class="py-2 pr-4 text-slate-900">${day.date}</td>
+						<td class="py-2 pr-4 text-slate-700">${day.capacity}</td>
+						<td class="py-2 pr-4 text-slate-700">${day.price == null ? "—" : `USD ${Number(day.price).toFixed(2)}`}</td>
+						<td class="py-2 pr-4 text-slate-700">${status}</td>
+						<td class="py-2 pr-4 text-slate-700">${minStay}</td>
+					`
+					rows.appendChild(tr)
+				}
+			}
+
+			const loadAvailability = async () => {
+				const from = String(fromInput?.value ?? "").trim()
+				const to = String(toInput?.value ?? "").trim()
+				const occupancy = Number(occupancyInput?.value ?? 1)
+				if (!from || !to || occupancy <= 0) return
+
+				if (summary) summary.textContent = "Cargando disponibilidad..."
+				if (loadBtn) {
+					loadBtn.setAttribute("disabled", "true")
+					loadBtn.textContent = "Consultando..."
+				}
+
+				const hydrationStart = performance.now()
+				try {
+					const qs = new URLSearchParams({
+						variantId,
+						from,
+						to,
+						occupancy: String(Math.max(1, Math.floor(occupancy))),
+						currency: "USD",
+					})
+					const response = await fetch(`/api/internal/availability-summary?${qs.toString()}`, {
+						headers: { accept: "application/json" },
+					})
+					if (!response.ok) throw new Error(`availability_${response.status}`)
+					const payload = await response.json()
+
+					hydrateRows(Array.isArray(payload?.days) ? payload.days : [])
+					if (summary) {
+						const sellable = Boolean(payload?.summary?.sellable)
+						const total =
+							payload?.summary?.totalPrice == null
+								? "—"
+								: `USD ${Number(payload.summary.totalPrice).toFixed(2)}`
+						const days = Array.isArray(payload?.days) ? payload.days : []
+						const missingPricing = days.some((day) => day?.price == null)
+						const noInventory = days.every((day) => Number(day?.capacity ?? 0) <= 0)
+						const reason = missingPricing
+							? "Sin pricing configurado"
+							: noInventory
+								? "Sin inventario disponible"
+								: sellable
+									? "Rango vendible"
+									: "Rango no vendible"
+						summary.textContent = `${reason} · Noches: ${Number(payload?.summary?.nights ?? 0)} · Total: ${total}`
+					}
+
+					console.debug("data hydrated", {
+						page: "variant-availability",
+						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
+					})
+					if (latency) {
+						latency.textContent = `Latencia consulta: ${Number(
+							(performance.now() - hydrationStart).toFixed(1)
+						)}ms`
+					}
+				} catch {
+					if (summary) summary.textContent = "No se pudo cargar la disponibilidad."
+					if (latency) latency.textContent = ""
+				} finally {
+					if (loadBtn) {
+						loadBtn.removeAttribute("disabled")
+						loadBtn.textContent = "Consultar disponibilidad"
+					}
+				}
+			}
+
+			loadBtn?.addEventListener("click", loadAvailability)
+			void loadAvailability()
+		})()
+	</script>
+</WorkspaceLayout>

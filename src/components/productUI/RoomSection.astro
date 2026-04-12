@@ -1,11 +1,13 @@
 ---
-const { offers, searchState, productId, amenities, roomImages, hotelRoom } = Astro.props
+const { offers, searchState, productId, amenities, hotelRoom, productFallbackImage } = Astro.props
 import { Bath, BedDouble, User } from "@lucide/astro"
-import RoomAvailabilityIsland from "../booking/RoomAvailabilityIsland.astro"
 import DatesModal from "./DatesModal.astro"
-// console.log("amenities", amenities)
-// console.log("roomImages", roomImages)
-// console.log("hotelRoom", hotelRoom)
+
+const variants = (offers ?? []).map((room: any) => ({
+	id: String(room?.variant?.id ?? ""),
+	name: String(room?.variant?.name ?? "Habitación"),
+	capacity: Number(room?.variant?.maxOccupancy ?? 0),
+}))
 ---
 
 <header
@@ -28,7 +30,7 @@ import DatesModal from "./DatesModal.astro"
 					id="adultsInput"
 					type="number"
 					min="1"
-					value="2"
+					value={String(searchState.adults ?? 2)}
 					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
 				/>
 			</div>
@@ -39,7 +41,7 @@ import DatesModal from "./DatesModal.astro"
 					id="childrenInput"
 					type="number"
 					min="0"
-					value="0"
+					value={String(searchState.children ?? 0)}
 					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
 				/>
 			</div>
@@ -104,37 +106,63 @@ import DatesModal from "./DatesModal.astro"
 			id="searchBtn"
 			class="h-[44px] w-full rounded-lg bg-blue-600 px-6 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-500 active:scale-[0.97] md:w-auto"
 		>
-			Buscar
+			Consultar disponibilidad
 		</button>
 	</div>
 </header>
 
-<RoomAvailabilityIsland productId={productId} searchState={searchState} />
+<article class="rounded-2xl border border-neutral-200 bg-white p-4 md:p-6">
+	<div class="space-y-2">
+		<h3 class="text-lg font-semibold text-neutral-900">Resumen de disponibilidad</h3>
+		<p id="availabilitySummaryText" class="text-sm text-neutral-600">
+			Selecciona fechas para ver precio total y estado de venta.
+		</p>
+	</div>
+	<div class="mt-4 flex flex-wrap items-center gap-2">
+		<button
+			type="button"
+			id="reserveBtn"
+			class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+		>
+			Reservar
+		</button>
+		<button
+			type="button"
+			id="confirmBookingBtn"
+			disabled
+			class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+		>
+			Confirmar reserva
+		</button>
+		<span id="holdStatusText" class="text-sm text-neutral-500"></span>
+	</div>
+</article>
 <DatesModal />
 
 <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 py-3">
 	<div class="flex snap-x snap-mandatory gap-3">
 		{
 			(offers ?? []).map((room: any) => {
-				// console.log("room", room)
-
 				const variant = room.variant
 				const entity = hotelRoom?.find((r: any) => r.id === variant.entityId) ?? {}
 				const ratePlans = room.ratePlans ?? []
-				const img = roomImages?.at(0)?.url ?? "https://placehold.co/800x600?text=Sin+imagen"
+				const variantImages = Array.isArray(room?.variantImages) ? room.variantImages : []
+				const primaryVariantImage =
+					variantImages.find((img: any) => Boolean(img?.isPrimary))?.url ?? variantImages[0]?.url
+				const img =
+					primaryVariantImage ??
+					productFallbackImage ??
+					"https://placehold.co/800x600?text=Sin+imagen"
 
 				const prices = ratePlans
-					.map((rp: any) => rp.finalPrice ?? rp.price)
+					.map((rp: any) => rp.basePrice ?? rp.finalPrice ?? rp.price)
 					.filter((p: any) => typeof p === "number")
 
-				console.log("variant", variant)
-				console.log("prices", prices)
 				const fromPrice = prices.length ? Math.min(...prices) : variant.basePrice
 				const showBasePrice =
 					typeof variant.basePrice === "number" &&
 					prices.length > 0 &&
 					variant.basePrice > fromPrice
-				console.log("fromPrice", fromPrice)
 
 				return (
 					<article
@@ -224,7 +252,6 @@ import DatesModal from "./DatesModal.astro"
 							<div class="mt-4 space-y-3">
 								{ratePlans.map((rp: any) => {
 									const finalPrice = rp.finalPrice ?? rp.price ?? 0
-									console.log("finalP", finalPrice)
 
 									return (
 										<div
@@ -242,12 +269,13 @@ import DatesModal from "./DatesModal.astro"
 											<div class="text-right">
 												<p class="text-sm font-semibold text-neutral-900">${finalPrice}</p>
 
-												<a
-													href={`/book/${variant.id}?ratePlan=${rp.id}`}
+												<button
+													type="button"
+													data-select-variant-id={variant.id}
 													class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
 												>
 													Reservar
-												</a>
+												</button>
 											</div>
 										</div>
 									)
@@ -263,12 +291,13 @@ import DatesModal from "./DatesModal.astro"
 									Ver habitación
 								</button>
 
-								<a
-									href={`/book/${variant.id}`}
+								<button
+									type="button"
+									data-select-variant-id={variant.id}
 									class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
 								>
 									Reservar
-								</a>
+								</button>
 							</div>
 						</div>
 					</article>
@@ -278,16 +307,56 @@ import DatesModal from "./DatesModal.astro"
 	</div>
 </div>
 
-<script>
+<script
+	is:inline
+	define:vars={{
+		productId,
+		selectedVariantIdFromQuery: String(searchState?.selectedVariantId ?? ""),
+		defaultVariantId: String(variants[0]?.id ?? ""),
+	}}
+>
+	if (!productId) {
+		console.warn("productId missing in RoomSection")
+	}
 
-	const guestsLabel = document.getElementById("guestsLabel") as HTMLSpanElement
+	const guestsLabel = document.getElementById("guestsLabel")
+	const adultsInput = document.getElementById("adultsInput")
+	const childrenInput = document.getElementById("childrenInput")
+	const checkinBtn = document.getElementById("checkinBtn")
+	const checkoutBtn = document.getElementById("checkoutBtn")
+	const summaryText = document.getElementById("availabilitySummaryText")
+	const holdStatusText = document.getElementById("holdStatusText")
+	const reserveBtn = document.getElementById("reserveBtn")
+	const confirmBookingBtn = document.getElementById("confirmBookingBtn")
 
-	const adultsInput = document.getElementById("adultsInput") as HTMLInputElement
-	const childrenInput = document.getElementById("childrenInput") as HTMLInputElement
+	let selectedVariantId = String(selectedVariantIdFromQuery || defaultVariantId || "").trim()
+	let latestHoldId = ""
+
+	function parseIsoDate(iso) {
+		const parsed = new Date(`${iso}T00:00:00`)
+		return Number.isNaN(parsed.getTime()) ? null : parsed
+	}
+
+	function formatDateEs(iso) {
+		const parsed = parseIsoDate(iso)
+		if (!parsed) return iso
+		return parsed.toLocaleDateString("es-CL")
+	}
+
+	function getSelectedVariantId() {
+		return String(selectedVariantId ?? "").trim()
+	}
+
+	function getDateRange() {
+		return {
+			from: String(checkinBtn?.value ?? "").trim(),
+			to: String(checkoutBtn?.value ?? "").trim(),
+		}
+	}
 
 	function updateGuestsLabel() {
-		const adults = Number(adultsInput.value)
-		const children = Number(childrenInput.value)
+		const adults = Number(adultsInput?.value ?? 1)
+		const children = Number(childrenInput?.value ?? 0)
 		const total = adults + children
 
 		if (guestsLabel) {
@@ -300,56 +369,159 @@ import DatesModal from "./DatesModal.astro"
 		return total
 	}
 
-	adultsInput.oninput = updateGuestsLabel
-	childrenInput.oninput = updateGuestsLabel
-
+	if (adultsInput) adultsInput.oninput = updateGuestsLabel
+	if (childrenInput) childrenInput.oninput = updateGuestsLabel
 	updateGuestsLabel()
 
-	document.getElementById("searchBtn")?.addEventListener("click", () => {
-		const totalGuests = updateGuestsLabel()
+	async function fetchCanonicalOffers() {
+		const dateRange = getDateRange()
+		const adults = Math.max(1, Number(adultsInput?.value ?? 1) || 1)
+		const children = Math.max(0, Number(childrenInput?.value ?? 0) || 0)
+		if (!dateRange.from || !dateRange.to) return { offers: [] }
 
-		const article = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
-		article.forEach((card) => {
-			const capacity = Number(card.dataset.capacity)
-
-			if (capacity >= totalGuests) {
-				card.classList.remove("hidden")
-			} else {
-				card.classList.add("hidden")
-			}
+		const response = await fetch(`/api/products/${encodeURIComponent(String(productId))}/offers`, {
+			method: "POST",
+			headers: {
+				"accept": "application/json",
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				checkIn: dateRange.from,
+				checkOut: dateRange.to,
+				adults,
+				children,
+				rooms: 1,
+			}),
 		})
+		if (!response.ok) throw new Error(`offers_${response.status}`)
+		const payload = await response.json().catch(() => ({}))
+		return {
+			offers: Array.isArray(payload?.offers) ? payload.offers : [],
+		}
+	}
+
+	document.getElementById("searchBtn")?.addEventListener("click", async () => {
+		const dateRange = getDateRange()
+		if (!dateRange.from || !dateRange.to) {
+			if (summaryText)
+				summaryText.textContent = "Selecciona check-in y check-out antes de consultar."
+			return
+		}
+
+		try {
+			if (summaryText) summaryText.textContent = "Consultando disponibilidad..."
+			const offersPayload = await fetchCanonicalOffers()
+			const selectedVariantId = getSelectedVariantId()
+			const selectedOffer =
+				offersPayload.offers.find(
+					(offer) => String(offer?.variantId ?? offer?.variant?.id ?? "") === selectedVariantId
+				) ?? offersPayload.offers[0]
+			const availabilitySummary = selectedOffer?.availabilitySummary ?? null
+			const total = availabilitySummary?.totalPrice
+			const sellable = Boolean(availabilitySummary?.sellable)
+			if (summaryText) {
+				summaryText.textContent = `Estado del rango: ${sellable ? "VENDIBLE" : "NO VENDIBLE"} · Noches: ${Number(availabilitySummary?.nights ?? 0)} · Total: ${total == null ? "—" : `USD ${Number(total).toFixed(2)}`}`
+			}
+		} catch {
+			if (summaryText)
+				summaryText.textContent = "No se pudo obtener disponibilidad para el rango seleccionado."
+		}
+
+		const nextParams = new URLSearchParams({
+			checkin: dateRange.from,
+			checkout: dateRange.to,
+			adults: String(Math.max(1, Number(adultsInput?.value ?? 1) || 1)),
+			children: String(Math.max(0, Number(childrenInput?.value ?? 0) || 0)),
+		})
+		const variantId = getSelectedVariantId()
+		if (variantId) nextParams.set("variantId", variantId)
+		window.location.href = `/hotels/${encodeURIComponent(String(productId))}?${nextParams.toString()}`
 	})
 
-	// document.addEventListener("availability:updated", (e) => {
-	// 	const event = e as CustomEvent<AvailabilityResponse>
-	// 	const results = event.detail
-	// 	console.log("RESULTS:", results)
+	if (checkinBtn?.value) {
+		const label = document.getElementById("checkinText")
+		if (label) label.textContent = formatDateEs(checkinBtn.value)
+	}
+	if (checkoutBtn?.value) {
+		const label = document.getElementById("checkoutText")
+		if (label) label.textContent = formatDateEs(checkoutBtn.value)
+	}
 
-	// 	const dataRoomIds = document.querySelectorAll("[data-room-id]") as NodeListOf<HTMLElement>
-	// 	dataRoomIds.forEach((card) => {
-	// 		const variantId = card.dataset.roomId
-	// 		console.log("variantId:", variantId)
-	// 		if (!variantId) return
+	for (const trigger of document.querySelectorAll("[data-select-variant-id]")) {
+		trigger.addEventListener("click", async (event) => {
+			const target = event.currentTarget
+			const variantId = String(target?.dataset?.selectVariantId ?? "").trim()
+			if (!variantId) return
+			selectedVariantId = variantId
+			await handleReserve()
+		})
+	}
 
-	// 		const priceValue = card.querySelector(".price-value") as HTMLElement
-	// 		const priceStatus = card.querySelector(".price-status") as HTMLElement
+	async function handleReserve() {
+		const variantId = getSelectedVariantId()
+		const occupancy = updateGuestsLabel()
+		const dateRange = getDateRange()
+		if (!variantId || !dateRange.from || !dateRange.to) return
 
-	// 		const availability = findAvailability(results, variantId)
-	// 		console.log("availability", availability)
+		console.debug("ui_hold_triggered", { variantId })
+		if (holdStatusText) holdStatusText.textContent = "Creando hold..."
+		if (reserveBtn) reserveBtn.disabled = true
+		try {
+			const response = await fetch("/api/inventory/hold", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					variantId,
+					dateRange,
+					occupancy: Math.max(1, occupancy),
+				}),
+			})
+			const payload = await response.json().catch(() => ({}))
+			if (!response.ok) {
+				if (holdStatusText) {
+					holdStatusText.textContent =
+						payload?.error === "not_available"
+							? "No hay disponibilidad suficiente para ese rango."
+							: "No se pudo crear el hold."
+				}
+				return
+			}
+			latestHoldId = String(payload?.holdId ?? "")
+			if (holdStatusText) {
+				holdStatusText.textContent = latestHoldId ? "Hold creado correctamente." : "Hold creado."
+			}
+			if (confirmBookingBtn) confirmBookingBtn.disabled = !latestHoldId
+		} catch {
+			if (holdStatusText) holdStatusText.textContent = "Error de red al crear hold."
+		} finally {
+			if (reserveBtn) reserveBtn.disabled = false
+		}
+	}
 
-	// 		if (availability && typeof availability.pricing === "number") {
-	// 			if (!priceValue) return
+	async function handleConfirmBooking() {
+		if (!latestHoldId) return
+		if (confirmBookingBtn) confirmBookingBtn.disabled = true
+		if (holdStatusText) holdStatusText.textContent = "Confirmando reserva..."
+		try {
+			const response = await fetch("/api/booking/confirm", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ holdId: latestHoldId }),
+			})
+			const payload = await response.json().catch(() => ({}))
+			if (!response.ok || !payload?.bookingId) {
+				if (holdStatusText) holdStatusText.textContent = "No se pudo confirmar la reserva."
+				if (confirmBookingBtn) confirmBookingBtn.disabled = false
+				return
+			}
+			console.debug("ui_booking_confirmed", { bookingId: payload.bookingId })
+			window.location.href = `/booking/${encodeURIComponent(String(payload.bookingId))}`
+		} catch {
+			if (holdStatusText) holdStatusText.textContent = "Error de red al confirmar la reserva."
+			if (confirmBookingBtn) confirmBookingBtn.disabled = false
+		}
+	}
 
-	// 			priceValue.textContent = `USD ${availability.pricing}`
-	// 			priceValue.classList.remove("hidden")
-	// 			priceStatus?.classList.add("hidden")
-	// 		} else {
-	// 			if (!priceValue) return
-
-	// 			priceValue.textContent = ""
-	// 			priceValue.classList.add("hidden")
-	// 			priceStatus?.classList.remove("hidden")
-	// 		}
-	// 	})
-	// })
+	reserveBtn?.addEventListener("click", handleReserve)
+	confirmBookingBtn?.addEventListener("click", handleConfirmBooking)
 </script>

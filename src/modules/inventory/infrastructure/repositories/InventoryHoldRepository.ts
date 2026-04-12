@@ -1,4 +1,4 @@
-import { db, DailyInventory, InventoryLock, and, eq, lt, sql } from "astro:db"
+import { db, DailyInventory, InventoryLock, and, eq, gte, lt, sql } from "astro:db"
 import { toISODate } from "@/shared/domain/date/date.utils"
 import type {
 	HoldInventoryResult,
@@ -35,6 +35,32 @@ function datesInRange(checkIn: Date, checkOut: Date): string[] {
 }
 
 export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
+	async findActiveHold(params: {
+		holdId: string
+		now: Date
+	}): Promise<{ holdId: string; expiresAt: Date } | null> {
+		const row = await db
+			.select({
+				holdId: InventoryLock.holdId,
+				expiresAt: InventoryLock.expiresAt,
+			})
+			.from(InventoryLock)
+			.where(
+				and(
+					eq(InventoryLock.holdId, params.holdId),
+					gte(InventoryLock.expiresAt, params.now),
+					sql`${InventoryLock.bookingId} is null`
+				)
+			)
+			.get()
+
+		if (!row?.holdId || !row.expiresAt) return null
+		return {
+			holdId: String(row.holdId),
+			expiresAt: new Date(row.expiresAt),
+		}
+	}
+
 	async holdInventory(params: {
 		holdId: string
 		variantId: string
@@ -103,7 +129,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 					}
 				})
 
-				return { success: true, holdId: params.holdId }
+				return { success: true, holdId: params.holdId, expiresAt: params.expiresAt }
 			} catch (e) {
 				if (e instanceof NotAvailableError) {
 					return { success: false, reason: "not_available" }
@@ -139,7 +165,9 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							quantity: InventoryLock.quantity,
 						})
 						.from(InventoryLock)
-						.where(eq(InventoryLock.holdId, params.holdId))
+						.where(
+							and(eq(InventoryLock.holdId, params.holdId), sql`${InventoryLock.bookingId} is null`)
+						)
 						.all()
 
 					if (!locks.length) {
@@ -163,7 +191,12 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.run()
 					}
 
-					await tx.delete(InventoryLock).where(eq(InventoryLock.holdId, params.holdId)).run()
+					await tx
+						.delete(InventoryLock)
+						.where(
+							and(eq(InventoryLock.holdId, params.holdId), sql`${InventoryLock.bookingId} is null`)
+						)
+						.run()
 
 					released = true
 					days = locks.length
@@ -181,18 +214,29 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		return { released, days }
 	}
 
-	async listExpiredHoldIds(params: { now: Date }): Promise<string[]> {
+	async listExpiredHolds(params: {
+		now: Date
+	}): Promise<Array<{ holdId: string; variantId: string }>> {
 		const rows = await db
-			.select({ holdId: InventoryLock.holdId })
+			.select({ holdId: InventoryLock.holdId, variantId: InventoryLock.variantId })
 			.from(InventoryLock)
-			.where(and(lt(InventoryLock.expiresAt, params.now), sql`${InventoryLock.holdId} is not null`))
+			.where(
+				and(
+					lt(InventoryLock.expiresAt, params.now),
+					sql`${InventoryLock.holdId} is not null`,
+					sql`${InventoryLock.bookingId} is null`
+				)
+			)
 			.all()
 
-		const set = new Set<string>()
+		const map = new Map<string, string>()
 		for (const r of rows) {
 			const id = String((r as any).holdId || "").trim()
-			if (id) set.add(id)
+			const variantId = String((r as any).variantId || "").trim()
+			if (id && variantId && !map.has(id)) {
+				map.set(id, variantId)
+			}
 		}
-		return [...set]
+		return [...map.entries()].map(([holdId, variantId]) => ({ holdId, variantId }))
 	}
 }

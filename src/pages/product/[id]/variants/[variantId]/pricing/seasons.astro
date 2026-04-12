@@ -1,0 +1,29 @@
+---
+import PricingRules from "@/components/pricing/PricingRules.astro"
+import PricingSubnav from "@/components/pricing/PricingSubnav.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { loadVariantPricingData } from "@/lib/pricing/loadVariantPricingData"
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+const loaded = await loadVariantPricingData({
+	request: Astro.request,
+	productId,
+	variantId,
+})
+if ("redirectTo" in loaded) return Astro.redirect(loaded.redirectTo)
+const pathname = Astro.url.pathname
+---
+
+<WorkspaceLayout title="Producto · Pricing · Temporadas">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Temporadas</h1>
+			<p class="text-sm text-slate-400">
+				Configura incrementos/descuentos por rango y día para temporada alta o baja.
+			</p>
+		</header>
+		<PricingSubnav productId={productId} variantId={variantId} pathname={pathname} />
+		<PricingRules variantId={variantId} rules={loaded.activeRulesForUi} mode="seasons" />
+	</section>
+</WorkspaceLayout>

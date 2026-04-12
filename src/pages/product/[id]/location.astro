@@ -3,7 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import Layout from "@/layouts/Layout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { db, eq, ProductLocation } from "astro:db"
@@ -29,12 +29,12 @@ const existingLocation =
 		.where(eq(ProductLocation.productId, productId))
 		.get()) ?? null
 
-const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -33.4489
-const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -70.6693
+const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -16.495905
+const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
 ---
 
-<Layout title="Producto · Ubicación">
-	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+<WorkspaceLayout title="Producto · Ubicación">
+	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Ubicación del producto</h1>
@@ -105,7 +105,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 				</form>
 			</Card>
 		</section>
-	</main>
+	</section>
 
 	<script
 		src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -193,4 +193,4 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 			}
 		})
 	</script>
-</Layout>
+</WorkspaceLayout>

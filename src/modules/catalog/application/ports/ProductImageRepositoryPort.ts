@@ -1,4 +1,10 @@
-export type ProductImageRow = { id: string; url: string; order: number; isPrimary: boolean }
+export type ProductImageRow = {
+	id: string
+	url: string
+	objectKey?: string | null
+	order: number
+	isPrimary: boolean
+}
 
 export interface ProductImageRepositoryPort {
 	listByProduct(productId: string): Promise<ProductImageRow[]>
@@ -6,6 +12,7 @@ export interface ProductImageRepositoryPort {
 	insertImage(params: {
 		productId: string
 		url: string
+		objectKey?: string
 		order: number
 		isPrimary: boolean
 	}): Promise<void>

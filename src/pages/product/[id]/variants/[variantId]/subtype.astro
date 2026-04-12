@@ -1,0 +1,195 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+import { productRepository, variantManagementRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { RoomType, asc, db } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+
+const variant = await variantManagementRepository.getVariantById(variantId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+}
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+
+const existingSubtype = await variantManagementRepository.getHotelRoomSubtype(variantId)
+const roomTypes = await db
+	.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
+	.from(RoomType)
+	.orderBy(asc(RoomType.name))
+	.all()
+
+const initialRoomTypeId = existingSubtype?.roomTypeId ?? ""
+const kind = String(variant.kind ?? "")
+	.trim()
+	.toLowerCase()
+const isHotelRoom = kind === "hotel_room"
+---
+
+<WorkspaceLayout title="Producto · Editar subtipo">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Editar subtipo</h1>
+			<p class="text-sm text-slate-400">
+				Selecciona el tipo de habitación asociado a esta variante.
+			</p>
+		</header>
+
+		<Section title="Subtipo" description="Configuración de tipo de habitación.">
+			<Card class="bg-slate-100">
+				<form id="subtypeForm" class="mx-auto max-w-3xl space-y-6">
+					<Input type="hidden" name="variantId" value={variantId} />
+					<Input type="hidden" id="existingRoomTypeId" value={initialRoomTypeId} />
+					<FormSection title="Tipo de habitación">
+						<FormField label="Tipo de habitación" htmlFor="roomTypeId">
+							<Select id="roomTypeId" name="roomTypeId" value={initialRoomTypeId}>
+								<option value="">Selecciona una opción</option>
+								{
+									roomTypes.map((roomType) => (
+										<option value={roomType.id}>
+											{roomType.name}
+											{roomType.maxOccupancy != null ? ` (max ${roomType.maxOccupancy})` : ""}
+										</option>
+									))
+								}
+							</Select>
+						</FormField>
+						{
+							roomTypes.length === 0 && (
+								<p class="text-sm text-slate-600">
+									No hay tipos de habitación disponibles. Puedes guardar y continuar sin subtipo.
+								</p>
+							)
+						}
+						{
+							!isHotelRoom && (
+								<p class="text-sm text-slate-600">
+									Esta variante no requiere subtipo de habitación.
+								</p>
+							)
+						}
+					</FormSection>
+
+					<p id="subtypeFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+
+					<div class="flex items-center justify-between gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							disabled={!isHotelRoom}
+						>
+							Guardar cambios
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</Section>
+	</section>
+
+	<script type="module" define:vars={{ productId, variantId, isHotelRoom }}>
+		const form = document.getElementById("subtypeForm")
+		const submitBtn = document.getElementById("submitBtn")
+		const feedback = document.getElementById("subtypeFeedback")
+		const roomTypeSelect = document.getElementById("roomTypeId")
+		const existingRoomTypeInput = document.getElementById("existingRoomTypeId")
+
+		function setState(state, detail = "") {
+			const labels = {
+				loading: "Guardando...",
+				success: "Guardado correctamente.",
+				error: "No se pudo guardar el subtipo.",
+			}
+			if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
+		}
+
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!submitBtn || !isHotelRoom) return
+
+			const selectedRoomTypeId = String(roomTypeSelect?.value || "").trim()
+			const existingRoomTypeId = String(existingRoomTypeInput?.value || "").trim()
+
+			if (existingRoomTypeId && selectedRoomTypeId !== existingRoomTypeId) {
+				setState(
+					"error",
+					"El subtipo ya está definido para esta variante y no puede cambiarse con la API actual."
+				)
+				return
+			}
+
+			if (existingRoomTypeId && selectedRoomTypeId === existingRoomTypeId) {
+				setState("success")
+				window.location.href = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+				return
+			}
+
+			submitBtn.disabled = true
+			setState("loading")
+
+			try {
+				const formData = new FormData(form)
+				const response = await fetch("/api/variant/subtype/hotel-room", {
+					method: "POST",
+					body: formData,
+				})
+
+				if (response.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+
+				let payload = null
+				try {
+					payload = await response.json()
+				} catch {
+					payload = null
+				}
+
+				if (!response.ok) {
+					submitBtn.disabled = false
+					const message =
+						payload?.error === "validation_error" && Array.isArray(payload?.details)
+							? payload.details
+									.map((item) => String(item?.message || ""))
+									.filter(Boolean)
+									.join("\n") || "Error de validación"
+							: String(payload?.error || `status=${response.status}`)
+					setState("error", message)
+					return
+				}
+
+				setState("success")
+				window.location.href = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+			} catch (error) {
+				submitBtn.disabled = false
+				setState("error", `Error de red: ${String(error)}`)
+			}
+		})
+	</script>
+</WorkspaceLayout>
