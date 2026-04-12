@@ -3,7 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import Layout from "@/layouts/Layout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductAggregate } from "@/modules/catalog/public"
@@ -24,8 +24,8 @@ if (!product) return Astro.redirect("/product/create")
 const existingImages = product.images || []
 ---
 
-<Layout title="Producto · Imágenes">
-	<main class="mx-auto max-w-7xl space-y-8 bg-black px-6 py-10">
+<WorkspaceLayout title="Producto · Imágenes">
+	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Imágenes del producto</h1>
@@ -99,7 +99,7 @@ const existingImages = product.images || []
 				</form>
 			</Card>
 		</section>
-	</main>
+	</section>
 
 	<script
 		id="existingImagesData"
@@ -107,4 +107,4 @@ const existingImages = product.images || []
 		set:html={JSON.stringify(existingImages)}
 	/>
 	<script src="/src/lib/forms/productImagesHandler.ts"></script>
-</Layout>
+</WorkspaceLayout>

@@ -4,10 +4,16 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import FormSection from "@/components/ui/FormSection.astro"
 import Input from "@/components/ui/Input.astro"
-import Select from "@/components/ui/Select.astro"
-import Layout from "@/layouts/Layout.astro"
+import Section from "@/components/ui/Section.astro"
+import {
+	productRepository,
+	variantInventoryConfigRepository,
+	variantManagementRepository,
+} from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { asc, count, DailyInventory, db, eq } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -17,308 +23,221 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 const variantId = String(Astro.params.variantId ?? "")
-
 if (!productId) return Astro.redirect("/product/create")
 if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+
+const variant = await variantManagementRepository.getVariantById(variantId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+}
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+
+const inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantId)
+
+const initialTotalUnits =
+	inventoryConfig?.defaultTotalUnits != null ? String(inventoryConfig.defaultTotalUnits) : ""
+const initialHorizonDays =
+	inventoryConfig?.horizonDays != null ? String(inventoryConfig.horizonDays) : "365"
+
+const dailyInventoryPreview = await db
+	.select({
+		date: DailyInventory.date,
+		totalInventory: DailyInventory.totalInventory,
+		reservedCount: DailyInventory.reservedCount,
+		stopSell: DailyInventory.stopSell,
+	})
+	.from(DailyInventory)
+	.where(eq(DailyInventory.variantId, variantId))
+	.orderBy(asc(DailyInventory.date))
+	.limit(14)
+
+const dailyInventoryCount = await db
+	.select({ value: count() })
+	.from(DailyInventory)
+	.where(eq(DailyInventory.variantId, variantId))
+	.get()
 ---
 
-<Layout title="Inventory Calendar">
-	<main class="mx-auto max-w-7xl space-y-6 px-6 py-10">
-		<div class="space-y-2">
-			<h1 class="text-2xl font-semibold text-white">Inventory Calendar</h1>
-			<p class="text-sm text-slate-200">
-				Product: <code>{productId}</code><br />
-				Variant: <code>{variantId}</code>
+<WorkspaceLayout title="Producto · Editar inventario">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Editar inventario</h1>
+			<p class="text-sm text-slate-400">
+				Configura el inventario por defecto y el horizonte de días.
 			</p>
-		</div>
+		</header>
 
-		<div class="flex flex-wrap items-center gap-4 text-sm">
-			<a
-				class="text-blue-300 hover:text-blue-200"
-				href={`/product/${encodeURIComponent(productId)}/variants`}>Back to Rooms list</a
-			>
-			<a
-				class="text-blue-300 hover:text-blue-200"
-				href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`}
-				>Back to Pricing</a
-			>
-		</div>
-
-		<FormSection
-			title="Bulk update"
-			description="Apply inventory or status changes for a date range."
+		<Section
+			title="Inventario base"
+			description="Estos valores se usan como configuración inicial."
 		>
-			<form id="bulkForm" class="space-y-4">
-				<Input type="hidden" name="variantId" value={variantId} />
-				<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-					<FormField label="Start date" htmlFor="bulk-start" required>
-						<Input id="bulk-start" type="date" name="startDate" required />
-					</FormField>
-					<FormField label="End date (exclusive)" htmlFor="bulk-end" required>
-						<Input id="bulk-end" type="date" name="endDate" required />
-					</FormField>
-					<FormField label="Total units (optional)" htmlFor="bulk-total">
-						<Input id="bulk-total" type="number" name="totalInventory" min="0" step="1" />
-					</FormField>
-					<FormField label="Status (optional)" htmlFor="bulk-status">
-						<Select id="bulk-status" name="stopSell">
-							<option value="">(no change)</option>
-							<option value="false">Open</option>
-							<option value="true">Closed (stop sell)</option>
-						</Select>
-					</FormField>
-				</div>
-				<div class="flex justify-end">
-					<Button id="bulkBtn" type="submit">Apply</Button>
-				</div>
-				<p id="bulkError" class="whitespace-pre-wrap text-sm text-red-600"></p>
-			</form>
-		</FormSection>
+			<Card class="bg-slate-100">
+				<form id="inventoryForm" class="mx-auto max-w-3xl space-y-6">
+					<Input type="hidden" name="variantId" value={variantId} />
+					<FormSection title="Parámetros de inventario">
+						<FormField label="Unidades totales" htmlFor="totalUnits" required>
+							<Input
+								id="totalUnits"
+								name="totalUnits"
+								type="number"
+								min="0"
+								step="1"
+								value={initialTotalUnits}
+								required
+							/>
+						</FormField>
+						<FormField label="Horizonte (días)" htmlFor="horizonDays">
+							<Input
+								id="horizonDays"
+								name="horizonDays"
+								type="number"
+								min="1"
+								max="3650"
+								step="1"
+								value={initialHorizonDays}
+							/>
+						</FormField>
+					</FormSection>
 
-		<Card class="space-y-4">
-			<div class="flex flex-wrap items-end justify-between gap-4">
-				<h2 class="text-xl font-semibold text-slate-900">Days</h2>
-				<form id="rangeForm" class="grid gap-4 sm:grid-cols-3">
-					<FormField label="Start" htmlFor="range-start" required>
-						<Input id="range-start" type="date" name="startDate" required />
-					</FormField>
-					<FormField label="End (exclusive)" htmlFor="range-end" required>
-						<Input id="range-end" type="date" name="endDate" required />
-					</FormField>
-					<div class="flex items-end">
-						<Button type="submit">Load</Button>
+					<p id="inventoryFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+
+					<div class="flex items-center justify-between gap-3">
+						<a
+							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`}
+							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+						>
+							Volver
+						</a>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Guardar cambios
+						</Button>
 					</div>
 				</form>
-			</div>
-			<p id="state" class="text-sm text-slate-600"></p>
-			<div id="tableWrap"></div>
-		</Card>
-	</main>
+			</Card>
+		</Section>
 
-	<script type="module" define:vars={{ variantId, productId }}>
-		const stateEl = document.getElementById("state")
-		const tableWrap = document.getElementById("tableWrap")
+		<Section title="Inventario diario" description="Estado generado para disponibilidad.">
+			<Card class="space-y-6 bg-slate-100">
+				<div class="grid gap-3 md:grid-cols-2">
+					<div class="rounded-lg border border-slate-200 bg-white p-4">
+						<p class="text-xs text-slate-500">Días generados</p>
+						<p class="text-sm font-semibold text-slate-900">
+							{Number(dailyInventoryCount?.value ?? 0)}
+						</p>
+					</div>
+					<div class="rounded-lg border border-slate-200 bg-white p-4">
+						<p class="text-xs text-slate-500">Estado</p>
+						<p class="text-sm font-semibold text-slate-900">
+							{
+								Number(dailyInventoryCount?.value ?? 0) > 0
+									? "Inventario diario disponible"
+									: "Inventario diario no generado"
+							}
+						</p>
+					</div>
+				</div>
 
-		const rangeForm = document.getElementById("rangeForm")
-		const bulkForm = document.getElementById("bulkForm")
-		const bulkBtn = document.getElementById("bulkBtn")
-		const bulkError = document.getElementById("bulkError")
-
-		function todayISO() {
-			const d = new Date()
-			return d.toISOString().slice(0, 10)
-		}
-
-		function addDaysISO(iso, days) {
-			const d = new Date(iso + "T00:00:00")
-			d.setDate(d.getDate() + days)
-			return d.toISOString().slice(0, 10)
-		}
-
-		function esc(s) {
-			return String(s || "")
-				.replaceAll("&", "&amp;")
-				.replaceAll("<", "&lt;")
-				.replaceAll(">", "&gt;")
-				.replaceAll('"', "&quot;")
-				.replaceAll("'", "&#039;")
-		}
-
-		function rowColor(row) {
-			if (row.stopSell) return "#f2f2f2"
-			if (row.available <= 0) return "#ffecec"
-			return "#ecffef"
-		}
-
-		async function updateDay({ date, totalInventory, stopSell }, msgEl) {
-			try {
-				const fd = new FormData()
-				fd.set("variantId", variantId)
-				fd.set("date", date)
-				if (totalInventory !== undefined && totalInventory !== null && totalInventory !== "") {
-					fd.set("totalInventory", String(totalInventory))
-				}
-				if (stopSell === "true" || stopSell === "false") {
-					fd.set("stopSell", stopSell)
-				}
-				const res = await fetch("/api/inventory/update-day", { method: "POST", body: fd })
-				if (res.status === 401) {
-					window.location.href = "/SignInPage"
-					return
-				}
-				if (res.status === 404) {
-					if (msgEl) msgEl.textContent = "Not found"
-					return
-				}
-				if (!res.ok) {
-					const txt = await res.text()
-					if (msgEl) msgEl.textContent = res.status >= 500 ? "Server error" : txt
-					return
-				}
-				if (msgEl) msgEl.textContent = "Saved"
-				await loadCurrentRange()
-			} catch (err) {
-				if (msgEl) msgEl.textContent = `Network error: ${String(err)}`
-			}
-		}
-
-		function render(rows) {
-			if (!Array.isArray(rows) || rows.length === 0) {
-				tableWrap.innerHTML = '<p class="text-sm text-slate-600">No days in range.</p>'
-				return
-			}
-
-			const html = `
-				<table style="width:100%; border-collapse: collapse;">
-					<thead>
-						<tr>
-							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Date</th>
-							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Total</th>
-							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Reserved</th>
-							<th style="text-align:right; border-bottom:1px solid #ddd; padding:8px;">Available</th>
-							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Status</th>
-							<th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Edit</th>
-						</tr>
-					</thead>
-					<tbody>
-						${rows
-							.map((r) => {
-								const bg = rowColor(r)
-								const status = r.stopSell ? "Closed" : r.available > 0 ? "Open" : "Sold out"
-								return `
-									<tr style="background:${bg}">
-										<td style="padding:8px; border-bottom:1px solid #eee;"><code>${esc(r.date)}</code></td>
-										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.totalInventory)}</td>
-										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.reservedCount)}</td>
-										<td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${esc(r.available)}</td>
-										<td style="padding:8px; border-bottom:1px solid #eee;">${esc(status)}</td>
-										<td style="padding:8px; border-bottom:1px solid #eee;">
-											<button type="button" data-action="edit-day" data-date="${esc(r.date)}" data-total="${esc(r.totalInventory)}" data-stop-sell="${r.stopSell ? "true" : "false"}" style="border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer;">Edit</button>
-											<span data-day-msg="${esc(r.date)}" style="font-size:12px; color:#444; margin-left:8px;"></span>
+				<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+					<table class="min-w-full divide-y divide-slate-200 text-sm">
+						<thead>
+							<tr class="text-left text-slate-700">
+								<th class="px-3 py-2">Fecha</th>
+								<th class="px-3 py-2">Total</th>
+								<th class="px-3 py-2">Reservado</th>
+								<th class="px-3 py-2">Stop sell</th>
+							</tr>
+						</thead>
+						<tbody>
+							{
+								dailyInventoryPreview.length > 0 ? (
+									dailyInventoryPreview.map((row) => (
+										<tr class="border-t border-slate-200">
+											<td class="px-3 py-2 text-slate-900">{row.date}</td>
+											<td class="px-3 py-2 text-slate-700">{row.totalInventory}</td>
+											<td class="px-3 py-2 text-slate-700">{row.reservedCount}</td>
+											<td class="px-3 py-2 text-slate-700">{row.stopSell ? "Sí" : "No"}</td>
+										</tr>
+									))
+								) : (
+									<tr>
+										<td class="px-3 py-3 text-slate-500" colspan="4">
+											Sin inventario disponible
 										</td>
 									</tr>
-								`
-							})
-							.join("")}
-					</tbody>
-				</table>
-			`
-			tableWrap.innerHTML = html
+								)
+							}
+						</tbody>
+					</table>
+				</div>
+			</Card>
+		</Section>
+	</section>
 
-			for (const btn of Array.from(tableWrap.querySelectorAll("button[data-action='edit-day']"))) {
-				btn.addEventListener("click", async () => {
-					const date = String(btn.getAttribute("data-date") || "")
-					const total = String(btn.getAttribute("data-total") || "")
-					const stopSellCurrent = String(btn.getAttribute("data-stop-sell") || "false")
-					const msg = tableWrap.querySelector(`[data-day-msg="${CSS.escape(date)}"]`)
+	<script type="module" define:vars={{ productId, variantId }}>
+		const form = document.getElementById("inventoryForm")
+		const submitBtn = document.getElementById("submitBtn")
+		const feedback = document.getElementById("inventoryFeedback")
 
-					const totalPrompt = window.prompt("Total inventory (empty = no change)", total)
-					if (totalPrompt === null) return
-					const stopSellPrompt = window.prompt(
-						"Stop sell? Use true / false (empty = no change)",
-						stopSellCurrent
-					)
-					if (stopSellPrompt === null) return
+		function setState(state, detail = "") {
+			const labels = {
+				loading: "Guardando y generando inventario diario...",
+				success: "Inventario diario generado correctamente.",
+				error: "No se pudo guardar el inventario.",
+			}
+			if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
+		}
 
-					const normalized = stopSellPrompt.trim().toLowerCase()
-					if (normalized !== "" && normalized !== "true" && normalized !== "false") {
-						if (msg) msg.textContent = "Invalid stop sell value"
-						return
-					}
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!submitBtn) return
+			submitBtn.disabled = true
+			setState("loading")
 
-					if (msg) msg.textContent = "Saving..."
-					await updateDay(
-						{
-							date,
-							totalInventory: totalPrompt.trim(),
-							stopSell: normalized,
-						},
-						msg
-					)
+			try {
+				const formData = new FormData(form)
+				if (!formData.get("horizonDays")) formData.set("horizonDays", "365")
+				const response = await fetch("/api/inventory/set-default", {
+					method: "POST",
+					body: formData,
 				})
-			}
-		}
 
-		function getRangeValues() {
-			const fd = new FormData(rangeForm)
-			const startDate = String(fd.get("startDate") || "").trim()
-			const endDate = String(fd.get("endDate") || "").trim()
-			return { startDate, endDate }
-		}
-
-		async function loadCurrentRange() {
-			const { startDate, endDate } = getRangeValues()
-			if (!startDate || !endDate) return
-
-			stateEl.textContent = "Loading..."
-			tableWrap.innerHTML = ""
-			try {
-				const url = `/api/inventory/calendar?variantId=${encodeURIComponent(variantId)}&startDate=${encodeURIComponent(
-					startDate
-				)}&endDate=${encodeURIComponent(endDate)}`
-				const res = await fetch(url)
-				if (res.status === 401) {
+				if (response.status === 401) {
 					window.location.href = "/SignInPage"
 					return
 				}
-				if (res.status === 404) {
-					stateEl.textContent = "Not found"
-					return
-				}
-				if (!res.ok) {
-					stateEl.textContent = `Failed to load (status=${res.status})`
-					tableWrap.textContent = await res.text()
-					return
-				}
-				const json = await res.json()
-				stateEl.textContent = ""
-				render(json)
-			} catch (err) {
-				stateEl.textContent = `Network error: ${String(err)}`
-			}
-		}
 
-		rangeForm.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			await loadCurrentRange()
-		})
+				let payload = null
+				try {
+					payload = await response.json()
+				} catch {
+					payload = null
+				}
 
-		bulkForm.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			bulkError.textContent = ""
-			bulkBtn.disabled = true
-			try {
-				const fd = new FormData(bulkForm)
-				const res = await fetch("/api/inventory/bulk-update", { method: "POST", body: fd })
-				if (res.status === 401) {
-					window.location.href = "/SignInPage"
+				if (!response.ok) {
+					submitBtn.disabled = false
+					const message =
+						payload?.error === "validation_error" && Array.isArray(payload?.details)
+							? payload.details
+									.map((item) => String(item?.message || ""))
+									.filter(Boolean)
+									.join("\n") || "Error de validación"
+							: String(payload?.error || `status=${response.status}`)
+					setState("error", message)
 					return
 				}
-				if (res.status === 404) {
-					bulkError.textContent = "Not found"
-					return
-				}
-				if (!res.ok) {
-					const txt = await res.text()
-					bulkError.textContent = res.status >= 500 ? "Something went wrong. Try again." : txt
-					return
-				}
-				await loadCurrentRange()
-			} catch (err) {
-				bulkError.textContent = `Network error: ${String(err)}`
-			} finally {
-				bulkBtn.disabled = false
+
+				setState("success")
+				window.location.href = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+			} catch (error) {
+				submitBtn.disabled = false
+				setState("error", `Error de red: ${String(error)}`)
 			}
 		})
-
-		// Defaults: next 30 days.
-		const start = todayISO()
-		const end = addDaysISO(start, 31)
-		rangeForm.elements.startDate.value = start
-		rangeForm.elements.endDate.value = end
-		bulkForm.elements.startDate.value = start
-		bulkForm.elements.endDate.value = end
-
-		loadCurrentRange()
 	</script>
-</Layout>
+</WorkspaceLayout>

@@ -1,198 +1,200 @@
 ---
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
-import DashboardTabs from "@/components/dashboard/DashboardTabs.astro"
-import Layout from "@/layouts/Layout.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductAggregate } from "@/modules/catalog/public"
-import { db, eq, inArray, PolicyAssignment, Product, Variant } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
+if (!user?.email) return Astro.redirect("/SignInPage")
 
-let userProducts: any[] = []
-let hotelRoomTypes: any[] = []
-let hotelPolicies: any[] = []
-let roomsByHotel: Record<string, any[]> = {}
-let errorMessage: string | null = null
-
-try {
-	if (!user?.email) {
-		return Astro.redirect("/SignInPage")
-	}
-	const providerId = await getProviderIdFromRequest(Astro.request)
-	if (!providerId) {
-		return Astro.redirect("/provider")
-	}
-
-	userProducts = await db
-		.select({
-			id: Product.id,
-			name: Product.name,
-			productType: Product.productType,
-			destinationId: Product.destinationId,
-		})
-		.from(Product)
-		.where(eq(Product.providerId, providerId))
-	if (userProducts.length > 0) {
-		const enrichedProducts = await Promise.all(
-			userProducts.map(async (legacy) => {
-				const v2 = await getProductAggregate(String(legacy.id))
-				return {
-					...legacy,
-					description: v2?.content.description ?? null,
-				}
-			})
-		)
-		userProducts = enrichedProducts
-	}
-
-	const hotelIds = userProducts.filter((el) => el.productType === "Hotel").map((el) => el.id)
-
-	if (hotelIds.length > 0) {
-		hotelRoomTypes = await db.select().from(Variant).where(inArray(Variant.productId, hotelIds))
-		hotelPolicies = await db
-			.select()
-			.from(PolicyAssignment)
-			.where(inArray(PolicyAssignment.scopeId, hotelIds))
-
-		for (const room of hotelRoomTypes) {
-			if (!roomsByHotel[room.productId]) roomsByHotel[room.productId] = []
-			roomsByHotel[room.productId].push(room)
-		}
-	}
-} catch (e) {
-	console.error("Error al obtener los productos del proveedor: ", e)
-	errorMessage = "Hubo un error al cargar los productos. Por favor, inténtalo de nuevo más tarde."
-}
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider")
 ---
 
-<Layout title="Dashboard">
-	<div class="mx-auto w-[98%] pt-10 md:pt-20 xl:w-3/4">
-		<navbar class="sub-content mb-8 hidden w-full grid-cols-9 md:mb-12 md:grid">
-			<h2
-				class="col-span-4 col-start-3 text-xl font-semibold text-neutral-100 lg:text-4xl lg:font-extrabold"
-			>
-				Dashboard
-			</h2>
-			<a
-				href="/product/create"
-				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
-			>
-				Crea un Nuevo Producto
-			</a>
-			<a
-				href="/provider/policies"
-				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
-			>
-				Políticas (CAPA 6)
-			</a>
-			<a
-				href="/provider/tax-fees"
-				class="col-span-9 col-start-8 transform rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95 md:text-base"
-			>
-				Impuestos y cargos (CAPA 7)
-			</a>
-		</navbar>
-		<div class="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
-			<DashboardSidebar />
-			<DashboardTabs
-				products={userProducts}
-				roomsByHotel={roomsByHotel}
-				hotelPolicies={hotelPolicies}
-			/>
-		</div>
-	</div>
-</Layout>
-<script is:inline>
-	async function handleDelete(button) {
-		const productId = button.dataset.productId
-		if (!productId) return
+<WorkspaceLayout title="Dashboard">
+	<section class="space-y-8">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Dashboard</h1>
+			<p class="text-sm text-slate-400">
+				Resumen operativo para gestionar proveedor, productos y variantes desde una sola superficie.
+			</p>
+		</header>
 
-		const confirmed = confirm(
-			"¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer."
-		)
-		if (!confirmed) return
+		<Section title="Estado general" description="Indicadores rápidos del workspace.">
+			<div id="dashboardStatsGrid" class="grid gap-4 md:grid-cols-3" data-state="loading">
+				<Card id="cardProducts" class="min-h-[112px] space-y-2 bg-slate-100">
+					<p class="text-sm font-semibold text-slate-900">Productos</p>
+					<p id="statProducts" class="text-2xl font-bold text-slate-900">—</p>
+					<div class="h-2 w-24 animate-pulse rounded bg-slate-300" data-skeleton></div>
+				</Card>
+				<Card id="cardVariants" class="min-h-[112px] space-y-2 bg-slate-100">
+					<p class="text-sm font-semibold text-slate-900">Variantes</p>
+					<p id="statVariants" class="text-2xl font-bold text-slate-900">—</p>
+					<div class="h-2 w-24 animate-pulse rounded bg-slate-300" data-skeleton></div>
+				</Card>
+				<Card id="cardReadiness" class="min-h-[112px] space-y-2 bg-slate-100">
+					<p class="text-sm font-semibold text-slate-900">Readiness</p>
+					<div class="flex items-center gap-2" id="readinessWrap">
+						<Badge id="readinessBadge" variant="warning"> Cargando... </Badge>
+						<p id="readinessText" class="text-sm text-slate-700">Obteniendo métricas...</p>
+					</div>
+				</Card>
+			</div>
+		</Section>
 
-		try {
-			const res = await fetch(`/api/products/${productId}/delete`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ productId }),
-			})
+		<Section title="Productos recientes" description="Carga progresiva del listado de productos.">
+			<Card class="min-h-[168px] bg-slate-100">
+				<div id="dashboardProductsList" class="space-y-3" data-state="loading">
+					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
+					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
+					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
+				</div>
+			</Card>
+		</Section>
 
-			if (res.ok) {
-				window.location.reload()
-			} else {
-				alert(await res.text())
+		<Section title="Acciones rápidas" description="Accesos directos a los flujos principales.">
+			<div class="grid gap-4 md:grid-cols-2">
+				<Card class="space-y-4 bg-slate-100">
+					<div class="space-y-1">
+						<p class="text-lg font-semibold text-slate-900">Proveedor</p>
+						<p class="text-sm text-slate-600">Completa identidad, perfil y verificación.</p>
+					</div>
+					<div class="flex justify-end">
+						<Button href="/provider" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+							Ir a proveedor
+						</Button>
+					</div>
+				</Card>
+
+				<Card class="space-y-4 bg-slate-100">
+					<div class="space-y-1">
+						<p class="text-lg font-semibold text-slate-900">Productos</p>
+						<p class="text-sm text-slate-600">Crea productos y continúa su configuración.</p>
+					</div>
+					<div class="flex justify-end">
+						<Button href="/product/create" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+							Crear producto
+						</Button>
+					</div>
+				</Card>
+			</div>
+		</Section>
+	</section>
+	<script is:inline>
+		;(function () {
+			const shellStart = performance.now()
+			const markPaint = () => {
+				console.debug("shell visible", {
+					page: "dashboard-surface",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
 			}
-		} catch (err) {
-			console.error(err)
-			alert("Error al eliminar el producto")
-		}
-	}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				markPaint()
+			} else {
+				document.addEventListener("DOMContentLoaded", markPaint, { once: true })
+			}
 
-	function handleMainTab(tab) {
-		const sectionName = tab.dataset.section
-		if (!sectionName) return
+			const statsGrid = document.getElementById("dashboardStatsGrid")
+			const productsList = document.getElementById("dashboardProductsList")
+			const statProducts = document.getElementById("statProducts")
+			const statVariants = document.getElementById("statVariants")
+			const readinessBadge = document.getElementById("readinessBadge")
+			const readinessText = document.getElementById("readinessText")
 
-		document.querySelectorAll(".main-tab").forEach((t) => t.classList.remove("active"))
-		document.querySelectorAll(".main-section").forEach((s) => s.classList.add("hidden"))
+			const setErrorState = (message) => {
+				if (readinessBadge) {
+					readinessBadge.textContent = "Error"
+					readinessBadge.classList.remove(
+						"bg-amber-100",
+						"text-amber-800",
+						"bg-emerald-100",
+						"text-emerald-800"
+					)
+					readinessBadge.classList.add("bg-rose-100", "text-rose-700")
+				}
+				if (readinessText) readinessText.textContent = message
+				if (productsList) {
+					productsList.innerHTML = ""
+					const row = document.createElement("p")
+					row.className = "text-sm text-rose-700"
+					row.textContent = "No se pudo cargar el resumen del dashboard."
+					productsList.appendChild(row)
+				}
+			}
 
-		tab.classList.add("active")
-		document.getElementById(`section-${sectionName}`)?.classList.remove("hidden")
-	}
+			const renderProducts = (items) => {
+				if (!productsList) return
+				productsList.innerHTML = ""
+				if (!Array.isArray(items) || items.length === 0) {
+					const empty = document.createElement("div")
+					empty.className = "rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
+					empty.textContent = "Aún no tienes productos creados."
+					productsList.appendChild(empty)
+					return
+				}
 
-	function handleSubTab(tab) {
-		const section = tab.closest(".main-section")
-		if (!section) return
+				for (const item of items) {
+					const row = document.createElement("a")
+					row.href = item.href
+					row.className =
+						"flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 hover:border-slate-300"
 
-		const targetId = `${section.id}-${tab.dataset.tab}`
-		if (!tab.dataset.tab) return
+					const name = document.createElement("span")
+					name.className = "font-medium"
+					name.textContent = item.name || "Producto sin nombre"
 
-		section
-			.querySelectorAll(".sub-tab")
-			.forEach((t) =>
-				t.classList.remove(
-					"active",
-					"text-white",
-					"font-semibold",
-					"border-b",
-					"border-white",
-					"pb-1"
-				)
-			)
+					const status = document.createElement("span")
+					status.className = "text-slate-500"
+					status.textContent = String(item.status || "draft")
 
-		section.querySelectorAll(".sub-content").forEach((c) => {
-			c.classList.add("hidden", "opacity-0", "translate-y-2")
-			c.classList.remove("opacity-100", "translate-y-0")
-		})
+					row.appendChild(name)
+					row.appendChild(status)
+					productsList.appendChild(row)
+				}
+			}
 
-		tab.classList.add("active", "text-white", "font-semibold", "border-b", "border-white", "pb-1")
+			const fetchStart = performance.now()
+			fetch("/api/internal/dashboard-summary", { headers: { accept: "application/json" } })
+				.then(async (response) => {
+					if (!response.ok) throw new Error(`dashboard_summary_${response.status}`)
+					return await response.json()
+				})
+				.then((payload) => {
+					if (statProducts) statProducts.textContent = String(payload.totalProducts ?? 0)
+					if (statVariants) statVariants.textContent = String(payload.totalVariants ?? 0)
 
-		const target = section.querySelector(`#${targetId}`)
-		if (!target) return
+					const pending = Number(payload.pendingProducts ?? 0)
+					const ready = Number(payload.readyProducts ?? 0)
+					if (readinessBadge) {
+						readinessBadge.textContent = pending === 0 ? "✅ Al día" : "⚠️ Pendiente"
+						readinessBadge.classList.remove(
+							"bg-amber-100",
+							"text-amber-800",
+							"bg-emerald-100",
+							"text-emerald-800"
+						)
+						if (pending === 0) {
+							readinessBadge.classList.add("bg-emerald-100", "text-emerald-800")
+						} else {
+							readinessBadge.classList.add("bg-amber-100", "text-amber-800")
+						}
+					}
+					if (readinessText) readinessText.textContent = `${ready} listos`
 
-		target.classList.remove("hidden", "opacity-0", "translate-y-2")
-		target.classList.add("opacity-100", "translate-y-0")
-	}
-
-	document.addEventListener("click", (e) => {
-		const target = e.target.closest(".delete-button, .main-tab, .sub-tab")
-		if (!target) return
-
-		if (target.classList.contains("delete-button")) {
-			handleDelete(target)
-			return
-		}
-
-		if (target.classList.contains("main-tab")) {
-			handleMainTab(target)
-			return
-		}
-
-		if (target.classList.contains("sub-tab")) {
-			handleSubTab(target)
-			return
-		}
-	})
-</script>
+					statsGrid?.querySelectorAll("[data-skeleton]").forEach((node) => node.remove())
+					renderProducts(payload.products)
+					console.debug("data hydrated", {
+						page: "dashboard-surface",
+						durationMs: Number((performance.now() - fetchStart).toFixed(1)),
+					})
+				})
+				.catch(() => {
+					setErrorState("No fue posible cargar los indicadores en este momento.")
+				})
+		})()
+	</script>
+</WorkspaceLayout>

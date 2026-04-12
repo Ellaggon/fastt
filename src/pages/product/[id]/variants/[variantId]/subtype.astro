@@ -5,10 +5,12 @@ import FormField from "@/components/ui/FormField.astro"
 import FormSection from "@/components/ui/FormSection.astro"
 import Input from "@/components/ui/Input.astro"
 import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { RoomType, asc, db } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -29,71 +31,65 @@ if (!variant || variant.productId !== productId) {
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect("/product/create")
 
-const capacity = await variantManagementRepository.getCapacity(variantId)
+const existingSubtype = await variantManagementRepository.getHotelRoomSubtype(variantId)
+const roomTypes = await db
+	.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
+	.from(RoomType)
+	.orderBy(asc(RoomType.name))
+	.all()
 
-const initialMin = capacity?.minOccupancy != null ? String(capacity.minOccupancy) : ""
-const initialMax = capacity?.maxOccupancy != null ? String(capacity.maxOccupancy) : ""
-const initialMaxAdults = capacity?.maxAdults != null ? String(capacity.maxAdults) : ""
-const initialMaxChildren = capacity?.maxChildren != null ? String(capacity.maxChildren) : ""
+const initialRoomTypeId = existingSubtype?.roomTypeId ?? ""
+const kind = String(variant.kind ?? "")
+	.trim()
+	.toLowerCase()
+const isHotelRoom = kind === "hotel_room"
 ---
 
-<WorkspaceLayout title="Producto · Editar capacidad">
+<WorkspaceLayout title="Producto · Editar subtipo">
 	<section class="space-y-8 text-neutral-100">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Editar capacidad</h1>
-			<p class="text-sm text-slate-400">Actualiza los límites de ocupación de la variante.</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Editar subtipo</h1>
+			<p class="text-sm text-slate-400">
+				Selecciona el tipo de habitación asociado a esta variante.
+			</p>
 		</header>
 
-		<Section title="Capacidad" description="Define mínimos y máximos de ocupación.">
+		<Section title="Subtipo" description="Configuración de tipo de habitación.">
 			<Card class="bg-slate-100">
-				<form id="capacityForm" class="mx-auto max-w-3xl space-y-6">
+				<form id="subtypeForm" class="mx-auto max-w-3xl space-y-6">
 					<Input type="hidden" name="variantId" value={variantId} />
-					<FormSection title="Límites de ocupación">
-						<FormField label="Huéspedes mínimos" htmlFor="minOccupancy" required>
-							<Input
-								id="minOccupancy"
-								name="minOccupancy"
-								type="number"
-								min="0"
-								step="1"
-								value={initialMin}
-								required
-							/>
+					<Input type="hidden" id="existingRoomTypeId" value={initialRoomTypeId} />
+					<FormSection title="Tipo de habitación">
+						<FormField label="Tipo de habitación" htmlFor="roomTypeId">
+							<Select id="roomTypeId" name="roomTypeId" value={initialRoomTypeId}>
+								<option value="">Selecciona una opción</option>
+								{
+									roomTypes.map((roomType) => (
+										<option value={roomType.id}>
+											{roomType.name}
+											{roomType.maxOccupancy != null ? ` (max ${roomType.maxOccupancy})` : ""}
+										</option>
+									))
+								}
+							</Select>
 						</FormField>
-						<FormField label="Huéspedes máximos" htmlFor="maxOccupancy" required>
-							<Input
-								id="maxOccupancy"
-								name="maxOccupancy"
-								type="number"
-								min="0"
-								step="1"
-								value={initialMax}
-								required
-							/>
-						</FormField>
-						<FormField label="Máximo adultos" htmlFor="maxAdults">
-							<Input
-								id="maxAdults"
-								name="maxAdults"
-								type="number"
-								min="0"
-								step="1"
-								value={initialMaxAdults}
-							/>
-						</FormField>
-						<FormField label="Máximo niños" htmlFor="maxChildren">
-							<Input
-								id="maxChildren"
-								name="maxChildren"
-								type="number"
-								min="0"
-								step="1"
-								value={initialMaxChildren}
-							/>
-						</FormField>
+						{
+							roomTypes.length === 0 && (
+								<p class="text-sm text-slate-600">
+									No hay tipos de habitación disponibles. Puedes guardar y continuar sin subtipo.
+								</p>
+							)
+						}
+						{
+							!isHotelRoom && (
+								<p class="text-sm text-slate-600">
+									Esta variante no requiere subtipo de habitación.
+								</p>
+							)
+						}
 					</FormSection>
 
-					<p id="capacityFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					<p id="subtypeFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 
 					<div class="flex items-center justify-between gap-3">
 						<a
@@ -106,6 +102,7 @@ const initialMaxChildren = capacity?.maxChildren != null ? String(capacity.maxCh
 							id="submitBtn"
 							type="submit"
 							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							disabled={!isHotelRoom}
 						>
 							Guardar cambios
 						</Button>
@@ -115,29 +112,52 @@ const initialMaxChildren = capacity?.maxChildren != null ? String(capacity.maxCh
 		</Section>
 	</section>
 
-	<script type="module" define:vars={{ productId, variantId }}>
-		const form = document.getElementById("capacityForm")
+	<script type="module" define:vars={{ productId, variantId, isHotelRoom }}>
+		const form = document.getElementById("subtypeForm")
 		const submitBtn = document.getElementById("submitBtn")
-		const feedback = document.getElementById("capacityFeedback")
+		const feedback = document.getElementById("subtypeFeedback")
+		const roomTypeSelect = document.getElementById("roomTypeId")
+		const existingRoomTypeInput = document.getElementById("existingRoomTypeId")
 
 		function setState(state, detail = "") {
 			const labels = {
 				loading: "Guardando...",
 				success: "Guardado correctamente.",
-				error: "No se pudo guardar la capacidad.",
+				error: "No se pudo guardar el subtipo.",
 			}
 			if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
 		}
 
 		form?.addEventListener("submit", async (event) => {
 			event.preventDefault()
-			if (!submitBtn) return
+			if (!submitBtn || !isHotelRoom) return
+
+			const selectedRoomTypeId = String(roomTypeSelect?.value || "").trim()
+			const existingRoomTypeId = String(existingRoomTypeInput?.value || "").trim()
+
+			if (existingRoomTypeId && selectedRoomTypeId !== existingRoomTypeId) {
+				setState(
+					"error",
+					"El subtipo ya está definido para esta variante y no puede cambiarse con la API actual."
+				)
+				return
+			}
+
+			if (existingRoomTypeId && selectedRoomTypeId === existingRoomTypeId) {
+				setState("success")
+				window.location.href = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+				return
+			}
+
 			submitBtn.disabled = true
 			setState("loading")
 
 			try {
 				const formData = new FormData(form)
-				const response = await fetch("/api/variant/capacity", { method: "POST", body: formData })
+				const response = await fetch("/api/variant/subtype/hotel-room", {
+					method: "POST",
+					body: formData,
+				})
 
 				if (response.status === 401) {
 					window.location.href = "/SignInPage"

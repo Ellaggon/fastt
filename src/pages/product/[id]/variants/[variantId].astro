@@ -1,0 +1,692 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+---
+
+<WorkspaceLayout title="Producto · Detalle de variante">
+	<section class="space-y-8">
+		<header class="space-y-4">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<h1 id="variantTitle" class="text-3xl font-semibold text-slate-100">
+						Cargando variante...
+					</h1>
+					<p class="text-sm text-slate-400">
+						Completa los bloques para dejar la variante lista para venta.
+					</p>
+				</div>
+				<div class="flex items-center gap-3">
+					<Button
+						href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/availability`}
+						data-astro-prefetch
+						className="bg-slate-800 text-white hover:bg-slate-700"
+					>
+						Ver disponibilidad
+					</Button>
+					<Badge id="variantStatusBadge" variant="neutral">Cargando...</Badge>
+					<Button
+						id="evaluateHeaderBtn"
+						type="button"
+						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+					>
+						Evaluar estado
+					</Button>
+				</div>
+			</div>
+		</header>
+
+		<Section
+			title="Progreso de configuración"
+			description="Estado general de los bloques de la variante."
+		>
+			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
+				<div class="space-y-4">
+					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+						<div id="variantProgressBar" class="h-full w-0 bg-[#1E3A8A]"></div>
+					</div>
+					<div class="grid gap-4 text-sm md:grid-cols-3">
+						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
+							<p class="text-slate-300">Completado</p>
+							<p id="variantProgressCompleted" class="text-xl font-semibold text-white">—/4</p>
+						</div>
+						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
+							<p class="text-slate-300">Pendiente</p>
+							<p id="variantProgressPending" class="text-xl font-semibold text-white">—</p>
+						</div>
+						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
+							<p class="text-slate-300">Progreso</p>
+							<p id="variantProgressPercent" class="text-xl font-semibold text-white">—%</p>
+						</div>
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Bloques de configuración"
+			description="Completa cada bloque para habilitar operación."
+		>
+			<div id="variantBlocks" class="grid gap-4 md:grid-cols-2">
+				{
+					Array.from({ length: 4 }).map(() => (
+						<Card class="min-h-[180px] space-y-4 bg-slate-100">
+							<div class="flex items-start justify-between gap-3">
+								<div class="space-y-2">
+									<div class="h-6 w-32 animate-pulse rounded bg-slate-200" />
+									<div class="h-4 w-52 animate-pulse rounded bg-slate-200" />
+								</div>
+								<div class="h-6 w-24 animate-pulse rounded-full bg-slate-200" />
+							</div>
+							<div class="flex justify-end">
+								<div class="h-10 w-36 animate-pulse rounded bg-slate-200" />
+							</div>
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section title="Resumen" description="Vista rápida de datos operativos de la variante.">
+			<div id="variantSummary" class="grid gap-4 md:grid-cols-2">
+				{
+					Array.from({ length: 4 }).map(() => (
+						<Card class="min-h-[126px] space-y-2 bg-slate-100">
+							<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
+							<div class="h-4 w-full animate-pulse rounded bg-slate-200" />
+							<div class="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Galería de la variante"
+			description="Gestiona imágenes propias de esta variante."
+		>
+			<Card class="min-h-[220px] space-y-4 bg-slate-100">
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<p class="text-sm text-slate-600">Sube, ordena y guarda imágenes para esta variante.</p>
+					<div class="flex items-center gap-2">
+						<input id="variantImageFiles" type="file" accept="image/*" multiple class="hidden" />
+						<Button id="variantImageUploadBtn" type="button" variant="outline"
+							>Subir imágenes</Button
+						>
+						<Button
+							id="variantImageSaveBtn"
+							type="button"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Guardar galería
+						</Button>
+					</div>
+				</div>
+				<p id="variantImageFeedback" class="text-sm text-slate-600"></p>
+				<div id="variantImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{
+						Array.from({ length: 3 }).map(() => (
+							<div class="min-h-[160px] animate-pulse rounded-lg border border-slate-200 bg-white" />
+						))
+					}
+				</div>
+			</Card>
+		</Section>
+
+		<Section title="Validación" description="Estado de readiness por bloqueante y no bloqueante.">
+			<Card class="min-h-[248px] space-y-4 bg-slate-100">
+				<div class="flex items-center justify-between gap-3">
+					<div class="space-y-1">
+						<h2 class="text-xl font-semibold text-slate-900">Validación de la variante</h2>
+						<p id="readinessStateText" class="text-sm text-slate-600">Estado actual: Cargando...</p>
+					</div>
+					<Badge id="readinessStateBadge" variant="neutral">Cargando</Badge>
+				</div>
+
+				<div class="grid gap-4 md:grid-cols-2">
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Bloqueantes CAPA 3</p>
+						<ul id="blockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
+							<li class="list-none text-slate-500">Cargando validaciones...</li>
+						</ul>
+					</div>
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Pendientes CAPA 4/5</p>
+						<ul id="nonBlockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
+							<li class="list-none text-slate-500">Cargando validaciones...</li>
+						</ul>
+					</div>
+				</div>
+
+				<p id="readinessFeedback" class="text-sm text-slate-600"></p>
+
+				<div class="flex justify-end">
+					<Button
+						id="reevaluateBtn"
+						type="button"
+						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+					>
+						Re-evaluar
+					</Button>
+				</div>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline define:vars={{ productId, variantId }}>
+		;(function () {
+			const shellStart = performance.now()
+			const logShellVisible = () => {
+				console.debug("shell visible", {
+					page: "variant-detail",
+					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+				})
+			}
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				logShellVisible()
+			} else {
+				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+			}
+
+			if (!productId || !variantId) return
+
+			const reevaluateBtn = document.getElementById("reevaluateBtn")
+			const evaluateHeaderBtn = document.getElementById("evaluateHeaderBtn")
+			const feedback = document.getElementById("readinessFeedback")
+			const variantImageFiles = document.getElementById("variantImageFiles")
+			const variantImageUploadBtn = document.getElementById("variantImageUploadBtn")
+			const variantImageSaveBtn = document.getElementById("variantImageSaveBtn")
+			const variantImageFeedback = document.getElementById("variantImageFeedback")
+			const variantImageGrid = document.getElementById("variantImageGrid")
+			let variantImages = []
+
+			const getErrorAction = (code) => {
+				const value = String(code || "")
+					.trim()
+					.toLowerCase()
+				if (value === "missing_capacity") {
+					return {
+						href: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/capacity`,
+						label: "Configurar capacidad",
+					}
+				}
+				if (value === "missing_subtype") {
+					return {
+						href: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/subtype`,
+						label: "Configurar subtipo",
+					}
+				}
+				if (
+					value === "pricing_missing" ||
+					value === "no_default_rate_plan" ||
+					value === "effective_pricing_missing" ||
+					value === "pricing_invalid"
+				) {
+					return {
+						href: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`,
+						label: "Configurar precios",
+					}
+				}
+				if (value === "inventory_missing") {
+					return {
+						href: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/inventory`,
+						label: "Configurar inventario",
+					}
+				}
+				return null
+			}
+
+			const renderErrors = (container, items, emptyText) => {
+				if (!container) return
+				container.innerHTML = ""
+				if (!Array.isArray(items) || items.length === 0) {
+					const li = document.createElement("li")
+					li.className = "list-none text-slate-500"
+					li.textContent = emptyText
+					container.appendChild(li)
+					return
+				}
+				for (const item of items) {
+					const li = document.createElement("li")
+					const code = String(item?.code || "")
+					const message = String(item?.message || code || "Error")
+					const action = getErrorAction(code)
+					li.className = "space-x-2"
+					const text = document.createElement("span")
+					text.textContent = message
+					li.appendChild(text)
+					if (action) {
+						const link = document.createElement("a")
+						link.href = action.href
+						link.textContent = action.label
+						link.className = "text-[#1E3A8A] underline hover:text-[#1e40af]"
+						link.setAttribute("data-astro-prefetch", "")
+						li.appendChild(link)
+					}
+					container.appendChild(li)
+				}
+			}
+
+			const blockCard = (label, summary, complete, href, ctaLabel) => {
+				const wrapper = document.createElement("article")
+				wrapper.className = "space-y-4 rounded-lg border border-slate-200 bg-slate-100 p-6"
+				const top = document.createElement("div")
+				top.className = "flex items-start justify-between gap-3"
+				const text = document.createElement("div")
+				text.className = "space-y-1"
+				const title = document.createElement("h2")
+				title.className = "text-xl font-semibold text-slate-900"
+				title.textContent = label
+				const desc = document.createElement("p")
+				desc.className = "text-sm text-slate-600"
+				desc.textContent = summary
+				text.append(title, desc)
+				const badge = document.createElement("span")
+				badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+					complete
+						? "bg-green-100 text-green-800 border-green-200"
+						: "bg-orange-100 text-orange-800 border-orange-200"
+				}`
+				badge.textContent = complete ? "✅ Completo" : "⚠️ Incompleto"
+				top.append(text, badge)
+				const actions = document.createElement("div")
+				actions.className = "flex justify-end"
+				const link = document.createElement("a")
+				link.href = href
+				link.textContent = ctaLabel
+				link.className =
+					"inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
+				link.setAttribute("data-astro-prefetch", "")
+				actions.append(link)
+				wrapper.append(top, actions)
+				return wrapper
+			}
+
+			const summaryCard = (label, summary) => {
+				const card = document.createElement("article")
+				card.className = "space-y-2 rounded-lg border border-slate-200 bg-slate-100 p-6"
+				const title = document.createElement("p")
+				title.className = "text-sm font-semibold text-slate-900"
+				title.textContent = label
+				const text = document.createElement("p")
+				text.className = "text-sm text-slate-600"
+				text.textContent = summary
+				card.append(title, text)
+				return card
+			}
+
+			const renderVariantImages = () => {
+				if (!variantImageGrid) return
+				variantImageGrid.innerHTML = ""
+				if (!Array.isArray(variantImages) || variantImages.length === 0) {
+					const empty = document.createElement("div")
+					empty.className =
+						"col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
+					empty.textContent = "Aún no hay imágenes para esta variante."
+					variantImageGrid.appendChild(empty)
+					return
+				}
+				variantImages.forEach((image, index) => {
+					const card = document.createElement("article")
+					card.className = "space-y-3 rounded-lg border border-slate-200 bg-white p-3"
+					const preview = document.createElement("img")
+					preview.src = String(image.url)
+					preview.alt = `Imagen ${index + 1}`
+					preview.className = "h-28 w-full rounded object-cover"
+					const badges = document.createElement("div")
+					badges.className = "flex flex-wrap items-center gap-2"
+					if (index === 0) {
+						const primary = document.createElement("span")
+						primary.className =
+							"inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs text-green-800"
+						primary.textContent = "Principal"
+						badges.appendChild(primary)
+					}
+					const existent = document.createElement("span")
+					existent.className =
+						"inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+					existent.textContent = "Variante"
+					badges.appendChild(existent)
+					const actions = document.createElement("div")
+					actions.className = "flex items-center justify-between gap-2"
+					const up = document.createElement("button")
+					up.type = "button"
+					up.className =
+						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
+					up.textContent = "Subir"
+					up.disabled = index === 0
+					up.addEventListener("click", () => {
+						if (index === 0) return
+						const next = variantImages.slice()
+						const temp = next[index - 1]
+						next[index - 1] = next[index]
+						next[index] = temp
+						variantImages = next
+						renderVariantImages()
+					})
+					const down = document.createElement("button")
+					down.type = "button"
+					down.className =
+						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
+					down.textContent = "Bajar"
+					down.disabled = index === variantImages.length - 1
+					down.addEventListener("click", () => {
+						if (index === variantImages.length - 1) return
+						const next = variantImages.slice()
+						const temp = next[index + 1]
+						next[index + 1] = next[index]
+						next[index] = temp
+						variantImages = next
+						renderVariantImages()
+					})
+					const remove = document.createElement("button")
+					remove.type = "button"
+					remove.className =
+						"inline-flex h-8 items-center rounded border border-red-200 bg-red-50 px-2 text-xs text-red-700"
+					remove.textContent = "Eliminar"
+					remove.addEventListener("click", () => {
+						variantImages = variantImages.filter((_, idx) => idx !== index)
+						renderVariantImages()
+					})
+					actions.append(up, down, remove)
+					card.append(preview, badges, actions)
+					variantImageGrid.appendChild(card)
+				})
+			}
+
+			const hydrate = (payload) => {
+				const variantTitle = document.getElementById("variantTitle")
+				const variantStatusBadge = document.getElementById("variantStatusBadge")
+				const progressBar = document.getElementById("variantProgressBar")
+				const progressCompleted = document.getElementById("variantProgressCompleted")
+				const progressPending = document.getElementById("variantProgressPending")
+				const progressPercent = document.getElementById("variantProgressPercent")
+				const blocksContainer = document.getElementById("variantBlocks")
+				const summaryContainer = document.getElementById("variantSummary")
+				const readinessStateText = document.getElementById("readinessStateText")
+				const readinessStateBadge = document.getElementById("readinessStateBadge")
+				const blockingList = document.getElementById("blockingErrorsList")
+				const nonBlockingList = document.getElementById("nonBlockingErrorsList")
+
+				if (variantTitle) variantTitle.textContent = String(payload?.variant?.name ?? "Variante")
+				if (variantStatusBadge) {
+					variantStatusBadge.textContent = String(payload?.variant?.statusLabel ?? "Borrador")
+					variantStatusBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+						payload?.variant?.statusVariant === "success"
+							? "bg-green-100 text-green-800 border-green-200"
+							: payload?.variant?.statusVariant === "info"
+								? "bg-blue-100 text-blue-800 border-blue-200"
+								: "bg-orange-100 text-orange-800 border-orange-200"
+					}`
+				}
+
+				const percent = Number(payload?.progress?.progressPercent ?? 0)
+				if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
+				if (progressCompleted)
+					progressCompleted.textContent = `${Number(payload?.progress?.completedBlocks ?? 0)}/4`
+				if (progressPending)
+					progressPending.textContent = String(Number(payload?.progress?.pendingBlocks ?? 0))
+				if (progressPercent) progressPercent.textContent = `${percent}%`
+
+				if (blocksContainer) {
+					blocksContainer.innerHTML = ""
+					blocksContainer.append(
+						blockCard(
+							"Capacidad",
+							String(payload?.blocks?.capacity?.summary ?? "Sin información"),
+							Boolean(payload?.blocks?.capacity?.complete),
+							`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/capacity`,
+							"Editar capacidad"
+						),
+						blockCard(
+							"Subtipo",
+							String(payload?.blocks?.subtype?.summary ?? "Sin información"),
+							Boolean(payload?.blocks?.subtype?.complete),
+							`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/subtype`,
+							"Editar subtipo"
+						),
+						blockCard(
+							"Precios",
+							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
+							Boolean(payload?.blocks?.pricing?.complete),
+							`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`,
+							"Editar precios"
+						),
+						blockCard(
+							"Inventario",
+							String(payload?.blocks?.inventory?.summary ?? "Sin información"),
+							Boolean(payload?.blocks?.inventory?.complete),
+							`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/inventory`,
+							"Editar inventario"
+						)
+					)
+				}
+
+				if (summaryContainer) {
+					summaryContainer.innerHTML = ""
+					summaryContainer.append(
+						summaryCard("Capacidad", String(payload?.summary?.capacity ?? "Sin información")),
+						summaryCard("Subtipo", String(payload?.summary?.subtype ?? "Sin información")),
+						summaryCard("Precios", String(payload?.summary?.pricing ?? "Sin información")),
+						summaryCard("Inventario", String(payload?.summary?.inventory ?? "Sin información"))
+					)
+				}
+				variantImages = Array.isArray(payload?.variant?.images)
+					? payload.variant.images.slice()
+					: []
+				renderVariantImages()
+
+				if (readinessStateText)
+					readinessStateText.textContent = `Estado actual: ${String(payload?.readiness?.stateLabel ?? "Borrador")}`
+				if (readinessStateBadge) {
+					readinessStateBadge.textContent = String(payload?.readiness?.stateLabel ?? "Borrador")
+					readinessStateBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+						payload?.readiness?.stateVariant === "success"
+							? "bg-green-100 text-green-800 border-green-200"
+							: "bg-orange-100 text-orange-800 border-orange-200"
+					}`
+				}
+				renderErrors(blockingList, payload?.readiness?.blockingErrors ?? [], "Sin bloqueantes.")
+				renderErrors(
+					nonBlockingList,
+					payload?.readiness?.nonBlockingErrors ?? [],
+					"Sin pendientes adicionales."
+				)
+			}
+
+			variantImageUploadBtn?.addEventListener("click", () => {
+				if (variantImageFiles instanceof HTMLInputElement) {
+					variantImageFiles.click()
+				}
+			})
+
+			variantImageFiles?.addEventListener("change", async (event) => {
+				const input = event.currentTarget
+				if (!(input instanceof HTMLInputElement)) return
+				const files = Array.from(input.files ?? [])
+				if (files.length === 0) return
+				if (variantImageFeedback) variantImageFeedback.textContent = "Subiendo imágenes..."
+				try {
+					const signData = new FormData()
+					files.forEach((file) => signData.append("file", file))
+					signData.set("prefix", "rooms")
+					const signResponse = await fetch("/api/upload/create-signed", {
+						method: "POST",
+						body: signData,
+					})
+					const signPayload = await signResponse.json().catch(() => ({}))
+					if (!signResponse.ok || !Array.isArray(signPayload?.urls)) {
+						if (variantImageFeedback) {
+							variantImageFeedback.textContent = "No se pudieron preparar las cargas."
+						}
+						return
+					}
+
+					for (const [index, file] of files.entries()) {
+						const target = signPayload.urls[index]
+						if (!target?.signedUrl || !target?.publicUrl || !target?.key) continue
+						const uploadResponse = await fetch(String(target.signedUrl), {
+							method: "PUT",
+							headers: { "Content-Type": file.type || "application/octet-stream" },
+							body: file,
+						})
+						if (!uploadResponse.ok) {
+							throw new Error(`upload_failed_${uploadResponse.status}`)
+						}
+						variantImages.push({
+							id: `local-${crypto.randomUUID()}`,
+							url: String(target.publicUrl),
+							objectKey: String(target.key),
+							order: variantImages.length,
+							isPrimary: variantImages.length === 0,
+						})
+					}
+					renderVariantImages()
+					if (variantImageFeedback) {
+						variantImageFeedback.textContent =
+							"Imágenes cargadas. Guarda la galería para persistir."
+					}
+				} catch (error) {
+					if (variantImageFeedback) {
+						variantImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
+					}
+				} finally {
+					input.value = ""
+				}
+			})
+
+			variantImageSaveBtn?.addEventListener("click", async () => {
+				if (variantImageSaveBtn instanceof HTMLButtonElement) {
+					variantImageSaveBtn.disabled = true
+				}
+				if (variantImageFeedback) variantImageFeedback.textContent = "Guardando galería..."
+				try {
+					const formData = new FormData()
+					formData.set("variantId", variantId)
+					for (const image of variantImages) {
+						formData.append("imageUrl", String(image.url))
+						const objectKey =
+							image?.objectKey ??
+							(() => {
+								try {
+									return new URL(String(image.url)).pathname.replace(/^\/+/, "")
+								} catch {
+									return ""
+								}
+							})()
+						formData.append("imageObjectKey", String(objectKey ?? ""))
+					}
+					const response = await fetch("/api/variant/images", {
+						method: "POST",
+						body: formData,
+					})
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) {
+						if (variantImageFeedback) {
+							variantImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
+						}
+						return
+					}
+					variantImages = Array.isArray(payload?.images) ? payload.images.slice() : variantImages
+					renderVariantImages()
+					if (variantImageFeedback)
+						variantImageFeedback.textContent = "Galería guardada correctamente."
+				} catch (error) {
+					if (variantImageFeedback) {
+						variantImageFeedback.textContent = `Error de red: ${String(error)}`
+					}
+				} finally {
+					if (variantImageSaveBtn instanceof HTMLButtonElement) {
+						variantImageSaveBtn.disabled = false
+					}
+				}
+			})
+
+			const hydrationStart = performance.now()
+			fetch(
+				`/api/internal/variant-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
+				{ headers: { accept: "application/json" } }
+			)
+				.then(async (response) => {
+					if (!response.ok) throw new Error(`variant_summary_${response.status}`)
+					return await response.json()
+				})
+				.then((payload) => {
+					hydrate(payload)
+					console.debug("data hydrated", {
+						page: "variant-detail",
+						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
+					})
+				})
+				.catch(() => {
+					if (feedback) feedback.textContent = "No se pudo cargar el resumen de la variante."
+				})
+
+			const setBusy = (isBusy) => {
+				if (reevaluateBtn) reevaluateBtn.disabled = isBusy
+				if (evaluateHeaderBtn) evaluateHeaderBtn.disabled = isBusy
+			}
+
+			const evaluateReadiness = async () => {
+				setBusy(true)
+				if (feedback) feedback.textContent = "Evaluando estado..."
+				try {
+					const form = new FormData()
+					form.set("variantId", String(variantId || ""))
+					const res = await fetch("/api/variant/evaluate", { method: "POST", body: form })
+
+					if (res.status === 401) {
+						window.location.href = "/SignInPage"
+						return
+					}
+					if (!res.ok) {
+						const txt = await res.text()
+						if (feedback)
+							feedback.textContent =
+								res.status >= 500
+									? "No se pudo evaluar en este momento."
+									: txt || "Error de evaluación."
+						return
+					}
+
+					const refreshed = await fetch(
+						`/api/internal/variant-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
+						{ headers: { accept: "application/json" } }
+					)
+					if (refreshed.ok) {
+						const payload = await refreshed.json()
+						hydrate(payload)
+					}
+					if (feedback) feedback.textContent = "Validación actualizada correctamente."
+				} catch (error) {
+					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+				} finally {
+					setBusy(false)
+				}
+			}
+
+			evaluateHeaderBtn?.addEventListener("click", evaluateReadiness)
+			reevaluateBtn?.addEventListener("click", evaluateReadiness)
+		})()
+	</script>
+</WorkspaceLayout>

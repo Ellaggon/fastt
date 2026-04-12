@@ -1,18 +1,8 @@
 ---
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import {
-	Building2,
-	HandCoins,
-	HandPlatter,
-	Handshake,
-	LogOut,
-	PackageSearch,
-	Scale,
-} from "@lucide/astro"
+import { HandPlatter, Handshake, LogOut, Scale } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
-const pathname = Astro.url.pathname
-const id = Astro.params.id
 ---
 
 <nav>
@@ -46,47 +36,26 @@ const id = Astro.params.id
 			</svg>
 			<p>Dashboard</p>
 		</a>
-		<!-- <a
-			href={`/product/${id}/review`}
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<Building2 />
-			<p>Empresa</p>
-		</a>
 		<a
-			href={`/product/${id}/review`}
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<PackageSearch />
-			<p>Productos</p>
-		</a>
-		<a
-			href={`/product/${id}/review`}
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<HandCoins />
-			<p>Tarifas</p>
-		</a> -->
-		<a
-			href={`/product/${id}/review`}
+			href="/product/create"
 			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
 		>
 			<HandPlatter />
-			<p>Servicios</p>
+			<p>Productos</p>
 		</a>
 		<a
-			href={`/product/${id}/review`}
+			href="/provider/policies"
 			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
 		>
 			<Scale />
 			<p>Políticas</p>
 		</a>
 		<a
-			href={`/product/${id}/review`}
+			href="/provider/tax-fees"
 			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
 		>
 			<Handshake />
-			<p>Reglas Operativas</p>
+			<p>Impuestos y cargos</p>
 		</a>
 		{
 			user && (

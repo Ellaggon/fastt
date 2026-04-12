@@ -1,13 +1,34 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import FormSection from "@/components/ui/FormSection.astro"
 import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import Layout from "@/layouts/Layout.astro"
+import {
+	productRepository,
+	variantInventoryConfigRepository,
+	variantManagementRepository,
+} from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductAggregate } from "@/modules/catalog/public"
+import { and, asc, count, db, EffectivePricing, eq, RoomType } from "astro:db"
+
+type WizardStep = "identity" | "capacity" | "subtype" | "pricing" | "inventory"
+
+const steps: WizardStep[] = ["identity", "capacity", "subtype", "pricing", "inventory"]
+const stepLabels: Record<WizardStep, string> = {
+	identity: "Identidad",
+	capacity: "Capacidad",
+	subtype: "Subtipo",
+	pricing: "Precios",
+	inventory: "Inventario",
+}
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -17,118 +38,534 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+
+const product = await getProductAggregate(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const requestedStepParam = String(Astro.url.searchParams.get("step") ?? "identity").trim()
+const requestedStep: WizardStep = steps.includes(requestedStepParam as WizardStep)
+	? (requestedStepParam as WizardStep)
+	: "identity"
+
+const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+
+const toStepUrl = (step: WizardStep, variantId?: string) => {
+	const base = `/product/${encodeURIComponent(productId)}/variants/new?step=${encodeURIComponent(step)}`
+	return variantId ? `${base}&variantId=${encodeURIComponent(variantId)}` : base
+}
+
+let variant: Awaited<ReturnType<typeof variantManagementRepository.getVariantById>> | null = null
+let capacity: Awaited<ReturnType<typeof variantManagementRepository.getCapacity>> | null = null
+let subtype: Awaited<ReturnType<typeof variantManagementRepository.getHotelRoomSubtype>> | null =
+	null
+let baseRate: Awaited<ReturnType<typeof variantManagementRepository.getBaseRate>> | null = null
+let defaultRatePlan: Awaited<
+	ReturnType<typeof variantManagementRepository.getDefaultRatePlanWithRules>
+> | null = null
+let inventoryConfig: Awaited<
+	ReturnType<typeof variantInventoryConfigRepository.getByVariantId>
+> | null = null
+let effectivePricingDays = 0
+
+if (variantIdParam) {
+	variant = await variantManagementRepository.getVariantById(variantIdParam)
+	if (!variant || variant.productId !== productId) {
+		return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+	}
+	capacity = await variantManagementRepository.getCapacity(variantIdParam)
+	subtype = await variantManagementRepository.getHotelRoomSubtype(variantIdParam)
+	baseRate = await variantManagementRepository.getBaseRate(variantIdParam)
+	defaultRatePlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantIdParam)
+	inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantIdParam)
+	if (defaultRatePlan?.id) {
+		effectivePricingDays = Number(
+			(
+				await db
+					.select({ value: count() })
+					.from(EffectivePricing)
+					.where(
+						and(
+							eq(EffectivePricing.variantId, variantIdParam),
+							eq(EffectivePricing.ratePlanId, defaultRatePlan.id)
+						)
+					)
+					.get()
+			)?.value ?? 0
+		)
+	}
+}
+
+const subtypeRequired =
+	String(variant?.kind ?? "")
+		.trim()
+		.toLowerCase() === "hotel_room"
+
+const completion = {
+	identity: Boolean(variant),
+	capacity: Boolean(capacity),
+	subtype: subtypeRequired ? Boolean(subtype) : true,
+	pricing: Boolean(baseRate && defaultRatePlan),
+	inventory: Boolean(inventoryConfig),
+}
+
+const firstIncompleteStep: WizardStep = (() => {
+	for (const step of steps) {
+		if (!completion[step]) return step
+	}
+	return "inventory"
+})()
+
+if (!variant) {
+	if (requestedStep !== "identity") return Astro.redirect(toStepUrl("identity"))
+} else {
+	if (requestedStep === "identity")
+		return Astro.redirect(toStepUrl(firstIncompleteStep, variant.id))
+	if (!subtypeRequired && requestedStep === "subtype") {
+		return Astro.redirect(toStepUrl("pricing", variant.id))
+	}
+	const requestedIndex = steps.indexOf(requestedStep)
+	const firstIncompleteIndex = steps.indexOf(firstIncompleteStep)
+	if (requestedIndex > firstIncompleteIndex) {
+		return Astro.redirect(toStepUrl(firstIncompleteStep, variant.id))
+	}
+}
+
+const currentStep: WizardStep = requestedStep
+const currentIndex = steps.indexOf(currentStep)
+const previousStep = currentIndex > 0 ? steps[currentIndex - 1] : null
+const nextStep = currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null
+const progressPercent = Math.round(((currentIndex + 1) / steps.length) * 100)
+const progressWidthClass =
+	progressPercent >= 100
+		? "w-full"
+		: progressPercent >= 75
+			? "w-3/4"
+			: progressPercent >= 50
+				? "w-1/2"
+				: progressPercent >= 25
+					? "w-1/4"
+					: "w-1/12"
+
+const roomTypes =
+	currentStep === "subtype"
+		? await db
+				.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
+				.from(RoomType)
+				.orderBy(asc(RoomType.name))
+				.all()
+		: []
+
+const initialVariantName = variant?.name ?? ""
+const initialVariantKind = String(variant?.kind ?? "hotel_room")
+const initialVariantDescription = String(variant?.description ?? "")
+
+const initialMin = capacity?.minOccupancy != null ? String(capacity.minOccupancy) : ""
+const initialMax = capacity?.maxOccupancy != null ? String(capacity.maxOccupancy) : ""
+const initialMaxAdults = capacity?.maxAdults != null ? String(capacity.maxAdults) : ""
+const initialMaxChildren = capacity?.maxChildren != null ? String(capacity.maxChildren) : ""
+
+const initialRoomTypeId = subtype?.roomTypeId ?? ""
+const initialCurrency = baseRate?.currency ?? "USD"
+const initialBasePrice = baseRate?.basePrice != null ? String(baseRate.basePrice) : ""
+const initialTotalUnits =
+	inventoryConfig?.defaultTotalUnits != null ? String(inventoryConfig.defaultTotalUnits) : ""
+const initialHorizonDays =
+	inventoryConfig?.horizonDays != null ? String(inventoryConfig.horizonDays) : "365"
+
+const previousHref =
+	previousStep && variant
+		? toStepUrl(previousStep, variant.id)
+		: previousStep === "identity"
+			? toStepUrl("identity")
+			: null
+
+const submitLabel = currentStep === "inventory" ? "Guardar y finalizar" : "Guardar y continuar"
+const pageSubtitle =
+	"Completa los pasos para crear la variante de forma guiada y dejarla lista para operar."
 ---
 
-<Layout title="Product - New Variant">
-	<main class="mx-auto max-w-3xl space-y-6 px-6 py-10 text-neutral-100">
-		<Card class="space-y-2 bg-white text-slate-900">
-			<h1 class="text-2xl font-semibold">Nueva unidad</h1>
-			<p class="text-sm text-slate-600">
-				Producto: <code>{productId}</code>
-			</p>
-		</Card>
-
-		<form id="newVariantForm" class="space-y-6">
-			<Input type="hidden" name="productId" value={productId} />
-			<FormSection title="Datos de la unidad">
-				<FormField label="Nombre" htmlFor="name" required>
-					<Input id="name" name="name" required minlength="1" placeholder="Double room" />
-				</FormField>
-				<FormField label="Descripción (opcional)" htmlFor="description">
-					<Textarea
-						id="description"
-						name="description"
-						rows="4"
-						placeholder="Descripción opcional"
-					/>
-				</FormField>
-			</FormSection>
-			<div class="flex justify-end">
-				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-					Crear unidad
-				</Button>
+<WorkspaceLayout title="Producto · Crear variante (Wizard)">
+	<section class="space-y-8">
+		<header class="space-y-4">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<h1 class="text-3xl font-semibold text-slate-100">Nueva variante</h1>
+					<p class="text-sm text-slate-400">{pageSubtitle}</p>
+					<p class="text-sm text-slate-300">Producto: {product.displayName}</p>
+				</div>
+				<Badge variant="info">Paso {currentIndex + 1} de {steps.length}</Badge>
 			</div>
-		</form>
+		</header>
 
-		<Card class="bg-white text-slate-900">
-			<pre id="out" class="whitespace-pre-wrap text-sm text-slate-700"></pre>
-		</Card>
+		<Section
+			title="Progreso del asistente"
+			description={`Paso actual: ${stepLabels[currentStep]}.`}
+		>
+			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
+				<div class="space-y-4">
+					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+						<div class={`h-full bg-[#1E3A8A] ${progressWidthClass}`}></div>
+					</div>
+					<div class="grid gap-2 text-sm sm:grid-cols-5">
+						{
+							steps.map((step, idx) => (
+								<div
+									class={`rounded-lg border px-3 py-2 text-center ${
+										idx === currentIndex
+											? "border-blue-400 bg-blue-500/10 text-blue-100"
+											: idx < currentIndex
+												? "border-green-400/30 bg-green-500/10 text-green-100"
+												: "border-slate-700 text-slate-300"
+									}`}
+								>
+									{stepLabels[step]}
+								</div>
+							))
+						}
+					</div>
+				</div>
+			</Card>
+		</Section>
 
-		<p class="text-sm text-neutral-300">
-			<a href={`/product/${encodeURIComponent(productId)}/variants`}>Back to variants</a>
-		</p>
-	</main>
+		<Section
+			title={stepLabels[currentStep]}
+			description="Completa los datos requeridos para avanzar."
+		>
+			<Card class="bg-slate-100">
+				<form id="wizardForm" class="mx-auto max-w-3xl space-y-6">
+					<Input type="hidden" id="productId" name="productId" value={productId} />
+					<Input type="hidden" id="step" name="step" value={currentStep} />
+					<Input type="hidden" id="variantId" name="variantId" value={variant?.id ?? ""} />
 
-	<script type="module">
-		const form = document.getElementById("newVariantForm")
-		const btn = document.getElementById("submitBtn")
-		const out = document.getElementById("out")
+					{
+						currentStep === "identity" && (
+							<FormSection title="Datos base de la variante" class="text-neutral-800">
+								<FormField label="Nombre" htmlFor="name" required>
+									<Input id="name" name="name" value={initialVariantName} required minlength="1" />
+								</FormField>
+								<FormField label="Tipo" htmlFor="kind" required>
+									<Select id="kind" name="kind" required value={initialVariantKind}>
+										<option value="hotel_room">Habitación</option>
+										<option value="tour_slot">Cupo de tour</option>
+										<option value="package_base">Base de paquete</option>
+									</Select>
+								</FormField>
+								<FormField label="Descripción" htmlFor="description">
+									<Textarea
+										id="description"
+										name="description"
+										value={initialVariantDescription}
+										rows="4"
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
 
-		function safeJsonParse(txt) {
-			try {
-				return txt ? JSON.parse(txt) : null
-			} catch {
-				return null
-			}
+					{
+						currentStep === "capacity" && (
+							<FormSection title="Capacidad de ocupación" class="text-neutral-800">
+								<FormField label="Huéspedes mínimos" htmlFor="minOccupancy" required>
+									<Input
+										id="minOccupancy"
+										name="minOccupancy"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMin}
+										required
+									/>
+								</FormField>
+								<FormField label="Huéspedes máximos" htmlFor="maxOccupancy" required>
+									<Input
+										id="maxOccupancy"
+										name="maxOccupancy"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMax}
+										required
+									/>
+								</FormField>
+								<FormField label="Máximo adultos" htmlFor="maxAdults">
+									<Input
+										id="maxAdults"
+										name="maxAdults"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMaxAdults}
+									/>
+								</FormField>
+								<FormField label="Máximo niños" htmlFor="maxChildren">
+									<Input
+										id="maxChildren"
+										name="maxChildren"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMaxChildren}
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "subtype" && (
+							<FormSection title="Subtipo de la variante" class="text-neutral-800">
+								<FormField label="Tipo de habitación" htmlFor="roomTypeId">
+									<Select id="roomTypeId" name="roomTypeId" value={initialRoomTypeId}>
+										<option value="">Selecciona una opción</option>
+										{roomTypes.map((roomType) => (
+											<option value={roomType.id}>
+												{roomType.name}
+												{roomType.maxOccupancy != null ? ` (max ${roomType.maxOccupancy})` : ""}
+											</option>
+										))}
+									</Select>
+								</FormField>
+								{roomTypes.length === 0 && (
+									<p class="text-sm text-slate-600">
+										No hay tipos de habitación disponibles. Puedes continuar y asignarlo más
+										adelante.
+									</p>
+								)}
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "pricing" && (
+							<FormSection title="Precio base de la variante" class="text-neutral-800">
+								<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+									<p class="font-medium">Estás configurando el precio base.</p>
+									<p>
+										El precio final de venta se materializa con cobertura diaria en pricing
+										efectivo.
+									</p>
+									<p>
+										Este paso guarda la base y asegura un plan tarifario por defecto para continuar.
+									</p>
+								</div>
+								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+									{effectivePricingDays > 0
+										? `Estado actual: cobertura disponible (${effectivePricingDays} día(s) de pricing efectivo).`
+										: "Estado actual: sin pricing efectivo generado. La variante aún no está lista para vender."}
+									{variant?.id && (
+										<>
+											{" "}
+											<a
+												class="font-medium underline"
+												href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}/pricing`}
+											>
+												Podrás configurar cobertura y reglas detalladas después.
+											</a>
+										</>
+									)}
+								</div>
+								<FormField label="Moneda" htmlFor="currency" required>
+									<Select id="currency" name="currency" required value={initialCurrency}>
+										<option value="USD">USD</option>
+										<option value="BOB">BOB</option>
+									</Select>
+								</FormField>
+								<FormField label="Precio base" htmlFor="basePrice" required>
+									<Input
+										id="basePrice"
+										name="basePrice"
+										type="number"
+										min="0"
+										step="1"
+										value={initialBasePrice}
+										required
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "inventory" && (
+							<FormSection title="Inventario inicial" class="text-neutral-800">
+								<FormField label="Unidades totales" htmlFor="totalUnits" required>
+									<Input
+										id="totalUnits"
+										name="totalUnits"
+										type="number"
+										min="0"
+										step="1"
+										value={initialTotalUnits}
+										required
+									/>
+								</FormField>
+								<FormField label="Horizonte (días)" htmlFor="horizonDays">
+									<Input
+										id="horizonDays"
+										name="horizonDays"
+										type="number"
+										min="1"
+										max="3650"
+										step="1"
+										value={initialHorizonDays}
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					<p id="wizardFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							{
+								previousHref ? (
+									<a
+										href={previousHref}
+										class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+									>
+										Anterior
+									</a>
+								) : (
+									<span />
+								)
+							}
+						</div>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							{submitLabel}
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</Section>
+	</section>
+
+	<script
+		type="module"
+		define:vars={{
+			productId,
+			currentStep,
+			nextStep,
+			variantIdFromServer: variant?.id ?? "",
+			toIdentityUrl: toStepUrl("identity"),
+		}}
+	>
+		const form = document.getElementById("wizardForm")
+		const submitBtn = document.getElementById("submitBtn")
+		const feedback = document.getElementById("wizardFeedback")
+
+		const stepToEndpoint = {
+			identity: "/api/variant/create",
+			capacity: "/api/variant/capacity",
+			subtype: "/api/variant/subtype/hotel-room",
+			pricing: "/api/pricing/base-rate",
+			inventory: "/api/inventory/set-default",
 		}
 
-		function formatFieldErrors(issues) {
-			if (!Array.isArray(issues)) return null
-			const byField = {}
-			for (const i of issues) {
-				const p = Array.isArray(i?.path) && i.path.length ? String(i.path[0]) : ""
-				if (!p) continue
-				if (!byField[p]) byField[p] = []
-				byField[p].push(i?.message || "Invalid")
+		function setState(state, detail = "") {
+			const map = {
+				empty: "Completa los campos requeridos para continuar.",
+				loading: "Guardando...",
+				success: "Guardado correctamente.",
+				error: "No se pudo guardar este paso.",
+				disabled: "Procesando solicitud...",
 			}
-			return byField
+			if (feedback) feedback.textContent = `${map[state] ?? ""}${detail ? `\n${detail}` : ""}`
 		}
 
-		form?.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			out.textContent = ""
-			btn.disabled = true
+		function getNextUrl(variantId) {
+			if (!nextStep)
+				return `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+			return `/product/${encodeURIComponent(productId)}/variants/new?step=${encodeURIComponent(nextStep)}&variantId=${encodeURIComponent(variantId)}`
+		}
+
+		function parseErrorPayload(payload, fallback = "Error de validación") {
+			if (!payload) return fallback
+			if (payload?.error === "validation_error" && Array.isArray(payload?.details)) {
+				const messages = payload.details.map((item) => String(item?.message || "")).filter(Boolean)
+				if (messages.length) return messages.join("\n")
+			}
+			if (typeof payload?.error === "string" && payload.error.trim()) return payload.error
+			return fallback
+		}
+
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!submitBtn) return
+			submitBtn.disabled = true
+			setState("loading")
+
 			try {
 				const fd = new FormData(form)
-				fd.set("kind", "hotel_room")
-				const res = await fetch("/api/variant/create", { method: "POST", body: fd })
-				const txt = await res.text()
-				const json = safeJsonParse(txt)
+				const step = String(fd.get("step") || currentStep)
+				const endpoint = stepToEndpoint[step]
+				if (!endpoint) {
+					submitBtn.disabled = false
+					setState("error", "Paso inválido")
+					return
+				}
 
-				if (res.status === 401) {
+				if (step === "identity") {
+					fd.set("kind", String(fd.get("kind") || "hotel_room"))
+				} else {
+					const existingVariantId = String(fd.get("variantId") || variantIdFromServer || "").trim()
+					if (!existingVariantId) {
+						submitBtn.disabled = false
+						setState("error", "No se encontró la variante para continuar.")
+						window.location.href = toIdentityUrl
+						return
+					}
+					fd.set("variantId", existingVariantId)
+				}
+
+				if (step === "inventory") {
+					fd.set("totalUnits", String(fd.get("totalUnits") || ""))
+					if (!fd.get("horizonDays")) fd.set("horizonDays", "365")
+				}
+
+				const response = await fetch(endpoint, { method: "POST", body: fd })
+
+				if (response.status === 401) {
 					window.location.href = "/SignInPage"
 					return
 				}
 
-				if (!res.ok) {
-					if (res.status === 400 && json?.error === "validation_error") {
-						const fe = formatFieldErrors(json?.details)
-						out.textContent = fe ? JSON.stringify(fe, null, 2) : txt
-						return
-					}
-					if (res.status === 404) {
-						out.textContent = "Not found"
-						return
-					}
-					out.textContent = res.status >= 500 ? "Try again" : txt
+				let payload = null
+				try {
+					payload = await response.json()
+				} catch {
+					payload = null
+				}
+
+				if (!response.ok) {
+					submitBtn.disabled = false
+					setState("error", parseErrorPayload(payload, `status=${response.status}`))
 					return
 				}
 
-				const variantId = String(json?.variantId || "").trim()
-				const productId = String(fd.get("productId") || "").trim()
-				if (!variantId || !productId) {
-					out.textContent = "Unexpected response"
-					return
+				let variantId = String(fd.get("variantId") || variantIdFromServer || "").trim()
+				if (step === "identity") {
+					variantId = String(payload?.variantId || "").trim()
+					if (!variantId) {
+						submitBtn.disabled = false
+						setState("error", "No recibimos el identificador de la variante.")
+						return
+					}
 				}
 
-				window.location.href = `/product/${encodeURIComponent(
-					productId
-				)}/variants/${encodeURIComponent(variantId)}/capacity`
-			} catch (err) {
-				out.textContent = `network error: ${String(err)}`
-			} finally {
-				btn.disabled = false
+				setState("success")
+				window.location.href = getNextUrl(variantId)
+			} catch (error) {
+				submitBtn.disabled = false
+				setState("error", `Error de red: ${String(error)}`)
 			}
 		})
 	</script>
-</Layout>
+</WorkspaceLayout>
