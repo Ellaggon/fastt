@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProduct } from "@/lib/cache/invalidation"
 import { updateProductImages } from "@/modules/catalog/public"
 import { productImageRepository, productRepository } from "@/container"
 
@@ -94,7 +95,7 @@ export const POST: APIRoute = async ({ request }) => {
 			JSON.stringify({ action: "product_images_set", productId, count: imageIds.length, ok: true })
 		)
 		// Delegate all DB writes to the existing images use-case (reused system).
-		return updateProductImages({
+		const response = await updateProductImages({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
 			repo: productImageRepository,
 			providerId,
@@ -104,6 +105,8 @@ export const POST: APIRoute = async ({ request }) => {
 				return { id, url: String((row as any).url), isPrimary: idx === 0 }
 			}),
 		})
+		if (response.ok) await invalidateProduct(productId)
+		return response
 	} catch (e) {
 		console.log(JSON.stringify({ action: "product_images_set", ok: false, error: String(e) }))
 		const msg = e instanceof Error ? e.message : "Unknown error"

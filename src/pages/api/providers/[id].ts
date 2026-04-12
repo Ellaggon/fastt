@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProvider } from "@/lib/cache/invalidation"
 import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 
@@ -35,6 +36,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 				...raw,
 			}
 		)
+		await invalidateProvider(providerId)
 
 		if (shouldReturnHtmlRedirect(request)) {
 			const url = new URL("/provider?success=saved", request.url)
