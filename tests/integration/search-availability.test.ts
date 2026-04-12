@@ -12,7 +12,7 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
-import { db, Restriction } from "astro:db"
+import { db, EffectivePricing, Restriction } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -128,6 +128,37 @@ async function seedSearchableVariant(params: {
 		isActive: true,
 		isDefault: true,
 	})
+
+	if (typeof params.totalInventory === "number") {
+		const nightly = Number(100)
+		await Promise.all(
+			params.inventoryDates.map(async (date) => {
+				await db
+					.insert(EffectivePricing)
+					.values({
+						variantId: params.variantId,
+						ratePlanId: params.ratePlanId,
+						date,
+						basePrice: nightly,
+						finalBasePrice: nightly,
+						yieldMultiplier: 1,
+						computedAt: new Date(),
+					} as any)
+					.onConflictDoUpdate({
+						target: [
+							EffectivePricing.variantId,
+							EffectivePricing.ratePlanId,
+							EffectivePricing.date,
+						],
+						set: {
+							basePrice: nightly,
+							finalBasePrice: nightly,
+							computedAt: new Date(),
+						},
+					})
+			})
+		)
+	}
 }
 
 describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {

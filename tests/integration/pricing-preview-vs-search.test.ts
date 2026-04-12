@@ -12,6 +12,7 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as previewPost } from "@/pages/api/pricing/preview"
 import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/container"
+import { db, EffectivePricing } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -139,6 +140,15 @@ describe("integration/pricing preview vs search parity", () => {
 			value: 10,
 			isActive: true,
 		})
+		await db.insert(EffectivePricing).values({
+			variantId,
+			ratePlanId,
+			date: "2026-03-10",
+			basePrice: 100,
+			finalBasePrice: 110,
+			yieldMultiplier: 1,
+			computedAt: new Date(),
+		} as any)
 
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_vs_search", email } }, async () => {
 			// Preview (engine)

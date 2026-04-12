@@ -217,7 +217,7 @@ describe("integration/variant (CAPA 3)", () => {
 		})
 	})
 
-	it("missing subtype => draft", async () => {
+	it("missing subtype no longer blocks readiness", async () => {
 		const token = "t_c"
 		const email = "vc@example.com"
 		const providerId = "prov_variant_c"
@@ -265,8 +265,8 @@ describe("integration/variant (CAPA 3)", () => {
 				request: makeAuthedFormRequest({ path: "/api/variant/evaluate", token, form: evalFd }),
 			} as any)
 			const ev = (await readJson(evalRes)) as any
-			expect(ev.state).toBe("draft")
-			expect(ev.validationErrors.some((e: any) => e.code === "missing_subtype")).toBe(true)
+			expect(ev.state).toBe("ready")
+			expect(ev.validationErrors.some((e: any) => e.code === "missing_subtype")).toBe(false)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "inventory_missing")).toBe(true)
 		})
