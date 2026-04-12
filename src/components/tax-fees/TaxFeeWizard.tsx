@@ -1112,7 +1112,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										Effective from (optional)
 									</span>
 									<input
-										type="date"
+										type="text"
+										placeholder="AAAA-MM-DD"
+										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveFrom}
 										onChange={(event) => updateDraft({ effectiveFrom: event.target.value })}
 										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
@@ -1124,7 +1126,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										Effective to (optional)
 									</span>
 									<input
-										type="date"
+										type="text"
+										placeholder="AAAA-MM-DD"
+										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveTo}
 										onChange={(event) => updateDraft({ effectiveTo: event.target.value })}
 										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
@@ -1168,7 +1172,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								<label className="flex flex-col gap-2">
 									<span className="text-sm font-medium text-neutral-700">Check-in</span>
 									<input
-										type="date"
+										type="text"
+										placeholder="AAAA-MM-DD"
+										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkIn}
 										onChange={(event) => updateDraft({ checkIn: event.target.value })}
 										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
@@ -1177,7 +1183,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								<label className="flex flex-col gap-2">
 									<span className="text-sm font-medium text-neutral-700">Check-out</span>
 									<input
-										type="date"
+										type="text"
+										placeholder="AAAA-MM-DD"
+										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkOut}
 										onChange={(event) => updateDraft({ checkOut: event.target.value })}
 										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"

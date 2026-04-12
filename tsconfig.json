@@ -10,6 +10,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "jsxImportSource": "react"
+    "jsxImportSource": "react",
+    "ignoreDeprecations": "6.0"
   }
 }
