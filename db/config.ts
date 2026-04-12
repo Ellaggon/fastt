@@ -513,6 +513,9 @@ const PriceRule = defineTable({
 		// validDays: column.json({ optional: true }), // [1,2,3,4,5]
 
 		priority: column.number({ default: 10 }), // Para saber qué regla se aplica primero
+		// CAPA 4: optional schedule metadata for deterministic OTA-style evaluation.
+		dateRangeJson: column.json({ optional: true }), // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
+		dayOfWeekJson: column.json({ optional: true }), // number[] 0..6
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -667,6 +670,8 @@ const BookingRoomDetail = defineTable({
 		basePrice: column.number(),
 		taxes: column.number(),
 		totalPrice: column.number(),
+		// CAPA 4/6: immutable pricing snapshot consumed by booking confirmation.
+		pricingBreakdownJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
