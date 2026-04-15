@@ -50,6 +50,7 @@ export let VariantReadiness: any
 export let VariantInventoryConfig: any
 export let DailyInventory: any
 export let EffectiveAvailability: any
+export let SearchUnitView: any
 export let RatePlanTemplate: any
 export let RatePlan: any
 export let PriceRule: any
@@ -58,6 +59,7 @@ export let PricingBaseRate: any
 export let TaxFeeDefinition: any
 export let TaxFeeAssignment: any
 export let Restriction: any
+export let EffectiveRestriction: any
 export let InventoryLock: any
 export let PolicyGroup: any
 export let Policy: any
@@ -66,6 +68,7 @@ export let CancellationTier: any
 export let PolicyRule: any
 export let EffectivePolicy: any
 export let Booking: any
+export let BookingRoomDetail: any
 export let BookingPolicySnapshot: any
 export let BookingTaxFee: any
 
@@ -137,6 +140,7 @@ async function init() {
 	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveAvailability = drizzleTables.EffectiveAvailability
+	SearchUnitView = drizzleTables.SearchUnitView
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
 	PriceRule = drizzleTables.PriceRule
@@ -145,6 +149,7 @@ async function init() {
 	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
 	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
 	Restriction = drizzleTables.Restriction
+	EffectiveRestriction = drizzleTables.EffectiveRestriction
 	InventoryLock = drizzleTables.InventoryLock
 	PolicyGroup = drizzleTables.PolicyGroup
 	Policy = drizzleTables.Policy
@@ -153,6 +158,7 @@ async function init() {
 	PolicyRule = drizzleTables.PolicyRule
 	EffectivePolicy = drizzleTables.EffectivePolicy
 	Booking = drizzleTables.Booking
+	BookingRoomDetail = drizzleTables.BookingRoomDetail
 	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
 	BookingTaxFee = drizzleTables.BookingTaxFee
 }

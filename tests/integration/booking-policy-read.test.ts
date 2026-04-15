@@ -34,8 +34,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: `room_${crypto.randomUUID()}`,
+			kind: "hotel_room",
 			name: "Room",
 		})
 		await upsertRatePlanTemplate({
@@ -116,8 +115,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: `room_${crypto.randomUUID()}`,
+			kind: "hotel_room",
 			name: "Room",
 		})
 		await upsertRatePlanTemplate({
@@ -175,8 +173,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: `room_${crypto.randomUUID()}`,
+			kind: "hotel_room",
 			name: "Room",
 		})
 		await upsertRatePlanTemplate({

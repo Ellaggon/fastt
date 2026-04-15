@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import { searchOffers, dailyInventoryRepository, baseRateRepository } from "@/container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
+import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 
 import {
 	upsertDestination,
@@ -11,8 +12,15 @@ import {
 	upsertRatePlan,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { materializeSearchUnitRange } from "@/modules/search/public"
 
-import { db, EffectivePricing, Restriction } from "astro:db"
+import {
+	db,
+	EffectiveAvailability,
+	EffectivePricing,
+	EffectiveRestriction,
+	Restriction,
+} from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -67,6 +75,11 @@ function makeAuthedFormRequest(params: { path: string; token?: string; form: For
 	})
 }
 
+async function readJson(res: Response) {
+	const txt = await res.text()
+	return txt ? JSON.parse(txt) : null
+}
+
 async function seedSearchableVariant(params: {
 	email: string
 	providerId: string
@@ -96,8 +109,7 @@ async function seedSearchableVariant(params: {
 	await upsertVariant({
 		id: params.variantId,
 		productId: params.productId,
-		entityType: "hotel_room",
-		entityId: "hr",
+		kind: "hotel_room",
 		name: "Room",
 		currency: "USD",
 		basePrice: 999,
@@ -113,6 +125,32 @@ async function seedSearchableVariant(params: {
 			totalInventory: params.totalInventory,
 			reservedCount: 0,
 		})
+		await db
+			.insert(EffectiveAvailability)
+			.values({
+				id: `ea_${params.variantId}_${d}`,
+				variantId: params.variantId,
+				date: d,
+				totalUnits: params.totalInventory,
+				heldUnits: 0,
+				bookedUnits: 0,
+				availableUnits: params.stopSell ? 0 : params.totalInventory,
+				stopSell: params.stopSell ?? false,
+				isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+				computedAt: new Date(),
+			} as any)
+			.onConflictDoUpdate({
+				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
+				set: {
+					totalUnits: params.totalInventory,
+					heldUnits: 0,
+					bookedUnits: 0,
+					availableUnits: params.stopSell ? 0 : params.totalInventory,
+					stopSell: params.stopSell ?? false,
+					isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+					computedAt: new Date(),
+				},
+			})
 	}
 
 	await upsertRatePlanTemplate({
@@ -159,6 +197,20 @@ async function seedSearchableVariant(params: {
 			})
 		)
 	}
+
+	const sorted = [...params.inventoryDates].sort()
+	const from = sorted[0]
+	const to = new Date(`${sorted[sorted.length - 1]}T00:00:00.000Z`)
+	// Include checkout day (+1). inventoryDates are stay nights ([from, checkOut)), so we materialize
+	// one extra day to evaluate CTD deterministically.
+	to.setUTCDate(to.getUTCDate() + 2)
+	await materializeSearchUnitRange({
+		variantId: params.variantId,
+		ratePlanId: params.ratePlanId,
+		from,
+		to: to.toISOString().slice(0, 10),
+		currency: "USD",
+	})
 }
 
 describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
@@ -243,6 +295,41 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			totalInventory: 1,
 			reservedCount: 1,
 		})
+		await db
+			.insert(EffectiveAvailability)
+			.values({
+				id: `ea_${variantId}_2026-03-11`,
+				variantId,
+				date: "2026-03-11",
+				totalUnits: 1,
+				heldUnits: 0,
+				bookedUnits: 1,
+				availableUnits: 0,
+				stopSell: false,
+				isSellable: false,
+				computedAt: new Date(),
+			} as any)
+			.onConflictDoUpdate({
+				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
+				set: {
+					totalUnits: 1,
+					heldUnits: 0,
+					bookedUnits: 1,
+					availableUnits: 0,
+					stopSell: false,
+					isSellable: false,
+					computedAt: new Date(),
+				},
+			})
+
+		await materializeSearchUnitRange({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			// Include checkout day (+1).
+			to: "2026-03-14",
+			currency: "USD",
+		})
 
 		const offers = await searchOffers({
 			productId,
@@ -256,7 +343,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		expect(offers.some((o) => o.variantId === variantId)).toBe(false)
 	})
 
-	it("missing day: if DB is missing a date row, getRange synthesizes unavailable and Search rejects", async () => {
+	it("missing day: if EffectiveAvailability is missing one day, Search rejects the full stay", async () => {
 		const email = "search-missing@example.com"
 		const providerId = "prov_search_missing"
 		const destinationId = "dest_search_missing"
@@ -289,7 +376,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		expect(offers.some((o) => o.variantId === variantId)).toBe(false)
 	})
 
-	it("hold consistency: active holds decrement availability via reservedCount (no lock reads)", async () => {
+	it("hold consistency: active holds decrement availability via materialized availability", async () => {
 		const token = "t_search_hold"
 		const email = "search-hold@example.com"
 		const providerId = "prov_search_hold"
@@ -321,6 +408,59 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
 			} as any)
 			expect(res.status).toBe(200)
+
+			const offers = await searchOffers({
+				productId,
+				checkIn: new Date("2026-03-10"),
+				checkOut: new Date("2026-03-11"),
+				rooms: 1,
+				adults: 2,
+				children: 0,
+			})
+			expect(offers.some((o) => o.variantId === variantId)).toBe(false)
+		})
+	})
+
+	it("booking confirmed consumes availability and search reflects booked stock", async () => {
+		const token = "t_search_booking"
+		const email = "search-booking@example.com"
+		const providerId = "prov_search_booking"
+		const destinationId = "dest_search_booking"
+		const productId = `prod_search_booking_${crypto.randomUUID()}`
+		const variantId = `var_search_booking_${crypto.randomUUID()}`
+		const templateId = `rpt_search_booking_${crypto.randomUUID()}`
+		const ratePlanId = `rp_search_booking_${crypto.randomUUID()}`
+
+		await seedSearchableVariant({
+			email,
+			providerId,
+			destinationId,
+			productId,
+			variantId,
+			ratePlanTemplateId: templateId,
+			ratePlanId,
+			inventoryDates: ["2026-03-10"],
+			totalInventory: 1,
+		})
+
+		await withSupabaseAuthStub({ [token]: { id: "u_search_booking", email } }, async () => {
+			const hold = new FormData()
+			hold.set("variantId", variantId)
+			hold.set("checkIn", "2026-03-10")
+			hold.set("checkOut", "2026-03-11")
+			hold.set("quantity", "1")
+			const holdRes = await holdPost({
+				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: hold }),
+			} as any)
+			expect(holdRes.status).toBe(200)
+			const holdBody = (await readJson(holdRes)) as any
+
+			const confirm = new FormData()
+			confirm.set("holdId", String(holdBody?.holdId ?? ""))
+			const confirmRes = await bookingConfirmPost({
+				request: makeAuthedFormRequest({ path: "/api/booking/confirm", token, form: confirm }),
+			} as any)
+			expect(confirmRes.status).toBe(200)
 
 			const offers = await searchOffers({
 				productId,
@@ -368,6 +508,41 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			priority: 1,
 			createdAt: new Date(),
 		} as any)
+
+		// SearchUnitView materialization reads from EffectiveRestriction (not raw Restriction).
+		for (const date of ["2026-03-10", "2026-03-11"]) {
+			await db
+				.insert(EffectiveRestriction)
+				.values({
+					id: `er_${variantId}_${date}`,
+					variantId,
+					date,
+					stopSell: true,
+					minStay: null,
+					cta: false,
+					ctd: false,
+					computedAt: new Date(),
+				} as any)
+				.onConflictDoUpdate({
+					target: [EffectiveRestriction.variantId, EffectiveRestriction.date],
+					set: {
+						stopSell: true,
+						minStay: null,
+						cta: false,
+						ctd: false,
+						computedAt: new Date(),
+					},
+				})
+		}
+
+		await materializeSearchUnitRange({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			// Include checkout day (+1).
+			to: "2026-03-12",
+			currency: "USD",
+		})
 
 		const offers = await searchOffers({
 			productId,

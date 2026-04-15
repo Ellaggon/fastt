@@ -79,8 +79,7 @@ describe("integration/booking tax/fee snapshot", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 100,
@@ -160,8 +159,7 @@ describe("integration/booking tax/fee snapshot", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 200,

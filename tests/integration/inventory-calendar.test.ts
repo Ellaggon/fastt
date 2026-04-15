@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { db, DailyInventory, eq, and } from "astro:db"
+import { db, DailyInventory, EffectiveAvailability, eq, and } from "astro:db"
 
 import { GET as calendarGet } from "@/pages/api/inventory/calendar"
 import { POST as bulkPost } from "@/pages/api/inventory/bulk-update"
@@ -101,16 +101,13 @@ async function seedVariantOwnedByProvider(params: {
 	await upsertVariant({
 		id: params.variantId,
 		productId: params.productId,
-		entityType: "hotel_room",
-		entityId: "hr",
+		kind: "hotel_room",
 		name: "Room",
-		currency: "USD",
-		basePrice: 999,
 	})
 }
 
 describe("integration/inventory calendar API", () => {
-	it("calendar returns full range; missing days are synthesized as unavailable", async () => {
+	it("calendar returns full range and marks missing materialization as unavailable", async () => {
 		const token = "t_inv_cal_1"
 		const email = "inv-cal@example.com"
 		const providerId = "prov_inv_cal"
@@ -126,7 +123,6 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 0,
-			priceOverride: null,
 			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -147,9 +143,11 @@ describe("integration/inventory calendar API", () => {
 			expect(json.length).toBe(2)
 
 			expect(json[0].date).toBe("2026-03-10")
-			expect(json[0].totalInventory).toBe(2)
-			expect(json[0].available).toBe(2)
-			expect(json[0].stopSell).toBe(false)
+			expect(json[0].totalInventory).toBe(0)
+			expect(json[0].available).toBe(0)
+			expect(json[0].stopSell).toBe(true)
+			expect(json[0].hasEffective).toBe(false)
+			expect(json[0].unsellableReason).toBe("MISSING_AVAILABILITY")
 
 			expect(json[1].date).toBe("2026-03-11")
 			expect(json[1].totalInventory).toBe(0)
@@ -174,7 +172,6 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 1,
-			priceOverride: null,
 			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -224,7 +221,6 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 0,
-			priceOverride: null,
 			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -282,6 +278,85 @@ describe("integration/inventory calendar API", () => {
 			const json2 = (await readJson(cal2)) as any[]
 			expect(json2[0].stopSell).toBe(false)
 			expect(json2[0].available).toBe(2)
+		})
+	})
+
+	it("update-day triggers recompute for that day only and keeps idempotent row count", async () => {
+		const token = "t_inv_recompute"
+		const email = "inv-recompute@example.com"
+		const providerId = "prov_inv_recompute"
+		const productId = `prod_inv_recompute_${crypto.randomUUID()}`
+		const variantId = `var_inv_recompute_${crypto.randomUUID()}`
+		const targetDate = "2026-03-15"
+
+		await seedVariantOwnedByProvider({ email, providerId, productId, variantId })
+
+		await db.insert(DailyInventory).values({
+			id: `di_${crypto.randomUUID()}`,
+			variantId,
+			date: targetDate,
+			totalInventory: 3,
+			reservedCount: 0,
+			stopSell: false,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		} as any)
+
+		await withSupabaseAuthStub({ [token]: { id: "u4", email } }, async () => {
+			const update = new FormData()
+			update.set("variantId", variantId)
+			update.set("date", targetDate)
+			update.set("totalInventory", "5")
+
+			const res1 = await dayPost({
+				request: makeAuthedRequest({
+					method: "POST",
+					path: "/api/inventory/update-day",
+					token,
+					body: update,
+				}),
+			} as any)
+			expect(res1.status).toBe(200)
+
+			const row1 = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, targetDate)
+					)
+				)
+				.get()
+			expect(row1).toBeTruthy()
+			expect(Number((row1 as any)?.totalUnits)).toBe(5)
+			expect(Number((row1 as any)?.availableUnits)).toBe(5)
+			expect(Boolean((row1 as any)?.isSellable)).toBe(true)
+			expect(Boolean((row1 as any)?.stopSell)).toBe(false)
+
+			// Rerun same payload: should update same row (no duplicates, no drift).
+			const res2 = await dayPost({
+				request: makeAuthedRequest({
+					method: "POST",
+					path: "/api/inventory/update-day",
+					token,
+					body: update,
+				}),
+			} as any)
+			expect(res2.status).toBe(200)
+
+			const rows = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, targetDate)
+					)
+				)
+				.all()
+			expect(rows.length).toBe(1)
+			expect(Number((rows[0] as any).availableUnits)).toBe(5)
 		})
 	})
 })

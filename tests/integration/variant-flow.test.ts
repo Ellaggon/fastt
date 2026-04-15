@@ -318,7 +318,7 @@ describe("integration/variant (CAPA 3)", () => {
 		})
 	})
 
-	it("capacity overwrite: second setCapacity updates existing row + syncs legacy min/max", async () => {
+	it("capacity overwrite: second setCapacity updates canonical VariantCapacity only", async () => {
 		const token = "t_cap_over"
 		const email = "capover@example.com"
 		const providerId = "prov_variant_cap_over"
@@ -382,11 +382,8 @@ describe("integration/variant (CAPA 3)", () => {
 				.where(eq(VariantCapacity.variantId, variantId))
 				.all()
 			expect(rows.length).toBe(1)
+			expect(rows[0].minOccupancy).toBe(1)
 			expect(rows[0].maxOccupancy).toBe(3)
-
-			const legacy = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
-			expect(legacy?.minOccupancy).toBe(1)
-			expect(legacy?.maxOccupancy).toBe(3)
 		})
 	})
 

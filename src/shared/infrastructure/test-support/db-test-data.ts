@@ -4,6 +4,7 @@ import {
 	Product,
 	Variant,
 	VariantCapacity,
+	PricingBaseRate,
 	RatePlanTemplate,
 	RatePlan,
 	PriceRule,
@@ -61,10 +62,12 @@ export async function upsertProduct(row: {
 export async function upsertVariant(row: {
 	id: string
 	productId: string
-	entityType: string
-	entityId: string
+	kind?: "hotel_room" | "tour_slot" | "package_base"
 	name: string
 	description?: string | null
+	baseRateCurrency?: string
+	baseRatePrice?: number | null
+	// Legacy aliases kept only for test fixture compatibility.
 	currency?: string
 	basePrice?: number | null
 	isActive?: boolean
@@ -76,27 +79,47 @@ export async function upsertVariant(row: {
 		.values({
 			id: row.id,
 			productId: row.productId,
-			entityType: row.entityType,
-			entityId: row.entityId,
+			kind: row.kind ?? "hotel_room",
 			name: row.name,
 			description: row.description ?? null,
-			currency: row.currency ?? "USD",
-			basePrice: row.basePrice ?? null,
 			isActive: row.isActive ?? true,
 		})
 		.onConflictDoUpdate({
 			target: [Variant.id],
 			set: {
 				productId: row.productId,
-				entityType: row.entityType,
-				entityId: row.entityId,
+				kind: row.kind ?? "hotel_room",
 				name: row.name,
 				description: row.description ?? null,
-				currency: row.currency ?? "USD",
-				basePrice: row.basePrice ?? null,
 				isActive: row.isActive ?? true,
 			},
 		})
+
+	const baseRateCurrency = row.baseRateCurrency ?? row.currency ?? "USD"
+	const baseRatePrice =
+		row.baseRatePrice != null
+			? Number(row.baseRatePrice)
+			: row.basePrice != null
+				? Number(row.basePrice)
+				: null
+	if (baseRatePrice != null && Number.isFinite(baseRatePrice)) {
+		await db
+			.insert(PricingBaseRate)
+			.values({
+				variantId: row.id,
+				currency: baseRateCurrency,
+				basePrice: baseRatePrice,
+				createdAt: new Date(),
+			})
+			.onConflictDoUpdate({
+				target: [PricingBaseRate.variantId],
+				set: {
+					currency: baseRateCurrency,
+					basePrice: baseRatePrice,
+					createdAt: new Date(),
+				},
+			})
+	}
 
 	const minOcc = row.minOccupancy ?? 1
 	const maxOcc = row.maxOccupancy ?? Math.max(minOcc, 2)
@@ -145,11 +168,10 @@ export async function seedTestProductVariant(params?: {
 	await upsertVariant({
 		id: variantId,
 		productId,
-		entityType: "hotel_room",
-		entityId: "entity_test",
+		kind: "hotel_room",
 		name: "Test Variant",
-		currency: "USD",
-		basePrice: params?.basePrice ?? 100,
+		baseRateCurrency: "USD",
+		baseRatePrice: params?.basePrice ?? 100,
 		isActive: true,
 	})
 

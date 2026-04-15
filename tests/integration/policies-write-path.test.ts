@@ -57,8 +57,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: `room_${crypto.randomUUID()}`,
+			kind: "hotel_room",
 			name: "Room 1",
 		})
 

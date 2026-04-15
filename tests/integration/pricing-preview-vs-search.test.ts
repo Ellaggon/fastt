@@ -12,7 +12,8 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as previewPost } from "@/pages/api/pricing/preview"
 import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/container"
-import { db, EffectivePricing } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricing } from "astro:db"
+import { materializeSearchUnitRange } from "@/modules/search/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -99,8 +100,7 @@ describe("integration/pricing preview vs search parity", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -123,6 +123,34 @@ describe("integration/pricing preview vs search parity", () => {
 			totalInventory: 5,
 			reservedCount: 0,
 		})
+		for (const date of ["2026-03-10", "2026-03-11"]) {
+			await db
+				.insert(EffectiveAvailability)
+				.values({
+					id: `ea_${variantId}_${date}`,
+					variantId,
+					date,
+					totalUnits: 5,
+					heldUnits: 0,
+					bookedUnits: 0,
+					availableUnits: 5,
+					stopSell: false,
+					isSellable: true,
+					computedAt: new Date(),
+				} as any)
+				.onConflictDoUpdate({
+					target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
+					set: {
+						totalUnits: 5,
+						heldUnits: 0,
+						bookedUnits: 0,
+						availableUnits: 5,
+						stopSell: false,
+						isSellable: true,
+						computedAt: new Date(),
+					},
+				})
+		}
 
 		const templateId = `rpt_prev_vs_search_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_vs_search_${crypto.randomUUID()}`
@@ -149,6 +177,15 @@ describe("integration/pricing preview vs search parity", () => {
 			yieldMultiplier: 1,
 			computedAt: new Date(),
 		} as any)
+
+		await materializeSearchUnitRange({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			// Include checkout day (+1) so CTD can be evaluated deterministically from view rows.
+			to: "2026-03-12",
+			currency: "USD",
+		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_vs_search", email } }, async () => {
 			// Preview (engine)
