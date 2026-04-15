@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
-import { db, EffectivePricing } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricing } from "astro:db"
+import { materializeSearchUnitRange } from "@/modules/search/public"
 
 import {
 	upsertDestination,
@@ -49,8 +50,7 @@ async function seedHotelVariant(params: {
 	await upsertVariant({
 		id: params.variantId,
 		productId: params.productId,
-		entityType: "hotel_room",
-		entityId: `hr_${params.variantId}`,
+		kind: "hotel_room",
 		name: `Room ${params.variantId}`,
 		currency: "USD",
 		basePrice: params.baseRate ?? null, // legacy field, not used by search-v2 filtering (we use baseRateRepository below)
@@ -71,9 +71,34 @@ async function seedHotelVariant(params: {
 		date: params.date,
 		totalInventory: params.totalInventory,
 		reservedCount: 0,
-		priceOverride: null,
 		stopSell: params.stopSell ?? false,
 	} as any)
+	await db
+		.insert(EffectiveAvailability)
+		.values({
+			id: `ea_${params.variantId}_${params.date}`,
+			variantId: params.variantId,
+			date: params.date,
+			totalUnits: params.totalInventory,
+			heldUnits: 0,
+			bookedUnits: 0,
+			availableUnits: params.stopSell ? 0 : params.totalInventory,
+			stopSell: params.stopSell ?? false,
+			isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+			computedAt: new Date(),
+		} as any)
+		.onConflictDoUpdate({
+			target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
+			set: {
+				totalUnits: params.totalInventory,
+				heldUnits: 0,
+				bookedUnits: 0,
+				availableUnits: params.stopSell ? 0 : params.totalInventory,
+				stopSell: params.stopSell ?? false,
+				isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+				computedAt: new Date(),
+			},
+		})
 
 	await upsertRatePlanTemplate({
 		id: params.ratePlanTemplateId,
@@ -110,6 +135,16 @@ async function seedHotelVariant(params: {
 				},
 			})
 	}
+
+	await materializeSearchUnitRange({
+		variantId: params.variantId,
+		ratePlanId: params.ratePlanId,
+		from: params.date,
+		to: new Date(new Date(`${params.date}T00:00:00.000Z`).getTime() + 86400000 * 2)
+			.toISOString()
+			.slice(0, 10),
+		currency: "USD",
+	})
 }
 
 describe("integration/search-v2 marketplace search", () => {

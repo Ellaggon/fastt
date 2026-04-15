@@ -13,7 +13,7 @@ import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 
-import { baseRateRepository, variantRepository, backfillPricingBaseRates } from "@/container"
+import { baseRateRepository, variantRepository } from "@/container"
 
 import { db, PricingBaseRate, eq } from "astro:db"
 
@@ -102,8 +102,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_br_ok",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -173,8 +172,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_br_bad",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 10,
@@ -225,8 +223,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_br_own",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 10,
@@ -255,7 +252,7 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		)
 	})
 
-	it("backfill works and repository read prefers pricing_base_rate over Variant.basePrice", async () => {
+	it("repository read uses pricing_base_rate as canonical source", async () => {
 		const destinationId = "dest_br_backfill"
 		const providerId = "prov_br_backfill"
 		const productId = `prod_br_backfill_${crypto.randomUUID()}`
@@ -283,18 +280,11 @@ describe("integration/pricing base rate (CAPA 4A)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_bf",
+			kind: "hotel_room",
 			name: "Room",
-			currency: "USD",
-			basePrice: 999,
+			baseRateCurrency: "USD",
+			baseRatePrice: 999,
 		})
-
-		const r0 = await baseRateRepository.getByVariantId(variantId)
-		expect(r0).toBeNull()
-
-		const { processed } = await backfillPricingBaseRates()
-		expect(processed).toBeGreaterThan(0)
 
 		const r1 = await baseRateRepository.getByVariantId(variantId)
 		expect(r1?.basePrice).toBe(999)

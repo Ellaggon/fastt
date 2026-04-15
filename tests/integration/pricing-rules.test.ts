@@ -104,8 +104,7 @@ describe("integration/pricing rules (CAPA 4D minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_rules_ok",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -193,8 +192,7 @@ describe("integration/pricing rules (CAPA 4D minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_rules_own",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,

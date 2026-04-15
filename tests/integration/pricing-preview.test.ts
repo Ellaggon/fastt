@@ -99,8 +99,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -148,8 +147,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_nodef",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -220,8 +218,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_pct",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -285,8 +282,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_order",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -364,8 +360,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_neg",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -432,8 +427,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_badtype",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -495,8 +489,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_fixed",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,
@@ -564,8 +557,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr_prev_own",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 999,

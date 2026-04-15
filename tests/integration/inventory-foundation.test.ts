@@ -151,11 +151,9 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		await db.insert(Variant).values({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: variantId,
+			kind: "hotel_room",
 			name: "Range Room",
 			description: null,
-			kind: "hotel_room",
 			status: "draft",
 			createdAt: new Date(),
 			isActive: false,
@@ -168,7 +166,6 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			date: "2026-03-10",
 			totalInventory: 5,
 			reservedCount: 0,
-			priceOverride: null,
 			createdAt: new Date(),
 		} as any)
 
@@ -213,11 +210,9 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		await db.insert(Variant).values({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: variantId,
+			kind: "hotel_room",
 			name: "Backfill Room",
 			description: null,
-			kind: "hotel_room",
 			status: "draft",
 			createdAt: new Date(),
 			isActive: false,

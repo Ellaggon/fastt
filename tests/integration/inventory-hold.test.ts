@@ -1,12 +1,27 @@
 import { describe, it, expect } from "vitest"
 
-import { db, DailyInventory, InventoryLock, Variant, eq, and } from "astro:db"
+import {
+	db,
+	DailyInventory,
+	EffectiveAvailability,
+	EffectivePricing,
+	InventoryLock,
+	RatePlan,
+	RatePlanTemplate,
+	Variant,
+	eq,
+	and,
+} from "astro:db"
 
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as releasePost } from "@/pages/api/inventory/release"
 
 import { InventoryHoldRepository } from "@/modules/inventory/infrastructure/repositories/InventoryHoldRepository"
-import { releaseExpiredHolds } from "@/modules/inventory/public"
+import {
+	recomputeEffectiveAvailabilityRange,
+	releaseExpiredHolds,
+} from "@/modules/inventory/public"
+import { materializeSearchUnitRange } from "@/modules/search/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -70,6 +85,7 @@ async function readJson(res: Response) {
 async function seedVariantWithInventory(params: {
 	variantId: string
 	productId: string
+	ratePlanId: string
 	totalInventory: number
 	dates: string[]
 }) {
@@ -92,14 +108,29 @@ async function seedVariantWithInventory(params: {
 	await db.insert(Variant).values({
 		id: params.variantId,
 		productId: params.productId,
-		entityType: "hotel_room",
-		entityId: params.variantId,
+		kind: "hotel_room",
 		name: "Room",
 		description: null,
-		kind: "hotel_room",
 		status: "ready",
 		createdAt: new Date(),
 		isActive: true,
+	} as any)
+
+	const ratePlanTemplateId = `rpt_hold_${crypto.randomUUID()}`
+	await db.insert(RatePlanTemplate).values({
+		id: ratePlanTemplateId,
+		name: "Hold Template",
+		paymentType: "pay_at_property",
+		refundable: true,
+		createdAt: new Date(),
+	} as any)
+	await db.insert(RatePlan).values({
+		id: params.ratePlanId,
+		templateId: ratePlanTemplateId,
+		variantId: params.variantId,
+		isDefault: true,
+		isActive: true,
+		createdAt: new Date(),
 	} as any)
 
 	for (const d of params.dates) {
@@ -109,10 +140,41 @@ async function seedVariantWithInventory(params: {
 			date: d,
 			totalInventory: params.totalInventory,
 			reservedCount: 0,
-			priceOverride: null,
 			createdAt: new Date(),
 		} as any)
+		await db.insert(EffectivePricing).values({
+			id: `ep_hold_${crypto.randomUUID()}`,
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			date: d,
+			basePrice: 100,
+			yieldMultiplier: 1,
+			finalBasePrice: 100,
+			computedAt: new Date(),
+		} as any)
 	}
+}
+
+async function refreshSearchView(params: {
+	variantId: string
+	ratePlanId: string
+	from: string
+	to: string
+}) {
+	await recomputeEffectiveAvailabilityRange({
+		variantId: params.variantId,
+		from: params.from,
+		to: params.to,
+		reason: "test_seed",
+		idempotencyKey: `test_seed:${params.variantId}:${params.from}:${params.to}`,
+	})
+	await materializeSearchUnitRange({
+		variantId: params.variantId,
+		ratePlanId: params.ratePlanId,
+		from: params.from,
+		to: params.to,
+		currency: "USD",
+	})
 }
 
 describe("integration/inventory holds (InventoryLock)", () => {
@@ -121,12 +183,20 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		const email = "hold-ok@example.com"
 		const variantId = `var_hold_ok_${crypto.randomUUID()}`
 		const productId = `prod_hold_ok_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_ok_${crypto.randomUUID()}`
 
 		await seedVariantWithInventory({
 			variantId,
 			productId,
+			ratePlanId,
 			totalInventory: 2,
 			dates: ["2026-03-10", "2026-03-11"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-13",
 		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_ok", email } }, async () => {
@@ -162,6 +232,31 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.where(eq(InventoryLock.holdId, body.holdId))
 				.all()
 			expect(locks.length).toBe(2)
+
+			const eaDay1 = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, "2026-03-10")
+					)
+				)
+				.get()
+			const eaDay2 = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, "2026-03-11")
+					)
+				)
+				.get()
+			expect(Number((eaDay1 as any)?.heldUnits ?? 0)).toBe(1)
+			expect(Number((eaDay2 as any)?.heldUnits ?? 0)).toBe(1)
+			expect(Number((eaDay1 as any)?.availableUnits ?? 0)).toBe(1)
+			expect(Number((eaDay2 as any)?.availableUnits ?? 0)).toBe(1)
 		})
 	})
 
@@ -170,12 +265,20 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		const email = "hold-fail@example.com"
 		const variantId = `var_hold_fail_${crypto.randomUUID()}`
 		const productId = `prod_hold_fail_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_fail_${crypto.randomUUID()}`
 
 		await seedVariantWithInventory({
 			variantId,
 			productId,
+			ratePlanId,
 			totalInventory: 1,
 			dates: ["2026-03-10", "2026-03-11"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-13",
 		})
 
 		// Pre-reserve 1 on the second day so the range cannot fit quantity=1 across both days.
@@ -184,6 +287,12 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			.set({ reservedCount: 1 } as any)
 			.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-11")))
 			.run()
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-13",
+		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_fail", email } }, async () => {
 			const fd = new FormData()
@@ -195,9 +304,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			const res = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
 			} as any)
-			expect(res.status).toBe(400)
+			expect(res.status).toBe(409)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("not_available")
+			expect(body?.error).toBe("not_holdable")
 
 			// Ensure first day was not incremented (transaction rollback)
 			const d1 = await db
@@ -215,17 +324,129 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		})
 	})
 
+	it("hold fails when stopSell is active on any day in range", async () => {
+		const token = "t_hold_closed"
+		const email = "hold-closed@example.com"
+		const variantId = `var_hold_closed_${crypto.randomUUID()}`
+		const productId = `prod_hold_closed_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_closed_${crypto.randomUUID()}`
+
+		await seedVariantWithInventory({
+			variantId,
+			productId,
+			ratePlanId,
+			totalInventory: 2,
+			dates: ["2026-03-20", "2026-03-21"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-20",
+			to: "2026-03-23",
+		})
+
+		await db
+			.update(DailyInventory)
+			.set({ stopSell: true } as any)
+			.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-21")))
+			.run()
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-20",
+			to: "2026-03-23",
+		})
+
+		await withSupabaseAuthStub({ [token]: { id: "u_hold_closed", email } }, async () => {
+			const fd = new FormData()
+			fd.set("variantId", variantId)
+			fd.set("checkIn", "2026-03-20")
+			fd.set("checkOut", "2026-03-22")
+			fd.set("quantity", "1")
+
+			const res = await holdPost({
+				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
+			} as any)
+			expect(res.status).toBe(409)
+			const body = (await readJson(res)) as any
+			expect(body?.error).toBe("not_holdable")
+
+			const locks = await db
+				.select()
+				.from(InventoryLock)
+				.where(eq(InventoryLock.variantId, variantId))
+				.all()
+			expect(locks.length).toBe(0)
+		})
+	})
+
+	it("hold range recompute affects exactly requested stay days", async () => {
+		const token = "t_hold_range"
+		const email = "hold-range@example.com"
+		const variantId = `var_hold_range_${crypto.randomUUID()}`
+		const productId = `prod_hold_range_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_range_${crypto.randomUUID()}`
+
+		await seedVariantWithInventory({
+			variantId,
+			productId,
+			ratePlanId,
+			totalInventory: 2,
+			dates: ["2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-14",
+		})
+
+		await withSupabaseAuthStub({ [token]: { id: "u_hold_range", email } }, async () => {
+			const fd = new FormData()
+			fd.set("variantId", variantId)
+			fd.set("checkIn", "2026-03-10")
+			fd.set("checkOut", "2026-03-13")
+			fd.set("quantity", "1")
+
+			const holdRes = await holdPost({
+				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
+			} as any)
+			expect(holdRes.status).toBe(200)
+
+			const rows = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(eq(EffectiveAvailability.variantId, variantId))
+				.all()
+			const affectedDates = rows
+				.map((row: any) => String(row.date))
+				.filter((date) => date >= "2026-03-10" && date < "2026-03-13")
+			expect(affectedDates.length).toBe(3)
+			expect(affectedDates).toContain("2026-03-10")
+			expect(affectedDates).toContain("2026-03-11")
+			expect(affectedDates).toContain("2026-03-12")
+		})
+	})
+
 	it("concurrent safety: two holds race; only one succeeds", async () => {
 		const token = "t_hold_race"
 		const email = "hold-race@example.com"
 		const variantId = `var_hold_race_${crypto.randomUUID()}`
 		const productId = `prod_hold_race_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_race_${crypto.randomUUID()}`
 
 		await seedVariantWithInventory({
 			variantId,
 			productId,
+			ratePlanId,
 			totalInventory: 1,
 			dates: ["2026-03-10"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-12",
 		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_race", email } }, async () => {
@@ -242,7 +463,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 
 			const [r1, r2] = await Promise.all([mk(), mk()])
 			const okCount = [r1.status, r2.status].filter((s) => s === 200).length
-			const failCount = [r1.status, r2.status].filter((s) => s === 400).length
+			const failCount = [r1.status, r2.status].filter((s) => s === 409).length
 			expect(okCount).toBe(1)
 			expect(failCount).toBe(1)
 
@@ -260,12 +481,20 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		const email = "hold-release@example.com"
 		const variantId = `var_hold_release_${crypto.randomUUID()}`
 		const productId = `prod_hold_release_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_release_${crypto.randomUUID()}`
 
 		await seedVariantWithInventory({
 			variantId,
 			productId,
+			ratePlanId,
 			totalInventory: 2,
 			dates: ["2026-03-10", "2026-03-11"],
+		})
+		await refreshSearchView({
+			variantId,
+			ratePlanId,
+			from: "2026-03-10",
+			to: "2026-03-13",
 		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_release", email } }, async () => {
@@ -306,6 +535,31 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.where(eq(InventoryLock.holdId, holdBody.holdId))
 				.all()
 			expect(locks.length).toBe(0)
+
+			const eaDay1 = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, "2026-03-10")
+					)
+				)
+				.get()
+			const eaDay2 = await db
+				.select()
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, variantId),
+						eq(EffectiveAvailability.date, "2026-03-11")
+					)
+				)
+				.get()
+			expect(Number((eaDay1 as any)?.heldUnits ?? 0)).toBe(0)
+			expect(Number((eaDay2 as any)?.heldUnits ?? 0)).toBe(0)
+			expect(Number((eaDay1 as any)?.availableUnits ?? 0)).toBe(2)
+			expect(Number((eaDay2 as any)?.availableUnits ?? 0)).toBe(2)
 		})
 	})
 
@@ -313,10 +567,12 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		const repo = new InventoryHoldRepository()
 		const variantId = `var_hold_exp_${crypto.randomUUID()}`
 		const productId = `prod_hold_exp_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_exp_${crypto.randomUUID()}`
 
 		await seedVariantWithInventory({
 			variantId,
 			productId,
+			ratePlanId,
 			totalInventory: 2,
 			dates: ["2026-03-10"],
 		})
@@ -350,5 +606,18 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			.where(eq(InventoryLock.holdId, holdId))
 			.all()
 		expect(locks.length).toBe(0)
+
+		const ea = await db
+			.select()
+			.from(EffectiveAvailability)
+			.where(
+				and(
+					eq(EffectiveAvailability.variantId, variantId),
+					eq(EffectiveAvailability.date, "2026-03-10")
+				)
+			)
+			.get()
+		expect(Number((ea as any)?.heldUnits ?? 0)).toBe(0)
+		expect(Number((ea as any)?.availableUnits ?? 0)).toBe(2)
 	})
 })
