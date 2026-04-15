@@ -32,18 +32,19 @@ export class BuildOffersUseCase<TUnit extends SellableUnit> {
 		const results: SearchOffer<TUnit>[] = []
 
 		for (const unit of units) {
-			if (!isUnitType(unit.kind)) continue
+			if (!isUnitType(unit.entityType)) continue
 
 			try {
 				const offers = await this.deps.searchPipeline.run({
 					productId: ctx.productId,
 					unitId: unit.id,
-					unitType: unit.kind,
+					unitType: unit.entityType,
 					checkIn: ctx.checkIn,
 					checkOut: ctx.checkOut,
 					rooms: ctx.rooms,
 					adults: ctx.adults,
 					children: ctx.children,
+					basePrice: unit.pricing.basePrice,
 				})
 
 				if (!offers.length) continue
