@@ -123,7 +123,11 @@ export class PolicyReadRepository implements PolicyQueryRepositoryPort {
 
 	async findParent(type: string, id: string) {
 		if (type === "variant") {
-			const row = await db.select().from(Variant).where(eq(Variant.id, id)).get()
+			const row = await db
+				.select({ id: Variant.id, productId: Variant.productId })
+				.from(Variant)
+				.where(eq(Variant.id, id))
+				.get()
 			if (!row) return null
 			return { type: "product", id: row.productId }
 		}
