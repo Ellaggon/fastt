@@ -18,7 +18,6 @@ export interface SearchContext<TUnit extends SellableUnit = SellableUnit> {
 	rooms?: number
 	adults: number
 	children: number
-	basePrice: number
 }
 
 export interface SellableUnitAdapterPort<TUnit extends SellableUnit = SellableUnit> {
