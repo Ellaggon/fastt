@@ -15,7 +15,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 	constructor(
 		private deps: {
 			inventoryRepo: {
-				getEffectiveRange(variantId: string, from: Date, to: Date): Promise<InventorySnapshot[]>
+				getRange(variantId: string, from: Date, to: Date): Promise<InventorySnapshot[]>
 			}
 			ratePlanRepo: { getActiveByVariant(variantId: string): Promise<RatePlanSnapshot[]> }
 			restrictionRepo: {
@@ -26,7 +26,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 	) {}
 
 	async loadInventory(ctx: SearchContext<SearchUnit>) {
-		return this.deps.inventoryRepo.getEffectiveRange(ctx.unitId, ctx.checkIn, ctx.checkOut)
+		return this.deps.inventoryRepo.getRange(ctx.unitId, ctx.checkIn, ctx.checkOut)
 	}
 
 	async loadRatePlans(ctx: SearchContext<SearchUnit>) {

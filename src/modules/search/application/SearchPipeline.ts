@@ -1,7 +1,8 @@
+import { AvailabilityGridEngine } from "@/shared/domain/availability/AvailabilityGridEngine"
 import { toISODate } from "@/shared/domain/date/date.utils"
 
 import type { SearchContext } from "./ports/SellableUnitAdapterPort"
-import type { SearchMemory, SellableUnit } from "../domain/unit.types"
+import type { SearchMemory, SellableUnit, InventorySnapshot } from "../domain/unit.types"
 import type { RestrictionPort } from "./ports/RestrictionPort"
 import type { PromotionPort } from "./ports/PromotionPort"
 import type { TaxFeePort } from "./ports/TaxFeePort"
@@ -23,19 +24,46 @@ function calcNights(checkIn: Date, checkOut: Date): number {
 	return Math.ceil((checkOut.getTime() - checkIn.getTime()) / 86400000)
 }
 
-function enumerateStayDates(checkIn: Date, checkOut: Date): string[] {
-	const dates: string[] = []
-	const cursor = new Date(checkIn)
-	while (cursor < checkOut) {
-		dates.push(toISODate(cursor))
-		cursor.setDate(cursor.getDate() + 1)
+function normalizeInventoryDates(
+	inventory: InventorySnapshot[]
+): Array<InventorySnapshot & { date: string }> {
+	return (
+		inventory
+			.map((d) => ({
+				...d,
+				date: typeof d.date === "string" ? d.date : toISODate(d.date),
+			}))
+			// Safety: after normalization we must have strings.
+			.filter((d): d is InventorySnapshot & { date: string } => typeof d.date === "string")
+	)
+}
+
+function isVariantAvailable(params: {
+	grid: { date: string; availableRooms: number; stopSell: boolean }[]
+	nights: number
+	requestedQuantity: number
+}): { ok: true } | { ok: false; reason: string } {
+	if (params.nights <= 0) return { ok: false, reason: "invalid_stay" }
+	if (!params.grid.length) return { ok: false, reason: "no_inventory" }
+
+	// Full-stay strictness: if we don't have one row per night, treat as unavailable.
+	if (params.grid.length !== params.nights) return { ok: false, reason: "incomplete_inventory" }
+
+	if (params.grid.some((d) => d.stopSell)) return { ok: false, reason: "stop_sell" }
+
+	if (params.grid.some((d) => d.availableRooms < params.requestedQuantity)) {
+		return { ok: false, reason: "not_enough_inventory" }
 	}
-	return dates
+
+	return { ok: true }
 }
 
 export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 	constructor(
 		private loader: ISearchContextLoader<TUnit>,
+		// private loader = new SearchContextLoader(globalRegistry),
+		// private loader: { load(ctx: SearchContext): Promise<SearchMemory> },
+		private availabilityEngine = new AvailabilityGridEngine(),
 		private deps: {
 			restrictions: RestrictionPort
 			promotions: PromotionPort
@@ -47,6 +75,15 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 					checkIn: Date
 					checkOut: Date
 				}): Promise<{ total: number | null; missingDates: string[] }>
+			}
+			coverage?: {
+				ensureCoverage(params: {
+					variantId: string
+					ratePlanId: string
+					checkIn: Date
+					checkOut: Date
+					missingDates: string[]
+				}): Promise<void>
 			}
 		}
 	) {
@@ -68,36 +105,17 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 			? Math.max(1, Number(ctx.rooms))
 			: 1
 
-		const stayDates = enumerateStayDates(ctx.checkIn, ctx.checkOut)
-		const availabilityByDate = new Map(
-			memory.inventory
-				.map((day) => ({
-					date: typeof day.date === "string" ? day.date : toISODate(day.date),
-					availableUnits: Number(day.availableUnits ?? 0),
-					isSellable: Boolean(day.isSellable),
-					stopSell: Boolean(day.stopSell),
-				}))
-				.map((day) => [day.date, day] as const)
+		// Normalize dates so full-stay checks are deterministic (no Date vs string leaks).
+		const inventoryForGrid = normalizeInventoryDates(memory.inventory)
+
+		const grid = this.availabilityEngine.buildGridFromMemory(
+			inventoryForGrid,
+			ctx.checkIn,
+			ctx.checkOut
 		)
 
-		const missingAvailabilityDates = stayDates.filter((date) => !availabilityByDate.has(date))
-		if (missingAvailabilityDates.length > 0) {
-			console.warn("effective_availability_missing", {
-				variantId: ctx.unitId,
-				missingDatesCount: missingAvailabilityDates.length,
-				checkIn: toISODate(ctx.checkIn),
-				checkOut: toISODate(ctx.checkOut),
-			})
-			return []
-		}
-
-		const isAnyUnsellableDay = stayDates.some((date) => {
-			const day = availabilityByDate.get(date)
-			if (!day) return true
-			if (!day.isSellable || day.stopSell) return true
-			return day.availableUnits < requestedQuantity
-		})
-		if (isAnyUnsellableDay) return []
+		const availability = isVariantAvailable({ grid, nights, requestedQuantity })
+		if (!availability.ok) return []
 
 		/* 4️⃣ DEFAULT RATE PLAN ONLY + EFFECTIVE PRICING */
 		const defaultRatePlan =
@@ -136,6 +154,23 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 				checkIn: toISODate(ctx.checkIn),
 				checkOut: toISODate(ctx.checkOut),
 			})
+			if (this.deps.coverage?.ensureCoverage) {
+				void this.deps.coverage
+					.ensureCoverage({
+						variantId: ctx.unitId,
+						ratePlanId: defaultRatePlanId,
+						checkIn: ctx.checkIn,
+						checkOut: ctx.checkOut,
+						missingDates: effective.missingDates,
+					})
+					.catch((error) => {
+						console.warn("pricing_auto_heal_failed", {
+							variantId: ctx.unitId,
+							ratePlanId: defaultRatePlanId,
+							message: error instanceof Error ? error.message : String(error),
+						})
+					})
+			}
 			for (const missingDate of effective.missingDates) {
 				console.error("effective_pricing_missing_blocking", {
 					variantId: ctx.unitId,
