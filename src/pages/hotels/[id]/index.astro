@@ -18,6 +18,7 @@ import {
 } from "@/modules/catalog/public"
 import { listHouseRulesByProduct } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
+import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import type { ImageRow } from "@/types/products"
 import { and, asc, db, Destination, eq, Hotel, Image, inArray, Product } from "astro:db"
 
@@ -198,8 +199,9 @@ const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) 
 	return acc
 }, {})
 
-const hotelRoom = await resolveHotelType(offers.map((o) => o.variant.entityId))
-const amenities = await resolveHotelAmenities(offers.map((o) => o.variant.entityId))
+const offerVariantRefs = offers.map((o) => resolveVariantRef(o.variant))
+const hotelRoom = await resolveHotelType(offerVariantRefs)
+const amenities = await resolveHotelAmenities(offerVariantRefs)
 
 try {
 	const productResult = await db
