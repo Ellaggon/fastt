@@ -42,7 +42,6 @@ export {
 	getProductVariantsAggregate,
 	getVariantFullAggregate,
 } from "./application/queries/getProductFullAggregate"
-export { getAvailabilityAggregate } from "./application/queries/getAvailabilityAggregate"
 export { getProviderFullAggregate } from "./application/queries/getProviderFullAggregate"
 export { getProviderBookingsAggregate } from "./application/queries/getProviderBookingsAggregate"
 

@@ -12,7 +12,7 @@ export function isUnitType(value: string): value is UnitType {
 // Base domain contract for "sellable units" (variants).
 export interface SellableUnit {
 	id: string
-	entityType: string
+	kind: UnitType
 	pricing: {
 		basePrice: number
 		currency: string
@@ -25,31 +25,25 @@ export interface SellableUnit {
 
 export interface HotelRoomUnit extends SellableUnit {
 	productId: string
-	entityId: string
 }
 
 export interface TourSlotUnit extends SellableUnit {
 	productId: string
-	entityId: string
 }
 
 export interface PackageBaseUnit extends SellableUnit {
 	productId: string
-	entityId: string
 }
 
 // Variants returned by the VariantQuery adapter for the search pipeline.
-// `entityType` is intentionally `string` because it comes from persistence and
-// is narrowed to `UnitType` at runtime via `isUnitType(...)`.
 export type SearchUnit = SellableUnit & {
 	productId: string
-	entityId: string
 }
 
 export type InventorySnapshot = {
 	date: string | Date
-	totalInventory: number
-	reservedCount: number
+	availableUnits: number
+	isSellable: boolean
 	stopSell?: boolean
 }
 
