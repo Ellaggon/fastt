@@ -60,11 +60,30 @@ export async function ensurePricingCoverageRuntime(params: {
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
 	const { pricingRepository, variantManagementRepository } = await import("@/container")
-	return ensurePricingCoverage(
+	const result = await ensurePricingCoverage(
 		{
 			pricingRepo: pricingRepository,
 			variantRepo: variantManagementRepository,
 		},
 		params
 	)
+	try {
+		const { materializeSearchUnitRange } = await import("@/modules/search/public")
+		await materializeSearchUnitRange({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			from: params.from,
+			to: params.to,
+			currency: "USD",
+		})
+	} catch (error) {
+		console.warn("search_unit_materialization_failed", {
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			from: params.from,
+			to: params.to,
+			message: error instanceof Error ? error.message : String(error),
+		})
+	}
+	return result
 }
