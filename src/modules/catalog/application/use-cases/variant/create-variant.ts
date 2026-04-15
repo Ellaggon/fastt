@@ -64,9 +64,6 @@ export async function createVariant(
 		description: parsed.description ?? null,
 		status,
 		createdAt,
-		// Legacy mirror fields (compatibility). For now, use kind as entityType and variantId as entityId placeholder.
-		entityType: parsed.kind,
-		entityId: variantId,
 		isActive: false,
 	})
 
