@@ -1,5 +1,6 @@
 ---
 import { formatBedType } from "@/data/room/room-beds"
+import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import { Bath, BedDouble, DoorClosed, Ruler, User } from "@lucide/astro"
 
 const {
@@ -15,7 +16,8 @@ const {
 		const variant = offer.variant
 
 		// 🔹 habitación estructural
-		const room = hotelRoom.find((r: any) => r.id === variant.entityId)
+		const variantRef = resolveVariantRef(variant)
+		const room = hotelRoom.find((r: any) => r.id === variantRef)
 		if (!room) return null
 
 		// Variant-level gallery (OTA): room card/modal uses variant images, with product fallback.
