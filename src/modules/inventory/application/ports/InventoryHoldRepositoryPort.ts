@@ -19,5 +19,7 @@ export interface InventoryHoldRepositoryPort {
 
 	releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }>
 
-	listExpiredHolds(params: { now: Date }): Promise<Array<{ holdId: string; variantId: string }>>
+	listExpiredHolds(params: {
+		now: Date
+	}): Promise<Array<{ holdId: string; variantId: string; from: string; to: string }>>
 }

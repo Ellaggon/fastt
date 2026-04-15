@@ -8,6 +8,7 @@ import {
 	productRepository,
 	variantManagementRepository,
 } from "@/container"
+import { applyInventoryMutation } from "@/modules/inventory/public"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -15,6 +16,25 @@ const schema = z.object({
 	totalInventory: z.number().int().min(0).optional(),
 	stopSell: z.boolean().optional(),
 })
+
+function toExclusiveDate(isoDate: string): string {
+	const start = new Date(`${isoDate}T00:00:00.000Z`)
+	start.setUTCDate(start.getUTCDate() + 1)
+	return start.toISOString().slice(0, 10)
+}
+
+function buildIdempotencyKey(input: {
+	variantId: string
+	date: string
+	totalInventory?: number
+	stopSell?: boolean
+	requestId?: string
+}): string {
+	const requestId = String(input.requestId ?? "").trim()
+	if (requestId.length > 0) return `inventory_update_day:${requestId}`
+
+	return `inventory_update_day:${input.variantId}:${input.date}:${input.totalInventory ?? "na"}:${input.stopSell ?? "na"}`
+}
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -87,12 +107,35 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		await dailyInventoryRepository.upsertOperational({
-			variantId: parsed.variantId,
-			date: parsed.date,
-			totalInventory: parsed.totalInventory,
-			stopSell: parsed.stopSell,
-		} as any)
+		await applyInventoryMutation({
+			mutate: async () => {
+				await dailyInventoryRepository.upsertOperational({
+					variantId: parsed.variantId,
+					date: parsed.date,
+					totalInventory: parsed.totalInventory,
+					stopSell: parsed.stopSell,
+				} as any)
+			},
+			recompute: {
+				variantId: parsed.variantId,
+				from: parsed.date,
+				to: toExclusiveDate(parsed.date),
+				reason: "inventory_update_day",
+				idempotencyKey: buildIdempotencyKey({
+					variantId: parsed.variantId,
+					date: parsed.date,
+					totalInventory: parsed.totalInventory,
+					stopSell: parsed.stopSell,
+					requestId:
+						request.headers.get("x-request-id") ?? request.headers.get("x-idempotency-key") ?? "",
+				}),
+			},
+			logContext: {
+				action: "inventory_update_day",
+				variantId: parsed.variantId,
+				date: parsed.date,
+			},
+		})
 
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
