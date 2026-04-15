@@ -26,13 +26,6 @@ export const baseRateRepository = new BaseRateRepository()
 export const priceRuleCommandRepository = new PriceRuleCommandRepository()
 export const priceRuleQueryRepository = new PriceRuleQueryRepository()
 
-export async function backfillPricingBaseRates() {
-	const { backfillPricingBaseRate } = await import(
-		"../modules/pricing/infrastructure/backfill/backfillPricingBaseRate"
-	)
-	return backfillPricingBaseRate()
-}
-
 // ---- Engine singletons ----
 export const promotionEngine = new PromotionEngine()
 
