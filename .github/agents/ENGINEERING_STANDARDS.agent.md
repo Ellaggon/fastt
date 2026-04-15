@@ -49,21 +49,21 @@ Types:
 
 ## Atomic Enforcement
 
-Split commits when:
+Split commits ONLY if:
 
-- multiple domains affected
-- > 300 lines changed
-- > 5 files modified
-- mixed additions and deletions
+- multiple features are mixed
+- commit becomes hard to understand
+- system could break if partially applied
 
 ---
 
 ## Splitting Rules
 
-- One domain per commit
-- One layer per commit (domain / application / infrastructure / api / ui)
-- Deletions separate from implementations
-- API separate from core logic
+- One feature per commit
+- Prefer grouping by feature, not by layer
+- A commit may include multiple layers if they belong to the same feature
+- Deletions separate from implementations (when risky)
+- Avoid mixing new features with cleanup
 
 ---
 
