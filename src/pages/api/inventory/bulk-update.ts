@@ -8,6 +8,7 @@ import {
 	productRepository,
 	variantManagementRepository,
 } from "@/container"
+import { applyInventoryMutation } from "@/modules/inventory/public"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -95,13 +96,28 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		await dailyInventoryRepository.bulkUpsertOperational({
-			variantId: parsed.variantId,
-			startDate: start,
-			endDate: end,
-			totalInventory: parsed.totalInventory,
-			stopSell: parsed.stopSell,
-		} as any)
+		await applyInventoryMutation({
+			mutate: async () => {
+				await dailyInventoryRepository.bulkUpsertOperational({
+					variantId: parsed.variantId,
+					startDate: start,
+					endDate: end,
+					totalInventory: parsed.totalInventory,
+					stopSell: parsed.stopSell,
+				} as any)
+			},
+			recompute: {
+				variantId: parsed.variantId,
+				from: parsed.startDate,
+				to: parsed.endDate,
+				reason: "inventory_bulk_update",
+				idempotencyKey: `inventory_bulk_update:${parsed.variantId}:${parsed.startDate}:${parsed.endDate}:${parsed.totalInventory ?? "na"}:${parsed.stopSell ?? "na"}`,
+			},
+			logContext: {
+				action: "inventory_bulk_update",
+				variantId: parsed.variantId,
+			},
+		})
 
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,

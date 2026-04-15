@@ -34,6 +34,12 @@ function datesInRange(checkIn: Date, checkOut: Date): string[] {
 	return out.filter((d) => d >= start && d < end)
 }
 
+function toExclusiveDate(isoDate: string): string {
+	const start = new Date(`${isoDate}T00:00:00.000Z`)
+	start.setUTCDate(start.getUTCDate() + 1)
+	return start.toISOString().slice(0, 10)
+}
+
 export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 	async findActiveHold(params: {
 		holdId: string
@@ -82,6 +88,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.select({
 								totalInventory: DailyInventory.totalInventory,
 								reservedCount: DailyInventory.reservedCount,
+								stopSell: DailyInventory.stopSell,
 							})
 							.from(DailyInventory)
 							.where(
@@ -90,7 +97,39 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.get()
 
 						if (!daily) throw new NotAvailableError()
-						if (Number(daily.reservedCount) + params.quantity > Number(daily.totalInventory)) {
+						if (Boolean((daily as any).stopSell)) throw new NotAvailableError()
+						const totalInventory = Number(daily.totalInventory ?? 0)
+						const reservedCount = Number(daily.reservedCount ?? 0)
+						if (!Number.isFinite(totalInventory) || !Number.isFinite(reservedCount)) {
+							throw new NotAvailableError()
+						}
+						if (totalInventory < 0 || reservedCount < 0) {
+							throw new NotAvailableError()
+						}
+						const lockAgg = await tx
+							.select({
+								heldUnits: sql<number>`coalesce(sum(case when ${InventoryLock.bookingId} is null and ${InventoryLock.expiresAt} > ${new Date()} then ${InventoryLock.quantity} else 0 end), 0)`,
+								bookedUnits: sql<number>`coalesce(sum(case when ${InventoryLock.bookingId} is not null then ${InventoryLock.quantity} else 0 end), 0)`,
+							})
+							.from(InventoryLock)
+							.where(
+								and(eq(InventoryLock.variantId, params.variantId), eq(InventoryLock.date, date))
+							)
+							.get()
+						const heldUnits = Number((lockAgg as any)?.heldUnits ?? 0)
+						const bookedUnits = Number((lockAgg as any)?.bookedUnits ?? 0)
+						if (
+							!Number.isFinite(heldUnits) ||
+							!Number.isFinite(bookedUnits) ||
+							heldUnits < 0 ||
+							bookedUnits < 0
+						) {
+							throw new NotAvailableError()
+						}
+						if (heldUnits + bookedUnits + params.quantity > totalInventory) {
+							throw new NotAvailableError()
+						}
+						if (reservedCount + params.quantity > totalInventory) {
 							throw new NotAvailableError()
 						}
 
@@ -216,9 +255,13 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 
 	async listExpiredHolds(params: {
 		now: Date
-	}): Promise<Array<{ holdId: string; variantId: string }>> {
+	}): Promise<Array<{ holdId: string; variantId: string; from: string; to: string }>> {
 		const rows = await db
-			.select({ holdId: InventoryLock.holdId, variantId: InventoryLock.variantId })
+			.select({
+				holdId: InventoryLock.holdId,
+				variantId: InventoryLock.variantId,
+				date: InventoryLock.date,
+			})
 			.from(InventoryLock)
 			.where(
 				and(
@@ -229,14 +272,30 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 			)
 			.all()
 
-		const map = new Map<string, string>()
+		const map = new Map<
+			string,
+			{ holdId: string; variantId: string; from: string; lastDate: string }
+		>()
 		for (const r of rows) {
 			const id = String((r as any).holdId || "").trim()
 			const variantId = String((r as any).variantId || "").trim()
-			if (id && variantId && !map.has(id)) {
-				map.set(id, variantId)
+			const date = String((r as any).date || "").trim()
+			if (!id || !variantId || !date) continue
+
+			const key = `${id}:${variantId}`
+			const existing = map.get(key)
+			if (!existing) {
+				map.set(key, { holdId: id, variantId, from: date, lastDate: date })
+				continue
 			}
+			if (date < existing.from) existing.from = date
+			if (date > existing.lastDate) existing.lastDate = date
 		}
-		return [...map.entries()].map(([holdId, variantId]) => ({ holdId, variantId }))
+		return [...map.values()].map((entry) => ({
+			holdId: entry.holdId,
+			variantId: entry.variantId,
+			from: entry.from,
+			to: toExclusiveDate(entry.lastDate),
+		}))
 	}
 }

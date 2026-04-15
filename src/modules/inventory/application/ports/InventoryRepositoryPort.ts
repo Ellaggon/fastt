@@ -1,11 +1,9 @@
-export interface EffectiveInventoryUpsertRow {
-	variantId: string
-	// ISO date (YYYY-MM-DD)
-	date: string
-	availableInventory: number
-	computedAt: Date
-}
-
 export interface InventoryRepositoryPort {
-	upsertEffectiveInventory(row: EffectiveInventoryUpsertRow): Promise<void>
+	getEffectiveRange(
+		variantId: string,
+		checkIn: Date,
+		checkOut: Date
+	): Promise<
+		Array<{ date: string; availableUnits: number; isSellable: boolean; stopSell: boolean }>
+	>
 }
