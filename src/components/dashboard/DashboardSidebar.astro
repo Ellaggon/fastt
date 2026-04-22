@@ -1,7 +1,7 @@
 ---
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
-import { db, eq, Product, Variant } from "astro:db"
+import { routes } from "@/lib/routes"
 
 interface Props {
 	pathname?: string
@@ -10,183 +10,139 @@ interface Props {
 const { pathname = "" } = Astro.props
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
-const pathParts = pathname.split("/").filter(Boolean)
-const currentProductId = pathParts[0] === "product" && pathParts[1] ? String(pathParts[1]) : null
-const variantIndex = pathParts.findIndex((part) => part === "variants")
-const currentVariantId =
-	variantIndex >= 0 && pathParts[variantIndex + 1] && pathParts[variantIndex + 1] !== "new"
-		? String(pathParts[variantIndex + 1])
-		: null
 
-const currentProduct = currentProductId
-	? await db
-			.select({ id: Product.id, name: Product.name, productType: Product.productType })
-			.from(Product)
-			.where(eq(Product.id, currentProductId))
-			.get()
-	: null
-
-const currentProductVariants = currentProductId
-	? await db
-			.select({ id: Variant.id, name: Variant.name })
-			.from(Variant)
-			.where(eq(Variant.productId, currentProductId))
-	: []
-
-const normalizedProductType = String(currentProduct?.productType ?? "")
-	.trim()
-	.toLowerCase()
-const isHotel = normalizedProductType === "hotel"
-const variantsLabel = isHotel ? "Habitaciones" : "Variantes"
-const variantLabel = isHotel ? "Habitación" : "Variante"
-const activeVariantName =
-	currentProductVariants.find((variant) => String(variant.id) === String(currentVariantId ?? ""))
-		?.name ?? (currentVariantId ? `${variantLabel} ${String(currentVariantId).slice(0, 8)}` : "")
-
-const productBase = currentProductId ? `/product/${encodeURIComponent(currentProductId)}` : ""
-const variantsBase = currentProductId ? `${productBase}/variants` : ""
-const variantBase =
-	currentProductId && currentVariantId
-		? `${variantsBase}/${encodeURIComponent(currentVariantId)}`
-		: ""
-const pricingBase = variantBase ? `${variantBase}/pricing` : ""
-const pricingExpanded = Boolean(pricingBase && isActive(pricingBase))
+const isInventoryActive =
+	isActive(routes.ratePlansHub()) ||
+	isActive(routes.productList()) ||
+	isActive(routes.bookingList())
+const isPricingActive =
+	isActive(routes.pricingRules()) ||
+	isActive(routes.pricingBulk()) ||
+	isActive(routes.pricingCalendar())
+const isAnalyticsActive =
+	isActive(routes.analyticsPerformance()) ||
+	isActive(routes.analyticsRevenue()) ||
+	isActive(routes.analyticsOccupancy())
+const isSystemActive =
+	isActive(routes.provider()) ||
+	isActive(routes.providerPolicies()) ||
+	isActive(routes.providerPoliciesAudit()) ||
+	isActive(routes.systemIntegrations())
 ---
 
 <nav class="space-y-4">
-	<DashboardSidebarSection title="Sistema">
+	<DashboardSidebarSection
+		title="Inventory"
+		subtitle={isInventoryActive ? "Sección activa" : "Operación diaria"}
+	>
 		<DashboardSidebarItem
-			href="/provider"
-			label="Proveedor"
-			active={isActive("/provider")}
+			href={routes.ratePlansHub()}
+			label="Rate Plans"
+			active={isActive(routes.ratePlansHub())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href="/product"
-			label="Productos"
-			active={isActive("/product")}
+			href={routes.productList()}
+			label="Availability"
+			active={isActive(routes.productList())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href="/booking"
+			href={routes.bookingList()}
 			label="Reservas"
-			active={isActive("/booking")}
+			active={isActive(routes.bookingList())}
+			prefetch={true}
+			level={2}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="Pricing"
+		subtitle={isPricingActive ? "Sección activa" : "Revenue controls"}
+	>
+		<DashboardSidebarItem
+			href={routes.pricingRules()}
+			label="Rules"
+			active={isActive(routes.pricingRules())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.pricingBulk()}
+			label="Bulk Operations"
+			active={isActive(routes.pricingBulk())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.pricingCalendar()}
+			label="Calendar"
+			active={isActive(routes.pricingCalendar())}
 			prefetch={true}
 			level={1}
 		/>
 	</DashboardSidebarSection>
 
-	{
-		currentProductId && (
-			<>
-				<DashboardSidebarSection
-					title={isHotel ? "Hotel activo" : "Producto activo"}
-					subtitle={currentProduct?.name ?? "Producto actual"}
-					withDivider={true}
-				>
-					<div class="space-y-1.5">
-						<DashboardSidebarItem
-							href={productBase}
-							label="Resumen"
-							active={pathname === productBase}
-							prefetch={true}
-							level={2}
-						/>
-						<DashboardSidebarItem
-							href={variantsBase}
-							label={variantsLabel}
-							active={isActive(variantsBase)}
-							prefetch={true}
-							level={2}
-						/>
-					</div>
-				</DashboardSidebarSection>
-				<DashboardSidebarSection
-					title={isHotel ? "Habitaciones disponibles" : "Variantes disponibles"}
-					subtitle={currentProduct?.name ?? "Producto actual"}
-					withDivider={true}
-				>
-					{currentVariantId && (
-						<>
-							<div class="mx-3 mt-1 rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-2 text-xs text-slate-300">
-								<p class="font-semibold text-slate-100">{activeVariantName}</p>
-								<p class="text-slate-400">{variantLabel} activa</p>
-							</div>
-							<div class="space-y-1.5 rounded-lg border border-slate-800/80 bg-slate-900/50 p-2">
-								<DashboardSidebarItem
-									href={pricingBase}
-									label="Pricing"
-									active={isActive(pricingBase)}
-									prefetch={true}
-									level={2}
-								/>
-								{pricingExpanded ? (
-									<div class="space-y-0.5">
-										<DashboardSidebarItem
-											href={`${pricingBase}/rateplans`}
-											label="Rate plans"
-											active={isActive(`${pricingBase}/rateplans`)}
-											prefetch={true}
-											level={4}
-											compact={true}
-										/>
-										<DashboardSidebarItem
-											href={`${pricingBase}/calendar`}
-											label="Calendario"
-											active={isActive(`${pricingBase}/calendar`)}
-											prefetch={true}
-											level={4}
-											compact={true}
-										/>
-										<DashboardSidebarItem
-											href={`${pricingBase}/seasons`}
-											label="Temporadas"
-											active={isActive(`${pricingBase}/seasons`)}
-											prefetch={true}
-											level={4}
-											compact={true}
-										/>
-										<DashboardSidebarItem
-											href={`${pricingBase}/promotions`}
-											label="Promociones"
-											active={isActive(`${pricingBase}/promotions`)}
-											prefetch={true}
-											level={4}
-											compact={true}
-										/>
-										<DashboardSidebarItem
-											href={`${pricingBase}/overrides`}
-											label="Overrides"
-											active={isActive(`${pricingBase}/overrides`)}
-											prefetch={true}
-											level={4}
-											compact={true}
-										/>
-									</div>
-								) : (
-									<p class="px-5 text-[11px] text-slate-500">Abre Pricing para ver secciones</p>
-								)}
-							</div>
-							<DashboardSidebarItem
-								href={`${variantBase}/inventory`}
-								label="Inventario"
-								active={isActive(`${variantBase}/inventory`)}
-								prefetch={true}
-								level={2}
-							/>
-							<DashboardSidebarItem
-								href={`${variantBase}/availability`}
-								label="Disponibilidad"
-								active={isActive(`${variantBase}/availability`)}
-								prefetch={true}
-								level={2}
-							/>
-						</>
-					)}
-				</DashboardSidebarSection>
-			</>
-		)
-	}
+	<DashboardSidebarSection
+		title="Analytics"
+		subtitle={isAnalyticsActive ? "Sección activa" : "Visibilidad de negocio"}
+	>
+		<DashboardSidebarItem
+			href={routes.analyticsPerformance()}
+			label="Performance"
+			active={isActive(routes.analyticsPerformance())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.analyticsRevenue()}
+			label="Revenue"
+			active={isActive(routes.analyticsRevenue())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.analyticsOccupancy()}
+			label="Occupancy"
+			active={isActive(routes.analyticsOccupancy())}
+			prefetch={true}
+			level={1}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="System"
+		subtitle={isSystemActive ? "Sección activa" : "Configuración"}
+	>
+		<DashboardSidebarItem
+			href={routes.provider()}
+			label="Settings"
+			active={isActive(routes.provider())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.providerPolicies()}
+			label="Policies"
+			active={isActive(routes.providerPolicies())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.providerPoliciesAudit()}
+			label="Auditoría"
+			active={isActive(routes.providerPoliciesAudit())}
+			prefetch={true}
+			level={2}
+		/>
+		<DashboardSidebarItem
+			href={routes.systemIntegrations()}
+			label="Integrations"
+			active={isActive(routes.systemIntegrations())}
+			prefetch={true}
+			level={1}
+		/>
+	</DashboardSidebarSection>
 </nav>

@@ -1,4 +1,6 @@
 ---
+import { routes } from "@/lib/routes"
+
 interface Props {
 	productId: string
 	variantId: string
@@ -6,14 +8,13 @@ interface Props {
 }
 
 const { productId, variantId, pathname } = Astro.props
-const base = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`
+const base = routes.variantPricing(productId, variantId)
 const items = [
-	{ href: base, label: "Resumen" },
-	{ href: `${base}/rateplans`, label: "Rate plans" },
-	{ href: `${base}/calendar`, label: "Calendario" },
-	{ href: `${base}/seasons`, label: "Temporadas" },
-	{ href: `${base}/promotions`, label: "Promociones" },
-	{ href: `${base}/overrides`, label: "Ajustes" },
+	{ href: base, label: "Resumen de pricing" },
+	{ href: routes.variantPricingCalendar(productId, variantId), label: "Calendario" },
+	{ href: routes.variantPricingSeasons(productId, variantId), label: "Temporadas" },
+	{ href: routes.variantPricingPromotions(productId, variantId), label: "Promociones" },
+	{ href: routes.variantPricingOverrides(productId, variantId), label: "Ajustes de pricing" },
 ]
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)

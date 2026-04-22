@@ -1,0 +1,63 @@
+---
+import PricingHeader from "@/components/pricing/PricingHeader.astro"
+import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
+import Button from "@/components/ui/Button.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+void auth
+
+const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
+if (!ratePlanId) return Astro.redirect(routes.ratePlansHub())
+
+const loadedRatePlan = await loadRatePlanPricingData({
+	request: Astro.request,
+	ratePlanId,
+})
+if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
+const { ownerContext, displayContext, loaded } = loadedRatePlan
+---
+
+<WorkspaceLayout title="Rate Plan · Pricing">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Rate Plans Hub</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Editar precios base</h1>
+			<p class="text-sm text-slate-400">
+				{displayContext.productName} · {displayContext.variantName} · {displayContext.ratePlanName}
+			</p>
+			<div class="flex flex-wrap items-center gap-2 pt-2">
+				<Button href={routes.ratePlansHub()} variant="secondary">Volver al hub</Button>
+				<Button href={routes.ratePlanDetail(ratePlanId)} variant="secondary"
+					>Volver al detalle</Button
+				>
+			</div>
+		</header>
+
+		<PricingHeader
+			variantName={loaded.variant.name}
+			currency={loaded.initialCurrency}
+			basePrice={loaded.initialBasePrice || "No configurada"}
+			defaultRatePlanLabel={loaded.defaultPlanLabel}
+			coverageStart={loaded.effectivePricingStart}
+			coverageEnd={loaded.effectivePricingEnd}
+			coverageDays={loaded.effectivePricingDays}
+		/>
+
+		<RatePlanPricingSurface
+			ratePlanId={ownerContext.ratePlanId}
+			initialCurrency={loaded.initialCurrency}
+			initialBasePrice={loaded.initialBasePrice}
+			backHref={routes.ratePlanDetail(ratePlanId)}
+		/>
+	</section>
+</WorkspaceLayout>
