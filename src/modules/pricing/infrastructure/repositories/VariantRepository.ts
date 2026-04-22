@@ -1,4 +1,4 @@
-import { db, Variant, PricingBaseRate, VariantCapacity, eq, and } from "astro:db"
+import { db, Variant, PricingBaseRate, VariantCapacity, eq, and, or, inArray } from "astro:db"
 import type {
 	VariantKind,
 	VariantRepositoryPort,
@@ -6,6 +6,7 @@ import type {
 } from "../../application/ports/VariantRepositoryPort"
 
 const VARIANT_KINDS = ["hotel_room", "tour_slot", "package_base"] as const
+const SEARCHABLE_VARIANT_STATUSES = ["ready", "sellable", "published"] as const
 
 function assertVariantKind(kind: string | null): VariantKind {
 	if (kind && VARIANT_KINDS.includes(kind as VariantKind)) {
@@ -79,7 +80,12 @@ export class VariantRepository implements VariantRepositoryPort {
 			.from(Variant)
 			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.where(and(eq(Variant.productId, productId), eq(Variant.isActive, true)))
+			.where(
+				and(
+					eq(Variant.productId, productId),
+					or(eq(Variant.isActive, true), inArray(Variant.status, SEARCHABLE_VARIANT_STATUSES))
+				)
+			)
 			.all()
 
 		return rows.flatMap((row) => {

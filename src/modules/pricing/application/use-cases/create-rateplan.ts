@@ -40,7 +40,6 @@ export async function createRatePlan(
 			description: body.description ?? null,
 			paymentType: body.paymentType,
 			refundable: Boolean(body.refundable),
-			cancellationPolicyId: body.cancellationPolicyId ?? null,
 			createdAt: now,
 		},
 		ratePlan: {

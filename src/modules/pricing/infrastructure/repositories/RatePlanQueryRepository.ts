@@ -1,4 +1,15 @@
-import { db, eq, inArray, RatePlan, RatePlanTemplate, Restriction, PriceRule } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	Product,
+	RatePlan,
+	RatePlanTemplate,
+	Restriction,
+	PriceRule,
+	Variant,
+} from "astro:db"
 import type { RatePlanQueryRepositoryPort } from "../../application/ports/RatePlanQueryRepositoryPort"
 
 export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
@@ -46,6 +57,86 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 					: null,
 			}
 		})
+	}
+
+	async listByProvider(providerId: string): Promise<unknown[]> {
+		const rows = await db
+			.select({
+				ratePlanId: RatePlan.id,
+				variantId: Variant.id,
+				variantName: Variant.name,
+				productId: Product.id,
+				productName: Product.name,
+				ratePlanName: RatePlanTemplate.name,
+				isActive: RatePlan.isActive,
+				isDefault: RatePlan.isDefault,
+			})
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
+			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
+			.all()
+
+		if (!rows.length) return []
+
+		const ratePlanIds = rows.map((row) => String(row.ratePlanId))
+		const [priceRules, restrictions] = await Promise.all([
+			db
+				.select({ ratePlanId: PriceRule.ratePlanId })
+				.from(PriceRule)
+				.where(inArray(PriceRule.ratePlanId, ratePlanIds))
+				.all(),
+			db
+				.select({ scopeId: Restriction.scopeId, isActive: Restriction.isActive })
+				.from(Restriction)
+				.where(inArray(Restriction.scopeId, ratePlanIds))
+				.all(),
+		])
+
+		const priceRulesCountByRatePlanId = priceRules.reduce<Record<string, number>>((acc, row) => {
+			const key = String(row.ratePlanId)
+			acc[key] = (acc[key] ?? 0) + 1
+			return acc
+		}, {})
+		const activeRestrictionsCountByRatePlanId = restrictions.reduce<Record<string, number>>(
+			(acc, row) => {
+				if (!row.isActive) return acc
+				const key = String(row.scopeId)
+				acc[key] = (acc[key] ?? 0) + 1
+				return acc
+			},
+			{}
+		)
+
+		return rows
+			.map((row) => {
+				const ratePlanId = String(row.ratePlanId)
+				const priceRulesCount = Number(priceRulesCountByRatePlanId[ratePlanId] ?? 0)
+				const activeRestrictionsCount = Number(activeRestrictionsCountByRatePlanId[ratePlanId] ?? 0)
+				return {
+					ratePlanId,
+					ratePlanName: String(row.ratePlanName ?? "Rate plan"),
+					productId: String(row.productId),
+					productName: String(row.productName ?? ""),
+					variantId: String(row.variantId),
+					variantName: String(row.variantName ?? ""),
+					isActive: Boolean(row.isActive),
+					isDefault: Boolean(row.isDefault),
+					status: Boolean(row.isActive) ? "active" : "inactive",
+					summary: {
+						priceRulesCount,
+						activeRestrictionsCount,
+					},
+				}
+			})
+			.sort((a, b) => {
+				const byProduct = a.productName.localeCompare(b.productName)
+				if (byProduct !== 0) return byProduct
+				const byVariant = a.variantName.localeCompare(b.variantName)
+				if (byVariant !== 0) return byVariant
+				return a.ratePlanName.localeCompare(b.ratePlanName)
+			})
 	}
 
 	async getById(ratePlanId: string): Promise<unknown | null> {
