@@ -22,6 +22,7 @@ import {
 	releaseExpiredHolds,
 } from "@/modules/inventory/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -133,6 +134,35 @@ async function seedVariantWithInventory(params: {
 		createdAt: new Date(),
 	} as any)
 
+	const cancellation = await createPolicyCapa6({
+		category: "Cancellation",
+		description: "Flexible cancellation",
+		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
+	} as any)
+	const payment = await createPolicyCapa6({
+		category: "Payment",
+		description: "Pay at property",
+		rules: { paymentType: "pay_at_property" },
+	} as any)
+	const checkIn = await createPolicyCapa6({
+		category: "CheckIn",
+		description: "Standard check-in",
+		rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
+	} as any)
+	const noShow = await createPolicyCapa6({
+		category: "NoShow",
+		description: "No-show first night",
+		rules: { penaltyType: "first_night" },
+	} as any)
+	for (const policy of [cancellation, payment, checkIn, noShow]) {
+		await assignPolicyCapa6({
+			policyId: policy.policyId,
+			scope: "rate_plan",
+			scopeId: params.ratePlanId,
+			channel: "web",
+		})
+	}
+
 	for (const d of params.dates) {
 		await db.insert(DailyInventory).values({
 			id: crypto.randomUUID(),
@@ -202,6 +232,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_ok", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
@@ -297,6 +328,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_fail", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
@@ -360,6 +392,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_closed", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-20")
 			fd.set("checkOut", "2026-03-22")
 			fd.set("quantity", "1")
@@ -404,6 +437,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_range", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-13")
 			fd.set("quantity", "1")
@@ -453,6 +487,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			const mk = () => {
 				const fd = new FormData()
 				fd.set("variantId", variantId)
+				fd.set("ratePlanId", ratePlanId)
 				fd.set("checkIn", "2026-03-10")
 				fd.set("checkOut", "2026-03-11")
 				fd.set("quantity", "1")
@@ -500,6 +535,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_hold_release", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
@@ -583,10 +619,24 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		const holdRes = await repo.holdInventory({
 			holdId,
 			variantId,
+			ratePlanId,
 			checkIn: new Date("2026-03-10"),
 			checkOut: new Date("2026-03-11"),
 			quantity: 1,
 			expiresAt: new Date(Date.now() - 60_000),
+			policySnapshotJson: {
+				cancellation: null,
+				payment: null,
+				no_show: null,
+				check_in: null,
+				meta: {
+					policyVersionIds: [],
+					resolvedAt: new Date().toISOString(),
+					checkIn: "2026-03-10",
+					checkOut: "2026-03-11",
+					channel: "web",
+				},
+			},
 		})
 		expect(holdRes.success).toBe(true)
 
