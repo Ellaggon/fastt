@@ -1,0 +1,282 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import { variantManagementRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const today = new Date()
+const dateFrom = String(
+	Astro.url.searchParams.get("dateFrom") ?? today.toISOString().slice(0, 10)
+).trim()
+const dateToDefault = new Date(today)
+dateToDefault.setUTCDate(dateToDefault.getUTCDate() + 30)
+const dateTo = String(
+	Astro.url.searchParams.get("dateTo") ?? dateToDefault.toISOString().slice(0, 10)
+).trim()
+const variantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const productId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+
+const variant = variantId ? await variantManagementRepository.getVariantById(variantId) : null
+---
+
+<WorkspaceLayout title="Inventory · Bulk Operations">
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Inventory · Bulk Operations
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Operaciones masivas de inventario</h1>
+				<p class="text-sm text-slate-300">
+					Aplica cambios por rango sin mezclar visualización del calendario con ejecución operativa.
+				</p>
+			</div>
+			<div class="flex items-center gap-2">
+				{
+					productId && variantId ? (
+						<Button
+							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/inventory`}
+							variant="secondary"
+						>
+							Volver al calendario
+						</Button>
+					) : (
+						<Button href={routes.productList()} variant="secondary">
+							Volver a productos
+						</Button>
+					)
+				}
+			</div>
+		</header>
+
+		<Section title="Contexto y operación" description="Define variante, rango y acción.">
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="grid gap-4 md:grid-cols-4">
+					<FormField label="Variant ID" required>
+						<Input id="bulkVariantId" value={variantId} placeholder="var_xxx" />
+					</FormField>
+					<FormField label="Desde" required>
+						<Input id="bulkDateFrom" type="date" value={dateFrom} />
+					</FormField>
+					<FormField label="Hasta" required>
+						<Input id="bulkDateTo" type="date" value={dateTo} />
+					</FormField>
+					<FormField label="Operación">
+						<select
+							id="bulkOperationType"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						>
+							<option value="open_sales">Abrir ventas</option>
+							<option value="close_sales">Cerrar ventas</option>
+							<option value="set_inventory">Ajustar cupo</option>
+						</select>
+					</FormField>
+					<FormField label="Cupo (solo ajustar cupo)">
+						<Input id="bulkOperationValue" type="number" min="0" step="1" value="0" />
+					</FormField>
+					<FormField label="Días de semana (0=Dom ... 6=Sáb)">
+						<Input id="bulkDaysOfWeek" placeholder="1,2,3,4,5" />
+					</FormField>
+				</div>
+				{
+					variant ? (
+						<p class="text-sm text-slate-600">
+							Variante cargada: <span class="font-medium text-slate-900">{variant.name}</span>
+						</p>
+					) : null
+				}
+				<div class="flex flex-wrap items-center gap-2">
+					<button
+						id="bulkPreviewBtn"
+						type="button"
+						class="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
+					>
+						Previsualizar cambios
+					</button>
+					<button
+						id="bulkApplyBtn"
+						type="button"
+						class="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+						disabled
+					>
+						Aplicar cambios
+					</button>
+				</div>
+				<p id="bulkFeedback" class="text-sm text-slate-700"></p>
+			</Card>
+		</Section>
+
+		<Section title="Preview" description="Resumen básico de impacto por rango.">
+			<Card className="space-y-3 bg-white text-slate-800">
+				<div id="bulkPreviewSummary" class="text-sm text-slate-700">Sin preview todavía.</div>
+				<div class="overflow-x-auto rounded border border-slate-200">
+					<table class="min-w-full bg-white text-sm">
+						<thead class="bg-slate-50 text-left text-slate-600">
+							<tr>
+								<th class="px-3 py-2">Fecha</th>
+								<th class="px-3 py-2">Antes</th>
+								<th class="px-3 py-2">Después</th>
+								<th class="px-3 py-2">Cambio</th>
+							</tr>
+						</thead>
+						<tbody id="bulkPreviewRows"></tbody>
+					</table>
+				</div>
+				<div
+					id="bulkApplyFailures"
+					class="hidden rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+				>
+				</div>
+			</Card>
+		</Section>
+	</div>
+
+	<script type="module">
+		const variantInput = document.getElementById("bulkVariantId")
+		const dateFromInput = document.getElementById("bulkDateFrom")
+		const dateToInput = document.getElementById("bulkDateTo")
+		const operationType = document.getElementById("bulkOperationType")
+		const operationValue = document.getElementById("bulkOperationValue")
+		const daysOfWeekInput = document.getElementById("bulkDaysOfWeek")
+
+		const previewBtn = document.getElementById("bulkPreviewBtn")
+		const applyBtn = document.getElementById("bulkApplyBtn")
+		const feedback = document.getElementById("bulkFeedback")
+		const summary = document.getElementById("bulkPreviewSummary")
+		const rows = document.getElementById("bulkPreviewRows")
+		const failures = document.getElementById("bulkApplyFailures")
+
+		let lastPayload = null
+
+		function parseDaysOfWeek(raw) {
+			const value = String(raw ?? "").trim()
+			if (!value) return undefined
+			const parsed = value
+				.split(",")
+				.map((item) => Number(item.trim()))
+				.filter((item) => Number.isInteger(item) && item >= 0 && item <= 6)
+			return parsed.length ? Array.from(new Set(parsed)) : undefined
+		}
+
+		function buildPayload() {
+			const payload = {
+				variantId: String(variantInput?.value ?? "").trim(),
+				dateFrom: String(dateFromInput?.value ?? "").trim(),
+				dateTo: String(dateToInput?.value ?? "").trim(),
+				daysOfWeek: parseDaysOfWeek(daysOfWeekInput?.value),
+				operation: {
+					type: String(operationType?.value ?? "").trim(),
+				},
+			}
+			if (payload.operation.type === "set_inventory") {
+				payload.operation.value = Number(operationValue?.value ?? 0)
+			}
+			return payload
+		}
+
+		function renderPreview(payload) {
+			const s = payload?.summary ?? {}
+			if (summary) {
+				summary.textContent = `Días en rango: ${Number(s.totalDaysInRange ?? 0)} · Días objetivo: ${Number(s.targetDays ?? 0)} · Días con cambio: ${Number(s.changedDays ?? 0)} · Resultado abiertos/cerrados: ${Number(s.resultingOpenDays ?? 0)}/${Number(s.resultingClosedDays ?? 0)} · Variación total de cupo: ${Number(s.totalCapacityDelta ?? 0)}`
+			}
+			if (rows) {
+				rows.innerHTML = ""
+				for (const day of payload?.days ?? []) {
+					const tr = document.createElement("tr")
+					tr.className = "border-t border-slate-200 text-slate-700"
+					tr.innerHTML = `
+						<td class="px-3 py-2">${String(day?.date ?? "—")}</td>
+						<td class="px-3 py-2">${String(day?.before?.state ?? "—")} · cupo ${Number(day?.before?.totalUnits ?? 0)}</td>
+						<td class="px-3 py-2">${String(day?.after?.state ?? "—")} · cupo ${Number(day?.after?.totalUnits ?? 0)}</td>
+						<td class="px-3 py-2">${Boolean(day?.changed) ? "Sí" : "No"}</td>
+					`
+					rows.appendChild(tr)
+				}
+			}
+		}
+
+		previewBtn?.addEventListener("click", async () => {
+			const payload = buildPayload()
+			if (!payload.variantId || !payload.dateFrom || !payload.dateTo || !payload.operation.type) {
+				if (feedback) feedback.textContent = "Completa variantId, rango y operación."
+				return
+			}
+			if (feedback) feedback.textContent = "Generando preview..."
+			try {
+				const response = await fetch("/api/inventory/bulk-preview", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(payload),
+				})
+				const body = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (feedback)
+						feedback.textContent = `No se pudo previsualizar: ${String(body?.error ?? response.status)}`
+					return
+				}
+				lastPayload = payload
+				renderPreview(body)
+				if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = false
+				if (feedback) feedback.textContent = "Preview listo. Puedes aplicar cambios."
+			} catch (error) {
+				if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+			}
+		})
+
+		applyBtn?.addEventListener("click", async () => {
+			if (!lastPayload) return
+			if (feedback) feedback.textContent = "Aplicando cambios..."
+			if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = true
+			try {
+				const response = await fetch("/api/inventory/bulk-apply", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(lastPayload),
+				})
+				const body = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (feedback)
+						feedback.textContent = `No se pudo aplicar: ${String(body?.error ?? response.status)}`
+					return
+				}
+				renderPreview(body)
+				const failedDays = Number(body?.summary?.failedDays ?? 0)
+				if (failures) {
+					if (failedDays <= 0) {
+						failures.classList.add("hidden")
+						failures.textContent = ""
+					} else {
+						failures.classList.remove("hidden")
+						const list = Array.isArray(body?.failures) ? body.failures : []
+						failures.innerHTML = `<p class="font-medium">Fallos parciales (${failedDays})</p><ul class="mt-2 list-disc pl-5">${list
+							.map(
+								(item) =>
+									`<li>${String(item?.date ?? "—")}: ${String(item?.error ?? "unknown_error")}</li>`
+							)
+							.join("")}</ul>`
+					}
+				}
+				if (feedback) {
+					feedback.textContent = `Aplicado. Días exitosos: ${Number(body?.summary?.successfulDays ?? 0)} · fallidos: ${failedDays}.`
+				}
+			} catch (error) {
+				if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+			} finally {
+				if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = false
+			}
+		})
+	</script>
+</WorkspaceLayout>
