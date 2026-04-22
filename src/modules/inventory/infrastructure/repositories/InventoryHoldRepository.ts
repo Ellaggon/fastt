@@ -1,5 +1,6 @@
-import { db, DailyInventory, InventoryLock, and, eq, gte, lt, sql } from "astro:db"
+import { db, DailyInventory, Hold, InventoryLock, and, eq, gte, lt, sql } from "astro:db"
 import { toISODate } from "@/shared/domain/date/date.utils"
+import { logger } from "@/lib/observability/logger"
 import type {
 	HoldInventoryResult,
 	InventoryHoldRepositoryPort,
@@ -15,6 +16,16 @@ function isSqliteBusy(e: unknown): boolean {
 	const msg = e instanceof Error ? e.message : String(e)
 	const code = (e as any)?.code
 	return code === "SQLITE_BUSY" || msg.includes("SQLITE_BUSY") || msg.includes("database is locked")
+}
+
+function isUniqueHoldConflict(e: unknown): boolean {
+	const msg = e instanceof Error ? e.message : String(e)
+	return msg.includes("UNIQUE constraint failed: Hold.id")
+}
+
+function isMissingHoldTableError(e: unknown): boolean {
+	const msg = e instanceof Error ? e.message : String(e)
+	return msg.includes("no such table: Hold")
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -70,10 +81,13 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 	async holdInventory(params: {
 		holdId: string
 		variantId: string
+		ratePlanId: string
 		checkIn: Date
 		checkOut: Date
 		quantity: number
 		expiresAt: Date
+		channel?: string | null
+		policySnapshotJson: unknown
 	}): Promise<HoldInventoryResult> {
 		const maxAttempts = 5
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -81,6 +95,29 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 				await db.transaction(async (tx) => {
 					const dates = datesInRange(params.checkIn, params.checkOut)
 					if (!dates.length) throw new NotAvailableError()
+
+					try {
+						await tx
+							.insert(Hold)
+							.values({
+								id: params.holdId,
+								variantId: params.variantId,
+								ratePlanId: params.ratePlanId == null ? null : String(params.ratePlanId),
+								checkIn: toISODate(params.checkIn),
+								checkOut: toISODate(params.checkOut),
+								channel: params.channel == null ? null : String(params.channel),
+								expiresAt: params.expiresAt,
+								policySnapshotJson: params.policySnapshotJson as any,
+								createdAt: new Date(),
+							} as any)
+							.run()
+					} catch (e) {
+						if (!isMissingHoldTableError(e)) throw e
+						logger.warn("inventory.hold.table_missing", {
+							holdId: params.holdId,
+							variantId: params.variantId,
+						})
+					}
 
 					for (const date of dates) {
 						// Ensure daily row exists; missing dates are not available.
@@ -173,6 +210,9 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 				if (e instanceof NotAvailableError) {
 					return { success: false, reason: "not_available" }
 				}
+				if (isUniqueHoldConflict(e)) {
+					return { success: false, reason: "not_available" }
+				}
 				if (isSqliteBusy(e)) {
 					if (attempt < maxAttempts) {
 						await sleep(10 * attempt)
@@ -185,6 +225,26 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		}
 
 		return { success: false, reason: "not_available" }
+	}
+
+	async findHoldSnapshot(params: {
+		holdId: string
+	}): Promise<{ policySnapshotJson: unknown } | null> {
+		const id = String(params.holdId ?? "").trim()
+		if (!id) return null
+		let row: { policySnapshotJson: unknown } | null = null
+		try {
+			row = await db
+				.select({ policySnapshotJson: Hold.policySnapshotJson })
+				.from(Hold)
+				.where(eq(Hold.id, id))
+				.get()
+		} catch (e) {
+			if (!isMissingHoldTableError(e)) throw e
+			return null
+		}
+		if (!row) return null
+		return { policySnapshotJson: row.policySnapshotJson }
 	}
 
 	async releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }> {

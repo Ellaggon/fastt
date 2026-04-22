@@ -6,6 +6,7 @@ import {
 	BookingTaxFee,
 	db,
 	eq,
+	Hold,
 	InventoryLock,
 	sql,
 	Variant,
@@ -15,6 +16,12 @@ import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import type { ResolvedTaxFeeDefinition } from "@/modules/taxes-fees/public"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
+import type { HoldPolicySnapshot } from "@/modules/policies/public"
+
+function isMissingHoldTableError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error)
+	return message.includes("no such table: Hold")
+}
 
 type BookingPricingSnapshot = {
 	ratePlanId: string
@@ -109,28 +116,6 @@ async function buildSnapshotFromHoldLifecycle(params: {
 
 export async function createBookingFromHold(
 	deps: {
-		resolveEffectivePolicies: (ctx: {
-			productId: string
-			variantId?: string
-			ratePlanId?: string
-			channel?: string
-		}) => Promise<{
-			policies: Array<{
-				category: string
-				policy: {
-					id: string
-					groupId: string
-					description: string
-					version: number
-					status: "active"
-					effectiveFrom?: string | null
-					effectiveTo?: string | null
-					rules: unknown[]
-					cancellationTiers: unknown[]
-				}
-				resolvedFromScope: string
-			}>
-		}>
 		resolveEffectiveTaxFees: (params: {
 			providerId?: string
 			productId?: string
@@ -211,6 +196,29 @@ export async function createBookingFromHold(
 			.get()
 		if (!variant) throw new Error("HOLD_NOT_FOUND")
 
+		let holdSnapshot: HoldPolicySnapshot | null | undefined = null
+		try {
+			const hold = await tx
+				.select({
+					policySnapshotJson: Hold.policySnapshotJson,
+				})
+				.from(Hold)
+				.where(eq(Hold.id, holdId))
+				.get()
+			holdSnapshot = hold?.policySnapshotJson as HoldPolicySnapshot | null | undefined
+		} catch (error) {
+			if (!isMissingHoldTableError(error)) throw error
+		}
+		if (!holdSnapshot || typeof holdSnapshot !== "object") {
+			const cached = await persistentCache.get(cacheKeys.holdPolicySnapshot(holdId))
+			if (cached && typeof cached === "object") {
+				holdSnapshot = cached as HoldPolicySnapshot
+			}
+		}
+		if (!holdSnapshot || typeof holdSnapshot !== "object") {
+			throw new Error("INVENTORY_CONFLICT")
+		}
+
 		const snapshot = await buildSnapshotFromHoldLifecycle({
 			holdId,
 			holdRows: holdRows.map((row) => ({
@@ -288,33 +296,28 @@ export async function createBookingFromHold(
 			} as any)
 			.run()
 
-		const resolvedPolicies = await deps.resolveEffectivePolicies({
-			productId: variant.productId,
-			variantId,
-			ratePlanId: snapshot.ratePlanId,
-			channel: "web",
-		})
-
-		if (resolvedPolicies.policies.length > 0) {
+		const policyRows = [
+			holdSnapshot.cancellation,
+			holdSnapshot.payment,
+			holdSnapshot.no_show,
+			holdSnapshot.check_in,
+		]
+			.filter((row): row is NonNullable<typeof row> => Boolean(row))
+			.map((row) => ({
+				id: crypto.randomUUID(),
+				bookingId,
+				policyType: row.category,
+				description: row.description,
+				cancellationJson: null,
+				category: row.category,
+				policyId: row.policyId,
+				policySnapshotJson: row,
+				createdAt: now,
+			}))
+		if (policyRows.length > 0) {
 			await tx
 				.insert(BookingPolicySnapshot)
-				.values(
-					resolvedPolicies.policies.map((policy) => ({
-						id: crypto.randomUUID(),
-						bookingId,
-						policyType: policy.category,
-						description: policy.policy.description,
-						cancellationJson: null,
-						category: policy.category,
-						policyId: policy.policy.id,
-						policySnapshotJson: {
-							category: policy.category,
-							resolvedFromScope: policy.resolvedFromScope,
-							policy: policy.policy,
-						},
-						createdAt: now,
-					})) as any
-				)
+				.values(policyRows as any)
 				.run()
 		}
 

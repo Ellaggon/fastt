@@ -11,11 +11,16 @@ export interface InventoryHoldRepositoryPort {
 	holdInventory(params: {
 		holdId: string
 		variantId: string
+		ratePlanId: string
 		checkIn: Date
 		checkOut: Date
 		quantity: number
 		expiresAt: Date
+		channel?: string | null
+		policySnapshotJson: unknown
 	}): Promise<HoldInventoryResult>
+
+	findHoldSnapshot(params: { holdId: string }): Promise<{ policySnapshotJson: unknown } | null>
 
 	releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }>
 

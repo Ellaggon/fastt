@@ -6,7 +6,6 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { applyInventoryMutation } from "@/modules/inventory/public"
-import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
@@ -77,12 +76,6 @@ export const POST: APIRoute = async ({ request }) => {
 	let busyRecoveryAttempts = 0
 	try {
 		const user = await getUserFromRequest(request)
-		if (!user?.email) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
@@ -102,12 +95,11 @@ export const POST: APIRoute = async ({ request }) => {
 				mutate: async () =>
 					createBookingFromHold(
 						{
-							resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
 							resolveEffectiveTaxFees: (params) => resolveEffectiveTaxFeesUseCase(params),
 						},
 						{
 							holdId: parsed.holdId,
-							userId: String((user as any).id ?? "").trim() || null,
+							userId: String((user as any)?.id ?? "").trim() || null,
 							source: "web",
 						}
 					),

@@ -5,6 +5,8 @@ import { and, db, eq, gte, lt, SearchUnitView } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
+import { resolveEffectivePolicies } from "@/modules/policies/public"
+import { resolveEffectiveRules } from "@/modules/rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 import {
@@ -15,6 +17,7 @@ import { toISODate } from "@/shared/domain/date/date.utils"
 
 const schema = z.object({
 	variantId: z.string().min(1),
+	ratePlanId: z.string().min(1),
 	dateRange: z.object({
 		from: z.string().min(1),
 		to: z.string().min(1),
@@ -26,6 +29,14 @@ const schema = z.object({
 function optionalTrimmed(value: unknown): string | undefined {
 	const s = String(value ?? "").trim()
 	return s.length > 0 ? s : undefined
+}
+
+function isHttpsRequestUrl(request: Request): boolean {
+	try {
+		return new URL(request.url).protocol === "https:"
+	} catch {
+		return false
+	}
 }
 
 function enumerateStayDates(from: string, to: string): string[] {
@@ -68,6 +79,7 @@ type HoldabilityResult =
 async function resolveHoldabilityFromView(params: {
 	productId: string
 	variantId: string
+	ratePlanId: string
 	checkIn: string
 	checkOut: string
 	occupancy: number
@@ -94,7 +106,14 @@ async function resolveHoldabilityFromView(params: {
 		children: 0,
 		totalGuests: params.occupancy,
 	})
-	const checkOutDate = params.checkOut
+	const predicates = [
+		eq(SearchUnitView.productId, params.productId),
+		eq(SearchUnitView.variantId, params.variantId),
+		eq(SearchUnitView.occupancyKey, occupancyKey),
+		gte(SearchUnitView.date, params.checkIn),
+		lt(SearchUnitView.date, addDays(params.checkOut, 1)),
+		eq(SearchUnitView.ratePlanId, params.ratePlanId),
+	]
 	const rows = await db
 		.select({
 			ratePlanId: SearchUnitView.ratePlanId,
@@ -112,21 +131,13 @@ async function resolveHoldabilityFromView(params: {
 			primaryBlocker: SearchUnitView.primaryBlocker,
 		})
 		.from(SearchUnitView)
-		.where(
-			and(
-				eq(SearchUnitView.productId, params.productId),
-				eq(SearchUnitView.variantId, params.variantId),
-				eq(SearchUnitView.occupancyKey, occupancyKey),
-				gte(SearchUnitView.date, params.checkIn),
-				lt(SearchUnitView.date, addDays(checkOutDate, 1))
-			)
-		)
+		.where(and(...predicates))
 		.all()
 
 	if (!rows.length) {
 		return {
 			holdable: false,
-			reason: "UNKNOWN",
+			reason: "RATEPLAN_CONTEXT_INVALID",
 			failingDate: stayDates[0] ?? null,
 			debug: {
 				variantId: params.variantId,
@@ -178,7 +189,6 @@ async function resolveHoldabilityFromView(params: {
 		const evaluation = evaluateStaySellabilityFromView({
 			stayDates,
 			checkInDate: params.checkIn,
-			checkOutDate,
 			requestedRooms: params.requestedRooms,
 			rowsByDate: byDate,
 		})
@@ -238,16 +248,12 @@ async function resolveHoldabilityFromView(params: {
 	}
 }
 
-export const POST: APIRoute = async ({ request }) => {
+const GUEST_SESSION_COOKIE = "ft_guest_session_id"
+
+export const POST: APIRoute = async ({ request, cookies }) => {
 	const startedAt = performance.now()
 	try {
 		const user = await getUserFromRequest(request)
-		if (!user?.email) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
@@ -255,6 +261,7 @@ export const POST: APIRoute = async ({ request }) => {
 			const raw = (await request.json().catch(() => ({}))) as Record<string, unknown>
 			payload = {
 				variantId: String(raw.variantId ?? "").trim(),
+				ratePlanId: optionalTrimmed((raw as any).ratePlanId),
 				dateRange: {
 					from: String((raw as any)?.dateRange?.from ?? raw.checkIn ?? raw.from ?? "").trim(),
 					to: String((raw as any)?.dateRange?.to ?? raw.checkOut ?? raw.to ?? "").trim(),
@@ -266,6 +273,7 @@ export const POST: APIRoute = async ({ request }) => {
 			const form = await request.formData()
 			payload = {
 				variantId: String(form.get("variantId") ?? "").trim(),
+				ratePlanId: optionalTrimmed(form.get("ratePlanId")),
 				dateRange: {
 					from: String(form.get("checkIn") ?? form.get("from") ?? "").trim(),
 					to: String(form.get("checkOut") ?? form.get("to") ?? "").trim(),
@@ -275,9 +283,23 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		}
 		const parsed = schema.parse(payload)
+		const cookieSessionId = String(cookies?.get?.(GUEST_SESSION_COOKIE)?.value ?? "").trim()
+		let generatedGuestSessionId: string | null = null
+		if (!cookieSessionId && !user?.id && !user?.email) {
+			generatedGuestSessionId = crypto.randomUUID()
+			cookies?.set?.(GUEST_SESSION_COOKIE, generatedGuestSessionId, {
+				path: "/",
+				maxAge: 60 * 60 * 24 * 180,
+				sameSite: "lax",
+				httpOnly: true,
+				secure: isHttpsRequestUrl(request),
+			})
+		}
 		const effectiveSessionId =
 			String(parsed.sessionId ?? "").trim() ||
 			String(request.headers.get("x-session-id") ?? "").trim() ||
+			cookieSessionId ||
+			String(generatedGuestSessionId ?? "").trim() ||
 			String((user as any).id ?? "").trim() ||
 			String(user.email ?? "").trim()
 		if (!effectiveSessionId) {
@@ -298,6 +320,7 @@ export const POST: APIRoute = async ({ request }) => {
 				const holdability = await resolveHoldabilityFromView({
 					productId: variant.productId,
 					variantId: parsed.variantId,
+					ratePlanId: parsed.ratePlanId,
 					checkIn: parsed.dateRange.from,
 					checkOut: parsed.dateRange.to,
 					occupancy: parsed.occupancy,
@@ -312,6 +335,13 @@ export const POST: APIRoute = async ({ request }) => {
 				return createInventoryHold(
 					{
 						repo: inventoryHoldRepository,
+						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
+						resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
+						policyContext: {
+							productId: variant.productId,
+							ratePlanId: parsed.ratePlanId,
+							channel: "web",
+						},
 						resolvePricingSnapshot: async ({ from, to, occupancy }) => {
 							if (from !== parsed.dateRange.from || to !== parsed.dateRange.to) return null
 							if (occupancy !== parsed.occupancy) return null
@@ -374,6 +404,19 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+		if (e instanceof Error && e.message.startsWith("MISSING_POLICY_CATEGORY:")) {
+			return new Response(
+				JSON.stringify({
+					error: "invalid_policy_context",
+					reason: "MISSING_REQUIRED_POLICY_CATEGORY",
+					details: e.message.replace("MISSING_POLICY_CATEGORY:", "").split(",").filter(Boolean),
+				}),
+				{
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 		if (e instanceof Error && e.message === "not_available") {
 			return new Response(
