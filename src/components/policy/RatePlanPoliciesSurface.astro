@@ -1,0 +1,800 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { POLICY_CATEGORY_ORDER } from "@/modules/policies/public"
+
+interface PolicyPlanView {
+	ratePlanId: string
+	ratePlanName: string
+	isDefault: boolean
+	isActive: boolean
+	priceLabel: string
+	coverageCount: number
+	missingCategories: string[]
+	policySummary: string
+	policyPreviewByCategory: Record<string, string>
+}
+
+interface WizardPlanView {
+	ratePlanId: string
+	ratePlanName: string
+	variantName: string
+	policyIdByCategory: Record<string, string | null>
+	policySummary: string
+	missingCategories: string[]
+}
+
+interface Props {
+	title?: string
+	description: string
+	policyPlans: PolicyPlanView[]
+	wizardPlans: WizardPlanView[]
+	checkIn: string
+	checkOut: string
+	requiredCategories: readonly string[]
+}
+
+const {
+	title = "Condiciones de reserva",
+	description,
+	policyPlans,
+	wizardPlans,
+	checkIn,
+	checkOut,
+	requiredCategories,
+} = Astro.props
+---
+
+<Section title={title} description={description}>
+	<div class="space-y-4">
+		{
+			policyPlans.map((plan) => (
+				<Card className="space-y-4 bg-white" data-plan-id={plan.ratePlanId}>
+					<div class="space-y-3">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div class="space-y-1">
+								<p class="text-base font-semibold text-slate-900">{plan.ratePlanName}</p>
+								<div class="flex flex-wrap items-center gap-2">
+									<Badge variant={plan.isActive ? "success" : "neutral"}>
+										{plan.isActive ? "Activo" : "Inactivo"}
+									</Badge>
+									{plan.isDefault && <Badge variant="info">Por defecto</Badge>}
+								</div>
+							</div>
+							<div
+								class:list={[
+									"rounded-full border px-3 py-1 text-sm font-semibold",
+									plan.coverageCount === 4
+										? "border-emerald-200 bg-emerald-50 text-emerald-800"
+										: "border-amber-200 bg-amber-50 text-amber-800",
+								]}
+								data-role="status-badge"
+							>
+								{plan.coverageCount === 4 ? "🟢 Listo para vender" : "🟡 Incompleto"}
+							</div>
+						</div>
+						<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Precio</p>
+							<p class="mt-1 text-sm text-slate-700">{plan.priceLabel}</p>
+						</div>
+					</div>
+					<div class="rounded-lg border border-slate-200 p-3" data-role="missing-categories">
+						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+							Cobertura de condiciones
+						</p>
+						<p class="mt-1 text-sm font-medium text-slate-900" data-role="coverage-badge">
+							{plan.coverageCount}/4
+						</p>
+						{plan.missingCategories.length > 0 ? (
+							<div class="mt-2 text-sm text-amber-800">
+								<p class="font-medium">Faltan:</p>
+								<ul class="mt-1 list-disc space-y-1 pl-5">
+									{plan.missingCategories.map((category) => (
+										<li>{POLICY_CATEGORY_ORDER[category] ?? category}</li>
+									))}
+								</ul>
+							</div>
+						) : (
+							<p class="mt-2 text-sm text-emerald-800">
+								Cobertura completa: tarifa lista para vender.
+							</p>
+						)}
+					</div>
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="mb-2 text-sm font-semibold text-slate-900">Resumen de condiciones</p>
+						<p class="mb-2 text-sm text-slate-600" data-role="policy-summary">
+							{plan.policySummary}
+						</p>
+						<ul class="space-y-1 text-sm text-slate-700" data-role="preview-list">
+							<li>
+								<strong>Cancelación:</strong> {plan.policyPreviewByCategory.Cancellation}
+							</li>
+							<li>
+								<strong>Pago:</strong> {plan.policyPreviewByCategory.Payment}
+							</li>
+							<li>
+								<strong>No presentación:</strong> {plan.policyPreviewByCategory.NoShow}
+							</li>
+							<li>
+								<strong>Ingreso:</strong> {plan.policyPreviewByCategory.CheckIn}
+							</li>
+						</ul>
+					</div>
+					<Button
+						type="button"
+						variant="primary"
+						size="sm"
+						class="wizard-open-btn w-full justify-center"
+						data-rate-plan-id={plan.ratePlanId}
+					>
+						{plan.coverageCount === 4 ? "Editar condiciones" : "Completar condiciones"}
+					</Button>
+				</Card>
+			))
+		}
+	</div>
+</Section>
+
+<div id="policyWizardOverlay" class="fixed inset-0 z-50 hidden bg-slate-950/65 p-4">
+	<div
+		class="mx-auto flex h-[92vh] max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl"
+	>
+		<div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+			<div>
+				<h2 class="text-lg font-semibold text-slate-900">Completar políticas de tarifa</h2>
+				<p class="text-sm text-slate-600">Configura condiciones de reserva sin salir de Tarifas.</p>
+			</div>
+			<button
+				id="wizardCloseBtn"
+				class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+				>Cerrar</button
+			>
+		</div>
+		<div class="grid min-h-0 flex-1 gap-0 md:grid-cols-[280px_1fr]">
+			<aside class="border-r border-slate-200 bg-slate-50 p-4">
+				<p id="wizStepProgress" class="mb-3 text-sm font-semibold text-slate-900">Paso 1 de 4</p>
+				<ol id="wizStepperList" class="space-y-2 text-sm text-slate-700"></ol>
+				<div id="wizardReadyBadge" class="mt-4 rounded-lg border px-3 py-2 text-sm"></div>
+			</aside>
+			<div class="min-h-0 overflow-y-auto p-6">
+				<div class="grid gap-4 md:grid-cols-2">
+					<div class="space-y-2 rounded-lg border border-slate-200 p-4">
+						<h3 class="font-semibold text-slate-900">Contexto</h3>
+						<p class="text-sm text-slate-700" id="wizCtxVariant"></p>
+						<p class="text-sm text-slate-700" id="wizCtxRatePlan"></p>
+						<details class="mt-2 rounded border border-slate-200 bg-slate-50 p-3">
+							<summary class="cursor-pointer text-sm font-medium text-slate-700"
+								>Configuración avanzada</summary
+							>
+							<label class="mt-3 block text-sm text-slate-700" for="wizChannel">Canal</label>
+							<input
+								id="wizChannel"
+								class="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+								value="web"
+							/>
+						</details>
+					</div>
+					<div class="space-y-2 rounded-lg border border-slate-200 p-4">
+						<h3 class="font-semibold text-slate-900">Cobertura</h3>
+						<ul id="wizCoverageList" class="space-y-2 text-sm"></ul>
+					</div>
+				</div>
+
+				<div class="mt-6 rounded-lg border border-slate-200 p-4">
+					<p id="wizCurrentStepTitle" class="mb-1 text-base font-semibold text-slate-900"></p>
+					<p id="wizCurrentStepHelp" class="mb-3 text-sm text-slate-600"></p>
+					<form id="wizCategoryForm" class="space-y-4">
+						<details class="rounded border border-slate-200 bg-slate-50 p-3">
+							<summary class="cursor-pointer text-sm font-medium text-slate-700"
+								>Configuración avanzada</summary
+							>
+							<input
+								id="wizDescription"
+								placeholder="Nombre comercial de la política"
+								class="mt-3 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+							/>
+						</details>
+
+						<div id="catCancellation" class="hidden space-y-2">
+							<div id="cancelTiers" class="space-y-2"></div>
+							<button
+								type="button"
+								id="addCancelTier"
+								class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+								>Agregar tramo</button
+							>
+						</div>
+
+						<div id="catPayment" class="hidden space-y-2">
+							<div class="flex gap-3 text-sm text-slate-700">
+								<label
+									><input type="radio" name="paymentMode" value="pay_at_property" checked /> Pago en
+									hotel</label
+								>
+								<label><input type="radio" name="paymentMode" value="prepayment" /> Prepago</label>
+							</div>
+							<div id="prepayFields" class="grid hidden gap-2 md:grid-cols-2">
+								<input
+									id="prepayPct"
+									type="number"
+									min="0"
+									max="100"
+									placeholder="% prepago"
+									class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+								/>
+								<details class="rounded border border-slate-200 bg-slate-50 p-2 md:col-span-2">
+									<summary class="cursor-pointer text-xs font-medium text-slate-700"
+										>Configuración avanzada</summary
+									>
+									<input
+										id="prepayDays"
+										type="number"
+										min="0"
+										placeholder="Días antes"
+										class="mt-2 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+									/>
+								</details>
+							</div>
+						</div>
+
+						<div id="catCheckIn" class="grid hidden gap-2 md:grid-cols-3">
+							<input
+								id="checkInFrom"
+								type="time"
+								class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							/>
+							<input
+								id="checkInUntil"
+								type="time"
+								class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							/>
+							<input
+								id="checkOutUntil"
+								type="time"
+								class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							/>
+						</div>
+
+						<div id="catNoShow" class="hidden space-y-2">
+							<select
+								id="noShowType"
+								class="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							>
+								<option value="first_night">Primera noche</option>
+								<option value="full">Estadía completa</option>
+								<option value="percentage">Porcentaje</option>
+							</select>
+							<input
+								id="noShowPct"
+								type="number"
+								min="0"
+								max="100"
+								placeholder="Porcentaje"
+								class="hidden w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
+							/>
+						</div>
+
+						<div class="flex flex-wrap items-center gap-2">
+							<button
+								id="stepBackBtn"
+								type="button"
+								class="rounded border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+								>Volver</button
+							>
+							<button
+								id="stepNextBtn"
+								type="button"
+								class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+								>Guardar y siguiente</button
+							>
+						</div>
+					</form>
+					<p id="wizSaveStatus" class="mt-2 text-sm"></p>
+				</div>
+
+				<div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+					<h3 class="font-semibold text-slate-900">Resumen de condiciones</h3>
+					<p id="wizPreviewSummary" class="mt-1 text-sm text-slate-700"></p>
+					<ul id="wizPreviewList" class="mt-3 space-y-2 text-sm text-slate-700"></ul>
+				</div>
+			</div>
+		</div>
+		<div class="flex items-center justify-between border-t border-slate-200 px-6 py-4">
+			<p id="wizFooterStatus" class="text-sm text-slate-700"></p>
+			<button
+				id="wizFinishBtn"
+				class="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+				disabled
+			>
+				Finalizar
+			</button>
+		</div>
+	</div>
+</div>
+
+<script define:vars={{ wizardPlans, checkIn, checkOut, requiredCategories }}>
+	// @ts-nocheck
+	const overlay = document.getElementById("policyWizardOverlay")
+	const closeBtn = document.getElementById("wizardCloseBtn")
+	const stepProgress = document.getElementById("wizStepProgress")
+	const stepperList = document.getElementById("wizStepperList")
+	const currentStepTitle = document.getElementById("wizCurrentStepTitle")
+	const currentStepHelp = document.getElementById("wizCurrentStepHelp")
+	const ctxVariant = document.getElementById("wizCtxVariant")
+	const ctxRatePlan = document.getElementById("wizCtxRatePlan")
+	const coverageList = document.getElementById("wizCoverageList")
+	const form = document.getElementById("wizCategoryForm")
+	const descriptionInput = document.getElementById("wizDescription")
+	const previewSummary = document.getElementById("wizPreviewSummary")
+	const previewList = document.getElementById("wizPreviewList")
+	const saveStatus = document.getElementById("wizSaveStatus")
+	const footerStatus = document.getElementById("wizFooterStatus")
+	const readyBadge = document.getElementById("wizardReadyBadge")
+	const finishBtn = document.getElementById("wizFinishBtn")
+	const channelInput = document.getElementById("wizChannel")
+	const stepBackBtn = document.getElementById("stepBackBtn")
+	const stepNextBtn = document.getElementById("stepNextBtn")
+
+	const cancellationBox = document.getElementById("catCancellation")
+	const paymentBox = document.getElementById("catPayment")
+	const checkInBox = document.getElementById("catCheckIn")
+	const noShowBox = document.getElementById("catNoShow")
+	const cancelTiers = document.getElementById("cancelTiers")
+	const addCancelTier = document.getElementById("addCancelTier")
+	const prepayFields = document.getElementById("prepayFields")
+	const noShowType = document.getElementById("noShowType")
+	const noShowPct = document.getElementById("noShowPct")
+
+	const state = {
+		plan: null,
+		activeCategory: "Cancellation",
+		policies: [],
+		missingCategories: [],
+		saving: false,
+	}
+
+	const STEP_HELP = {
+		Cancellation: "Define cuándo aplica penalidad y qué monto corresponde.",
+		Payment: "Define si el cobro es en el alojamiento o con prepago.",
+		NoShow: "Define la penalidad cuando el huésped no se presenta.",
+		CheckIn: "Define horarios de ingreso y salida para la reserva.",
+	}
+
+	function escapeHtml(text) {
+		return String(text ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+	}
+
+	function channelValue() {
+		return String(channelInput?.value || "web").trim() || "web"
+	}
+
+	function addTierRow(defaults = {}) {
+		if (!cancelTiers) return
+		const row = document.createElement("div")
+		row.className = "grid gap-2 md:grid-cols-4"
+		row.innerHTML = `
+			<input data-k="daysBeforeArrival" type="number" min="0" placeholder="Días antes" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400" value="${escapeHtml(defaults.daysBeforeArrival ?? "")}" />
+			<select data-k="penaltyType" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+				<option value="percentage" ${defaults.penaltyType === "percentage" ? "selected" : ""}>%</option>
+				<option value="nights" ${defaults.penaltyType === "nights" ? "selected" : ""}>Noches</option>
+			</select>
+			<input data-k="penaltyAmount" type="number" min="0" placeholder="Valor" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400" value="${escapeHtml(defaults.penaltyAmount ?? "")}" />
+			<button type="button" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Quitar</button>
+		`
+		row.querySelector("button")?.addEventListener("click", () => row.remove())
+		cancelTiers.appendChild(row)
+	}
+
+	function resetCategoryForms() {
+		if (cancelTiers) cancelTiers.innerHTML = ""
+		addTierRow({ daysBeforeArrival: 7, penaltyType: "percentage", penaltyAmount: 0 })
+		const paymentDefault = form?.querySelector('input[name="paymentMode"][value="pay_at_property"]')
+		if (paymentDefault) paymentDefault.checked = true
+		if (prepayFields) prepayFields.classList.add("hidden")
+		document.getElementById("prepayPct").value = ""
+		document.getElementById("prepayDays").value = ""
+		document.getElementById("checkInFrom").value = "15:00"
+		document.getElementById("checkInUntil").value = "22:00"
+		document.getElementById("checkOutUntil").value = "11:00"
+		if (noShowType) noShowType.value = "first_night"
+		if (noShowPct) {
+			noShowPct.value = ""
+			noShowPct.classList.add("hidden")
+		}
+	}
+
+	function renderCategorySection() {
+		const cat = state.activeCategory
+		cancellationBox.classList.toggle("hidden", cat !== "Cancellation")
+		paymentBox.classList.toggle("hidden", cat !== "Payment")
+		checkInBox.classList.toggle("hidden", cat !== "CheckIn")
+		noShowBox.classList.toggle("hidden", cat !== "NoShow")
+		descriptionInput.value = `${cat} - ${state.plan?.ratePlanName || "Tarifa"}`
+		const stepIndex = requiredCategories.indexOf(cat)
+		if (stepProgress)
+			stepProgress.textContent = `Paso ${stepIndex + 1} de ${requiredCategories.length}`
+		if (currentStepTitle) currentStepTitle.textContent = categoryLabel(cat)
+		if (currentStepHelp) currentStepHelp.textContent = STEP_HELP[cat] ?? ""
+		renderStepper()
+		updateStepNav()
+	}
+
+	function renderStepper() {
+		if (!stepperList) return
+		const active = state.activeCategory
+		stepperList.innerHTML = requiredCategories
+			.map((cat, index) => {
+				const done = !state.missingCategories.includes(cat)
+				const isActive = active === cat
+				return `<li class="rounded border px-3 py-2 ${
+					isActive ? "border-slate-900 bg-slate-900/5" : "border-slate-200 bg-white"
+				}">
+					<div class="flex items-center justify-between gap-2">
+						<span class="font-medium text-slate-900">${index + 1}. ${escapeHtml(categoryLabel(cat))}</span>
+						<span class="text-xs font-medium ${
+							done ? "text-emerald-700" : "text-amber-700"
+						}">${done ? "Completo" : "Pendiente"}</span>
+					</div>
+				</li>`
+			})
+			.join("")
+	}
+
+	function updateStepNav() {
+		const idx = requiredCategories.indexOf(state.activeCategory)
+		if (stepBackBtn) stepBackBtn.disabled = idx <= 0 || state.saving
+		if (stepNextBtn) {
+			stepNextBtn.disabled = state.saving
+			stepNextBtn.textContent =
+				idx === requiredCategories.length - 1 ? "Guardar y finalizar" : "Guardar y siguiente"
+		}
+	}
+
+	function renderCoverage() {
+		if (!state.plan) return
+		coverageList.innerHTML = requiredCategories
+			.map((cat) => {
+				const missing = state.missingCategories.includes(cat)
+				return `<li class="flex items-center justify-between rounded border px-3 py-2 ${missing ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}">
+					<span>${categoryLabel(cat)}</span>
+					<span class="text-xs font-medium">${missing ? "Faltante" : "Completa"}</span>
+				</li>`
+			})
+			.join("")
+		const done = requiredCategories.length - state.missingCategories.length
+		readyBadge.textContent = done === 4 ? "Listo para vender" : `Cobertura de condiciones ${done}/4`
+		readyBadge.className =
+			done === 4
+				? "mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+				: "mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+		footerStatus.textContent =
+			done === 4
+				? "La tarifa está lista para vender."
+				: `Faltan ${4 - done} categorías para completar la tarifa.`
+		finishBtn.disabled = done !== 4
+	}
+
+	function renderPreview(payload) {
+		state.policies = Array.isArray(payload?.policies) ? payload.policies : []
+		state.missingCategories = Array.isArray(payload?.missingCategories)
+			? payload.missingCategories
+			: []
+		previewSummary.textContent = String(payload?.policySummary || "Sin resumen disponible")
+		previewList.innerHTML = state.policies.length
+			? state.policies
+					.map(
+						(policy) =>
+							`<li class="rounded border border-slate-200 bg-white px-3 py-2"><strong>${escapeHtml(categoryLabel(policy.category))}</strong>: ${escapeHtml(policy.description || "")}</li>`
+					)
+					.join("")
+			: `<li class="rounded border border-amber-200 bg-amber-50 px-3 py-2">Sin políticas resueltas para este contexto.</li>`
+		renderCoverage()
+	}
+
+	function getPolicyDescriptionMap(policies) {
+		const map = {
+			Cancellation: "Sin definir",
+			Payment: "Sin definir",
+			CheckIn: "Sin definir",
+			NoShow: "Sin definir",
+		}
+		for (const policy of Array.isArray(policies) ? policies : []) {
+			const category = String(policy?.category ?? "")
+			if (Object.hasOwn(map, category)) {
+				map[category] = String(policy?.description ?? "Sin definir")
+			}
+		}
+		return map
+	}
+
+	function categoryLabel(category) {
+		if (category === "Cancellation") return "Cancelación"
+		if (category === "Payment") return "Pago"
+		if (category === "NoShow") return "No presentación"
+		if (category === "CheckIn") return "Ingreso"
+		return category
+	}
+
+	function updateRatePlanCard(ratePlanId, payload) {
+		const card = document.querySelector(`[data-plan-id="${CSS.escape(String(ratePlanId))}"]`)
+		if (!card) return
+		const missingCategories = Array.isArray(payload?.missingCategories)
+			? payload.missingCategories
+			: []
+		const done = requiredCategories.length - missingCategories.length
+		const statusText = done === 4 ? "🟢 Listo para vender" : "🟡 Incompleto"
+		const coverageBadge = card.querySelector('[data-role="coverage-badge"]')
+		if (coverageBadge) {
+			coverageBadge.textContent = `${done}/4`
+		}
+		const statusBadge = card.querySelector('[data-role="status-badge"]')
+		if (statusBadge) {
+			statusBadge.textContent = statusText
+			statusBadge.className = `rounded-full border px-3 py-1 text-sm font-semibold ${
+				done === 4
+					? "border-emerald-200 bg-emerald-50 text-emerald-800"
+					: "border-amber-200 bg-amber-50 text-amber-800"
+			}`
+		}
+		const summary = card.querySelector('[data-role="policy-summary"]')
+		if (summary) summary.textContent = String(payload?.policySummary ?? "Sin resumen disponible")
+		const missingBox = card.querySelector('[data-role="missing-categories"]')
+		if (missingBox) {
+			if (missingCategories.length > 0) {
+				missingBox.className = "rounded-lg border border-slate-200 p-3"
+				missingBox.innerHTML = `
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cobertura de condiciones</p>
+					<p class="mt-1 text-sm font-medium text-slate-900">${done}/4</p>
+					<div class="mt-2 text-sm text-amber-800">
+						<p class="font-medium">Faltan:</p>
+						<ul class="mt-1 list-disc space-y-1 pl-5">
+							${missingCategories.map((category) => `<li>${escapeHtml(categoryLabel(category))}</li>`).join("")}
+						</ul>
+					</div>
+				`
+			} else {
+				missingBox.className = "rounded-lg border border-slate-200 p-3"
+				missingBox.innerHTML = `
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cobertura de condiciones</p>
+					<p class="mt-1 text-sm font-medium text-slate-900">${done}/4</p>
+					<p class="mt-2 text-sm text-emerald-800">Cobertura completa: tarifa lista para vender.</p>
+				`
+			}
+		}
+		const previewList = card.querySelector('[data-role="preview-list"]')
+		if (previewList) {
+			const map = getPolicyDescriptionMap(payload?.policies)
+			previewList.innerHTML = `
+				<li><strong>Cancelación:</strong> ${escapeHtml(map.Cancellation)}</li>
+				<li><strong>Pago:</strong> ${escapeHtml(map.Payment)}</li>
+				<li><strong>No presentación:</strong> ${escapeHtml(map.NoShow)}</li>
+				<li><strong>Ingreso:</strong> ${escapeHtml(map.CheckIn)}</li>
+			`
+		}
+		const openBtn = card.querySelector(".wizard-open-btn")
+		if (openBtn) openBtn.textContent = done === 4 ? "Editar condiciones" : "Completar condiciones"
+	}
+
+	async function runPreview() {
+		if (!state.plan) return
+		saveStatus.textContent = "Actualizando vista previa..."
+		const res = await fetch(window.location.pathname + window.location.search, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				intent: "preview",
+				ratePlanId: state.plan.ratePlanId,
+				channel: channelValue(),
+				checkIn,
+				checkOut,
+			}),
+		})
+		const payload = await res.json().catch(() => ({}))
+		if (!res.ok) {
+			saveStatus.textContent = `No se pudo actualizar vista previa: ${payload?.message || payload?.error || "error"}`
+			return
+		}
+		renderPreview(payload)
+		saveStatus.textContent = "Vista previa actualizada"
+	}
+
+	function buildCategoryPayload() {
+		const cat = state.activeCategory
+		if (cat === "Cancellation") {
+			const tiers = Array.from(cancelTiers.querySelectorAll("div")).map((row) => ({
+				daysBeforeArrival: Number(row.querySelector('[data-k="daysBeforeArrival"]').value || 0),
+				penaltyType: String(row.querySelector('[data-k="penaltyType"]').value || "percentage"),
+				penaltyAmount: Number(row.querySelector('[data-k="penaltyAmount"]').value || 0),
+			}))
+			return { tiers }
+		}
+		if (cat === "Payment") {
+			const mode = String(
+				form.querySelector('input[name="paymentMode"]:checked')?.value || "pay_at_property"
+			)
+			if (mode === "prepayment") {
+				return {
+					paymentType: "prepayment",
+					prepaymentPercentage: Number(document.getElementById("prepayPct").value || 0),
+					prepaymentDaysBeforeArrival: Number(document.getElementById("prepayDays").value || 0),
+				}
+			}
+			return { paymentType: "pay_at_property" }
+		}
+		if (cat === "CheckIn") {
+			return {
+				checkInFrom: String(document.getElementById("checkInFrom").value || ""),
+				checkInUntil: String(document.getElementById("checkInUntil").value || ""),
+				checkOutUntil: String(document.getElementById("checkOutUntil").value || ""),
+			}
+		}
+		const noShowKind = String(noShowType?.value || "first_night")
+		if (noShowKind === "percentage") {
+			return { penaltyType: "percentage", penaltyAmount: Number(noShowPct.value || 0) }
+		}
+		return { penaltyType: noShowKind }
+	}
+
+	function validateCategoryPayload(cat, payload) {
+		if (cat === "Cancellation") {
+			const tiers = Array.isArray(payload?.tiers) ? payload.tiers : []
+			if (tiers.length === 0) return "Debes definir al menos un tramo de cancelación."
+			for (const tier of tiers) {
+				if (!Number.isFinite(tier.daysBeforeArrival) || Number(tier.daysBeforeArrival) < 0) {
+					return "Debes indicar días válidos antes de la llegada."
+				}
+				if (!Number.isFinite(tier.penaltyAmount) || Number(tier.penaltyAmount) < 0) {
+					return "Debes indicar una penalidad válida para cancelación."
+				}
+			}
+		}
+		if (cat === "Payment") {
+			if (payload?.paymentType === "prepayment") {
+				const pct = Number(payload?.prepaymentPercentage)
+				if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+					return "Debes definir un porcentaje de prepago entre 0 y 100."
+				}
+			}
+		}
+		if (cat === "CheckIn") {
+			if (!payload?.checkInFrom || !payload?.checkInUntil || !payload?.checkOutUntil) {
+				return "Debes completar los horarios de ingreso y salida."
+			}
+		}
+		if (cat === "NoShow") {
+			if (!payload?.penaltyType) return "Debes definir la política de no presentación."
+			if (payload?.penaltyType === "percentage") {
+				const pct = Number(payload?.penaltyAmount)
+				if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+					return "Debes definir un porcentaje válido para no presentación."
+				}
+			}
+		}
+		return null
+	}
+
+	async function saveCategory() {
+		if (!state.plan) return
+		state.saving = true
+		updateStepNav()
+		saveStatus.textContent = "Guardando condición..."
+		const cat = state.activeCategory
+		const payload = buildCategoryPayload()
+		const validationError = validateCategoryPayload(cat, payload)
+		if (validationError) {
+			state.saving = false
+			updateStepNav()
+			saveStatus.textContent = `❌ ${validationError}`
+			return false
+		}
+		const res = await fetch(window.location.pathname + window.location.search, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				intent: "save_category",
+				ratePlanId: state.plan.ratePlanId,
+				channel: channelValue(),
+				checkIn,
+				checkOut,
+				category: cat,
+				existingPolicyId: state.plan.policyIdByCategory?.[cat] || null,
+				description: String(descriptionInput.value || `${cat} - ${state.plan.ratePlanName}`),
+				payload,
+			}),
+		})
+		const data = await res.json().catch(() => ({}))
+		if (!res.ok) {
+			state.saving = false
+			updateStepNav()
+			saveStatus.textContent = `❌ No se pudo guardar ${categoryLabel(cat)}: ${data?.message || data?.error || "error"}`
+			return false
+		}
+		state.plan.policyIdByCategory[cat] =
+			data?.policyId || state.plan.policyIdByCategory[cat] || null
+		renderPreview(data)
+		updateRatePlanCard(state.plan.ratePlanId, data)
+		const idx = wizardPlans.findIndex((plan) => plan.ratePlanId === state.plan.ratePlanId)
+		if (idx >= 0) {
+			wizardPlans[idx].missingCategories = Array.isArray(data?.missingCategories)
+				? data.missingCategories
+				: []
+			wizardPlans[idx].policySummary = String(
+				data?.policySummary ?? wizardPlans[idx].policySummary ?? ""
+			)
+		}
+		saveStatus.textContent = `✅ Condición guardada: ${categoryLabel(cat)}.`
+		state.saving = false
+		updateStepNav()
+		return true
+	}
+
+	function openWizard(ratePlanId) {
+		const found = wizardPlans.find((plan) => plan.ratePlanId === ratePlanId)
+		if (!found) return
+		state.plan = JSON.parse(JSON.stringify(found))
+		state.missingCategories = Array.isArray(found.missingCategories)
+			? [...found.missingCategories]
+			: []
+		state.saving = false
+		ctxVariant.textContent = `Habitación: ${found.variantName}`
+		ctxRatePlan.textContent = `Tarifa: ${found.ratePlanName}`
+		channelInput.value = "web"
+		state.activeCategory = state.missingCategories[0] || "Cancellation"
+		resetCategoryForms()
+		renderCategorySection()
+		previewSummary.textContent = String(found.policySummary || "")
+		previewList.innerHTML = ""
+		renderCoverage()
+		overlay.classList.remove("hidden")
+		runPreview()
+	}
+
+	function closeWizard() {
+		overlay.classList.add("hidden")
+		state.plan = null
+		saveStatus.textContent = ""
+	}
+
+	for (const btn of document.querySelectorAll(".wizard-open-btn")) {
+		btn.addEventListener("click", () => openWizard(btn.dataset.ratePlanId))
+	}
+	closeBtn?.addEventListener("click", closeWizard)
+	overlay?.addEventListener("click", (event) => {
+		if (event.target === overlay) closeWizard()
+	})
+	finishBtn?.addEventListener("click", closeWizard)
+
+	addCancelTier?.addEventListener("click", () => addTierRow())
+	form?.addEventListener("submit", (event) => event.preventDefault())
+	stepBackBtn?.addEventListener("click", () => {
+		const idx = requiredCategories.indexOf(state.activeCategory)
+		if (idx <= 0) return
+		state.activeCategory = requiredCategories[idx - 1]
+		renderCategorySection()
+	})
+	stepNextBtn?.addEventListener("click", async () => {
+		const ok = await saveCategory()
+		if (!ok) return
+		const idx = requiredCategories.indexOf(state.activeCategory)
+		if (idx < requiredCategories.length - 1) {
+			state.activeCategory = requiredCategories[idx + 1]
+			renderCategorySection()
+		} else if (!finishBtn?.disabled) {
+			closeWizard()
+		}
+	})
+	form?.querySelectorAll('input[name="paymentMode"]').forEach((radio) => {
+		radio.addEventListener("change", () => {
+			const checked = String(form.querySelector('input[name="paymentMode"]:checked')?.value || "")
+			prepayFields.classList.toggle("hidden", checked !== "prepayment")
+		})
+	})
+	noShowType?.addEventListener("change", () => {
+		noShowPct?.classList.toggle("hidden", String(noShowType.value) !== "percentage")
+	})
+</script>
