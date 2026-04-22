@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
-import { ratePlanCommandRepository, variantManagementRepository } from "@/container"
+import { ratePlanCommandRepository } from "@/container"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
-import { buildCreateRatePlanSpec } from "@/modules/pricing/public"
+import { buildCreateRatePlanSpec, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { randomUUID } from "node:crypto"
 
 export const PUT: APIRoute = async ({ request }) => {
@@ -15,7 +15,6 @@ export const PUT: APIRoute = async ({ request }) => {
 			description?: string | null
 			paymentType?: string
 			refundable?: boolean
-			cancellationPolicyId?: string | null
 			type?: string
 			value?: number
 			minNights?: number
@@ -69,7 +68,6 @@ export const PUT: APIRoute = async ({ request }) => {
 				description: body.description ?? null,
 				paymentType: String(body.paymentType ?? ""),
 				refundable: Boolean(body.refundable),
-				cancellationPolicyId: body.cancellationPolicyId ?? null,
 			},
 			priceRule,
 			restrictions: specResult.spec.restrictions.items.map((item) => ({
@@ -81,12 +79,10 @@ export const PUT: APIRoute = async ({ request }) => {
 			return new Response(JSON.stringify({ error: "RatePlan not found" }), { status: 404 })
 		}
 
-		if (body.variantId) {
-			invalidateAggregateCache({ variantId: body.variantId })
-			const variant = await variantManagementRepository.getVariantById(body.variantId)
-			if (variant) {
-				await invalidateVariant(body.variantId, variant.productId)
-			}
+		const ownerContext = await resolveRatePlanOwnerContext(body.id)
+		if (ownerContext) {
+			invalidateAggregateCache({ variantId: ownerContext.variantId })
+			await invalidateVariant(ownerContext.variantId, ownerContext.productId)
 		}
 		return new Response(JSON.stringify({ success: true }), { status: 200 })
 	} catch (err) {
