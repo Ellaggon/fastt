@@ -5,7 +5,6 @@ export interface CreateRatePlanCommand {
 		description: string | null
 		paymentType: string
 		refundable: boolean
-		cancellationPolicyId: string | null
 		createdAt: Date
 	}
 	ratePlan: {
@@ -49,7 +48,6 @@ export interface RatePlanCommandRepositoryPort {
 			description: string | null
 			paymentType: string
 			refundable: boolean
-			cancellationPolicyId: string | null
 		}
 		priceRule: null | {
 			id: string
