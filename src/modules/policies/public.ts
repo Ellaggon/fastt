@@ -17,6 +17,8 @@ export * from "./domain/restrictions/restrictions.types"
 // Application mappers
 export * from "./application/mappers/restrictions.mapper"
 export * from "./application/mappers/mapResolvedPoliciesToUI"
+export * from "./application/mappers/derivePolicySummary"
+export * from "./application/mappers/deriveRatePlanPolicyInsights"
 export * from "./application/errors/policyValidationError"
 
 // Application services
@@ -30,6 +32,8 @@ export * from "./application/use-cases/capa6/create-policy"
 export * from "./application/use-cases/capa6/create-policy-version"
 export * from "./application/use-cases/capa6/assign-policy"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
+export * from "./application/use-cases/build-policy-snapshot"
+export * from "./application/use-cases/rate-plan-policies-surface"
 
 // Application queries (factories for DI wiring)
 // NOTE: We intentionally do NOT export legacy query factories or cache/compiler-related ports here.

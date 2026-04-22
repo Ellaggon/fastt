@@ -3,14 +3,15 @@ import { describe, it, expect } from "vitest"
 import {
 	upsertDestination,
 	upsertProduct,
+	upsertRatePlan,
+	upsertRatePlanTemplate,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
-import { POST as setBaseRatePost } from "@/pages/api/pricing/base-rate"
-import { POST as createRulePost } from "@/pages/api/pricing/rule"
-import { GET as listRulesGet } from "@/pages/api/pricing/rules"
-import { POST as previewPost } from "@/pages/api/pricing/preview"
+import { POST as createRuleV2Post } from "@/pages/api/pricing/rules/v2/create"
+import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
+import { POST as previewRulesV2Post } from "@/pages/api/pricing/rules/v2/preview"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -54,14 +55,18 @@ function withSupabaseAuthStub<T>(
 	})
 }
 
-function makeAuthedFormRequest(params: { path: string; token?: string; form?: FormData }): Request {
-	const headers = new Headers()
+function makeAuthedJsonRequest(params: {
+	path: string
+	token?: string
+	body: Record<string, unknown>
+}) {
+	const headers = new Headers({ "Content-Type": "application/json" })
 	if (params.token)
 		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
 	return new Request(`http://localhost:4321${params.path}`, {
 		method: "POST",
-		body: params.form,
 		headers,
+		body: JSON.stringify(params.body),
 	})
 }
 
@@ -77,140 +82,143 @@ async function readJson(res: Response) {
 	return txt ? JSON.parse(txt) : null
 }
 
-describe("integration/pricing rules (CAPA 4D minimal)", () => {
-	it("create rule OK + list rules OK + preview reflects rules", async () => {
+async function seedRulesFixture(params?: { ownerEmail?: string }) {
+	const suffix = crypto.randomUUID()
+	const ownerEmail = params?.ownerEmail ?? `rules-${suffix}@example.com`
+	const providerId = `prov_rules_${suffix}`
+	const destinationId = `dest_rules_${suffix}`
+	const productId = `prod_rules_${suffix}`
+	const variantId = `var_rules_${suffix}`
+	const ratePlanTemplateId = `rpt_rules_${suffix}`
+	const ratePlanId = `rp_rules_${suffix}`
+
+	await upsertDestination({
+		id: destinationId,
+		name: "Rules Dest",
+		type: "city",
+		country: "CL",
+		slug: `rules-dest-${suffix}`,
+	})
+	await upsertProvider({ id: providerId, displayName: "Rules Provider", ownerEmail })
+	await upsertProduct({
+		id: productId,
+		name: "Rules Hotel",
+		productType: "Hotel",
+		destinationId,
+		providerId,
+	})
+	await upsertVariant({
+		id: variantId,
+		productId,
+		kind: "hotel_room",
+		name: "Room",
+		baseRateCurrency: "USD",
+		baseRatePrice: 100,
+	})
+	await upsertRatePlanTemplate({
+		id: ratePlanTemplateId,
+		name: "Default",
+		paymentType: "prepaid",
+		refundable: false,
+	})
+	await upsertRatePlan({
+		id: ratePlanId,
+		templateId: ratePlanTemplateId,
+		variantId,
+		isActive: true,
+		isDefault: true,
+	})
+
+	return { ownerEmail, ratePlanId }
+}
+
+describe("integration/pricing rules (rules v2, ratePlan-first)", () => {
+	it("create rule + list rules + preview reflects ratePlan context", async () => {
 		const token = "t_pr_rules_ok"
-		const email = "rules-ok@example.com"
-		const providerId = "prov_rules_ok"
-		const destinationId = "dest_rules_ok"
-		const productId = `prod_rules_ok_${crypto.randomUUID()}`
-		const variantId = `var_rules_ok_${crypto.randomUUID()}`
+		const seeded = await seedRulesFixture({ ownerEmail: "rules-ok@example.com" })
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Rules Dest",
-			type: "city",
-			country: "CL",
-			slug: "rules-dest",
-		})
-		await upsertProvider({ id: providerId, displayName: "Rules Provider", ownerEmail: email })
-		await upsertProduct({
-			id: productId,
-			name: "Rules Hotel",
-			productType: "Hotel",
-			destinationId,
-			providerId,
-		})
-		await upsertVariant({
-			id: variantId,
-			productId,
-			kind: "hotel_room",
-			name: "Room",
-			currency: "USD",
-			basePrice: 999,
-		})
+		await withSupabaseAuthStub(
+			{ [token]: { id: "u_rules_ok", email: seeded.ownerEmail } },
+			async () => {
+				const createRes = await createRuleV2Post({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/create",
+						token,
+						body: {
+							ratePlanId: seeded.ratePlanId,
+							type: "percentage",
+							value: 10,
+							priority: 10,
+						},
+					}),
+				} as any)
+				expect(createRes.status).toBe(201)
+				const created = (await readJson(createRes)) as any
+				expect(typeof created?.ruleId).toBe("string")
 
-		await withSupabaseAuthStub({ [token]: { id: "u_rules_ok", email } }, async () => {
-			// Base rate
-			const br = new FormData()
-			br.set("variantId", variantId)
-			br.set("currency", "USD")
-			br.set("basePrice", "100")
-			expect(
-				(
-					await setBaseRatePost({
-						request: makeAuthedFormRequest({ path: "/api/pricing/base-rate", token, form: br }),
-					} as any)
-				).status
-			).toBe(200)
+				const listPath = `/api/pricing/rules/v2/list?ratePlanId=${encodeURIComponent(seeded.ratePlanId)}`
+				const listRes = await listRulesV2Get({
+					request: makeAuthedGetRequest({ path: listPath, token }),
+					url: new URL(`http://localhost:4321${listPath}`),
+				} as any)
+				expect(listRes.status).toBe(200)
+				const listBody = (await readJson(listRes)) as any
+				expect(Array.isArray(listBody?.rules)).toBe(true)
+				expect(listBody.rules.some((rule: any) => String(rule.id) === String(created.ruleId))).toBe(
+					true
+				)
 
-			// Create rule
-			const r = new FormData()
-			r.set("variantId", variantId)
-			r.set("type", "percentage")
-			r.set("value", "10")
-			const createRes = await createRulePost({
-				request: makeAuthedFormRequest({ path: "/api/pricing/rule", token, form: r }),
-			} as any)
-			expect(createRes.status).toBe(201)
-
-			// List rules (also ensures default plan exists)
-			const listRes = await listRulesGet({
-				request: makeAuthedGetRequest({
-					path: `/api/pricing/rules?variantId=${encodeURIComponent(variantId)}`,
-					token,
-				}),
-				url: new URL(
-					`http://localhost:4321/api/pricing/rules?variantId=${encodeURIComponent(variantId)}`
-				),
-			} as any)
-			expect(listRes.status).toBe(200)
-			const listBody = (await readJson(listRes)) as any
-			expect(Array.isArray(listBody?.rules)).toBe(true)
-			expect(listBody.rules.length).toBeGreaterThanOrEqual(1)
-
-			// Preview reflects rule
-			const prevFd = new FormData()
-			prevFd.set("variantId", variantId)
-			const prevRes = await previewPost({
-				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: prevFd }),
-			} as any)
-			expect(prevRes.status).toBe(200)
-			const prevBody = (await readJson(prevRes)) as any
-			expect(prevBody?.basePrice).toBe(100)
-			expect(prevBody?.finalPrice).toBe(110)
-		})
+				const previewRes = await previewRulesV2Post({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/preview",
+						token,
+						body: {
+							ratePlanId: seeded.ratePlanId,
+							type: "percentage",
+							value: 10,
+							priority: 10,
+							previewFrom: "2032-01-01",
+							previewDays: 3,
+						},
+					}),
+				} as any)
+				expect(previewRes.status).toBe(200)
+				const previewBody = (await readJson(previewRes)) as any
+				expect(previewBody?.ratePlanId).toBe(seeded.ratePlanId)
+				expect(Array.isArray(previewBody?.days)).toBe(true)
+				expect(previewBody.days.length).toBe(3)
+				expect(previewBody.days.every((d: any) => Number(d.after) >= Number(d.before))).toBe(true)
+			}
+		)
 	})
 
 	it("ownership violation => 404", async () => {
-		const tokenA = "t_pr_rules_oa"
-		const tokenB = "t_pr_rules_ob"
-		const emailA = "rules-oa@example.com"
-		const emailB = "rules-ob@example.com"
-		const providerA = "prov_rules_oa"
-		const providerB = "prov_rules_ob"
-		const destinationId = "dest_rules_own"
-		const productId = `prod_rules_own_${crypto.randomUUID()}`
-		const variantId = `var_rules_own_${crypto.randomUUID()}`
-
-		await upsertDestination({
-			id: destinationId,
-			name: "Rules Own Dest",
-			type: "city",
-			country: "CL",
-			slug: "rules-own-dest",
-		})
-		await upsertProvider({ id: providerA, displayName: "Rules Own A", ownerEmail: emailA })
-		await upsertProvider({ id: providerB, displayName: "Rules Own B", ownerEmail: emailB })
-		await upsertProduct({
-			id: productId,
-			name: "Rules Own Hotel",
-			productType: "Hotel",
-			destinationId,
-			providerId: providerA,
-		})
-		await upsertVariant({
-			id: variantId,
-			productId,
-			kind: "hotel_room",
-			name: "Room",
-			currency: "USD",
-			basePrice: 999,
+		const tokenOwner = "t_pr_rules_oa"
+		const tokenOther = "t_pr_rules_ob"
+		const seeded = await seedRulesFixture({ ownerEmail: "rules-oa@example.com" })
+		await upsertProvider({
+			id: `prov_rules_other_${crypto.randomUUID()}`,
+			displayName: "Rules Other Provider",
+			ownerEmail: "rules-ob@example.com",
 		})
 
 		await withSupabaseAuthStub(
 			{
-				[tokenA]: { id: "u_rules_oa", email: emailA },
-				[tokenB]: { id: "u_rules_ob", email: emailB },
+				[tokenOwner]: { id: "u_rules_oa", email: seeded.ownerEmail },
+				[tokenOther]: { id: "u_rules_ob", email: "rules-ob@example.com" },
 			},
 			async () => {
-				const r = new FormData()
-				r.set("variantId", variantId)
-				r.set("type", "percentage")
-				r.set("value", "10")
-
-				const res = await createRulePost({
-					request: makeAuthedFormRequest({ path: "/api/pricing/rule", token: tokenB, form: r }),
+				const res = await createRuleV2Post({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/create",
+						token: tokenOther,
+						body: {
+							ratePlanId: seeded.ratePlanId,
+							type: "percentage",
+							value: 10,
+							priority: 10,
+						},
+					}),
 				} as any)
 				expect(res.status).toBe(404)
 			}

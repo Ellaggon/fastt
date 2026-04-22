@@ -9,6 +9,10 @@ export { releaseInventoryHold } from "./application/use-cases/release-inventory-
 export { releaseExpiredHolds } from "./application/use-cases/release-expired-holds"
 export { recomputeEffectiveAvailabilityRange } from "./application/use-cases/recompute-effective-availability-range"
 export { applyInventoryMutation } from "./application/use-cases/apply-inventory-mutation"
+export {
+	simulateBulkInventoryOperation,
+	applyBulkInventoryOperation,
+} from "./application/use-cases/bulk-inventory-service"
 
 // Application services
 export * from "./application/services/InventorySeederService"

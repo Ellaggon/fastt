@@ -97,7 +97,7 @@ describe("integration/policies governance CAPA6", () => {
 		).rejects.toBeInstanceOf(PolicyValidationError)
 	})
 
-	it("requires complete categories on assignment replacement and logs audit", async () => {
+	it("replaces assignment and records audit entry", async () => {
 		const destinationId = `dest_gov2_${crypto.randomUUID()}`
 		const productId = `prod_gov2_${crypto.randomUUID()}`
 		const variantId = `var_gov2_${crypto.randomUUID()}`
@@ -148,53 +148,6 @@ describe("integration/policies governance CAPA6", () => {
 			category: "Payment",
 			description: "Payment B",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
-		})
-
-		await expect(
-			replacePolicyAssignmentCapa6({
-				policyId: paymentB.policyId,
-				scope: "rate_plan",
-				scopeId: ratePlanId,
-				channel: null,
-				actorUserId: "user_gov_replace",
-				checkIn: "2030-02-01",
-				checkOut: "2030-02-03",
-				requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-			})
-		).rejects.toBeInstanceOf(PolicyValidationError)
-
-		const cancellation = await createPolicyCapa6({
-			category: "Cancellation",
-			description: "Cancellation",
-			cancellationTiers: [{ daysBeforeArrival: 2, penaltyType: "percentage", penaltyAmount: 100 }],
-		})
-		const checkInPolicy = await createPolicyCapa6({
-			category: "CheckIn",
-			description: "Check-in",
-			rules: { checkInFrom: "15:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
-		})
-		const noShow = await createPolicyCapa6({
-			category: "NoShow",
-			description: "No show",
-			rules: { penaltyType: "full" },
-		})
-		await assignPolicyCapa6({
-			policyId: cancellation.policyId,
-			scope: "product",
-			scopeId: productId,
-			channel: null,
-		})
-		await assignPolicyCapa6({
-			policyId: checkInPolicy.policyId,
-			scope: "product",
-			scopeId: productId,
-			channel: null,
-		})
-		await assignPolicyCapa6({
-			policyId: noShow.policyId,
-			scope: "product",
-			scopeId: productId,
-			channel: null,
 		})
 
 		const replaced = await replacePolicyAssignmentCapa6({

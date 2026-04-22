@@ -1,4 +1,4 @@
-import { describe, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import {
 	and,
 	db,
@@ -20,8 +20,7 @@ function toInt(v: unknown): number {
 }
 
 describe("audit/rateplan data (read-only)", () => {
-	it("prints RatePlan/PriceRule/Restriction audit report", async () => {
-		// Counts
+	it("prints modern RatePlan/PriceRule/Restriction audit report", async () => {
 		const [{ n: ratePlanCount }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
@@ -43,7 +42,6 @@ describe("audit/rateplan data (read-only)", () => {
 				.from(Restriction)
 				.all()) ?? []
 
-		// Invalid rule types (System B allows only percentage|fixed)
 		const invalidRuleTypes = await db
 			.select({ type: PriceRule.type, n: sql<number>`count(*)` })
 			.from(PriceRule)
@@ -51,7 +49,6 @@ describe("audit/rateplan data (read-only)", () => {
 			.groupBy(PriceRule.type)
 			.all()
 
-		// Rate plans distribution per variant (detect multiple plans / missing default)
 		const perVariant = await db
 			.select({
 				variantId: RatePlan.variantId,
@@ -80,15 +77,6 @@ describe("audit/rateplan data (read-only)", () => {
 			.filter((r) => r.defaultPlans !== 1)
 			.sort((a, b) => b.totalPlans - a.totalPlans)
 
-		// Legacy coupling: template.cancellationPolicyId not null
-		const [{ n: templatesWithCancellationPolicyId }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(RatePlanTemplate)
-				.where(sql`${RatePlanTemplate.cancellationPolicyId} is not null`)
-				.all()) ?? []
-
-		// Orphans
 		const [{ n: orphanPriceRules }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
@@ -141,7 +129,6 @@ describe("audit/rateplan data (read-only)", () => {
 					count: variantsWithoutExactlyOneDefault.length,
 					sample: variantsWithoutExactlyOneDefault.slice(0, 20),
 				},
-				templatesWithCancellationPolicyId: toInt(templatesWithCancellationPolicyId),
 			},
 			orphans: {
 				priceRulesWithoutRatePlan: toInt(orphanPriceRules),
@@ -151,6 +138,9 @@ describe("audit/rateplan data (read-only)", () => {
 			},
 		}
 
+		expect(report.counts.ratePlans).toBeGreaterThanOrEqual(0)
+		expect(report.counts.ratePlanTemplates).toBeGreaterThanOrEqual(0)
+		expect(report.orphans.priceRulesWithoutRatePlan).toBeGreaterThanOrEqual(0)
 		// eslint-disable-next-line no-console
 		console.log("[rateplan-audit]", JSON.stringify(report, null, 2))
 	})

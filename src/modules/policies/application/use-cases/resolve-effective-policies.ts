@@ -12,6 +12,8 @@ export type ScopeContext = {
 	productId: string
 	variantId?: string
 	ratePlanId?: string
+	checkIn?: string
+	checkOut?: string
 	channel?: string
 }
 
@@ -28,6 +30,14 @@ export type ResolvedPolicy = {
 
 export type ResolveEffectivePoliciesResult = {
 	policies: ResolvedPolicy[]
+}
+
+function resolveAsOfDate(ctx: ScopeContext): string {
+	const rawCheckIn = String(ctx.checkIn ?? "").trim()
+	if (!rawCheckIn) return toISODate(new Date())
+	const parsed = new Date(`${rawCheckIn}T00:00:00.000Z`)
+	if (Number.isNaN(parsed.getTime())) return toISODate(new Date())
+	return toISODate(parsed)
 }
 
 function uniq<T>(xs: T[]): T[] {
@@ -59,7 +69,7 @@ export async function resolveEffectivePolicies(
 	if (!assignments.length) return { policies: [] }
 
 	const categories = uniq(assignments.map((a) => a.category)).sort((a, b) => a.localeCompare(b))
-	const asOfDate = toISODate(new Date()) // minimal "as-of" anchor; CAPA 6 can later accept checkIn.
+	const asOfDate = resolveAsOfDate(ctx)
 
 	const resolved: ResolvedPolicy[] = []
 

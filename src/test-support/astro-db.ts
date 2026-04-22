@@ -61,12 +61,14 @@ export let TaxFeeAssignment: any
 export let Restriction: any
 export let EffectiveRestriction: any
 export let InventoryLock: any
+export let Hold: any
 export let PolicyGroup: any
 export let Policy: any
 export let PolicyAssignment: any
 export let CancellationTier: any
 export let PolicyRule: any
 export let EffectivePolicy: any
+export let PolicyAuditLog: any
 export let Booking: any
 export let BookingRoomDetail: any
 export let BookingPolicySnapshot: any
@@ -151,12 +153,14 @@ async function init() {
 	Restriction = drizzleTables.Restriction
 	EffectiveRestriction = drizzleTables.EffectiveRestriction
 	InventoryLock = drizzleTables.InventoryLock
+	Hold = drizzleTables.Hold
 	PolicyGroup = drizzleTables.PolicyGroup
 	Policy = drizzleTables.Policy
 	PolicyAssignment = drizzleTables.PolicyAssignment
 	CancellationTier = drizzleTables.CancellationTier
 	PolicyRule = drizzleTables.PolicyRule
 	EffectivePolicy = drizzleTables.EffectivePolicy
+	PolicyAuditLog = drizzleTables.PolicyAuditLog
 	Booking = drizzleTables.Booking
 	BookingRoomDetail = drizzleTables.BookingRoomDetail
 	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
