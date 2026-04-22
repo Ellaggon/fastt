@@ -22,11 +22,17 @@ export type StaySellabilityEvaluation = {
 export function evaluateStaySellabilityFromView(params: {
 	stayDates: string[]
 	checkInDate: string
-	checkOutDate: string
 	requestedRooms: number
 	rowsByDate: Map<string, SearchUnitViewStayRow>
 }): StaySellabilityEvaluation {
 	const requestedRooms = Math.max(1, Number(params.requestedRooms ?? 1))
+	if (!params.stayDates.length) {
+		return {
+			sellable: false,
+			primaryBlocker: "INVALID_STAY_RANGE",
+			failingDate: null,
+		}
+	}
 	const stayDays: SearchUnitViewStayRow[] = []
 	for (const date of params.stayDates) {
 		const day = params.rowsByDate.get(date)
@@ -56,19 +62,20 @@ export function evaluateStaySellabilityFromView(params: {
 		}
 	}
 
-	const checkOutDay = params.rowsByDate.get(params.checkOutDate)
-	if (!checkOutDay) {
+	const lastStayDate = params.stayDates[params.stayDates.length - 1]
+	const lastStayDay = params.rowsByDate.get(lastStayDate)
+	if (!lastStayDay) {
 		return {
 			sellable: false,
 			primaryBlocker: "UNKNOWN",
-			failingDate: params.checkOutDate,
+			failingDate: lastStayDate,
 		}
 	}
-	if (checkOutDay.ctd) {
+	if (lastStayDay.ctd) {
 		return {
 			sellable: false,
 			primaryBlocker: "CTD",
-			failingDate: params.checkOutDate,
+			failingDate: lastStayDate,
 		}
 	}
 

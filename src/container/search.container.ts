@@ -10,6 +10,7 @@ import {
 	evaluateStaySellabilityFromView,
 	type SearchUnitViewStayRow,
 } from "@/modules/search/application/queries/evaluate-stay-from-view"
+import type { TaxFeeBreakdown } from "@/modules/taxes-fees/domain/tax-fee.types"
 import { toISODate } from "@/shared/domain/date/date.utils"
 
 const autoBackfillInFlight = new Set<string>()
@@ -115,9 +116,25 @@ async function searchOffersFromView(params: {
 }> {
 	const units = await getActiveUnitsByProduct(params.productId)
 	if (!units.length) return { offers: [], reason: "no_active_units" }
+	logger.debug("search.view.trace.active_units", {
+		productId: params.productId,
+		variants: units.map((unit) => ({
+			variantId: unit.id,
+			kind: unit.kind,
+			minOccupancy: unit.capacity?.minOccupancy ?? null,
+			maxOccupancy: unit.capacity?.maxOccupancy ?? null,
+		})),
+	})
 
 	const stayDates = enumerateStayDates(params.checkIn, params.checkOut)
 	if (!stayDates.length) return { offers: [], reason: "invalid_stay_range" }
+	logger.debug("search.view.trace.stay_dates", {
+		productId: params.productId,
+		checkIn: toDateOnly(params.checkIn),
+		checkOut: toDateOnly(params.checkOut),
+		nights: stayDates.length,
+		stayDates,
+	})
 
 	const occupancy = Math.max(1, Number(params.adults ?? 0) + Number(params.children ?? 0))
 	const requestedRooms = Math.max(1, Number(params.rooms ?? 1))
@@ -131,8 +148,6 @@ async function searchOffersFromView(params: {
 	const unitIds = units.map((unit) => unit.id).filter(Boolean)
 	if (!unitIds.length) return { offers: [], reason: "no_active_units" }
 
-	const maxAgeMinutes = Math.max(1, Number(process.env.SEARCH_VIEW_MAX_AGE_MINUTES ?? "30"))
-	const staleCutoff = new Date(Date.now() - maxAgeMinutes * 60_000)
 	const rows = await db
 		.select({
 			variantId: SearchUnitView.variantId,
@@ -156,12 +171,36 @@ async function searchOffersFromView(params: {
 				eq(SearchUnitView.productId, params.productId),
 				inArray(SearchUnitView.variantId, unitIds),
 				gte(SearchUnitView.date, toDateOnly(params.checkIn)),
-				lt(SearchUnitView.date, toDateOnly(new Date(params.checkOut.getTime() + 86_400_000))),
-				eq(SearchUnitView.occupancyKey, occupancyKey),
-				gte(SearchUnitView.computedAt, staleCutoff)
+				lt(SearchUnitView.date, toDateOnly(params.checkOut)),
+				eq(SearchUnitView.occupancyKey, occupancyKey)
 			)
 		)
 		.all()
+	logger.debug("search.view.trace.rows", {
+		productId: params.productId,
+		occupancyKey,
+		rowCount: rows.length,
+		rows: rows.map((row) => ({
+			variantId: String(row.variantId),
+			ratePlanId: String(row.ratePlanId),
+			date: String(row.date),
+			isSellable: Boolean(row.isSellable),
+			isAvailable: Boolean(row.isAvailable),
+			availableUnits: Number(row.availableUnits ?? 0),
+			hasPrice: Boolean(row.hasPrice),
+			pricePerNight:
+				row.pricePerNight == null || !Number.isFinite(Number(row.pricePerNight))
+					? null
+					: Number(row.pricePerNight),
+			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
+		})),
+	})
+	if (!rows.length) {
+		return {
+			offers: [],
+			reason: "missing_view_data",
+		}
+	}
 
 	const byVariantRatePlan = new Map<string, typeof rows>()
 	for (const row of rows) {
@@ -181,7 +220,6 @@ async function searchOffersFromView(params: {
 		primaryBlocker: string
 	}> = []
 	const checkInDate = toDateOnly(params.checkIn)
-	const checkOutDate = toDateOnly(params.checkOut)
 	for (const unit of units) {
 		const ratePlanOffers: SearchOffer<SearchUnit>["ratePlans"] = []
 		for (const [key, bucket] of byVariantRatePlan.entries()) {
@@ -229,8 +267,7 @@ async function searchOffersFromView(params: {
 			}
 
 			const checkInRow = bucketByDate.get(checkInDate)
-			const checkOutRow = bucketByDate.get(checkOutDate)
-			if (!checkInRow || !checkOutRow) {
+			if (!checkInRow) {
 				sawMissingViewData = true
 				if (params.debug) {
 					debugUnsellable.push({
@@ -251,7 +288,6 @@ async function searchOffersFromView(params: {
 			const evaluation = evaluateStaySellabilityFromView({
 				stayDates,
 				checkInDate,
-				checkOutDate,
 				requestedRooms,
 				rowsByDate: bucketByDate,
 			})
@@ -260,6 +296,35 @@ async function searchOffersFromView(params: {
 				: (evaluation.primaryBlocker ?? "UNKNOWN")
 
 			if (unsellableBlocker) {
+				if (params.debug) {
+					logger.info("search.view.unsellable_decision", {
+						productId: params.productId,
+						variantId: unit.id,
+						ratePlanId,
+						checkIn: checkInDate,
+						checkOut: toDateOnly(params.checkOut),
+						stayDates,
+						primaryBlocker: unsellableBlocker,
+						evaluationFailingDate: evaluation.failingDate ?? null,
+						perNight: stayDates.map((date) => {
+							const day = bucketByDate.get(date)
+							return {
+								date,
+								isSellable: day?.isSellable ?? null,
+								isAvailable: day?.isAvailable ?? null,
+								hasAvailability: day?.hasAvailability ?? null,
+								hasPrice: day?.hasPrice ?? null,
+								stopSell: day?.stopSell ?? null,
+								availableUnits: day?.availableUnits ?? null,
+								minStay: day?.minStay ?? null,
+								cta: day?.cta ?? null,
+								ctd: day?.ctd ?? null,
+								pricePerNight: day?.pricePerNight ?? null,
+								primaryBlocker: day?.primaryBlocker ?? null,
+							}
+						}),
+					})
+				}
 				if (params.debug) {
 					debugUnsellable.push({
 						variantId: unit.id,
@@ -285,6 +350,17 @@ async function searchOffersFromView(params: {
 				const day = bucketByDate.get(date)
 				return sum + Number(day?.pricePerNight ?? 0)
 			}, 0)
+			logger.debug("search.view.trace.price_aggregation", {
+				productId: params.productId,
+				variantId: unit.id,
+				ratePlanId,
+				nights: stayDates.length,
+				priceInputs: stayDates.map((date) => ({
+					date,
+					pricePerNight: Number(bucketByDate.get(date)?.pricePerNight ?? 0),
+				})),
+				total,
+			})
 
 			ratePlanOffers.push({
 				ratePlanId,
@@ -293,10 +369,10 @@ async function searchOffersFromView(params: {
 				taxesAndFees: {
 					total,
 					base: total,
-					taxes: [],
-					fees: [],
+					taxes: { included: [], excluded: [] },
+					fees: { included: [], excluded: [] },
 					currency: "USD",
-				},
+				} as TaxFeeBreakdown,
 				totalPrice: total,
 			})
 		}
