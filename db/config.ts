@@ -372,21 +372,45 @@ const PolicyRule = defineTable({
 		ruleValue: column.json({ optional: true }),
 	},
 })
+// Legacy compatibility for remote migration history.
+// Keep deprecated until remote schema fully converges.
 const EffectivePolicy = defineTable({
+	deprecated: true,
 	columns: {
 		id: column.text({ primaryKey: true }),
-		entityType: column.text(), // hotel | product | variant | rateplan | channel
+		entityType: column.text(),
 		entityId: column.text(),
 		category: column.text(),
 		effectivePolicyId: column.text(),
 		effectiveGroupId: column.text(),
 		description: column.text({ optional: true }),
-		rules: column.json({ optional: true }),
-		cancellationTiers: column.json({ optional: true }),
+		rules: column.text({ optional: true }),
+		cancellationTiers: column.text({ optional: true }),
 		priority: column.number(),
 		computedAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["entityType", "entityId", "category"], unique: true }],
+	indexes: [{ on: ["category", "entityId", "entityType"], unique: true }],
+})
+const PolicyAuditLog = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		eventType: column.text(), // policy_version_created | assignment_replaced
+		actorUserId: column.text({ optional: true }),
+		policyId: column.text({ optional: true }),
+		policyGroupId: column.text({ optional: true }),
+		assignmentId: column.text({ optional: true }),
+		scope: column.text({ optional: true }),
+		scopeId: column.text({ optional: true }),
+		channel: column.text({ optional: true }),
+		beforeJson: column.json({ optional: true }),
+		afterJson: column.json({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["eventType", "createdAt"] },
+		{ on: ["policyGroupId"] },
+		{ on: ["scope", "scopeId"] },
+	],
 })
 
 // 5. Inventory / Availability base
@@ -475,7 +499,6 @@ const RatePlanTemplate = defineTable({
 		description: column.text({ optional: true }),
 		paymentType: column.text(), // 'prepaid', 'at_property'
 		refundable: column.boolean(),
-		cancellationPolicyId: column.text({ references: () => Policy.columns.id, optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -683,6 +706,21 @@ const InventoryLock = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"] }, { on: ["holdId"] }],
 })
+const Hold = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }),
+		checkIn: column.text(), // YYYY-MM-DD
+		checkOut: column.text(), // YYYY-MM-DD (exclusive)
+		channel: column.text({ optional: true }),
+		expiresAt: column.date(),
+		// Canonical immutable policy contract captured at hold creation time.
+		policySnapshotJson: column.json(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["variantId", "checkIn"] }, { on: ["expiresAt"] }],
+})
 const BookingPolicySnapshot = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -795,6 +833,7 @@ export default defineDb({
 		CancellationTier,
 		PolicyRule,
 		EffectivePolicy,
+		PolicyAuditLog,
 
 		// 5 inventory
 		// DailyAvailability,
@@ -819,6 +858,7 @@ export default defineDb({
 		Booking,
 		BookingRoomDetail,
 		InventoryLock,
+		Hold,
 		BookingPolicySnapshot,
 		BookingTaxFee,
 
