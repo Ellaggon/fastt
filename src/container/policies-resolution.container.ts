@@ -10,7 +10,12 @@ export async function resolveEffectivePoliciesUseCase(params: {
 	productId: string
 	variantId?: string
 	ratePlanId?: string
+	checkIn?: string
+	checkOut?: string
 	channel?: string
+	requiredCategories?: string[]
+	onMissingCategory?: "return_null" | "throw_error"
+	includeTrace?: boolean
 }) {
 	return resolveEffectivePolicies({ repo: policyResolutionRepository }, params)
 }
