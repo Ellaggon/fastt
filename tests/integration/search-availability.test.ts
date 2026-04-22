@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest"
 import { searchOffers, dailyInventoryRepository, baseRateRepository } from "@/container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
+import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 
 import {
 	upsertDestination,
@@ -20,6 +21,10 @@ import {
 	EffectivePricing,
 	EffectiveRestriction,
 	Restriction,
+	SearchUnitView,
+	Variant,
+	and,
+	eq,
 } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -90,6 +95,10 @@ async function seedSearchableVariant(params: {
 	ratePlanId: string
 	inventoryDates: string[]
 	totalInventory: number
+	stopSell?: boolean
+	materializeCheckoutDay?: boolean
+	variantIsActive?: boolean
+	variantStatus?: "draft" | "ready" | "sellable" | "archived"
 }) {
 	await upsertDestination({
 		id: params.destinationId,
@@ -113,7 +122,16 @@ async function seedSearchableVariant(params: {
 		name: "Room",
 		currency: "USD",
 		basePrice: 999,
+		isActive: params.variantIsActive ?? true,
 	})
+	if (params.variantStatus) {
+		await db
+			.update(Variant)
+			.set({
+				status: params.variantStatus,
+			} as any)
+			.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
+	}
 
 	await baseRateRepository.upsert({ variantId: params.variantId, currency: "USD", basePrice: 100 })
 
@@ -167,6 +185,43 @@ async function seedSearchableVariant(params: {
 		isDefault: true,
 	})
 
+	const cancellation = await createPolicyCapa6({
+		category: "Cancellation",
+		description: "Flexible cancellation",
+		effectiveFrom: "2026-01-01",
+		effectiveTo: "2026-12-31",
+		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
+	} as any)
+	const payment = await createPolicyCapa6({
+		category: "Payment",
+		description: "Pay at property",
+		effectiveFrom: "2026-01-01",
+		effectiveTo: "2026-12-31",
+		rules: { paymentType: "pay_at_property" },
+	} as any)
+	const checkIn = await createPolicyCapa6({
+		category: "CheckIn",
+		description: "Standard check-in",
+		effectiveFrom: "2026-01-01",
+		effectiveTo: "2026-12-31",
+		rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
+	} as any)
+	const noShow = await createPolicyCapa6({
+		category: "NoShow",
+		description: "No-show first night",
+		effectiveFrom: "2026-01-01",
+		effectiveTo: "2026-12-31",
+		rules: { penaltyType: "first_night" },
+	} as any)
+	for (const policy of [cancellation, payment, checkIn, noShow]) {
+		await assignPolicyCapa6({
+			policyId: policy.policyId,
+			scope: "rate_plan",
+			scopeId: params.ratePlanId,
+			channel: "web",
+		})
+	}
+
 	if (typeof params.totalInventory === "number") {
 		const nightly = Number(100)
 		await Promise.all(
@@ -201,9 +256,9 @@ async function seedSearchableVariant(params: {
 	const sorted = [...params.inventoryDates].sort()
 	const from = sorted[0]
 	const to = new Date(`${sorted[sorted.length - 1]}T00:00:00.000Z`)
-	// Include checkout day (+1). inventoryDates are stay nights ([from, checkOut)), so we materialize
-	// one extra day to evaluate CTD deterministically.
-	to.setUTCDate(to.getUTCDate() + 2)
+	const extraDays = params.materializeCheckoutDay === false ? 1 : 2
+	// inventoryDates are stay nights ([from, checkOut)); optional extra day simulates checkout materialization.
+	to.setUTCDate(to.getUTCDate() + extraDays)
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
@@ -214,6 +269,127 @@ async function seedSearchableVariant(params: {
 }
 
 describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
+	it("status-ready variant remains searchable even if legacy isActive=false", async () => {
+		const email = "search-status-ready@example.com"
+		const providerId = "prov_search_status_ready"
+		const destinationId = "dest_search_status_ready"
+		const productId = `prod_search_status_ready_${crypto.randomUUID()}`
+		const variantId = `var_search_status_ready_${crypto.randomUUID()}`
+		const templateId = `rpt_search_status_ready_${crypto.randomUUID()}`
+		const ratePlanId = `rp_search_status_ready_${crypto.randomUUID()}`
+
+		await seedSearchableVariant({
+			email,
+			providerId,
+			destinationId,
+			productId,
+			variantId,
+			ratePlanTemplateId: templateId,
+			ratePlanId,
+			inventoryDates: ["2026-04-21", "2026-04-22", "2026-04-23"],
+			totalInventory: 1,
+			variantIsActive: false,
+			variantStatus: "ready",
+		})
+
+		const offers = await searchOffers({
+			productId,
+			checkIn: new Date("2026-04-21"),
+			checkOut: new Date("2026-04-24"),
+			rooms: 1,
+			adults: 1,
+			children: 0,
+		})
+
+		expect(offers.some((offer) => offer.variantId === variantId)).toBe(true)
+		const variantOffer = offers.find((offer) => offer.variantId === variantId)
+		expect(variantOffer?.ratePlans.some((rp) => rp.ratePlanId === ratePlanId)).toBe(true)
+	})
+
+	it("valid available range: sellable with correct nights and aggregated total without checkout-day row", async () => {
+		const email = "search-range@example.com"
+		const providerId = "prov_search_range"
+		const destinationId = "dest_search_range"
+		const productId = `prod_search_range_${crypto.randomUUID()}`
+		const variantId = `var_search_range_${crypto.randomUUID()}`
+		const templateId = `rpt_search_range_${crypto.randomUUID()}`
+		const ratePlanId = `rp_search_range_${crypto.randomUUID()}`
+
+		await seedSearchableVariant({
+			email,
+			providerId,
+			destinationId,
+			productId,
+			variantId,
+			ratePlanTemplateId: templateId,
+			ratePlanId,
+			inventoryDates: ["2026-03-10", "2026-03-11"],
+			totalInventory: 1,
+			materializeCheckoutDay: false,
+		})
+
+		const offers = await searchOffers({
+			productId,
+			checkIn: new Date("2026-03-10"),
+			checkOut: new Date("2026-03-12"),
+			rooms: 1,
+			adults: 2,
+			children: 0,
+		})
+		const variantOffer = offers.find((offer) => offer.variantId === variantId)
+		expect(Boolean(variantOffer)).toBe(true)
+		const ratePlan = variantOffer?.ratePlans.find((row) => row.ratePlanId === ratePlanId)
+		expect(Boolean(ratePlan)).toBe(true)
+		expect(ratePlan?.totalPrice).toBe(200)
+		expect(ratePlan?.basePrice).toBe(200)
+	})
+
+	it("materialized rows remain searchable even when computedAt is old", async () => {
+		const email = "search-stale-view@example.com"
+		const providerId = "prov_search_stale_view"
+		const destinationId = "dest_search_stale_view"
+		const productId = `prod_search_stale_view_${crypto.randomUUID()}`
+		const variantId = `var_search_stale_view_${crypto.randomUUID()}`
+		const templateId = `rpt_search_stale_view_${crypto.randomUUID()}`
+		const ratePlanId = `rp_search_stale_view_${crypto.randomUUID()}`
+
+		await seedSearchableVariant({
+			email,
+			providerId,
+			destinationId,
+			productId,
+			variantId,
+			ratePlanTemplateId: templateId,
+			ratePlanId,
+			inventoryDates: ["2026-04-21", "2026-04-22", "2026-04-23"],
+			totalInventory: 1,
+		})
+
+		await db
+			.update(SearchUnitView)
+			.set({
+				computedAt: new Date("2025-01-01T00:00:00.000Z"),
+			} as any)
+			.where(
+				and(eq(SearchUnitView.variantId, variantId), eq(SearchUnitView.ratePlanId, ratePlanId))
+			)
+
+		const offers = await searchOffers({
+			productId,
+			checkIn: new Date("2026-04-21"),
+			checkOut: new Date("2026-04-24"),
+			rooms: 1,
+			adults: 1,
+			children: 0,
+		})
+
+		const variantOffer = offers.find((offer) => offer.variantId === variantId)
+		expect(Boolean(variantOffer)).toBe(true)
+		const ratePlan = variantOffer?.ratePlans.find((row) => row.ratePlanId === ratePlanId)
+		expect(Boolean(ratePlan)).toBe(true)
+		expect(Number(ratePlan?.totalPrice ?? 0)).toBeGreaterThan(0)
+	})
+
 	it("quantity-aware: rooms=1/2 available, rooms=3 not available (totalInventory=2)", async () => {
 		const email = "search-qty@example.com"
 		const providerId = "prov_search_qty"
@@ -401,6 +577,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_search_hold", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-11")
 			fd.set("quantity", "2")
@@ -446,6 +623,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_search_booking", email } }, async () => {
 			const hold = new FormData()
 			hold.set("variantId", variantId)
+			hold.set("ratePlanId", ratePlanId)
 			hold.set("checkIn", "2026-03-10")
 			hold.set("checkOut", "2026-03-11")
 			hold.set("quantity", "1")
@@ -553,5 +731,37 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			children: 0,
 		})
 		expect(offers.some((o) => o.variantId === variantId)).toBe(false)
+	})
+
+	it("invalid range: checkOut <= checkIn returns empty offers", async () => {
+		const email = "search-invalid-range@example.com"
+		const providerId = "prov_search_invalid_range"
+		const destinationId = "dest_search_invalid_range"
+		const productId = `prod_search_invalid_range_${crypto.randomUUID()}`
+		const variantId = `var_search_invalid_range_${crypto.randomUUID()}`
+		const templateId = `rpt_search_invalid_range_${crypto.randomUUID()}`
+		const ratePlanId = `rp_search_invalid_range_${crypto.randomUUID()}`
+
+		await seedSearchableVariant({
+			email,
+			providerId,
+			destinationId,
+			productId,
+			variantId,
+			ratePlanTemplateId: templateId,
+			ratePlanId,
+			inventoryDates: ["2026-03-10"],
+			totalInventory: 1,
+		})
+
+		const offers = await searchOffers({
+			productId,
+			checkIn: new Date("2026-03-10"),
+			checkOut: new Date("2026-03-10"),
+			rooms: 1,
+			adults: 2,
+			children: 0,
+		})
+		expect(offers).toEqual([])
 	})
 })
