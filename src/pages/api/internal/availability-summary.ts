@@ -67,7 +67,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			totalGuests: occupancyInt,
 		})
 		const stayDates = enumerateDates(from, to)
-		const toPlusOne = addDays(to, 1)
 		const rows = await db
 			.select({
 				ratePlanId: SearchUnitView.ratePlanId,
@@ -90,7 +89,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					eq(SearchUnitView.variantId, variantId),
 					eq(SearchUnitView.occupancyKey, occupancyKey),
 					gte(SearchUnitView.date, from),
-					lt(SearchUnitView.date, toPlusOne)
+					lt(SearchUnitView.date, to)
 				)
 			)
 			.all()
@@ -167,7 +166,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const evaluation = evaluateStaySellabilityFromView({
 				stayDates,
 				checkInDate: from,
-				checkOutDate: to,
 				requestedRooms: occupancyInt,
 				rowsByDate: byDate,
 			})
