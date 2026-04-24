@@ -1,4 +1,4 @@
-import type { ResolveEffectivePoliciesResult } from "@/modules/policies/application/use-cases/resolve-effective-policies"
+import type { ResolveEffectivePoliciesResult } from "@/modules/policies/public"
 import type { EffectiveRule } from "../../domain/rule.entities"
 import {
 	buildEffectiveRule,

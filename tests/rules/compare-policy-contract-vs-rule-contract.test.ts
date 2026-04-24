@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
 	buildRuleBasedContractSnapshot,
 	comparePolicyContractVsRuleContract,
+	type RuleSnapshot,
 } from "@/modules/rules/public"
-import type { HoldPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
-import type { RuleSnapshot } from "@/modules/rules/application/use-cases/build-rule-snapshot"
+import type { HoldPolicySnapshot } from "@/modules/policies/public"
 
 function policyFixture(): HoldPolicySnapshot {
 	return {

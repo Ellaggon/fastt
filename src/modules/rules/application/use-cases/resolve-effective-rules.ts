@@ -2,7 +2,10 @@ import { db, eq, ProductContent } from "astro:db"
 
 import { logger } from "@/lib/observability/logger"
 import { listHouseRulesByProduct } from "@/modules/house-rules/public"
-import { resolveEffectivePolicies } from "@/modules/policies/public"
+import {
+	normalizePolicyResolutionResult,
+	resolveEffectivePolicies,
+} from "@/modules/policies/public"
 import type { EffectiveRule } from "../../domain/rule.entities"
 import { mapHouseRulesToRules } from "../adapters/house-rule-to-rule.adapter"
 import { mapResolvedPoliciesToRules } from "../adapters/policy-to-rule.adapter"
@@ -90,7 +93,7 @@ export async function resolveEffectiveRules(
 		}
 	}
 
-	const [resolvedPolicies, houseRules, productRulesText] = await Promise.all([
+	const [resolvedPoliciesRaw, houseRules, productRulesText] = await Promise.all([
 		resolveEffectivePolicies({
 			productId,
 			variantId: input.variantId,
@@ -106,6 +109,10 @@ export async function resolveEffectiveRules(
 			? Promise.resolve(null)
 			: readProductContentRulesText(productId),
 	])
+	const resolvedPolicies = normalizePolicyResolutionResult(resolvedPoliciesRaw, {
+		asOfDate: input.checkIn ?? new Date().toISOString().slice(0, 10),
+		warnings: [],
+	}).dto
 
 	const policyRules = mapResolvedPoliciesToRules({
 		resolved: resolvedPolicies,

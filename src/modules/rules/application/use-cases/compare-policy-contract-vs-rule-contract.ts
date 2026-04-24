@@ -1,4 +1,4 @@
-import type { HoldPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
+import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import type { RuleBasedContractSnapshot } from "./build-rule-based-contract-snapshot"
 
 type Category = "cancellation" | "payment" | "no_show" | "check_in"

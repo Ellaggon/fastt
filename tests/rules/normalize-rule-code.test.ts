@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest"
 
-import { normalizeRuleCode } from "@/modules/rules/application/adapters/shared"
+import { mapResolvedPoliciesToRules } from "@/modules/rules/public"
+
+function normalizeRuleCode(value: string) {
+	const rules = mapResolvedPoliciesToRules({
+		resolved: {
+			policies: [
+				{
+					category: value,
+					resolvedFromScope: "product",
+					policy: {
+						id: `policy_${value}`,
+						version: 1,
+						status: "active",
+						description: "test",
+						rules: [],
+						cancellationTiers: [],
+					},
+				},
+			],
+		} as any,
+		context: { productId: "prod_test" },
+		now: new Date("2026-01-01T00:00:00.000Z"),
+	})
+	return rules[0]?.group.code
+}
 
 describe("rules/normalizeRuleCode", () => {
 	it("maps legacy policy category aliases into canonical contract rule codes", () => {

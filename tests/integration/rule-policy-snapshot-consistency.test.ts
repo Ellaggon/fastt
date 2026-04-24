@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
 	assignPolicyCapa6,
+	buildPolicySnapshot,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
+	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { buildPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
 import {
 	buildRuleSnapshot,
 	comparePolicyAndRuleSnapshots,
@@ -112,7 +113,7 @@ async function resolveSnapshots(params: {
 	checkIn: string
 	checkOut: string
 }) {
-	const resolvedPolicies = await resolveEffectivePolicies({
+	const resolvedPoliciesRaw = await resolveEffectivePolicies({
 		productId: params.productId,
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
@@ -122,6 +123,10 @@ async function resolveSnapshots(params: {
 		requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 		onMissingCategory: "return_null",
 	})
+	const resolvedPolicies = normalizePolicyResolutionResult(resolvedPoliciesRaw, {
+		asOfDate: params.checkIn,
+		warnings: [],
+	}).dto
 	const resolvedRules = await resolveEffectiveRules({
 		productId: params.productId,
 		variantId: params.variantId,
