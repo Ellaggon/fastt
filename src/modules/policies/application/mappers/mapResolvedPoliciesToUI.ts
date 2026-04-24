@@ -1,4 +1,5 @@
-import type { ResolveEffectivePoliciesResult } from "../use-cases/resolve-effective-policies"
+import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
+import type { LegacyPolicyResolutionResult } from "../adapters/policyResolutionAdapter"
 
 /**
  * UI adapter for the canonical resolver output.
@@ -10,7 +11,9 @@ import type { ResolveEffectivePoliciesResult } from "../use-cases/resolve-effect
  * - No business logic here; only structural mapping.
  * - Do not mutate or re-resolve anything.
  */
-export function mapResolvedPoliciesToUI(resolved: ResolveEffectivePoliciesResult): Array<{
+export function mapResolvedPoliciesToUI(
+	resolved: PolicyResolutionDTO | LegacyPolicyResolutionResult
+): Array<{
 	category: string
 	description: string
 	version: number

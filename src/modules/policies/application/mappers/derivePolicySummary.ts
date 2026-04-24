@@ -1,6 +1,7 @@
-import type { ResolveEffectivePoliciesResult } from "../use-cases/resolve-effective-policies"
+import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
+import type { LegacyPolicyResolutionResult } from "../adapters/policyResolutionAdapter"
 
-type SnapshotPolicy = ResolveEffectivePoliciesResult["policies"][number]
+type SnapshotPolicy = PolicyResolutionDTO["policies"][number]
 
 type PolicyRule = {
 	ruleKey?: string | null
@@ -124,7 +125,7 @@ function describePayment(policy: SnapshotPolicy | null): string {
 }
 
 export function derivePolicySummaryFromResolvedPolicies(
-	resolved: ResolveEffectivePoliciesResult
+	resolved: PolicyResolutionDTO | LegacyPolicyResolutionResult
 ): string {
 	const policies = Array.isArray(resolved?.policies) ? resolved.policies : []
 	const cancellation = findCategory(policies, (category) => category.includes("cancel"))
