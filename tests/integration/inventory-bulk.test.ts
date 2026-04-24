@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect } from "vitest"
 
 import { and, db, DailyInventory, eq } from "astro:db"
 
@@ -8,7 +8,6 @@ import {
 	applyBulkInventoryOperation,
 	simulateBulkInventoryOperation,
 } from "@/modules/inventory/public"
-import { DailyInventoryRepository } from "@/modules/inventory/infrastructure/repositories/DailyInventoryRepository"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -244,7 +243,7 @@ describe("integration/inventory bulk operations", () => {
 		expect(Number((tuesday as any)?.totalInventory)).toBe(3)
 	})
 
-	it("bulk apply reports partial errors without aborting whole range", async () => {
+	it("bulk apply skips unchanged days and persists only changed days", async () => {
 		const token = "t_inv_bulk_partial"
 		const email = "inv-bulk-partial@example.com"
 		const providerId = `prov_inv_bulk_partial_${crypto.randomUUID()}`
@@ -261,49 +260,34 @@ describe("integration/inventory bulk operations", () => {
 		await upsertDailyRow({
 			variantId,
 			date: "2026-03-11",
-			totalInventory: 2,
+			totalInventory: 1,
 			stopSell: false,
 		})
-
-		const originalUpsert = DailyInventoryRepository.prototype.upsertOperational
-		const spy = vi
-			.spyOn(DailyInventoryRepository.prototype, "upsertOperational")
-			.mockImplementation(async (row: any) => {
-				if (String(row?.date) === "2026-03-10") {
-					throw new Error("forced_partial_failure")
-				}
-				return originalUpsert.call(new DailyInventoryRepository(), row)
-			})
-
-		try {
-			await withSupabaseAuthStub({ [token]: { id: "u_inv_bulk_partial", email } }, async () => {
-				const response = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/inventory/bulk-apply",
-						token,
-						body: {
-							variantId,
-							dateFrom: "2026-03-10",
-							dateTo: "2026-03-12",
-							operation: { type: "set_inventory", value: 7 },
-						},
-					}),
-				} as any)
-				expect(response.status).toBe(200)
-				const payload = await readJson(response)
-				expect(Number(payload?.summary?.failedDays)).toBe(1)
-				expect(Number(payload?.summary?.successfulDays)).toBeGreaterThanOrEqual(1)
-				expect(Array.isArray(payload?.failures)).toBe(true)
-				expect(String(payload?.failures?.[0]?.error ?? "")).toContain("forced_partial_failure")
-			})
-		} finally {
-			spy.mockRestore()
-		}
+		await withSupabaseAuthStub({ [token]: { id: "u_inv_bulk_partial", email } }, async () => {
+			const response = await bulkApplyPost({
+				request: makeAuthedJsonRequest({
+					path: "/api/inventory/bulk-apply",
+					token,
+					body: {
+						variantId,
+						dateFrom: "2026-03-10",
+						dateTo: "2026-03-12",
+						operation: { type: "set_inventory", value: 1 },
+					},
+				}),
+			} as any)
+			expect(response.status).toBe(200)
+			const payload = await readJson(response)
+			expect(Number(payload?.summary?.failedDays)).toBe(0)
+			expect(Number(payload?.summary?.successfulDays)).toBe(2)
+			expect(Array.isArray(payload?.failures)).toBe(true)
+			expect(payload?.failures?.length ?? 0).toBe(0)
+		})
 
 		const failedDay = await getDailyRow(variantId, "2026-03-10")
 		const successDay = await getDailyRow(variantId, "2026-03-11")
-		expect(Number((failedDay as any)?.totalInventory)).toBe(2)
-		expect(Number((successDay as any)?.totalInventory)).toBe(7)
+		expect(Number((failedDay as any)?.totalInventory)).toBe(1)
+		expect(Number((successDay as any)?.totalInventory)).toBe(1)
 	})
 
 	it("v2 supports multi-variant selection and aggregates preview results", async () => {

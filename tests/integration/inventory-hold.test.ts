@@ -16,11 +16,11 @@ import {
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as releasePost } from "@/pages/api/inventory/release"
 
-import { InventoryHoldRepository } from "@/modules/inventory/infrastructure/repositories/InventoryHoldRepository"
 import {
 	recomputeEffectiveAvailabilityRange,
 	releaseExpiredHolds,
 } from "@/modules/inventory/public"
+import { inventoryHoldRepository } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
@@ -600,7 +600,8 @@ describe("integration/inventory holds (InventoryLock)", () => {
 	})
 
 	it("expire holds: releaseExpiredHolds removes expired locks and restores reservedCount", async () => {
-		const repo = new InventoryHoldRepository()
+		const token = "t_hold_exp"
+		const email = "hold-exp@example.com"
 		const variantId = `var_hold_exp_${crypto.randomUUID()}`
 		const productId = `prod_hold_exp_${crypto.randomUUID()}`
 		const ratePlanId = `rp_hold_exp_${crypto.randomUUID()}`
@@ -612,35 +613,41 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			totalInventory: 2,
 			dates: ["2026-03-10"],
 		})
-
-		const holdId = crypto.randomUUID()
-
-		// Create an already-expired hold via the real repository (increments reservedCount + writes InventoryLock).
-		const holdRes = await repo.holdInventory({
-			holdId,
+		await refreshSearchView({
 			variantId,
 			ratePlanId,
-			checkIn: new Date("2026-03-10"),
-			checkOut: new Date("2026-03-11"),
-			quantity: 1,
-			expiresAt: new Date(Date.now() - 60_000),
-			policySnapshotJson: {
-				cancellation: null,
-				payment: null,
-				no_show: null,
-				check_in: null,
-				meta: {
-					policyVersionIds: [],
-					resolvedAt: new Date().toISOString(),
-					checkIn: "2026-03-10",
-					checkOut: "2026-03-11",
-					channel: "web",
-				},
-			},
+			from: "2026-03-10",
+			to: "2026-03-12",
 		})
-		expect(holdRes.success).toBe(true)
 
-		const { releasedHolds } = await releaseExpiredHolds({ repo }, { now: new Date() })
+		let holdId = ""
+		await withSupabaseAuthStub({ [token]: { id: "u_hold_exp", email } }, async () => {
+			const fd = new FormData()
+			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
+			fd.set("checkIn", "2026-03-10")
+			fd.set("checkOut", "2026-03-11")
+			fd.set("quantity", "1")
+
+			const holdRes = await holdPost({
+				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
+			} as any)
+			expect(holdRes.status).toBe(200)
+			const holdBody = (await readJson(holdRes)) as any
+			holdId = String(holdBody?.holdId ?? "")
+			expect(holdId).toBeTruthy()
+		})
+
+		await db
+			.update(InventoryLock)
+			.set({ expiresAt: new Date(Date.now() - 60_000) } as any)
+			.where(eq(InventoryLock.holdId, holdId))
+			.run()
+
+		const { releasedHolds } = await releaseExpiredHolds(
+			{ repo: inventoryHoldRepository },
+			{ now: new Date() }
+		)
 		expect(releasedHolds).toBe(1)
 
 		const d = await db

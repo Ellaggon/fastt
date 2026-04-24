@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/application/use-cases/recompute-effective-availability-range"
+import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 
 type DailyRow = { date: string; totalInventory: number; stopSell: boolean }
 type LockRow = { date: string; quantity: number; expiresAt: Date; bookingId: string | null }
