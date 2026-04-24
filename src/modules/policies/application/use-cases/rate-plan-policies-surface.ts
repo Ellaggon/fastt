@@ -8,6 +8,8 @@ import {
 } from "@/modules/policies/public"
 import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
+import type { FeatureFlagContext } from "@/config/featureFlags"
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
@@ -85,6 +87,7 @@ export async function handleRatePlanPoliciesPost(params: {
 	request: Request
 	ratePlans: SurfaceRatePlan[]
 	userId: string
+	requestId?: string
 }): Promise<Response> {
 	const contentType = String(params.request.headers.get("content-type") ?? "")
 	if (!contentType.includes("application/json")) {
@@ -149,7 +152,30 @@ export async function handleRatePlanPoliciesPost(params: {
 				channel,
 				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 				onMissingCategory: "return_null",
+				requestId: params.requestId,
+				featureContext: {
+					request: params.request,
+					query: new URL(params.request.url).searchParams,
+				},
 			})
+			if (previewResult.missingCategories.length > 0) {
+				logger.warn("policies.contract.missing_categories", {
+					requestId: params.requestId ?? null,
+					ratePlanId,
+					channel,
+					endpoint: "ratePlanPolicies.preview",
+					missingCategories: previewResult.missingCategories,
+				})
+				logPolicyContractMismatch({
+					requestId: String(params.requestId ?? "policy-surface-anon"),
+					domain: "policies",
+					endpoint: "ratePlanPolicies.preview",
+					productId: ownerContext.productId,
+					variantId: ownerContext.variantId,
+					ratePlanId,
+					missingCategories: previewResult.missingCategories,
+				})
+			}
 			return new Response(
 				JSON.stringify({
 					success: true,
@@ -227,7 +253,30 @@ export async function handleRatePlanPoliciesPost(params: {
 			channel,
 			requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 			onMissingCategory: "return_null",
+			requestId: params.requestId,
+			featureContext: {
+				request: params.request,
+				query: new URL(params.request.url).searchParams,
+			},
 		})
+		if (latestPreviewResult.missingCategories.length > 0) {
+			logger.warn("policies.contract.missing_categories", {
+				requestId: params.requestId ?? null,
+				ratePlanId,
+				channel,
+				endpoint: "ratePlanPolicies.save_category",
+				missingCategories: latestPreviewResult.missingCategories,
+			})
+			logPolicyContractMismatch({
+				requestId: String(params.requestId ?? "policy-surface-anon"),
+				domain: "policies",
+				endpoint: "ratePlanPolicies.save_category",
+				productId: ownerContext.productId,
+				variantId: ownerContext.variantId,
+				ratePlanId,
+				missingCategories: latestPreviewResult.missingCategories,
+			})
+		}
 		return new Response(
 			JSON.stringify({
 				success: true,
@@ -254,6 +303,8 @@ export async function buildRatePlanPoliciesSurface(params: {
 	ratePlans: SurfaceRatePlan[]
 	checkIn: string
 	checkOut: string
+	requestId?: string
+	featureContext?: FeatureFlagContext
 }): Promise<{ policyPlans: PolicyPlanView[]; wizardPlans: WizardPlanView[] }> {
 	const policyPlans = await Promise.all(
 		params.ratePlans.map(async (plan) => {
@@ -270,7 +321,27 @@ export async function buildRatePlanPoliciesSurface(params: {
 				channel: "web",
 				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 				onMissingCategory: "return_null",
+				requestId: params.requestId,
+				featureContext: params.featureContext,
 			})
+			if (resolved.missingCategories.length > 0) {
+				logger.warn("policies.contract.missing_categories", {
+					requestId: params.requestId ?? null,
+					ratePlanId,
+					channel: "web",
+					endpoint: "ratePlanPolicies.surface",
+					missingCategories: resolved.missingCategories,
+				})
+				logPolicyContractMismatch({
+					requestId: String(params.requestId ?? "policy-surface-anon"),
+					domain: "policies",
+					endpoint: "ratePlanPolicies.surface",
+					productId,
+					variantId: variantId || null,
+					ratePlanId,
+					missingCategories: resolved.missingCategories,
+				})
+			}
 			const policyIdByCategory = Object.fromEntries(
 				REQUIRED_POLICY_CATEGORIES.map((category) => [
 					category,

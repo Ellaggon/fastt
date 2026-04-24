@@ -40,7 +40,7 @@ const querySchema = z.object({
 		.transform((value) => value === "1" || value === "true"),
 })
 
-export const GET: APIRoute = async ({ url, cookies }) => {
+export const GET: APIRoute = async ({ request, url, cookies }) => {
 	const cookieRolloutId = String(cookies.get(RULES_UI_ROLLOUT_COOKIE)?.value ?? "").trim()
 	const rollout = resolveRulesUiRollout({
 		flagValue: resolveRulesUiFlagValue(
@@ -149,7 +149,14 @@ export const GET: APIRoute = async ({ url, cookies }) => {
 			checkOut: input.checkOut,
 			channel: input.channel ?? "web",
 			includeTrace: input.includeTrace,
+			featureContext: {
+				request,
+				query: url.searchParams,
+			},
 		})
+		const resolvedForComparison = resolved as Parameters<
+			typeof buildPolicySnapshot
+		>[0]["resolvedPolicies"]
 		let policies = mapResolvedPoliciesToUI(resolved)
 		recordRulesUiEvaluation({
 			endpoint: "api.policies.resolve",
@@ -176,7 +183,7 @@ export const GET: APIRoute = async ({ url, cookies }) => {
 				const ruleSnapshot = buildRuleSnapshot({ resolvedRules })
 				const compared = comparePolicyAndRuleSnapshots(
 					buildPolicySnapshot({
-						resolvedPolicies: resolved,
+						resolvedPolicies: resolvedForComparison,
 						checkIn: input.checkIn,
 						checkOut: input.checkOut,
 						channel: input.channel ?? "web",
@@ -198,7 +205,7 @@ export const GET: APIRoute = async ({ url, cookies }) => {
 						},
 						mismatches: compared.mismatches,
 						policySnapshot: buildPolicySnapshot({
-							resolvedPolicies: resolved,
+							resolvedPolicies: resolvedForComparison,
 							checkIn: input.checkIn,
 							checkOut: input.checkOut,
 							channel: input.channel ?? "web",
@@ -335,7 +342,13 @@ export const GET: APIRoute = async ({ url, cookies }) => {
 				checkOut: input.checkOut,
 				channel: input.channel ?? "web",
 				policies,
-				trace: input.includeTrace ? (resolved.trace ?? null) : null,
+				trace:
+					input.includeTrace &&
+					typeof resolved === "object" &&
+					resolved !== null &&
+					"trace" in resolved
+						? ((resolved as { trace?: unknown }).trace ?? null)
+						: null,
 			}),
 			{
 				status: 200,

@@ -29,6 +29,7 @@ export type LoadedRatePlanPoliciesData =
 	  }
 
 export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRatePlanPoliciesData> {
+	const requestId = String(input.request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
 	const loadedRatePlan = await loadRatePlanPricingData({
 		request: input.request,
 		ratePlanId: input.ratePlanId,
@@ -40,6 +41,7 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 		id?: string
 		isDefault?: boolean
 		isActive?: boolean
+		name?: string
 		template?: { name?: string } | null
 	} | null
 	if (!targetRatePlan?.id) return { redirectTo: "/rates/plans" }
@@ -65,6 +67,11 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 		ratePlans: selectedRatePlans,
 		checkIn: input.checkIn,
 		checkOut: input.checkOut,
+		requestId,
+		featureContext: {
+			request: input.request,
+			query: new URL(input.request.url).searchParams,
+		},
 	})
 
 	return {
