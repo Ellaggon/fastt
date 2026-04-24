@@ -1,5 +1,5 @@
 import { recomputeEffectiveAvailabilityRange } from "./recompute-effective-availability-range"
-import { and, db, EffectiveAvailability, eq, gte, lt } from "astro:db"
+import type { RecomputeEffectiveAvailabilityRangeResult } from "./recompute-effective-availability-range"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
 
@@ -24,24 +24,22 @@ function recomputeKey(instruction: RecomputeInstruction): string {
 
 async function enqueueRecompute(
 	instruction: RecomputeInstruction
-): Promise<{ retries: number } | undefined> {
+): Promise<RecomputeEffectiveAvailabilityRangeResult> {
 	const key = recomputeKey(instruction)
 	const prev = recomputeQueues.get(key) ?? Promise.resolve()
 	const current = prev
 		.catch(() => undefined)
 		.then(() => recomputeEffectiveAvailabilityRange(instruction))
-	recomputeQueues.set(
-		key,
-		current.then(
-			() => undefined,
-			() => undefined
-		)
+	const cleanupPromise = current.then(
+		() => undefined,
+		() => undefined
 	)
+	recomputeQueues.set(key, cleanupPromise)
 	try {
-		await current
+		return await current
 	} finally {
 		const queued = recomputeQueues.get(key)
-		if (queued === current || !queued) {
+		if (queued === cleanupPromise || !queued) {
 			recomputeQueues.delete(key)
 		}
 	}
@@ -92,26 +90,15 @@ export async function applyInventoryMutation<T>(params: {
 	}
 
 	const validateInstructions = async (instructions: RecomputeInstruction[]) => {
+		const { loadEffectiveAvailabilityForValidation } = await import(
+			"@/container/inventory.container"
+		)
 		for (const instruction of instructions) {
-			const rows = await db
-				.select({
-					date: EffectiveAvailability.date,
-					totalUnits: EffectiveAvailability.totalUnits,
-					heldUnits: EffectiveAvailability.heldUnits,
-					bookedUnits: EffectiveAvailability.bookedUnits,
-					availableUnits: EffectiveAvailability.availableUnits,
-					stopSell: EffectiveAvailability.stopSell,
-					isSellable: EffectiveAvailability.isSellable,
-				})
-				.from(EffectiveAvailability)
-				.where(
-					and(
-						eq(EffectiveAvailability.variantId, instruction.variantId),
-						gte(EffectiveAvailability.date, instruction.from),
-						lt(EffectiveAvailability.date, instruction.to)
-					)
-				)
-				.all()
+			const rows = await loadEffectiveAvailabilityForValidation({
+				variantId: instruction.variantId,
+				from: instruction.from,
+				to: instruction.to,
+			})
 
 			for (const row of rows) {
 				const total = Number(row.totalUnits ?? 0)
