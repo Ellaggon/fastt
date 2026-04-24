@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { resolveEffectiveTaxFees } from "@/modules/taxes-fees/public"
-import type {
-	TaxFeeAssignment,
-	TaxFeeDefinition,
-	TaxFeeScope,
-} from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { TaxFeeAssignment, TaxFeeDefinition, TaxFeeScope } from "@/modules/taxes-fees/public"
 
 function def(partial: Partial<TaxFeeDefinition>): TaxFeeDefinition {
 	return {

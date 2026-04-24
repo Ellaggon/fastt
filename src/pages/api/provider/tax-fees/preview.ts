@@ -3,10 +3,12 @@ import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { productRepository } from "@/container"
+import {
+	listTaxFeeAssignmentsByScopeUseCase,
+	resolveEffectiveTaxFeesUseCase,
+} from "@/container/taxes-fees.container"
 import { buildTaxFeeWarnings, computeTaxBreakdown } from "@/modules/taxes-fees/public"
-import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
-import { listTaxFeeAssignmentsByScopeUseCase } from "@/container/taxes-fees.container"
-import type { TaxFeeDefinition } from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { TaxFeeDefinition } from "@/modules/taxes-fees/public"
 
 const schema = z.object({
 	productId: z.string().min(1),

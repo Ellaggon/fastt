@@ -19,3 +19,6 @@ export * from "./application/ports/TaxFeeCommandRepositoryPort"
 export * from "./application/ports/TaxFeeResolutionRepositoryPort"
 export * from "./application/ports/BookingTaxFeeRepositoryPort"
 export * from "./application/ports/TaxFeeQueryRepositoryPort"
+
+// Composition root helpers (stable module entrypoint for wiring)
+export * from "./infrastructure/runtime/create-taxes-fees-runtime"

@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
-import type {
-	ResolvedTaxFeeDefinition,
-	TaxFeeDefinition,
-} from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { ResolvedTaxFeeDefinition, TaxFeeDefinition } from "@/modules/taxes-fees/public"
 
 function def(partial: Partial<TaxFeeDefinition>): TaxFeeDefinition {
 	return {

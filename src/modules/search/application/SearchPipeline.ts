@@ -5,7 +5,7 @@ import type { SearchMemory, SellableUnit } from "../domain/unit.types"
 import type { RestrictionPort } from "./ports/RestrictionPort"
 import type { PromotionPort } from "./ports/PromotionPort"
 import type { TaxFeePort } from "./ports/TaxFeePort"
-import type { TaxFeeBreakdown } from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { TaxFeeBreakdown } from "@/modules/taxes-fees/public"
 
 export type SearchRatePlanOffer = {
 	ratePlanId: string
