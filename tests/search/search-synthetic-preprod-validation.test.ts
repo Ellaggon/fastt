@@ -9,7 +9,7 @@ import {
 	type SearchSellabilityDTO,
 	CanonicalSearchAdapter,
 } from "@/modules/search/public"
-import { SearchOffersRepository } from "@/modules/search/infrastructure/repositories/SearchOffersRepository"
+import { createSearchOffersRepositoryForTests } from "@/modules/search/testing-public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { GET as getSearchDecision } from "@/pages/api/internal/observability/search-decision"
 import { GET as getSearchShadowSummary } from "@/pages/api/internal/observability/search-shadow-summary"
@@ -389,7 +389,7 @@ async function runStage(params: {
 }): Promise<StageReport> {
 	resetMetricsWindow()
 	const rng = createSeededRng(params.seed)
-	const repo = new SearchOffersRepository()
+	const repo = createSearchOffersRepositoryForTests()
 	const canonical = new CanonicalSearchAdapter(repo)
 	const candidate = new NewSearchPipelineAdapter(repo)
 
