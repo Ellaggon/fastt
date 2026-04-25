@@ -6,8 +6,8 @@ import type {
 	InventorySnapshot,
 	PriceRuleSnapshot,
 	RatePlanSnapshot,
+	SearchUnit,
 } from "../../domain/unit.types"
-import type { SearchUnit } from "../../domain/unit.types"
 import type { RestrictionRow, RestrictionContext } from "../../domain/restrictions.types"
 import type { Promotion } from "../../domain/promotions.types"
 
@@ -73,7 +73,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 		return [...baseRules, ...ratePlanRules.flat()]
 	}
 
-	async loadPromotions(ctx: SearchContext<SearchUnit>): Promise<Promotion[]> {
+	async loadPromotions(_ctx: SearchContext<SearchUnit>): Promise<Promotion[]> {
 		return [] // hasta que tengas repo real
 	}
 }

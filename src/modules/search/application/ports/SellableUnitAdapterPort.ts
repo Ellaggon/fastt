@@ -3,8 +3,8 @@ import type {
 	PriceRuleSnapshot,
 	RatePlanSnapshot,
 	UnitType,
+	SellableUnit,
 } from "../../domain/unit.types"
-import type { SellableUnit } from "../../domain/unit.types"
 import type { RestrictionRow } from "../../domain/restrictions.types"
 import type { Promotion } from "../../domain/promotions.types"
 
