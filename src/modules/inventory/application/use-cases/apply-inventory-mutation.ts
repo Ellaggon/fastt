@@ -1,5 +1,6 @@
 import { recomputeEffectiveAvailabilityRange } from "./recompute-effective-availability-range"
 import type { RecomputeEffectiveAvailabilityRangeResult } from "./recompute-effective-availability-range"
+import type { RecomputeDeps } from "./recompute-effective-availability-range"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
 
@@ -23,13 +24,14 @@ function recomputeKey(instruction: RecomputeInstruction): string {
 }
 
 async function enqueueRecompute(
-	instruction: RecomputeInstruction
+	instruction: RecomputeInstruction,
+	recomputeDeps: RecomputeDeps
 ): Promise<RecomputeEffectiveAvailabilityRangeResult> {
 	const key = recomputeKey(instruction)
 	const prev = recomputeQueues.get(key) ?? Promise.resolve()
 	const current = prev
 		.catch(() => undefined)
-		.then(() => recomputeEffectiveAvailabilityRange(instruction))
+		.then(() => recomputeEffectiveAvailabilityRange(instruction, recomputeDeps))
 	const cleanupPromise = current.then(
 		() => undefined,
 		() => undefined
@@ -55,6 +57,7 @@ export async function applyInventoryMutation<T>(params: {
 		| RecomputeInstruction
 		| RecomputeInstruction[]
 		| ((result: T) => RecomputeInstruction | RecomputeInstruction[])
+	recomputeDeps?: RecomputeDeps
 	failSoft?: boolean
 	logContext?: Record<string, unknown>
 }): Promise<T> {
@@ -131,6 +134,17 @@ export async function applyInventoryMutation<T>(params: {
 		typeof params.recompute === "function" ? params.recompute(mutationResult) : params.recompute
 	const instructions = Array.isArray(recomputeValue) ? recomputeValue : [recomputeValue]
 	const failSoft = params.failSoft === true
+	const recomputeDeps: RecomputeDeps =
+		params.recomputeDeps ??
+		(await import("@/container/inventory.container").then((container) => ({
+			loadDailyInventoryRange: (input: { variantId: string; from: string; to: string }) =>
+				container.inventoryRecomputeRepository.loadDailyInventoryRange(input),
+			loadInventoryLocksRange: (input: { variantId: string; from: string; to: string }) =>
+				container.inventoryRecomputeRepository.loadInventoryLocksRange(input),
+			upsertEffectiveAvailabilityRows: (rows: any[]) =>
+				container.inventoryRecomputeRepository.upsertEffectiveAvailabilityRows(rows),
+			now: () => new Date(),
+		})))
 
 	for (const instruction of instructions) {
 		try {
@@ -138,7 +152,7 @@ export async function applyInventoryMutation<T>(params: {
 				throw new Error("recompute_chain_timeout")
 			}
 			// Serialize recomputes for the same variant/range to reduce SQLITE contention.
-			const recomputeResult = await enqueueRecompute(instruction)
+			const recomputeResult = await enqueueRecompute(instruction, recomputeDeps)
 			recomputeRetries += Number(recomputeResult?.retries ?? 0)
 		} catch (error) {
 			logger.error("inventory.apply_mutation.recompute_failed", {

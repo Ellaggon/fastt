@@ -1,17 +1,11 @@
-import {
-	and,
-	DailyInventory,
-	db,
-	EffectiveAvailability,
-	eq,
-	gte,
-	InventoryLock,
-	lt,
-	sql,
-} from "astro:db"
 import { z } from "zod"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
+import type {
+	DailyInventoryRow,
+	EffectiveAvailabilityUpsertRow,
+	InventoryLockRow,
+} from "../ports/InventoryRecomputeRepositoryPort"
 
 const inputSchema = z.object({
 	variantId: z.string().min(1),
@@ -23,33 +17,7 @@ const inputSchema = z.object({
 
 type RecomputeInput = z.infer<typeof inputSchema>
 
-type DailyInventoryRow = {
-	date: string
-	totalInventory: number
-	stopSell: boolean
-}
-
-type InventoryLockRow = {
-	date: string
-	quantity: number
-	expiresAt: Date
-	bookingId: string | null
-}
-
-type EffectiveAvailabilityUpsertRow = {
-	id: string
-	variantId: string
-	date: string
-	totalUnits: number
-	heldUnits: number
-	bookedUnits: number
-	availableUnits: number
-	stopSell: boolean
-	isSellable: boolean
-	computedAt: Date
-}
-
-type RecomputeDeps = {
+export type RecomputeDeps = {
 	loadDailyInventoryRange: (params: {
 		variantId: string
 		from: string
@@ -99,78 +67,6 @@ function buildStableRowId(variantId: string, date: string): string {
 	return `ea_${variantId}_${date}`
 }
 
-const defaultDeps: RecomputeDeps = {
-	async loadDailyInventoryRange(params) {
-		const rows = await db
-			.select({
-				date: DailyInventory.date,
-				totalInventory: DailyInventory.totalInventory,
-				stopSell: DailyInventory.stopSell,
-			})
-			.from(DailyInventory)
-			.where(
-				and(
-					eq(DailyInventory.variantId, params.variantId),
-					gte(DailyInventory.date, params.from),
-					lt(DailyInventory.date, params.to)
-				)
-			)
-			.all()
-
-		return rows.map((row) => ({
-			date: String(row.date),
-			totalInventory: Number(row.totalInventory ?? 0),
-			stopSell: Boolean(row.stopSell),
-		}))
-	},
-	async loadInventoryLocksRange(params) {
-		const rows = await db
-			.select({
-				date: InventoryLock.date,
-				quantity: InventoryLock.quantity,
-				expiresAt: InventoryLock.expiresAt,
-				bookingId: InventoryLock.bookingId,
-			})
-			.from(InventoryLock)
-			.where(
-				and(
-					eq(InventoryLock.variantId, params.variantId),
-					gte(InventoryLock.date, params.from),
-					lt(InventoryLock.date, params.to),
-					sql`${InventoryLock.holdId} is not null`
-				)
-			)
-			.all()
-
-		return rows.map((row) => ({
-			date: String(row.date),
-			quantity: Number(row.quantity ?? 0),
-			expiresAt: new Date(row.expiresAt),
-			bookingId: row.bookingId == null ? null : String(row.bookingId),
-		}))
-	},
-	async upsertEffectiveAvailabilityRows(rows) {
-		if (rows.length === 0) return
-		await db
-			.insert(EffectiveAvailability)
-			.values(rows as any)
-			.onConflictDoUpdate({
-				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
-				set: {
-					totalUnits: sql`excluded.totalUnits`,
-					heldUnits: sql`excluded.heldUnits`,
-					bookedUnits: sql`excluded.bookedUnits`,
-					availableUnits: sql`excluded.availableUnits`,
-					stopSell: sql`excluded.stopSell`,
-					isSellable: sql`excluded.isSellable`,
-					computedAt: sql`excluded.computedAt`,
-				},
-			})
-			.run()
-	},
-	now: () => new Date(),
-}
-
 function isSqliteBusyError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error)
 	const code = (error as any)?.code
@@ -188,7 +84,7 @@ async function sleep(ms: number): Promise<void> {
 
 export async function recomputeEffectiveAvailabilityRange(
 	input: RecomputeInput,
-	deps: RecomputeDeps = defaultDeps
+	deps: RecomputeDeps
 ): Promise<RecomputeEffectiveAvailabilityRangeResult> {
 	const startedAt = Date.now()
 	const timeoutMs = Number(process.env.INVENTORY_RECOMPUTE_TIMEOUT_MS ?? 3000)
