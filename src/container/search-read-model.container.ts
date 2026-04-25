@@ -58,6 +58,14 @@ export type SearchUnitViewUpsertRow = {
 }
 
 export const searchReadModelRepository = {
+	async purgeStaleSearchUnitRows(cutoff: Date): Promise<number> {
+		const result = await db
+			.delete(SearchUnitView)
+			.where(lt(SearchUnitView.computedAt, cutoff))
+			.run()
+		return Number((result as { rowsAffected?: unknown })?.rowsAffected ?? 0)
+	},
+
 	async listSearchUnitViewRows(params: {
 		unitIds: string[]
 		from: string
