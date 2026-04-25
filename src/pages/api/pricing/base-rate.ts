@@ -76,6 +76,12 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		if (!ownerContext) {
+			return new Response(JSON.stringify({ error: "ratePlan_not_found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		const variantId = ownerContext.variantId
 
 		const v = await variantManagementRepository.getVariantById(variantId)

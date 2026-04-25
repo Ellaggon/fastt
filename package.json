@@ -14,7 +14,8 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "prepare": "husky",
-    "test:search": "tsx src/scripts/testSearch.ts",
+    "test:search": "vitest tests/search tests/integration/search-v2.test.ts tests/integration/search-availability.test.ts",
+    "test:search:synthetic": "vitest tests/search/search-synthetic-preprod-validation.test.ts",
     "test": "vitest"
   },
   "dependencies": {

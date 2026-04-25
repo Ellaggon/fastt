@@ -119,6 +119,8 @@ export type BulkApplyResult = {
 	failures: BulkFailure[]
 }
 
+type BulkPreviewDay = BulkPreviewSuccess["preview"]["days"][number]
+
 function clampConcurrency(value: unknown): number {
 	const parsed = Number(value)
 	if (!Number.isFinite(parsed)) return 4
@@ -303,15 +305,15 @@ async function runPreviewForRatePlan(
 			hasCoverage,
 		}
 	})
-	const changedDays = days.filter((day) => Number(day.delta) !== 0).length
+	const changedDays = days.filter((day: BulkPreviewDay) => Number(day.delta) !== 0).length
 	const totalDelta = Number(
-		days.reduce((acc: number, day) => acc + Number(day.delta ?? 0), 0).toFixed(2)
+		days.reduce((acc: number, day: BulkPreviewDay) => acc + Number(day.delta ?? 0), 0).toFixed(2)
 	)
 	const averageDelta = Number((days.length > 0 ? totalDelta / days.length : 0).toFixed(2))
-	const beforeValues = days.map((day) => Number(day.before))
-	const afterValues = days.map((day) => Number(day.after))
-	const weekdays = days.filter((day) => day.dayOfWeek >= 1 && day.dayOfWeek <= 5)
-	const weekends = days.filter((day) => day.dayOfWeek === 0 || day.dayOfWeek === 6)
+	const beforeValues = days.map((day: BulkPreviewDay) => Number(day.before))
+	const afterValues = days.map((day: BulkPreviewDay) => Number(day.after))
+	const weekdays = days.filter((day: BulkPreviewDay) => day.dayOfWeek >= 1 && day.dayOfWeek <= 5)
+	const weekends = days.filter((day: BulkPreviewDay) => day.dayOfWeek === 0 || day.dayOfWeek === 6)
 	const dateRange = {
 		from: days.length ? days[0].date : null,
 		to: days.length ? days[days.length - 1].date : null,
@@ -334,15 +336,23 @@ async function runPreviewForRatePlan(
 			breakdown: {
 				weekdays: {
 					days: weekdays.length,
-					changedDays: weekdays.filter((day) => Number(day.delta) !== 0).length,
-					totalDelta: Number(weekdays.reduce((acc, day) => acc + Number(day.delta), 0).toFixed(2)),
+					changedDays: weekdays.filter((day: BulkPreviewDay) => Number(day.delta) !== 0).length,
+					totalDelta: Number(
+						weekdays
+							.reduce((acc: number, day: BulkPreviewDay) => acc + Number(day.delta), 0)
+							.toFixed(2)
+					),
 				},
 				weekends: {
 					days: weekends.length,
-					changedDays: weekends.filter((day) => Number(day.delta) !== 0).length,
-					totalDelta: Number(weekends.reduce((acc, day) => acc + Number(day.delta), 0).toFixed(2)),
+					changedDays: weekends.filter((day: BulkPreviewDay) => Number(day.delta) !== 0).length,
+					totalDelta: Number(
+						weekends
+							.reduce((acc: number, day: BulkPreviewDay) => acc + Number(day.delta), 0)
+							.toFixed(2)
+					),
 				},
-				daysWithoutCoverage: days.filter((day) => !day.hasCoverage).length,
+				daysWithoutCoverage: days.filter((day: BulkPreviewDay) => !day.hasCoverage).length,
 			},
 			days,
 		},

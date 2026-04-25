@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { resolveEffectivePolicies } from "@/modules/policies/application/use-cases/resolve-effective-policies"
+import { resolveEffectivePolicies } from "@/modules/policies/testing-public"
 import type {
 	PolicyAssignmentSnapshot,
 	PolicyResolutionRepositoryPort,
 	PolicySnapshot,
-} from "@/modules/policies/application/ports/PolicyResolutionRepositoryPort"
+} from "@/modules/policies/testing-public"
 
 function makeRepo(fixture: {
 	assignments: PolicyAssignmentSnapshot[]

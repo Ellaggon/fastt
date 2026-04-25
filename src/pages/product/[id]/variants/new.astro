@@ -80,7 +80,7 @@ if (variantIdParam) {
 	baseRate = await variantManagementRepository.getBaseRate(variantIdParam)
 	defaultRatePlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantIdParam)
 	inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantIdParam)
-	if (defaultRatePlan?.id) {
+	if (defaultRatePlan?.ratePlanId) {
 		effectivePricingDays = Number(
 			(
 				await db
@@ -89,7 +89,7 @@ if (variantIdParam) {
 					.where(
 						and(
 							eq(EffectivePricing.variantId, variantIdParam),
-							eq(EffectivePricing.ratePlanId, defaultRatePlan.id)
+							eq(EffectivePricing.ratePlanId, defaultRatePlan.ratePlanId)
 						)
 					)
 					.get()

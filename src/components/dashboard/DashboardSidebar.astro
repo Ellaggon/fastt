@@ -13,7 +13,7 @@ const isActive = (href: string) =>
 
 const isInventoryActive =
 	isActive(routes.ratePlansHub()) ||
-	isActive(routes.productList()) ||
+	isActive(routes.inventoryBulk()) ||
 	isActive(routes.bookingList())
 const isPricingActive =
 	isActive(routes.pricingRules()) ||
@@ -43,9 +43,9 @@ const isSystemActive =
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.productList()}
+			href={routes.inventoryBulk()}
 			label="Availability"
-			active={isActive(routes.productList())}
+			active={isActive(routes.inventoryBulk())}
 			prefetch={true}
 			level={1}
 		/>

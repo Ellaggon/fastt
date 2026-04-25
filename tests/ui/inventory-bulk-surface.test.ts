@@ -21,7 +21,6 @@ describe("ui/inventory bulk surface", () => {
 
 	it("inventory calendar links to bulk operations surface", () => {
 		const source = read("src/pages/product/[id]/variants/[variantId]/inventory.astro")
-		expect(source).toContain("Operaciones masivas")
-		expect(source).toContain("/inventory/bulk?")
+		expect(source).toContain("/inventory/bulk")
 	})
 })

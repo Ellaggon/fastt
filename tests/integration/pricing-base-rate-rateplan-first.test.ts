@@ -155,8 +155,9 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 		seedContext: seedRatePlanContext,
 		execute: async (input) => {
 			if (!currentSeed) throw new Error("seed context not initialized")
+			const seed = currentSeed
 			return withSupabaseAuthStub(
-				{ [currentSeed.token]: { id: "u_br_rpf", email: currentSeed.email } },
+				{ [seed.token]: { id: "u_br_rpf", email: seed.email } },
 				async () => {
 					const form = new FormData()
 					if (input.variantId) form.set("variantId", input.variantId)
@@ -166,7 +167,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 					return setBaseRatePost({
 						request: makeAuthedFormRequest({
 							path: "/api/pricing/base-rate",
-							token: currentSeed.token,
+							token: seed.token,
 							form,
 						}),
 					} as any)
@@ -206,8 +207,9 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 	it("solo variantId ya no es válido en modo canónico", async () => {
 		const seeded = (await seedRatePlanContext()) as RatePlanContextIds
 		if (!currentSeed) throw new Error("seed context not initialized")
+		const seed = currentSeed
 		await withSupabaseAuthStub(
-			{ [currentSeed.token]: { id: "u_br_rpf_only_var", email: currentSeed.email } },
+			{ [seed.token]: { id: "u_br_rpf_only_var", email: seed.email } },
 			async () => {
 				const form = new FormData()
 				form.set("variantId", seeded.variantId)
@@ -216,7 +218,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 				const response = await setBaseRatePost({
 					request: makeAuthedFormRequest({
 						path: "/api/pricing/base-rate",
-						token: currentSeed.token,
+						token: seed.token,
 						form,
 					}),
 				} as any)
@@ -230,10 +232,11 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 	it("pricing determinism: mismo ratePlanId ignora variantId cliente y conserva resultado", async () => {
 		const seeded = (await seedRatePlanContext()) as RatePlanContextIds
 		if (!currentSeed) throw new Error("seed context not initialized")
+		const seed = currentSeed
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
 
 		await withSupabaseAuthStub(
-			{ [currentSeed.token]: { id: "u_br_rpf_det", email: currentSeed.email } },
+			{ [seed.token]: { id: "u_br_rpf_det", email: seed.email } },
 			async () => {
 				const first = new FormData()
 				first.set("ratePlanId", seeded.ratePlanId)
@@ -243,7 +246,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 				const firstResponse = await setBaseRatePost({
 					request: makeAuthedFormRequest({
 						path: "/api/pricing/base-rate",
-						token: currentSeed!.token,
+						token: seed.token,
 						form: first,
 					}),
 				} as any)
@@ -251,13 +254,13 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 
 				const second = new FormData()
 				second.set("ratePlanId", seeded.ratePlanId)
-				second.set("variantId", currentSeed!.otherVariantId)
+				second.set("variantId", seed.otherVariantId)
 				second.set("currency", "USD")
 				second.set("basePrice", "333")
 				const secondResponse = await setBaseRatePost({
 					request: makeAuthedFormRequest({
 						path: "/api/pricing/base-rate",
-						token: currentSeed!.token,
+						token: seed.token,
 						form: second,
 					}),
 				} as any)

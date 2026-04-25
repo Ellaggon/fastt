@@ -184,7 +184,6 @@ export async function upsertRatePlanTemplate(row: {
 	description?: string | null
 	paymentType: string
 	refundable: boolean
-	cancellationPolicyId?: string | null
 }) {
 	await db
 		.insert(RatePlanTemplate)
@@ -194,7 +193,6 @@ export async function upsertRatePlanTemplate(row: {
 			description: row.description ?? null,
 			paymentType: row.paymentType,
 			refundable: row.refundable,
-			cancellationPolicyId: row.cancellationPolicyId ?? null,
 			createdAt: new Date(),
 		})
 		.onConflictDoUpdate({
@@ -204,7 +202,6 @@ export async function upsertRatePlanTemplate(row: {
 				description: row.description ?? null,
 				paymentType: row.paymentType,
 				refundable: row.refundable,
-				cancellationPolicyId: row.cancellationPolicyId ?? null,
 			},
 		})
 }

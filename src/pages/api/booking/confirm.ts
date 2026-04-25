@@ -9,6 +9,11 @@ import { applyInventoryMutation } from "@/modules/inventory/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
+import { getFeatureFlags } from "@/config/featureFlags"
+import {
+	logFallbackTriggered,
+	logFeatureFlagEvaluation,
+} from "@/lib/observability/migration-logger"
 
 const schema = z.object({
 	holdId: z.string().uuid(),
@@ -72,9 +77,26 @@ async function serializeBookingConfirm<T>(holdId: string, fn: () => Promise<T>):
 
 export const POST: APIRoute = async ({ request }) => {
 	const startedAt = performance.now()
+	const requestId = String(request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
 	let requestedHoldId: string | null = null
 	let busyRecoveryAttempts = 0
 	try {
+		const url = new URL(request.url)
+		const flags = getFeatureFlags({
+			request,
+			query: url.searchParams,
+		})
+		logFeatureFlagEvaluation({
+			requestId,
+			domain: "booking",
+			endpoint: "/api/booking/confirm",
+			flags,
+			overrides: {
+				queryFlag: url.searchParams.get("flag"),
+				headerFlag: request.headers.get("x-flag"),
+			},
+		})
+
 		const user = await getUserFromRequest(request)
 
 		const contentType = request.headers.get("content-type") ?? ""
@@ -164,6 +186,14 @@ export const POST: APIRoute = async ({ request }) => {
 				linked = await findLinkedBookingByHold(requestedHoldId)
 			}
 			if (linked) {
+				logFallbackTriggered({
+					requestId,
+					domain: "booking",
+					endpoint: "/api/booking/confirm",
+					reason: "sqlite_busy_recovered",
+					path: "POST /api/booking/confirm",
+					durationMs: Number((performance.now() - startedAt).toFixed(1)),
+				})
 				logger.info("booking.confirm", {
 					holdId: requestedHoldId,
 					bookingId: linked.bookingId,
@@ -183,6 +213,14 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 			}
 		}
+		logFallbackTriggered({
+			requestId,
+			domain: "booking",
+			endpoint: "/api/booking/confirm",
+			reason: "confirm_failed",
+			path: "POST /api/booking/confirm",
+			durationMs: Number((performance.now() - startedAt).toFixed(1)),
+		})
 		logger.error("booking.confirm_failed", {
 			holdId: requestedHoldId,
 			message: error instanceof Error ? error.message : String(error),

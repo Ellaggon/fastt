@@ -3,9 +3,9 @@ import { describe, it, expect } from "vitest"
 import {
 	createPolicyCapa6,
 	assignPolicyCapa6,
+	PolicyValidationError,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { PolicyValidationError } from "@/modules/policies/public"
 
 import {
 	upsertDestination,

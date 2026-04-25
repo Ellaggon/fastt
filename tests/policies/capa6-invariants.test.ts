@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createPolicyVersionCapa6 } from "@/modules/policies/application/use-cases/capa6/create-policy-version"
-import { replacePolicyAssignmentCapa6 } from "@/modules/policies/application/use-cases/capa6/replace-policy-assignment"
-import { togglePolicyAssignmentCapa6 } from "@/modules/policies/application/use-cases/capa6/toggle-policy-assignment"
-import { PolicyValidationError } from "@/modules/policies/application/errors/policyValidationError"
+import {
+	createPolicyVersionCapa6,
+	replacePolicyAssignmentCapa6,
+	togglePolicyAssignmentCapa6,
+} from "@/modules/policies/testing-public"
+import { PolicyValidationError } from "@/modules/policies/public"
 
 describe("policies/capa6 invariants (unit)", () => {
 	it("rejects overlapping effective ranges when creating a new version", async () => {

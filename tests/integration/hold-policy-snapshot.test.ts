@@ -7,7 +7,6 @@ import {
 	EffectivePricing,
 	Hold,
 	RatePlan,
-	RatePlanTemplate,
 	db,
 	eq,
 } from "astro:db"
@@ -16,11 +15,15 @@ import {
 	assignPolicyCapa6,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
+	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { resolveEffectiveRules } from "@/modules/rules/public"
-import { createInventoryHold } from "@/modules/inventory/application/use-cases/create-inventory-hold"
-import { createBookingFromHold } from "@/modules/booking/application/use-cases/create-booking-from-hold"
+import {
+	createInventoryHold,
+	recomputeEffectiveAvailabilityRange,
+} from "@/modules/inventory/public"
+import { createBookingFromHold } from "@/modules/booking/public"
 import { inventoryHoldRepository } from "@/container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
@@ -31,9 +34,8 @@ import {
 	upsertRatePlanTemplate,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
-import type { HoldPolicySnapshot } from "@/modules/policies/application/use-cases/build-policy-snapshot"
+import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
-import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -191,7 +193,11 @@ describe("integration/hold policy snapshot", () => {
 		const hold = await createInventoryHold(
 			{
 				repo: inventoryHoldRepository,
-				resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
+				resolveEffectivePolicies: async (ctx) =>
+					normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
+						asOfDate: String(ctx.checkIn ?? "2030-01-01"),
+						warnings: [],
+					}).dto,
 				resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
 				policyContext: {
 					productId,
@@ -362,7 +368,11 @@ describe("integration/hold policy snapshot", () => {
 			const hold = await createInventoryHold(
 				{
 					repo: inventoryHoldRepository,
-					resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
+					resolveEffectivePolicies: async (ctx) =>
+						normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
+							asOfDate: String(ctx.checkIn ?? "2030-01-01"),
+							warnings: [],
+						}).dto,
 					resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
 					policyContext: {
 						productId,

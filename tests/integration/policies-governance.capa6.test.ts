@@ -156,9 +156,6 @@ describe("integration/policies governance CAPA6", () => {
 			scopeId: ratePlanId,
 			channel: null,
 			actorUserId: "user_gov_replace",
-			checkIn: "2030-02-01",
-			checkOut: "2030-02-03",
-			requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 		})
 		expect(replaced.assignmentId).toBeTruthy()
 

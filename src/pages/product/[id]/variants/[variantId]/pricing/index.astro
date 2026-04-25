@@ -14,6 +14,7 @@ const loaded = await loadVariantPricingData({
 	variantId,
 })
 if ("redirectTo" in loaded) return Astro.redirect(loaded.redirectTo)
+const loadedData = loaded
 const pathname = Astro.url.pathname
 
 const typeLabels: Record<string, string> = {
@@ -42,7 +43,7 @@ const weekDayLabels: Record<number, string> = {
 	0: "D",
 }
 
-function getRuleContext(rule: (typeof loaded.activeRulesForUi)[number]) {
+function getRuleContext(rule: (typeof loadedData.activeRulesForUi)[number]) {
 	if (rule.contextKey === "manual") return { key: "manual", label: "Ajustes manuales" }
 	if (rule.contextKey === "promotion") return { key: "promotion", label: "Promociones" }
 	if (rule.contextKey === "day") return { key: "day", label: "Reglas por día" }
@@ -57,7 +58,7 @@ function getReadableDays(days: number[]): string {
 		.join(" · ")
 }
 
-const rulesWithUx = loaded.activeRulesForUi.map((rule) => {
+const rulesWithUx = loadedData.activeRulesForUi.map((rule) => {
 	const context = getRuleContext(rule)
 	const priority = Number(rule.priority ?? 10)
 	return {

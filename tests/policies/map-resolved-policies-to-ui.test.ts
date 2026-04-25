@@ -12,6 +12,7 @@ describe("policies/mapResolvedPoliciesToUI", () => {
 					resolvedFromScope: "product",
 				},
 			],
+			missingCategories: [],
 		})
 		expect(ui).toEqual([
 			{
@@ -24,7 +25,7 @@ describe("policies/mapResolvedPoliciesToUI", () => {
 	})
 
 	it("is defensive: empty or missing policies array => []", () => {
-		expect(mapResolvedPoliciesToUI({ policies: [] })).toEqual([])
+		expect(mapResolvedPoliciesToUI({ policies: [], missingCategories: [] })).toEqual([])
 		expect(mapResolvedPoliciesToUI({} as any)).toEqual([])
 	})
 })
