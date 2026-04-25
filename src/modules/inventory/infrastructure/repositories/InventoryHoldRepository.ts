@@ -232,7 +232,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 	}): Promise<{ policySnapshotJson: unknown } | null> {
 		const id = String(params.holdId ?? "").trim()
 		if (!id) return null
-		let row: { policySnapshotJson: unknown } | null = null
+		let row: { policySnapshotJson: unknown } | undefined
 		try {
 			row = await db
 				.select({ policySnapshotJson: Hold.policySnapshotJson })

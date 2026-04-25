@@ -5,14 +5,17 @@ import { and, db, eq, gte, lt, SearchUnitView } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
-import { resolveEffectivePolicies } from "@/modules/policies/public"
+import {
+	normalizePolicyResolutionResult,
+	resolveEffectivePolicies,
+} from "@/modules/policies/public"
 import { resolveEffectiveRules } from "@/modules/rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 import {
+	buildOccupancyKey,
 	evaluateStaySellabilityFromView,
 	type SearchUnitViewStayRow,
-} from "@/modules/search/application/queries/evaluate-stay-from-view"
+} from "@/modules/search/public"
 import { toISODate } from "@/shared/domain/date/date.utils"
 
 const schema = z.object({
@@ -192,11 +195,12 @@ async function resolveHoldabilityFromView(params: {
 			requestedRooms: params.requestedRooms,
 			rowsByDate: byDate,
 		})
-		if (!evaluation.sellable) {
+		if (!evaluation.isSellable) {
+			const firstReasonCode = evaluation.reasonCodes[0] ?? "MISSING_COVERAGE"
 			if (!firstFailure) {
 				firstFailure = {
-					reason: String(evaluation.primaryBlocker ?? "UNKNOWN"),
-					failingDate: evaluation.failingDate ?? null,
+					reason: String(firstReasonCode),
+					failingDate: stayDates[0] ?? null,
 				}
 			}
 			continue
@@ -301,7 +305,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			cookieSessionId ||
 			String(generatedGuestSessionId ?? "").trim() ||
 			String((user as any).id ?? "").trim() ||
-			String(user.email ?? "").trim()
+			String(user?.email ?? "").trim()
 		if (!effectiveSessionId) {
 			return new Response(
 				JSON.stringify({ error: "validation_error", details: [{ path: ["sessionId"] }] }),
@@ -335,7 +339,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				return createInventoryHold(
 					{
 						repo: inventoryHoldRepository,
-						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
+						resolveEffectivePolicies: async (ctx) =>
+							normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
+								asOfDate: String(ctx.checkIn ?? new Date().toISOString().slice(0, 10)),
+								warnings: [],
+							}).dto,
 						resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
 						policyContext: {
 							productId: variant.productId,

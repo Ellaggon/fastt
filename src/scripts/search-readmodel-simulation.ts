@@ -12,8 +12,7 @@ import {
 
 import { searchOffers } from "@/container"
 import { GET as getCoverage } from "@/pages/api/internal/search/coverage"
-import { materializeSearchUnitRange } from "@/modules/search/public"
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
+import { buildOccupancyKey, materializeSearchUnitRange } from "@/modules/search/public"
 import { readCounter, readTimingQuantile } from "@/lib/observability/metrics"
 import {
 	upsertDestination,

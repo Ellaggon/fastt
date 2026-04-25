@@ -1,22 +1,12 @@
-import {
-	and,
-	db,
-	eq,
-	EffectiveAvailability,
-	EffectivePricing,
-	EffectiveRestriction,
-	gte,
-	lt,
-	RatePlan,
-	SearchUnitView,
-	sql,
-	Variant,
-	VariantCapacity,
-} from "astro:db"
-import { createHash } from "node:crypto"
 import { z } from "zod"
 
 import { logger } from "@/lib/observability/logger"
+import { getFeatureFlag } from "@/config/featureFlags"
+import {
+	normalizePolicyResolutionResult,
+	resolveEffectivePolicies,
+} from "@/modules/policies/public"
+import { searchReadModelRepository } from "@/container/search-read-model.container"
 import { buildOccupancyKey } from "../../domain/occupancy-key"
 
 const materializeSearchUnitSchema = z.object({
@@ -37,6 +27,8 @@ const materializeSearchUnitRangeSchema = z.object({
 
 type MaterializeSearchUnitInput = z.infer<typeof materializeSearchUnitSchema>
 type MaterializeSearchUnitRangeInput = z.infer<typeof materializeSearchUnitRangeSchema>
+
+const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
 
 function parseDateOnly(value: string): Date {
 	return new Date(`${value}T00:00:00.000Z`)
@@ -66,142 +58,21 @@ function stableId(params: {
 	return `suv_${params.variantId}_${params.ratePlanId}_${params.date}_${params.occupancyKey}`
 }
 
-async function resolveDefaultRatePlanIds(variantId: string): Promise<string[]> {
-	const rows = await db
-		.select({ id: RatePlan.id })
-		.from(RatePlan)
-		.where(
-			and(
-				eq(RatePlan.variantId, variantId),
-				eq(RatePlan.isDefault, true),
-				eq(RatePlan.isActive, true)
-			)
-		)
-		.all()
-	return rows.map((row) => String(row.id)).filter(Boolean)
-}
-
-async function resolveProductId(variantId: string): Promise<string | null> {
-	const row = await db
-		.select({ productId: Variant.productId })
-		.from(Variant)
-		.where(eq(Variant.id, variantId))
-		.get()
-	return row?.productId ? String(row.productId) : null
-}
-
-async function resolveGuestRange(variantId: string): Promise<number[]> {
-	const capacity = await db
-		.select({ maxOccupancy: VariantCapacity.maxOccupancy })
-		.from(VariantCapacity)
-		.where(eq(VariantCapacity.variantId, variantId))
-		.get()
-	const maxOccupancy = Math.max(1, Number(capacity?.maxOccupancy ?? 2))
-	return Array.from({ length: maxOccupancy }, (_, i) => i + 1)
-}
-
-async function resolveSourceVersion(params: {
-	variantId: string
-	ratePlanId: string
-	date: string
-}): Promise<string> {
-	const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
-		db
-			.select({ computedAt: EffectiveAvailability.computedAt })
-			.from(EffectiveAvailability)
-			.where(
-				and(
-					eq(EffectiveAvailability.variantId, params.variantId),
-					eq(EffectiveAvailability.date, params.date)
-				)
-			)
-			.get(),
-		db
-			.select({ computedAt: EffectivePricing.computedAt })
-			.from(EffectivePricing)
-			.where(
-				and(
-					eq(EffectivePricing.variantId, params.variantId),
-					eq(EffectivePricing.ratePlanId, params.ratePlanId),
-					eq(EffectivePricing.date, params.date)
-				)
-			)
-			.get(),
-		db
-			.select({ computedAt: EffectiveRestriction.computedAt })
-			.from(EffectiveRestriction)
-			.where(
-				and(
-					eq(EffectiveRestriction.variantId, params.variantId),
-					eq(EffectiveRestriction.date, params.date)
-				)
-			)
-			.get(),
-	])
-	const a = availabilityRow?.computedAt ? new Date(availabilityRow.computedAt).toISOString() : "na"
-	const p = pricingRow?.computedAt ? new Date(pricingRow.computedAt).toISOString() : "np"
-	const restrictionTimestamp =
-		restrictionRow?.computedAt != null
-			? new Date(restrictionRow.computedAt).toISOString()
-			: (restrictionRow as any)?.updatedAt != null
-				? new Date((restrictionRow as any).updatedAt).toISOString()
-				: "nr"
-	return createHash("sha1").update(`${a}|${p}|${restrictionTimestamp}`).digest("hex")
-}
-
 export async function materializeSearchUnit(
 	input: MaterializeSearchUnitInput
 ): Promise<{ updated: boolean; isSellable: boolean; blocker: string | null }> {
 	const parsed = materializeSearchUnitSchema.parse(input)
-	const productId = await resolveProductId(parsed.variantId)
+	const productId = await searchReadModelRepository.resolveProductId(parsed.variantId)
 	if (!productId) {
 		return { updated: false, isSellable: false, blocker: "MISSING_VARIANT" }
 	}
 
-	const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
-		db
-			.select({
-				isSellable: EffectiveAvailability.isSellable,
-				stopSell: EffectiveAvailability.stopSell,
-				availableUnits: EffectiveAvailability.availableUnits,
-			})
-			.from(EffectiveAvailability)
-			.where(
-				and(
-					eq(EffectiveAvailability.variantId, parsed.variantId),
-					eq(EffectiveAvailability.date, parsed.date)
-				)
-			)
-			.get(),
-		db
-			.select({
-				finalBasePrice: EffectivePricing.finalBasePrice,
-			})
-			.from(EffectivePricing)
-			.where(
-				and(
-					eq(EffectivePricing.variantId, parsed.variantId),
-					eq(EffectivePricing.ratePlanId, parsed.ratePlanId),
-					eq(EffectivePricing.date, parsed.date)
-				)
-			)
-			.get(),
-		db
-			.select({
-				stopSell: EffectiveRestriction.stopSell,
-				minStay: EffectiveRestriction.minStay,
-				cta: EffectiveRestriction.cta,
-				ctd: EffectiveRestriction.ctd,
-			})
-			.from(EffectiveRestriction)
-			.where(
-				and(
-					eq(EffectiveRestriction.variantId, parsed.variantId),
-					eq(EffectiveRestriction.date, parsed.date)
-				)
-			)
-			.get(),
-	])
+	const { availabilityRow, pricingRow, restrictionRow } =
+		await searchReadModelRepository.loadMaterializationInputs({
+			variantId: parsed.variantId,
+			ratePlanId: parsed.ratePlanId,
+			date: parsed.date,
+		})
 
 	const hasAvailability = availabilityRow != null
 	const hasPrice =
@@ -218,6 +89,33 @@ export async function materializeSearchUnit(
 	const isSellable = hasAvailability && hasPrice && !stopSell && availableUnits > 0
 	const isAvailable = hasAvailability && !stopSell && availableUnits > 0
 
+	let policyBlocked = false
+	const policyBlockerEnabled = getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED")
+	if (policyBlockerEnabled && isSellable) {
+		try {
+			const resolvedPolicies = await resolveEffectivePolicies({
+				productId,
+				variantId: parsed.variantId,
+				ratePlanId: parsed.ratePlanId,
+				checkIn: parsed.date,
+				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
+				onMissingCategory: "return_null",
+			})
+			const normalized = normalizePolicyResolutionResult(resolvedPolicies, {
+				asOfDate: parsed.date,
+				warnings: [],
+			}).dto
+			policyBlocked = normalized.missingCategories.length > 0
+		} catch (error) {
+			logger.warn("search.materialize.policy_resolution_failed", {
+				variantId: parsed.variantId,
+				ratePlanId: parsed.ratePlanId,
+				date: parsed.date,
+				message: error instanceof Error ? error.message : String(error),
+			})
+		}
+	}
+
 	const blocker = !hasAvailability
 		? "UNKNOWN"
 		: stopSell
@@ -226,76 +124,49 @@ export async function materializeSearchUnit(
 				? "NO_CAPACITY"
 				: !hasPrice
 					? "MISSING_PRICE"
-					: null
+					: policyBlocked
+						? "POLICY_BLOCKED"
+						: null
 	const occupancyKey = buildOccupancyKey({
 		rooms: 1,
 		adults: parsed.totalGuests,
 		children: 0,
 		totalGuests: parsed.totalGuests,
 	})
-	const sourceVersion = await resolveSourceVersion({
+	const sourceVersion = await searchReadModelRepository.resolveSourceVersion({
 		variantId: parsed.variantId,
 		ratePlanId: parsed.ratePlanId,
 		date: parsed.date,
 	})
 
-	await db
-		.insert(SearchUnitView)
-		.values({
-			id: stableId({
-				variantId: parsed.variantId,
-				ratePlanId: parsed.ratePlanId,
-				date: parsed.date,
-				occupancyKey,
-			}),
+	await searchReadModelRepository.upsertSearchUnitViewRow({
+		id: stableId({
 			variantId: parsed.variantId,
-			productId,
 			ratePlanId: parsed.ratePlanId,
 			date: parsed.date,
 			occupancyKey,
-			totalGuests: parsed.totalGuests,
-			hasAvailability,
-			hasPrice,
-			isSellable,
-			isAvailable,
-			availableUnits,
-			stopSell,
-			pricePerNight: hasPrice ? Number(pricingRow?.finalBasePrice ?? 0) : null,
-			currency: parsed.currency,
-			primaryBlocker: blocker,
-			minStay,
-			cta,
-			ctd,
-			computedAt: new Date(),
-			sourceVersion,
-		} as any)
-		.onConflictDoUpdate({
-			target: [
-				SearchUnitView.variantId,
-				SearchUnitView.ratePlanId,
-				SearchUnitView.date,
-				SearchUnitView.occupancyKey,
-			],
-			set: {
-				productId: sql`excluded.productId`,
-				totalGuests: sql`excluded.totalGuests`,
-				hasAvailability: sql`excluded.hasAvailability`,
-				hasPrice: sql`excluded.hasPrice`,
-				isSellable: sql`excluded.isSellable`,
-				isAvailable: sql`excluded.isAvailable`,
-				availableUnits: sql`excluded.availableUnits`,
-				stopSell: sql`excluded.stopSell`,
-				pricePerNight: sql`excluded.pricePerNight`,
-				currency: sql`excluded.currency`,
-				primaryBlocker: sql`excluded.primaryBlocker`,
-				minStay: sql`excluded.minStay`,
-				cta: sql`excluded.cta`,
-				ctd: sql`excluded.ctd`,
-				computedAt: sql`excluded.computedAt`,
-				sourceVersion: sql`excluded.sourceVersion`,
-			},
-		})
-		.run()
+		}),
+		variantId: parsed.variantId,
+		productId,
+		ratePlanId: parsed.ratePlanId,
+		date: parsed.date,
+		occupancyKey,
+		totalGuests: parsed.totalGuests,
+		hasAvailability,
+		hasPrice,
+		isSellable: isSellable && !policyBlocked,
+		isAvailable,
+		availableUnits,
+		stopSell,
+		pricePerNight: hasPrice ? Number(pricingRow?.finalBasePrice ?? 0) : null,
+		currency: parsed.currency,
+		primaryBlocker: blocker,
+		minStay,
+		cta,
+		ctd,
+		computedAt: new Date(),
+		sourceVersion,
+	})
 
 	return {
 		updated: true,
@@ -315,7 +186,7 @@ export async function materializeSearchUnitRange(
 
 	const ratePlanIds = parsed.ratePlanId
 		? [parsed.ratePlanId]
-		: await resolveDefaultRatePlanIds(parsed.variantId)
+		: await searchReadModelRepository.resolveDefaultRatePlanIds(parsed.variantId)
 	if (!ratePlanIds.length) {
 		logger.warn("search_unit_view_materialization_skipped", {
 			variantId: parsed.variantId,
@@ -326,7 +197,7 @@ export async function materializeSearchUnitRange(
 		return { rows: 0, variantId: parsed.variantId, from: parsed.from, to: parsed.to }
 	}
 
-	const guestRange = await resolveGuestRange(parsed.variantId)
+	const guestRange = await searchReadModelRepository.resolveGuestRange(parsed.variantId)
 	let rows = 0
 	for (const ratePlanId of ratePlanIds) {
 		for (const date of dates) {
@@ -359,8 +230,7 @@ export async function purgeStaleSearchUnitRows(params?: {
 }): Promise<{ removed: number; maxAgeMinutes: number }> {
 	const maxAgeMinutes = Math.max(1, Number(params?.maxAgeMinutes ?? 30))
 	const cutoff = new Date(Date.now() - maxAgeMinutes * 60_000)
-	const result = await db.delete(SearchUnitView).where(lt(SearchUnitView.computedAt, cutoff)).run()
-	const removed = Number((result as any)?.rowsAffected ?? 0)
+	const removed = await searchReadModelRepository.purgeStaleSearchUnitRows(cutoff)
 	logger.info("search_unit_view_purged_stale_rows", {
 		removed,
 		maxAgeMinutes,
