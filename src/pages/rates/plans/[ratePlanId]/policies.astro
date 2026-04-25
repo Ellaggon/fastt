@@ -1,8 +1,10 @@
 ---
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import Button from "@/components/ui/Button.astro"
+import { getFeatureFlags } from "@/config/featureFlags"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { logFeatureFlagEvaluation } from "@/lib/observability/migration-logger"
 import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { routes } from "@/lib/routes"
 import {
@@ -19,6 +21,21 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 const { user } = auth
+const requestId = String(Astro.request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
+const runtimeFlags = getFeatureFlags({
+	request: Astro.request,
+	query: Astro.url.searchParams,
+})
+logFeatureFlagEvaluation({
+	requestId,
+	domain: "ssr",
+	endpoint: "/rates/plans/[ratePlanId]/policies",
+	flags: runtimeFlags,
+	overrides: {
+		queryFlag: Astro.url.searchParams.get("flag"),
+		headerFlag: Astro.request.headers.get("x-flag"),
+	},
+})
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.ratePlansHub())
@@ -37,6 +54,7 @@ if (Astro.request.method === "POST") {
 		request: Astro.request,
 		ratePlans: selectedRatePlans,
 		userId: user.id,
+		requestId,
 	})
 }
 ---

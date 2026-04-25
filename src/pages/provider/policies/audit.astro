@@ -151,7 +151,8 @@ const traceCheckIn = String(Astro.url.searchParams.get("traceCheckIn") ?? "").tr
 const traceCheckOut = String(Astro.url.searchParams.get("traceCheckOut") ?? "").trim()
 
 let traceError: string | null = null
-let traceResult: Awaited<ReturnType<typeof resolveEffectivePolicies>> | null = null
+let traceResult: (Awaited<ReturnType<typeof resolveEffectivePolicies>> & { trace?: any }) | null =
+	null
 
 if (traceProductId) {
 	try {
@@ -339,7 +340,7 @@ const eventTypes = Array.from(
 								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
 									<p class="font-medium">Conflictos detectados</p>
 									<ul class="mt-1 list-disc space-y-1 pl-5">
-										{traceResult.trace.conflicts.map((conflict) => (
+										{traceResult.trace.conflicts.map((conflict: any) => (
 											<li>
 												{conflict.key} ({conflict.count})
 											</li>
@@ -348,7 +349,7 @@ const eventTypes = Array.from(
 								</div>
 							)}
 
-							{traceResult.trace.categories.map((categoryTrace) => (
+							{traceResult.trace.categories.map((categoryTrace: any) => (
 								<div class="rounded-lg border border-slate-200 p-4">
 									<div class="mb-3 flex items-center justify-between">
 										<h3 class="text-sm font-semibold text-slate-900">
@@ -376,7 +377,7 @@ const eventTypes = Array.from(
 												</tr>
 											</thead>
 											<tbody>
-												{categoryTrace.steps.map((step) => (
+												{categoryTrace.steps.map((step: any) => (
 													<tr class="border-b border-slate-100 text-slate-700">
 														<td class="py-2 pr-3">{scopeName(step.scope)}</td>
 														<td class="py-2 pr-3">{step.scopeId}</td>
