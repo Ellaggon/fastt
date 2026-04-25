@@ -17,6 +17,7 @@ import { ImageQueryRepository } from "../modules/catalog/infrastructure/reposito
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
 import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
 import { MarketplaceHotelSearchRepository } from "../modules/catalog/infrastructure/repositories/MarketplaceHotelSearchRepository"
+import { CatalogReadModelRepository } from "../modules/catalog/infrastructure/repositories/CatalogReadModelRepository"
 
 import {
 	createResolveHotelAmenitiesQuery,
@@ -30,6 +31,12 @@ import {
 	createListActiveCancellationPoliciesQuery,
 	createSearchDestinationsQuery,
 	createListMarketplaceHotelsByDestinationQuery,
+	createGetProductAggregateQuery,
+	createGetProductFullAggregateQuery,
+	createGetProductVariantsAggregateQuery,
+	createGetVariantFullAggregateQuery,
+	createGetProviderFullAggregateQuery,
+	createGetProviderBookingsAggregateQuery,
 } from "../modules/catalog/application/queries"
 
 // ---- Infrastructure singletons ----
@@ -64,6 +71,7 @@ export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
 export const destinationQueryRepository = new DestinationQueryRepository()
 export const marketplaceHotelSearchRepository = new MarketplaceHotelSearchRepository()
+export const catalogReadModelRepository = new CatalogReadModelRepository()
 
 // ---- Wired read queries ----
 export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
@@ -95,4 +103,23 @@ export const searchDestinations = createSearchDestinationsQuery({
 
 export const listMarketplaceHotelsByDestination = createListMarketplaceHotelsByDestinationQuery({
 	repo: marketplaceHotelSearchRepository,
+})
+
+export const getProductAggregate = createGetProductAggregateQuery({
+	repo: catalogReadModelRepository,
+})
+export const getProductFullAggregate = createGetProductFullAggregateQuery({
+	repo: catalogReadModelRepository,
+})
+export const getProductVariantsAggregate = createGetProductVariantsAggregateQuery({
+	repo: catalogReadModelRepository,
+})
+export const getVariantFullAggregate = createGetVariantFullAggregateQuery({
+	repo: catalogReadModelRepository,
+})
+export const getProviderFullAggregate = createGetProviderFullAggregateQuery({
+	repo: catalogReadModelRepository,
+})
+export const getProviderBookingsAggregate = createGetProviderBookingsAggregateQuery({
+	repo: catalogReadModelRepository,
 })
