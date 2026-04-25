@@ -5,6 +5,7 @@ import { and, Booking, db, eq, InventoryLock, Product, sql } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { createBookingFromHold } from "@/modules/booking/public"
+import { bookingFromHoldRepository } from "@/container/booking.container"
 import { applyInventoryMutation } from "@/modules/inventory/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { logger } from "@/lib/observability/logger"
@@ -117,6 +118,7 @@ export const POST: APIRoute = async ({ request }) => {
 				mutate: async () =>
 					createBookingFromHold(
 						{
+							repository: bookingFromHoldRepository,
 							resolveEffectiveTaxFees: (params) => resolveEffectiveTaxFeesUseCase(params),
 						},
 						{

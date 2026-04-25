@@ -25,6 +25,7 @@ import {
 } from "@/modules/inventory/public"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { inventoryHoldRepository } from "@/container"
+import { bookingFromHoldRepository } from "@/container/booking.container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import {
@@ -249,6 +250,7 @@ describe("integration/hold policy snapshot", () => {
 
 		const booking = await createBookingFromHold(
 			{
+				repository: bookingFromHoldRepository,
 				resolveEffectiveTaxFees: async () => ({ definitions: [] }),
 			},
 			{
