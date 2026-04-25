@@ -6,6 +6,7 @@ import {
 	resolveNewSearchOffers,
 	resolveSearchOffers,
 } from "@/modules/search/public"
+import { SearchOffersRepository } from "@/modules/search/infrastructure/repositories/SearchOffersRepository"
 
 vi.mock("@/modules/search/application/use-cases/resolve-search-offers", () => ({
 	resolveSearchOffers: vi.fn(),
@@ -79,10 +80,11 @@ describe("new search strategy convergence", () => {
 		}
 		vi.mocked(resolveSearchOffers).mockResolvedValue(canonicalResult as never)
 
+		const repo = new SearchOffersRepository()
 		const [canonical, candidate, directStrategy] = await Promise.all([
-			new CanonicalSearchAdapter().run(input),
-			new NewSearchPipelineAdapter().run(input),
-			resolveNewSearchOffers(input),
+			new CanonicalSearchAdapter(repo).run(input),
+			new NewSearchPipelineAdapter(repo).run(input),
+			resolveNewSearchOffers(input, { repo }),
 		])
 
 		expect(candidate).toEqual(directStrategy)

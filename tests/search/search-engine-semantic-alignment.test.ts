@@ -7,6 +7,7 @@ import {
 	resolveNewSearchOffers,
 	resolveSearchOffers,
 } from "@/modules/search/public"
+import { SearchOffersRepository } from "@/modules/search/infrastructure/repositories/SearchOffersRepository"
 
 vi.mock("@/modules/search/application/use-cases/resolve-search-offers", () => ({
 	resolveSearchOffers: vi.fn(),
@@ -54,8 +55,9 @@ describe("search engine strategy split", () => {
 		canonicalUseCaseMock.mockResolvedValue(canonicalExpected)
 		newStrategyMock.mockResolvedValue(newResult)
 
-		const canonical = new CanonicalSearchAdapter()
-		const candidate = new NewSearchPipelineAdapter()
+		const repo = new SearchOffersRepository()
+		const canonical = new CanonicalSearchAdapter(repo)
+		const candidate = new NewSearchPipelineAdapter(repo)
 
 		const [canonicalOut, candidateResult] = await Promise.all([
 			canonical.run(input),

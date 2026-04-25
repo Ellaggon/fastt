@@ -1,6 +1,5 @@
 import type { SearchOffer, SearchUnit } from "@/modules/search/public"
-import { variantRepository } from "@/container/pricing.container"
-import { searchReadModelRepository } from "@/container/search-read-model.container"
+import type { TaxFeeBreakdown } from "@/modules/taxes-fees/public"
 import { logger } from "@/lib/observability/logger"
 import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 import {
@@ -8,8 +7,8 @@ import {
 	type SearchUnitViewStayRow,
 } from "../queries/evaluate-stay-from-view"
 import type { SearchSellabilityDTO } from "../dto/SearchSellabilityDTO"
+import type { SearchOffersRepositoryPort } from "../ports/SearchOffersRepository"
 import { toISODate } from "@/shared/domain/date/date.utils"
-import { isUnitType } from "../../domain/unit.types"
 
 export type SearchOffersInput = {
 	productId: string
@@ -47,21 +46,11 @@ function enumerateStayDates(checkIn: Date, checkOut: Date): string[] {
 	return dates
 }
 
-async function getActiveUnitsByProduct(productId: string): Promise<SearchUnit[]> {
-	const rows = await variantRepository.getActiveByProduct(productId)
-	return rows
-		.map((v) => ({
-			id: v.id,
-			productId: v.productId,
-			kind: v.kind,
-			pricing: v.pricing,
-			capacity: v.capacity,
-		}))
-		.filter((unit) => isUnitType(unit.kind))
-}
-
-export async function resolveSearchOffers(params: SearchOffersInput): Promise<SearchOffersResult> {
-	const units = await getActiveUnitsByProduct(params.productId)
+export async function resolveSearchOffers(
+	params: SearchOffersInput,
+	deps: { repo: SearchOffersRepositoryPort }
+): Promise<SearchOffersResult> {
+	const units = await deps.repo.listActiveUnitsByProduct(params.productId)
 	if (!units.length) return { offers: [], reason: "no_active_units", sellabilityByRatePlan: {} }
 	logger.debug("search.view.trace.active_units", {
 		productId: params.productId,
@@ -96,7 +85,7 @@ export async function resolveSearchOffers(params: SearchOffersInput): Promise<Se
 	const unitIds = units.map((unit) => unit.id).filter(Boolean)
 	if (!unitIds.length) return { offers: [], reason: "no_active_units", sellabilityByRatePlan: {} }
 
-	const rows = await searchReadModelRepository.listSearchUnitViewRows({
+	const rows = await deps.repo.listSearchUnitViewRows({
 		unitIds,
 		from: toDateOnly(params.checkIn),
 		to: toDateOnly(params.checkOut),

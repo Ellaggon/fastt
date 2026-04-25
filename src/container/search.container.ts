@@ -7,11 +7,13 @@ import { CanonicalSearchAdapter } from "@/modules/search/application/adapters/Ca
 import { NewSearchPipelineAdapter } from "@/modules/search/application/adapters/NewSearchPipelineAdapter"
 import type { SearchOffersInput } from "@/modules/search/application/ports/SearchEnginePort"
 import { SearchRuntimeOrchestrator } from "@/modules/search/application/services/SearchRuntimeOrchestrator"
+import { SearchOffersRepository } from "@/modules/search/infrastructure/repositories/SearchOffersRepository"
 
 const autoBackfillInFlight = new Set<string>()
 
-const canonicalSearchEngine = new CanonicalSearchAdapter()
-const newSearchEngine = new NewSearchPipelineAdapter()
+const searchOffersRepository = new SearchOffersRepository()
+const canonicalSearchEngine = new CanonicalSearchAdapter(searchOffersRepository)
+const newSearchEngine = new NewSearchPipelineAdapter(searchOffersRepository)
 
 function resolveCurrency(params: {
 	currency?: string
