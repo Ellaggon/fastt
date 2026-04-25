@@ -26,7 +26,7 @@ export * from "./application/use-cases/update-default-price-rule"
 export * from "./application/use-cases/list-default-price-rules"
 export * from "./application/use-cases/delete-price-rule"
 export * from "./application/use-cases/preview-pricing-rules"
-export * from "./application/use-cases/rate-plan-pricing-surface"
+export type { RatePlanPricingContext } from "./application/use-cases/rate-plan-pricing-surface"
 export * from "./application/use-cases/get-rateplan-owner-context"
 export * from "./application/use-cases/bulk-pricing-service"
 
@@ -65,6 +65,14 @@ export async function resolveRatePlanOwnerContext(ratePlanId: string) {
 	)
 	const { ratePlanOwnerContextRepository } = await import("@/container")
 	return getRatePlanOwnerContext({ repo: ratePlanOwnerContextRepository }, { ratePlanId })
+}
+
+export async function resolveRatePlanPricingContext(params: {
+	providerId: string
+	ratePlanId: string
+}) {
+	const { resolveRatePlanPricingContext } = await import("@/container")
+	return resolveRatePlanPricingContext(params)
 }
 
 export async function ensurePricingCoverageRuntime(params: {

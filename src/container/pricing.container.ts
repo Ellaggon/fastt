@@ -6,6 +6,7 @@ import {
 	createListRatePlansByVariantQuery,
 	createListRatePlansByProviderQuery,
 } from "../modules/pricing/application/queries"
+import { createResolveRatePlanPricingContext } from "../modules/pricing/application/use-cases/rate-plan-pricing-surface"
 import { PricingRepository } from "../modules/pricing/infrastructure/repositories/PricingRepository"
 import { RatePlanRepository } from "../modules/pricing/infrastructure/repositories/RatePlanRepository"
 import { VariantRepository } from "../modules/pricing/infrastructure/repositories/VariantRepository"
@@ -16,6 +17,7 @@ import { BaseRateRepository } from "../modules/pricing/infrastructure/repositori
 import { PriceRuleCommandRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleCommandRepository"
 import { PriceRuleQueryRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleQueryRepository"
 import { RatePlanOwnerContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanOwnerContextRepository"
+import { RatePlanPricingContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingContextRepository"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -28,6 +30,7 @@ export const baseRateRepository = new BaseRateRepository()
 export const priceRuleCommandRepository = new PriceRuleCommandRepository()
 export const priceRuleQueryRepository = new PriceRuleQueryRepository()
 export const ratePlanOwnerContextRepository = new RatePlanOwnerContextRepository()
+export const ratePlanPricingContextRepository = new RatePlanPricingContextRepository()
 
 // ---- Engine singletons ----
 export const promotionEngine = new PromotionEngine()
@@ -40,6 +43,9 @@ export const listRatePlansByVariant = createListRatePlansByVariantQuery({
 })
 export const listRatePlansByProvider = createListRatePlansByProviderQuery({
 	repo: ratePlanQueryRepository,
+})
+export const resolveRatePlanPricingContext = createResolveRatePlanPricingContext({
+	repo: ratePlanPricingContextRepository,
 })
 
 // ---- Helpers (used by other containers) ----

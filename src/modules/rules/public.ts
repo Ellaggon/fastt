@@ -12,4 +12,30 @@ export * from "./application/use-cases/build-rule-based-contract-snapshot"
 export * from "./application/use-cases/build-rule-snapshot"
 export * from "./application/use-cases/compare-policy-contract-vs-rule-contract"
 export * from "./application/use-cases/compare-policy-and-rule-snapshots"
-export * from "./application/use-cases/resolve-effective-rules"
+export type {
+	ResolveEffectiveRulesInput,
+	ResolveEffectiveRulesResult,
+} from "./application/use-cases/resolve-effective-rules"
+
+export async function resolveEffectiveRules(input: {
+	productId: string
+	variantId?: string
+	ratePlanId?: string
+	checkIn?: string
+	checkOut?: string
+	channel?: string
+	requiredCategories?: string[]
+	onMissingCategory?: "return_null" | "throw_error"
+	includeProductContentRules?: boolean
+}) {
+	const { createResolveEffectiveRulesUseCase } = await import(
+		"./application/use-cases/resolve-effective-rules"
+	)
+	const { ProductContentRulesRepository } = await import(
+		"./infrastructure/repositories/ProductContentRulesRepository"
+	)
+	const resolve = createResolveEffectiveRulesUseCase({
+		productContentRulesRepo: new ProductContentRulesRepository(),
+	})
+	return resolve(input)
+}
