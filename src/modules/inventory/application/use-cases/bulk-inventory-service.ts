@@ -1,9 +1,5 @@
 import { logger } from "@/lib/observability/logger"
 import { DailyInventoryRepository } from "../../infrastructure/repositories/DailyInventoryRepository"
-import {
-	mapV2ToLegacyInput,
-	type BulkInventoryOperationInputV2,
-} from "../mappers/map-v2-to-legacy-input"
 
 import { applyInventoryMutation } from "./apply-inventory-mutation"
 
@@ -19,6 +15,27 @@ export type BulkInventoryInput = {
 	operation: {
 		type: BulkInventoryOperationType
 		value?: number
+	}
+}
+
+export type BulkInventoryOperationInputV2 = {
+	selection: {
+		variantIds: string[]
+	}
+	dateRange: {
+		from: string
+		to: string
+	}
+	filters?: {
+		daysOfWeek?: string[]
+	}
+	operation: {
+		type: "OPEN" | "CLOSE" | "SET_INVENTORY"
+		value?: number
+	}
+	context?: {
+		dryRun?: boolean
+		source?: string
 	}
 }
 
@@ -192,6 +209,64 @@ function normalizeDaysOfWeek(value?: number[]): Set<number> {
 	return new Set(days)
 }
 
+function normalizeOperationType(
+	type: BulkInventoryOperationInputV2["operation"]["type"]
+): BulkInventoryOperationType {
+	if (type === "OPEN") return "open_sales"
+	if (type === "CLOSE") return "close_sales"
+	return "set_inventory"
+}
+
+function mapWeekdayLabelToNumber(label: string): number | null {
+	const value = String(label ?? "")
+		.trim()
+		.toUpperCase()
+	const table: Record<string, number> = {
+		SUN: 0,
+		DOM: 0,
+		MON: 1,
+		LUN: 1,
+		TUE: 2,
+		MAR: 2,
+		WED: 3,
+		MIE: 3,
+		THU: 4,
+		JUE: 4,
+		FRI: 5,
+		VIE: 5,
+		SAT: 6,
+		SAB: 6,
+	}
+	return Number.isInteger(table[value]) ? table[value] : null
+}
+
+function mapV2ToBulkInventoryInput(input: BulkInventoryOperationInputV2): BulkInventoryInput[] {
+	const variantIds = Array.from(
+		new Set(
+			(input.selection?.variantIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean)
+		)
+	)
+	const mappedDays = Array.from(
+		new Set(
+			(input.filters?.daysOfWeek ?? [])
+				.map((label) => mapWeekdayLabelToNumber(label))
+				.filter((value): value is number => value != null)
+				.filter((value): value is number => Number.isInteger(value) && value >= 0 && value <= 6)
+		)
+	)
+
+	return variantIds.map((variantId) => ({
+		variantId,
+		dateFrom: String(input.dateRange?.from ?? "").trim(),
+		dateTo: String(input.dateRange?.to ?? "").trim(),
+		daysOfWeek: mappedDays.length > 0 ? mappedDays : undefined,
+		operation: {
+			type: normalizeOperationType(input.operation.type),
+			value: input.operation.value,
+		},
+	}))
+}
+
 function mapOperationToProjectedDay(
 	day: any,
 	operation: BulkInventoryInput["operation"],
@@ -301,7 +376,7 @@ function normalizeInput(input: BulkInventoryInput | BulkInventoryOperationInputV
 		const v2 = input as BulkInventoryOperationInputV2
 		return {
 			mode: "v2",
-			items: mapV2ToLegacyInput(v2),
+			items: mapV2ToBulkInventoryInput(v2),
 			context: {
 				dryRun: Boolean(v2.context?.dryRun),
 				source: v2.context?.source ?? null,
