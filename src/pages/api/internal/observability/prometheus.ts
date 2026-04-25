@@ -56,6 +56,7 @@ export const GET: APIRoute = async () => {
 		const count = readTimingCountByKey(key)
 		const p50 = readTimingQuantile(parsed.name, 0.5, parsed.labels)
 		const p95 = readTimingQuantile(parsed.name, 0.95, parsed.labels)
+		const p99 = readTimingQuantile(parsed.name, 0.99, parsed.labels)
 
 		lines.push(`${base}_count${labelsToProm(labels)} ${count}`)
 		if (p50 != null) {
@@ -63,6 +64,9 @@ export const GET: APIRoute = async () => {
 		}
 		if (p95 != null) {
 			lines.push(`${base}_p95_ms${labelsToProm(labels)} ${Number(p95)}`)
+		}
+		if (p99 != null) {
+			lines.push(`${base}_p99_ms${labelsToProm(labels)} ${Number(p99)}`)
 		}
 	}
 
