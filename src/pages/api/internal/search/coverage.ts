@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { and, db, eq, gte, lt, SearchUnitView, Variant } from "astro:db"
 
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
+import { buildOccupancyKey } from "@/modules/search/public"
 
 function toISODateOnly(date: Date): string {
 	return date.toISOString().slice(0, 10)

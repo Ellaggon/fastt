@@ -4,10 +4,7 @@ import { z } from "zod"
 
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
-import {
-	materializeSearchUnitRange,
-	purgeStaleSearchUnitRows,
-} from "@/modules/search/application/use-cases/materialize-search-unit"
+import { materializeSearchUnitRange, purgeStaleSearchUnitRows } from "@/modules/search/public"
 
 const schema = z.object({
 	variantId: z.string().min(1).optional(),

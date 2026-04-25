@@ -68,6 +68,10 @@ const offers = await searchOffers({
 	checkOut,
 	adults,
 	children,
+	featureContext: {
+		request: Astro.request,
+		query: url.searchParams,
+	},
 })
 
 const variantIds = Array.from(
@@ -182,6 +186,10 @@ const resolvedPolicies = await resolveEffectivePolicies({
 	variantId: policyVariantId,
 	ratePlanId: policyRatePlanId,
 	channel: "web",
+	featureContext: {
+		request: Astro.request,
+		query: url.searchParams,
+	},
 })
 let policies: any[] = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
 if (policies.length === 0) {

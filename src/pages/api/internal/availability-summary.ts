@@ -2,8 +2,7 @@ import type { APIRoute } from "astro"
 import { and, db, eq, gte, lt, SearchUnitView } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
-import { evaluateStaySellabilityFromView } from "@/modules/search/application/queries/evaluate-stay-from-view"
+import { buildOccupancyKey, evaluateStaySellabilityFromView } from "@/modules/search/public"
 
 function addDays(dateOnly: string, days: number): string {
 	const d = new Date(`${dateOnly}T00:00:00.000Z`)
@@ -201,10 +200,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 				days,
 				missingPricingDates: days.filter((day) => day.price == null).map((day) => day.date),
 				summary: {
-					sellable: evaluation.sellable,
-					totalPrice: evaluation.sellable ? totalPrice : null,
+					sellable: evaluation.isSellable,
+					totalPrice: evaluation.isSellable ? totalPrice : null,
 					nights: stayDates.length,
-					primaryBlocker: evaluation.primaryBlocker,
+					primaryBlocker:
+						evaluation.reasonCodes.length > 0 ? String(evaluation.reasonCodes[0]) : null,
 				},
 			}
 

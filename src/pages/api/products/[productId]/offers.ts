@@ -10,6 +10,7 @@ const schema = z.object({
 	productId: z.string().min(1),
 	checkIn: z.string().min(1),
 	checkOut: z.string().min(1),
+	currency: z.string().trim().length(3).optional(),
 	adults: z.coerce.number().int().min(0).optional(),
 	children: z.coerce.number().int().min(0).optional(),
 	rooms: z.coerce.number().int().min(1).optional(),
@@ -17,19 +18,35 @@ const schema = z.object({
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
+		const url = new URL(request.url)
+		const featureContext = {
+			request,
+			query: url.searchParams,
+		}
+
 		const body = await request.json().catch(() => ({}))
 		const parsed = schema.parse({
 			...body,
 			productId: String(params.productId ?? body.productId ?? "").trim(),
 		})
+		const occupancy = {
+			adults: parsed.adults ?? 2,
+			children: parsed.children ?? 0,
+			rooms: parsed.rooms ?? 1,
+		}
 
 		const offers = await searchOffers({
 			productId: parsed.productId,
 			checkIn: new Date(parsed.checkIn),
 			checkOut: new Date(parsed.checkOut),
-			adults: parsed.adults ?? 2,
-			children: parsed.children ?? 0,
-			rooms: parsed.rooms ?? 1,
+			adults: occupancy.adults,
+			children: occupancy.children,
+			rooms: occupancy.rooms,
+			currency:
+				String(parsed.currency ?? url.searchParams.get("currency") ?? "")
+					.trim()
+					.toUpperCase() || undefined,
+			featureContext,
 		})
 
 		const nights = Math.max(

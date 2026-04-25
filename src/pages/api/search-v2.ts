@@ -8,6 +8,7 @@ const schema = z.object({
 	destinationId: z.string().trim().min(1),
 	checkIn: z.string().trim().min(1),
 	checkOut: z.string().trim().min(1),
+	currency: z.string().trim().length(3).optional(),
 	rooms: z.coerce.number().int().min(1).default(1),
 	adults: z.coerce.number().int().min(0).default(2),
 	children: z.coerce.number().int().min(0).default(0),
@@ -38,10 +39,16 @@ export type SearchV2Result = {
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const url = new URL(request.url)
+		const featureContext = {
+			request,
+			query: url.searchParams,
+		}
+
 		const parsed = schema.parse({
 			destinationId: url.searchParams.get("destinationId") ?? "",
 			checkIn: url.searchParams.get("checkIn") ?? "",
 			checkOut: url.searchParams.get("checkOut") ?? "",
+			currency: url.searchParams.get("currency") ?? undefined,
 			rooms: url.searchParams.get("rooms") ?? undefined,
 			adults: url.searchParams.get("adults") ?? undefined,
 			children: url.searchParams.get("children") ?? undefined,
@@ -75,6 +82,8 @@ export const GET: APIRoute = async ({ request }) => {
 				rooms: parsed.rooms,
 				adults: parsed.adults,
 				children: parsed.children,
+				currency: parsed.currency?.toUpperCase(),
+				featureContext,
 			})
 
 			if (!offers.length) continue
