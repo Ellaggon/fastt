@@ -7,7 +7,7 @@ describe.skip("legacy/audit rateplan template coupling", () => {
 			(await db
 				.select({ n: sql<number>`count(*)` })
 				.from(RatePlanTemplate)
-				.where(sql`${RatePlanTemplate.cancellationPolicyId} is not null`)
+				.where(sql`"cancellationPolicyId" is not null`)
 				.all()) ?? []
 
 		expect(Number(n ?? 0)).toBeGreaterThanOrEqual(0)
