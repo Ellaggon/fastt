@@ -73,7 +73,6 @@ describe("SearchPipeline E2E", () => {
 			checkOut: new Date("2026-03-03"),
 			adults: 2,
 			children: 0,
-			basePrice: 100,
 		})
 
 		expect(result.length).toBe(1)
@@ -149,7 +148,6 @@ describe("SearchPipeline E2E", () => {
 			checkOut: new Date("2026-03-03"),
 			adults: 2,
 			children: 0,
-			basePrice: 100,
 		})
 
 		// 200 total base

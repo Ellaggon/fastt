@@ -62,7 +62,6 @@ describe("SearchPipeline", () => {
 			checkOut: new Date("2026-03-12"),
 			adults: 2,
 			children: 0,
-			basePrice: 100,
 		})
 
 		expect(result).toBeDefined()
