@@ -10,6 +10,7 @@ import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
 import type { FeatureFlagContext } from "@/config/featureFlags"
+import { normalizePolicyResolutionResult } from "../adapters/policyResolutionAdapter"
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
@@ -83,6 +84,16 @@ function normalizeCategory(input: string): Category | null {
 	return null
 }
 
+function asPolicyResolutionDTO(params: {
+	value: Awaited<ReturnType<typeof resolveEffectivePolicies>>
+	asOfDate: string
+}): ReturnType<typeof normalizePolicyResolutionResult>["dto"] {
+	return normalizePolicyResolutionResult(params.value, {
+		asOfDate: params.asOfDate,
+		warnings: [],
+	}).dto
+}
+
 export async function handleRatePlanPoliciesPost(params: {
 	request: Request
 	ratePlans: SurfaceRatePlan[]
@@ -143,7 +154,7 @@ export async function handleRatePlanPoliciesPost(params: {
 		})
 
 		if (body.intent === "preview") {
-			const previewResult = await resolveEffectivePolicies({
+			const previewRaw = await resolveEffectivePolicies({
 				productId: ownerContext.productId,
 				variantId: ownerContext.variantId,
 				ratePlanId,
@@ -157,6 +168,10 @@ export async function handleRatePlanPoliciesPost(params: {
 					request: params.request,
 					query: new URL(params.request.url).searchParams,
 				},
+			})
+			const previewResult = asPolicyResolutionDTO({
+				value: previewRaw,
+				asOfDate: requestCheckIn,
 			})
 			if (previewResult.missingCategories.length > 0) {
 				logger.warn("policies.contract.missing_categories", {
@@ -244,7 +259,7 @@ export async function handleRatePlanPoliciesPost(params: {
 			channel,
 		})
 
-		const latestPreviewResult = await resolveEffectivePolicies({
+		const latestPreviewRaw = await resolveEffectivePolicies({
 			productId: ownerContext.productId,
 			variantId: ownerContext.variantId,
 			ratePlanId,
@@ -258,6 +273,10 @@ export async function handleRatePlanPoliciesPost(params: {
 				request: params.request,
 				query: new URL(params.request.url).searchParams,
 			},
+		})
+		const latestPreviewResult = asPolicyResolutionDTO({
+			value: latestPreviewRaw,
+			asOfDate: requestCheckIn,
 		})
 		if (latestPreviewResult.missingCategories.length > 0) {
 			logger.warn("policies.contract.missing_categories", {
@@ -312,7 +331,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 			const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
 			const productId = ownerContext?.productId ?? ""
 			const variantId = ownerContext?.variantId ?? ""
-			const resolved = await resolveEffectivePolicies({
+			const resolvedRaw = await resolveEffectivePolicies({
 				productId,
 				variantId: variantId || undefined,
 				ratePlanId,
@@ -323,6 +342,10 @@ export async function buildRatePlanPoliciesSurface(params: {
 				onMissingCategory: "return_null",
 				requestId: params.requestId,
 				featureContext: params.featureContext,
+			})
+			const resolved = asPolicyResolutionDTO({
+				value: resolvedRaw,
+				asOfDate: params.checkIn,
 			})
 			if (resolved.missingCategories.length > 0) {
 				logger.warn("policies.contract.missing_categories", {
@@ -356,7 +379,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 					const mapped = mapResolvedPoliciesToUI({
 						policies: item ? [item] : [],
 						missingCategories: [],
-					} as any)
+					})
 					return [category, String(mapped[0]?.description ?? "Sin definir")]
 				})
 			)

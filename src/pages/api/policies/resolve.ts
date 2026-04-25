@@ -15,7 +15,9 @@ import {
 } from "@/lib/observability/rules-ui-validation"
 import {
 	buildPolicySnapshot,
+	isPolicyResolutionDTO,
 	mapResolvedPoliciesToUI,
+	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
@@ -154,9 +156,10 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 				query: url.searchParams,
 			},
 		})
-		const resolvedForComparison = resolved as Parameters<
-			typeof buildPolicySnapshot
-		>[0]["resolvedPolicies"]
+		const resolvedForComparison = normalizePolicyResolutionResult(resolved, {
+			asOfDate: input.checkIn,
+			warnings: [],
+		}).dto
 		let policies = mapResolvedPoliciesToUI(resolved)
 		recordRulesUiEvaluation({
 			endpoint: "api.policies.resolve",
@@ -231,14 +234,14 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 						checkIn: input.checkIn,
 						checkOut: input.checkOut,
 					},
-					policiesResolved: resolved.policies.map((item) => ({
+					policiesResolved: resolvedForComparison.policies.map((item) => ({
 						category: String(item?.category ?? ""),
 						resolvedFromScope: String(item?.resolvedFromScope ?? ""),
 						policyId: String(item?.policy?.id ?? ""),
 						version: Number(item?.policy?.version ?? 0),
 					})),
 					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					policiesByCategory: resolved.policies.reduce(
+					policiesByCategory: resolvedForComparison.policies.reduce(
 						(acc, item) => {
 							const key = String(item?.category ?? "").trim()
 							if (!key) return acc
@@ -292,14 +295,14 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 						checkIn: input.checkIn,
 						checkOut: input.checkOut,
 					},
-					policiesResolved: resolved.policies.map((item) => ({
+					policiesResolved: resolvedForComparison.policies.map((item) => ({
 						category: String(item?.category ?? ""),
 						resolvedFromScope: String(item?.resolvedFromScope ?? ""),
 						policyId: String(item?.policy?.id ?? ""),
 						version: Number(item?.policy?.version ?? 0),
 					})),
 					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					policiesByCategory: resolved.policies.reduce(
+					policiesByCategory: resolvedForComparison.policies.reduce(
 						(acc, item) => {
 							const key = String(item?.category ?? "").trim()
 							if (!key) return acc
@@ -343,11 +346,8 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 				channel: input.channel ?? "web",
 				policies,
 				trace:
-					input.includeTrace &&
-					typeof resolved === "object" &&
-					resolved !== null &&
-					"trace" in resolved
-						? ((resolved as { trace?: unknown }).trace ?? null)
+					input.includeTrace && !isPolicyResolutionDTO(resolved) && "trace" in (resolved as any)
+						? ((resolved as any).trace ?? null)
 						: null,
 			}),
 			{

@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 import { createPolicyVersionCapa6UseCase } from "@/container/policies-write.container"
-import { PolicyValidationError } from "@/modules/policies/application/errors/policyValidationError"
+import { PolicyValidationError } from "@/modules/policies/public"
 import { requireProvider } from "@/lib/auth/requireProvider"
 
 type CreateVersionBody = {
