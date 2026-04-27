@@ -79,7 +79,88 @@ export type SearchUnitViewStoredRow = {
 	sourceVersion: string
 }
 
+export type SearchViewVariantScopeRow = {
+	variantId: string
+	productId: string
+	isActive: boolean
+}
+
+export type SearchViewHealthRow = {
+	variantId: string
+	date: string
+	occupancyKey: string
+	primaryBlocker: string | null
+	computedAt: string
+}
+
 export const searchReadModelRepository = {
+	async listSearchViewVariantScope(params?: {
+		variantId?: string
+		productId?: string
+		activeOnly?: boolean
+	}): Promise<SearchViewVariantScopeRow[]> {
+		const activeOnly = params?.activeOnly ?? true
+		const filters = [] as Array<ReturnType<typeof eq>>
+		if (params?.variantId) {
+			filters.push(eq(Variant.id, params.variantId))
+		}
+		if (params?.productId) {
+			filters.push(eq(Variant.productId, params.productId))
+		}
+		if (activeOnly) {
+			filters.push(eq(Variant.isActive, true))
+		}
+		const whereClause =
+			filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters)
+		const query = db
+			.select({
+				variantId: Variant.id,
+				productId: Variant.productId,
+				isActive: Variant.isActive,
+			})
+			.from(Variant)
+		const rows = whereClause ? await query.where(whereClause).all() : await query.all()
+		return rows.map((row) => ({
+			variantId: String(row.variantId),
+			productId: String(row.productId),
+			isActive: Boolean(row.isActive),
+		}))
+	},
+
+	async listSearchViewHealthRows(params: {
+		variantIds: string[]
+		from: string
+		to: string
+		occupancyKeys: string[]
+	}): Promise<SearchViewHealthRow[]> {
+		if (params.variantIds.length === 0 || params.occupancyKeys.length === 0) return []
+		const rows = await db
+			.select({
+				variantId: SearchUnitView.variantId,
+				date: SearchUnitView.date,
+				occupancyKey: SearchUnitView.occupancyKey,
+				primaryBlocker: SearchUnitView.primaryBlocker,
+				computedAt: SearchUnitView.computedAt,
+			})
+			.from(SearchUnitView)
+			.where(
+				and(
+					inArray(SearchUnitView.variantId, params.variantIds),
+					gte(SearchUnitView.date, params.from),
+					lt(SearchUnitView.date, params.to),
+					inArray(SearchUnitView.occupancyKey, params.occupancyKeys)
+				)
+			)
+			.all()
+		return rows.map((row) => ({
+			variantId: String(row.variantId),
+			date: String(row.date),
+			occupancyKey: String(row.occupancyKey),
+			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
+			computedAt: new Date(row.computedAt).toISOString(),
+		}))
+	},
+
 	async purgeStaleSearchUnitRows(cutoff: Date): Promise<number> {
 		const result = await db
 			.delete(SearchUnitView)
