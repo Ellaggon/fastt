@@ -1,0 +1,23 @@
+---
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+---
+
+<WorkspaceLayout title="Analytics · Revenue">
+	<Section title="Revenue" description="Módulo preparado para análisis de ingresos.">
+		<Card className="bg-white text-slate-800">
+			<p>Próximamente: revenue por rate plan y ventana temporal.</p>
+		</Card>
+	</Section>
+</WorkspaceLayout>

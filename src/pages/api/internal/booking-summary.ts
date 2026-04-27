@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, Booking, BookingRoomDetail, BookingTaxFee, db, eq } from "astro:db"
+import { Booking, BookingRoomDetail, BookingTaxFee, db, eq } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
@@ -45,6 +45,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				totalAmountBOB: Booking.totalAmountBOB,
 				numAdults: Booking.numAdults,
 				numChildren: Booking.numChildren,
+				bookingDate: Booking.bookingDate,
 				confirmedAt: Booking.confirmedAt,
 			})
 			.from(Booking)
@@ -112,7 +113,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					currency: booking.currency ?? "USD",
 					total,
 					confirmedAt: booking.confirmedAt,
-					createdAt: booking.bookingDate,
+					createdAt: booking.bookingDate ?? booking.confirmedAt ?? null,
 					variantId: detail?.variantId ?? null,
 					basePrice: detail?.basePrice ?? null,
 					taxes: detail?.taxes ?? null,

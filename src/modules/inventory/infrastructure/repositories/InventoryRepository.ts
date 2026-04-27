@@ -1,27 +1,33 @@
-import { db, EffectiveInventory } from "astro:db"
+import { and, db, EffectiveAvailability, eq, gte, lt } from "astro:db"
+import { toISODate } from "@/shared/domain/date/date.utils"
 import type { InventoryRepositoryPort } from "../../application/ports/InventoryRepositoryPort"
 
 export class InventoryRepository implements InventoryRepositoryPort {
-	async upsertEffectiveInventory(row: {
-		variantId: string
-		date: string
-		availableInventory: number
-		computedAt: Date
-	}): Promise<void> {
-		await db
-			.insert(EffectiveInventory)
-			.values({
-				variantId: row.variantId,
-				date: row.date,
-				availableInventory: row.availableInventory,
-				computedAt: row.computedAt,
+	async getEffectiveRange(variantId: string, checkIn: Date, checkOut: Date) {
+		const from = toISODate(checkIn)
+		const to = toISODate(checkOut)
+		const rows = await db
+			.select({
+				date: EffectiveAvailability.date,
+				availableUnits: EffectiveAvailability.availableUnits,
+				isSellable: EffectiveAvailability.isSellable,
+				stopSell: EffectiveAvailability.stopSell,
 			})
-			.onConflictDoUpdate({
-				target: [EffectiveInventory.variantId, EffectiveInventory.date],
-				set: {
-					availableInventory: row.availableInventory,
-					computedAt: row.computedAt,
-				},
-			})
+			.from(EffectiveAvailability)
+			.where(
+				and(
+					eq(EffectiveAvailability.variantId, variantId),
+					gte(EffectiveAvailability.date, from),
+					lt(EffectiveAvailability.date, to)
+				)
+			)
+			.all()
+
+		return rows.map((row) => ({
+			date: String(row.date),
+			availableUnits: Number(row.availableUnits ?? 0),
+			isSellable: Boolean(row.isSellable),
+			stopSell: Boolean(row.stopSell),
+		}))
 	}
 }

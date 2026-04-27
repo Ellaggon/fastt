@@ -34,8 +34,6 @@ export interface VariantManagementRepositoryPort {
 		id: string
 		productId: string
 		kind?: string | null
-		entityType: string
-		entityId: string
 		name: string
 		description?: string | null
 		status?: string | null
@@ -50,9 +48,6 @@ export interface VariantManagementRepositoryPort {
 		description?: string | null
 		status: VariantLifecycleStatus
 		createdAt: Date
-		// Legacy mirror fields (kept for compatibility)
-		entityType: string
-		entityId: string
 		isActive: boolean
 	}): Promise<void>
 

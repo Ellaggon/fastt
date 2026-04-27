@@ -36,15 +36,17 @@ export { createProduct } from "./application/use-cases/product/create-product"
 export { upsertProductContent } from "./application/use-cases/product/upsert-product-content"
 export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"
 export { evaluateProductReadiness } from "./application/use-cases/product/evaluate-product-readiness"
-export { getProductAggregate } from "./application/queries/getProductAggregate"
-export {
-	getProductFullAggregate,
-	getProductVariantsAggregate,
-	getVariantFullAggregate,
+export type {
+	ProductFullAggregate,
+	ProductVariantsAggregate,
+	VariantFullAggregate,
 } from "./application/queries/getProductFullAggregate"
-export { getAvailabilityAggregate } from "./application/queries/getAvailabilityAggregate"
-export { getProviderFullAggregate } from "./application/queries/getProviderFullAggregate"
-export { getProviderBookingsAggregate } from "./application/queries/getProviderBookingsAggregate"
+export type { ProviderFullAggregate } from "./application/queries/getProviderFullAggregate"
+export type {
+	ProviderBookingsAggregateInput,
+	ProviderBookingSummaryItem,
+	ProviderBookingsAggregate,
+} from "./application/queries/getProviderBookingsAggregate"
 
 // Variant (CAPA 3)
 export * from "./application/use-cases/variant/create-variant"
@@ -107,6 +109,45 @@ export async function resolveRoomImages(roomTypeIds: string[]) {
 export async function getProductById(productId: string) {
 	const { getProductById } = await import("@/container")
 	return getProductById(productId)
+}
+
+export async function getProductAggregate(productId: string) {
+	const { getProductAggregate } = await import("@/container")
+	return getProductAggregate(productId)
+}
+
+export async function getProductFullAggregate(productId: string, providerId: string) {
+	const { getProductFullAggregate } = await import("@/container")
+	return getProductFullAggregate(productId, providerId)
+}
+
+export async function getProductVariantsAggregate(productId: string, providerId: string) {
+	const { getProductVariantsAggregate } = await import("@/container")
+	return getProductVariantsAggregate(productId, providerId)
+}
+
+export async function getVariantFullAggregate(
+	productId: string,
+	variantId: string,
+	providerId: string
+) {
+	const { getVariantFullAggregate } = await import("@/container")
+	return getVariantFullAggregate(productId, variantId, providerId)
+}
+
+export async function getProviderFullAggregate(providerId: string, currentUserId: string) {
+	const { getProviderFullAggregate } = await import("@/container")
+	return getProviderFullAggregate(providerId, currentUserId)
+}
+
+export async function getProviderBookingsAggregate(input: {
+	providerId: string
+	status?: string | null
+	from?: string | null
+	to?: string | null
+}) {
+	const { getProviderBookingsAggregate } = await import("@/container")
+	return getProviderBookingsAggregate(input)
 }
 
 export async function listProductServiceConfigs(productId: string) {

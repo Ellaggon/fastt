@@ -1,13 +1,23 @@
 import { describe, it, expect } from "vitest"
 
-import { db, DailyInventory, VariantInventoryConfig, Variant, eq } from "astro:db"
+import {
+	and,
+	db,
+	DailyInventory,
+	EffectiveAvailability,
+	eq,
+	gte,
+	lt,
+	VariantInventoryConfig,
+	Variant,
+} from "astro:db"
 
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
 import { POST as setDefaultInventoryPost } from "@/pages/api/inventory/set-default"
-import { DailyInventoryRepository } from "@/modules/inventory/infrastructure/repositories/DailyInventoryRepository"
+import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -121,8 +131,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		})
 	})
 
-	it("DailyInventoryRepository.getRange returns full date range (missing dates synthesized as unavailable)", async () => {
-		const repo = new DailyInventoryRepository()
+	it("recomputeEffectiveAvailabilityRange materializes full date range (missing dates synthesized as unavailable)", async () => {
 		const destinationId = "dest_inv_range"
 		const providerId = "prov_inv_range"
 		const productId = `prod_inv_range_${crypto.randomUUID()}`
@@ -151,11 +160,9 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		await db.insert(Variant).values({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: variantId,
+			kind: "hotel_room",
 			name: "Range Room",
 			description: null,
-			kind: "hotel_room",
 			status: "draft",
 			createdAt: new Date(),
 			isActive: false,
@@ -168,17 +175,33 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			date: "2026-03-10",
 			totalInventory: 5,
 			reservedCount: 0,
-			priceOverride: null,
 			createdAt: new Date(),
 		} as any)
 
-		const rows = await repo.getRange(variantId, new Date("2026-03-10"), new Date("2026-03-13"))
+		await recomputeEffectiveAvailabilityRange({
+			variantId,
+			from: "2026-03-10",
+			to: "2026-03-13",
+			reason: "integration_test",
+		})
+
+		const rows = await db
+			.select()
+			.from(EffectiveAvailability)
+			.where(
+				and(
+					eq(EffectiveAvailability.variantId, variantId),
+					gte(EffectiveAvailability.date, "2026-03-10"),
+					lt(EffectiveAvailability.date, "2026-03-13")
+				)
+			)
+			.all()
 		expect(rows.length).toBe(3)
 
 		const byDate = new Map(rows.map((r: any) => [String(r.date), r]))
-		expect(byDate.get("2026-03-10")?.totalInventory).toBe(5)
-		expect(byDate.get("2026-03-11")?.totalInventory).toBe(0)
-		expect(byDate.get("2026-03-12")?.totalInventory).toBe(0)
+		expect(byDate.get("2026-03-10")?.totalUnits).toBe(5)
+		expect(byDate.get("2026-03-11")?.totalUnits).toBe(0)
+		expect(byDate.get("2026-03-12")?.totalUnits).toBe(0)
 		expect(byDate.get("2026-03-11")?.stopSell).toBe(true)
 	})
 
@@ -213,11 +236,9 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		await db.insert(Variant).values({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: variantId,
+			kind: "hotel_room",
 			name: "Backfill Room",
 			description: null,
-			kind: "hotel_room",
 			status: "draft",
 			createdAt: new Date(),
 			isActive: false,

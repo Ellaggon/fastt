@@ -1,8 +1,9 @@
+export type VariantKind = "hotel_room" | "tour_slot" | "package_base"
+
 export interface VariantSnapshot {
 	id: string
 	productId: string
-	entityType: string
-	entityId: string
+	kind: VariantKind
 	pricing: {
 		basePrice: number
 		currency: string

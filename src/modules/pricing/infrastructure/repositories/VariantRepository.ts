@@ -1,8 +1,19 @@
-import { db, Variant, PricingBaseRate, VariantCapacity, eq, and } from "astro:db"
+import { db, Variant, PricingBaseRate, VariantCapacity, eq, and, or, inArray } from "astro:db"
 import type {
+	VariantKind,
 	VariantRepositoryPort,
 	VariantSnapshot,
 } from "../../application/ports/VariantRepositoryPort"
+
+const VARIANT_KINDS = ["hotel_room", "tour_slot", "package_base"] as const
+const SEARCHABLE_VARIANT_STATUSES = ["ready", "sellable", "published"] as const
+
+function assertVariantKind(kind: string | null): VariantKind {
+	if (kind && VARIANT_KINDS.includes(kind as VariantKind)) {
+		return kind as VariantKind
+	}
+	throw new Error(`Invalid kind from DB: ${String(kind)}`)
+}
 
 export class VariantRepository implements VariantRepositoryPort {
 	async getById(id: string): Promise<VariantSnapshot | null | undefined> {
@@ -10,8 +21,7 @@ export class VariantRepository implements VariantRepositoryPort {
 			.select({
 				id: Variant.id,
 				productId: Variant.productId,
-				entityType: Variant.entityType,
-				entityId: Variant.entityId,
+				kind: Variant.kind,
 				name: Variant.name,
 				baseRateBasePrice: PricingBaseRate.basePrice,
 				baseRateCurrency: PricingBaseRate.currency,
@@ -36,8 +46,7 @@ export class VariantRepository implements VariantRepositoryPort {
 		return {
 			id: row.id,
 			productId: row.productId,
-			entityType: row.entityType,
-			entityId: row.entityId,
+			kind: assertVariantKind(row.kind),
 			name: row.name,
 			pricing: {
 				basePrice: row.baseRateBasePrice,
@@ -61,8 +70,7 @@ export class VariantRepository implements VariantRepositoryPort {
 			.select({
 				id: Variant.id,
 				productId: Variant.productId,
-				entityType: Variant.entityType,
-				entityId: Variant.entityId,
+				kind: Variant.kind,
 				name: Variant.name,
 				baseRateBasePrice: PricingBaseRate.basePrice,
 				baseRateCurrency: PricingBaseRate.currency,
@@ -72,7 +80,12 @@ export class VariantRepository implements VariantRepositoryPort {
 			.from(Variant)
 			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.where(and(eq(Variant.productId, productId), eq(Variant.isActive, true)))
+			.where(
+				and(
+					eq(Variant.productId, productId),
+					or(eq(Variant.isActive, true), inArray(Variant.status, SEARCHABLE_VARIANT_STATUSES))
+				)
+			)
 			.all()
 
 		return rows.flatMap((row) => {
@@ -82,8 +95,7 @@ export class VariantRepository implements VariantRepositoryPort {
 				{
 					id: row.id,
 					productId: row.productId,
-					entityType: row.entityType,
-					entityId: row.entityId,
+					kind: assertVariantKind(row.kind),
 					name: row.name,
 					pricing: {
 						basePrice: row.baseRateBasePrice,

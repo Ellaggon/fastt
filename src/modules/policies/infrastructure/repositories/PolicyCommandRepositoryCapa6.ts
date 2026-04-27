@@ -1,5 +1,15 @@
 import { randomUUID } from "crypto"
-import { db, eq, Policy, PolicyGroup, PolicyRule, CancellationTier, sql } from "astro:db"
+import {
+	db,
+	eq,
+	Policy,
+	PolicyGroup,
+	PolicyRule,
+	CancellationTier,
+	PolicyAuditLog,
+	and,
+	sql,
+} from "astro:db"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type {
 	PolicyCommandRepositoryPortCapa6,
@@ -20,6 +30,8 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			category: grp.category,
 			status: String((row as any).status),
 			version: Number((row as any).version),
+			effectiveFrom: row.effectiveFrom == null ? null : String(row.effectiveFrom),
+			effectiveTo: row.effectiveTo == null ? null : String(row.effectiveTo),
 		}
 	}
 
@@ -99,5 +111,53 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 				} as any)
 			}
 		})
+	}
+
+	async listActivePoliciesByGroupId(groupId: string) {
+		const id = String(groupId ?? "").trim()
+		if (!id) return []
+		const rows = await db
+			.select({
+				id: Policy.id,
+				version: Policy.version,
+				effectiveFrom: Policy.effectiveFrom,
+				effectiveTo: Policy.effectiveTo,
+			})
+			.from(Policy)
+			.where(and(eq(Policy.groupId, id), eq(Policy.status, "active")))
+			.all()
+		return rows.map((row) => ({
+			id: String(row.id),
+			version: Number(row.version ?? 0),
+			effectiveFrom: row.effectiveFrom == null ? null : String(row.effectiveFrom),
+			effectiveTo: row.effectiveTo == null ? null : String(row.effectiveTo),
+		}))
+	}
+
+	async createAuditLog(params: {
+		eventType: "policy_version_created" | "assignment_replaced"
+		actorUserId?: string | null
+		policyId?: string | null
+		policyGroupId?: string | null
+		assignmentId?: string | null
+		scope?: string | null
+		scopeId?: string | null
+		channel?: string | null
+		before?: unknown
+		after?: unknown
+	}) {
+		await db.insert(PolicyAuditLog).values({
+			id: randomUUID(),
+			eventType: params.eventType,
+			actorUserId: params.actorUserId ?? null,
+			policyId: params.policyId ?? null,
+			policyGroupId: params.policyGroupId ?? null,
+			assignmentId: params.assignmentId ?? null,
+			scope: params.scope ?? null,
+			scopeId: params.scopeId ?? null,
+			channel: params.channel ?? null,
+			beforeJson: params.before ?? null,
+			afterJson: params.after ?? null,
+		} as any)
 	}
 }

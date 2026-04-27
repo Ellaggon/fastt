@@ -17,7 +17,20 @@ export * from "./domain/restrictions/restrictions.types"
 // Application mappers
 export * from "./application/mappers/restrictions.mapper"
 export * from "./application/mappers/mapResolvedPoliciesToUI"
+export * from "./application/mappers/derivePolicySummary"
 export * from "./application/errors/policyValidationError"
+export type {
+	PolicyResolutionDTO,
+	PolicyResolutionCoverage,
+	PolicyResolutionDTOPolicy,
+} from "./application/dto/PolicyResolutionDTO"
+export {
+	isPolicyResolutionDTO,
+	mapDTOToLegacy,
+	mapLegacyToDTO,
+	normalizePolicyResolutionResult,
+} from "./application/adapters/policyResolutionAdapter"
+export type { LegacyPolicyResolutionResult } from "./application/adapters/policyResolutionAdapter"
 
 // Application services
 export * from "./application/services/RestrictionService"
@@ -30,6 +43,9 @@ export * from "./application/use-cases/capa6/create-policy"
 export * from "./application/use-cases/capa6/create-policy-version"
 export * from "./application/use-cases/capa6/assign-policy"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
+export * from "./application/use-cases/build-policy-snapshot"
+export * from "./application/use-cases/rate-plan-policies-surface"
+export type { ResolveEffectivePoliciesResult } from "./application/use-cases/resolve-effective-policies"
 
 // Application queries (factories for DI wiring)
 // NOTE: We intentionally do NOT export legacy query factories or cache/compiler-related ports here.
@@ -39,8 +55,19 @@ export async function resolveEffectivePolicies(params: {
 	productId: string
 	variantId?: string
 	ratePlanId?: string
+	checkIn?: string
+	checkOut?: string
 	channel?: string
-}) {
+	requiredCategories?: string[]
+	onMissingCategory?: "return_null" | "throw_error"
+	includeTrace?: boolean
+	requestId?: string
+	featureContext?: import("@/config/featureFlags").FeatureFlagContext
+	dtoV2Enabled?: boolean
+}): Promise<
+	| import("./application/dto/PolicyResolutionDTO").PolicyResolutionDTO
+	| import("./application/adapters/policyResolutionAdapter").LegacyPolicyResolutionResult
+> {
 	const { resolveEffectivePoliciesUseCase } = await import(
 		"@/container/policies-resolution.container"
 	)
@@ -69,7 +96,7 @@ export async function assignPolicyCapa6(
 }
 
 export async function replacePolicyAssignmentCapa6(
-	params: import("./application/schemas/policy-write/assignPolicySchema").AssignPolicyInput
+	params: import("./application/use-cases/capa6/replace-policy-assignment").ReplacePolicyAssignmentInput
 ) {
 	const { replacePolicyAssignmentCapa6UseCase } = await import(
 		"@/container/policies-write.container"

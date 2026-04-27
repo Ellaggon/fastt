@@ -1,4 +1,3 @@
-import { and, db, EffectivePricing, eq, gte, lt } from "astro:db"
 import { z } from "zod"
 
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
@@ -73,19 +72,14 @@ export async function ensurePricingCoverage(
 		return { missingDatesCount: 0, generatedDatesCount: 0 }
 	}
 
-	const existingRows = await db
-		.select({ date: EffectivePricing.date })
-		.from(EffectivePricing)
-		.where(
-			and(
-				eq(EffectivePricing.variantId, parsed.variantId),
-				eq(EffectivePricing.ratePlanId, parsed.ratePlanId),
-				gte(EffectivePricing.date, parsed.from),
-				lt(EffectivePricing.date, parsed.to)
-			)
-		)
-		.all()
-	const existing = new Set(existingRows.map((row) => String(row.date)))
+	const existing = new Set(
+		await deps.pricingRepo.listEffectivePricingDates({
+			variantId: parsed.variantId,
+			ratePlanId: parsed.ratePlanId,
+			from: parsed.from,
+			to: parsed.to,
+		})
+	)
 	const missingDates = expectedDates.filter((date) => !existing.has(date))
 	const recomputeExisting = Boolean(parsed.recomputeExisting)
 	const targetDates = recomputeExisting ? expectedDates : missingDates

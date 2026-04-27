@@ -131,7 +131,6 @@ export const POST: APIRoute = async ({ request }) => {
 				entityId: variantId,
 				objectKey: normalizedObjectKey,
 				url,
-				altText: null,
 				order: index,
 				isPrimary: index === 0,
 			})

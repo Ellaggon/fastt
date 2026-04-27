@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
-import { db, eq, RatePlan } from "astro:db"
-import { ratePlanCommandRepository, variantManagementRepository } from "@/container"
+import { ratePlanCommandRepository } from "@/container"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { clearAggregateCache } from "@/lib/cache/ssrAggregateCache"
+import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 
 export const DELETE: APIRoute = async ({ request, url }) => {
 	try {
@@ -16,19 +16,12 @@ export const DELETE: APIRoute = async ({ request, url }) => {
 		if (!id) {
 			return new Response(JSON.stringify({ error: "Missing id" }), { status: 400 })
 		}
-		const ratePlan = await db
-			.select({ variantId: RatePlan.variantId })
-			.from(RatePlan)
-			.where(eq(RatePlan.id, id))
-			.get()
+		const ownerContext = await resolveRatePlanOwnerContext(id)
 		const result = await ratePlanCommandRepository.deleteRatePlan(id)
 		if (result === "ok") {
 			clearAggregateCache()
-			if (ratePlan?.variantId) {
-				const variant = await variantManagementRepository.getVariantById(ratePlan.variantId)
-				if (variant) {
-					await invalidateVariant(ratePlan.variantId, variant.productId)
-				}
+			if (ownerContext) {
+				await invalidateVariant(ownerContext.variantId, ownerContext.productId)
 			}
 			return new Response(JSON.stringify({ success: true }), { status: 200 })
 		}

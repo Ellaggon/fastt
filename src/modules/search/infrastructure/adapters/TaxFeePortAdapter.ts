@@ -1,8 +1,5 @@
 import type { TaxFeePort } from "../../application/ports/TaxFeePort"
-import type {
-	ResolvedTaxFeeDefinition,
-	TaxFeeBreakdown,
-} from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { ResolvedTaxFeeDefinition, TaxFeeBreakdown } from "@/modules/taxes-fees/public"
 
 export class TaxFeePortAdapter implements TaxFeePort {
 	constructor(

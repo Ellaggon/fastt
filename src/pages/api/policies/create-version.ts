@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
-import { createPolicyVersionCapa6, PolicyValidationError } from "@/modules/policies/public"
+import { createPolicyVersionCapa6UseCase } from "@/container/policies-write.container"
+import { PolicyValidationError } from "@/modules/policies/public"
+import { requireProvider } from "@/lib/auth/requireProvider"
 
 type CreateVersionBody = {
 	previousPolicyId: string
@@ -14,6 +16,7 @@ type CreateVersionBody = {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	const { user } = await requireProvider(request)
 	const { previousPolicyId, description, rules, cancellationTiers } =
 		(await request.json()) as CreateVersionBody
 
@@ -23,11 +26,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 	try {
 		// CAPA 6 versioning: create a new active version within the existing group (assignment remains unchanged).
-		const res = await createPolicyVersionCapa6({
+		const res = await createPolicyVersionCapa6UseCase({
 			previousPolicyId,
 			description: description ?? "",
 			rules,
 			cancellationTiers,
+			actorUserId: user.id,
 		})
 		return new Response(
 			JSON.stringify({

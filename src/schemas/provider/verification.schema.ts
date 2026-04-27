@@ -3,7 +3,7 @@ import { z } from "zod"
 export const providerVerificationSchema = z
 	.object({
 		status: z.enum(["pending", "approved", "rejected"], {
-			errorMap: () => ({ message: "Status must be pending, approved, or rejected" }),
+			error: "Status must be pending, approved, or rejected",
 		}),
 		reason: z.string().trim().min(2, "Reason must be at least 2 characters").optional(),
 		reviewedBy: z.string().trim().min(2, "Reviewer name must be at least 2 characters").optional(),

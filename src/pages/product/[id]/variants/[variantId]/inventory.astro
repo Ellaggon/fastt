@@ -1,6 +1,8 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import DatesModal from "@/components/ui/DatesModal.astro"
 import FormField from "@/components/ui/FormField.astro"
 import FormSection from "@/components/ui/FormSection.astro"
 import Input from "@/components/ui/Input.astro"
@@ -13,7 +15,34 @@ import {
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { asc, count, DailyInventory, db, eq } from "astro:db"
+import {
+	and,
+	DailyInventory,
+	db,
+	EffectiveAvailability,
+	EffectivePricing,
+	eq,
+	gte,
+	lt,
+	RatePlan,
+	sql,
+} from "astro:db"
+
+function toISODateOnly(date: Date): string {
+	return date.toISOString().slice(0, 10)
+}
+
+function enumerateDates(fromIso: string, toIso: string): string[] {
+	const start = new Date(`${fromIso}T00:00:00.000Z`)
+	const end = new Date(`${toIso}T00:00:00.000Z`)
+	const out: string[] = []
+	const cursor = new Date(start)
+	while (cursor < end) {
+		out.push(toISODateOnly(cursor))
+		cursor.setUTCDate(cursor.getUTCDate() + 1)
+	}
+	return out
+}
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -41,38 +70,202 @@ const initialTotalUnits =
 const initialHorizonDays =
 	inventoryConfig?.horizonDays != null ? String(inventoryConfig.horizonDays) : "365"
 
-const dailyInventoryPreview = await db
-	.select({
-		date: DailyInventory.date,
-		totalInventory: DailyInventory.totalInventory,
-		reservedCount: DailyInventory.reservedCount,
-		stopSell: DailyInventory.stopSell,
-	})
-	.from(DailyInventory)
-	.where(eq(DailyInventory.variantId, variantId))
-	.orderBy(asc(DailyInventory.date))
-	.limit(14)
+const today = new Date()
+const initialFrom = toISODateOnly(today)
+const initialToDate = new Date(today)
+initialToDate.setUTCDate(initialToDate.getUTCDate() + 60)
+const initialTo = toISODateOnly(initialToDate)
 
-const dailyInventoryCount = await db
-	.select({ value: count() })
-	.from(DailyInventory)
-	.where(eq(DailyInventory.variantId, variantId))
-	.get()
+const [rawRows, auditStats, defaultPlanRows] = await Promise.all([
+	db
+		.select({
+			date: DailyInventory.date,
+			totalUnits: DailyInventory.totalInventory,
+			stopSell: DailyInventory.stopSell,
+			heldUnits: EffectiveAvailability.heldUnits,
+			bookedUnits: EffectiveAvailability.bookedUnits,
+			availableUnits: EffectiveAvailability.availableUnits,
+			isSellable: EffectiveAvailability.isSellable,
+			computedAt: EffectiveAvailability.computedAt,
+			effectiveId: EffectiveAvailability.id,
+		})
+		.from(DailyInventory)
+		.leftJoin(
+			EffectiveAvailability,
+			and(
+				eq(EffectiveAvailability.variantId, DailyInventory.variantId),
+				eq(EffectiveAvailability.date, DailyInventory.date)
+			)
+		)
+		.where(
+			and(
+				eq(DailyInventory.variantId, variantId),
+				gte(DailyInventory.date, initialFrom),
+				lt(DailyInventory.date, initialTo)
+			)
+		)
+		.all(),
+	Promise.all([
+		db
+			.select({
+				dailyDays: sql<number>`count(*)`,
+			})
+			.from(DailyInventory)
+			.where(eq(DailyInventory.variantId, variantId))
+			.get(),
+		db
+			.select({
+				effectiveDays: sql<number>`count(*)`,
+				sellableDays: sql<number>`sum(case when ${EffectiveAvailability.isSellable} = 1 then 1 else 0 end)`,
+				lastRecomputeAt: sql<string | null>`max(${EffectiveAvailability.computedAt})`,
+				consistencyIssues: sql<number>`sum(case when (${EffectiveAvailability.availableUnits} + ${EffectiveAvailability.heldUnits} + ${EffectiveAvailability.bookedUnits}) <> ${EffectiveAvailability.totalUnits} then 1 else 0 end)`,
+			})
+			.from(EffectiveAvailability)
+			.where(eq(EffectiveAvailability.variantId, variantId))
+			.get(),
+	]),
+	db
+		.select({ id: RatePlan.id, createdAt: RatePlan.createdAt })
+		.from(RatePlan)
+		.where(
+			and(
+				eq(RatePlan.variantId, variantId),
+				eq(RatePlan.isDefault, true),
+				eq(RatePlan.isActive, true)
+			)
+		)
+		.all(),
+])
+
+const defaultPlan = defaultPlanRows.slice().sort((a, b) => {
+	const at = new Date(a.createdAt as unknown as Date).getTime()
+	const bt = new Date(b.createdAt as unknown as Date).getTime()
+	if (Number.isNaN(at) && Number.isNaN(bt)) return 0
+	if (Number.isNaN(at)) return 1
+	if (Number.isNaN(bt)) return -1
+	return at - bt
+})[0]
+
+const priceRows = defaultPlan
+	? await db
+			.select({ date: EffectivePricing.date })
+			.from(EffectivePricing)
+			.where(
+				and(
+					eq(EffectivePricing.variantId, variantId),
+					eq(EffectivePricing.ratePlanId, String(defaultPlan.id)),
+					gte(EffectivePricing.date, initialFrom),
+					lt(EffectivePricing.date, initialTo)
+				)
+			)
+			.all()
+	: []
+const hasPriceByDate = new Set(priceRows.map((row) => String(row.date)))
+
+const [dailyStats, effectiveStats] = auditStats
+const dailyDays = Number(dailyStats?.dailyDays ?? 0)
+const effectiveDays = Number(effectiveStats?.effectiveDays ?? 0)
+const sellableDays = Number(effectiveStats?.sellableDays ?? 0)
+const consistencyIssues = Number(effectiveStats?.consistencyIssues ?? 0)
+const lastRecomputeAt = effectiveStats?.lastRecomputeAt
+	? String(effectiveStats.lastRecomputeAt)
+	: null
+const coverageGaps = Math.max(0, dailyDays - effectiveDays)
+const inventoryReadiness =
+	dailyDays > 0 && coverageGaps === 0 && consistencyIssues === 0 && sellableDays > 0
+		? "LISTO_PARA_VENDER"
+		: "REQUIERE_REVISION"
+
+const rowByDate = new Map(
+	rawRows.map((row) => [
+		String(row.date),
+		{
+			date: String(row.date),
+			totalUnits: Number(row.totalUnits ?? 0),
+			heldUnits: Number(row.heldUnits ?? 0),
+			bookedUnits: Number(row.bookedUnits ?? 0),
+			availableUnits: Number(row.availableUnits ?? 0),
+			stopSell: Boolean(row.stopSell ?? true),
+			isSellable: Boolean(row.isSellable ?? false),
+			hasEffective: Boolean(row.effectiveId),
+			hasPrice: hasPriceByDate.has(String(row.date)),
+			unsellableReason: !Boolean(row.effectiveId)
+				? "MISSING_AVAILABILITY"
+				: Boolean(row.stopSell ?? true)
+					? "CLOSED"
+					: Number(row.availableUnits ?? 0) <= 0
+						? "NO_CAPACITY"
+						: !hasPriceByDate.has(String(row.date))
+							? "MISSING_PRICE"
+							: null,
+			computedAt: row.computedAt ? String(row.computedAt) : null,
+		},
+	])
+)
+
+const initialRows = enumerateDates(initialFrom, initialTo).map((date) => {
+	const row = rowByDate.get(date)
+	if (row) return row
+	return {
+		date,
+		totalUnits: 0,
+		heldUnits: 0,
+		bookedUnits: 0,
+		availableUnits: 0,
+		stopSell: true,
+		isSellable: false,
+		hasEffective: false,
+		hasPrice: false,
+		unsellableReason: "MISSING_AVAILABILITY",
+		computedAt: null,
+	}
+})
+
+const taskQueue = [
+	coverageGaps > 0
+		? {
+				id: "coverage_gap",
+				title: `Hay ${coverageGaps} día(s) que aún no están listos para vender.`,
+				action: "resolver_coverage",
+			}
+		: null,
+	consistencyIssues > 0
+		? {
+				id: "consistency_issue",
+				title: `${consistencyIssues} fecha(s) requieren recálculo de disponibilidad.`,
+				action: "resolver_consistency",
+			}
+		: null,
+	inventoryReadiness === "REQUIERE_REVISION"
+		? {
+				id: "readiness",
+				title: "La habitación requiere revisión antes de venderse con normalidad.",
+				action: "resolver_sellability",
+			}
+		: null,
+].filter(Boolean)
 ---
 
-<WorkspaceLayout title="Producto · Editar inventario">
-	<section class="space-y-8 text-neutral-100">
+<WorkspaceLayout title="Producto · Inventario operativo">
+	<section class="space-y-8 text-slate-100">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Editar inventario</h1>
-			<p class="text-sm text-slate-400">
-				Configura el inventario por defecto y el horizonte de días.
-			</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Inventario operativo</h1>
+			<p class="text-sm text-slate-400">Abre o cierra ventas y ajusta cupos por día o por rango.</p>
+			<div class="flex flex-wrap items-center gap-2">
+				<Badge variant={inventoryReadiness === "LISTO_PARA_VENDER" ? "success" : "warning"}>
+					{inventoryReadiness === "LISTO_PARA_VENDER" ? "Listo para vender" : "Requiere revisión"}
+				</Badge>
+			</div>
+			{
+				inventoryReadiness === "REQUIERE_REVISION" ? (
+					<p class="text-xs text-amber-300">
+						Se detectaron fechas que necesitan revisión para asegurar ventas.
+					</p>
+				) : null
+			}
 		</header>
 
-		<Section
-			title="Inventario base"
-			description="Estos valores se usan como configuración inicial."
-		>
+		<Section title="Configuración base" description="Parámetros iniciales para generación diaria.">
 			<Card class="bg-slate-100">
 				<form id="inventoryForm" class="mx-auto max-w-3xl space-y-6">
 					<Input type="hidden" name="variantId" value={variantId} />
@@ -115,90 +308,1130 @@ const dailyInventoryCount = await db
 							type="submit"
 							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 						>
-							Guardar cambios
+							Guardar base
 						</Button>
 					</div>
 				</form>
 			</Card>
 		</Section>
 
-		<Section title="Inventario diario" description="Estado generado para disponibilidad.">
-			<Card class="space-y-6 bg-slate-100">
-				<div class="grid gap-3 md:grid-cols-2">
-					<div class="rounded-lg border border-slate-200 bg-white p-4">
-						<p class="text-xs text-slate-500">Días generados</p>
-						<p class="text-sm font-semibold text-slate-900">
-							{Number(dailyInventoryCount?.value ?? 0)}
-						</p>
-					</div>
-					<div class="rounded-lg border border-slate-200 bg-white p-4">
-						<p class="text-xs text-slate-500">Estado</p>
-						<p class="text-sm font-semibold text-slate-900">
-							{
-								Number(dailyInventoryCount?.value ?? 0) > 0
-									? "Inventario diario disponible"
-									: "Inventario diario no generado"
-							}
-						</p>
+		{
+			taskQueue.length > 0 ? (
+				<Section
+					title="Tareas pendientes"
+					description="Resuelve en un clic fechas que necesitan atención."
+				>
+					<Card class="bg-slate-100">
+						<ul class="space-y-3">
+							{taskQueue.map((task: any) => (
+								<li class="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-slate-900 md:flex-row md:items-center md:justify-between">
+									<p class="text-sm font-medium">{task.title}</p>
+									<Button
+										variant="secondary"
+										size="sm"
+										data-task-action={task.action}
+										data-action="resolve-task"
+									>
+										Resolver
+									</Button>
+								</li>
+							))}
+						</ul>
+					</Card>
+				</Section>
+			) : null
+		}
+
+		<Section
+			title="Calendario operativo"
+			description="Selecciona fechas y aplica cambios en menos de dos pasos."
+		>
+			<Card class="space-y-4 bg-slate-100">
+				<div class="grid gap-4 md:grid-cols-5">
+					<FormField label="Desde">
+						<DatesModal id="calendarStartDate" name="calendarStartDate" value={initialFrom} />
+					</FormField>
+					<FormField label="Hasta">
+						<DatesModal id="calendarEndDate" name="calendarEndDate" value={initialTo} />
+					</FormField>
+					<div class="flex flex-wrap items-end gap-2 md:col-span-3">
+						<Button data-range-preset="7" variant="secondary" size="sm">+7 días</Button>
+						<Button data-range-preset="30" variant="secondary" size="sm">+30 días</Button>
+						<Button data-range-preset="60" variant="secondary" size="sm">+60 días</Button>
+						<Button id="loadCalendarBtn" variant="primary" size="sm">Cargar rango</Button>
 					</div>
 				</div>
 
-				<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-					<table class="min-w-full divide-y divide-slate-200 text-sm">
-						<thead>
-							<tr class="text-left text-slate-700">
-								<th class="px-3 py-2">Fecha</th>
-								<th class="px-3 py-2">Total</th>
-								<th class="px-3 py-2">Reservado</th>
-								<th class="px-3 py-2">Stop sell</th>
-							</tr>
-						</thead>
-						<tbody>
-							{
-								dailyInventoryPreview.length > 0 ? (
-									dailyInventoryPreview.map((row) => (
-										<tr class="border-t border-slate-200">
-											<td class="px-3 py-2 text-slate-900">{row.date}</td>
-											<td class="px-3 py-2 text-slate-700">{row.totalInventory}</td>
-											<td class="px-3 py-2 text-slate-700">{row.reservedCount}</td>
-											<td class="px-3 py-2 text-slate-700">{row.stopSell ? "Sí" : "No"}</td>
-										</tr>
-									))
-								) : (
-									<tr>
-										<td class="px-3 py-3 text-slate-500" colspan="4">
-											Sin inventario disponible
-										</td>
-									</tr>
-								)
-							}
-						</tbody>
-					</table>
+				<div class="rounded-lg border border-slate-200 bg-white p-3">
+					<p id="selectionSummary" class="text-sm text-slate-700">Sin selección activa.</p>
+					<p id="selectionDetail" class="mt-1 text-xs text-slate-600"></p>
+					<div class="mt-2 flex flex-wrap items-center gap-2">
+						<Button id="selectionSyncBtn" size="sm" variant="ghost" className="hidden">
+							Usar rango cargado
+						</Button>
+						<Button id="selectionResolveBtn" size="sm" variant="secondary" className="hidden">
+							Resolver
+						</Button>
+					</div>
+				</div>
+
+				<div id="calendarWorkspace" class="relative">
+					<div
+						id="inventoryCalendar"
+						class="grid grid-cols-7 gap-2 rounded-xl border border-slate-200 bg-white p-3"
+					>
+					</div>
+
+					<div
+						id="actionCapsule"
+						class="pointer-events-none absolute z-20 hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+					>
+						<div class="pointer-events-auto space-y-3">
+							<p id="capsulePreview" class="text-xs font-medium text-slate-700"></p>
+							<div
+								id="capsuleImpact"
+								class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700"
+							>
+								<p class="font-medium text-slate-900">Impacto</p>
+								<p id="capsuleImpactDays" class="mt-1"></p>
+								<p id="capsuleImpactStates" class="mt-1"></p>
+								<p id="capsuleImpactUnits" class="mt-1"></p>
+								<label class="mt-2 inline-flex items-center gap-2 text-xs">
+									<input
+										id="capsuleImpactAck"
+										type="checkbox"
+										class="h-4 w-4 rounded border-slate-300"
+									/>
+									<span>Confirmo que revisé el impacto</span>
+								</label>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								<Button size="sm" data-capsule-action="close" variant="secondary"
+									>Cerrar ventas</Button
+								>
+								<Button size="sm" data-capsule-action="open" variant="secondary"
+									>Abrir ventas</Button
+								>
+								<Button size="sm" data-capsule-action="setUnits" variant="secondary"
+									>Actualizar cupo</Button
+								>
+								<div class="relative">
+									<Button size="sm" data-capsule-action="toggle-extra" variant="ghost"
+										>Más acciones</Button
+									>
+									<div
+										id="capsuleExtraMenu"
+										class="absolute right-0 top-10 hidden w-44 rounded-lg border border-slate-200 bg-white p-2 shadow-lg"
+									>
+										<Button
+											size="sm"
+											variant="secondary"
+											className="w-full"
+											data-capsule-action="copy"
+											class="py-5"
+										>
+											Copiar configuración
+										</Button>
+									</div>
+								</div>
+							</div>
+							<div id="capsuleWeekdayRow" class="hidden space-y-2">
+								<p class="text-xs font-medium text-slate-700">
+									Aplicar por día de semana (opcional)
+								</p>
+								<div class="flex flex-wrap gap-1">
+									{
+										["L", "M", "X", "J", "V", "S", "D"].map((day, index) => (
+											<button
+												type="button"
+												class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+												data-weekday-index={index}
+											>
+												{day}
+											</button>
+										))
+									}
+								</div>
+								<p id="capsuleWeekdaySummary" class="text-[11px] text-slate-600"></p>
+							</div>
+							<div id="capsuleUnitsRow" class="hidden items-center gap-2">
+								<div class="w-28">
+									<Input id="capsuleUnitsInput" type="number" min="0" step="1" value="0" />
+								</div>
+								<Button
+									size="sm"
+									data-capsule-action="applyUnits"
+									className="bg-[#1E3A8A] text-white">Preparar</Button
+								>
+							</div>
+							<div id="capsuleConfirmRow" class="hidden items-center gap-2">
+								<Button
+									size="sm"
+									id="capsuleConfirmBtn"
+									data-capsule-action="confirm"
+									className="bg-[#1E3A8A] text-white">Aplicar</Button
+								>
+								<Button size="sm" data-capsule-action="cancel" variant="secondary">Cancelar</Button>
+							</div>
+							<p id="capsuleRiskWarning" class="hidden text-xs font-medium text-amber-700"></p>
+						</div>
+					</div>
 				</div>
 			</Card>
 		</Section>
 	</section>
 
-	<script type="module" define:vars={{ productId, variantId }}>
+	<div
+		id="inventoryToast"
+		class="fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
+	>
+		<p id="inventoryToastText" class="text-sm text-slate-900"></p>
+		<div class="mt-2 flex items-center gap-2">
+			<Button size="sm" variant="secondary" id="inventoryUndoBtn">Undo</Button>
+			<Button size="sm" variant="ghost" id="inventoryToastClose">Cerrar</Button>
+		</div>
+	</div>
+
+	<script type="module" define:vars={{ productId, variantId, initialRows, initialFrom, initialTo }}>
 		const form = document.getElementById("inventoryForm")
 		const submitBtn = document.getElementById("submitBtn")
 		const feedback = document.getElementById("inventoryFeedback")
 
-		function setState(state, detail = "") {
+		const calendarEl = document.getElementById("inventoryCalendar")
+		const workspaceEl = document.getElementById("calendarWorkspace")
+		const startInput = document.getElementById("calendarStartDate")
+		const endInput = document.getElementById("calendarEndDate")
+		const loadCalendarBtn = document.getElementById("loadCalendarBtn")
+		const selectionSummary = document.getElementById("selectionSummary")
+		const selectionDetail = document.getElementById("selectionDetail")
+		const selectionSyncBtn = document.getElementById("selectionSyncBtn")
+		const selectionResolveBtn = document.getElementById("selectionResolveBtn")
+
+		const actionCapsule = document.getElementById("actionCapsule")
+		const capsulePreview = document.getElementById("capsulePreview")
+		const capsuleImpactDays = document.getElementById("capsuleImpactDays")
+		const capsuleImpactStates = document.getElementById("capsuleImpactStates")
+		const capsuleImpactUnits = document.getElementById("capsuleImpactUnits")
+		const capsuleImpactAck = document.getElementById("capsuleImpactAck")
+		const capsuleUnitsRow = document.getElementById("capsuleUnitsRow")
+		const capsuleUnitsInput = document.getElementById("capsuleUnitsInput")
+		const capsuleConfirmRow = document.getElementById("capsuleConfirmRow")
+		const capsuleConfirmBtn = document.getElementById("capsuleConfirmBtn")
+		const capsuleRiskWarning = document.getElementById("capsuleRiskWarning")
+		const capsuleExtraMenu = document.getElementById("capsuleExtraMenu")
+		const capsuleWeekdayRow = document.getElementById("capsuleWeekdayRow")
+		const capsuleWeekdaySummary = document.getElementById("capsuleWeekdaySummary")
+
+		const toast = document.getElementById("inventoryToast")
+		const toastText = document.getElementById("inventoryToastText")
+		const undoBtn = document.getElementById("inventoryUndoBtn")
+		const toastClose = document.getElementById("inventoryToastClose")
+
+		const DAY_MS = 86400000
+
+		const state = {
+			rows: new Map((initialRows || []).map((row) => [String(row.date), { ...row }])),
+			visibleStart: String(initialFrom),
+			visibleEnd: String(initialTo),
+			selectionStart: null,
+			selectionEnd: null,
+			dragging: false,
+			pendingAction: null,
+			pendingUnits: null,
+			lastUndo: null,
+			busy: false,
+			selectedWeekdays: new Set(),
+			extremeImpactAccepted: false,
+			selectionPrimaryReason: null,
+		}
+
+		function rowHasReviewIssue(row) {
+			return (
+				row.unsellableReason === "MISSING_AVAILABILITY" ||
+				row.unsellableReason === "MISSING_PRICE" ||
+				row.unsellableReason === "MIN_STAY_NOT_MET"
+			)
+		}
+
+		function dayState(row) {
+			if (rowHasReviewIssue(row)) return "review"
+			if (row.stopSell) return "closed"
+			if (Number(row.availableUnits || 0) <= 0) return "soldout"
+			return "available"
+		}
+
+		function dayStateLabel(stateKey) {
+			if (stateKey === "available") return "Disponible"
+			if (stateKey === "soldout") return "Agotado"
+			if (stateKey === "closed") return "Cerrado"
+			return "Revisar"
+		}
+
+		function rowReviewReason(row) {
+			const reasonMeta = {
+				MISSING_AVAILABILITY: {
+					label: "Disponibilidad pendiente",
+					action: "Recalcular disponibilidad",
+				},
+				MISSING_PRICE: {
+					label: "Precio pendiente",
+					action: "Generar precios",
+				},
+				MIN_STAY_NOT_MET: {
+					label: "Estadía mínima no cumplida",
+					action: "Revisar reglas de estadía",
+				},
+				CLOSED: {
+					label: "Ventas cerradas",
+					action: "Abrir ventas",
+				},
+				NO_CAPACITY: {
+					label: "Sin cupo disponible",
+					action: "Actualizar cupo",
+				},
+				OCCUPANCY_EXCEEDED: {
+					label: "Capacidad superada",
+					action: "Ajustar capacidad",
+				},
+			}
+			const key = String(row.unsellableReason ?? "")
+			const meta = reasonMeta[key]
+			if (meta) return `${meta.label}. Acción sugerida: ${meta.action}.`
+			return "Esta fecha requiere revisión."
+		}
+
+		function dayStateIcon(stateKey) {
+			if (stateKey === "closed") return "🔒"
+			if (stateKey === "review") return "⚠"
+			if (stateKey === "soldout") return "○"
+			return "●"
+		}
+
+		function parseIsoDate(value) {
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null
+			const date = new Date(`${value}T00:00:00.000Z`)
+			if (Number.isNaN(date.getTime())) return null
+			return date
+		}
+
+		function toISODate(date) {
+			return date.toISOString().slice(0, 10)
+		}
+
+		function dayOfWeekIndex(isoDate) {
+			const parsed = parseIsoDate(isoDate)
+			if (!parsed) return -1
+			return (parsed.getUTCDay() + 6) % 7
+		}
+
+		function enumerateDates(fromIso, toIso) {
+			const start = parseIsoDate(fromIso)
+			const end = parseIsoDate(toIso)
+			if (!start || !end || end <= start) return []
+			const out = []
+			const cursor = new Date(start)
+			while (cursor < end) {
+				out.push(toISODate(cursor))
+				cursor.setUTCDate(cursor.getUTCDate() + 1)
+			}
+			return out
+		}
+
+		function normalizeSelection() {
+			if (!state.selectionStart || !state.selectionEnd) return []
+			const from =
+				state.selectionStart <= state.selectionEnd ? state.selectionStart : state.selectionEnd
+			const to =
+				state.selectionStart <= state.selectionEnd ? state.selectionEnd : state.selectionStart
+			const endDate = parseIsoDate(to)
+			if (!endDate) return []
+			endDate.setUTCDate(endDate.getUTCDate() + 1)
+			return enumerateDates(from, toISODate(endDate))
+		}
+
+		function getTargetDates() {
+			const selected = normalizeSelection()
+			if (!selected.length) return []
+			if (state.selectedWeekdays.size === 0) return selected
+			return selected.filter((date) => state.selectedWeekdays.has(dayOfWeekIndex(date)))
+		}
+
+		function setStateMessage(kind, message) {
+			const labels = {
+				loading: "Procesando...",
+				success: "Completado.",
+				error: "No se pudo completar la acción.",
+			}
+			if (feedback) feedback.textContent = `${labels[kind] || ""}${message ? `\n${message}` : ""}`
+		}
+
+		function showToast(message, withUndo = false) {
+			if (!toast || !toastText) return
+			toastText.textContent = message
+			toast.classList.remove("hidden")
+			if (undoBtn) undoBtn.style.display = withUndo ? "inline-flex" : "none"
+			window.clearTimeout(showToast._t)
+			showToast._t = window.setTimeout(() => toast.classList.add("hidden"), 8000)
+		}
+		showToast._t = 0
+
+		function renderWeekdaySelection() {
+			if (!capsuleWeekdaySummary) return
+			const labels = ["L", "M", "X", "J", "V", "S", "D"]
+			const active = [...state.selectedWeekdays].sort((a, b) => a - b).map((idx) => labels[idx])
+			capsuleWeekdaySummary.textContent =
+				active.length > 0
+					? `Aplicando solo a: ${active.join(" · ")}`
+					: "Aplicando a todos los días del rango."
+			document.querySelectorAll("[data-weekday-index]").forEach((button) => {
+				if (!(button instanceof HTMLButtonElement)) return
+				const idx = Number(button.dataset.weekdayIndex)
+				if (state.selectedWeekdays.has(idx)) {
+					button.classList.remove("border-slate-300", "bg-white", "text-slate-700")
+					button.classList.add("border-blue-500", "bg-blue-50", "text-blue-700")
+				} else {
+					button.classList.remove("border-blue-500", "bg-blue-50", "text-blue-700")
+					button.classList.add("border-slate-300", "bg-white", "text-slate-700")
+				}
+			})
+		}
+
+		function computeImpact(action) {
+			const selected = normalizeSelection()
+			const targets = getTargetDates()
+			let availableCount = 0
+			let soldoutCount = 0
+			let closedCount = 0
+			let reviewCount = 0
+			let unitsBefore = 0
+			let unitsAfter = 0
+			for (const date of targets) {
+				const row = state.rows.get(date)
+				if (!row) continue
+				const beforeState = dayState(row)
+				if (beforeState === "available") availableCount += 1
+				if (beforeState === "soldout") soldoutCount += 1
+				if (beforeState === "closed") closedCount += 1
+				if (beforeState === "review") reviewCount += 1
+				unitsBefore += Number(row.totalUnits || 0)
+				unitsAfter +=
+					action === "setUnits"
+						? Number(state.pendingUnits ?? row.totalUnits ?? 0)
+						: Number(row.totalUnits || 0)
+			}
+			const averageBefore = targets.length > 0 ? unitsBefore / targets.length : 0
+			const averageAfter = targets.length > 0 ? unitsAfter / targets.length : 0
+			const isExtremeUnitsDrop =
+				action === "setUnits" &&
+				targets.length >= 30 &&
+				((averageBefore >= 3 && averageAfter === 0) ||
+					(averageBefore > 0 && (averageBefore - averageAfter) / averageBefore >= 0.7))
+			const isHighRisk =
+				isExtremeUnitsDrop || (targets.length >= 90 && (action === "close" || action === "open"))
+			return {
+				selectedCount: selected.length,
+				targetCount: targets.length,
+				availableCount,
+				soldoutCount,
+				closedCount,
+				reviewCount,
+				averageBefore,
+				averageAfter,
+				isHighRisk,
+			}
+		}
+
+		function renderImpactPreview() {
+			if (!capsulePreview || !capsuleImpactDays || !capsuleImpactStates || !capsuleImpactUnits)
+				return
+			const selected = normalizeSelection()
+			if (!state.pendingAction || !selected.length) {
+				capsuleImpactDays.textContent = ""
+				capsuleImpactStates.textContent = ""
+				capsuleImpactUnits.textContent = ""
+				if (capsuleConfirmBtn instanceof HTMLButtonElement) capsuleConfirmBtn.disabled = true
+				return
+			}
+			const impact = computeImpact(state.pendingAction)
+			capsuleImpactDays.textContent = `Días seleccionados: ${impact.selectedCount} · Días afectados: ${impact.targetCount}`
+			capsuleImpactStates.textContent = `Estado actual: ${impact.availableCount} disponibles · ${impact.soldoutCount} agotados · ${impact.closedCount} cerrados${impact.reviewCount ? ` · ${impact.reviewCount} revisar` : ""}`
+			capsuleImpactUnits.textContent =
+				state.pendingAction === "setUnits"
+					? `Cupo promedio: ${impact.averageBefore.toFixed(1)} → ${impact.averageAfter.toFixed(1)}`
+					: "Cupo: sin cambios"
+			if (capsuleRiskWarning) {
+				if (impact.isHighRisk) {
+					capsuleRiskWarning.classList.remove("hidden")
+					capsuleRiskWarning.textContent =
+						"Impacto alto detectado. Confirma explícitamente antes de aplicar."
+				} else {
+					capsuleRiskWarning.classList.add("hidden")
+					capsuleRiskWarning.textContent = ""
+				}
+			}
+			const ack = capsuleImpactAck instanceof HTMLInputElement ? capsuleImpactAck.checked : false
+			const canConfirm =
+				impact.targetCount > 0 && ack && (!impact.isHighRisk || state.extremeImpactAccepted)
+			if (capsuleConfirmBtn instanceof HTMLButtonElement) capsuleConfirmBtn.disabled = !canConfirm
+		}
+
+		function renderActionSelection() {
+			const primaryActions = ["close", "open", "setUnits", "copy"]
+			primaryActions.forEach((actionKey) => {
+				const button = document.querySelector(`[data-capsule-action="${actionKey}"]`)
+				if (!(button instanceof HTMLButtonElement)) return
+				const selected = state.pendingAction === actionKey
+				if (selected) {
+					button.classList.add("bg-blue-600", "text-white", "hover:bg-blue-800")
+				} else {
+					button.classList.remove(
+						"bg-neutral-100",
+						"bg-blue-600",
+						"text-white",
+						"hover:bg-blue-800"
+					)
+				}
+			})
+		}
+
+		function cellClasses(date, row, selected) {
+			const visual = dayState(row)
+			const base = "group rounded-lg border p-2 text-left transition"
+			const byState = {
+				closed: "border-red-300 bg-red-100 text-red-900",
+				soldout: "border-slate-300 bg-slate-100 text-slate-800",
+				review: "border-amber-200 bg-amber-50 text-slate-900",
+				available: "border-emerald-300 bg-emerald-100 text-emerald-900",
+			}
+			const edge =
+				date === state.selectionStart
+					? "border-blue-500 ring-2 ring-blue-300"
+					: date === state.selectionEnd
+						? "border-blue-500 ring-2 ring-blue-300"
+						: ""
+			return `${base} ${byState[visual]} ${selected ? "ring-2 ring-blue-500" : "hover:ring-1 hover:ring-blue-300"} ${edge}`
+		}
+
+		function buildCellContent(date, row) {
+			const stateKey = dayState(row)
+			const statusText = dayStateLabel(stateKey)
+			const units = stateKey === "review" ? "—" : String(Number(row.availableUnits || 0))
+			const icon = dayStateIcon(stateKey)
+			return `
+				<p class="text-xs font-semibold">${date.slice(8, 10)}</p>
+				<p class="mt-1 text-lg font-semibold leading-none">${units}</p>
+				<p class="mt-1 text-[11px] font-medium">${icon} ${statusText}</p>
+			`
+		}
+
+		function renderCalendar() {
+			if (!calendarEl) return
+			const dates = enumerateDates(state.visibleStart, state.visibleEnd)
+			calendarEl.innerHTML = ""
+			for (const date of dates) {
+				const row = state.rows.get(date) || {
+					date,
+					totalUnits: 0,
+					heldUnits: 0,
+					bookedUnits: 0,
+					availableUnits: 0,
+					stopSell: true,
+					isSellable: false,
+					hasEffective: false,
+					hasPrice: false,
+					unsellableReason: "MISSING_AVAILABILITY",
+					computedAt: null,
+				}
+				const btn = document.createElement("button")
+				btn.type = "button"
+				btn.dataset.date = date
+				if (date === state.selectionStart) btn.dataset.selectionEdge = "start"
+				else if (date === state.selectionEnd) btn.dataset.selectionEdge = "end"
+				if (dayState(row) === "review") btn.title = rowReviewReason(row)
+				btn.className = cellClasses(date, row, normalizeSelection().includes(date))
+				btn.innerHTML = buildCellContent(date, row)
+				calendarEl.appendChild(btn)
+			}
+			refreshSelectionSummary()
+			positionActionCapsule()
+		}
+
+		function updateCell(date) {
+			if (!calendarEl) return
+			const el = calendarEl.querySelector(`[data-date="${date}"]`)
+			if (!(el instanceof HTMLButtonElement)) return
+			const row = state.rows.get(date)
+			if (!row) return
+			el.className = cellClasses(date, row, normalizeSelection().includes(date))
+			el.innerHTML = buildCellContent(date, row)
+		}
+
+		function refreshSelectionSummary() {
+			if (!selectionSummary) return
+			const selected = normalizeSelection()
+			if (!selected.length) {
+				selectionSummary.textContent =
+					"Sin selección activa. Arrastra sobre el calendario para seleccionar un rango."
+				state.selectionPrimaryReason = null
+				if (selectionDetail) selectionDetail.textContent = ""
+				if (selectionSyncBtn) selectionSyncBtn.classList.remove("hidden")
+				if (selectionResolveBtn) selectionResolveBtn.classList.add("hidden")
+				if (actionCapsule) actionCapsule.classList.add("hidden")
+				return
+			}
+			const first = selected[0]
+			const last = selected[selected.length - 1]
+			let availableCount = 0
+			let closedCount = 0
+			let reviewCount = 0
+			const reasonsCount = new Map()
+			for (const date of selected) {
+				const row = state.rows.get(date)
+				if (!row) continue
+				const stateKey = dayState(row)
+				if (stateKey === "available") availableCount += 1
+				if (stateKey === "closed") closedCount += 1
+				if (stateKey === "review") reviewCount += 1
+				if (row.unsellableReason) {
+					reasonsCount.set(
+						row.unsellableReason,
+						Number(reasonsCount.get(row.unsellableReason) ?? 0) + 1
+					)
+				}
+			}
+			selectionSummary.textContent = `${selected.length} días seleccionados · ${availableCount} disponibles · ${closedCount} cerrados`
+			const primaryReason =
+				[...reasonsCount.entries()].sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] ?? null
+			state.selectionPrimaryReason = primaryReason
+			const reasonToAction = {
+				MISSING_AVAILABILITY: "Recalcular disponibilidad",
+				MISSING_PRICE: "Ir a precios y generar cobertura",
+				MIN_STAY_NOT_MET: "Revisar reglas de estadía mínima",
+				CLOSED: "Abrir ventas",
+				NO_CAPACITY: "Actualizar cupo",
+				OCCUPANCY_EXCEEDED: "Revisar capacidad de la habitación",
+			}
+			if (selectionDetail) {
+				const onlyOne = selected.length === 1 ? state.rows.get(selected[0]) : null
+				const singleReviewReason =
+					onlyOne && dayState(onlyOne) === "review" ? ` · ${rowReviewReason(onlyOne)}` : ""
+				const groupAction = primaryReason
+					? ` · Acción sugerida: ${reasonToAction[primaryReason] ?? "Revisar"}`
+					: ""
+				selectionDetail.textContent = `${first} → ${last}${reviewCount > 0 ? ` · ${reviewCount} fecha(s) en revisión` : ""}${singleReviewReason}${groupAction}`
+			}
+			if (selectionSyncBtn) selectionSyncBtn.classList.add("hidden")
+			if (selectionResolveBtn) {
+				if (reviewCount > 0) {
+					selectionResolveBtn.textContent =
+						primaryReason === "MISSING_PRICE"
+							? "Ir a precios"
+							: selected.length === 1
+								? "Recalcular este día"
+								: "Resolver"
+					selectionResolveBtn.classList.remove("hidden")
+				} else selectionResolveBtn.classList.add("hidden")
+			}
+			if (actionCapsule) actionCapsule.classList.remove("hidden")
+			renderImpactPreview()
+		}
+
+		function positionActionCapsule() {
+			if (!workspaceEl || !actionCapsule) return
+			const selected = normalizeSelection()
+			if (!selected.length) return
+			const selectedEls = selected
+				.map((date) => workspaceEl.querySelector(`[data-date="${date}"]`))
+				.filter((el) => el instanceof HTMLElement)
+			if (!selectedEls.length) return
+			const firstRect = selectedEls[0].getBoundingClientRect()
+			const lastRect = selectedEls[selectedEls.length - 1].getBoundingClientRect()
+			const parentRect = workspaceEl.getBoundingClientRect()
+			const centerX = (firstRect.left + lastRect.right) / 2 - parentRect.left
+			const top = Math.max(4, firstRect.top - parentRect.top - 12 - actionCapsule.offsetHeight)
+			actionCapsule.style.left = `${Math.max(4, Math.min(parentRect.width - actionCapsule.offsetWidth - 4, centerX - actionCapsule.offsetWidth / 2))}px`
+			actionCapsule.style.top = `${top}px`
+		}
+
+		function clearPendingAction() {
+			state.pendingAction = null
+			state.pendingUnits = null
+			state.extremeImpactAccepted = false
+			if (capsuleUnitsRow) capsuleUnitsRow.classList.add("hidden")
+			if (capsuleWeekdayRow) capsuleWeekdayRow.classList.add("hidden")
+			if (capsuleConfirmRow) capsuleConfirmRow.classList.add("hidden")
+			if (capsulePreview) {
+				const selected = normalizeSelection()
+				if (!selected.length) capsulePreview.textContent = ""
+				else capsulePreview.textContent = `${selected.length} día(s) seleccionados.`
+			}
+			if (capsuleImpactAck instanceof HTMLInputElement) capsuleImpactAck.checked = false
+			if (capsuleRiskWarning) {
+				capsuleRiskWarning.classList.add("hidden")
+				capsuleRiskWarning.textContent = ""
+			}
+			if (capsuleExtraMenu) capsuleExtraMenu.classList.add("hidden")
+			renderImpactPreview()
+			renderActionSelection()
+		}
+
+		function setPendingAction(action) {
+			const selected = normalizeSelection()
+			if (!selected.length || !capsulePreview) return
+			state.pendingAction = action
+			state.extremeImpactAccepted = false
+			if (capsuleImpactAck instanceof HTMLInputElement) capsuleImpactAck.checked = false
+			if (capsuleWeekdayRow) capsuleWeekdayRow.classList.remove("hidden")
+			if (action === "setUnits") {
+				if (capsuleUnitsRow) capsuleUnitsRow.classList.remove("hidden")
+				if (capsuleConfirmRow) capsuleConfirmRow.classList.add("hidden")
+				capsulePreview.textContent = `Preview: actualizar cupo en ${selected.length} día(s).`
+				renderWeekdaySelection()
+				renderImpactPreview()
+				renderActionSelection()
+				return
+			}
+			if (action === "copy") {
+				if (capsuleUnitsRow) capsuleUnitsRow.classList.add("hidden")
+				if (capsuleConfirmRow) capsuleConfirmRow.classList.remove("hidden")
+				capsulePreview.textContent = `Preview: copiar configuración al rango (${selected.length} día(s)).`
+				renderWeekdaySelection()
+				renderImpactPreview()
+				renderActionSelection()
+				return
+			}
+			if (capsuleUnitsRow) capsuleUnitsRow.classList.add("hidden")
+			if (capsuleConfirmRow) capsuleConfirmRow.classList.remove("hidden")
+			capsulePreview.textContent =
+				action === "close"
+					? `Preview: cerrar ventas en ${selected.length} día(s).`
+					: `Preview: abrir ventas en ${selected.length} día(s).`
+			renderWeekdaySelection()
+			renderImpactPreview()
+			renderActionSelection()
+		}
+
+		function collectRowsSnapshot(dates) {
+			const snapshot = new Map()
+			for (const date of dates) {
+				const row = state.rows.get(date)
+				if (row) snapshot.set(date, { ...row })
+			}
+			return snapshot
+		}
+
+		function applyOptimistic(action, dates, payload) {
+			for (const date of dates) {
+				const row = state.rows.get(date)
+				if (!row) continue
+				if (action === "close") {
+					row.stopSell = true
+					row.isSellable = false
+				}
+				if (action === "open") {
+					row.stopSell = false
+					row.isSellable = Number(row.availableUnits || 0) > 0
+				}
+				if (action === "setUnits") {
+					const total = Number(payload.totalUnits)
+					row.totalUnits = total
+					row.availableUnits = Math.max(
+						0,
+						total - Number(row.heldUnits || 0) - Number(row.bookedUnits || 0)
+					)
+					row.isSellable = row.availableUnits > 0 && !row.stopSell
+				}
+				updateCell(date)
+			}
+		}
+
+		function restoreSnapshot(snapshot) {
+			for (const [date, row] of snapshot.entries()) {
+				state.rows.set(date, row)
+				updateCell(date)
+			}
+		}
+
+		async function postForm(url, fields) {
+			const formData = new FormData()
+			for (const [key, value] of Object.entries(fields)) {
+				if (value === undefined || value === null) continue
+				formData.set(key, String(value))
+			}
+			const response = await fetch(url, { method: "POST", body: formData })
+			let payload = null
+			try {
+				payload = await response.json()
+			} catch {
+				payload = null
+			}
+			if (!response.ok) {
+				throw new Error(String(payload?.error || `status=${response.status}`))
+			}
+			return payload
+		}
+
+		async function applyPendingAction() {
+			if (state.busy) return
+			const action = state.pendingAction
+			const selected = normalizeSelection()
+			const targets = getTargetDates()
+			if (!action || !selected.length || !targets.length) return
+			const from = targets[0]
+			const toDate = parseIsoDate(targets[targets.length - 1])
+			if (!toDate) return
+			toDate.setUTCDate(toDate.getUTCDate() + 1)
+			const to = toISODate(toDate)
+
+			const ack = capsuleImpactAck instanceof HTMLInputElement ? capsuleImpactAck.checked : false
+			const impact = computeImpact(action)
+			if (!ack) {
+				showToast("Debes confirmar que revisaste el impacto.", false)
+				return
+			}
+			if (impact.isHighRisk && !state.extremeImpactAccepted) {
+				state.extremeImpactAccepted = true
+				if (capsuleRiskWarning) {
+					capsuleRiskWarning.classList.remove("hidden")
+					capsuleRiskWarning.textContent =
+						"Impacto alto. Presiona aplicar nuevamente para confirmar."
+				}
+				renderImpactPreview()
+				return
+			}
+
+			const snapshot = collectRowsSnapshot(targets)
+			state.busy = true
+			try {
+				if (action === "close") {
+					applyOptimistic("close", targets)
+					await postForm("/api/inventory/bulk-update", {
+						variantId,
+						startDate: from,
+						endDate: to,
+						stopSell: true,
+					})
+				}
+				if (action === "open") {
+					applyOptimistic("open", targets)
+					await postForm("/api/inventory/bulk-update", {
+						variantId,
+						startDate: from,
+						endDate: to,
+						stopSell: false,
+					})
+				}
+				if (action === "setUnits") {
+					const totalUnits = Number(state.pendingUnits)
+					if (!Number.isFinite(totalUnits) || totalUnits < 0) {
+						throw new Error("total_units_invalid")
+					}
+					applyOptimistic("setUnits", targets, { totalUnits })
+					await postForm("/api/inventory/bulk-update", {
+						variantId,
+						startDate: from,
+						endDate: to,
+						totalInventory: totalUnits,
+					})
+				}
+				if (action === "copy") {
+					const sourceDate = state.selectionStart
+					const sourceRow = sourceDate ? state.rows.get(sourceDate) : null
+					if (!sourceRow) throw new Error("copy_source_missing")
+					applyOptimistic("setUnits", targets, { totalUnits: sourceRow.totalUnits })
+					applyOptimistic(sourceRow.stopSell ? "close" : "open", targets)
+					await postForm("/api/inventory/bulk-update", {
+						variantId,
+						startDate: from,
+						endDate: to,
+						totalInventory: sourceRow.totalUnits,
+						stopSell: sourceRow.stopSell,
+					})
+				}
+				state.lastUndo = { selected: targets, snapshot }
+				showToast("Cambios aplicados", true)
+				clearPendingAction()
+			} catch (error) {
+				restoreSnapshot(snapshot)
+				showToast(`No se pudo aplicar: ${String(error)}`, false)
+			} finally {
+				state.busy = false
+			}
+		}
+
+		async function undoLastAction() {
+			if (!state.lastUndo || state.busy) return
+			state.busy = true
+			const { selected, snapshot } = state.lastUndo
+			try {
+				await Promise.all(
+					selected.map(async (date) => {
+						const prev = snapshot.get(date)
+						if (!prev) return
+						await postForm("/api/inventory/update-day", {
+							variantId,
+							date,
+							totalInventory: prev.totalUnits,
+							stopSell: prev.stopSell,
+						})
+					})
+				)
+				restoreSnapshot(snapshot)
+				showToast("Se deshizo la última acción", false)
+				state.lastUndo = null
+			} catch (error) {
+				showToast(`No se pudo deshacer: ${String(error)}`, false)
+			} finally {
+				state.busy = false
+			}
+		}
+
+		async function resolveTask() {
+			const selected = normalizeSelection()
+			const targets = selected.length
+				? selected
+				: enumerateDates(
+						String(startInput?.value || state.visibleStart),
+						String(endInput?.value || state.visibleEnd)
+					)
+			const from = targets[0] || String(startInput?.value || state.visibleStart)
+			const toDate = parseIsoDate(
+				targets[targets.length - 1] || String(endInput?.value || state.visibleEnd)
+			)
+			if (!toDate) return
+			toDate.setUTCDate(toDate.getUTCDate() + 1)
+			const to = toISODate(toDate)
+			try {
+				await fetch("/api/internal/inventory/recompute", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ variantId, from, to, reason: "task_queue_resolve" }),
+				})
+				showToast("Disponibilidad recalculada.", false)
+				await loadCalendarRange()
+			} catch (error) {
+				showToast(`No se pudo resolver: ${String(error)}`, false)
+			}
+		}
+
+		async function loadCalendarRange() {
+			if (state.busy) return
+			const from = String(startInput?.value || "").trim()
+			const to = String(endInput?.value || "").trim()
+			if (!parseIsoDate(from) || !parseIsoDate(to) || from >= to) {
+				showToast("Rango inválido", false)
+				return
+			}
+			state.busy = true
+			try {
+				const qs = new URLSearchParams({
+					variantId,
+					startDate: from,
+					endDate: to,
+				})
+				const response = await fetch(`/api/inventory/calendar?${qs.toString()}`)
+				if (!response.ok) throw new Error(`status=${response.status}`)
+				const rows = await response.json()
+				state.visibleStart = from
+				state.visibleEnd = to
+				state.rows = new Map(
+					(rows || []).map((row) => [
+						String(row.date),
+						{
+							date: String(row.date),
+							totalUnits: Number(row.totalUnits ?? row.totalInventory ?? 0),
+							heldUnits: Number(row.heldUnits ?? 0),
+							bookedUnits: Number(row.bookedUnits ?? 0),
+							availableUnits: Number(row.availableUnits ?? row.available ?? 0),
+							stopSell: Boolean(row.stopSell ?? true),
+							isSellable: Boolean(row.isSellable ?? false),
+							hasEffective: Boolean(row.hasEffective ?? true),
+							hasPrice: Boolean(row.hasPrice ?? true),
+							unsellableReason: row.unsellableReason ?? null,
+							computedAt: null,
+						},
+					])
+				)
+				state.selectionStart = from
+				const toDate = parseIsoDate(to)
+				if (toDate) {
+					toDate.setUTCDate(toDate.getUTCDate() - 1)
+					state.selectionEnd = toISODate(toDate)
+				} else {
+					state.selectionEnd = from
+				}
+				clearPendingAction()
+				renderCalendar()
+			} catch (error) {
+				showToast(`No se pudo cargar calendario: ${String(error)}`, false)
+			} finally {
+				state.busy = false
+			}
+		}
+
+		function handleCalendarMouseDown(event) {
+			const cell = event.target?.closest?.("[data-date]")
+			if (!(cell instanceof HTMLElement)) return
+			state.dragging = true
+			state.selectionStart = String(cell.dataset.date || "")
+			state.selectionEnd = state.selectionStart
+			clearPendingAction()
+			renderCalendar()
+		}
+
+		function handleCalendarMouseEnter(event) {
+			if (!state.dragging) return
+			const cell = event.target?.closest?.("[data-date]")
+			if (!(cell instanceof HTMLElement)) return
+			state.selectionEnd = String(cell.dataset.date || "")
+			clearPendingAction()
+			renderCalendar()
+		}
+
+		function handleCalendarClick(event) {
+			if (state.dragging) return
+			const cell = event.target?.closest?.("[data-date]")
+			if (!(cell instanceof HTMLElement)) return
+			const date = String(cell.dataset.date || "")
+			state.selectionStart = date
+			state.selectionEnd = date
+			clearPendingAction()
+			renderCalendar()
+		}
+
+		document.addEventListener("mouseup", () => {
+			if (!state.dragging) return
+			state.dragging = false
+			positionActionCapsule()
+		})
+
+		calendarEl?.addEventListener("mousedown", handleCalendarMouseDown)
+		calendarEl?.addEventListener("mouseover", handleCalendarMouseEnter)
+		calendarEl?.addEventListener("click", handleCalendarClick)
+		window.addEventListener("resize", () => positionActionCapsule())
+		window.addEventListener("scroll", () => positionActionCapsule(), { passive: true })
+
+		actionCapsule?.addEventListener("click", (event) => {
+			const target = event.target?.closest?.("[data-capsule-action]")
+			if (!(target instanceof HTMLElement)) return
+			const action = String(target.dataset.capsuleAction || "")
+			if (action === "toggle-extra") {
+				capsuleExtraMenu?.classList.toggle("hidden")
+				return
+			}
+			if (action === "copy") {
+				setPendingAction("copy")
+				capsuleExtraMenu?.classList.add("hidden")
+				return
+			}
+			if (action === "close" || action === "open" || action === "setUnits") {
+				setPendingAction(action)
+				return
+			}
+			if (action === "applyUnits") {
+				state.pendingUnits = Number(capsuleUnitsInput?.value || 0)
+				if (capsuleConfirmRow) capsuleConfirmRow.classList.remove("hidden")
+				if (capsulePreview) {
+					const selected = normalizeSelection()
+					capsulePreview.textContent = `Preview: actualizar unidades a ${state.pendingUnits} en ${selected.length} día(s).`
+				}
+				renderImpactPreview()
+				return
+			}
+			if (action === "confirm") {
+				void applyPendingAction()
+				return
+			}
+			if (action === "cancel") {
+				clearPendingAction()
+			}
+		})
+
+		loadCalendarBtn?.addEventListener("click", () => {
+			void loadCalendarRange()
+		})
+
+		selectionSyncBtn?.addEventListener("click", () => {
+			const from = String(startInput?.value || "").trim()
+			const to = String(endInput?.value || "").trim()
+			const fromDate = parseIsoDate(from)
+			const toDate = parseIsoDate(to)
+			if (!fromDate || !toDate || to <= from) {
+				showToast("Rango inválido para seleccionar.", false)
+				return
+			}
+			toDate.setUTCDate(toDate.getUTCDate() - 1)
+			state.selectionStart = from
+			state.selectionEnd = toISODate(toDate)
+			clearPendingAction()
+			renderCalendar()
+		})
+
+		document.querySelectorAll("[data-range-preset]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				const days = Number(btn.getAttribute("data-range-preset") || 30)
+				const from =
+					parseIsoDate(String(startInput?.value || state.visibleStart)) ||
+					parseIsoDate(state.visibleStart)
+				if (!from) return
+				const to = new Date(from)
+				to.setUTCDate(to.getUTCDate() + days)
+				if (endInput) endInput.value = toISODate(to)
+			})
+		})
+		document.querySelectorAll("[data-weekday-index]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				if (!(btn instanceof HTMLButtonElement)) return
+				const idx = Number(btn.dataset.weekdayIndex)
+				if (state.selectedWeekdays.has(idx)) state.selectedWeekdays.delete(idx)
+				else state.selectedWeekdays.add(idx)
+				renderWeekdaySelection()
+				renderImpactPreview()
+			})
+		})
+		capsuleImpactAck?.addEventListener("change", () => {
+			state.extremeImpactAccepted = false
+			renderImpactPreview()
+		})
+		capsuleUnitsInput?.addEventListener("input", () => {
+			state.pendingUnits = Number(capsuleUnitsInput.value || 0)
+			renderImpactPreview()
+		})
+
+		document.querySelectorAll("[data-action='resolve-task']").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				void resolveTask()
+			})
+		})
+		selectionResolveBtn?.addEventListener("click", () => {
+			if (state.selectionPrimaryReason === "MISSING_PRICE") {
+				window.location.href = `/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing`
+				return
+			}
+			void resolveTask()
+		})
+
+		undoBtn?.addEventListener("click", () => {
+			void undoLastAction()
+		})
+		toastClose?.addEventListener("click", () => {
+			toast?.classList.add("hidden")
+		})
+
+		function setConfigState(stateKey, detail = "") {
 			const labels = {
 				loading: "Guardando y generando inventario diario...",
 				success: "Inventario diario generado correctamente.",
 				error: "No se pudo guardar el inventario.",
 			}
-			if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
+			if (feedback) feedback.textContent = `${labels[stateKey] || ""}${detail ? `\n${detail}` : ""}`
 		}
 
 		form?.addEventListener("submit", async (event) => {
 			event.preventDefault()
 			if (!submitBtn) return
 			submitBtn.disabled = true
-			setState("loading")
-
+			setConfigState("loading")
 			try {
 				const formData = new FormData(form)
 				if (!formData.get("horizonDays")) formData.set("horizonDays", "365")
@@ -206,19 +1439,16 @@ const dailyInventoryCount = await db
 					method: "POST",
 					body: formData,
 				})
-
 				if (response.status === 401) {
 					window.location.href = "/SignInPage"
 					return
 				}
-
 				let payload = null
 				try {
 					payload = await response.json()
 				} catch {
 					payload = null
 				}
-
 				if (!response.ok) {
 					submitBtn.disabled = false
 					const message =
@@ -228,16 +1458,22 @@ const dailyInventoryCount = await db
 									.filter(Boolean)
 									.join("\n") || "Error de validación"
 							: String(payload?.error || `status=${response.status}`)
-					setState("error", message)
+					setConfigState("error", message)
 					return
 				}
-
-				setState("success")
-				window.location.href = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`
+				setConfigState("success")
+				await loadCalendarRange()
+				showToast("Configuración base actualizada", false)
 			} catch (error) {
 				submitBtn.disabled = false
-				setState("error", `Error de red: ${String(error)}`)
+				setConfigState("error", `Error de red: ${String(error)}`)
+			} finally {
+				submitBtn.disabled = false
 			}
 		})
+
+		clearPendingAction()
+		renderWeekdaySelection()
+		renderCalendar()
 	</script>
 </WorkspaceLayout>

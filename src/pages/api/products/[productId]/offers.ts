@@ -2,16 +2,15 @@ import type { APIRoute } from "astro"
 import { and, asc, db, eq, Image, inArray } from "astro:db"
 import { z, ZodError } from "zod"
 
-import { inventoryHoldRepository, searchOffers, variantManagementRepository } from "@/container"
-import { invalidateVariant } from "@/lib/cache/invalidation"
+import { searchOffers } from "@/container"
 import { ensureObjectKey } from "@/lib/images/objectKey"
-import { getAvailabilityAggregate } from "@/modules/catalog/public"
-import { releaseExpiredHolds } from "@/modules/inventory/public"
+import { logger } from "@/lib/observability/logger"
 
 const schema = z.object({
 	productId: z.string().min(1),
 	checkIn: z.string().min(1),
 	checkOut: z.string().min(1),
+	currency: z.string().trim().length(3).optional(),
 	adults: z.coerce.number().int().min(0).optional(),
 	children: z.coerce.number().int().min(0).optional(),
 	rooms: z.coerce.number().int().min(1).optional(),
@@ -19,37 +18,43 @@ const schema = z.object({
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
+		const url = new URL(request.url)
+		const featureContext = {
+			request,
+			query: url.searchParams,
+		}
+
 		const body = await request.json().catch(() => ({}))
 		const parsed = schema.parse({
 			...body,
 			productId: String(params.productId ?? body.productId ?? "").trim(),
 		})
+		const occupancy = {
+			adults: parsed.adults ?? 2,
+			children: parsed.children ?? 0,
+			rooms: parsed.rooms ?? 1,
+		}
 
 		const offers = await searchOffers({
 			productId: parsed.productId,
 			checkIn: new Date(parsed.checkIn),
 			checkOut: new Date(parsed.checkOut),
-			adults: parsed.adults ?? 2,
-			children: parsed.children ?? 0,
-			rooms: parsed.rooms ?? 1,
+			adults: occupancy.adults,
+			children: occupancy.children,
+			rooms: occupancy.rooms,
+			currency:
+				String(parsed.currency ?? url.searchParams.get("currency") ?? "")
+					.trim()
+					.toUpperCase() || undefined,
+			featureContext,
 		})
 
-		const expired = await releaseExpiredHolds(
-			{ repo: inventoryHoldRepository },
-			{ now: new Date() }
-		)
-		if (expired.releasedVariantIds.length > 0) {
-			await Promise.all(
-				expired.releasedVariantIds.map(async (variantId) => {
-					const variant = await variantManagementRepository.getVariantById(variantId)
-					if (variant) {
-						await invalidateVariant(variantId, variant.productId)
-					}
-				})
+		const nights = Math.max(
+			0,
+			Math.ceil(
+				(new Date(parsed.checkOut).getTime() - new Date(parsed.checkIn).getTime()) / 86400000
 			)
-		}
-
-		const occupancy = Math.max(1, (parsed.adults ?? 2) + (parsed.children ?? 0))
+		)
 		const variantIds = Array.from(
 			new Set(
 				offers.map((offer) => String((offer as any).variantId ?? "")).filter((id) => id.length > 0)
@@ -138,45 +143,33 @@ export const POST: APIRoute = async ({ request, params }) => {
 			variantImagesByVariantId.set(variantId, images)
 		}
 
-		const withAvailability = await Promise.all(
-			offers.map(async (offer) => {
-				const availability = await getAvailabilityAggregate({
-					variantId: offer.variantId,
-					dateRange: { from: parsed.checkIn, to: parsed.checkOut },
-					occupancy,
-					currency: "USD",
-				})
-				if (!availability?.summary?.sellable || availability.summary.totalPrice == null) {
-					for (const day of availability?.days ?? []) {
-						if (day.price == null) {
-							console.error("effective_pricing_missing_blocking", {
-								variantId: offer.variantId,
-								date: day.date,
-								dateRange: { from: parsed.checkIn, to: parsed.checkOut },
-							})
-						}
-					}
-					return null
-				}
-
-				const effectiveTotal = Number(availability.summary.totalPrice)
-
-				return {
-					...offer,
-					ratePlans: offer.ratePlans.map((ratePlan) => ({
-						...ratePlan,
+		const normalizedOffers = offers.map((offer) => {
+			const effectiveTotal = Number(
+				offer?.ratePlans?.[0]?.totalPrice ?? offer?.ratePlans?.[0]?.finalPrice ?? NaN
+			)
+			const sellable = Number.isFinite(effectiveTotal)
+			const availabilitySummary = sellable
+				? {
+						sellable: true,
 						totalPrice: effectiveTotal,
-					})),
-					productImages,
-					variantImages: variantImagesByVariantId.get(String((offer as any).variantId ?? "")) ?? [],
-					availabilitySummary: availability?.summary ?? null,
-				}
-			})
-		)
-		const normalizedOffers = withAvailability.filter((offer): offer is NonNullable<typeof offer> =>
-			Boolean(offer)
-		)
-		console.debug("variant_images_payload", {
+						nights,
+					}
+				: {
+						sellable: false,
+						totalPrice: null,
+						nights,
+					}
+
+			return {
+				...offer,
+				productImages,
+				variantImages: variantImagesByVariantId.get(String((offer as any).variantId ?? "")) ?? [],
+				availabilitySummary,
+				occupancy,
+			}
+		})
+
+		logger.debug("offers.variant_images_payload", {
 			productId: parsed.productId,
 			offers: normalizedOffers.map((offer: any) => ({
 				variantId: String(offer?.variantId ?? ""),

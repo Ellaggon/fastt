@@ -1,0 +1,92 @@
+---
+import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+
+interface Props {
+	ratePlanId: string
+	initialCurrency: string
+	initialBasePrice: string
+	backHref?: string
+}
+
+const { ratePlanId, initialCurrency, initialBasePrice, backHref = "/rates/plans" } = Astro.props
+---
+
+<form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
+	<Input type="hidden" name="ratePlanId" value={ratePlanId} />
+	<FormSection title="Tarifa base" class="text-neutral-800">
+		<FormField label="Moneda" htmlFor="currency" required>
+			<Select id="currency" name="currency" value={initialCurrency} required>
+				<option value="USD">USD</option>
+				<option value="BOB">BOB</option>
+			</Select>
+		</FormField>
+		<FormField label="Tarifa base" htmlFor="basePrice" required>
+			<Input
+				id="basePrice"
+				name="basePrice"
+				type="number"
+				min="0"
+				step="1"
+				value={initialBasePrice}
+				required
+			/>
+		</FormField>
+	</FormSection>
+	<p id="pricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+	<div class="flex items-center justify-between gap-3">
+		<a
+			href={backHref}
+			class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+		>
+			Volver
+		</a>
+		<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+			Guardar tarifa base
+		</Button>
+	</div>
+</form>
+
+<script type="module">
+	const form = document.getElementById("pricingForm")
+	const submitBtn = document.getElementById("submitBtn")
+	const feedback = document.getElementById("pricingFeedback")
+
+	function setState(state, detail = "") {
+		const labels = {
+			loading: "Guardando...",
+			success: "Guardado correctamente.",
+			error: "No se pudo guardar el precio base.",
+		}
+		if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
+	}
+
+	form?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!(submitBtn instanceof HTMLButtonElement) || !(form instanceof HTMLFormElement)) return
+		submitBtn.disabled = true
+		setState("loading")
+		try {
+			const formData = new FormData(form)
+			const response = await fetch("/api/pricing/base-rate", { method: "POST", body: formData })
+			if (response.status === 401) {
+				window.location.href = "/SignInPage"
+				return
+			}
+			const payload = await response.json().catch(() => ({}))
+			if (!response.ok) {
+				submitBtn.disabled = false
+				setState("error", String(payload?.error ?? response.status))
+				return
+			}
+			setState("success")
+			window.location.reload()
+		} catch (error) {
+			submitBtn.disabled = false
+			setState("error", `Error de red: ${String(error)}`)
+		}
+	})
+</script>

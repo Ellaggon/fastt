@@ -28,4 +28,10 @@ export interface PricingRepositoryPort {
 		basePrice: number
 		finalBasePrice: number
 	}): Promise<void>
+	listEffectivePricingDates(params: {
+		variantId: string
+		ratePlanId: string
+		from: string
+		to: string
+	}): Promise<string[]>
 }

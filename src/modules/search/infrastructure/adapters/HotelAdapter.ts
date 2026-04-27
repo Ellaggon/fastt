@@ -6,8 +6,8 @@ import type {
 	InventorySnapshot,
 	PriceRuleSnapshot,
 	RatePlanSnapshot,
+	SearchUnit,
 } from "../../domain/unit.types"
-import type { SearchUnit } from "../../domain/unit.types"
 import type { RestrictionRow, RestrictionContext } from "../../domain/restrictions.types"
 import type { Promotion } from "../../domain/promotions.types"
 
@@ -15,7 +15,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 	constructor(
 		private deps: {
 			inventoryRepo: {
-				getRange(variantId: string, from: Date, to: Date): Promise<InventorySnapshot[]>
+				getEffectiveRange(variantId: string, from: Date, to: Date): Promise<InventorySnapshot[]>
 			}
 			ratePlanRepo: { getActiveByVariant(variantId: string): Promise<RatePlanSnapshot[]> }
 			restrictionRepo: {
@@ -26,7 +26,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 	) {}
 
 	async loadInventory(ctx: SearchContext<SearchUnit>) {
-		return this.deps.inventoryRepo.getRange(ctx.unitId, ctx.checkIn, ctx.checkOut)
+		return this.deps.inventoryRepo.getEffectiveRange(ctx.unitId, ctx.checkIn, ctx.checkOut)
 	}
 
 	async loadRatePlans(ctx: SearchContext<SearchUnit>) {
@@ -73,7 +73,7 @@ export class HotelAdapter implements SellableUnitAdapterPort<SearchUnit> {
 		return [...baseRules, ...ratePlanRules.flat()]
 	}
 
-	async loadPromotions(ctx: SearchContext<SearchUnit>): Promise<Promotion[]> {
+	async loadPromotions(_ctx: SearchContext<SearchUnit>): Promise<Promotion[]> {
 		return [] // hasta que tengas repo real
 	}
 }

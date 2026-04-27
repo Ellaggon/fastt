@@ -1,12 +1,14 @@
 import type { APIRoute } from "astro"
-import { cancellationPolicyRepository } from "@/container"
-import { toggleCancellationPolicyAssignment } from "@/modules/catalog/public"
+import { togglePolicyAssignmentCapa6UseCase } from "@/container/policies-write.container"
 
 export const POST: APIRoute = async ({ request }) => {
 	const { assignmentId, isActive } = await request.json()
-	return toggleCancellationPolicyAssignment({
-		repo: cancellationPolicyRepository,
-		assignmentId,
-		isActive,
+	await togglePolicyAssignmentCapa6UseCase({
+		assignmentId: String(assignmentId ?? ""),
+		isActive: Boolean(isActive),
+	})
+	return new Response(JSON.stringify({ success: true }), {
+		status: 200,
+		headers: { "Content-Type": "application/json", "Deprecation": "true" },
 	})
 }

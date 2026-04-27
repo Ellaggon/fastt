@@ -1,7 +1,4 @@
-import type {
-	ResolvedTaxFeeDefinition,
-	TaxFeeBreakdown,
-} from "@/modules/taxes-fees/domain/tax-fee.types"
+import type { ResolvedTaxFeeDefinition, TaxFeeBreakdown } from "@/modules/taxes-fees/public"
 
 export interface TaxFeePort {
 	resolveEffectiveTaxFees(params: {

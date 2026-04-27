@@ -227,24 +227,13 @@ const Variant = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		// Legacy subtype pointer (deprecated for new flows; kept for backward compatibility).
-		// New flows should use `kind` + subtype extension tables.
-		entityType: column.text(), // 'hotel_room', 'tour_slot', 'package_base'
-		entityId: column.text(),
 		name: column.text(),
 		description: column.text({ optional: true }),
 
-		// CAPA 3: clean variant identity + lifecycle (safe incremental: optional to avoid risky rebuilds).
-		kind: column.text({ optional: true }), // hotel_room | tour_slot | package_base
+		// CAPA 3: clean variant identity + lifecycle canonical model.
+		kind: column.text(), // hotel_room | tour_slot | package_base
 		status: column.text({ optional: true }), // draft | ready | sellable | archived
 		createdAt: column.date({ optional: true }),
-
-		// Legacy fields (deprecated): pricing + capacity on Variant.
-		// Do not remove yet; existing pricing/inventory/search code depends on them.
-		maxOccupancy: column.number({ default: 1 }),
-		minOccupancy: column.number({ default: 1 }),
-		currency: column.text({ default: "USD" }),
-		basePrice: column.number({ optional: true }),
 
 		// Gestión de Confirmación
 		// 'instant': Se confirma de inmediato si hay stock
@@ -256,7 +245,6 @@ const Variant = defineTable({
 		externalCode: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
 	},
-	indexes: [{ on: ["entityId", "entityType"] }],
 })
 
 // CAPA 3 (Variant): strong capacity model (new source of truth for capacity).
@@ -384,21 +372,45 @@ const PolicyRule = defineTable({
 		ruleValue: column.json({ optional: true }),
 	},
 })
+// Legacy compatibility for remote migration history.
+// Keep deprecated until remote schema fully converges.
 const EffectivePolicy = defineTable({
+	deprecated: true,
 	columns: {
 		id: column.text({ primaryKey: true }),
-		entityType: column.text(), // hotel | product | variant | rateplan | channel
+		entityType: column.text(),
 		entityId: column.text(),
 		category: column.text(),
 		effectivePolicyId: column.text(),
 		effectiveGroupId: column.text(),
 		description: column.text({ optional: true }),
-		rules: column.json({ optional: true }),
-		cancellationTiers: column.json({ optional: true }),
+		rules: column.text({ optional: true }),
+		cancellationTiers: column.text({ optional: true }),
 		priority: column.number(),
 		computedAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["entityType", "entityId", "category"], unique: true }],
+	indexes: [{ on: ["category", "entityId", "entityType"], unique: true }],
+})
+const PolicyAuditLog = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		eventType: column.text(), // policy_version_created | assignment_replaced
+		actorUserId: column.text({ optional: true }),
+		policyId: column.text({ optional: true }),
+		policyGroupId: column.text({ optional: true }),
+		assignmentId: column.text({ optional: true }),
+		scope: column.text({ optional: true }),
+		scopeId: column.text({ optional: true }),
+		channel: column.text({ optional: true }),
+		beforeJson: column.json({ optional: true }),
+		afterJson: column.json({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["eventType", "createdAt"] },
+		{ on: ["policyGroupId"] },
+		{ on: ["scope", "scopeId"] },
+	],
 })
 
 // 5. Inventory / Availability base
@@ -421,7 +433,6 @@ const DailyInventory = defineTable({
 		date: column.text(), // YYYY-MM-DD
 		totalInventory: column.number(), // Ej: 10 habitaciones físicas
 		reservedCount: column.number({ default: 0 }),
-		priceOverride: column.number({ optional: true }), // opcional si quieres override por día
 		// CAPA 5 (Inventory Calendar): operational stop-sell flag. Search treats stopSell=true as unavailable.
 		stopSell: column.boolean({ default: false }),
 		createdAt: column.date({ default: NOW }),
@@ -429,15 +440,54 @@ const DailyInventory = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
-const EffectiveInventory = defineTable({
+const EffectiveAvailability = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		variantId: column.text({ references: () => Variant.columns.id }),
 		date: column.text(),
-		availableInventory: column.number(),
+		totalUnits: column.number({ default: 0 }),
+		heldUnits: column.number({ default: 0 }),
+		bookedUnits: column.number({ default: 0 }),
+		availableUnits: column.number({ default: 0 }),
+		stopSell: column.boolean({ default: true }),
+		isSellable: column.boolean({ default: false }),
 		computedAt: column.date(),
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
+})
+
+// CAPA Search (shadow): daily read model derived from SellableOffer evaluation.
+// Runtime search remains canonical while this table is populated in parallel.
+const SearchUnitView = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		productId: column.text({ references: () => Product.columns.id }),
+		ratePlanId: column.text(),
+		date: column.text(), // YYYY-MM-DD
+		occupancyKey: column.text(),
+		totalGuests: column.number(),
+		hasAvailability: column.boolean({ default: false }),
+		hasPrice: column.boolean({ default: false }),
+		isSellable: column.boolean({ default: false }),
+		isAvailable: column.boolean({ default: false }),
+		availableUnits: column.number({ default: 0 }),
+		stopSell: column.boolean({ default: true }),
+		pricePerNight: column.number({ optional: true }),
+		currency: column.text({ default: "USD" }),
+		primaryBlocker: column.text({ optional: true }),
+		minStay: column.number({ optional: true }),
+		cta: column.boolean({ default: false }),
+		ctd: column.boolean({ default: false }),
+		computedAt: column.date({ default: NOW }),
+		sourceVersion: column.text(),
+	},
+	indexes: [
+		{ on: ["variantId", "ratePlanId", "date", "occupancyKey"], unique: true },
+		{ on: ["productId", "date", "occupancyKey", "isSellable"] },
+		{ on: ["variantId", "date"] },
+		{ on: ["isSellable", "pricePerNight"] },
+	],
 })
 
 // 6. Pricing / Restrictions
@@ -449,7 +499,6 @@ const RatePlanTemplate = defineTable({
 		description: column.text({ optional: true }),
 		paymentType: column.text(), // 'prepaid', 'at_property'
 		refundable: column.boolean(),
-		cancellationPolicyId: column.text({ references: () => Policy.columns.id, optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -542,7 +591,7 @@ const EffectivePricing = defineTable({
 })
 
 // CAPA 4A (Pricing Base Rate): 1:1 base pricing per Variant (sellable unit).
-// This replaces Variant.basePrice/currency as the canonical source of truth (legacy fields remain for compatibility).
+// Canonical source of truth for base pricing.
 const PricingBaseRate = defineTable({
 	columns: {
 		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
@@ -657,6 +706,21 @@ const InventoryLock = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"] }, { on: ["holdId"] }],
 })
+const Hold = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }),
+		checkIn: column.text(), // YYYY-MM-DD
+		checkOut: column.text(), // YYYY-MM-DD (exclusive)
+		channel: column.text({ optional: true }),
+		expiresAt: column.date(),
+		// Canonical immutable policy contract captured at hold creation time.
+		policySnapshotJson: column.json(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["variantId", "checkIn"] }, { on: ["expiresAt"] }],
+})
 const BookingPolicySnapshot = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -678,8 +742,8 @@ const BookingTaxFee = defineTable({
 		id: column.text({ primaryKey: true }),
 		// Keep as plain text for now to avoid FK-related remote reset failures during CAPA 7 rollout.
 		bookingId: column.text(),
-		// Legacy snapshot line kept as deprecated so remote migrations do not attempt a rename/drop.
-		lineJson: column.json({ optional: true, deprecated: true }),
+		// Legacy snapshot line kept for backward compatibility.
+		lineJson: column.json({ optional: true }),
 		// New additive snapshot label kept separate from legacy lineJson.
 		name: column.text({ optional: true }),
 		breakdownJson: column.json(),
@@ -769,12 +833,14 @@ export default defineDb({
 		CancellationTier,
 		PolicyRule,
 		EffectivePolicy,
+		PolicyAuditLog,
 
 		// 5 inventory
 		// DailyAvailability,
 		VariantInventoryConfig,
 		DailyInventory,
-		EffectiveInventory,
+		EffectiveAvailability,
+		SearchUnitView,
 
 		// 6 pricing
 		RatePlanTemplate,
@@ -792,6 +858,7 @@ export default defineDb({
 		Booking,
 		BookingRoomDetail,
 		InventoryLock,
+		Hold,
 		BookingPolicySnapshot,
 		BookingTaxFee,
 

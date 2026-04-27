@@ -9,7 +9,7 @@ export const createPolicySchema = z.object({
 	description: z.string().optional().default(""),
 	// Minimal rule model for CAPA 6 write path: a JSON object keyed by ruleKey.
 	// We store keys as PolicyRule.ruleKey and values as PolicyRule.ruleValue.
-	rules: z.record(z.unknown()).optional(),
+	rules: z.record(z.string(), z.unknown()).optional(),
 	cancellationTiers: z
 		.array(
 			z.object({

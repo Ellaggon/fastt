@@ -1,11 +1,11 @@
 import { defineConfig, passthroughImageService } from "astro/config"
-import tailwind from "@astrojs/tailwind"
 import vercel from "@astrojs/vercel"
 import node from "@astrojs/node"
 import db from "@astrojs/db"
 import dotenv from "dotenv"
 import path from "path"
 import react from "@astrojs/react"
+import tailwindcss from "@tailwindcss/vite"
 
 dotenv.config()
 
@@ -13,7 +13,7 @@ const isVercel = process.env.VERCEL === "1"
 
 // https://astro.build/config
 export default defineConfig({
-	integrations: [tailwind(), db(), react()],
+	integrations: [db(), react()],
 	site: "https://fastt-five.vercel.app",
 	db: {
 		connection: {
@@ -28,8 +28,8 @@ export default defineConfig({
 		service: passthroughImageService(),
 	},
 	vite: {
+		plugins: [tailwindcss()],
 		optimizeDeps: {
-			disabled: false,
 			force: true,
 			include: ["zod"],
 		},

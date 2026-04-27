@@ -36,7 +36,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 					variantId,
 					totalInventory: 0,
 					reservedCount: 0,
-					priceOverride: null,
 					// Optional field consumed by the search pipeline.
 					stopSell: true,
 				})
@@ -74,7 +73,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 				date,
 				totalInventory: insertTotal,
 				reservedCount: 0,
-				priceOverride: null,
 				stopSell: insertStopSell,
 				createdAt: new Date(),
 				updatedAt: new Date(),
@@ -111,7 +109,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 		date: string
 		totalInventory: number
 		reservedCount: number
-		priceOverride?: number | null
 	}): Promise<void> {
 		const data = {
 			...row,
@@ -126,7 +123,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 				set: {
 					totalInventory: data.totalInventory,
 					reservedCount: data.reservedCount,
-					priceOverride: data.priceOverride,
 				},
 			})
 	}

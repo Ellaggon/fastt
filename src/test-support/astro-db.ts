@@ -11,6 +11,7 @@ export * from "@astrojs/db/dist/runtime/virtual.js"
 
 import path from "node:path"
 import { mkdirSync } from "node:fs"
+import { threadId } from "node:worker_threads"
 
 import { pathToFileURL } from "node:url"
 
@@ -19,8 +20,22 @@ import { sql } from "@astrojs/db/dist/runtime/virtual.js"
 
 // Vitest runs tests in parallel workers (threads). If they share a sqlite/libsql file,
 // we can hit `SQLITE_BUSY` flakiness. Give each worker its own DB file.
-const vitestWorkerId = process.env.VITEST_WORKER_ID ?? "0"
-export const dbUrl = `file:${path.resolve(process.cwd(), `.vitest/astro-${process.pid}-${vitestWorkerId}.db`)}`
+const vitestWorkerId =
+	process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID ?? String(threadId)
+const vitestIsolateId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+export const dbUrl = `file:${path.resolve(process.cwd(), `.vitest/astro-${process.pid}-${vitestWorkerId}-${vitestIsolateId}.db`)}`
+
+const INIT_CACHE_KEY = "__fastt_astro_db_test_init__"
+
+type InitCache = Map<string, Promise<void>>
+
+function getInitCache(): InitCache {
+	const scope = globalThis as typeof globalThis & { [INIT_CACHE_KEY]?: InitCache }
+	if (!scope[INIT_CACHE_KEY]) {
+		scope[INIT_CACHE_KEY] = new Map<string, Promise<void>>()
+	}
+	return scope[INIT_CACHE_KEY]!
+}
 
 export let db: any
 
@@ -49,7 +64,8 @@ export let VariantHotelRoom: any
 export let VariantReadiness: any
 export let VariantInventoryConfig: any
 export let DailyInventory: any
-export let EffectiveInventory: any
+export let EffectiveAvailability: any
+export let SearchUnitView: any
 export let RatePlanTemplate: any
 export let RatePlan: any
 export let PriceRule: any
@@ -58,14 +74,18 @@ export let PricingBaseRate: any
 export let TaxFeeDefinition: any
 export let TaxFeeAssignment: any
 export let Restriction: any
+export let EffectiveRestriction: any
 export let InventoryLock: any
+export let Hold: any
 export let PolicyGroup: any
 export let Policy: any
 export let PolicyAssignment: any
 export let CancellationTier: any
 export let PolicyRule: any
 export let EffectivePolicy: any
+export let PolicyAuditLog: any
 export let Booking: any
+export let BookingRoomDetail: any
 export let BookingPolicySnapshot: any
 export let BookingTaxFee: any
 
@@ -136,7 +156,8 @@ async function init() {
 	VariantReadiness = drizzleTables.VariantReadiness
 	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory
-	EffectiveInventory = drizzleTables.EffectiveInventory
+	EffectiveAvailability = drizzleTables.EffectiveAvailability
+	SearchUnitView = drizzleTables.SearchUnitView
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
 	PriceRule = drizzleTables.PriceRule
@@ -145,17 +166,24 @@ async function init() {
 	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
 	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
 	Restriction = drizzleTables.Restriction
+	EffectiveRestriction = drizzleTables.EffectiveRestriction
 	InventoryLock = drizzleTables.InventoryLock
+	Hold = drizzleTables.Hold
 	PolicyGroup = drizzleTables.PolicyGroup
 	Policy = drizzleTables.Policy
 	PolicyAssignment = drizzleTables.PolicyAssignment
 	CancellationTier = drizzleTables.CancellationTier
 	PolicyRule = drizzleTables.PolicyRule
 	EffectivePolicy = drizzleTables.EffectivePolicy
+	PolicyAuditLog = drizzleTables.PolicyAuditLog
 	Booking = drizzleTables.Booking
+	BookingRoomDetail = drizzleTables.BookingRoomDetail
 	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
 	BookingTaxFee = drizzleTables.BookingTaxFee
 }
 
 // Top-level await so imports are ready before tests execute.
-await init()
+const initCache = getInitCache()
+const initPromise = initCache.get(dbUrl) ?? init()
+initCache.set(dbUrl, initPromise)
+await initPromise

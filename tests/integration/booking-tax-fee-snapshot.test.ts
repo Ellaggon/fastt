@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest"
 
+import { snapshotTaxFeesForBookingUseCase } from "@/container/taxes-fees.container"
 import {
-	snapshotTaxFeesForBookingUseCase,
-	bookingTaxFeeRepository,
-} from "@/container/taxes-fees.container"
-import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
-import type { TaxFeeBreakdown, TaxFeeLine } from "@/modules/taxes-fees/public"
+	computeTaxBreakdown,
+	type ResolvedTaxFeeDefinition,
+	type TaxFeeBreakdown,
+	type TaxFeeDefinition,
+	type TaxFeeLine,
+} from "@/modules/taxes-fees/public"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -14,11 +16,7 @@ import {
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-import { db, Booking } from "astro:db"
-import type {
-	ResolvedTaxFeeDefinition,
-	TaxFeeDefinition,
-} from "@/modules/taxes-fees/domain/tax-fee.types"
+import { BookingTaxFee, db, Booking, eq } from "astro:db"
 
 describe("integration/booking tax/fee snapshot", () => {
 	const buildResolved = (partial: Partial<TaxFeeDefinition>): ResolvedTaxFeeDefinition => {
@@ -79,8 +77,7 @@ describe("integration/booking tax/fee snapshot", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 100,
@@ -126,7 +123,11 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await snapshotTaxFeesForBookingUseCase({ bookingId, breakdown })
 
-		const rows = await bookingTaxFeeRepository.findByBookingId(bookingId)
+		const rows = await db
+			.select()
+			.from(BookingTaxFee)
+			.where(eq(BookingTaxFee.bookingId, bookingId))
+			.all()
 		expect(rows.length).toBe(1)
 		expect(rows[0].totalAmount).toBe(110)
 		expect(rows[0].breakdownJson).toEqual(breakdown)
@@ -160,8 +161,7 @@ describe("integration/booking tax/fee snapshot", () => {
 		await upsertVariant({
 			id: variantId,
 			productId,
-			entityType: "hotel_room",
-			entityId: "hr",
+			kind: "hotel_room",
 			name: "Room",
 			currency: "USD",
 			basePrice: 200,
@@ -195,7 +195,11 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await snapshotTaxFeesForBookingUseCase({ bookingId, breakdown })
 
-		const rows = await bookingTaxFeeRepository.findByBookingId(bookingId)
+		const rows = await db
+			.select()
+			.from(BookingTaxFee)
+			.where(eq(BookingTaxFee.bookingId, bookingId))
+			.all()
 		expect(rows.length).toBe(2)
 		expect(rows[0].breakdownJson).toEqual(breakdown)
 		expect(rows[0].totalAmount).toBe(210)

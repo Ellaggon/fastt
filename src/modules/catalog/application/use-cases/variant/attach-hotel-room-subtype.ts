@@ -12,8 +12,9 @@ export async function attachHotelRoomSubtype(
 	const v = await deps.repo.getVariantById(parsed.variantId)
 	if (!v) throw new Error("Variant not found")
 
-	const kind = String(v.kind ?? v.entityType ?? "").trim()
-	if (kind !== "hotel_room") {
+	const kind = String(v.kind ?? "").trim()
+	const normalizedKind = kind
+	if (normalizedKind !== "hotel_room") {
 		throw new ZodError([
 			{
 				code: "custom",

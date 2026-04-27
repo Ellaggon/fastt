@@ -25,7 +25,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				description: cmd.template.description,
 				paymentType: cmd.template.paymentType,
 				refundable: cmd.template.refundable,
-				cancellationPolicyId: cmd.template.cancellationPolicyId,
 				createdAt: cmd.template.createdAt,
 			})
 
@@ -78,7 +77,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			description: string | null
 			paymentType: string
 			refundable: boolean
-			cancellationPolicyId: string | null
 		}
 		priceRule: null | {
 			id: string
@@ -120,7 +118,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 					description: params.template.description ?? null,
 					paymentType: params.template.paymentType,
 					refundable: Boolean(params.template.refundable),
-					cancellationPolicyId: params.template.cancellationPolicyId ?? null,
 				})
 				.where(eq(RatePlanTemplate.id, ratePlan.templateId))
 

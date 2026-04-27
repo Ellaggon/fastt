@@ -9,7 +9,13 @@ export interface PolicyAssignmentRepositoryPortCapa6 {
 		scopeId: string
 		category: PolicyCategory
 		channel: string | null
-	}): Promise<{ id: string } | null>
+	}): Promise<{
+		id: string
+		policyGroupId: string
+		scope: PolicyScope
+		scopeId: string
+		channel: string | null
+	} | null>
 
 	createAssignment(params: {
 		policyGroupId: string
@@ -19,4 +25,10 @@ export interface PolicyAssignmentRepositoryPortCapa6 {
 	}): Promise<{ assignmentId: string }>
 
 	deactivateAssignmentById(assignmentId: string): Promise<void>
+	setAssignmentActiveById(assignmentId: string, isActive: boolean): Promise<void>
+
+	resolveScopeContext(params: {
+		scope: PolicyScope
+		scopeId: string
+	}): Promise<{ productId: string; variantId?: string; ratePlanId?: string } | null>
 }

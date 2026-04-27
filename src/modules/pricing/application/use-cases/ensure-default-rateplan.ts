@@ -34,7 +34,6 @@ export async function ensureDefaultRatePlan(
 			description: null,
 			paymentType: "prepaid",
 			refundable: false,
-			cancellationPolicyId: null,
 			createdAt: now,
 		},
 		ratePlan: {

@@ -7,6 +7,13 @@ export function createListRatePlansByVariantQuery(deps: { repo: RatePlanQueryRep
 	}
 }
 
+export function createListRatePlansByProviderQuery(deps: { repo: RatePlanQueryRepositoryPort }) {
+	return async function listRatePlansByProvider(providerId: string) {
+		if (!providerId) return []
+		return deps.repo.listByProvider(providerId)
+	}
+}
+
 export function createGetRatePlanByIdQuery(deps: { repo: RatePlanQueryRepositoryPort }) {
 	return async function getRatePlanById(ratePlanId: string) {
 		if (!ratePlanId) return null

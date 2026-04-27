@@ -1,0 +1,778 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { routes } from "@/lib/routes"
+import { resolvePolicyDateRange } from "@/modules/policies/public"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
+const rows = await loadRatePlansReadModel({
+	request: Astro.request,
+	checkIn,
+	checkOut,
+	channel: "web",
+})
+
+const ratePlanCatalog = rows.map((row) => ({
+	ratePlanId: String(row.ratePlanId),
+	ratePlanName: String(row.ratePlanName),
+	productName: String(row.productName),
+	variantName: String(row.variantName),
+}))
+const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "")
+	.split(",")
+	.map((id) => id.trim())
+	.filter(Boolean)
+---
+
+<WorkspaceLayout title="Pricing · Bulk Operations">
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Pricing · Bulk Operations
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Edición masiva de pricing</h1>
+				<p class="text-sm text-slate-300">
+					Selecciona tarifas, simula impacto y aplica cambios de forma controlada.
+				</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<Button href={routes.ratePlansHub()} variant="secondary">Volver a Rate Plans</Button>
+			</div>
+		</header>
+
+		<Section title="Selección" description="Define el conjunto de rate plans a impactar.">
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<label class="inline-flex items-center gap-2 text-sm text-slate-700">
+						<input id="bulkSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+						Seleccionar todos
+					</label>
+					<span id="bulkSelectionCount" class="text-sm text-slate-600">0 seleccionados</span>
+				</div>
+				<div class="grid gap-2 md:grid-cols-2">
+					{
+						rows.map((row) => (
+							<label class="flex items-start gap-2 rounded border border-slate-200 p-2 hover:bg-slate-50">
+								<input
+									type="checkbox"
+									class="mt-1 h-4 w-4 rounded border-slate-300"
+									data-rateplan-checkbox
+									value={String(row.ratePlanId)}
+								/>
+								<span>
+									<span class="block font-medium text-slate-900">{row.ratePlanName}</span>
+									<span class="block text-xs text-slate-600">
+										{row.productName} · {row.variantName}
+									</span>
+								</span>
+							</label>
+						))
+					}
+				</div>
+			</Card>
+		</Section>
+
+		<Section title="Operación" description="Configura la regla a simular/aplicar.">
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="grid gap-4 md:grid-cols-3">
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Tipo de operación</span>
+						<select
+							id="bulkOperationType"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						>
+							<option value="percentage_markup">Incremento %</option>
+							<option value="percentage_discount">Descuento %</option>
+							<option value="fixed_adjustment">Ajuste fijo</option>
+							<option value="fixed_override">Precio fijo manual</option>
+						</select>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Valor</span>
+						<input
+							id="bulkOperationValue"
+							type="number"
+							step="0.01"
+							value="10"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Prioridad</span>
+						<select
+							id="bulkOperationPriority"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						>
+							<option value="0">Muy alta</option>
+							<option value="5">Alta</option>
+							<option value="10" selected>Media</option>
+							<option value="25">Baja</option>
+						</select>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Días para preview</span>
+						<input
+							id="bulkPreviewDays"
+							type="number"
+							min="1"
+							max="120"
+							value="30"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Días para regenerar pricing efectivo</span>
+						<input
+							id="bulkEffectiveDays"
+							type="number"
+							min="1"
+							max="365"
+							value="60"
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+				</div>
+				<div class="flex items-center justify-between gap-2">
+					<p id="bulkConfigFeedback" class="text-sm text-slate-700"></p>
+					<button
+						id="bulkPreviewBtn"
+						type="button"
+						class="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+						>Simular impacto</button
+					>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Simulación"
+			description="Revisa fechas, precios e impacto por tarifa antes de aplicar."
+		>
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div id="bulkExecutiveSummary" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+					<p class="text-sm font-semibold text-slate-900">Resumen ejecutivo</p>
+					<div class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-5">
+						<p>
+							<span class="font-medium text-slate-900">Tarifas seleccionadas:</span>
+							<span id="bulkExecutiveSelected">0</span>
+						</p>
+						<p>
+							<span class="font-medium text-slate-900">Tarifas afectadas:</span>
+							<span id="bulkExecutiveAffected">0</span>
+						</p>
+						<p>
+							<span class="font-medium text-slate-900">Días impactados:</span>
+							<span id="bulkExecutiveDays">0</span>
+						</p>
+						<p>
+							<span class="font-medium text-slate-900">Impacto estimado:</span>
+							<span id="bulkExecutiveImpact">—</span>
+						</p>
+						<p>
+							<span class="font-medium text-slate-900">Cobertura efectiva:</span>
+							<span id="bulkExecutiveCoverage">0%</span>
+						</p>
+					</div>
+					<p id="bulkExecutiveRange" class="mt-2 text-xs text-slate-600">Rango evaluado: —</p>
+				</div>
+				<div
+					id="bulkGlobalAlerts"
+					class="hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+				>
+				</div>
+				<div class="flex items-center justify-between gap-2">
+					<p id="bulkPreviewSummary" class="text-sm text-slate-700">Sin simulación aún.</p>
+					<div class="flex items-center gap-2">
+						<label class="inline-flex items-center gap-2 text-xs text-slate-600">
+							<span>Ordenar por</span>
+							<select
+								id="bulkPreviewSort"
+								class="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
+							>
+								<option value="impact_desc">Mayor impacto</option>
+								<option value="risk_desc">Mayor riesgo</option>
+								<option value="coverage_asc">Menor cobertura</option>
+							</select>
+						</label>
+						<button
+							id="bulkApplyBtn"
+							type="button"
+							class="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+							disabled>Aplicar cambios a tarifas seleccionadas</button
+						>
+					</div>
+				</div>
+				<div class="overflow-x-auto rounded-lg border border-slate-200">
+					<table class="min-w-full bg-white text-sm">
+						<thead class="bg-slate-50 text-left text-slate-600">
+							<tr>
+								<th class="px-3 py-2">Rate plan</th>
+								<th class="px-3 py-2">Rango</th>
+								<th class="px-3 py-2">Precio actual (avg)</th>
+								<th class="px-3 py-2">Precio nuevo (avg)</th>
+								<th class="px-3 py-2">Cambio promedio / noche</th>
+								<th class="px-3 py-2">Impacto ingresos estimado</th>
+								<th class="px-3 py-2">Cobertura efectiva</th>
+								<th class="px-3 py-2">Estado</th>
+							</tr>
+						</thead>
+						<tbody id="bulkPreviewRows"></tbody>
+					</table>
+				</div>
+				<div
+					id="bulkApplyConfirmation"
+					class="hidden rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
+				>
+				</div>
+				<div
+					id="bulkPreviewFailures"
+					class="hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+				>
+				</div>
+			</Card>
+		</Section>
+
+		<Section title="Resultado de aplicación" description="Detalle de ejecución y fallos parciales.">
+			<Card className="space-y-4 bg-white text-slate-800">
+				<p id="bulkResultSummary" class="text-sm text-slate-700">Sin ejecución aún.</p>
+				<div class="overflow-x-auto rounded-lg border border-slate-200">
+					<table class="min-w-full bg-white text-sm">
+						<thead class="bg-slate-50 text-left text-slate-600">
+							<tr>
+								<th class="px-3 py-2">Rate plan</th>
+								<th class="px-3 py-2">Rule ID</th>
+								<th class="px-3 py-2">Días regenerados</th>
+								<th class="px-3 py-2">Estado</th>
+							</tr>
+						</thead>
+						<tbody id="bulkResultRows"></tbody>
+					</table>
+				</div>
+				<div
+					id="bulkResultFailures"
+					class="hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+				>
+				</div>
+			</Card>
+		</Section>
+	</div>
+
+	<script type="module" define:vars={{ ratePlanCatalog, initialRatePlanIds }}>
+		const STORAGE_KEY = "bulkPricing.selection"
+		const catalog = Array.isArray(ratePlanCatalog) ? ratePlanCatalog : []
+		const catalogMap = new Map(catalog.map((item) => [String(item.ratePlanId), item]))
+		const selectedRatePlanIds = new Set()
+		let lastBulkOperation = null
+		let previewPayload = null
+
+		const selectAll = document.getElementById("bulkSelectAll")
+		const selectionCount = document.getElementById("bulkSelectionCount")
+		const checkboxes = Array.from(document.querySelectorAll("[data-rateplan-checkbox]"))
+		const configFeedback = document.getElementById("bulkConfigFeedback")
+
+		const operationType = document.getElementById("bulkOperationType")
+		const operationValue = document.getElementById("bulkOperationValue")
+		const operationPriority = document.getElementById("bulkOperationPriority")
+		const previewDays = document.getElementById("bulkPreviewDays")
+		const effectiveDays = document.getElementById("bulkEffectiveDays")
+
+		const previewBtn = document.getElementById("bulkPreviewBtn")
+		const applyBtn = document.getElementById("bulkApplyBtn")
+		const previewSummary = document.getElementById("bulkPreviewSummary")
+		const previewSort = document.getElementById("bulkPreviewSort")
+		const previewRows = document.getElementById("bulkPreviewRows")
+		const previewFailures = document.getElementById("bulkPreviewFailures")
+		const globalAlerts = document.getElementById("bulkGlobalAlerts")
+		const executiveSelected = document.getElementById("bulkExecutiveSelected")
+		const executiveAffected = document.getElementById("bulkExecutiveAffected")
+		const executiveDays = document.getElementById("bulkExecutiveDays")
+		const executiveImpact = document.getElementById("bulkExecutiveImpact")
+		const executiveCoverage = document.getElementById("bulkExecutiveCoverage")
+		const executiveRange = document.getElementById("bulkExecutiveRange")
+		const applyConfirmation = document.getElementById("bulkApplyConfirmation")
+		const resultSummary = document.getElementById("bulkResultSummary")
+		const resultRows = document.getElementById("bulkResultRows")
+		const resultFailures = document.getElementById("bulkResultFailures")
+
+		const RISK_THRESHOLDS = {
+			coveragePct: 70,
+			changePct: 25,
+			negativeImpact: -100,
+		}
+
+		function readPersistedSelection() {
+			try {
+				const raw = localStorage.getItem(STORAGE_KEY)
+				if (!raw) return []
+				const parsed = JSON.parse(raw)
+				return Array.isArray(parsed) ? parsed.map((id) => String(id)) : []
+			} catch {
+				return []
+			}
+		}
+
+		function persistSelection() {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(selectedRatePlanIds)))
+		}
+
+		function updateSelectionUI() {
+			const count = selectedRatePlanIds.size
+			if (selectionCount) selectionCount.textContent = `${count} seleccionados`
+			if (applyBtn instanceof HTMLButtonElement && !previewPayload) applyBtn.disabled = true
+			if (selectAll instanceof HTMLInputElement) {
+				const total = checkboxes.length
+				selectAll.checked = total > 0 && count === total
+				selectAll.indeterminate = count > 0 && count < total
+			}
+			persistSelection()
+		}
+
+		function getBulkOperation() {
+			const type = String(operationType?.value ?? "").trim()
+			const value = Number(operationValue?.value)
+			const priority = Number(operationPriority?.value)
+			const previewDaysValue = Number(previewDays?.value)
+			const effectiveDaysValue = Number(effectiveDays?.value)
+			if (!selectedRatePlanIds.size) return { error: "Debes seleccionar al menos un rate plan." }
+			if (!type) return { error: "Debes seleccionar tipo de operación." }
+			if (!Number.isFinite(value)) return { error: "Debes definir un valor numérico válido." }
+			return {
+				operation: {
+					type,
+					value,
+					conditions: {
+						priority: Number.isFinite(priority) ? priority : 10,
+						previewDays: Number.isFinite(previewDaysValue) ? previewDaysValue : 30,
+						effectiveDays: Number.isFinite(effectiveDaysValue) ? effectiveDaysValue : 60,
+					},
+				},
+			}
+		}
+
+		function formatMoney(value, currency) {
+			const numeric = Number(value ?? 0)
+			const safeCurrency = String(currency ?? "").trim() || "USD"
+			return new Intl.NumberFormat("es-CL", {
+				style: "currency",
+				currency: safeCurrency,
+				maximumFractionDigits: 2,
+			}).format(Number.isFinite(numeric) ? numeric : 0)
+		}
+
+		function formatDateWithDay(value, fallbackDayLabel = "") {
+			const dateText = String(value ?? "")
+			if (!dateText) return "—"
+			return fallbackDayLabel ? `${fallbackDayLabel} ${dateText}` : dateText
+		}
+
+		function calculateRiskSignals(row) {
+			const beforeAvg = Number(row?.preview?.priceSummary?.before?.avg ?? 0)
+			const afterAvg = Number(row?.preview?.priceSummary?.after?.avg ?? 0)
+			const totalDays = Number(row?.preview?.dateRange?.totalDays ?? 0)
+			const changedDays = Number(row?.diff?.changedDays ?? 0)
+			const estimatedImpact = Number(
+				row?.businessMetrics?.estimatedRevenueImpact ?? row?.diff?.totalDelta ?? 0
+			)
+			const coveragePct = totalDays > 0 ? (changedDays / totalDays) * 100 : 0
+			const changePct = beforeAvg > 0 ? Math.abs(((afterAvg - beforeAvg) / beforeAvg) * 100) : 0
+			const alerts = []
+			if (changePct > RISK_THRESHOLDS.changePct) {
+				alerts.push(`Cambio alto (${changePct.toFixed(1)}%)`)
+			}
+			if (coveragePct < RISK_THRESHOLDS.coveragePct) {
+				alerts.push(`Cobertura baja (${coveragePct.toFixed(1)}%)`)
+			}
+			if (estimatedImpact < RISK_THRESHOLDS.negativeImpact) {
+				alerts.push(`Impacto negativo (${estimatedImpact.toFixed(2)})`)
+			}
+			return { coveragePct, changePct, estimatedImpact, alerts }
+		}
+
+		function getSortedPreviewRows(results, mode) {
+			const input = Array.isArray(results) ? [...results] : []
+			if (mode === "risk_desc") {
+				return input.sort(
+					(a, b) => calculateRiskSignals(b).alerts.length - calculateRiskSignals(a).alerts.length
+				)
+			}
+			if (mode === "coverage_asc") {
+				return input.sort(
+					(a, b) => calculateRiskSignals(a).coveragePct - calculateRiskSignals(b).coveragePct
+				)
+			}
+			return input.sort(
+				(a, b) =>
+					Math.abs(Number(b?.businessMetrics?.estimatedRevenueImpact ?? b?.diff?.totalDelta ?? 0)) -
+					Math.abs(Number(a?.businessMetrics?.estimatedRevenueImpact ?? a?.diff?.totalDelta ?? 0))
+			)
+		}
+
+		function renderExecutiveSummary(payload) {
+			const results = Array.isArray(payload?.results) ? payload.results : []
+			const totalSelected = selectedRatePlanIds.size
+			const affected = results.filter((row) => Number(row?.diff?.changedDays ?? 0) > 0)
+			const totalDays = results.reduce(
+				(acc, row) => acc + Number(row?.preview?.dateRange?.totalDays ?? 0),
+				0
+			)
+			const changedDays = results.reduce((acc, row) => acc + Number(row?.diff?.changedDays ?? 0), 0)
+			const totalImpact = Number(
+				results
+					.reduce(
+						(acc, row) =>
+							acc +
+							Number(row?.businessMetrics?.estimatedRevenueImpact ?? row?.diff?.totalDelta ?? 0),
+						0
+					)
+					.toFixed(2)
+			)
+			const coveragePct = totalDays > 0 ? Number(((changedDays / totalDays) * 100).toFixed(1)) : 0
+			if (executiveSelected) executiveSelected.textContent = String(totalSelected)
+			if (executiveAffected) executiveAffected.textContent = String(affected.length)
+			if (executiveDays) executiveDays.textContent = String(changedDays)
+			if (executiveImpact)
+				executiveImpact.textContent = formatMoney(
+					totalImpact,
+					results[0]?.preview?.currency ?? "USD"
+				)
+			if (executiveCoverage) executiveCoverage.textContent = `${coveragePct}%`
+			const from = results
+				.map((row) => String(row?.preview?.dateRange?.from ?? ""))
+				.filter(Boolean)
+				.sort()[0]
+			const to = results
+				.map((row) => String(row?.preview?.dateRange?.to ?? ""))
+				.filter(Boolean)
+				.sort()
+				.slice(-1)[0]
+			if (executiveRange) {
+				executiveRange.textContent =
+					from && to ? `Rango evaluado: ${from} → ${to}` : "Rango evaluado: —"
+			}
+			if (applyConfirmation) {
+				applyConfirmation.classList.remove("hidden")
+				applyConfirmation.textContent = `Vas a aplicar cambios en ${affected.length} tarifas, ${changedDays} días impactados, impacto estimado total ${formatMoney(totalImpact, results[0]?.preview?.currency ?? "USD")}.`
+			}
+			return { coveragePct, totalImpact, affected: affected.length, changedDays }
+		}
+
+		function renderGlobalAlerts(payload, executive) {
+			if (!globalAlerts) return
+			const results = Array.isArray(payload?.results) ? payload.results : []
+			const riskyRows = results.filter((row) => calculateRiskSignals(row).alerts.length > 0)
+			const messages = []
+			if (executive.coveragePct < RISK_THRESHOLDS.coveragePct) {
+				messages.push(`Cobertura global baja (${executive.coveragePct.toFixed(1)}%).`)
+			}
+			if (executive.totalImpact < RISK_THRESHOLDS.negativeImpact) {
+				messages.push(
+					`Impacto global negativo significativo (${executive.totalImpact.toFixed(2)}).`
+				)
+			}
+			if (riskyRows.length > 0) {
+				messages.push(`${riskyRows.length} tarifas presentan alertas de riesgo.`)
+			}
+			if (!messages.length) {
+				globalAlerts.classList.add("hidden")
+				globalAlerts.textContent = ""
+				return
+			}
+			globalAlerts.classList.remove("hidden")
+			globalAlerts.innerHTML = `<p class="font-medium">Alertas de riesgo</p><ul class="mt-2 list-disc pl-5">${messages
+				.map((msg) => `<li>${msg}</li>`)
+				.join("")}</ul>`
+		}
+
+		function renderPreview(payload) {
+			if (previewSummary) {
+				const allResults = Array.isArray(payload?.results) ? payload.results : []
+				const allDays = allResults.reduce(
+					(acc, row) => acc + Number(row?.preview?.dateRange?.totalDays ?? 0),
+					0
+				)
+				const changedDays = allResults.reduce(
+					(acc, row) => acc + Number(row?.diff?.changedDays ?? 0),
+					0
+				)
+				previewSummary.textContent = `Tarifas: ${payload?.summary?.total ?? 0} · Éxitos: ${payload?.summary?.success ?? 0} · Fallos: ${payload?.summary?.failed ?? 0} · Días evaluados: ${allDays} · Días con cambios: ${changedDays}`
+			}
+			const executive = renderExecutiveSummary(payload)
+			renderGlobalAlerts(payload, executive)
+			if (previewRows) {
+				previewRows.innerHTML = ""
+				const sortMode = String(previewSort?.value ?? "impact_desc")
+				for (const row of getSortedPreviewRows(payload?.results ?? [], sortMode)) {
+					const info = catalogMap.get(String(row.ratePlanId))
+					const currency = String(row?.preview?.currency ?? "USD")
+					const rangeFrom = String(row?.preview?.dateRange?.from ?? "")
+					const rangeTo = String(row?.preview?.dateRange?.to ?? "")
+					const rangeFromDay = String(row?.preview?.dateRange?.fromDayOfWeekLabel ?? "")
+					const rangeToDay = String(row?.preview?.dateRange?.toDayOfWeekLabel ?? "")
+					const rangeLabel =
+						rangeFrom && rangeTo
+							? `${formatDateWithDay(rangeFrom, rangeFromDay)} → ${formatDateWithDay(rangeTo, rangeToDay)}`
+							: "—"
+					const before = row?.preview?.priceSummary?.before ?? {}
+					const after = row?.preview?.priceSummary?.after ?? {}
+					const breakdown = row?.preview?.breakdown ?? {}
+					const weekdays = breakdown?.weekdays ?? {}
+					const weekends = breakdown?.weekends ?? {}
+					const detailId = `bulk-detail-${String(row.ratePlanId)}`
+					const risk = calculateRiskSignals(row)
+					const statusBadge =
+						risk.alerts.length > 0
+							? `<span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Revisar</span>`
+							: `<span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">OK</span>`
+					const tr = document.createElement("tr")
+					tr.className = "border-t border-slate-200 text-slate-700"
+					tr.innerHTML = `
+						<td class="px-3 py-2">
+							<div class="font-medium text-slate-900">${info?.ratePlanName ?? row.ratePlanId}</div>
+							<div class="text-xs text-slate-500">${info?.variantName ?? ""}</div>
+							<button type="button" class="mt-1 inline-flex text-xs font-medium text-blue-700 hover:text-blue-800" data-detail-toggle="${detailId}">
+								Ver detalle por día
+							</button>
+						</td>
+						<td class="px-3 py-2 text-xs">${rangeLabel}</td>
+						<td class="px-3 py-2 text-xs">${formatMoney(before?.avg, currency)}</td>
+						<td class="px-3 py-2 text-xs">${formatMoney(after?.avg, currency)}</td>
+						<td class="px-3 py-2 text-xs font-medium">${formatMoney(row?.businessMetrics?.averageNightlyChange ?? row?.diff?.averageDelta, currency)}</td>
+						<td class="px-3 py-2 text-xs font-medium">${formatMoney(row?.businessMetrics?.estimatedRevenueImpact ?? row?.diff?.totalDelta, currency)}</td>
+						<td class="px-3 py-2 text-xs">
+							${risk.coveragePct.toFixed(1)}%
+						</td>
+						<td class="px-3 py-2">
+							${statusBadge}
+							${
+								risk.alerts.length > 0
+									? `<ul class="mt-1 list-disc pl-4 text-xs text-amber-800">${risk.alerts
+											.map((alert) => `<li>${alert}</li>`)
+											.join("")}</ul>`
+									: ""
+							}
+						</td>
+					`
+					previewRows.appendChild(tr)
+
+					const details = Array.isArray(row?.preview?.days) ? row.preview.days : []
+					const detailTr = document.createElement("tr")
+					detailTr.className = "hidden border-t border-slate-100 bg-slate-50/50"
+					detailTr.setAttribute("id", detailId)
+					detailTr.innerHTML = `
+						<td colspan="8" class="px-3 py-3">
+							<div class="mb-3 grid gap-2 rounded border border-slate-200 bg-white p-2 text-xs text-slate-700 md:grid-cols-3">
+								<div>
+									<p class="font-medium text-slate-900">Precio actual</p>
+									<p>avg ${formatMoney(before?.avg, currency)} · min ${formatMoney(before?.min, currency)} · max ${formatMoney(before?.max, currency)}</p>
+								</div>
+								<div>
+									<p class="font-medium text-slate-900">Precio nuevo</p>
+									<p>avg ${formatMoney(after?.avg, currency)} · min ${formatMoney(after?.min, currency)} · max ${formatMoney(after?.max, currency)}</p>
+								</div>
+								<div>
+									<p class="font-medium text-slate-900">Contexto temporal</p>
+									<p>Weekdays: ${Number(weekdays?.days ?? 0)} (${Number(weekdays?.changedDays ?? 0)} cambios)</p>
+									<p>Weekends: ${Number(weekends?.days ?? 0)} (${Number(weekends?.changedDays ?? 0)} cambios)</p>
+									<p>Sin cobertura: ${Number(breakdown?.daysWithoutCoverage ?? 0)}</p>
+								</div>
+							</div>
+							<div class="overflow-x-auto rounded border border-slate-200">
+								<table class="min-w-full bg-white text-xs">
+									<thead class="bg-slate-50 text-slate-600">
+										<tr>
+											<th class="px-2 py-1 text-left">Fecha</th>
+											<th class="px-2 py-1 text-left">Precio antes</th>
+											<th class="px-2 py-1 text-left">Precio después</th>
+											<th class="px-2 py-1 text-left">Cambio</th>
+											<th class="px-2 py-1 text-left">Cobertura</th>
+										</tr>
+									</thead>
+									<tbody>
+										${details
+											.map(
+												(day) => `
+													<tr class="border-t border-slate-100 text-slate-700">
+														<td class="px-2 py-1">${formatDateWithDay(day?.date, day?.dayOfWeekLabel)}</td>
+														<td class="px-2 py-1">${formatMoney(day?.before, currency)}</td>
+														<td class="px-2 py-1">${formatMoney(day?.after, currency)}</td>
+														<td class="px-2 py-1">${formatMoney(day?.delta, currency)}</td>
+														<td class="px-2 py-1">${day?.hasCoverage ? "Aplicada" : "Sin cobertura"}</td>
+													</tr>
+												`
+											)
+											.join("")}
+									</tbody>
+								</table>
+							</div>
+						</td>
+					`
+					previewRows.appendChild(detailTr)
+				}
+				for (const toggle of previewRows.querySelectorAll("[data-detail-toggle]")) {
+					toggle.addEventListener("click", () => {
+						const targetId = String(toggle.getAttribute("data-detail-toggle") ?? "").trim()
+						if (!targetId) return
+						const detail = document.getElementById(targetId)
+						detail?.classList.toggle("hidden")
+					})
+				}
+			}
+			if (previewFailures) {
+				const failures = Array.isArray(payload?.failures) ? payload.failures : []
+				if (!failures.length) {
+					previewFailures.classList.add("hidden")
+					previewFailures.textContent = ""
+				} else {
+					previewFailures.classList.remove("hidden")
+					previewFailures.innerHTML = `<p class="font-medium">Fallos parciales detectados (${failures.length})</p><ul class="mt-2 list-disc pl-5">${failures
+						.map((item) => `<li>${item.ratePlanId}: ${item.error} (stage=${item.stage})</li>`)
+						.join("")}</ul>`
+				}
+			}
+		}
+
+		function renderApplyResult(payload) {
+			if (resultSummary) {
+				resultSummary.textContent = `Aplicación completada · Total: ${payload?.summary?.total ?? 0} · Éxitos: ${payload?.summary?.success ?? 0} · Fallos: ${payload?.summary?.failed ?? 0}`
+			}
+			if (resultRows) {
+				resultRows.innerHTML = ""
+				for (const row of payload?.results ?? []) {
+					const info = catalogMap.get(String(row.ratePlanId))
+					const tr = document.createElement("tr")
+					tr.className = "border-t border-slate-200 text-slate-700"
+					tr.innerHTML = `
+						<td class="px-3 py-2"><div class="font-medium text-slate-900">${info?.ratePlanName ?? row.ratePlanId}</div><div class="text-xs text-slate-500">${info?.variantName ?? ""}</div></td>
+						<td class="px-3 py-2">${row?.ruleId ?? "—"}</td>
+						<td class="px-3 py-2">${Number(row?.daysGenerated ?? 0)}</td>
+						<td class="px-3 py-2"><span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Aplicado</span></td>
+					`
+					resultRows.appendChild(tr)
+				}
+			}
+			if (resultFailures) {
+				const failures = Array.isArray(payload?.failures) ? payload.failures : []
+				if (!failures.length) {
+					resultFailures.classList.add("hidden")
+					resultFailures.textContent = ""
+				} else {
+					resultFailures.classList.remove("hidden")
+					resultFailures.innerHTML = `<p class="font-medium">Fallos parciales al aplicar (${failures.length})</p><ul class="mt-2 list-disc pl-5">${failures
+						.map((item) => `<li>${item.ratePlanId}: ${item.error} (stage=${item.stage})</li>`)
+						.join("")}</ul>`
+				}
+			}
+		}
+
+		const restored = Array.from(new Set([...initialRatePlanIds, ...readPersistedSelection()]))
+		for (const checkbox of checkboxes) {
+			const ratePlanId = String(checkbox.value ?? "").trim()
+			if (!ratePlanId) continue
+			if (restored.includes(ratePlanId)) {
+				checkbox.checked = true
+				selectedRatePlanIds.add(ratePlanId)
+			}
+			checkbox.addEventListener("change", () => {
+				if (checkbox.checked) selectedRatePlanIds.add(ratePlanId)
+				else selectedRatePlanIds.delete(ratePlanId)
+				updateSelectionUI()
+			})
+		}
+
+		selectAll?.addEventListener("change", () => {
+			const checked = Boolean(selectAll.checked)
+			for (const checkbox of checkboxes) {
+				const ratePlanId = String(checkbox.value ?? "").trim()
+				if (!ratePlanId) continue
+				checkbox.checked = checked
+				if (checked) selectedRatePlanIds.add(ratePlanId)
+				else selectedRatePlanIds.delete(ratePlanId)
+			}
+			updateSelectionUI()
+		})
+
+		previewBtn?.addEventListener("click", async () => {
+			const operation = getBulkOperation()
+			if (operation.error) {
+				if (configFeedback) configFeedback.textContent = operation.error
+				return
+			}
+			if (!(previewBtn instanceof HTMLButtonElement)) return
+			previewBtn.disabled = true
+			previewBtn.textContent = "Simulando..."
+			if (configFeedback) configFeedback.textContent = "Simulando impacto..."
+			const body = {
+				ratePlanIds: Array.from(selectedRatePlanIds),
+				operation: operation.operation,
+				concurrency: 4,
+			}
+			lastBulkOperation = body
+			try {
+				const response = await fetch("/api/pricing/rules/v2/bulk-preview", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(body),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (configFeedback)
+						configFeedback.textContent = `No se pudo simular: ${String(payload?.error ?? response.status)}`
+					return
+				}
+				previewPayload = payload
+				renderPreview(payload)
+				if (configFeedback)
+					configFeedback.textContent = "Simulación completada. Revisa resultados abajo."
+				if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = false
+			} catch (error) {
+				if (configFeedback) configFeedback.textContent = `Error de red: ${String(error)}`
+			} finally {
+				previewBtn.disabled = false
+				previewBtn.textContent = "Simular impacto"
+			}
+		})
+
+		applyBtn?.addEventListener("click", async () => {
+			if (!lastBulkOperation) return
+			if (!(applyBtn instanceof HTMLButtonElement)) return
+			applyBtn.disabled = true
+			applyBtn.textContent = "Aplicando..."
+			try {
+				const response = await fetch("/api/pricing/rules/v2/bulk-apply", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(lastBulkOperation),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (resultSummary)
+						resultSummary.textContent = `No se pudo aplicar: ${String(payload?.error ?? response.status)}`
+					return
+				}
+				renderApplyResult(payload)
+			} finally {
+				applyBtn.disabled = false
+				applyBtn.textContent = "Aplicar cambios a tarifas seleccionadas"
+			}
+		})
+
+		previewSort?.addEventListener("change", () => {
+			if (previewPayload) renderPreview(previewPayload)
+		})
+
+		updateSelectionUI()
+	</script>
+</WorkspaceLayout>

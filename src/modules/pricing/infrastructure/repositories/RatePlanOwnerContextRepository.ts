@@ -1,4 +1,4 @@
-import { db, eq, RatePlan, Variant } from "astro:db"
+import { db, eq, Product, RatePlan, Variant } from "astro:db"
 import type {
 	RatePlanOwnerContext,
 	RatePlanOwnerContextRepositoryPort,
@@ -6,16 +6,25 @@ import type {
 
 export class RatePlanOwnerContextRepository implements RatePlanOwnerContextRepositoryPort {
 	async getOwnerContext(ratePlanId: string): Promise<RatePlanOwnerContext | null> {
-		const rp = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
-		if (!rp) return null
-
-		const v = await db.select().from(Variant).where(eq(Variant.id, rp.variantId)).get()
-		if (!v) return null
+		const row = await db
+			.select({
+				ratePlanId: RatePlan.id,
+				variantId: Variant.id,
+				productId: Product.id,
+				providerId: Product.providerId,
+			})
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.where(eq(RatePlan.id, ratePlanId))
+			.get()
+		if (!row) return null
 
 		return {
-			ratePlanId: rp.id,
-			variantId: rp.variantId,
-			productId: v.productId,
+			ratePlanId: String(row.ratePlanId),
+			variantId: String(row.variantId),
+			productId: String(row.productId),
+			providerId: row.providerId == null ? null : String(row.providerId),
 		}
 	}
 }

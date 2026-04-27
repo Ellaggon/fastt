@@ -1,0 +1,228 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { featureFlags } from "@/config/featureFlags"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { routes } from "@/lib/routes"
+import { resolvePolicyDateRange } from "@/modules/policies/public"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
+const rows = await loadRatePlansReadModel({
+	request: Astro.request,
+	checkIn,
+	checkOut,
+	channel: "web",
+})
+---
+
+<WorkspaceLayout title="Rate Plans Hub">
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Inventory · Rate Plans
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Rate Plans Hub</h1>
+				<p class="text-sm text-slate-300">
+					Gestiona precios y condiciones por tarifa desde un solo lugar.
+				</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<Badge variant={featureFlags.NEW_DASHBOARD_ARCH ? "success" : "warning"}>
+					{
+						featureFlags.NEW_DASHBOARD_ARCH
+							? "NEW_DASHBOARD_ARCH activo"
+							: "NEW_DASHBOARD_ARCH inactivo"
+					}
+				</Badge>
+				<Button href={routes.pricingBulk()} variant="primary">Bulk pricing</Button>
+				<Button href={routes.productList()} variant="secondary">Volver a productos</Button>
+			</div>
+		</header>
+
+		<Section
+			title="Rate Plans"
+			description="Centro operativo de tarifas con acciones directas para precio y condiciones."
+		>
+			{
+				rows.length === 0 ? (
+					<Card className="bg-white text-slate-700">
+						<p>No hay rate plans activos para este proveedor.</p>
+					</Card>
+				) : (
+					<div class="space-y-3">
+						<Card className="bg-slate-100 text-slate-800">
+							<div class="flex flex-wrap items-center justify-between gap-3">
+								<label class="inline-flex items-center gap-2 text-sm text-slate-700">
+									<input
+										id="bulkSelectAll"
+										type="checkbox"
+										class="h-4 w-4 rounded border-slate-300"
+									/>
+									Seleccionar todos
+								</label>
+								<div class="flex items-center gap-2">
+									<span id="bulkSelectionCount" class="text-sm text-slate-600">
+										0 seleccionados
+									</span>
+									<Button
+										id="bulkEditOpenBtn"
+										variant="primary"
+										size="sm"
+										className="disabled:cursor-not-allowed disabled:opacity-50"
+										disabled
+									>
+										Ir a bulk pricing
+									</Button>
+								</div>
+							</div>
+						</Card>
+						{rows.map((row) => (
+							<Card className="bg-white text-slate-800">
+								<div class="flex flex-wrap items-start justify-between gap-4">
+									<div class="flex items-start gap-3">
+										<input
+											type="checkbox"
+											class="mt-1 h-4 w-4 rounded border-slate-300"
+											data-rateplan-checkbox
+											value={String(row.ratePlanId)}
+										/>
+										<div class="space-y-1">
+											<p class="text-base font-semibold">{row.ratePlanName}</p>
+											<p class="text-sm text-slate-600">
+												Producto: <span class="font-medium text-slate-800">{row.productName}</span>
+											</p>
+											<p class="text-sm text-slate-600">
+												Variante: <span class="font-medium text-slate-800">{row.variantName}</span>
+											</p>
+										</div>
+									</div>
+									<div class="flex flex-col items-end gap-2">
+										<div class="flex items-center gap-2">
+											{row.isDefault && <Badge variant="info">Default</Badge>}
+											<Badge variant={row.isActive ? "success" : "warning"}>
+												{row.isActive ? "Activo" : "Inactivo"}
+											</Badge>
+											<Badge variant={row.policyCoverage?.isComplete ? "success" : "warning"}>
+												{row.policyCoverage?.isComplete
+													? "Condiciones completas"
+													: "Faltan condiciones"}
+											</Badge>
+										</div>
+										<div class="flex items-center gap-2">
+											<Button
+												href={routes.ratePlanPolicies(String(row.ratePlanId))}
+												variant="primary"
+												size="sm"
+											>
+												Gestionar condiciones
+											</Button>
+											<Button
+												href={routes.ratePlanPricing(String(row.ratePlanId))}
+												variant="secondary"
+												size="sm"
+											>
+												Editar precios
+											</Button>
+											<Button
+												href={routes.ratePlanDetail(String(row.ratePlanId))}
+												variant="secondary"
+												size="sm"
+											>
+												Ver detalle
+											</Button>
+										</div>
+									</div>
+								</div>
+							</Card>
+						))}
+					</div>
+				)
+			}
+		</Section>
+	</div>
+
+	<script type="module">
+		const STORAGE_KEY = "bulkPricing.selection"
+		const selectedRatePlanIds = new Set()
+		const selectAll = document.getElementById("bulkSelectAll")
+		const openBtn = document.getElementById("bulkEditOpenBtn")
+		const selectionCount = document.getElementById("bulkSelectionCount")
+		const checkboxes = Array.from(document.querySelectorAll("[data-rateplan-checkbox]"))
+
+		function readPersistedSelection() {
+			try {
+				const raw = localStorage.getItem(STORAGE_KEY)
+				if (!raw) return []
+				const parsed = JSON.parse(raw)
+				return Array.isArray(parsed) ? parsed.map((id) => String(id)) : []
+			} catch {
+				return []
+			}
+		}
+
+		function persistSelection() {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(selectedRatePlanIds)))
+		}
+
+		function updateSelectionUI() {
+			const count = selectedRatePlanIds.size
+			if (selectionCount) selectionCount.textContent = `${count} seleccionados`
+			if (openBtn instanceof HTMLButtonElement) openBtn.disabled = count === 0
+			if (selectAll instanceof HTMLInputElement) {
+				const total = checkboxes.length
+				selectAll.checked = total > 0 && count === total
+				selectAll.indeterminate = count > 0 && count < total
+			}
+			persistSelection()
+		}
+
+		const restored = readPersistedSelection()
+		for (const checkbox of checkboxes) {
+			const ratePlanId = String(checkbox.value ?? "").trim()
+			if (!ratePlanId) continue
+			if (restored.includes(ratePlanId)) {
+				checkbox.checked = true
+				selectedRatePlanIds.add(ratePlanId)
+			}
+			checkbox.addEventListener("change", () => {
+				if (checkbox.checked) selectedRatePlanIds.add(ratePlanId)
+				else selectedRatePlanIds.delete(ratePlanId)
+				updateSelectionUI()
+			})
+		}
+
+		selectAll?.addEventListener("change", () => {
+			const checked = Boolean(selectAll.checked)
+			for (const checkbox of checkboxes) {
+				const ratePlanId = String(checkbox.value ?? "").trim()
+				if (!ratePlanId) continue
+				checkbox.checked = checked
+				if (checked) selectedRatePlanIds.add(ratePlanId)
+				else selectedRatePlanIds.delete(ratePlanId)
+			}
+			updateSelectionUI()
+		})
+
+		openBtn?.addEventListener("click", () => {
+			if (!selectedRatePlanIds.size) return
+			const ids = Array.from(selectedRatePlanIds)
+			const params = new URLSearchParams({ ratePlanIds: ids.join(",") })
+			window.location.href = `/pricing/bulk?${params.toString()}`
+		})
+
+		updateSelectionUI()
+	</script>
+</WorkspaceLayout>

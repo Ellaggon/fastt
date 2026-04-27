@@ -99,7 +99,19 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async getVariantById(variantId: string) {
-		const row = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
+		const row = await db
+			.select({
+				id: Variant.id,
+				productId: Variant.productId,
+				kind: Variant.kind,
+				name: Variant.name,
+				description: Variant.description,
+				status: Variant.status,
+				isActive: Variant.isActive,
+			})
+			.from(Variant)
+			.where(eq(Variant.id, variantId))
+			.get()
 		return row ?? null
 	}
 
@@ -111,15 +123,11 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		description?: string | null
 		status: VariantLifecycleStatus
 		createdAt: Date
-		entityType: string
-		entityId: string
 		isActive: boolean
 	}) {
 		await db.insert(Variant).values({
 			id: params.id,
 			productId: params.productId,
-			entityType: params.entityType,
-			entityId: params.entityId,
 			name: params.name,
 			description: params.description ?? null,
 			kind: params.kind,
@@ -151,15 +159,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				maxAdults: params.maxAdults ?? null,
 				maxChildren: params.maxChildren ?? null,
 			})
-
-			// Sync deprecated legacy occupancy fields.
-			await db
-				.update(Variant)
-				.set({
-					minOccupancy: params.minOccupancy,
-					maxOccupancy: params.maxOccupancy,
-				} as any)
-				.where(eq(Variant.id, params.variantId))
 			return
 		}
 
@@ -172,16 +171,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				maxChildren: params.maxChildren ?? null,
 			})
 			.where(eq(VariantCapacity.variantId, params.variantId))
-
-		// Keep deprecated legacy occupancy fields in sync for backward compatibility
-		// with existing pricing/inventory/search logic until CAPA 4/5 fully migrate.
-		await db
-			.update(Variant)
-			.set({
-				minOccupancy: params.minOccupancy,
-				maxOccupancy: params.maxOccupancy,
-			} as any)
-			.where(eq(Variant.id, params.variantId))
 	}
 
 	async getCapacity(variantId: string) {

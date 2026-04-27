@@ -10,6 +10,11 @@ import {
 	variantManagementRepository,
 	productRepository,
 } from "@/container"
+import { applyInventoryMutation } from "@/modules/inventory/public"
+
+function toISODateOnly(date: Date): string {
+	return date.toISOString().slice(0, 10)
+}
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -58,16 +63,34 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		await variantInventoryConfigRepository.upsert({
-			variantId: parsed.variantId,
-			defaultTotalUnits: parsed.totalUnits,
-			horizonDays: parsed.horizonDays ?? 365,
-		})
-
-		await inventoryBootstrapper.bootstrapVariantInventory({
-			variantId: parsed.variantId,
-			totalInventory: parsed.totalUnits,
-			days: parsed.horizonDays ?? 365,
+		const from = toISODateOnly(new Date())
+		const toDate = new Date(`${from}T00:00:00.000Z`)
+		toDate.setUTCDate(toDate.getUTCDate() + (parsed.horizonDays ?? 365))
+		const to = toISODateOnly(toDate)
+		await applyInventoryMutation({
+			mutate: async () => {
+				await variantInventoryConfigRepository.upsert({
+					variantId: parsed.variantId,
+					defaultTotalUnits: parsed.totalUnits,
+					horizonDays: parsed.horizonDays ?? 365,
+				})
+				await inventoryBootstrapper.bootstrapVariantInventory({
+					variantId: parsed.variantId,
+					totalInventory: parsed.totalUnits,
+					days: parsed.horizonDays ?? 365,
+				})
+			},
+			recompute: {
+				variantId: parsed.variantId,
+				from,
+				to,
+				reason: "inventory_set_default",
+				idempotencyKey: `inventory_set_default:${parsed.variantId}:${from}:${to}:${parsed.totalUnits}:${parsed.horizonDays ?? 365}`,
+			},
+			logContext: {
+				action: "inventory_set_default",
+				variantId: parsed.variantId,
+			},
 		})
 		await invalidateVariant(parsed.variantId, v.productId)
 

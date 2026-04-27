@@ -26,6 +26,9 @@ export * from "./application/use-cases/update-default-price-rule"
 export * from "./application/use-cases/list-default-price-rules"
 export * from "./application/use-cases/delete-price-rule"
 export * from "./application/use-cases/preview-pricing-rules"
+export type { RatePlanPricingContext } from "./application/use-cases/rate-plan-pricing-surface"
+export * from "./application/use-cases/get-rateplan-owner-context"
+export * from "./application/use-cases/bulk-pricing-service"
 
 // Application ports
 export * from "./application/ports/PricingRepositoryPort"
@@ -51,6 +54,27 @@ export async function listRatePlansByVariant(variantId: string) {
 	return listRatePlansByVariant(variantId)
 }
 
+export async function listRatePlansByProvider(providerId: string) {
+	const { listRatePlansByProvider } = await import("@/container")
+	return listRatePlansByProvider(providerId)
+}
+
+export async function resolveRatePlanOwnerContext(ratePlanId: string) {
+	const { getRatePlanOwnerContext } = await import(
+		"./application/use-cases/get-rateplan-owner-context"
+	)
+	const { ratePlanOwnerContextRepository } = await import("@/container")
+	return getRatePlanOwnerContext({ repo: ratePlanOwnerContextRepository }, { ratePlanId })
+}
+
+export async function resolveRatePlanPricingContext(params: {
+	providerId: string
+	ratePlanId: string
+}) {
+	const { resolveRatePlanPricingContext } = await import("@/container")
+	return resolveRatePlanPricingContext(params)
+}
+
 export async function ensurePricingCoverageRuntime(params: {
 	variantId: string
 	ratePlanId: string
@@ -60,11 +84,30 @@ export async function ensurePricingCoverageRuntime(params: {
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
 	const { pricingRepository, variantManagementRepository } = await import("@/container")
-	return ensurePricingCoverage(
+	const result = await ensurePricingCoverage(
 		{
 			pricingRepo: pricingRepository,
 			variantRepo: variantManagementRepository,
 		},
 		params
 	)
+	try {
+		const { materializeSearchUnitRange } = await import("@/modules/search/public")
+		await materializeSearchUnitRange({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			from: params.from,
+			to: params.to,
+			currency: "USD",
+		})
+	} catch (error) {
+		console.warn("search_unit_materialization_failed", {
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			from: params.from,
+			to: params.to,
+			message: error instanceof Error ? error.message : String(error),
+		})
+	}
+	return result
 }

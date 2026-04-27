@@ -1,5 +1,6 @@
 ---
 const { offers, searchState, productId, amenities, hotelRoom, productFallbackImage } = Astro.props
+import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import { Bath, BedDouble, User } from "@lucide/astro"
 import DatesModal from "./DatesModal.astro"
 
@@ -144,7 +145,8 @@ const variants = (offers ?? []).map((room: any) => ({
 		{
 			(offers ?? []).map((room: any) => {
 				const variant = room.variant
-				const entity = hotelRoom?.find((r: any) => r.id === variant.entityId) ?? {}
+				const variantRef = resolveVariantRef(variant)
+				const entity = hotelRoom?.find((r: any) => r.id === variantRef) ?? {}
 				const ratePlans = room.ratePlans ?? []
 				const variantImages = Array.isArray(room?.variantImages) ? room.variantImages : []
 				const primaryVariantImage =

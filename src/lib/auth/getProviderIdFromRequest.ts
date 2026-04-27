@@ -21,8 +21,9 @@ export async function getProviderIdFromRequest(
 
 	if (sessionCacheKey) {
 		try {
-			const cachedProviderId = await persistentCache.get<string>(sessionCacheKey)
-			if (cachedProviderId) {
+			const cachedProviderId = await persistentCache.get(sessionCacheKey)
+			const cachedProviderIdString = typeof cachedProviderId === "string" ? cachedProviderId : null
+			if (cachedProviderIdString) {
 				console.debug("cache", {
 					key: sessionCacheKey,
 					hit: true,
@@ -35,7 +36,7 @@ export async function getProviderIdFromRequest(
 						userId: user.id,
 					})
 				)
-				return cachedProviderId
+				return cachedProviderIdString
 			}
 			console.debug("cache", {
 				key: sessionCacheKey,
