@@ -29,6 +29,8 @@ function mapPrimaryBlockerToReasonCode(primaryBlocker: string | null | undefined
 	if (value === "NO_INVENTORY" || value === "NO_CAPACITY" || value === "CLOSED")
 		return ReasonCode.NO_INVENTORY
 	if (value === "STALE_VIEW") return ReasonCode.STALE_VIEW
+	if (value === "MISSING_COVERAGE" || value === "PARTIAL_COVERAGE" || value === "FRESH_VIEW")
+		return ReasonCode.MISSING_COVERAGE
 	if (value.includes("POLICY")) return ReasonCode.POLICY_BLOCKED
 	return ReasonCode.MISSING_COVERAGE
 }

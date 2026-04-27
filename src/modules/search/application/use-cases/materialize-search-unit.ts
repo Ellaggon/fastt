@@ -8,6 +8,14 @@ import {
 } from "@/modules/policies/public"
 import { searchReadModelRepository } from "@/container/search-read-model.container"
 import { buildOccupancyKey } from "../../domain/occupancy-key"
+export {
+	SEARCH_VIEW_REASON_CODES,
+	SEARCH_VIEW_SLA,
+	evaluateSearchViewState,
+	type SearchViewReasonCode,
+	type SearchViewStateEvaluation,
+	type EvaluateSearchViewStateInput,
+} from "./search-view-governance"
 
 const materializeSearchUnitSchema = z.object({
 	variantId: z.string().min(1),
