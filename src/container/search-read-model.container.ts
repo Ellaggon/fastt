@@ -57,6 +57,28 @@ export type SearchUnitViewUpsertRow = {
 	sourceVersion: string
 }
 
+export type SearchUnitViewStoredRow = {
+	variantId: string
+	ratePlanId: string
+	date: string
+	occupancyKey: string
+	totalGuests: number
+	hasAvailability: boolean
+	hasPrice: boolean
+	isSellable: boolean
+	isAvailable: boolean
+	availableUnits: number
+	stopSell: boolean
+	pricePerNight: number | null
+	currency: string
+	primaryBlocker: string | null
+	minStay: number | null
+	cta: boolean
+	ctd: boolean
+	computedAt: string
+	sourceVersion: string
+}
+
 export const searchReadModelRepository = {
 	async purgeStaleSearchUnitRows(cutoff: Date): Promise<number> {
 		const result = await db
@@ -280,5 +302,67 @@ export const searchReadModelRepository = {
 				},
 			})
 			.run()
+	},
+
+	async getSearchUnitViewRow(params: {
+		variantId: string
+		ratePlanId: string
+		date: string
+		occupancyKey: string
+	}): Promise<SearchUnitViewStoredRow | null> {
+		const row = await db
+			.select({
+				variantId: SearchUnitView.variantId,
+				ratePlanId: SearchUnitView.ratePlanId,
+				date: SearchUnitView.date,
+				occupancyKey: SearchUnitView.occupancyKey,
+				totalGuests: SearchUnitView.totalGuests,
+				hasAvailability: SearchUnitView.hasAvailability,
+				hasPrice: SearchUnitView.hasPrice,
+				isSellable: SearchUnitView.isSellable,
+				isAvailable: SearchUnitView.isAvailable,
+				availableUnits: SearchUnitView.availableUnits,
+				stopSell: SearchUnitView.stopSell,
+				pricePerNight: SearchUnitView.pricePerNight,
+				currency: SearchUnitView.currency,
+				primaryBlocker: SearchUnitView.primaryBlocker,
+				minStay: SearchUnitView.minStay,
+				cta: SearchUnitView.cta,
+				ctd: SearchUnitView.ctd,
+				computedAt: SearchUnitView.computedAt,
+				sourceVersion: SearchUnitView.sourceVersion,
+			})
+			.from(SearchUnitView)
+			.where(
+				and(
+					eq(SearchUnitView.variantId, params.variantId),
+					eq(SearchUnitView.ratePlanId, params.ratePlanId),
+					eq(SearchUnitView.date, params.date),
+					eq(SearchUnitView.occupancyKey, params.occupancyKey)
+				)
+			)
+			.get()
+		if (!row) return null
+		return {
+			variantId: String(row.variantId),
+			ratePlanId: String(row.ratePlanId),
+			date: String(row.date),
+			occupancyKey: String(row.occupancyKey),
+			totalGuests: Number(row.totalGuests ?? 0),
+			hasAvailability: Boolean(row.hasAvailability),
+			hasPrice: Boolean(row.hasPrice),
+			isSellable: Boolean(row.isSellable),
+			isAvailable: Boolean(row.isAvailable),
+			availableUnits: Number(row.availableUnits ?? 0),
+			stopSell: Boolean(row.stopSell),
+			pricePerNight: row.pricePerNight == null ? null : Number(row.pricePerNight),
+			currency: String(row.currency ?? "USD"),
+			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
+			minStay: row.minStay == null ? null : Number(row.minStay),
+			cta: Boolean(row.cta),
+			ctd: Boolean(row.ctd),
+			computedAt: new Date(row.computedAt).toISOString(),
+			sourceVersion: String(row.sourceVersion ?? ""),
+		}
 	},
 }

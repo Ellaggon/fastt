@@ -16,6 +16,7 @@ export {
 	type SearchViewStateEvaluation,
 	type EvaluateSearchViewStateInput,
 } from "./search-view-governance"
+import { SEARCH_VIEW_REASON_CODES, evaluateSearchViewState } from "./search-view-governance"
 
 const materializeSearchUnitSchema = z.object({
 	variantId: z.string().min(1),
@@ -39,7 +40,17 @@ type MaterializeSearchUnitRangeInput = z.infer<typeof materializeSearchUnitRange
 const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
 
 function parseDateOnly(value: string): Date {
-	return new Date(`${value}T00:00:00.000Z`)
+	const raw = String(value ?? "").trim()
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+	if (!match) throw new Error(`INVALID_DATE_ONLY:${raw}`)
+	const year = Number(match[1])
+	const month = Number(match[2])
+	const day = Number(match[3])
+	const parsed = new Date(Date.UTC(year, month - 1, day))
+	if (toISODateOnly(parsed) !== raw) {
+		throw new Error(`INVALID_DATE_ONLY:${raw}`)
+	}
+	return parsed
 }
 
 function toISODateOnly(value: Date): string {
@@ -47,9 +58,12 @@ function toISODateOnly(value: Date): string {
 }
 
 function enumerateDates(from: string, to: string): string[] {
+	const normalizedFrom = toISODateOnly(parseDateOnly(from))
+	const normalizedTo = toISODateOnly(parseDateOnly(to))
 	const out: string[] = []
-	const cursor = parseDateOnly(from)
-	const end = parseDateOnly(to)
+	const cursor = parseDateOnly(normalizedFrom)
+	const end = parseDateOnly(normalizedTo)
+	if (cursor >= end) return out
 	while (cursor < end) {
 		out.push(toISODateOnly(cursor))
 		cursor.setUTCDate(cursor.getUTCDate() + 1)
@@ -66,10 +80,66 @@ function stableId(params: {
 	return `suv_${params.variantId}_${params.ratePlanId}_${params.date}_${params.occupancyKey}`
 }
 
+function hasGapReason(blocker: string | null): boolean {
+	return (
+		blocker === SEARCH_VIEW_REASON_CODES.MISSING_COVERAGE ||
+		blocker === SEARCH_VIEW_REASON_CODES.PARTIAL_COVERAGE
+	)
+}
+
+function hasMaterializationDrift(params: {
+	existing: Awaited<ReturnType<(typeof searchReadModelRepository)["getSearchUnitViewRow"]>>
+	candidate: {
+		variantId: string
+		ratePlanId: string
+		date: string
+		occupancyKey: string
+		totalGuests: number
+		hasAvailability: boolean
+		hasPrice: boolean
+		isSellable: boolean
+		isAvailable: boolean
+		availableUnits: number
+		stopSell: boolean
+		pricePerNight: number | null
+		currency: string
+		primaryBlocker: string | null
+		minStay: number | null
+		cta: boolean
+		ctd: boolean
+		sourceVersion: string
+	}
+}): boolean {
+	const current = params.existing
+	if (!current) return true
+	const next = params.candidate
+	return (
+		current.variantId !== next.variantId ||
+		current.ratePlanId !== next.ratePlanId ||
+		current.date !== next.date ||
+		current.occupancyKey !== next.occupancyKey ||
+		current.totalGuests !== next.totalGuests ||
+		current.hasAvailability !== next.hasAvailability ||
+		current.hasPrice !== next.hasPrice ||
+		current.isSellable !== next.isSellable ||
+		current.isAvailable !== next.isAvailable ||
+		current.availableUnits !== next.availableUnits ||
+		current.stopSell !== next.stopSell ||
+		(current.pricePerNight ?? null) !== (next.pricePerNight ?? null) ||
+		current.currency !== next.currency ||
+		(current.primaryBlocker ?? null) !== (next.primaryBlocker ?? null) ||
+		(current.minStay ?? null) !== (next.minStay ?? null) ||
+		current.cta !== next.cta ||
+		current.ctd !== next.ctd ||
+		current.sourceVersion !== next.sourceVersion
+	)
+}
+
 export async function materializeSearchUnit(
 	input: MaterializeSearchUnitInput
 ): Promise<{ updated: boolean; isSellable: boolean; blocker: string | null }> {
 	const parsed = materializeSearchUnitSchema.parse(input)
+	const normalizedDate = toISODateOnly(parseDateOnly(parsed.date))
 	const productId = await searchReadModelRepository.resolveProductId(parsed.variantId)
 	if (!productId) {
 		return { updated: false, isSellable: false, blocker: "MISSING_VARIANT" }
@@ -79,7 +149,7 @@ export async function materializeSearchUnit(
 		await searchReadModelRepository.loadMaterializationInputs({
 			variantId: parsed.variantId,
 			ratePlanId: parsed.ratePlanId,
-			date: parsed.date,
+			date: normalizedDate,
 		})
 
 	const hasAvailability = availabilityRow != null
@@ -93,6 +163,7 @@ export async function materializeSearchUnit(
 		restrictionRow?.minStay == null ? null : Math.max(1, Number(restrictionRow.minStay))
 	const cta = Boolean(restrictionRow?.cta ?? false)
 	const ctd = Boolean(restrictionRow?.ctd ?? false)
+	const hasRestriction = restrictionRow != null
 
 	const isSellable = hasAvailability && hasPrice && !stopSell && availableUnits > 0
 	const isAvailable = hasAvailability && !stopSell && availableUnits > 0
@@ -105,12 +176,12 @@ export async function materializeSearchUnit(
 				productId,
 				variantId: parsed.variantId,
 				ratePlanId: parsed.ratePlanId,
-				checkIn: parsed.date,
+				checkIn: normalizedDate,
 				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 				onMissingCategory: "return_null",
 			})
 			const normalized = normalizePolicyResolutionResult(resolvedPolicies, {
-				asOfDate: parsed.date,
+				asOfDate: normalizedDate,
 				warnings: [],
 			}).dto
 			policyBlocked = normalized.missingCategories.length > 0
@@ -118,14 +189,20 @@ export async function materializeSearchUnit(
 			logger.warn("search.materialize.policy_resolution_failed", {
 				variantId: parsed.variantId,
 				ratePlanId: parsed.ratePlanId,
-				date: parsed.date,
+				date: normalizedDate,
 				message: error instanceof Error ? error.message : String(error),
 			})
 		}
 	}
 
+	const viewState = evaluateSearchViewState({
+		totalExpectedRows: 3,
+		coveredRows: Number(hasAvailability) + Number(hasPrice) + Number(hasRestriction),
+		lastMaterializedAt: null,
+	})
+
 	const blocker = !hasAvailability
-		? "UNKNOWN"
+		? SEARCH_VIEW_REASON_CODES.MISSING_COVERAGE
 		: stopSell
 			? "STOP_SELL"
 			: availableUnits <= 0
@@ -144,20 +221,13 @@ export async function materializeSearchUnit(
 	const sourceVersion = await searchReadModelRepository.resolveSourceVersion({
 		variantId: parsed.variantId,
 		ratePlanId: parsed.ratePlanId,
-		date: parsed.date,
+		date: normalizedDate,
 	})
-
-	await searchReadModelRepository.upsertSearchUnitViewRow({
-		id: stableId({
-			variantId: parsed.variantId,
-			ratePlanId: parsed.ratePlanId,
-			date: parsed.date,
-			occupancyKey,
-		}),
+	const candidateRow = {
 		variantId: parsed.variantId,
 		productId,
 		ratePlanId: parsed.ratePlanId,
-		date: parsed.date,
+		date: normalizedDate,
 		occupancyKey,
 		totalGuests: parsed.totalGuests,
 		hasAvailability,
@@ -172,13 +242,36 @@ export async function materializeSearchUnit(
 		minStay,
 		cta,
 		ctd,
-		computedAt: new Date(),
 		sourceVersion,
+	}
+	const existingRow = await searchReadModelRepository.getSearchUnitViewRow({
+		variantId: parsed.variantId,
+		ratePlanId: parsed.ratePlanId,
+		date: normalizedDate,
+		occupancyKey,
+	})
+	if (!hasMaterializationDrift({ existing: existingRow, candidate: candidateRow })) {
+		return {
+			updated: false,
+			isSellable: candidateRow.isSellable,
+			blocker,
+		}
+	}
+
+	await searchReadModelRepository.upsertSearchUnitViewRow({
+		id: stableId({
+			variantId: parsed.variantId,
+			ratePlanId: parsed.ratePlanId,
+			date: normalizedDate,
+			occupancyKey,
+		}),
+		...candidateRow,
+		computedAt: new Date(),
 	})
 
 	return {
 		updated: true,
-		isSellable,
+		isSellable: candidateRow.isSellable,
 		blocker,
 	}
 }
@@ -187,50 +280,73 @@ export async function materializeSearchUnitRange(
 	input: MaterializeSearchUnitRangeInput
 ): Promise<{ rows: number; variantId: string; from: string; to: string }> {
 	const parsed = materializeSearchUnitRangeSchema.parse(input)
+	const normalizedFrom = toISODateOnly(parseDateOnly(parsed.from))
+	const normalizedTo = toISODateOnly(parseDateOnly(parsed.to))
 	const dates = enumerateDates(parsed.from, parsed.to)
 	if (dates.length === 0) {
-		return { rows: 0, variantId: parsed.variantId, from: parsed.from, to: parsed.to }
+		return { rows: 0, variantId: parsed.variantId, from: normalizedFrom, to: normalizedTo }
 	}
 
 	const ratePlanIds = parsed.ratePlanId
 		? [parsed.ratePlanId]
 		: await searchReadModelRepository.resolveDefaultRatePlanIds(parsed.variantId)
-	if (!ratePlanIds.length) {
+	const normalizedRatePlanIds = [
+		...new Set(ratePlanIds.map((id) => String(id).trim()).filter(Boolean)),
+	].sort((a, b) => a.localeCompare(b))
+	if (!normalizedRatePlanIds.length) {
 		logger.warn("search_unit_view_materialization_skipped", {
 			variantId: parsed.variantId,
 			reason: "missing_default_rateplan",
-			from: parsed.from,
-			to: parsed.to,
+			from: normalizedFrom,
+			to: normalizedTo,
 		})
-		return { rows: 0, variantId: parsed.variantId, from: parsed.from, to: parsed.to }
+		return { rows: 0, variantId: parsed.variantId, from: normalizedFrom, to: normalizedTo }
 	}
 
-	const guestRange = await searchReadModelRepository.resolveGuestRange(parsed.variantId)
+	const guestRange = [
+		...new Set(await searchReadModelRepository.resolveGuestRange(parsed.variantId)),
+	]
+		.map((value) => Number(value))
+		.filter((value) => Number.isInteger(value) && value > 0)
+		.sort((a, b) => a - b)
 	let rows = 0
-	for (const ratePlanId of ratePlanIds) {
+	let coveredRows = 0
+	let gapRows = 0
+	for (const ratePlanId of normalizedRatePlanIds) {
 		for (const date of dates) {
 			for (const totalGuests of guestRange) {
-				await materializeSearchUnit({
+				const result = await materializeSearchUnit({
 					variantId: parsed.variantId,
 					ratePlanId,
 					date,
 					totalGuests,
 					currency: parsed.currency,
 				})
+				if (hasGapReason(result.blocker)) gapRows += 1
+				else coveredRows += 1
 				rows += 1
 			}
 		}
 	}
+	const rangeState = evaluateSearchViewState({
+		totalExpectedRows: rows,
+		coveredRows,
+		lastMaterializedAt: null,
+	})
 
 	logger.info("search_unit_view_materialized_range", {
 		variantId: parsed.variantId,
-		ratePlanIds,
-		from: parsed.from,
-		to: parsed.to,
+		ratePlanIds: normalizedRatePlanIds,
+		from: normalizedFrom,
+		to: normalizedTo,
 		rows,
+		coveredRows,
+		gapRows,
+		coverageRatio: rangeState.coverageRatio,
+		coverageReasons: rangeState.reasonCodes,
 	})
 
-	return { rows, variantId: parsed.variantId, from: parsed.from, to: parsed.to }
+	return { rows, variantId: parsed.variantId, from: normalizedFrom, to: normalizedTo }
 }
 
 export async function purgeStaleSearchUnitRows(params?: {
