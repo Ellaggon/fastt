@@ -55,6 +55,15 @@ function isGapBlocker(value: string | null): boolean {
 	)
 }
 
+function isInputError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false
+	return (
+		error.message.startsWith("INVALID_DATE_ONLY:") ||
+		error.message.startsWith("INVALID_RANGE") ||
+		error.message.startsWith("INVALID_NOW")
+	)
+}
+
 export const GET: APIRoute = async ({ url }) => {
 	try {
 		const rawFrom = url.searchParams.get("from")
@@ -211,12 +220,13 @@ export const GET: APIRoute = async ({ url }) => {
 			{ status: 200, headers: { "Content-Type": "application/json" } }
 		)
 	} catch (error) {
+		const status = isInputError(error) ? 400 : 500
 		return new Response(
 			JSON.stringify({
 				ok: false,
 				error: error instanceof Error ? error.message : "internal_error",
 			}),
-			{ status: 500, headers: { "Content-Type": "application/json" } }
+			{ status, headers: { "Content-Type": "application/json" } }
 		)
 	}
 }
