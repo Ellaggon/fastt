@@ -8,5 +8,8 @@
   ],
   "[astro]": {
     "editor.defaultFormatter": "astro-build.astro-vscode"
-  }
+  },
+  // Keep IDE diagnostics aligned with CI/runtime TypeScript version.
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true
 }

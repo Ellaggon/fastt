@@ -19,7 +19,7 @@ Aplicacion SSR en Astro para una plataforma tipo OTA (tours/hoteles) con panel d
 
 ## Requisitos
 
-- Node recomendado `v18.20.2` (ver `.nvmrc`)
+- Node recomendado `v22.12.0` (ver `.nvmrc`)
 - Variables de entorno (ver `.env.example`). No commitear `.env` (ya esta en `.gitignore`).
 
 ## Desarrollo
