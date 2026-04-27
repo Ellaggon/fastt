@@ -9,6 +9,7 @@ const { repoMock } = vi.hoisted(() => ({
 		upsertSearchUnitViewRow: vi.fn(),
 		resolveDefaultRatePlanIds: vi.fn(),
 		resolveGuestRange: vi.fn(),
+		purgeStaleSearchUnitRows: vi.fn(),
 	},
 }))
 
@@ -26,6 +27,7 @@ vi.mock("@/modules/policies/public", () => ({
 }))
 
 import {
+	configureSearchUnitMaterializationRepository,
 	materializeSearchUnit,
 	materializeSearchUnitRange,
 } from "@/modules/search/application/use-cases/materialize-search-unit"
@@ -33,6 +35,7 @@ import {
 describe("materialize search unit governance hardening", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		configureSearchUnitMaterializationRepository(repoMock)
 		repoMock.resolveProductId.mockResolvedValue("prod-1")
 		repoMock.loadMaterializationInputs.mockResolvedValue({
 			availabilityRow: { stopSell: false, availableUnits: 2 },
@@ -44,6 +47,7 @@ describe("materialize search unit governance hardening", () => {
 		repoMock.upsertSearchUnitViewRow.mockResolvedValue(undefined)
 		repoMock.resolveDefaultRatePlanIds.mockResolvedValue(["rp-b", "rp-a", "rp-a"])
 		repoMock.resolveGuestRange.mockResolvedValue([2, 1, 2])
+		repoMock.purgeStaleSearchUnitRows.mockResolvedValue(0)
 	})
 
 	it("is idempotent across repeated executions with unchanged sourceVersion", async () => {

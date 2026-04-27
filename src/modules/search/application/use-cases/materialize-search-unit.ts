@@ -6,8 +6,8 @@ import {
 	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { searchReadModelRepository } from "@/container/search-read-model.container"
 import { buildOccupancyKey } from "../../domain/occupancy-key"
+import type { SearchUnitMaterializationRepositoryPort } from "../ports/SearchUnitMaterializationRepositoryPort"
 export {
 	SEARCH_VIEW_REASON_CODES,
 	SEARCH_VIEW_SLA,
@@ -38,6 +38,21 @@ type MaterializeSearchUnitInput = z.infer<typeof materializeSearchUnitSchema>
 type MaterializeSearchUnitRangeInput = z.infer<typeof materializeSearchUnitRangeSchema>
 
 const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
+
+let searchUnitMaterializationRepository: SearchUnitMaterializationRepositoryPort | null = null
+
+export function configureSearchUnitMaterializationRepository(
+	repository: SearchUnitMaterializationRepositoryPort
+): void {
+	searchUnitMaterializationRepository = repository
+}
+
+function resolveRepository(): SearchUnitMaterializationRepositoryPort {
+	if (!searchUnitMaterializationRepository) {
+		throw new Error("SEARCH_UNIT_MATERIALIZATION_REPOSITORY_NOT_CONFIGURED")
+	}
+	return searchUnitMaterializationRepository
+}
 
 function parseDateOnly(value: string): Date {
 	const raw = String(value ?? "").trim()
@@ -88,7 +103,7 @@ function hasGapReason(blocker: string | null): boolean {
 }
 
 function hasMaterializationDrift(params: {
-	existing: Awaited<ReturnType<(typeof searchReadModelRepository)["getSearchUnitViewRow"]>>
+	existing: Awaited<ReturnType<SearchUnitMaterializationRepositoryPort["getSearchUnitViewRow"]>>
 	candidate: {
 		variantId: string
 		ratePlanId: string
@@ -138,15 +153,16 @@ function hasMaterializationDrift(params: {
 export async function materializeSearchUnit(
 	input: MaterializeSearchUnitInput
 ): Promise<{ updated: boolean; isSellable: boolean; blocker: string | null }> {
+	const repository = resolveRepository()
 	const parsed = materializeSearchUnitSchema.parse(input)
 	const normalizedDate = toISODateOnly(parseDateOnly(parsed.date))
-	const productId = await searchReadModelRepository.resolveProductId(parsed.variantId)
+	const productId = await repository.resolveProductId(parsed.variantId)
 	if (!productId) {
 		return { updated: false, isSellable: false, blocker: "MISSING_VARIANT" }
 	}
 
 	const { availabilityRow, pricingRow, restrictionRow } =
-		await searchReadModelRepository.loadMaterializationInputs({
+		await repository.loadMaterializationInputs({
 			variantId: parsed.variantId,
 			ratePlanId: parsed.ratePlanId,
 			date: normalizedDate,
@@ -195,12 +211,6 @@ export async function materializeSearchUnit(
 		}
 	}
 
-	const viewState = evaluateSearchViewState({
-		totalExpectedRows: 3,
-		coveredRows: Number(hasAvailability) + Number(hasPrice) + Number(hasRestriction),
-		lastMaterializedAt: null,
-	})
-
 	const blocker = !hasAvailability
 		? SEARCH_VIEW_REASON_CODES.MISSING_COVERAGE
 		: stopSell
@@ -218,7 +228,7 @@ export async function materializeSearchUnit(
 		children: 0,
 		totalGuests: parsed.totalGuests,
 	})
-	const sourceVersion = await searchReadModelRepository.resolveSourceVersion({
+	const sourceVersion = await repository.resolveSourceVersion({
 		variantId: parsed.variantId,
 		ratePlanId: parsed.ratePlanId,
 		date: normalizedDate,
@@ -244,7 +254,7 @@ export async function materializeSearchUnit(
 		ctd,
 		sourceVersion,
 	}
-	const existingRow = await searchReadModelRepository.getSearchUnitViewRow({
+	const existingRow = await repository.getSearchUnitViewRow({
 		variantId: parsed.variantId,
 		ratePlanId: parsed.ratePlanId,
 		date: normalizedDate,
@@ -258,7 +268,7 @@ export async function materializeSearchUnit(
 		}
 	}
 
-	await searchReadModelRepository.upsertSearchUnitViewRow({
+	await repository.upsertSearchUnitViewRow({
 		id: stableId({
 			variantId: parsed.variantId,
 			ratePlanId: parsed.ratePlanId,
@@ -279,6 +289,7 @@ export async function materializeSearchUnit(
 export async function materializeSearchUnitRange(
 	input: MaterializeSearchUnitRangeInput
 ): Promise<{ rows: number; variantId: string; from: string; to: string }> {
+	const repository = resolveRepository()
 	const parsed = materializeSearchUnitRangeSchema.parse(input)
 	const normalizedFrom = toISODateOnly(parseDateOnly(parsed.from))
 	const normalizedTo = toISODateOnly(parseDateOnly(parsed.to))
@@ -289,7 +300,7 @@ export async function materializeSearchUnitRange(
 
 	const ratePlanIds = parsed.ratePlanId
 		? [parsed.ratePlanId]
-		: await searchReadModelRepository.resolveDefaultRatePlanIds(parsed.variantId)
+		: await repository.resolveDefaultRatePlanIds(parsed.variantId)
 	const normalizedRatePlanIds = [
 		...new Set(ratePlanIds.map((id) => String(id).trim()).filter(Boolean)),
 	].sort((a, b) => a.localeCompare(b))
@@ -303,9 +314,7 @@ export async function materializeSearchUnitRange(
 		return { rows: 0, variantId: parsed.variantId, from: normalizedFrom, to: normalizedTo }
 	}
 
-	const guestRange = [
-		...new Set(await searchReadModelRepository.resolveGuestRange(parsed.variantId)),
-	]
+	const guestRange = [...new Set(await repository.resolveGuestRange(parsed.variantId))]
 		.map((value) => Number(value))
 		.filter((value) => Number.isInteger(value) && value > 0)
 		.sort((a, b) => a - b)
@@ -352,9 +361,10 @@ export async function materializeSearchUnitRange(
 export async function purgeStaleSearchUnitRows(params?: {
 	maxAgeMinutes?: number
 }): Promise<{ removed: number; maxAgeMinutes: number }> {
+	const repository = resolveRepository()
 	const maxAgeMinutes = Math.max(1, Number(params?.maxAgeMinutes ?? 30))
 	const cutoff = new Date(Date.now() - maxAgeMinutes * 60_000)
-	const removed = await searchReadModelRepository.purgeStaleSearchUnitRows(cutoff)
+	const removed = await repository.purgeStaleSearchUnitRows(cutoff)
 	logger.info("search_unit_view_purged_stale_rows", {
 		removed,
 		maxAgeMinutes,

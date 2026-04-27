@@ -2,6 +2,8 @@
 // External consumers MUST import from "@/modules/search/public".
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
+import "./infrastructure/wiring/configure-search-unit-materialization"
+
 // Domain types
 export * from "./domain/unit.types"
 export * from "./domain/pricing.types"
