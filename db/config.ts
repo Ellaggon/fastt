@@ -790,6 +790,18 @@ const ProviderPayoutBooking = defineTable({
 	},
 })
 
+const FinancialShadowRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		type: column.text(), // payment_intent | settlement_record
+		payload: column.json(),
+		idempotencyKey: column.text({ unique: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["bookingId", "type"] }],
+})
+
 export default defineDb({
 	tables: {
 		// 1 master
@@ -866,5 +878,6 @@ export default defineDb({
 		Payment,
 		ProviderPayout,
 		ProviderPayoutBooking,
+		FinancialShadowRecord,
 	},
 })
