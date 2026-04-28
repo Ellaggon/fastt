@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
-import { and, Booking, db, eq, InventoryLock, Product, sql } from "astro:db"
+import { and, Booking, BookingRoomDetail, db, eq, InventoryLock, Product, sql } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
@@ -8,6 +8,10 @@ import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
 import { applyInventoryMutation } from "@/modules/inventory/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
+import {
+	financialRepository,
+	registerFinancialShadowWriteUseCase,
+} from "@/container/financial.container"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
 import { getFeatureFlags } from "@/config/featureFlags"
@@ -156,6 +160,122 @@ export const POST: APIRoute = async ({ request }) => {
 			await invalidateProvider(providerId)
 		}
 		await invalidateBooking(result.bookingId, providerId)
+
+		if (flags.FINANCIAL_SHADOW_WRITE) {
+			const baseShadowKey = `financial_shadow:booking_confirm:${result.bookingId}`
+			const paymentIntentKey = `financial_shadow:booking_confirm:payment:${result.bookingId}`
+			const settlementKey = `financial_shadow:booking_confirm:settlement:${result.bookingId}`
+			try {
+				const bookingAmounts = await db
+					.select({
+						currency: Booking.currency,
+						totalAmountUSD: Booking.totalAmountUSD,
+						totalAmountBOB: Booking.totalAmountBOB,
+					})
+					.from(Booking)
+					.where(eq(Booking.id, result.bookingId))
+					.get()
+				const bookingDetail = await db
+					.select({
+						basePrice: BookingRoomDetail.basePrice,
+						taxes: BookingRoomDetail.taxes,
+						totalPrice: BookingRoomDetail.totalPrice,
+					})
+					.from(BookingRoomDetail)
+					.where(eq(BookingRoomDetail.bookingId, result.bookingId))
+					.get()
+
+				const currency = String(bookingAmounts?.currency ?? "USD").trim() || "USD"
+				const baseTotal = Number(bookingDetail?.basePrice ?? 0)
+				const taxesTotal = Number(bookingDetail?.taxes ?? 0)
+				const fallbackFinal =
+					currency === "BOB"
+						? Number(bookingAmounts?.totalAmountBOB ?? 0)
+						: Number(bookingAmounts?.totalAmountUSD ?? 0)
+				const finalTotal = Number(bookingDetail?.totalPrice ?? fallbackFinal)
+
+				if (!providerId) {
+					incrementCounter("financial.shadow_write.failed", { source: "booking_confirm" }, 1)
+					logger.warn("financial.shadow_write.skipped_missing_provider", {
+						bookingId: result.bookingId,
+						idempotencyKey: baseShadowKey,
+						status: "failed",
+						finalTotal,
+						currency,
+					})
+				} else {
+					const shadowPayload = await registerFinancialShadowWriteUseCase({
+						bookingId: result.bookingId,
+						providerId,
+						grossAmount: finalTotal,
+						netAmount: finalTotal,
+						commissionAmount: 0,
+						currency,
+						source: "booking_confirm",
+						idempotencyKey: paymentIntentKey,
+						metadata: {
+							baseTotal,
+							taxesTotal,
+							finalTotal,
+						},
+					})
+
+					const paymentSaveResult =
+						await financialRepository.savePaymentIntentIfAbsentByIdempotencyKey({
+							idempotencyKey: paymentIntentKey,
+							record: {
+								...shadowPayload.paymentIntent,
+								idempotencyKey: paymentIntentKey,
+							},
+						})
+					const settlementSaveResult =
+						await financialRepository.saveSettlementRecordIfAbsentByIdempotencyKey({
+							idempotencyKey: settlementKey,
+							record: {
+								...shadowPayload.settlementRecord,
+								idempotencyKey: settlementKey,
+							},
+						})
+
+					const deduped =
+						paymentSaveResult === "already_exists" || settlementSaveResult === "already_exists"
+					if (deduped) {
+						incrementCounter("financial.shadow_write.deduped", { source: "booking_confirm" }, 1)
+						logger.debug("financial.shadow_write.deduped", {
+							bookingId: result.bookingId,
+							idempotencyKey: baseShadowKey,
+							paymentIntentKey,
+							settlementKey,
+							status: "deduped",
+							paymentSaveResult,
+							settlementSaveResult,
+						})
+					} else {
+						incrementCounter("financial.shadow_write.created", { source: "booking_confirm" }, 1)
+						logger.info("financial.shadow_write.created", {
+							bookingId: result.bookingId,
+							idempotencyKey: baseShadowKey,
+							paymentIntentKey,
+							settlementKey,
+							status: "created",
+							paymentSaveResult,
+							settlementSaveResult,
+						})
+					}
+				}
+			} catch (financialError) {
+				incrementCounter("financial.shadow_write.failed", { source: "booking_confirm" }, 1)
+				logger.error("financial.shadow_write.failed", {
+					bookingId: result.bookingId,
+					idempotencyKey: baseShadowKey,
+					paymentIntentKey,
+					settlementKey,
+					status: "failed",
+					message:
+						financialError instanceof Error ? financialError.message : String(financialError),
+				})
+			}
+		}
 
 		logger.info("booking.confirm", {
 			holdId: parsed.holdId,
