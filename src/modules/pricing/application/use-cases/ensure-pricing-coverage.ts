@@ -195,6 +195,7 @@ export async function ensurePricingCoverage(
 		})
 		await recomputeEffectivePricingV2Range(
 			{
+				getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
 				getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
 					deps.pricingV2Repo
 				),
