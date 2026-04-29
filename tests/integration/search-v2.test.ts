@@ -4,6 +4,7 @@ import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
 import { db, EffectiveAvailability, EffectivePricing } from "astro:db"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 
 import {
 	upsertDestination,
@@ -136,13 +137,23 @@ async function seedHotelVariant(params: {
 			})
 	}
 
+	const checkOut = new Date(new Date(`${params.date}T00:00:00.000Z`).getTime() + 86400000 * 2)
+		.toISOString()
+		.slice(0, 10)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: params.date,
+			checkOut,
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
 		from: params.date,
-		to: new Date(new Date(`${params.date}T00:00:00.000Z`).getTime() + 86400000 * 2)
-			.toISOString()
-			.slice(0, 10),
+		to: checkOut,
 		currency: "USD",
 	})
 }

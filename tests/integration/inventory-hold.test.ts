@@ -22,6 +22,7 @@ import {
 } from "@/modules/inventory/public"
 import { inventoryHoldRepository } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
@@ -191,6 +192,15 @@ async function refreshSearchView(params: {
 	from: string
 	to: string
 }) {
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: params.from,
+			checkOut: params.to,
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await recomputeEffectiveAvailabilityRange({
 		variantId: params.variantId,
 		from: params.from,

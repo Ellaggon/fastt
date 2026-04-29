@@ -3,6 +3,7 @@ import { and, db, eq, EffectiveAvailability, EffectivePricing, SearchUnitView } 
 
 import { searchOffers } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import {
 	upsertDestination,
@@ -174,6 +175,15 @@ describe("integration/search policy blocker", () => {
 					},
 				})
 
+			for (const adults of [1, 2]) {
+				await ensurePricingCoverageForRequestRuntime({
+					variantId,
+					ratePlanId,
+					checkIn: date,
+					checkOut: checkout,
+					occupancy: { adults, children: 0, infants: 0 },
+				})
+			}
 			await materializeSearchUnitRange({
 				variantId,
 				ratePlanId,

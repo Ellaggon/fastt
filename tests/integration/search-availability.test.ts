@@ -14,6 +14,7 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 
 import {
 	db,
@@ -259,6 +260,15 @@ async function seedSearchableVariant(params: {
 	const extraDays = params.materializeCheckoutDay === false ? 1 : 2
 	// inventoryDates are stay nights ([from, checkOut)); optional extra day simulates checkout materialization.
 	to.setUTCDate(to.getUTCDate() + extraDays)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: from,
+			checkOut: to.toISOString().slice(0, 10),
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
@@ -498,6 +508,24 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 				},
 			})
 
+		for (const adults of [1, 2]) {
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId,
+				checkIn: "2026-03-10",
+				checkOut: "2026-03-14",
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+		}
+		for (const adults of [1, 2]) {
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId,
+				checkIn: "2026-03-10",
+				checkOut: "2026-03-12",
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+		}
 		await materializeSearchUnitRange({
 			variantId,
 			ratePlanId,
