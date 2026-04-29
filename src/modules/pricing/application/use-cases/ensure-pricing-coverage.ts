@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
+import { recomputeEffectivePricingV2Range } from "./recompute-effective-pricing-v2"
 
 type VariantRepoForCoverage = {
 	getBaseRate(
@@ -13,6 +14,7 @@ type VariantRepoForCoverage = {
 			id: string
 			type: string
 			value: number
+			occupancyKey?: string | null
 			priority: number
 			dateRange?: { from?: string | null; to?: string | null } | null
 			dayOfWeek?: number[] | null
@@ -34,6 +36,59 @@ export type EnsurePricingCoverageInput = z.infer<typeof ensurePricingCoverageSch
 type EnsurePricingCoverageDeps = {
 	pricingRepo: PricingRepositoryPort
 	variantRepo: VariantRepoForCoverage
+	pricingV2Repo?: {
+		getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
+			baseAmount: number
+			baseCurrency: string
+		} | null>
+		getActiveOccupancyPolicy(params: { ratePlanId: string; date: string }): Promise<{
+			baseAdults: number
+			baseChildren: number
+			extraAdultMode: "fixed" | "percentage"
+			extraAdultValue: number
+			childMode: "fixed" | "percentage"
+			childValue: number
+			currency: string
+		} | null>
+		getLegacyEffectivePricingBase(params: {
+			variantId: string
+			ratePlanId: string
+			date: string
+		}): Promise<{ basePrice: number } | null>
+		saveEffectivePricingV2(params: {
+			id: string
+			variantId: string
+			ratePlanId: string
+			date: string
+			occupancyKey: string
+			baseComponent: number
+			occupancyAdjustment: number
+			ruleAdjustment: number
+			finalBasePrice: number
+			currency: string
+			computedAt: Date
+			sourceVersion: string
+		}): Promise<void>
+	}
+}
+
+function buildShadowOccupanciesFromCapacity(input?: {
+	maxOccupancy?: number | null
+	maxAdults?: number | null
+	maxChildren?: number | null
+}): Array<{ adults: number; children: number; infants: number }> {
+	const maxOccupancy = Math.max(1, Number(input?.maxOccupancy ?? 4))
+	const maxAdults = Math.max(1, Number(input?.maxAdults ?? maxOccupancy))
+	const maxChildren = Math.max(0, Number(input?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
+	const out: Array<{ adults: number; children: number; infants: number }> = []
+	for (let adults = 1; adults <= maxAdults; adults += 1) {
+		for (let children = 0; children <= maxChildren; children += 1) {
+			if (adults + children > maxOccupancy) continue
+			out.push({ adults, children, infants: 0 })
+		}
+	}
+	// Safety cap to avoid combinatorial explosion on outlier capacity definitions.
+	return out.slice(0, 20)
 }
 
 export type EnsurePricingCoverageResult = {
@@ -113,6 +168,7 @@ export async function ensurePricingCoverage(
 				id: String(rule.id),
 				type: String(rule.type),
 				value: Number(rule.value),
+				occupancyKey: String(rule.occupancyKey ?? "").trim() || null,
 				priority: Number(rule.priority ?? 10),
 				dateRange: rule.dateRange ?? null,
 				dayOfWeek: rule.dayOfWeek ?? null,
@@ -128,6 +184,33 @@ export async function ensurePricingCoverage(
 			finalBasePrice: Number(evaluated.price),
 		})
 		generatedDatesCount += 1
+	}
+
+	if (deps.pricingV2Repo && targetDates.length > 0) {
+		const capacity = await (deps.variantRepo as any)?.getCapacity?.(parsed.variantId)
+		const shadowOccupancies = buildShadowOccupanciesFromCapacity({
+			maxOccupancy: capacity?.maxOccupancy ?? null,
+			maxAdults: capacity?.maxAdults ?? null,
+			maxChildren: capacity?.maxChildren ?? null,
+		})
+		await recomputeEffectivePricingV2Range(
+			{
+				getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
+					deps.pricingV2Repo
+				),
+				getLegacyEffectivePricingBase: deps.pricingV2Repo.getLegacyEffectivePricingBase.bind(
+					deps.pricingV2Repo
+				),
+				getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
+				saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(deps.pricingV2Repo),
+			},
+			{
+				variantId: parsed.variantId,
+				ratePlanId: parsed.ratePlanId,
+				dates: targetDates,
+				occupancies: shadowOccupancies,
+			}
+		)
 	}
 
 	return {

@@ -24,6 +24,40 @@ type OccupancyPolicyRow = {
 }
 
 export class PricingV2Repository {
+	async getBaseFromPolicy(params: {
+		ratePlanId: string
+		date: string
+		occupancyKey: string
+	}): Promise<{
+		baseAmount: number
+		baseCurrency: string
+	} | null> {
+		void params.occupancyKey
+		if (!RatePlanOccupancyPolicy || !(RatePlanOccupancyPolicy as any).baseAmount) {
+			return null
+		}
+		const row = await db
+			.select({
+				baseAmount: (RatePlanOccupancyPolicy as any).baseAmount,
+				baseCurrency: (RatePlanOccupancyPolicy as any).baseCurrency,
+			})
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, params.ratePlanId),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, new Date(`${params.date}T00:00:00.000Z`)),
+					gte(RatePlanOccupancyPolicy.effectiveTo, new Date(`${params.date}T00:00:00.000Z`))
+				)
+			)
+			.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom))
+			.get()
+		if (!row) return null
+		return {
+			baseAmount: Number((row as any).baseAmount ?? 0),
+			baseCurrency: String((row as any).baseCurrency ?? "USD"),
+		}
+	}
+
 	async getActiveOccupancyPolicy(params: {
 		ratePlanId: string
 		date: string
