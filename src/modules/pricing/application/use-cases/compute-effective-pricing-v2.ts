@@ -67,13 +67,17 @@ export async function computeEffectivePricingV2(
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 	})
+	const policyBase = await deps.getBaseFromPolicy?.({
+		ratePlanId: input.ratePlanId,
+		date: input.date,
+		occupancyKey,
+	})
 	const legacyBase = await deps.getLegacyEffectivePricingBase({
 		variantId: input.variantId,
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 	})
-
-	const base = Math.max(0, Number(legacyBase?.basePrice ?? 0))
+	const base = Math.max(0, Number(policyBase?.baseAmount ?? legacyBase?.basePrice ?? 0))
 	const policyOrDefault: ActivePolicy = policy ?? {
 		baseAdults: 2,
 		baseChildren: 0,
@@ -136,7 +140,7 @@ export async function computeEffectivePricingV2(
 			rules: ruleAdjustment,
 			final,
 		},
-		currency: String(policyOrDefault.currency ?? "USD") || "USD",
+		currency: String(policyBase?.baseCurrency ?? policyOrDefault.currency ?? "USD") || "USD",
 		sourceVersion,
 	}
 }
