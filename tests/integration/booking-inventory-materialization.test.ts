@@ -21,6 +21,7 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -201,6 +202,15 @@ async function seedBookingReadyVariant(params: {
 
 	const from = params.dates[0]
 	const to = addDays(params.dates[params.dates.length - 1], 1)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: from,
+			checkOut: to,
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await recomputeEffectiveAvailabilityRange({
 		variantId: params.variantId,
 		from,

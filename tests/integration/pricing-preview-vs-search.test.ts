@@ -15,6 +15,7 @@ import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/co
 import { db, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -187,6 +188,13 @@ describe("integration/pricing preview vs search parity", () => {
 			sourceVersion: "test",
 		} as any)
 
+		await ensurePricingCoverageForRequestRuntime({
+			variantId,
+			ratePlanId,
+			checkIn: "2026-03-10",
+			checkOut: "2026-03-12",
+			occupancy: { adults: 2, children: 0, infants: 0 },
+		})
 		await materializeSearchUnitRange({
 			variantId,
 			ratePlanId,

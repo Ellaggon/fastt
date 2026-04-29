@@ -37,6 +37,7 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -552,6 +553,22 @@ describe("integration/hold policy snapshot", () => {
 			idempotencyKey: `test_hold_policy_snapshot:${variantId}:${checkIn}:${checkOut}`,
 		})
 
+		for (const adults of [1, 2]) {
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId: ratePlanIdA,
+				checkIn,
+				checkOut: addDays(checkOut, 1),
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId: ratePlanIdB,
+				checkIn,
+				checkOut: addDays(checkOut, 1),
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+		}
 		await materializeSearchUnitRange({
 			variantId,
 			ratePlanId: ratePlanIdA,
