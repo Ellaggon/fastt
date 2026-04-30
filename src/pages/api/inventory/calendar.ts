@@ -1,10 +1,11 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { and, db, EffectiveAvailability, EffectivePricing, eq, gte, lt, RatePlan } from "astro:db"
+import { and, db, EffectiveAvailability, EffectivePricingV2, eq, gte, lt, RatePlan } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { productRepository, variantManagementRepository } from "@/container"
+import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -125,18 +126,20 @@ export const GET: APIRoute = async ({ request }) => {
 			)
 			.all()
 
+		const defaultOccupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		const pricingRows = sortedDefaultPlan
 			? await db
 					.select({
-						date: EffectivePricing.date,
+						date: EffectivePricingV2.date,
 					})
-					.from(EffectivePricing)
+					.from(EffectivePricingV2)
 					.where(
 						and(
-							eq(EffectivePricing.variantId, parsed.variantId),
-							eq(EffectivePricing.ratePlanId, String(sortedDefaultPlan.id)),
-							gte(EffectivePricing.date, parsed.startDate),
-							lt(EffectivePricing.date, parsed.endDate)
+							eq(EffectivePricingV2.variantId, parsed.variantId),
+							eq(EffectivePricingV2.ratePlanId, String(sortedDefaultPlan.id)),
+							eq(EffectivePricingV2.occupancyKey, defaultOccupancyKey),
+							gte(EffectivePricingV2.date, parsed.startDate),
+							lt(EffectivePricingV2.date, parsed.endDate)
 						)
 					)
 					.all()
