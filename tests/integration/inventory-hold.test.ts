@@ -4,7 +4,7 @@ import {
 	db,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	InventoryLock,
 	RatePlan,
 	RatePlanTemplate,
@@ -25,6 +25,7 @@ import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -173,15 +174,19 @@ async function seedVariantWithInventory(params: {
 			reservedCount: 0,
 			createdAt: new Date(),
 		} as any)
-		await db.insert(EffectivePricing).values({
+		await db.insert(EffectivePricingV2).values({
 			id: `ep_hold_${crypto.randomUUID()}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,
 			date: d,
-			basePrice: 100,
-			yieldMultiplier: 1,
+			occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+			baseComponent: 100,
+			occupancyAdjustment: 0,
+			ruleAdjustment: 0,
 			finalBasePrice: 100,
+			currency: "USD",
 			computedAt: new Date(),
+			sourceVersion: "test",
 		} as any)
 	}
 }

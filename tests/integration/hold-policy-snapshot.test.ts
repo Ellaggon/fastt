@@ -4,7 +4,7 @@ import {
 	Booking,
 	BookingPolicySnapshot,
 	DailyInventory,
-	EffectivePricing,
+	EffectivePricingV2,
 	Hold,
 	RatePlan,
 	db,
@@ -38,6 +38,7 @@ import {
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -481,29 +482,37 @@ describe("integration/hold policy snapshot", () => {
 				updatedAt: new Date(),
 			} as any)
 			await db
-				.insert(EffectivePricing)
+				.insert(EffectivePricingV2)
 				.values({
 					id: `ep_ctx_a_${date}_${crypto.randomUUID()}`,
 					variantId,
 					ratePlanId: ratePlanIdA,
 					date,
-					basePrice: 100,
-					yieldMultiplier: 1,
+					occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+					baseComponent: 100,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
 					finalBasePrice: 100,
+					currency: "USD",
 					computedAt: new Date(),
+					sourceVersion: "test",
 				} as any)
 				.run()
 			await db
-				.insert(EffectivePricing)
+				.insert(EffectivePricingV2)
 				.values({
 					id: `ep_ctx_b_${date}_${crypto.randomUUID()}`,
 					variantId,
 					ratePlanId: ratePlanIdB,
 					date,
-					basePrice: 120,
-					yieldMultiplier: 1,
+					occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+					baseComponent: 120,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
 					finalBasePrice: 120,
+					currency: "USD",
 					computedAt: new Date(),
+					sourceVersion: "test",
 				} as any)
 				.run()
 		}

@@ -4,7 +4,6 @@ import {
 	BookingRoomDetail,
 	db,
 	DailyInventory,
-	EffectivePricing,
 	EffectivePricingV2,
 	eq,
 	RatePlan,
@@ -22,6 +21,7 @@ import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-s
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { createPolicyCapa6, assignPolicyCapa6 } from "@/modules/policies/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -164,15 +164,19 @@ async function seedFixture(params: {
 			reservedCount: 0,
 			createdAt: new Date(),
 		} as any)
-		await db.insert(EffectivePricing).values({
+		await db.insert(EffectivePricingV2).values({
 			id: `epv1_hold_v2_${crypto.randomUUID()}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,
 			date,
-			basePrice: 100,
-			yieldMultiplier: 1,
+			occupancyKey: buildOccupancyKey({ adults: 1, children: 0, infants: 0 }),
+			baseComponent: 100,
+			occupancyAdjustment: 0,
+			ruleAdjustment: 0,
 			finalBasePrice: 100,
+			currency: "USD",
 			computedAt: new Date(),
+			sourceVersion: "test",
 		} as any)
 		if (params.includeV2Rows && EffectivePricingV2 && (EffectivePricingV2 as any).variantId) {
 			await db.insert(EffectivePricingV2).values({
@@ -180,7 +184,7 @@ async function seedFixture(params: {
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date,
-				occupancyKey: "a2_c0_i0",
+				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
 				baseComponent: 90,
 				occupancyAdjustment: 10,
 				ruleAdjustment: 5,
