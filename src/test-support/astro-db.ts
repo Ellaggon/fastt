@@ -68,9 +68,9 @@ export let EffectiveAvailability: any
 export let SearchUnitView: any
 export let RatePlanTemplate: any
 export let RatePlan: any
+export let RatePlanOccupancyPolicy: any
 export let PriceRule: any
-export let EffectivePricing: any
-export let PricingBaseRate: any
+export let EffectivePricingV2: any
 export let TaxFeeDefinition: any
 export let TaxFeeAssignment: any
 export let Restriction: any
@@ -127,6 +127,49 @@ async function init() {
 		await db.run(sql.raw(q))
 	}
 
+	// V2-only test safety: ensure every test-created rate plan has a deterministic default
+	// occupancy policy row. This is intentionally independent from V1 tables.
+	await db.run(
+		sql.raw(`
+			CREATE TRIGGER IF NOT EXISTS trg_rateplan_default_policy_insert
+			AFTER INSERT ON RatePlan
+			BEGIN
+				INSERT OR IGNORE INTO RatePlanOccupancyPolicy (
+					id,
+					ratePlanId,
+					baseAmount,
+					baseCurrency,
+					baseAdults,
+					baseChildren,
+					extraAdultMode,
+					extraAdultValue,
+					childMode,
+					childValue,
+					currency,
+					effectiveFrom,
+					effectiveTo,
+					createdAt
+				)
+				VALUES (
+					'rpop_' || NEW.id,
+					NEW.id,
+					100,
+					'USD',
+					2,
+					0,
+					'fixed',
+					0,
+					'fixed',
+					0,
+					'USD',
+					'2020-01-01',
+					'2100-12-31',
+					CURRENT_TIMESTAMP
+				);
+			END;
+		`)
+	)
+
 	// Build drizzle table objects for the exports expected by the app code.
 	const drizzleTables: Record<string, any> = {}
 	for (const [name, tableDef] of Object.entries(resolvedConfig.tables)) {
@@ -161,9 +204,9 @@ async function init() {
 	SearchUnitView = drizzleTables.SearchUnitView
 	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
+	RatePlanOccupancyPolicy = drizzleTables.RatePlanOccupancyPolicy
 	PriceRule = drizzleTables.PriceRule
-	EffectivePricing = drizzleTables.EffectivePricing
-	PricingBaseRate = drizzleTables.PricingBaseRate
+	EffectivePricingV2 = drizzleTables.EffectivePricingV2
 	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
 	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
 	Restriction = drizzleTables.Restriction
