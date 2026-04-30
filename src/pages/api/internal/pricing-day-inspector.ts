@@ -5,6 +5,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { evaluatePricingRules } from "@/modules/pricing/public"
 import { productRepository, variantManagementRepository } from "@/container"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -29,7 +30,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const adults = Math.max(1, Number(url.searchParams.get("adults") ?? 2) || 2)
 		const children = Math.max(0, Number(url.searchParams.get("children") ?? 0) || 0)
 		const infants = Math.max(0, Number(url.searchParams.get("infants") ?? 0) || 0)
-		const occupancyKey = `a${adults}_c${children}_i${infants}`
+		const occupancyKey = buildOccupancyKey(normalizeOccupancy({ adults, children, infants }))
 		const currency = String(url.searchParams.get("currency") ?? "USD")
 			.trim()
 			.toUpperCase()
