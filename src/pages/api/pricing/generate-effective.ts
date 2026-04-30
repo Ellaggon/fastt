@@ -4,8 +4,8 @@ import { z, ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { evaluatePricingRules } from "@/modules/pricing/public"
-import { pricingRepository, productRepository, variantManagementRepository } from "@/container"
+import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
+import { productRepository, variantManagementRepository } from "@/container"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -123,32 +123,21 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		let writes = 0
-		for (const date of dates) {
-			const { price } = evaluatePricingRules({
-				basePrice: Number(baseRate.basePrice),
-				date,
-				ratePlanId: defaultPlan.ratePlanId,
-				rules: defaultPlan.rules.map((rule) => ({
-					id: String(rule.id),
-					type: String(rule.type),
-					value: Number(rule.value),
-					priority: Number((rule as any).priority ?? 10),
-					dateRange: (rule as any).dateRange ?? null,
-					dayOfWeek: (rule as any).dayOfWeek ?? null,
-					createdAt: rule.createdAt,
-					isActive: true,
-				})),
-			})
-			await pricingRepository.saveEffectivePrice({
-				variantId: parsed.variantId,
-				ratePlanId: defaultPlan.ratePlanId,
-				date,
-				basePrice: Number(baseRate.basePrice),
-				finalBasePrice: Number(price),
-			})
-			writes += 1
-		}
+		const fromDate = dates[0]
+		const lastDate = dates[dates.length - 1]
+		const toDateExclusive = (() => {
+			const next = new Date(`${lastDate}T00:00:00.000Z`)
+			next.setUTCDate(next.getUTCDate() + 1)
+			return next.toISOString().slice(0, 10)
+		})()
+		const coverage = await ensurePricingCoverageRuntime({
+			variantId: parsed.variantId,
+			ratePlanId: defaultPlan.ratePlanId,
+			from: fromDate,
+			to: toDateExclusive,
+			recomputeExisting: true,
+		})
+		const writes = coverage.generatedDatesCount
 
 		await invalidateVariant(parsed.variantId, variant.productId)
 		const durationMs = Number((performance.now() - startedAt).toFixed(1))
