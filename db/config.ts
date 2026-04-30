@@ -514,11 +514,46 @@ const RatePlan = defineTable({
 		createdAt: column.date({ default: NOW }),
 	},
 })
+const RatePlanOccupancyPolicy = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		baseAmount: column.number({ default: 0 }),
+		baseCurrency: column.text({ default: "USD" }),
+		baseAdults: column.number(),
+		baseChildren: column.number(),
+		extraAdultMode: column.text(), // fixed | percentage
+		extraAdultValue: column.number(),
+		childMode: column.text(), // fixed | percentage
+		childValue: column.number(),
+		currency: column.text(),
+		effectiveFrom: column.date(),
+		effectiveTo: column.date(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["ratePlanId", "effectiveFrom", "effectiveTo"] }],
+})
+const RatePlanOccupancyOverride = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		occupancyKey: column.text(),
+		dateFrom: column.date(),
+		dateTo: column.date(),
+		overrideType: column.text(), // fixed | delta
+		value: column.number(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["ratePlanId", "occupancyKey", "dateFrom", "dateTo"], unique: true }],
+})
 const PriceRule = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		name: column.text({ optional: true }), // Ej: "Recargo Fin de Semana" o "Temporada Alta"
+		// Optional occupancy scope for V2 occupancy-aware pricing.
+		// Null means global rule (applies to all occupancies).
+		occupancyKey: column.text({ optional: true }),
 		type: column.text({ default: "modifier" }), // 'modifier', 'absolute', 'override'
 		value: column.number(), // El monto o porcentaje
 
@@ -535,6 +570,7 @@ const PriceRule = defineTable({
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [{ on: ["ratePlanId", "occupancyKey", "createdAt"] }],
 })
 const Restriction = defineTable({
 	columns: {
@@ -567,32 +603,24 @@ const EffectiveRestriction = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
+// Legacy V1 pricing tables kept as deprecated to support non-destructive remote convergence.
+// They must remain declared until all remote environments have the V2 tables created.
 const EffectivePricing = defineTable({
+	deprecated: true,
 	columns: {
 		id: column.text({ primaryKey: true }),
-		variantId: column.text({
-			references: () => Variant.columns.id,
-		}),
-		ratePlanId: column.text({
-			references: () => RatePlan.columns.id,
-		}),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		date: column.text(),
 		basePrice: column.number(),
 		yieldMultiplier: column.number({ default: 1 }),
 		finalBasePrice: column.number(),
 		computedAt: column.date(),
 	},
-	indexes: [
-		{
-			on: ["variantId", "ratePlanId", "date"],
-			unique: true,
-		},
-	],
+	indexes: [{ on: ["variantId", "ratePlanId", "date"], unique: true }],
 })
-
-// CAPA 4A (Pricing Base Rate): 1:1 base pricing per Variant (sellable unit).
-// Canonical source of truth for base pricing.
 const PricingBaseRate = defineTable({
+	deprecated: true,
 	columns: {
 		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
 		currency: column.text({ default: "USD" }),
@@ -600,6 +628,28 @@ const PricingBaseRate = defineTable({
 		createdAt: column.date({ default: NOW }),
 	},
 })
+const EffectivePricingV2 = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		date: column.text(),
+		occupancyKey: column.text(),
+		baseComponent: column.number({ default: 0 }),
+		occupancyAdjustment: column.number({ default: 0 }),
+		ruleAdjustment: column.number({ default: 0 }),
+		finalBasePrice: column.number(),
+		currency: column.text({ default: "USD" }),
+		computedAt: column.date(),
+		sourceVersion: column.text({ default: "v2" }),
+	},
+	indexes: [
+		{ on: ["variantId", "ratePlanId", "date", "occupancyKey"], unique: true },
+		{ on: ["ratePlanId", "date"] },
+		{ on: ["variantId", "date", "occupancyKey"] },
+	],
+})
+
 const TaxFee = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -790,6 +840,18 @@ const ProviderPayoutBooking = defineTable({
 	},
 })
 
+const FinancialShadowRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		type: column.text(), // payment_intent | settlement_record
+		payload: column.json(),
+		idempotencyKey: column.text({ unique: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["bookingId", "type"] }],
+})
+
 export default defineDb({
 	tables: {
 		// 1 master
@@ -845,11 +907,14 @@ export default defineDb({
 		// 6 pricing
 		RatePlanTemplate,
 		RatePlan,
+		RatePlanOccupancyPolicy,
+		RatePlanOccupancyOverride,
 		PriceRule,
 		Restriction,
 		EffectiveRestriction,
 		EffectivePricing,
 		PricingBaseRate,
+		EffectivePricingV2,
 		TaxFee,
 		TaxFeeDefinition,
 		TaxFeeAssignment,
@@ -866,5 +931,6 @@ export default defineDb({
 		Payment,
 		ProviderPayout,
 		ProviderPayoutBooking,
+		FinancialShadowRecord,
 	},
 })
