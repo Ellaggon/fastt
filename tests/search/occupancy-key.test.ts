@@ -54,8 +54,8 @@ describe("buildOccupancyKey", () => {
 		})
 	})
 
-	it("mantiene compatibilidad con callers legacy totalGuests", () => {
-		const key = buildOccupancyKey({ totalGuests: 3, children: 0 })
+	it("requiere semántica canónica de ocupación (sin totalGuests)", () => {
+		const key = buildOccupancyKey({ adults: 3, children: 0, infants: 0 })
 		expect(key).toBe("a3_c0_i0")
 	})
 })

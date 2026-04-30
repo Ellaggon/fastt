@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, EffectiveAvailability, EffectivePricing, SearchUnitView } from "astro:db"
+import { and, db, eq, EffectiveAvailability, EffectivePricingV2, SearchUnitView } from "astro:db"
 
 import { searchOffers } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import {
 	upsertDestination,
@@ -74,6 +75,7 @@ async function readJson(res: Response) {
 
 describe("integration/search policy blocker", () => {
 	it("materializes policy blocker and prevents hold when required policies are missing", async () => {
+		const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		const prevFlag = process.env.SEARCH_POLICY_BLOCKER_ENABLED
 		process.env.SEARCH_POLICY_BLOCKER_ENABLED = "true"
 		try {
@@ -156,20 +158,26 @@ describe("integration/search policy blocker", () => {
 				})
 
 			await db
-				.insert(EffectivePricing)
+				.insert(EffectivePricingV2)
 				.values({
 					variantId,
 					ratePlanId,
 					date,
-					basePrice: 120,
+					occupancyKey,
+					baseComponent: 120,
 					finalBasePrice: 120,
-					yieldMultiplier: 1,
+
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
-					target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+					target: [
+						EffectivePricingV2.variantId,
+						EffectivePricingV2.ratePlanId,
+						EffectivePricingV2.date,
+						EffectivePricingV2.occupancyKey,
+					],
 					set: {
-						basePrice: 120,
+						baseComponent: 120,
 						finalBasePrice: 120,
 						computedAt: new Date(),
 					},

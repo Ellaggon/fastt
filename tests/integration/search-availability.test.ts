@@ -15,11 +15,12 @@ import {
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
 	db,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	EffectiveRestriction,
 	Restriction,
 	SearchUnitView,
@@ -134,7 +135,11 @@ async function seedSearchableVariant(params: {
 			.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
 	}
 
-	await baseRateRepository.upsert({ variantId: params.variantId, currency: "USD", basePrice: 100 })
+	await baseRateRepository.setCanonicalBaseForVariant({
+		variantId: params.variantId,
+		currency: "USD",
+		basePrice: 100,
+	})
 
 	for (const d of params.inventoryDates) {
 		await dailyInventoryRepository.upsert({
@@ -228,24 +233,26 @@ async function seedSearchableVariant(params: {
 		await Promise.all(
 			params.inventoryDates.map(async (date) => {
 				await db
-					.insert(EffectivePricing)
+					.insert(EffectivePricingV2)
 					.values({
 						variantId: params.variantId,
 						ratePlanId: params.ratePlanId,
 						date,
-						basePrice: nightly,
+						occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+						baseComponent: nightly,
 						finalBasePrice: nightly,
-						yieldMultiplier: 1,
+
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricing.variantId,
-							EffectivePricing.ratePlanId,
-							EffectivePricing.date,
+							EffectivePricingV2.variantId,
+							EffectivePricingV2.ratePlanId,
+							EffectivePricingV2.date,
+							EffectivePricingV2.occupancyKey,
 						],
 						set: {
-							basePrice: nightly,
+							baseComponent: nightly,
 							finalBasePrice: nightly,
 							computedAt: new Date(),
 						},

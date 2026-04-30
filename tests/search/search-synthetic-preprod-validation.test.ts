@@ -1,4 +1,4 @@
-import { db, EffectiveAvailability, EffectivePricing, EffectiveRestriction } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricingV2, EffectiveRestriction } from "astro:db"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -14,6 +14,7 @@ import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { GET as getSearchDecision } from "@/pages/api/internal/observability/search-decision"
 import { GET as getSearchShadowSummary } from "@/pages/api/internal/observability/search-shadow-summary"
 import { searchOffers } from "@/container"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -308,28 +309,31 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 					})
 
 				if (hasPricing) {
+					const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 					await db
-						.insert(EffectivePricing)
+						.insert(EffectivePricingV2)
 						.values({
 							id: `ep_synth_${variantId}_${ratePlanId}_${date}`,
 							variantId,
 							ratePlanId,
 							date,
-							basePrice,
+							occupancyKey,
+							baseComponent: basePrice,
 							finalBasePrice: basePrice,
-							yieldMultiplier: 1,
+
 							computedAt: new Date(),
 						} as any)
 						.onConflictDoUpdate({
 							target: [
-								EffectivePricing.variantId,
-								EffectivePricing.ratePlanId,
-								EffectivePricing.date,
+								EffectivePricingV2.variantId,
+								EffectivePricingV2.ratePlanId,
+								EffectivePricingV2.date,
+								EffectivePricingV2.occupancyKey,
 							],
 							set: {
-								basePrice,
+								baseComponent: basePrice,
 								finalBasePrice: basePrice,
-								yieldMultiplier: 1,
+
 								computedAt: new Date(),
 							},
 						})

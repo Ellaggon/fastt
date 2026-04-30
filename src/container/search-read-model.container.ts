@@ -311,6 +311,32 @@ export const searchReadModelRepository = {
 		return Array.from({ length: maxOccupancy }, (_, i) => i + 1)
 	},
 
+	async resolveOccupancyCombinations(
+		variantId: string
+	): Promise<Array<{ adults: number; children: number; infants: number }>> {
+		const capacity = await db
+			.select({
+				maxOccupancy: VariantCapacity.maxOccupancy,
+				maxAdults: VariantCapacity.maxAdults,
+				maxChildren: VariantCapacity.maxChildren,
+			})
+			.from(VariantCapacity)
+			.where(eq(VariantCapacity.variantId, variantId))
+			.get()
+		const maxOccupancy = Math.max(1, Number(capacity?.maxOccupancy ?? 2))
+		const maxAdults = Math.max(1, Number(capacity?.maxAdults ?? maxOccupancy))
+		const maxChildren = Math.max(0, Number(capacity?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
+
+		const out: Array<{ adults: number; children: number; infants: number }> = []
+		for (let adults = 1; adults <= maxAdults; adults += 1) {
+			for (let children = 0; children <= maxChildren; children += 1) {
+				if (adults + children > maxOccupancy) continue
+				out.push({ adults, children, infants: 0 })
+			}
+		}
+		return out
+	},
+
 	async loadMaterializationInputs(params: {
 		variantId: string
 		ratePlanId: string
@@ -383,6 +409,7 @@ export const searchReadModelRepository = {
 		variantId: string
 		ratePlanId: string
 		date: string
+		occupancyKey: string
 	}): Promise<string> {
 		const pricingVersionPromise =
 			EffectivePricingV2 && (EffectivePricingV2 as any).variantId
@@ -393,7 +420,8 @@ export const searchReadModelRepository = {
 							and(
 								eq(EffectivePricingV2.variantId, params.variantId),
 								eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-								eq(EffectivePricingV2.date, params.date)
+								eq(EffectivePricingV2.date, params.date),
+								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
 							)
 						)
 						.get()
@@ -427,7 +455,19 @@ export const searchReadModelRepository = {
 		const p = pricingRow?.computedAt ? new Date(pricingRow.computedAt).toISOString() : "np"
 		const restrictionTimestamp =
 			restrictionRow?.computedAt != null ? new Date(restrictionRow.computedAt).toISOString() : "nr"
-		return createHash("sha1").update(`${a}|${p}|${restrictionTimestamp}`).digest("hex")
+		return createHash("sha1")
+			.update(
+				JSON.stringify({
+					variantId: params.variantId,
+					ratePlanId: params.ratePlanId,
+					date: params.date,
+					occupancyKey: params.occupancyKey,
+					availabilityComputedAt: a,
+					pricingComputedAt: p,
+					restrictionComputedAt: restrictionTimestamp,
+				})
+			)
+			.digest("hex")
 	},
 
 	async upsertSearchUnitViewRow(row: SearchUnitViewUpsertRow): Promise<void> {
