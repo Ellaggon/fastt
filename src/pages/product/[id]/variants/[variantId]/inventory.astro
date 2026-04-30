@@ -15,6 +15,7 @@ import {
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
 	and,
 	DailyInventory,
@@ -75,6 +76,9 @@ const initialFrom = toISODateOnly(today)
 const initialToDate = new Date(today)
 initialToDate.setUTCDate(initialToDate.getUTCDate() + 60)
 const initialTo = toISODateOnly(initialToDate)
+const canonicalOccupancyKey = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 const [rawRows, auditStats, defaultPlanRows] = await Promise.all([
 	db
@@ -154,7 +158,7 @@ const priceRows = defaultPlan
 				and(
 					eq(EffectivePricingV2.variantId, variantId),
 					eq(EffectivePricingV2.ratePlanId, String(defaultPlan.id)),
-					eq(EffectivePricingV2.occupancyKey, "a2_c0_i0"),
+					eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey),
 					gte(EffectivePricingV2.date, initialFrom),
 					lt(EffectivePricingV2.date, initialTo)
 				)

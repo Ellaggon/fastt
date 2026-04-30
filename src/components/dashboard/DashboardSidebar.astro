@@ -11,75 +11,160 @@ const { pathname = "" } = Astro.props
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
 
-const isInventoryActive =
+const isSupplyActive = isActive(routes.productList())
+const isRatesPricingActive =
 	isActive(routes.ratePlansHub()) ||
-	isActive(routes.inventoryBulk()) ||
-	isActive(routes.bookingList())
-const isPricingActive =
-	isActive(routes.pricingRules()) ||
 	isActive(routes.pricingBulk()) ||
+	isActive(routes.pricingRules()) ||
 	isActive(routes.pricingCalendar())
+const isInventoryActive = isActive(routes.inventoryBulk())
+const isBookingActive = isActive(routes.bookingList())
+const isPoliciesActive =
+	isActive(routes.providerPolicies()) ||
+	isActive(routes.providerPoliciesAudit()) ||
+	isActive("/rates/plans")
+const isFinancialActive =
+	isActive("/api/internal/financial/reconciliation") || isActive("/api/internal/financial/summary")
 const isAnalyticsActive =
 	isActive(routes.analyticsPerformance()) ||
 	isActive(routes.analyticsRevenue()) ||
 	isActive(routes.analyticsOccupancy())
 const isSystemActive =
 	isActive(routes.provider()) ||
-	isActive(routes.providerPolicies()) ||
-	isActive(routes.providerPoliciesAudit()) ||
+	isActive("/provider/verification") ||
 	isActive(routes.systemIntegrations())
 ---
 
 <nav class="space-y-4">
 	<DashboardSidebarSection
-		title="Inventory"
-		subtitle={isInventoryActive ? "Sección activa" : "Operación diaria"}
+		title="Supply & Catalog"
+		subtitle={isSupplyActive ? "Sección activa" : "Catálogo base"}
+	>
+		<DashboardSidebarItem
+			href={routes.productList()}
+			label="Products (Canónico)"
+			active={isActive(routes.productList())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.productList()}
+			label="Variants (Canónico)"
+			active={isActive(routes.productList())}
+			prefetch={true}
+			level={1}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="Rates & Pricing"
+		subtitle={isRatesPricingActive ? "Sección activa" : "Dominio canónico"}
 	>
 		<DashboardSidebarItem
 			href={routes.ratePlansHub()}
-			label="Rate Plans"
+			label="Rates / Plans (Canónico)"
 			active={isActive(routes.ratePlansHub())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.inventoryBulk()}
-			label="Availability"
-			active={isActive(routes.inventoryBulk())}
+			href={routes.pricingBulk()}
+			label="Bulk Pricing (Operacional)"
+			active={isActive(routes.pricingBulk())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.bookingList()}
-			label="Reservas"
-			active={isActive(routes.bookingList())}
+			href={routes.pricingRules()}
+			label="Rules / Overrides (Advanced)"
+			active={isActive(routes.pricingRules())}
+			prefetch={true}
+			level={2}
+		/>
+		<DashboardSidebarItem
+			href={routes.pricingCalendar()}
+			label="Calendar (Deprecated)"
+			active={isActive(routes.pricingCalendar())}
 			prefetch={true}
 			level={2}
 		/>
 	</DashboardSidebarSection>
 
 	<DashboardSidebarSection
-		title="Pricing"
-		subtitle={isPricingActive ? "Sección activa" : "Revenue controls"}
+		title="Inventory & Availability"
+		subtitle={isInventoryActive ? "Sección activa" : "Operación de disponibilidad"}
 	>
 		<DashboardSidebarItem
-			href={routes.pricingRules()}
-			label="Rules"
-			active={isActive(routes.pricingRules())}
+			href={routes.inventoryBulk()}
+			label="Inventory Bulk (Canónico)"
+			active={isActive(routes.inventoryBulk())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.pricingBulk()}
-			label="Bulk Operations"
-			active={isActive(routes.pricingBulk())}
+			href={routes.productList()}
+			label="Variant Inventory (To Update, contextual)"
+			active={isActive(routes.productList()) && pathname.includes("/inventory")}
+			prefetch={true}
+			level={2}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="Booking & Orders"
+		subtitle={isBookingActive ? "Sección activa" : "Reservas operativas"}
+	>
+		<DashboardSidebarItem
+			href={routes.bookingList()}
+			label="Bookings (Canónico)"
+			active={isActive(routes.bookingList())}
+			prefetch={true}
+			level={1}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="Policies & Restrictions"
+		subtitle={isPoliciesActive ? "Sección activa" : "Reglas comerciales"}
+	>
+		<DashboardSidebarItem
+			href={routes.providerPolicies()}
+			label="Provider Policies (Canónico)"
+			active={isActive(routes.providerPolicies())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.pricingCalendar()}
-			label="Calendar"
-			active={isActive(routes.pricingCalendar())}
+			href={routes.providerPoliciesAudit()}
+			label="Policy Audit (Operacional)"
+			active={isActive(routes.providerPoliciesAudit())}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href={routes.ratePlansHub()}
+			label="Rate Plan Policies (Contextual)"
+			active={isActive(routes.ratePlansHub())}
+			prefetch={true}
+			level={2}
+		/>
+	</DashboardSidebarSection>
+
+	<DashboardSidebarSection
+		title="Financial Control"
+		subtitle={isFinancialActive ? "Sección activa" : "Internal Ops"}
+	>
+		<DashboardSidebarItem
+			href="/api/internal/financial/reconciliation"
+			label="Reconciliation (Internal Ops)"
+			active={isActive("/api/internal/financial/reconciliation")}
+			prefetch={true}
+			level={1}
+		/>
+		<DashboardSidebarItem
+			href="/api/internal/financial/summary"
+			label="Summary (Internal Ops)"
+			active={isActive("/api/internal/financial/summary")}
 			prefetch={true}
 			level={1}
 		/>
@@ -118,29 +203,22 @@ const isSystemActive =
 	>
 		<DashboardSidebarItem
 			href={routes.provider()}
-			label="Settings"
+			label="Provider Settings"
 			active={isActive(routes.provider())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.providerPolicies()}
-			label="Policies"
-			active={isActive(routes.providerPolicies())}
+			href={routes.systemIntegrations()}
+			label="Integrations"
+			active={isActive(routes.systemIntegrations())}
 			prefetch={true}
 			level={1}
 		/>
 		<DashboardSidebarItem
-			href={routes.providerPoliciesAudit()}
-			label="Auditoría"
-			active={isActive(routes.providerPoliciesAudit())}
-			prefetch={true}
-			level={2}
-		/>
-		<DashboardSidebarItem
-			href={routes.systemIntegrations()}
-			label="Integrations"
-			active={isActive(routes.systemIntegrations())}
+			href="/provider/verification"
+			label="Verification"
+			active={isActive("/provider/verification")}
 			prefetch={true}
 			level={1}
 		/>

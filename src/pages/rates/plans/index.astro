@@ -47,7 +47,7 @@ const rows = await loadRatePlansReadModel({
 							: "NEW_DASHBOARD_ARCH inactivo"
 					}
 				</Badge>
-				<Button href={routes.pricingBulk()} variant="primary">Bulk pricing</Button>
+				<Button href={routes.ratePlansHub()} variant="primary">Rate plans hub</Button>
 				<Button href={routes.productList()} variant="secondary">Volver a productos</Button>
 			</div>
 		</header>
@@ -220,7 +220,7 @@ const rows = await loadRatePlansReadModel({
 			if (!selectedRatePlanIds.size) return
 			const ids = Array.from(selectedRatePlanIds)
 			const params = new URLSearchParams({ ratePlanIds: ids.join(",") })
-			window.location.href = `/pricing/bulk?${params.toString()}`
+			window.location.href = `/rates/plans?${params.toString()}`
 		})
 
 		updateSelectionUI()
