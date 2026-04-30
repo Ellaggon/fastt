@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { and, db, EffectivePricing, eq } from "astro:db"
+import { and, db, EffectivePricingV2, eq } from "astro:db"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import { POST as createRuleV2Post } from "@/pages/api/pricing/rules/v2/create"
 import { POST as updateRuleV2Post } from "@/pages/api/pricing/rules/v2/update"
@@ -381,12 +382,16 @@ describe("integration/pricing rules v2 (ratePlan-first)", () => {
 
 				const effectiveRow = await db
 					.select()
-					.from(EffectivePricing)
+					.from(EffectivePricingV2)
 					.where(
 						and(
-							eq(EffectivePricing.variantId, fixture.variantAId),
-							eq(EffectivePricing.ratePlanId, fixture.ratePlanAId),
-							eq(EffectivePricing.date, previewFrom)
+							eq(EffectivePricingV2.variantId, fixture.variantAId),
+							eq(EffectivePricingV2.ratePlanId, fixture.ratePlanAId),
+							eq(EffectivePricingV2.date, previewFrom),
+							eq(
+								EffectivePricingV2.occupancyKey,
+								buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
+							)
 						)
 					)
 					.get()

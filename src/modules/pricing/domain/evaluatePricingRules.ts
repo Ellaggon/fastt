@@ -4,6 +4,7 @@ export type CanonicalPriceRule = {
 	id: string
 	type: string
 	value: number
+	occupancyKey?: string | null
 	priority?: number | null
 	createdAt?: Date | string | null
 	isActive?: boolean | null
@@ -14,6 +15,7 @@ export type CanonicalPriceRule = {
 type EvaluateParams = {
 	basePrice: number
 	date: string
+	occupancyKey?: string | null
 	ratePlanId?: string
 	rules: CanonicalPriceRule[]
 	includeBreakdown?: boolean
@@ -71,6 +73,15 @@ function isRuleApplicableForDate(rule: CanonicalPriceRule, date: string): boolea
 	return true
 }
 
+function isRuleApplicableForOccupancy(
+	rule: CanonicalPriceRule,
+	occupancyKey?: string | null
+): boolean {
+	const ruleScope = String(rule.occupancyKey ?? "").trim()
+	if (!ruleScope) return true
+	return ruleScope === String(occupancyKey ?? "").trim()
+}
+
 function normalizeRulePriority(rule: CanonicalPriceRule): number {
 	const value = Number(rule.priority ?? 10)
 	return Number.isFinite(value) ? value : 10
@@ -117,6 +128,7 @@ export function evaluatePricingRules(params: EvaluateParams): EvaluateResult {
 	const applicable = params.rules
 		.filter((rule) => (rule.isActive ?? true) !== false)
 		.filter((rule) => isRuleApplicableForDate(rule, params.date))
+		.filter((rule) => isRuleApplicableForOccupancy(rule, params.occupancyKey))
 		.sort((a, b) => {
 			const pa = normalizeRulePriority(a)
 			const pb = normalizeRulePriority(b)
@@ -150,13 +162,6 @@ export function evaluatePricingRules(params: EvaluateParams): EvaluateResult {
 				delta,
 			})
 		}
-		console.debug("pricing_rule_applied", {
-			ruleId: String(rule.id),
-			date: params.date,
-			before,
-			after,
-			ratePlanId: params.ratePlanId ?? null,
-		})
 	}
 
 	return {

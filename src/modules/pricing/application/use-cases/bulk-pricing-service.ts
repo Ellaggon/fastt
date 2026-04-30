@@ -11,6 +11,7 @@ export type BulkPricingOperation = {
 		dateTo?: string
 		dayOfWeek?: number[] | string
 		contextKey?: string
+		occupancyKey?: string
 		previewFrom?: string
 		previewDays?: number
 		effectiveFrom?: string
@@ -188,6 +189,7 @@ function buildPreviewPayload(ratePlanId: string, operation: BulkPricingOperation
 			? conditions.dayOfWeek.join(",")
 			: conditions.dayOfWeek,
 		contextKey: conditions.contextKey,
+		occupancyKey: conditions.occupancyKey,
 		previewFrom: conditions.previewFrom,
 		previewDays: conditions.previewDays,
 	}
@@ -206,6 +208,7 @@ function buildCreatePayload(ratePlanId: string, operation: BulkPricingOperation)
 			? conditions.dayOfWeek.join(",")
 			: conditions.dayOfWeek,
 		contextKey: conditions.contextKey,
+		occupancyKey: conditions.occupancyKey,
 	}
 }
 
@@ -427,9 +430,8 @@ export async function applyBulkOperation(params: {
 	)
 	const concurrency = clampConcurrency(input.concurrency)
 	const { POST: createRuleV2Post } = await import("@/pages/api/pricing/rules/v2/create")
-	const { POST: generateEffectiveV2Post } = await import(
-		"@/pages/api/pricing/rules/v2/generate-effective"
-	)
+	const { POST: generateEffectiveV2Post } =
+		await import("@/pages/api/pricing/rules/v2/generate-effective")
 	const perRatePlan = await mapLimit(ratePlanIds, concurrency, async (ratePlanId) => {
 		const preview = await runPreviewForRatePlan(params.request, ratePlanId, input.operation)
 		if (!preview.ok) return preview

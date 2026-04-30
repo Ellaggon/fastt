@@ -5,6 +5,7 @@ import { variantManagementRepository } from "@/container"
 import {
 	listRulesByRatePlan,
 	normalizeRuleType,
+	normalizeOccupancyKey,
 	optionalText,
 	parseDayOfWeek,
 	parseNumber,
@@ -46,6 +47,9 @@ export const POST: APIRoute = async ({ request }) => {
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const previewFrom = optionalText(payload, "previewFrom") ?? new Date().toISOString().slice(0, 10)
 	const previewDaysRaw = parseNumber(payload, "previewDays", 30)
+	const occupancyKey = normalizeOccupancyKey(
+		optionalText(payload, "occupancyKey") ?? optionalText(payload, "contextKey")
+	)
 	const previewDays = Math.min(Math.max(Math.trunc(previewDaysRaw), 1), 120)
 	const start = new Date(`${previewFrom}T00:00:00.000Z`)
 	const end = new Date(start)
@@ -61,6 +65,7 @@ export const POST: APIRoute = async ({ request }) => {
 				? { from: rule.dateFrom ?? undefined, to: rule.dateTo ?? undefined }
 				: null,
 		dayOfWeek: rule.dayOfWeek,
+		occupancyKey: rule.occupancyKey,
 		createdAt: new Date(rule.createdAt),
 		isActive: true,
 	}))
@@ -71,6 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
 		priority,
 		dateRange: dateFrom || dateTo ? { from: dateFrom ?? undefined, to: dateTo ?? undefined } : null,
 		dayOfWeek: dayOfWeek ?? null,
+		occupancyKey: occupancyKey ?? null,
 		createdAt: new Date(),
 		isActive: true,
 	}
@@ -87,12 +93,14 @@ export const POST: APIRoute = async ({ request }) => {
 		const beforeEval = evaluatePricingRules({
 			basePrice: Number(baseRate.basePrice),
 			date,
+			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
 			rules,
 		})
 		const afterEval = evaluatePricingRules({
 			basePrice: Number(baseRate.basePrice),
 			date,
+			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
 			rules: [...rules, candidateRule],
 		})
@@ -111,6 +119,7 @@ export const POST: APIRoute = async ({ request }) => {
 			basePrice: Number(baseRate.basePrice),
 			currency: String(baseRate.currency),
 			ratePlanId,
+			occupancyKey: occupancyKey ?? null,
 			days,
 		}),
 		{

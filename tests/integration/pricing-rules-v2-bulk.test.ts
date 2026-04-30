@@ -10,6 +10,7 @@ import {
 	upsertRatePlanTemplate,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -381,6 +382,69 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				const afterPayload = await readJson(afterList)
 				const afterCount = Array.isArray(afterPayload?.rules) ? afterPayload.rules.length : 0
 				expect(afterCount).toBe(beforeCount)
+			}
+		)
+	})
+
+	it("bulk apply soporta reglas segmentadas por occupancyKey sin romper reglas globales", async () => {
+		const fixture = await seedBulkFixture()
+		await withSupabaseAuthStub(
+			{ [fixture.token]: { id: "u_pr_v2_bulk_occ", email: fixture.email } },
+			async () => {
+				const globalApplyResponse = await bulkApplyPost({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/bulk-apply",
+						token: fixture.token,
+						body: {
+							ratePlanIds: [fixture.ratePlanAId],
+							operation: { type: "fixed_adjustment", value: 5, conditions: { effectiveDays: 5 } },
+						},
+					}),
+				} as any)
+				expect(globalApplyResponse.status).toBe(200)
+
+				const scopedApplyResponse = await bulkApplyPost({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/bulk-apply",
+						token: fixture.token,
+						body: {
+							ratePlanIds: [fixture.ratePlanAId],
+							operation: {
+								type: "percentage_markup",
+								value: 10,
+								conditions: {
+									effectiveDays: 5,
+									occupancyKey: buildOccupancyKey({ adults: 3, children: 0, infants: 0 }),
+								},
+							},
+						},
+					}),
+				} as any)
+				expect(scopedApplyResponse.status).toBe(200)
+				const scopedPayload = await readJson(scopedApplyResponse)
+				expect(scopedPayload?.summary?.success).toBe(1)
+				expect(scopedPayload?.summary?.failed).toBe(0)
+
+				const listResponse = await listRulesV2Get({
+					request: makeAuthedGetRequest({
+						path: `/api/pricing/rules/v2/list?ratePlanId=${encodeURIComponent(fixture.ratePlanAId)}`,
+						token: fixture.token,
+					}),
+					url: new URL(
+						`http://localhost:4321/api/pricing/rules/v2/list?ratePlanId=${encodeURIComponent(fixture.ratePlanAId)}`
+					),
+				} as any)
+				expect(listResponse.status).toBe(200)
+				const listPayload = await readJson(listResponse)
+				const rules = Array.isArray(listPayload?.rules) ? listPayload.rules : []
+				expect(rules.length).toBeGreaterThanOrEqual(2)
+				expect(rules.some((rule: any) => rule.occupancyKey === null)).toBe(true)
+				expect(
+					rules.some(
+						(rule: any) =>
+							rule.occupancyKey === buildOccupancyKey({ adults: 3, children: 0, infants: 0 })
+					)
+				).toBe(true)
 			}
 		)
 	})
