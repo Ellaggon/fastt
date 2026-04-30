@@ -20,7 +20,7 @@ import {
 	DailyInventory,
 	db,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	eq,
 	gte,
 	lt,
@@ -148,14 +148,15 @@ const defaultPlan = defaultPlanRows.slice().sort((a, b) => {
 
 const priceRows = defaultPlan
 	? await db
-			.select({ date: EffectivePricing.date })
-			.from(EffectivePricing)
+			.select({ date: EffectivePricingV2.date })
+			.from(EffectivePricingV2)
 			.where(
 				and(
-					eq(EffectivePricing.variantId, variantId),
-					eq(EffectivePricing.ratePlanId, String(defaultPlan.id)),
-					gte(EffectivePricing.date, initialFrom),
-					lt(EffectivePricing.date, initialTo)
+					eq(EffectivePricingV2.variantId, variantId),
+					eq(EffectivePricingV2.ratePlanId, String(defaultPlan.id)),
+					eq(EffectivePricingV2.occupancyKey, "a2_c0_i0"),
+					gte(EffectivePricingV2.date, initialFrom),
+					lt(EffectivePricingV2.date, initialTo)
 				)
 			)
 			.all()
@@ -1405,7 +1406,7 @@ const taskQueue = [
 		})
 		selectionResolveBtn?.addEventListener("click", () => {
 			if (state.selectionPrimaryReason === "MISSING_PRICE") {
-				window.location.href = `/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing`
+				window.location.href = `/rates/plans?productId=${encodeURIComponent(String(productId))}&variantId=${encodeURIComponent(String(variantId))}`
 				return
 			}
 			void resolveTask()

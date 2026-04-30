@@ -17,7 +17,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductAggregate } from "@/modules/catalog/public"
-import { and, asc, count, db, EffectivePricing, eq, RoomType } from "astro:db"
+import { and, asc, count, db, EffectivePricingV2, eq, RoomType } from "astro:db"
 
 type WizardStep = "identity" | "capacity" | "subtype" | "pricing" | "inventory"
 
@@ -85,11 +85,12 @@ if (variantIdParam) {
 			(
 				await db
 					.select({ value: count() })
-					.from(EffectivePricing)
+					.from(EffectivePricingV2)
 					.where(
 						and(
-							eq(EffectivePricing.variantId, variantIdParam),
-							eq(EffectivePricing.ratePlanId, defaultRatePlan.ratePlanId)
+							eq(EffectivePricingV2.variantId, variantIdParam),
+							eq(EffectivePricingV2.ratePlanId, defaultRatePlan.ratePlanId),
+							eq(EffectivePricingV2.occupancyKey, "a2_c0_i0")
 						)
 					)
 					.get()
@@ -358,11 +359,8 @@ const pageSubtitle =
 									{variant?.id && (
 										<>
 											{" "}
-											<a
-												class="font-medium underline"
-												href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}/pricing`}
-											>
-												Podrás configurar cobertura y reglas detalladas después.
+											<a class="font-medium underline" href="/rates/plans">
+												Podrás configurar cobertura y reglas detalladas desde Rates / Plans.
 											</a>
 										</>
 									)}
