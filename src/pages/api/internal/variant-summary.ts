@@ -15,6 +15,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
 import { getVariantFullAggregate } from "@/modules/catalog/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const blockingCodes = new Set([
 	"missing_capacity",
@@ -26,7 +27,9 @@ const blockingCodes = new Set([
 	"inventory_missing",
 ])
 const readinessInventoryMinDays = 30
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = "a2_c0_i0"
+const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 const normalizeErrors = (value: unknown): Array<{ code: string; message: string }> => {
 	if (!Array.isArray(value)) return []

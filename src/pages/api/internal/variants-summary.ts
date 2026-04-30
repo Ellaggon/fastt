@@ -3,6 +3,7 @@ import { and, DailyInventory, EffectivePricingV2, eq, inArray, RatePlan, db } fr
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const kindLabel = (kind: string | null) => {
 	const normalized = String(kind ?? "")
@@ -15,7 +16,9 @@ const kindLabel = (kind: string | null) => {
 }
 
 const readinessInventoryMinDays = 30
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = "a2_c0_i0"
+const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
