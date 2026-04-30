@@ -1,4 +1,4 @@
-import { and, asc, db, EffectivePricing, eq, gte, lt, PriceRule } from "astro:db"
+import { asc, db, eq, PriceRule } from "astro:db"
 import { adaptPriceRule } from "../../domain/adapters/adapter.priceRule"
 import type { AppliedPriceRule } from "../../domain/pricing.types"
 import type { PricingRepositoryPort } from "../../application/ports/PricingRepositoryPort"
@@ -51,55 +51,5 @@ export class PricingRepository implements PricingRepositoryPort {
 			dayOfWeekJson?: number[] | null
 			createdAt: Date
 		}>
-	}
-
-	async saveEffectivePrice(params: {
-		variantId: string
-		ratePlanId: string
-		date: string
-		basePrice: number
-		finalBasePrice: number
-	}): Promise<void> {
-		await db
-			.insert(EffectivePricing)
-			.values({
-				variantId: params.variantId,
-				ratePlanId: params.ratePlanId,
-				date: params.date,
-				basePrice: params.basePrice,
-				finalBasePrice: params.finalBasePrice,
-				yieldMultiplier: 1,
-				computedAt: new Date(),
-			})
-			.onConflictDoUpdate({
-				target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
-				set: {
-					basePrice: params.basePrice,
-					finalBasePrice: params.finalBasePrice,
-					computedAt: new Date(),
-				},
-			})
-	}
-
-	async listEffectivePricingDates(params: {
-		variantId: string
-		ratePlanId: string
-		from: string
-		to: string
-	}): Promise<string[]> {
-		const rows = await db
-			.select({ date: EffectivePricing.date })
-			.from(EffectivePricing)
-			.where(
-				and(
-					eq(EffectivePricing.variantId, params.variantId),
-					eq(EffectivePricing.ratePlanId, params.ratePlanId),
-					gte(EffectivePricing.date, params.from),
-					lt(EffectivePricing.date, params.to)
-				)
-			)
-			.all()
-
-		return rows.map((row) => String(row.date))
 	}
 }

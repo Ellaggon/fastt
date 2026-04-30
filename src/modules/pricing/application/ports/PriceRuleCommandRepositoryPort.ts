@@ -2,6 +2,7 @@ export type CreatePriceRuleCommand = {
 	id: string
 	ratePlanId: string
 	name: string | null
+	occupancyKey?: string | null
 	type: string
 	value: number
 	priority: number
@@ -17,6 +18,7 @@ export interface PriceRuleCommandRepositoryPort {
 		ruleId: string,
 		patch: {
 			name?: string | null
+			occupancyKey?: string | null
 			type: string
 			value: number
 			priority: number
