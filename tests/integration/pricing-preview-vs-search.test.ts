@@ -12,7 +12,8 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as previewPost } from "@/pages/api/pricing/preview"
 import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/container"
-import { db, EffectiveAvailability, EffectivePricing } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -106,7 +107,11 @@ describe("integration/pricing preview vs search parity", () => {
 			basePrice: 999,
 		})
 
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		// Search requires inventory rows for the stay dates to consider the variant available.
 		await dailyInventoryRepository.upsert({
@@ -168,14 +173,18 @@ describe("integration/pricing preview vs search parity", () => {
 			value: 10,
 			isActive: true,
 		})
-		await db.insert(EffectivePricing).values({
+		await db.insert(EffectivePricingV2).values({
 			variantId,
 			ratePlanId,
 			date: "2026-03-10",
-			basePrice: 100,
+			occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+			baseComponent: 100,
+			occupancyAdjustment: 0,
+			ruleAdjustment: 10,
 			finalBasePrice: 110,
-			yieldMultiplier: 1,
+			currency: "USD",
 			computedAt: new Date(),
+			sourceVersion: "test",
 		} as any)
 
 		await materializeSearchUnitRange({

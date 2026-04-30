@@ -15,7 +15,7 @@ import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 
-import { db, PricingBaseRate, eq } from "astro:db"
+import { and, asc, db, eq, RatePlanOccupancyPolicy } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -165,12 +165,22 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 				expect(res.status).toBe(200)
 
 				const row1 = await db
-					.select()
-					.from(PricingBaseRate)
-					.where(eq(PricingBaseRate.variantId, seeded.variantId))
+					.select({
+						baseAmount: RatePlanOccupancyPolicy.baseAmount,
+						baseCurrency: RatePlanOccupancyPolicy.baseCurrency,
+					})
+					.from(RatePlanOccupancyPolicy)
+					.where(
+						and(
+							eq(RatePlanOccupancyPolicy.ratePlanId, seeded.ratePlanId),
+							eq(RatePlanOccupancyPolicy.baseAdults, 2),
+							eq(RatePlanOccupancyPolicy.baseChildren, 0)
+						)
+					)
+					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
 					.get()
-				expect(row1?.basePrice).toBe(120)
-				expect(row1?.currency).toBe("USD")
+				expect(Number(row1?.baseAmount ?? 0)).toBe(120)
+				expect(String(row1?.baseCurrency ?? "")).toBe("USD")
 
 				const fd2 = new FormData()
 				fd2.set("ratePlanId", seeded.ratePlanId)
@@ -182,12 +192,22 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 				expect(res2.status).toBe(200)
 
 				const row2 = await db
-					.select()
-					.from(PricingBaseRate)
-					.where(eq(PricingBaseRate.variantId, seeded.variantId))
+					.select({
+						baseAmount: RatePlanOccupancyPolicy.baseAmount,
+						baseCurrency: RatePlanOccupancyPolicy.baseCurrency,
+					})
+					.from(RatePlanOccupancyPolicy)
+					.where(
+						and(
+							eq(RatePlanOccupancyPolicy.ratePlanId, seeded.ratePlanId),
+							eq(RatePlanOccupancyPolicy.baseAdults, 2),
+							eq(RatePlanOccupancyPolicy.baseChildren, 0)
+						)
+					)
+					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
 					.get()
-				expect(row2?.basePrice).toBe(200)
-				expect(row2?.currency).toBe("BOB")
+				expect(Number(row2?.baseAmount ?? 0)).toBe(200)
+				expect(String(row2?.baseCurrency ?? "")).toBe("BOB")
 			}
 		)
 	})

@@ -1,20 +1,16 @@
 import type { APIRoute } from "astro"
+import { and, db, desc, eq, RatePlanOccupancyPolicy } from "astro:db"
 import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
+import { setBaseRateSchema } from "@/modules/pricing/application/schemas/base-rate.schemas"
+import { ensureDefaultRatePlan, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import {
-	ensureDefaultRatePlan,
-	resolveRatePlanOwnerContext,
-	setBaseRate,
-} from "@/modules/pricing/public"
-import {
-	baseRateRepository,
 	ratePlanCommandRepository,
 	ratePlanRepository,
-	variantRepository,
 	variantManagementRepository,
 	productRepository,
 } from "@/container"
@@ -83,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 		const variantId = ownerContext.variantId
+		setBaseRateSchema.parse({ variantId, currency, basePrice })
 
 		const v = await variantManagementRepository.getVariantById(variantId)
 		if (!v) {
@@ -100,10 +97,6 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const result = await setBaseRate(
-			{ baseRateRepo: baseRateRepository, variantRepo: variantRepository },
-			{ variantId, currency, basePrice }
-		)
 		const ensuredDefault = await ensureDefaultRatePlan(
 			{
 				ratePlanRepo: ratePlanRepository,
@@ -111,11 +104,53 @@ export const POST: APIRoute = async ({ request }) => {
 			},
 			{ variantId }
 		)
+		const normalizedCurrency = String(currency).trim().toUpperCase()
+		const normalizedBasePrice = Number(basePrice)
+		const nowDateOnly = new Date().toISOString().slice(0, 10)
+		const existingPolicy = await db
+			.select({ id: RatePlanOccupancyPolicy.id })
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, ratePlanId),
+					eq(RatePlanOccupancyPolicy.baseAdults, 2),
+					eq(RatePlanOccupancyPolicy.baseChildren, 0)
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+			.get()
+		if (existingPolicy?.id) {
+			await db
+				.update(RatePlanOccupancyPolicy)
+				.set({
+					baseAmount: normalizedBasePrice,
+					currency: normalizedCurrency,
+					baseCurrency: normalizedCurrency,
+				})
+				.where(eq(RatePlanOccupancyPolicy.id, existingPolicy.id))
+		} else {
+			await db.insert(RatePlanOccupancyPolicy).values({
+				id: crypto.randomUUID(),
+				ratePlanId,
+				baseAdults: 2,
+				baseChildren: 0,
+				extraAdultMode: "fixed",
+				extraAdultValue: 0,
+				childMode: "fixed",
+				childValue: 0,
+				currency: normalizedCurrency,
+				baseAmount: normalizedBasePrice,
+				baseCurrency: normalizedCurrency,
+				effectiveFrom: nowDateOnly,
+				effectiveTo: "2099-12-31",
+				createdAt: new Date(),
+			} as any)
+		}
 		await invalidateVariant(variantId, v.productId)
 
 		return new Response(
 			JSON.stringify({
-				...result,
+				variantId,
 				defaultRatePlanId: ensuredDefault.ratePlanId,
 				defaultRatePlanCreated: ensuredDefault.created,
 				nextStep: "inventory",

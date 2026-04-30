@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { db, PricingBaseRate, eq } from "astro:db"
+import { and, asc, db, eq, RatePlanOccupancyPolicy, RatePlan } from "astro:db"
 
 import { POST as setBaseRatePost } from "@/pages/api/pricing/base-rate"
 import {
@@ -194,12 +194,22 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 					true
 				)
 				const row = await db
-					.select()
-					.from(PricingBaseRate)
-					.where(eq(PricingBaseRate.variantId, seeded.variantId))
+					.select({
+						baseAmount: RatePlanOccupancyPolicy.baseAmount,
+						baseCurrency: RatePlanOccupancyPolicy.baseCurrency,
+					})
+					.from(RatePlanOccupancyPolicy)
+					.where(
+						and(
+							eq(RatePlanOccupancyPolicy.ratePlanId, seeded.ratePlanId),
+							eq(RatePlanOccupancyPolicy.baseAdults, 2),
+							eq(RatePlanOccupancyPolicy.baseChildren, 0)
+						)
+					)
+					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
 					.get()
-				expect(row?.basePrice).toBe(157)
-				expect(row?.currency).toBe("USD")
+				expect(Number(row?.baseAmount ?? 0)).toBe(157)
+				expect(String(row?.baseCurrency ?? "")).toBe("USD")
 			}
 		},
 	})
@@ -268,19 +278,61 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 			}
 		)
 
-		const mainVariantRow = await db
-			.select()
-			.from(PricingBaseRate)
-			.where(eq(PricingBaseRate.variantId, seeded.variantId))
+		const mainPlan = await db
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, seeded.variantId),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
 			.get()
-		const otherVariantRow = await db
-			.select()
-			.from(PricingBaseRate)
-			.where(eq(PricingBaseRate.variantId, currentSeed.otherVariantId))
+		const otherPlan = await db
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, currentSeed.otherVariantId),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
 			.get()
+		const mainVariantRow = mainPlan
+			? await db
+					.select({ baseAmount: RatePlanOccupancyPolicy.baseAmount })
+					.from(RatePlanOccupancyPolicy)
+					.where(
+						and(
+							eq(RatePlanOccupancyPolicy.ratePlanId, mainPlan.id),
+							eq(RatePlanOccupancyPolicy.baseAdults, 2),
+							eq(RatePlanOccupancyPolicy.baseChildren, 0)
+						)
+					)
+					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
+					.get()
+			: null
+		const otherVariantRow = otherPlan
+			? await db
+					.select({ baseAmount: RatePlanOccupancyPolicy.baseAmount })
+					.from(RatePlanOccupancyPolicy)
+					.where(
+						and(
+							eq(RatePlanOccupancyPolicy.ratePlanId, otherPlan.id),
+							eq(RatePlanOccupancyPolicy.baseAdults, 2),
+							eq(RatePlanOccupancyPolicy.baseChildren, 0)
+						)
+					)
+					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
+					.get()
+			: null
 
-		expect(mainVariantRow?.basePrice).toBe(333)
-		expect(otherVariantRow?.basePrice).not.toBe(333)
+		expect(Number(mainVariantRow?.baseAmount ?? 0)).toBe(333)
+		expect(Number(otherVariantRow?.baseAmount ?? 0)).not.toBe(333)
 		expect(
 			warnSpy.mock.calls.some((call) => call[0]?.event === "rateplan_variant_mismatch_ignored")
 		).toBe(true)
