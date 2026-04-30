@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import { recomputeEffectivePricingV2Range } from "./recompute-effective-pricing-v2"
@@ -28,6 +29,8 @@ const ensurePricingCoverageSchema = z.object({
 	from: z.string().min(1),
 	to: z.string().min(1),
 	recomputeExisting: z.boolean().optional(),
+	maxOccupancyCombinations: z.number().int().min(1).optional(),
+	recomputeChunkSizeDays: z.number().int().min(1).optional(),
 	occupancy: z
 		.object({
 			adults: z.number().int().min(1),
@@ -45,7 +48,7 @@ type EnsurePricingCoverageDeps = {
 	pricingV2Repo: {
 		getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
 			baseAmount: number
-			baseCurrency: string
+			currency: string
 		} | null>
 		getActiveOccupancyPolicy(params: { ratePlanId: string; date: string }): Promise<{
 			baseAdults: number
@@ -70,12 +73,13 @@ type EnsurePricingCoverageDeps = {
 			computedAt: Date
 			sourceVersion: string
 		}): Promise<void>
-		countEffectivePricingV2Rows?(params: {
+		listEffectivePricingV2Combinations?(params: {
 			variantId: string
 			ratePlanId: string
 			from: string
 			to: string
-		}): Promise<number>
+			occupancyKeys?: string[]
+		}): Promise<Array<{ date: string; occupancyKey: string }>>
 	}
 }
 
@@ -84,6 +88,7 @@ function buildShadowOccupanciesFromCapacity(input?: {
 	maxAdults?: number | null
 	maxChildren?: number | null
 	requestedOccupancy?: { adults: number; children: number; infants: number } | null
+	maxCombinations?: number | null
 }): Array<{ adults: number; children: number; infants: number }> {
 	const required: Array<{ adults: number; children: number; infants: number }> = [
 		{ adults: 1, children: 0, infants: 0 },
@@ -114,7 +119,21 @@ function buildShadowOccupanciesFromCapacity(input?: {
 			pushUnique({ adults, children, infants: 0 })
 		}
 	}
-	return out.slice(0, 8)
+	const maxCombinations = Number(input?.maxCombinations ?? 0)
+	if (Number.isFinite(maxCombinations) && maxCombinations > 0) {
+		return out.slice(0, Math.trunc(maxCombinations))
+	}
+	return out
+}
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+	if (!items.length) return []
+	const size = Math.max(1, Math.trunc(chunkSize))
+	const out: T[][] = []
+	for (let index = 0; index < items.length; index += size) {
+		out.push(items.slice(index, index + size))
+	}
+	return out
 }
 
 export type EnsurePricingCoverageResult = {
@@ -171,43 +190,73 @@ export async function ensurePricingCoverage(
 				maxAdults: capacity?.maxAdults ?? null,
 				maxChildren: capacity?.maxChildren ?? null,
 				requestedOccupancy: null,
+				maxCombinations: parsed.maxOccupancyCombinations ?? null,
 			})
-	const occupancyCount = Math.max(1, shadowOccupancies.length)
-	const expectedRows = expectedDates.length * occupancyCount
-	const currentRows = deps.pricingV2Repo.countEffectivePricingV2Rows
-		? await deps.pricingV2Repo.countEffectivePricingV2Rows({
+	const occupancyByKey = new Map(
+		shadowOccupancies.map((occupancy) => [buildOccupancyKey(occupancy), occupancy] as const)
+	)
+	const expectedCombinations = new Set<string>()
+	for (const date of expectedDates) {
+		for (const occupancyKey of occupancyByKey.keys()) {
+			expectedCombinations.add(`${date}:${occupancyKey}`)
+		}
+	}
+	const currentRows = deps.pricingV2Repo.listEffectivePricingV2Combinations
+		? await deps.pricingV2Repo.listEffectivePricingV2Combinations({
 				variantId: parsed.variantId,
 				ratePlanId: parsed.ratePlanId,
 				from: parsed.from,
 				to: parsed.to,
+				occupancyKeys: [...occupancyByKey.keys()],
 			})
-		: 0
-	const completeCoverage = currentRows >= expectedRows
-	missingDatesCount = completeCoverage ? 0 : expectedDates.length
-	const mustRecomputeV2 = recomputeExisting || currentRows < expectedRows
+		: []
+	const existingCombinations = new Set(currentRows.map((row) => `${row.date}:${row.occupancyKey}`))
+	const missingCombinations = recomputeExisting
+		? [...expectedCombinations]
+		: [...expectedCombinations].filter((combo) => !existingCombinations.has(combo))
+	const missingDates = new Set(missingCombinations.map((combo) => combo.split(":")[0]))
+	missingDatesCount = missingDates.size
+	const mustRecomputeV2 = recomputeExisting || missingCombinations.length > 0
 	if (!mustRecomputeV2) {
 		return {
 			missingDatesCount,
 			generatedDatesCount,
 		}
 	}
-	await recomputeEffectivePricingV2Range(
-		{
-			getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
-			getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
-				deps.pricingV2Repo
-			),
-			getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
-			saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(deps.pricingV2Repo),
-		},
-		{
-			variantId: parsed.variantId,
-			ratePlanId: parsed.ratePlanId,
-			dates: expectedDates,
-			occupancies: shadowOccupancies,
+	const datesByOccupancy = new Map<string, Set<string>>()
+	for (const combination of missingCombinations) {
+		const [date, occupancyKey] = combination.split(":")
+		const bucket = datesByOccupancy.get(occupancyKey) ?? new Set<string>()
+		bucket.add(date)
+		datesByOccupancy.set(occupancyKey, bucket)
+	}
+	for (const [occupancyKey, datesSet] of datesByOccupancy.entries()) {
+		const occupancy = occupancyByKey.get(occupancyKey)
+		if (!occupancy) continue
+		const sortedDates = [...datesSet].sort((a, b) => a.localeCompare(b))
+		const dateChunks = chunkArray(sortedDates, parsed.recomputeChunkSizeDays ?? 31)
+		for (const dateChunk of dateChunks) {
+			await recomputeEffectivePricingV2Range(
+				{
+					getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
+					getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
+						deps.pricingV2Repo
+					),
+					getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
+					saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(
+						deps.pricingV2Repo
+					),
+				},
+				{
+					variantId: parsed.variantId,
+					ratePlanId: parsed.ratePlanId,
+					dates: dateChunk,
+					occupancies: [occupancy],
+				}
+			)
 		}
-	)
-	generatedDatesCount = expectedDates.length
+	}
+	generatedDatesCount = missingDates.size
 	missingDatesCount = 0
 
 	return {

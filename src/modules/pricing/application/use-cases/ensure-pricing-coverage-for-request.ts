@@ -30,7 +30,7 @@ type VariantRepoForCoverage = {
 type PricingV2CoverageRepo = {
 	getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
 		baseAmount: number
-		baseCurrency: string
+		currency: string
 	} | null>
 	getActiveOccupancyPolicy(params: { ratePlanId: string; date: string }): Promise<{
 		baseAdults: number
@@ -55,12 +55,13 @@ type PricingV2CoverageRepo = {
 		computedAt: Date
 		sourceVersion: string
 	}): Promise<void>
-	countEffectivePricingV2Rows?(params: {
+	listEffectivePricingV2Combinations?(params: {
 		variantId: string
 		ratePlanId: string
 		from: string
 		to: string
-	}): Promise<number>
+		occupancyKeys?: string[]
+	}): Promise<Array<{ date: string; occupancyKey: string }>>
 }
 
 export async function ensurePricingCoverageForRequest(
@@ -91,7 +92,7 @@ export async function ensurePricingCoverageForRequest(
 			ratePlanId: parsed.ratePlanId,
 			from: parsed.checkIn,
 			to: parsed.checkOut,
-			recomputeExisting: true,
+			recomputeExisting: false,
 			occupancy,
 		}
 	)
