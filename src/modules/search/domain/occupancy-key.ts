@@ -1,13 +1,35 @@
-export function buildOccupancyKey(params: {
-	rooms?: number
+import {
+	buildOccupancyKey as buildCanonicalOccupancyKey,
+	type Occupancy,
+} from "@/shared/domain/occupancy"
+
+type BuildOccupancyKeyInput = {
 	adults?: number
 	children?: number
+	infants?: number
+	// Backward-compatible fields accepted for callers not migrated yet.
+	rooms?: number
 	totalGuests?: number
-}): string {
-	const rooms = Math.max(1, Number(params.rooms ?? 1) || 1)
-	const adults = Math.max(0, Number(params.adults ?? 0) || 0)
-	const children = Math.max(0, Number(params.children ?? 0) || 0)
-	const fallbackGuests = adults + children
-	const totalGuests = Math.max(1, Number(params.totalGuests ?? (fallbackGuests || 1)))
-	return `r${rooms}_a${adults}_c${children}_g${totalGuests}`
+}
+
+function toCanonicalOccupancy(input: BuildOccupancyKeyInput): Occupancy {
+	const adultsCandidate = Number(input.adults ?? 0)
+	const childrenCandidate = Number(input.children ?? 0)
+
+	// Keep compatibility with legacy callers that only provided totalGuests.
+	// We still normalize to canonical occupancy where adults is the source of truth.
+	const fallbackAdults =
+		Number.isFinite(adultsCandidate) && adultsCandidate > 0
+			? adultsCandidate
+			: Number(input.totalGuests ?? 1)
+
+	return {
+		adults: fallbackAdults,
+		children: Number.isFinite(childrenCandidate) ? childrenCandidate : 0,
+		infants: Number(input.infants ?? 0),
+	}
+}
+
+export function buildOccupancyKey(input: BuildOccupancyKeyInput): string {
+	return buildCanonicalOccupancyKey(toCanonicalOccupancy(input))
 }
