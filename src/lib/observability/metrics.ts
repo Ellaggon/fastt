@@ -127,6 +127,13 @@ export function getMetricsWindow(): { startedAtMs: number; uptimeMs: number } {
 	}
 }
 
+export function resetMetricsForTests(): void {
+	const state = getState()
+	state.counters.clear()
+	state.timings.clear()
+	state.startedAtMs = Date.now()
+}
+
 export function recordPolicyContractPathUsage(input: {
 	endpoint: string
 	contract: "v2" | "legacy"
