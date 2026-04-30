@@ -3,7 +3,7 @@ import {
 	and,
 	count,
 	DailyInventory,
-	EffectivePricing,
+	EffectivePricingV2,
 	eq,
 	db,
 	desc,
@@ -26,6 +26,7 @@ const blockingCodes = new Set([
 	"inventory_missing",
 ])
 const readinessInventoryMinDays = 30
+const INTERNAL_DEFAULT_OCCUPANCY_KEY = "a2_c0_i0"
 
 const normalizeErrors = (value: unknown): Array<{ code: string; message: string }> => {
 	if (!Array.isArray(value)) return []
@@ -106,11 +107,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 				(
 					await db
 						.select({ value: count() })
-						.from(EffectivePricing)
+						.from(EffectivePricingV2)
 						.where(
 							and(
-								eq(EffectivePricing.variantId, variantId),
-								eq(EffectivePricing.ratePlanId, defaultRatePlanId)
+								eq(EffectivePricingV2.variantId, variantId),
+								eq(EffectivePricingV2.ratePlanId, defaultRatePlanId),
+								eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 							)
 						)
 						.get()
@@ -128,29 +130,31 @@ export const GET: APIRoute = async ({ request, url }) => {
 	)
 	const effectiveCoverageStart = defaultRatePlanId
 		? await db
-				.select({ date: EffectivePricing.date })
-				.from(EffectivePricing)
+				.select({ date: EffectivePricingV2.date })
+				.from(EffectivePricingV2)
 				.where(
 					and(
-						eq(EffectivePricing.variantId, variantId),
-						eq(EffectivePricing.ratePlanId, defaultRatePlanId)
+						eq(EffectivePricingV2.variantId, variantId),
+						eq(EffectivePricingV2.ratePlanId, defaultRatePlanId),
+						eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 					)
 				)
-				.orderBy(asc(EffectivePricing.date))
+				.orderBy(asc(EffectivePricingV2.date))
 				.limit(1)
 				.get()
 		: null
 	const effectiveCoverageEnd = defaultRatePlanId
 		? await db
-				.select({ date: EffectivePricing.date })
-				.from(EffectivePricing)
+				.select({ date: EffectivePricingV2.date })
+				.from(EffectivePricingV2)
 				.where(
 					and(
-						eq(EffectivePricing.variantId, variantId),
-						eq(EffectivePricing.ratePlanId, defaultRatePlanId)
+						eq(EffectivePricingV2.variantId, variantId),
+						eq(EffectivePricingV2.ratePlanId, defaultRatePlanId),
+						eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 					)
 				)
-				.orderBy(desc(EffectivePricing.date))
+				.orderBy(desc(EffectivePricingV2.date))
 				.limit(1)
 				.get()
 		: null
