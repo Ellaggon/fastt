@@ -45,7 +45,7 @@ export async function computeEffectivePricingV2(
 			occupancyKey: string
 		}) => Promise<{
 			baseAmount: number
-			baseCurrency: string
+			currency: string
 		} | null>
 		getActiveOccupancyPolicy: (params: {
 			ratePlanId: string
@@ -131,7 +131,7 @@ export async function computeEffectivePricingV2(
 			rules: ruleAdjustment,
 			final,
 		},
-		currency: String(policyBase.baseCurrency),
+		currency: String(policyBase.currency),
 		sourceVersion,
 	}
 }

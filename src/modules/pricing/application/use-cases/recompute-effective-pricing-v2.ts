@@ -1,4 +1,3 @@
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 import type { Occupancy } from "@/shared/domain/occupancy"
 import { computeEffectivePricingV2 } from "./compute-effective-pricing-v2"
 
@@ -17,7 +16,7 @@ export async function recomputeEffectivePricingV2Range(
 			occupancyKey: string
 		}) => Promise<{
 			baseAmount: number
-			baseCurrency: string
+			currency: string
 		} | null>
 		getActiveOccupancyPolicy: (params: { ratePlanId: string; date: string }) => Promise<{
 			baseAdults: number
@@ -81,8 +80,7 @@ export async function recomputeEffectivePricingV2Range(
 					occupancy,
 				}
 			)
-			const occupancyKey =
-				result.occupancyKey || buildOccupancyKey({ ...occupancy, infants: occupancy.infants ?? 0 })
+			const occupancyKey = result.occupancyKey
 			occupancyKeys.add(occupancyKey)
 			await deps.saveEffectivePricingV2({
 				id: `epv2_${input.variantId}_${input.ratePlanId}_${date}_${occupancyKey}`,
