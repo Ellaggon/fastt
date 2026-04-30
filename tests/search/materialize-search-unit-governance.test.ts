@@ -55,7 +55,7 @@ describe("materialize search unit governance hardening", () => {
 			variantId: "var-1",
 			ratePlanId: "rp-1",
 			date: "2026-10-10",
-			totalGuests: 2,
+			occupancy: { adults: 2, children: 0, infants: 0 },
 			currency: "USD",
 		}
 
@@ -102,7 +102,7 @@ describe("materialize search unit governance hardening", () => {
 			variantId: "var-gap",
 			ratePlanId: "rp-gap",
 			date: "2026-10-10",
-			totalGuests: 1,
+			occupancy: { adults: 1, children: 0, infants: 0 },
 			currency: "USD",
 		})
 
@@ -117,10 +117,10 @@ describe("materialize search unit governance hardening", () => {
 			currency: "USD",
 		})
 
-		// dates = 2 days, rateplans = 2 unique (rp-a/rp-b), guests = 2 unique (1/2)
-		expect(result.rows).toBe(8)
+		// dates = 2 days, rateplans = 2 unique (rp-a/rp-b), occupancies = 3 canonical combos
+		expect(result.rows).toBe(12)
 		expect(result.from).toBe("2026-10-01")
 		expect(result.to).toBe("2026-10-03")
-		expect(repoMock.upsertSearchUnitViewRow).toHaveBeenCalledTimes(8)
+		expect(repoMock.upsertSearchUnitViewRow).toHaveBeenCalledTimes(12)
 	})
 })

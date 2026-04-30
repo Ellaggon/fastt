@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
-import { db, EffectiveAvailability, EffectivePricing } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
 	upsertDestination,
@@ -59,7 +60,7 @@ async function seedHotelVariant(params: {
 	})
 
 	if (params.baseRate !== undefined) {
-		await baseRateRepository.upsert({
+		await baseRateRepository.setCanonicalBaseForVariant({
 			variantId: params.variantId,
 			currency: "USD",
 			basePrice: params.baseRate,
@@ -113,24 +114,33 @@ async function seedHotelVariant(params: {
 		variantId: params.variantId,
 		isActive: true,
 		isDefault: true,
+		baseAmount: params.baseRate ?? 100,
+		baseCurrency: "USD",
 	})
 
 	if (params.baseRate !== undefined) {
+		const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		await db
-			.insert(EffectivePricing)
+			.insert(EffectivePricingV2)
 			.values({
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date: params.date,
-				basePrice: params.baseRate,
+				occupancyKey,
+				baseComponent: params.baseRate,
 				finalBasePrice: params.baseRate,
-				yieldMultiplier: 1,
+
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
-				target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+				target: [
+					EffectivePricingV2.variantId,
+					EffectivePricingV2.ratePlanId,
+					EffectivePricingV2.date,
+					EffectivePricingV2.occupancyKey,
+				],
 				set: {
-					basePrice: params.baseRate,
+					baseComponent: params.baseRate,
 					finalBasePrice: params.baseRate,
 					computedAt: new Date(),
 				},
@@ -260,14 +270,14 @@ describe("integration/search-v2 marketplace search", () => {
 		expect(json.results).toEqual([])
 	})
 
-	it("missing base rate excludes variant/product (no free pricing)", async () => {
+	it("without legacy base-rate write, product remains sellable when policy base exists", async () => {
 		const email = "user@example.com"
 		const providerId = "prov_search_v2_nobase"
 		const destinationId = "dest_nobase"
 		const destinationSlug = "dest-nobase"
 		const date = "2026-03-10"
 
-		// Product C: has inventory + rate plan but NO PricingBaseRate.
+		// Product C: has inventory + rate plan and V2 policy base from rate plan setup.
 		await seedHotelVariant({
 			email,
 			providerId,
@@ -291,6 +301,9 @@ describe("integration/search-v2 marketplace search", () => {
 		expect(res.status).toBe(200)
 		const json = await res.json()
 
-		expect(json.results).toEqual([])
+		expect(Array.isArray(json.results)).toBe(true)
+		expect(json.results.length).toBe(1)
+		expect(json.results[0].productId).toBe("prod_c")
+		expect(json.results[0].fromPrice).toBe(100)
 	})
 })

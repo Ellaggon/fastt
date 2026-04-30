@@ -76,11 +76,13 @@ export type SearchUnitMaterializationRepositoryPort = {
 		variantId: string
 		ratePlanId: string
 		date: string
+		occupancyKey: string
 	}): Promise<SearchUnitMaterializationInputs>
 	resolveSourceVersion(params: {
 		variantId: string
 		ratePlanId: string
 		date: string
+		occupancyKey: string
 	}): Promise<string>
 	getSearchUnitViewRow(params: {
 		variantId: string
@@ -90,6 +92,13 @@ export type SearchUnitMaterializationRepositoryPort = {
 	}): Promise<SearchUnitMaterializationStoredRow | null>
 	upsertSearchUnitViewRow(row: SearchUnitMaterializationUpsertRow): Promise<void>
 	resolveDefaultRatePlanIds(variantId: string): Promise<string[]>
-	resolveGuestRange(variantId: string): Promise<number[]>
+	resolveGuestRange?(variantId: string): Promise<number[]>
+	resolveOccupancyCombinations?(variantId: string): Promise<
+		Array<{
+			adults: number
+			children: number
+			infants: number
+		}>
+	>
 	purgeStaleSearchUnitRows(cutoff: Date): Promise<number>
 }

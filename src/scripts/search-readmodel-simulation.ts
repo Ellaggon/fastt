@@ -3,7 +3,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	gte,
 	lt,
 	SearchUnitView,
@@ -194,28 +194,36 @@ async function seedDataset(): Promise<{
 					})
 
 				await db
-					.insert(EffectivePricing)
+					.insert(EffectivePricingV2)
 					.values({
 						id: `ep_sim_${variantId}_${ratePlanId}_${date}`,
 						variantId,
 						ratePlanId,
 						date,
-						basePrice,
+						occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+						baseComponent: basePrice,
+						occupancyAdjustment: 0,
+						ruleAdjustment: 0,
 						finalBasePrice: basePrice,
-						yieldMultiplier: 1,
+						currency: "USD",
 						computedAt: new Date(),
+						sourceVersion: "sim_seed_v2",
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricing.variantId,
-							EffectivePricing.ratePlanId,
-							EffectivePricing.date,
+							EffectivePricingV2.variantId,
+							EffectivePricingV2.ratePlanId,
+							EffectivePricingV2.date,
+							EffectivePricingV2.occupancyKey,
 						],
 						set: {
-							basePrice,
+							baseComponent: basePrice,
+							occupancyAdjustment: 0,
+							ruleAdjustment: 0,
 							finalBasePrice: basePrice,
-							yieldMultiplier: 1,
+							currency: "USD",
 							computedAt: new Date(),
+							sourceVersion: "sim_seed_v2",
 						},
 					})
 			}
@@ -400,24 +408,36 @@ async function validateAutoBackfill() {
 				},
 			})
 		await db
-			.insert(EffectivePricing)
+			.insert(EffectivePricingV2)
 			.values({
 				id: `ep_auto_${variantId}_${ratePlanId}_${date}`,
 				variantId,
 				ratePlanId,
 				date,
-				basePrice: 120,
+				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+				baseComponent: 120,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
 				finalBasePrice: 120,
-				yieldMultiplier: 1,
+				currency: "USD",
 				computedAt: new Date(),
+				sourceVersion: "sim_seed_v2",
 			} as any)
 			.onConflictDoUpdate({
-				target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+				target: [
+					EffectivePricingV2.variantId,
+					EffectivePricingV2.ratePlanId,
+					EffectivePricingV2.date,
+					EffectivePricingV2.occupancyKey,
+				],
 				set: {
-					basePrice: 120,
+					baseComponent: 120,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
 					finalBasePrice: 120,
-					yieldMultiplier: 1,
+					currency: "USD",
 					computedAt: new Date(),
+					sourceVersion: "sim_seed_v2",
 				},
 			})
 	}
@@ -431,10 +451,9 @@ async function validateAutoBackfill() {
 	})
 
 	const occupancyKey = buildOccupancyKey({
-		rooms: 1,
 		adults: 2,
 		children: 0,
-		totalGuests: 2,
+		infants: 0,
 	})
 	await db
 		.delete(SearchUnitView)
