@@ -17,13 +17,15 @@ export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPor
 			dayOfWeekJson: cmd.dayOfWeekJson ?? null,
 			isActive: Boolean(cmd.isActive),
 			createdAt: cmd.createdAt ?? new Date(),
-		})
+			...(cmd.occupancyKey ? ({ occupancyKey: cmd.occupancyKey } as any) : {}),
+		} as any)
 	}
 
 	async updateById(
 		ruleId: string,
 		patch: {
 			name?: string | null
+			occupancyKey?: string | null
 			type: string
 			value: number
 			priority: number
@@ -42,7 +44,8 @@ export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPor
 				priority: patch.priority,
 				dateRangeJson: patch.dateRangeJson ?? null,
 				dayOfWeekJson: patch.dayOfWeekJson ?? null,
-			})
+				...(patch.occupancyKey ? ({ occupancyKey: patch.occupancyKey } as any) : {}),
+			} as any)
 			.where(eq(PriceRule.id, ruleId))
 		return "ok"
 	}

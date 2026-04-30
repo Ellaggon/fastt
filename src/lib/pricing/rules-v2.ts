@@ -25,6 +25,12 @@ export function optionalText(payload: Record<string, unknown>, key: string): str
 	return value.length > 0 ? value : undefined
 }
 
+export function normalizeOccupancyKey(raw?: string): string | undefined {
+	const value = String(raw ?? "").trim()
+	if (!value) return undefined
+	return /^a\d+_c\d+_i\d+$/.test(value) ? value : undefined
+}
+
 export function parseNumber(
 	payload: Record<string, unknown>,
 	key: string,
@@ -173,6 +179,10 @@ export async function listRulesByRatePlan(ratePlanId: string) {
 				: [],
 			contextKey:
 				typeof row.name === "string" && row.name.startsWith("ctx:") ? row.name.slice(4) : null,
+			occupancyKey:
+				typeof (row as any).occupancyKey === "string" && String((row as any).occupancyKey).trim()
+					? String((row as any).occupancyKey).trim()
+					: null,
 			isActive: Boolean(row.isActive),
 			createdAt: row.createdAt,
 		}))

@@ -6,6 +6,7 @@ import {
 	isValidDateOnly,
 	listRulesByRatePlan,
 	normalizeRuleType,
+	normalizeOccupancyKey,
 	optionalText,
 	parseDayOfWeek,
 	parseNumber,
@@ -41,6 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const dateTo = optionalText(payload, "dateTo")
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const contextKey = optionalText(payload, "contextKey")
+	const occupancyKey = normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey)
 	if (dateFrom && !isValidDateOnly(dateFrom)) {
 		return new Response(JSON.stringify({ error: "invalid_date_from" }), {
 			status: 400,
@@ -73,7 +75,8 @@ export const POST: APIRoute = async ({ request }) => {
 		dayOfWeekJson: dayOfWeek ?? null,
 		isActive: true,
 		createdAt,
-	})
+		...(occupancyKey ? ({ occupancyKey } as any) : {}),
+	} as any)
 
 	const rematerializationFrom = dateFrom ?? new Date().toISOString().slice(0, 10)
 	const rematerializationTo = dateTo

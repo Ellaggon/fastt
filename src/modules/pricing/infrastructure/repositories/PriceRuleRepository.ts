@@ -9,6 +9,7 @@ export class PriceRuleRepository implements PriceRuleRepositoryPort {
 		return rows.map((r) => ({
 			id: r.id,
 			ratePlanId: r.ratePlanId,
+			occupancyKey: String((r as any).occupancyKey ?? "").trim() || null,
 			type: r.type as DomainPriceRule["type"],
 			value: r.value,
 			isActive: r.isActive,

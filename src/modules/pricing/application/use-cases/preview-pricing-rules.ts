@@ -12,6 +12,7 @@ type VariantRepoForRulePreview = {
 			id: string
 			type: string
 			value: number
+			occupancyKey?: string | null
 			priority: number
 			dateRange?: { from?: string | null; to?: string | null } | null
 			dayOfWeek?: number[] | null
@@ -90,6 +91,7 @@ export async function previewPricingRules(
 		id: String(rule.id),
 		type: normalizeType(String(rule.type)),
 		value: Number(rule.value),
+		occupancyKey: String(rule.occupancyKey ?? "").trim() || null,
 		priority: Number(rule.priority ?? 10),
 		dateRange: rule.dateRange ?? null,
 		dayOfWeek: rule.dayOfWeek ?? null,
