@@ -13,6 +13,7 @@ import {
 	RatePlan,
 	RatePlanTemplate,
 } from "astro:db"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 type Input = {
 	request: Request
@@ -29,7 +30,9 @@ type RatePlanItem = {
 	modifierLabel: string
 }
 
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = "a2_c0_i0"
+const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 export async function loadVariantPricingData(input: Input): Promise<
 	| {
