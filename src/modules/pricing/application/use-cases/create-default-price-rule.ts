@@ -43,7 +43,7 @@ function isValidDateOnly(value: string): boolean {
  *
  * Validations are aligned with the hardened engine:
  * - percentage: [-100, 1000]
- * - fixed: >= -basePrice (basePrice comes from PricingBaseRate; missing base rate => basePrice=0)
+ * - fixed: >= -basePrice (basePrice comes from canonical policy base; missing base rate => basePrice=0)
  */
 export async function createDefaultPriceRule(
 	deps: {
@@ -89,7 +89,7 @@ export async function createDefaultPriceRule(
 		canonicalType === "fixed_adjustment" ||
 		canonicalType === "base_adjustment"
 
-	const baseRate = await deps.baseRateRepo.getByVariantId(parsed.variantId)
+	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
 	const basePrice = Number(baseRate?.basePrice ?? 0)
 
 	if (isPercentage && (parsed.value < 0 || parsed.value > 1000)) {

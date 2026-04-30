@@ -15,6 +15,7 @@ export interface SelectedRatePlan {
 export interface PriceRule {
 	id: string
 	ratePlanId: string
+	occupancyKey?: string | null
 	type: "modifier" | "fixed_adjustment" | "override" | "percentage_discount" | "percentage_markup"
 	value: number
 	startDate?: Date | null
