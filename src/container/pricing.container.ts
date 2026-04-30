@@ -11,6 +11,7 @@ import { PricingRepository } from "../modules/pricing/infrastructure/repositorie
 import { RatePlanRepository } from "../modules/pricing/infrastructure/repositories/RatePlanRepository"
 import { VariantRepository } from "../modules/pricing/infrastructure/repositories/VariantRepository"
 import { PriceRuleRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleRepository"
+import { PricingV2Repository } from "../modules/pricing/infrastructure/repositories/PricingV2Repository"
 import { RatePlanCommandRepository } from "../modules/pricing/infrastructure/repositories/RatePlanCommandRepository"
 import { RatePlanQueryRepository } from "../modules/pricing/infrastructure/repositories/RatePlanQueryRepository"
 import { BaseRateRepository } from "../modules/pricing/infrastructure/repositories/BaseRateRepository"
@@ -21,6 +22,7 @@ import { RatePlanPricingContextRepository } from "../modules/pricing/infrastruct
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
+export const pricingV2Repository = new PricingV2Repository()
 export const ratePlanRepository = new RatePlanRepository()
 export const variantRepository = new VariantRepository()
 export const priceRuleRepository = new PriceRuleRepository()

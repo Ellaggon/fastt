@@ -1,13 +1,9 @@
 import { z } from "zod"
 
-import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import { recomputeEffectivePricingV2Range } from "./recompute-effective-pricing-v2"
 
 type VariantRepoForCoverage = {
-	getBaseRate(
-		variantId: string
-	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
 	getDefaultRatePlanWithRules(variantId: string): Promise<{
 		ratePlanId: string
 		rules: Array<{
@@ -21,6 +17,9 @@ type VariantRepoForCoverage = {
 			createdAt: Date
 		}>
 	} | null>
+	getCapacity?(
+		variantId: string
+	): Promise<{ maxOccupancy: number; maxAdults: number | null; maxChildren: number | null } | null>
 }
 
 const ensurePricingCoverageSchema = z.object({
@@ -29,6 +28,13 @@ const ensurePricingCoverageSchema = z.object({
 	from: z.string().min(1),
 	to: z.string().min(1),
 	recomputeExisting: z.boolean().optional(),
+	occupancy: z
+		.object({
+			adults: z.number().int().min(1),
+			children: z.number().int().min(0).optional(),
+			infants: z.number().int().min(0).optional(),
+		})
+		.optional(),
 })
 
 export type EnsurePricingCoverageInput = z.infer<typeof ensurePricingCoverageSchema>
@@ -36,7 +42,7 @@ export type EnsurePricingCoverageInput = z.infer<typeof ensurePricingCoverageSch
 type EnsurePricingCoverageDeps = {
 	pricingRepo: PricingRepositoryPort
 	variantRepo: VariantRepoForCoverage
-	pricingV2Repo?: {
+	pricingV2Repo: {
 		getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
 			baseAmount: number
 			baseCurrency: string
@@ -50,11 +56,6 @@ type EnsurePricingCoverageDeps = {
 			childValue: number
 			currency: string
 		} | null>
-		getLegacyEffectivePricingBase(params: {
-			variantId: string
-			ratePlanId: string
-			date: string
-		}): Promise<{ basePrice: number } | null>
 		saveEffectivePricingV2(params: {
 			id: string
 			variantId: string
@@ -69,6 +70,12 @@ type EnsurePricingCoverageDeps = {
 			computedAt: Date
 			sourceVersion: string
 		}): Promise<void>
+		countEffectivePricingV2Rows?(params: {
+			variantId: string
+			ratePlanId: string
+			from: string
+			to: string
+		}): Promise<number>
 	}
 }
 
@@ -76,19 +83,38 @@ function buildShadowOccupanciesFromCapacity(input?: {
 	maxOccupancy?: number | null
 	maxAdults?: number | null
 	maxChildren?: number | null
+	requestedOccupancy?: { adults: number; children: number; infants: number } | null
 }): Array<{ adults: number; children: number; infants: number }> {
+	const required: Array<{ adults: number; children: number; infants: number }> = [
+		{ adults: 1, children: 0, infants: 0 },
+		{ adults: 2, children: 0, infants: 0 },
+		{ adults: 2, children: 1, infants: 0 },
+		{ adults: 3, children: 0, infants: 0 },
+	]
 	const maxOccupancy = Math.max(1, Number(input?.maxOccupancy ?? 4))
 	const maxAdults = Math.max(1, Number(input?.maxAdults ?? maxOccupancy))
 	const maxChildren = Math.max(0, Number(input?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
 	const out: Array<{ adults: number; children: number; infants: number }> = []
+	const seen = new Set<string>()
+	const pushUnique = (value: { adults: number; children: number; infants: number }) => {
+		if (value.adults < 1) return
+		if (value.children < 0) return
+		if (value.adults + value.children > maxOccupancy) return
+		const key = `${value.adults}:${value.children}:${value.infants}`
+		if (seen.has(key)) return
+		seen.add(key)
+		out.push(value)
+	}
+	for (const entry of required) pushUnique(entry)
+	if (input?.requestedOccupancy) {
+		pushUnique(input.requestedOccupancy)
+	}
 	for (let adults = 1; adults <= maxAdults; adults += 1) {
 		for (let children = 0; children <= maxChildren; children += 1) {
-			if (adults + children > maxOccupancy) continue
-			out.push({ adults, children, infants: 0 })
+			pushUnique({ adults, children, infants: 0 })
 		}
 	}
-	// Safety cap to avoid combinatorial explosion on outlier capacity definitions.
-	return out.slice(0, 20)
+	return out.slice(0, 8)
 }
 
 export type EnsurePricingCoverageResult = {
@@ -126,96 +152,66 @@ export async function ensurePricingCoverage(
 	if (expectedDates.length === 0) {
 		return { missingDatesCount: 0, generatedDatesCount: 0 }
 	}
-
-	const existing = new Set(
-		await deps.pricingRepo.listEffectivePricingDates({
-			variantId: parsed.variantId,
-			ratePlanId: parsed.ratePlanId,
-			from: parsed.from,
-			to: parsed.to,
-		})
-	)
-	const missingDates = expectedDates.filter((date) => !existing.has(date))
 	const recomputeExisting = Boolean(parsed.recomputeExisting)
-	const targetDates = recomputeExisting ? expectedDates : missingDates
-	if (targetDates.length === 0) {
-		return { missingDatesCount: 0, generatedDatesCount: 0 }
-	}
-
-	const [baseRate, defaultPlan] = await Promise.all([
-		deps.variantRepo.getBaseRate(parsed.variantId),
-		deps.variantRepo.getDefaultRatePlanWithRules(parsed.variantId),
-	])
-	if (!baseRate || !defaultPlan || defaultPlan.ratePlanId !== parsed.ratePlanId) {
-		return { missingDatesCount: missingDates.length, generatedDatesCount: 0 }
-	}
-
-	console.warn("pricing_auto_heal_triggered", {
-		variantId: parsed.variantId,
-		missingDatesCount: missingDates.length,
-		from: parsed.from,
-		to: parsed.to,
-		recomputeExisting,
-	})
 
 	let generatedDatesCount = 0
-	for (const date of targetDates) {
-		const evaluated = evaluatePricingRules({
-			basePrice: Number(baseRate.basePrice),
-			date,
-			ratePlanId: parsed.ratePlanId,
-			rules: defaultPlan.rules.map((rule) => ({
-				id: String(rule.id),
-				type: String(rule.type),
-				value: Number(rule.value),
-				occupancyKey: String(rule.occupancyKey ?? "").trim() || null,
-				priority: Number(rule.priority ?? 10),
-				dateRange: rule.dateRange ?? null,
-				dayOfWeek: rule.dayOfWeek ?? null,
-				createdAt: rule.createdAt,
-				isActive: true,
-			})),
-		})
-		await deps.pricingRepo.saveEffectivePrice({
-			variantId: parsed.variantId,
-			ratePlanId: parsed.ratePlanId,
-			date,
-			basePrice: Number(baseRate.basePrice),
-			finalBasePrice: Number(evaluated.price),
-		})
-		generatedDatesCount += 1
-	}
+	let missingDatesCount = expectedDates.length
 
-	if (deps.pricingV2Repo && targetDates.length > 0) {
-		const capacity = await (deps.variantRepo as any)?.getCapacity?.(parsed.variantId)
-		const shadowOccupancies = buildShadowOccupanciesFromCapacity({
-			maxOccupancy: capacity?.maxOccupancy ?? null,
-			maxAdults: capacity?.maxAdults ?? null,
-			maxChildren: capacity?.maxChildren ?? null,
-		})
-		await recomputeEffectivePricingV2Range(
-			{
-				getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
-				getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
-					deps.pricingV2Repo
-				),
-				getLegacyEffectivePricingBase: deps.pricingV2Repo.getLegacyEffectivePricingBase.bind(
-					deps.pricingV2Repo
-				),
-				getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
-				saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(deps.pricingV2Repo),
-			},
-			{
+	const capacity = await deps.variantRepo.getCapacity?.(parsed.variantId)
+	const shadowOccupancies = parsed.occupancy
+		? [
+				{
+					adults: parsed.occupancy.adults,
+					children: parsed.occupancy.children ?? 0,
+					infants: parsed.occupancy.infants ?? 0,
+				},
+			]
+		: buildShadowOccupanciesFromCapacity({
+				maxOccupancy: capacity?.maxOccupancy ?? null,
+				maxAdults: capacity?.maxAdults ?? null,
+				maxChildren: capacity?.maxChildren ?? null,
+				requestedOccupancy: null,
+			})
+	const occupancyCount = Math.max(1, shadowOccupancies.length)
+	const expectedRows = expectedDates.length * occupancyCount
+	const currentRows = deps.pricingV2Repo.countEffectivePricingV2Rows
+		? await deps.pricingV2Repo.countEffectivePricingV2Rows({
 				variantId: parsed.variantId,
 				ratePlanId: parsed.ratePlanId,
-				dates: targetDates,
-				occupancies: shadowOccupancies,
-			}
-		)
+				from: parsed.from,
+				to: parsed.to,
+			})
+		: 0
+	const completeCoverage = currentRows >= expectedRows
+	missingDatesCount = completeCoverage ? 0 : expectedDates.length
+	const mustRecomputeV2 = recomputeExisting || currentRows < expectedRows
+	if (!mustRecomputeV2) {
+		return {
+			missingDatesCount,
+			generatedDatesCount,
+		}
 	}
+	await recomputeEffectivePricingV2Range(
+		{
+			getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
+			getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
+				deps.pricingV2Repo
+			),
+			getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
+			saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(deps.pricingV2Repo),
+		},
+		{
+			variantId: parsed.variantId,
+			ratePlanId: parsed.ratePlanId,
+			dates: expectedDates,
+			occupancies: shadowOccupancies,
+		}
+	)
+	generatedDatesCount = expectedDates.length
+	missingDatesCount = 0
 
 	return {
-		missingDatesCount: missingDates.length,
+		missingDatesCount,
 		generatedDatesCount,
 	}
 }

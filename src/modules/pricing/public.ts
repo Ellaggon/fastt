@@ -60,9 +60,8 @@ export async function listRatePlansByProvider(providerId: string) {
 }
 
 export async function resolveRatePlanOwnerContext(ratePlanId: string) {
-	const { getRatePlanOwnerContext } = await import(
-		"./application/use-cases/get-rateplan-owner-context"
-	)
+	const { getRatePlanOwnerContext } =
+		await import("./application/use-cases/get-rateplan-owner-context")
 	const { ratePlanOwnerContextRepository } = await import("@/container")
 	return getRatePlanOwnerContext({ repo: ratePlanOwnerContextRepository }, { ratePlanId })
 }
@@ -81,33 +80,47 @@ export async function ensurePricingCoverageRuntime(params: {
 	from: string
 	to: string
 	recomputeExisting?: boolean
+	occupancy?: {
+		adults: number
+		children?: number
+		infants?: number
+	}
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
-	const { pricingRepository, variantManagementRepository } = await import("@/container")
+	const { pricingRepository, pricingV2Repository, variantManagementRepository } =
+		await import("@/container")
 	const result = await ensurePricingCoverage(
 		{
 			pricingRepo: pricingRepository,
 			variantRepo: variantManagementRepository,
+			pricingV2Repo: pricingV2Repository,
 		},
 		params
 	)
-	try {
-		const { materializeSearchUnitRange } = await import("@/modules/search/public")
-		await materializeSearchUnitRange({
-			variantId: params.variantId,
-			ratePlanId: params.ratePlanId,
-			from: params.from,
-			to: params.to,
-			currency: "USD",
-		})
-	} catch (error) {
-		console.warn("search_unit_materialization_failed", {
-			variantId: params.variantId,
-			ratePlanId: params.ratePlanId,
-			from: params.from,
-			to: params.to,
-			message: error instanceof Error ? error.message : String(error),
-		})
-	}
 	return result
+}
+
+export async function ensurePricingCoverageForRequestRuntime(params: {
+	variantId: string
+	ratePlanId: string
+	checkIn: string
+	checkOut: string
+	occupancy: {
+		adults: number
+		children: number
+		infants: number
+	}
+}) {
+	const { ensurePricingCoverageForRequest } =
+		await import("./application/use-cases/ensure-pricing-coverage-for-request")
+	const { pricingRepository, pricingV2Repository, variantManagementRepository } =
+		await import("@/container")
+	return ensurePricingCoverageForRequest(
+		{
+			pricingRepo: pricingRepository,
+			variantRepo: variantManagementRepository,
+			pricingV2Repo: pricingV2Repository,
+		},
+		params
+	)
 }
