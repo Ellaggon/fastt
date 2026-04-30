@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro"
-import { and, DailyInventory, EffectivePricing, eq, inArray, RatePlan, db } from "astro:db"
+import { and, DailyInventory, EffectivePricingV2, eq, inArray, RatePlan, db } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const kindLabel = (kind: string | null) => {
 	const normalized = String(kind ?? "")
@@ -15,6 +16,9 @@ const kindLabel = (kind: string | null) => {
 }
 
 const readinessInventoryMinDays = 30
+const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
@@ -70,9 +74,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.select({
 						variantId: RatePlan.variantId,
 					})
-					.from(EffectivePricing)
-					.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricing.ratePlanId))
-					.where(and(inArray(RatePlan.variantId, variantIds), eq(RatePlan.isDefault, true)))
+					.from(EffectivePricingV2)
+					.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricingV2.ratePlanId))
+					.where(
+						and(
+							inArray(RatePlan.variantId, variantIds),
+							eq(RatePlan.isDefault, true),
+							eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
+						)
+					)
 					.all(),
 				db
 					.select({
@@ -96,8 +106,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const subtypeComplete = Boolean(variant.subtype)
 		const pricingComplete = Boolean(
 			variant.pricing?.hasBaseRate &&
-				variant.pricing?.hasDefaultRatePlan &&
-				effectiveVariantSet.has(String(variant.id))
+			variant.pricing?.hasDefaultRatePlan &&
+			effectiveVariantSet.has(String(variant.id))
 		)
 		const inventoryDays = Number(inventoryCountByVariant.get(String(variant.id)) ?? 0)
 		const inventoryComplete = inventoryDays >= readinessInventoryMinDays

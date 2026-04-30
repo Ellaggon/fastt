@@ -60,10 +60,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		const occupancyInt = Math.max(1, Math.floor(occupancy))
 		const occupancyKey = buildOccupancyKey({
-			rooms: 1,
 			adults: occupancyInt,
 			children: 0,
-			totalGuests: occupancyInt,
+			infants: 0,
 		})
 		const stayDates = enumerateDates(from, to)
 		const rows = await db

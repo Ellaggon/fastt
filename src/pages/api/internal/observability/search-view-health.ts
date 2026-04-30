@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
 
 import { searchReadModelRepository } from "@/container/search-read-model.container"
-import { buildOccupancyKey, SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
+import { SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import { buildSearchViewGovernanceHealth } from "@/modules/search/application/services/search-view-health"
 
 function parseDateOnly(value: string): Date {
@@ -75,13 +76,8 @@ export const GET: APIRoute = async ({ url }) => {
 			: toISODateOnly(addDays(parseDateOnly(from), 30))
 		const dates = enumerateDates(from, to)
 		const occupancies = parseOccupancies(url.searchParams.get("occupancies"))
-		const occupancyKeys = occupancies.map((totalGuests) =>
-			buildOccupancyKey({
-				rooms: 1,
-				adults: totalGuests,
-				children: 0,
-				totalGuests,
-			})
+		const occupancyKeys = occupancies.map((adults) =>
+			buildOccupancyKey(normalizeOccupancy({ adults, children: 0, infants: 0 }))
 		)
 
 		const variantId = url.searchParams.get("variantId") ?? undefined
