@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { and, db, eq, gte, lt, SearchUnitView } from "astro:db"
+import { and, db, EffectivePricingV2, eq, gte, lt, SearchUnitView } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
@@ -17,6 +17,7 @@ import {
 	type SearchUnitViewStayRow,
 } from "@/modules/search/public"
 import { toISODate } from "@/shared/domain/date/date.utils"
+import { normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -65,7 +66,17 @@ type HoldabilityResult =
 			ratePlanId: string
 			totalPrice: number
 			nights: number
-			days: Array<{ date: string; price: number }>
+			days: Array<{
+				date: string
+				price: number
+				pricingBreakdownV2?: {
+					base: number
+					occupancyAdjustment: number
+					rules: number
+					final: number
+				}
+				pricingSource: "v2"
+			}>
 	  }
 	| {
 			holdable: false
@@ -78,6 +89,12 @@ type HoldabilityResult =
 				occupancyKey: string
 			}
 	  }
+
+function resolveHoldOccupancyDetail(occupancy: number) {
+	// Current endpoint contract receives only a numeric occupancy.
+	// We normalize it through the canonical occupancy model to keep one source of truth.
+	return normalizeOccupancy({ adults: occupancy, children: 0, infants: 0 })
+}
 
 async function resolveHoldabilityFromView(params: {
 	productId: string
@@ -103,12 +120,8 @@ async function resolveHoldabilityFromView(params: {
 		}
 	}
 
-	const occupancyKey = buildOccupancyKey({
-		rooms: 1,
-		adults: params.occupancy,
-		children: 0,
-		totalGuests: params.occupancy,
-	})
+	const occupancyDetail = resolveHoldOccupancyDetail(params.occupancy)
+	const occupancyKey = buildOccupancyKey(occupancyDetail)
 	const predicates = [
 		eq(SearchUnitView.productId, params.productId),
 		eq(SearchUnitView.variantId, params.variantId),
@@ -136,6 +149,59 @@ async function resolveHoldabilityFromView(params: {
 		.from(SearchUnitView)
 		.where(and(...predicates))
 		.all()
+	let v2Rows: Array<{
+		variantId: string
+		ratePlanId: string
+		date: string
+		finalBasePrice: number
+		baseComponent: number
+		occupancyAdjustment: number
+		ruleAdjustment: number
+	}> = []
+	if (EffectivePricingV2 && (EffectivePricingV2 as any).variantId) {
+		try {
+			v2Rows = await db
+				.select({
+					variantId: EffectivePricingV2.variantId,
+					ratePlanId: EffectivePricingV2.ratePlanId,
+					date: EffectivePricingV2.date,
+					finalBasePrice: EffectivePricingV2.finalBasePrice,
+					baseComponent: EffectivePricingV2.baseComponent,
+					occupancyAdjustment: EffectivePricingV2.occupancyAdjustment,
+					ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+				})
+				.from(EffectivePricingV2)
+				.where(
+					and(
+						eq(EffectivePricingV2.variantId, params.variantId),
+						eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
+						eq(EffectivePricingV2.occupancyKey, occupancyKey),
+						gte(EffectivePricingV2.date, params.checkIn),
+						lt(EffectivePricingV2.date, addDays(params.checkOut, 1))
+					)
+				)
+				.all()
+		} catch {
+			v2Rows = []
+		}
+	}
+	const v2ByKey = new Map<
+		string,
+		{
+			finalBasePrice: number
+			base: number
+			occupancyAdjustment: number
+			rules: number
+		}
+	>()
+	for (const row of v2Rows) {
+		v2ByKey.set(`${String(row.variantId)}:${String(row.ratePlanId)}:${String(row.date)}`, {
+			finalBasePrice: Number(row.finalBasePrice ?? 0),
+			base: Number(row.baseComponent ?? 0),
+			occupancyAdjustment: Number(row.occupancyAdjustment ?? 0),
+			rules: Number(row.ruleAdjustment ?? 0),
+		})
+	}
 
 	if (!rows.length) {
 		return {
@@ -164,7 +230,17 @@ async function resolveHoldabilityFromView(params: {
 	let selected: {
 		ratePlanId: string
 		totalPrice: number
-		days: Array<{ date: string; price: number }>
+		days: Array<{
+			date: string
+			price: number
+			pricingBreakdownV2?: {
+				base: number
+				occupancyAdjustment: number
+				rules: number
+				final: number
+			}
+			pricingSource: "v2"
+		}>
 	} | null = null
 	for (const [ratePlanId, bucket] of byRatePlan.entries()) {
 		const byDate = new Map<string, SearchUnitViewStayRow>(
@@ -207,10 +283,25 @@ async function resolveHoldabilityFromView(params: {
 		}
 
 		const days = stayDates.map((date) => {
-			const row = byDate.get(date)
+			const key = `${params.variantId}:${ratePlanId}:${date}`
+			const v2 = v2ByKey.get(key)
+			if (v2 && Number.isFinite(v2.finalBasePrice)) {
+				return {
+					date,
+					price: v2.finalBasePrice,
+					pricingBreakdownV2: {
+						base: Number(v2.base.toFixed(2)),
+						occupancyAdjustment: Number(v2.occupancyAdjustment.toFixed(2)),
+						rules: Number(v2.rules.toFixed(2)),
+						final: Number(v2.finalBasePrice.toFixed(2)),
+					},
+					pricingSource: "v2" as const,
+				}
+			}
 			return {
 				date,
-				price: row?.pricePerNight ?? 0,
+				price: Number.NaN,
+				pricingSource: "v2" as const,
 			}
 		})
 		if (days.some((day) => !Number.isFinite(day.price) || day.price <= 0)) {
@@ -353,15 +444,43 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 						resolvePricingSnapshot: async ({ from, to, occupancy }) => {
 							if (from !== parsed.dateRange.from || to !== parsed.dateRange.to) return null
 							if (occupancy !== parsed.occupancy) return null
+							const pricingBreakdownV2Totals = holdability.days.reduce(
+								(acc, day) => {
+									const breakdown = day.pricingBreakdownV2
+									if (!breakdown) return acc
+									return {
+										base: acc.base + Number(breakdown.base ?? 0),
+										occupancyAdjustment:
+											acc.occupancyAdjustment + Number(breakdown.occupancyAdjustment ?? 0),
+										rules: acc.rules + Number(breakdown.rules ?? 0),
+										final: acc.final + Number(breakdown.final ?? day.price ?? 0),
+									}
+								},
+								{ base: 0, occupancyAdjustment: 0, rules: 0, final: 0 }
+							)
 							return {
 								ratePlanId: holdability.ratePlanId,
 								currency: "USD",
 								occupancy: parsed.occupancy,
+								occupancyDetail: {
+									adults: parsed.occupancy,
+									children: 0,
+									infants: 0,
+								},
 								from,
 								to,
 								nights: holdability.nights,
 								totalPrice: holdability.totalPrice,
 								days: holdability.days,
+								pricingBreakdownV2: {
+									base: Number(pricingBreakdownV2Totals.base.toFixed(2)),
+									occupancyAdjustment: Number(
+										pricingBreakdownV2Totals.occupancyAdjustment.toFixed(2)
+									),
+									rules: Number(pricingBreakdownV2Totals.rules.toFixed(2)),
+									final: Number(pricingBreakdownV2Totals.final.toFixed(2)),
+								},
+								pricingSource: "v2",
 							}
 						},
 					},

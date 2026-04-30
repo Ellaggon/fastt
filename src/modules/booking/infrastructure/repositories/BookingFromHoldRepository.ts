@@ -27,11 +27,33 @@ type BookingPricingSnapshot = {
 	ratePlanId: string
 	currency: string
 	occupancy: number
+	occupancyDetail?: {
+		adults: number
+		children: number
+		infants: number
+	}
 	from: string
 	to: string
 	nights: number
 	totalPrice: number
-	days: Array<{ date: string; price: number }>
+	days: Array<{
+		date: string
+		price: number
+		pricingBreakdownV2?: {
+			base: number
+			occupancyAdjustment: number
+			rules: number
+			final: number
+		}
+		pricingSource?: "v2"
+	}>
+	pricingBreakdownV2?: {
+		base: number
+		occupancyAdjustment: number
+		rules: number
+		final: number
+	}
+	pricingSource?: "v2"
 }
 
 function isMissingHoldTableError(error: unknown): boolean {
@@ -69,11 +91,39 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	const occupancy = Number(snapshot.occupancy ?? 0)
 	const nights = Number(snapshot.nights ?? 0)
 	const totalPrice = Number(snapshot.totalPrice ?? NaN)
+	const occupancyDetailRaw = snapshot.occupancyDetail as
+		| { adults?: unknown; children?: unknown; infants?: unknown }
+		| undefined
+	const occupancyDetail = {
+		adults: Math.max(1, Number(occupancyDetailRaw?.adults ?? occupancy ?? 1)),
+		children: Math.max(0, Number(occupancyDetailRaw?.children ?? 0)),
+		infants: Math.max(0, Number(occupancyDetailRaw?.infants ?? 0)),
+	}
+	const pricingBreakdownV2Raw = snapshot.pricingBreakdownV2 as
+		| { base?: unknown; occupancyAdjustment?: unknown; rules?: unknown; final?: unknown }
+		| undefined
+	const pricingBreakdownV2 =
+		pricingBreakdownV2Raw &&
+		Number.isFinite(Number(pricingBreakdownV2Raw.base)) &&
+		Number.isFinite(Number(pricingBreakdownV2Raw.occupancyAdjustment)) &&
+		Number.isFinite(Number(pricingBreakdownV2Raw.rules)) &&
+		Number.isFinite(Number(pricingBreakdownV2Raw.final))
+			? {
+					base: Number(pricingBreakdownV2Raw.base),
+					occupancyAdjustment: Number(pricingBreakdownV2Raw.occupancyAdjustment),
+					rules: Number(pricingBreakdownV2Raw.rules),
+					final: Number(pricingBreakdownV2Raw.final),
+				}
+			: undefined
 	const days = Array.isArray(snapshot.days)
 		? snapshot.days
 				.map((day) => ({
 					date: String((day as any)?.date ?? "").trim(),
 					price: Number((day as any)?.price ?? NaN),
+					pricingBreakdownV2: (day as any)?.pricingBreakdownV2 as
+						| { base?: unknown; occupancyAdjustment?: unknown; rules?: unknown; final?: unknown }
+						| undefined,
+					pricingSource: String((day as any)?.pricingSource ?? "").trim(),
 				}))
 				.filter((day) => day.date.length > 0 && Number.isFinite(day.price))
 		: []
@@ -93,11 +143,44 @@ async function buildSnapshotFromHoldLifecycle(params: {
 		ratePlanId,
 		currency,
 		occupancy: Math.max(1, Math.round(occupancy)),
+		occupancyDetail: {
+			adults: Math.max(1, Math.round(occupancyDetail.adults)),
+			children: Math.max(0, Math.round(occupancyDetail.children)),
+			infants: Math.max(0, Math.round(occupancyDetail.infants)),
+		},
 		from,
 		to,
 		nights: Math.max(1, Math.round(nights)),
 		totalPrice: Number(totalPrice.toFixed(2)),
-		days: days.map((day) => ({ date: day.date, price: Number(day.price.toFixed(2)) })),
+		days: days.map((day) => ({
+			date: day.date,
+			price: Number(day.price.toFixed(2)),
+			pricingBreakdownV2:
+				day.pricingBreakdownV2 &&
+				Number.isFinite(Number(day.pricingBreakdownV2.base)) &&
+				Number.isFinite(Number(day.pricingBreakdownV2.occupancyAdjustment)) &&
+				Number.isFinite(Number(day.pricingBreakdownV2.rules)) &&
+				Number.isFinite(Number(day.pricingBreakdownV2.final))
+					? {
+							base: Number(Number(day.pricingBreakdownV2.base).toFixed(2)),
+							occupancyAdjustment: Number(
+								Number(day.pricingBreakdownV2.occupancyAdjustment).toFixed(2)
+							),
+							rules: Number(Number(day.pricingBreakdownV2.rules).toFixed(2)),
+							final: Number(Number(day.pricingBreakdownV2.final).toFixed(2)),
+						}
+					: undefined,
+			pricingSource: day.pricingSource === "v2" ? "v2" : undefined,
+		})),
+		pricingBreakdownV2: pricingBreakdownV2
+			? {
+					base: Number(pricingBreakdownV2.base.toFixed(2)),
+					occupancyAdjustment: Number(pricingBreakdownV2.occupancyAdjustment.toFixed(2)),
+					rules: Number(pricingBreakdownV2.rules.toFixed(2)),
+					final: Number(pricingBreakdownV2.final.toFixed(2)),
+				}
+			: undefined,
+		pricingSource: snapshot.pricingSource === "v2" ? "v2" : undefined,
 	}
 }
 
@@ -201,7 +284,10 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			})
 			if (!snapshot) throw new Error("INVENTORY_CONFLICT")
 
-			const guests = Number(snapshot.occupancy)
+			const adults = Number(snapshot.occupancyDetail?.adults ?? snapshot.occupancy ?? 1)
+			const children = Number(snapshot.occupancyDetail?.children ?? 0)
+			const infants = Number(snapshot.occupancyDetail?.infants ?? 0)
+			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
 			const baseTotal = Number(snapshot.totalPrice)
 
@@ -218,7 +304,8 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				guests,
 			})
 			const taxesAmount = Number((taxBreakdown.total - taxBreakdown.base).toFixed(2))
-			const finalTotal = Number(taxBreakdown.total.toFixed(2))
+			// Pricing total is sourced from the hold snapshot and must remain stable end-to-end.
+			const finalTotal = Number(baseTotal.toFixed(2))
 
 			await tx
 				.insert(Booking)
@@ -229,8 +316,8 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					bookingDate: now,
 					checkInDate: new Date(`${snapshot.from}T00:00:00.000Z`),
 					checkOutDate: new Date(`${snapshot.to}T00:00:00.000Z`),
-					numAdults: guests,
-					numChildren: 0,
+					numAdults: Math.max(1, adults),
+					numChildren: Math.max(0, children),
 					totalAmountUSD: snapshot.currency === "USD" ? finalTotal : null,
 					totalAmountBOB: snapshot.currency === "BOB" ? finalTotal : null,
 					status: "confirmed",
@@ -249,8 +336,8 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					ratePlanId: snapshot.ratePlanId,
 					checkIn: snapshot.from,
 					checkOut: snapshot.to,
-					adults: guests,
-					children: 0,
+					adults: Math.max(1, adults),
+					children: Math.max(0, children),
 					basePrice: Number(baseTotal.toFixed(2)),
 					taxes: taxesAmount,
 					totalPrice: finalTotal,
@@ -259,6 +346,13 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 						totalPrice: Number(baseTotal.toFixed(2)),
 						currency: snapshot.currency,
 						ratePlanId: snapshot.ratePlanId,
+						occupancyDetail: {
+							adults: Math.max(1, adults),
+							children: Math.max(0, children),
+							infants: Math.max(0, infants),
+						},
+						pricingBreakdownV2: snapshot.pricingBreakdownV2 ?? null,
+						pricingSource: snapshot.pricingSource ?? null,
 					},
 					createdAt: now,
 				} as any)
