@@ -7,6 +7,7 @@ import {
 	PricingBaseRate,
 	RatePlanTemplate,
 	RatePlan,
+	RatePlanOccupancyPolicy,
 	PriceRule,
 } from "astro:db"
 
@@ -212,6 +213,8 @@ export async function upsertRatePlan(row: {
 	variantId: string
 	isActive: boolean
 	isDefault?: boolean
+	baseAmount?: number
+	baseCurrency?: string
 }) {
 	await db
 		.insert(RatePlan)
@@ -230,6 +233,39 @@ export async function upsertRatePlan(row: {
 				variantId: row.variantId,
 				isDefault: row.isDefault ?? false,
 				isActive: row.isActive,
+			},
+		})
+
+	const today = new Date("2020-01-01T00:00:00.000Z")
+	const farFuture = new Date("2100-12-31T00:00:00.000Z")
+	const policyBaseAmount = Number(row.baseAmount ?? 100)
+	const policyBaseCurrency = String(row.baseCurrency ?? "USD")
+	await db
+		.insert(RatePlanOccupancyPolicy)
+		.values({
+			id: `rpop_${row.id}`,
+			ratePlanId: row.id,
+			baseAmount: policyBaseAmount,
+			baseCurrency: policyBaseCurrency,
+			baseAdults: 2,
+			baseChildren: 0,
+			extraAdultMode: "fixed",
+			extraAdultValue: 0,
+			childMode: "fixed",
+			childValue: 0,
+			currency: policyBaseCurrency,
+			effectiveFrom: today,
+			effectiveTo: farFuture,
+			createdAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [RatePlanOccupancyPolicy.id],
+			set: {
+				baseAmount: policyBaseAmount,
+				baseCurrency: policyBaseCurrency,
+				currency: policyBaseCurrency,
+				effectiveFrom: today,
+				effectiveTo: farFuture,
 			},
 		})
 }

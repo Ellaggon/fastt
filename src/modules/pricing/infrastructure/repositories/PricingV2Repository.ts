@@ -3,7 +3,6 @@ import {
 	asc,
 	db,
 	eq,
-	EffectivePricing,
 	EffectivePricingV2,
 	gte,
 	lte,
@@ -100,26 +99,6 @@ export class PricingV2Repository {
 			childValue: Number(row.childValue ?? 0),
 			currency: String(row.currency ?? "USD"),
 		}
-	}
-
-	async getLegacyEffectivePricingBase(params: {
-		variantId: string
-		ratePlanId: string
-		date: string
-	}): Promise<{ basePrice: number } | null> {
-		const row = await db
-			.select({ basePrice: EffectivePricing.basePrice })
-			.from(EffectivePricing)
-			.where(
-				and(
-					eq(EffectivePricing.variantId, params.variantId),
-					eq(EffectivePricing.ratePlanId, params.ratePlanId),
-					eq(EffectivePricing.date, params.date)
-				)
-			)
-			.get()
-		if (!row) return null
-		return { basePrice: Number(row.basePrice ?? 0) }
 	}
 
 	async saveEffectivePricingV2(params: {

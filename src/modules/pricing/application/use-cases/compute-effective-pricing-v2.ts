@@ -39,7 +39,7 @@ export type ComputeEffectivePricingV2Result = {
 
 export async function computeEffectivePricingV2(
 	deps: {
-		getBaseFromPolicy?: (params: {
+		getBaseFromPolicy: (params: {
 			ratePlanId: string
 			date: string
 			occupancyKey: string
@@ -51,11 +51,6 @@ export async function computeEffectivePricingV2(
 			ratePlanId: string
 			date: string
 		}) => Promise<ActivePolicy | null>
-		getLegacyEffectivePricingBase: (params: {
-			variantId: string
-			ratePlanId: string
-			date: string
-		}) => Promise<{ basePrice: number } | null>
 		getPreviewRules: (ratePlanId: string) => Promise<PreviewRule[]>
 	},
 	input: EffectivePricingV2ComputationInput
@@ -67,31 +62,27 @@ export async function computeEffectivePricingV2(
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 	})
-	const policyBase = await deps.getBaseFromPolicy?.({
+	const policyBase = await deps.getBaseFromPolicy({
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 		occupancyKey,
 	})
-	const legacyBase = await deps.getLegacyEffectivePricingBase({
-		variantId: input.variantId,
-		ratePlanId: input.ratePlanId,
-		date: input.date,
-	})
-	const base = Math.max(0, Number(policyBase?.baseAmount ?? legacyBase?.basePrice ?? 0))
-	const policyOrDefault: ActivePolicy = policy ?? {
-		baseAdults: 2,
-		baseChildren: 0,
-		extraAdultMode: "fixed",
-		extraAdultValue: 0,
-		childMode: "fixed",
-		childValue: 0,
-		currency: "USD",
+	if (!policyBase) {
+		throw new Error(
+			`POLICY_BASE_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date} occupancyKey=${occupancyKey}`
+		)
 	}
+	if (!policy) {
+		throw new Error(
+			`ACTIVE_OCCUPANCY_POLICY_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date}`
+		)
+	}
+	const base = Math.max(0, Number(policyBase.baseAmount))
 
 	const occupancyAdjustment = computeOccupancyAdjustment({
 		base,
 		occupancy,
-		policy: policyOrDefault,
+		policy,
 	})
 
 	const preRulePrice = Math.max(0, round2(base + occupancyAdjustment))
@@ -124,7 +115,7 @@ export async function computeEffectivePricingV2(
 				ratePlanId: input.ratePlanId,
 				date: input.date,
 				occupancyKey,
-				policy: policyOrDefault,
+				policy,
 				base,
 				occupancyAdjustment,
 				ruleIds: rules.map((rule) => String(rule.id)),
@@ -140,7 +131,7 @@ export async function computeEffectivePricingV2(
 			rules: ruleAdjustment,
 			final,
 		},
-		currency: String(policyBase?.baseCurrency ?? policyOrDefault.currency ?? "USD") || "USD",
+		currency: String(policyBase.baseCurrency),
 		sourceVersion,
 	}
 }

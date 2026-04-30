@@ -11,7 +11,7 @@ export const SHADOW_OCCUPANCIES: Occupancy[] = [
 
 export async function recomputeEffectivePricingV2Range(
 	deps: {
-		getBaseFromPolicy?: (params: {
+		getBaseFromPolicy: (params: {
 			ratePlanId: string
 			date: string
 			occupancyKey: string
@@ -28,11 +28,6 @@ export async function recomputeEffectivePricingV2Range(
 			childValue: number
 			currency: string
 		} | null>
-		getLegacyEffectivePricingBase: (params: {
-			variantId: string
-			ratePlanId: string
-			date: string
-		}) => Promise<{ basePrice: number } | null>
 		getPreviewRules: (ratePlanId: string) => Promise<
 			Array<{
 				id: string
@@ -77,7 +72,6 @@ export async function recomputeEffectivePricingV2Range(
 				{
 					getBaseFromPolicy: deps.getBaseFromPolicy,
 					getActiveOccupancyPolicy: deps.getActiveOccupancyPolicy,
-					getLegacyEffectivePricingBase: deps.getLegacyEffectivePricingBase,
 					getPreviewRules: deps.getPreviewRules,
 				},
 				{
