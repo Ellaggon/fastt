@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, EffectiveAvailability, EffectivePricing, SearchUnitView } from "astro:db"
+import { and, db, eq, EffectiveAvailability, EffectivePricingV2, SearchUnitView } from "astro:db"
 
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	seedTestProductVariant,
 	seedTestRatePlan,
@@ -56,22 +57,28 @@ describe("integration/search-unit-view-shadow", () => {
 				})
 
 			await db
-				.insert(EffectivePricing)
+				.insert(EffectivePricingV2)
 				.values({
 					id: `ep_suv_${variantId}_${ratePlanId}_${date}`,
 					variantId,
 					ratePlanId,
 					date,
-					basePrice: 120,
-					yieldMultiplier: 1,
+					occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+					baseComponent: 120,
+
 					finalBasePrice: 120,
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
-					target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+					target: [
+						EffectivePricingV2.variantId,
+						EffectivePricingV2.ratePlanId,
+						EffectivePricingV2.date,
+						EffectivePricingV2.occupancyKey,
+					],
 					set: {
-						basePrice: 120,
-						yieldMultiplier: 1,
+						baseComponent: 120,
+
 						finalBasePrice: 120,
 						computedAt: new Date(),
 					},

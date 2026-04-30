@@ -14,6 +14,8 @@ import {
 	eq,
 	and,
 	asc,
+	desc,
+	lte,
 	count,
 	sql,
 } from "astro:db"
@@ -22,9 +24,12 @@ import type {
 	VariantManagementRepositoryPort,
 	VariantReadinessSnapshot,
 } from "../../application/ports/VariantManagementRepositoryPort"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
-	private static readonly CANONICAL_OCCUPANCY_KEY = "a2_c0_i0"
+	private static readonly CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(
+		normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+	)
 
 	async listVariantsByProductId(productId: string): Promise<
 		Array<{
@@ -295,6 +300,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async getBaseRate(variantId: string) {
+		const targetDate = new Date()
 		const plan = await db
 			.select({ ratePlanId: RatePlan.id, createdAt: RatePlan.createdAt })
 			.from(RatePlan)
@@ -314,8 +320,14 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				basePrice: RatePlanOccupancyPolicy.baseAmount,
 			})
 			.from(RatePlanOccupancyPolicy)
-			.where(eq(RatePlanOccupancyPolicy.ratePlanId, plan.ratePlanId))
-			.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, plan.ratePlanId),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
 			.get()
 		if (!policy) return null
 		return {
