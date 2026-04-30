@@ -603,27 +603,30 @@ const EffectiveRestriction = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
+// Legacy V1 pricing tables kept as deprecated to support non-destructive remote convergence.
+// They must remain declared until all remote environments have the V2 tables created.
 const EffectivePricing = defineTable({
+	deprecated: true,
 	columns: {
 		id: column.text({ primaryKey: true }),
-		variantId: column.text({
-			references: () => Variant.columns.id,
-		}),
-		ratePlanId: column.text({
-			references: () => RatePlan.columns.id,
-		}),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		date: column.text(),
 		basePrice: column.number(),
 		yieldMultiplier: column.number({ default: 1 }),
 		finalBasePrice: column.number(),
 		computedAt: column.date(),
 	},
-	indexes: [
-		{
-			on: ["variantId", "ratePlanId", "date"],
-			unique: true,
-		},
-	],
+	indexes: [{ on: ["variantId", "ratePlanId", "date"], unique: true }],
+})
+const PricingBaseRate = defineTable({
+	deprecated: true,
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		currency: column.text({ default: "USD" }),
+		basePrice: column.number(),
+		createdAt: column.date({ default: NOW }),
+	},
 })
 const EffectivePricingV2 = defineTable({
 	columns: {
@@ -632,13 +635,13 @@ const EffectivePricingV2 = defineTable({
 		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		date: column.text(),
 		occupancyKey: column.text(),
-		baseComponent: column.number(),
-		occupancyAdjustment: column.number(),
-		ruleAdjustment: column.number(),
+		baseComponent: column.number({ default: 0 }),
+		occupancyAdjustment: column.number({ default: 0 }),
+		ruleAdjustment: column.number({ default: 0 }),
 		finalBasePrice: column.number(),
-		currency: column.text(),
+		currency: column.text({ default: "USD" }),
 		computedAt: column.date(),
-		sourceVersion: column.text(),
+		sourceVersion: column.text({ default: "v2" }),
 	},
 	indexes: [
 		{ on: ["variantId", "ratePlanId", "date", "occupancyKey"], unique: true },
@@ -647,16 +650,6 @@ const EffectivePricingV2 = defineTable({
 	],
 })
 
-// CAPA 4A (Pricing Base Rate): 1:1 base pricing per Variant (sellable unit).
-// Canonical source of truth for base pricing.
-const PricingBaseRate = defineTable({
-	columns: {
-		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
-		currency: column.text({ default: "USD" }),
-		basePrice: column.number(),
-		createdAt: column.date({ default: NOW }),
-	},
-})
 const TaxFee = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -920,8 +913,8 @@ export default defineDb({
 		Restriction,
 		EffectiveRestriction,
 		EffectivePricing,
-		EffectivePricingV2,
 		PricingBaseRate,
+		EffectivePricingV2,
 		TaxFee,
 		TaxFeeDefinition,
 		TaxFeeAssignment,
