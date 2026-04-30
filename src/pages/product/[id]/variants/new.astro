@@ -17,6 +17,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductAggregate } from "@/modules/catalog/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import { and, asc, count, db, EffectivePricingV2, eq, RoomType } from "astro:db"
 
 type WizardStep = "identity" | "capacity" | "subtype" | "pricing" | "inventory"
@@ -49,6 +50,9 @@ const requestedStepParam = String(Astro.url.searchParams.get("step") ?? "identit
 const requestedStep: WizardStep = steps.includes(requestedStepParam as WizardStep)
 	? (requestedStepParam as WizardStep)
 	: "identity"
+const canonicalOccupancyKey = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 
@@ -90,7 +94,7 @@ if (variantIdParam) {
 						and(
 							eq(EffectivePricingV2.variantId, variantIdParam),
 							eq(EffectivePricingV2.ratePlanId, defaultRatePlan.ratePlanId),
-							eq(EffectivePricingV2.occupancyKey, "a2_c0_i0")
+							eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey)
 						)
 					)
 					.get()

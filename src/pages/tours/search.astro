@@ -1,6 +1,7 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
 	and,
 	db,
@@ -36,6 +37,9 @@ const checkout = params.get("checkout") || null
 const adults = params.get("adults") || "2"
 const children = params.get("children") || "0"
 const rooms = params.get("rooms") || "1"
+const canonicalOccupancyKey = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 let tours: ProductResult[] = []
 let destination = null
@@ -103,7 +107,7 @@ try {
 			and(
 				eq(EffectivePricingV2.variantId, Variant.id),
 				eq(EffectivePricingV2.ratePlanId, RatePlan.id),
-				eq(EffectivePricingV2.occupancyKey, "a2_c0_i0")
+				eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey)
 			)
 		)
 		.where(whereClause)
