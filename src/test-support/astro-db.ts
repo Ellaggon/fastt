@@ -70,9 +70,7 @@ export let RatePlanTemplate: any
 export let RatePlan: any
 export let RatePlanOccupancyPolicy: any
 export let PriceRule: any
-export let EffectivePricing: any
 export let EffectivePricingV2: any
-export let PricingBaseRate: any
 export let TaxFeeDefinition: any
 export let TaxFeeAssignment: any
 export let Restriction: any
@@ -208,9 +206,7 @@ async function init() {
 	RatePlan = drizzleTables.RatePlan
 	RatePlanOccupancyPolicy = drizzleTables.RatePlanOccupancyPolicy
 	PriceRule = drizzleTables.PriceRule
-	EffectivePricing = drizzleTables.EffectivePricing
 	EffectivePricingV2 = drizzleTables.EffectivePricingV2
-	PricingBaseRate = drizzleTables.PricingBaseRate
 	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
 	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
 	Restriction = drizzleTables.Restriction
