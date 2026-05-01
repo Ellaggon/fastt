@@ -5,7 +5,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { previewPricingRules } from "@/modules/pricing/public"
-import { productRepository, variantManagementRepository } from "@/container"
+import { productRepository, ratePlanRepository, variantManagementRepository } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -64,7 +64,11 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		const variant = await variantManagementRepository.getVariantById(variantId)
+		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
+		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
+		const variant = targetVariantId
+			? await variantManagementRepository.getVariantById(targetVariantId)
+			: null
 		if (!variant) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -86,7 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
 			{ variantRepo: variantManagementRepository },
 			{
 				ratePlanId,
-				variantId,
+				variantId: targetVariantId || undefined,
 				from,
 				to,
 				candidateRule: {

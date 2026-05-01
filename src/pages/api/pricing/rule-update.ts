@@ -99,7 +99,6 @@ export const POST: APIRoute = async ({ request }) => {
 				? contextKeyRaw
 				: undefined
 		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
-
 		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
 		if (!variantId) {
 			return new Response(JSON.stringify({ error: "Not found" }), {

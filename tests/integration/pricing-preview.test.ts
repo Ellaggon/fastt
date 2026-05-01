@@ -73,7 +73,7 @@ async function readJson(res: Response) {
 }
 
 describe("integration/pricing preview (CAPA 4B minimal)", () => {
-	it("rejects preview when ratePlanId is not provided", async () => {
+	it("legacy preview without resolvable ratePlanId fails explicitly", async () => {
 		const token = "t_prev_base"
 		const email = "prev-base@example.com"
 		const providerId = "prov_prev_base"
@@ -124,7 +124,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		})
 	})
 
-	it("does not silently fallback to default rate plan when missing ratePlanId", async () => {
+	it("does not silently fallback to non-default rate plan when missing ratePlanId", async () => {
 		const token = "t_prev_nodef"
 		const email = "prev-nodef@example.com"
 		const providerId = "prov_prev_nodef"

@@ -48,7 +48,11 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		const v = await variantManagementRepository.getVariantById(variantId)
+		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
+		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
+		const v = targetVariantId
+			? await variantManagementRepository.getVariantById(targetVariantId)
+			: null
 		if (!v) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -70,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
 				ratePlanRepo: ratePlanRepository,
 				pricingRepo: pricingRepository,
 			},
-			{ ratePlanId, variantId: variantId || undefined }
+			{ ratePlanId, variantId: targetVariantId || undefined }
 		)
 
 		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
