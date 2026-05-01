@@ -8,7 +8,6 @@ import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 
 const computePricePreviewSchema = z.object({
 	ratePlanId: z.string().trim().min(1).optional(),
-	variantId: z.string().trim().min(1).optional(),
 })
 
 const allowedRuleTypes = new Set([
@@ -36,11 +35,7 @@ export async function computePricePreview(
 	params: { ratePlanId?: string; variantId?: string }
 ): Promise<{ basePrice: number; finalPrice: number; currency: Currency }> {
 	const parsed = computePricePreviewSchema.parse(params)
-	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
-	if (!ratePlanId && parsed.variantId) {
-		const legacyDefault = await deps.ratePlanRepo.getDefaultByVariant(parsed.variantId)
-		ratePlanId = String(legacyDefault?.id ?? "").trim()
-	}
+	const ratePlanId = String(parsed.ratePlanId ?? "").trim()
 	if (!ratePlanId) {
 		throw new PricingPreviewValidationError("ratePlanId_required")
 	}

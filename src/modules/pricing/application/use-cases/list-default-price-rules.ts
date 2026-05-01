@@ -1,7 +1,6 @@
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import type { RatePlanCommandRepositoryPort } from "../ports/RatePlanCommandRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
-import { ensureDefaultRatePlan } from "./ensure-default-rateplan"
 
 export async function listDefaultPriceRules(
 	deps: {
@@ -9,7 +8,7 @@ export async function listDefaultPriceRules(
 		ratePlanCmdRepo: RatePlanCommandRepositoryPort
 		pricingRepo: PricingRepositoryPort
 	},
-	params: { variantId: string }
+	params: { ratePlanId?: string; variantId?: string }
 ): Promise<
 	Array<{
 		id: string
@@ -21,10 +20,7 @@ export async function listDefaultPriceRules(
 		createdAt: Date
 	}>
 > {
-	const { ratePlanId } = await ensureDefaultRatePlan(
-		{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
-		{ variantId: params.variantId }
-	)
-
+	const ratePlanId = String(params.ratePlanId ?? "").trim()
+	if (!ratePlanId) throw new Error("ratePlanId_required")
 	return deps.pricingRepo.getPreviewRules(ratePlanId)
 }
