@@ -88,14 +88,15 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	const currency = String(snapshot.currency ?? "USD").trim() || "USD"
 	const from = String(snapshot.from ?? "").trim()
 	const to = String(snapshot.to ?? "").trim()
-	const occupancy = Number(snapshot.occupancy ?? 0)
 	const nights = Number(snapshot.nights ?? 0)
 	const totalPrice = Number(snapshot.totalPrice ?? NaN)
 	const occupancyDetailRaw = snapshot.occupancyDetail as
 		| { adults?: unknown; children?: unknown; infants?: unknown }
 		| undefined
+	const occupancyLegacy = Number(snapshot.occupancy ?? 0)
 	const occupancyDetail = {
-		adults: Math.max(1, Number(occupancyDetailRaw?.adults ?? occupancy ?? 1)),
+		// Deprecated compatibility branch: legacy snapshots may only contain numeric occupancy.
+		adults: Math.max(1, Number(occupancyDetailRaw?.adults ?? occupancyLegacy ?? 1)),
 		children: Math.max(0, Number(occupancyDetailRaw?.children ?? 0)),
 		infants: Math.max(0, Number(occupancyDetailRaw?.infants ?? 0)),
 	}
@@ -128,7 +129,6 @@ async function buildSnapshotFromHoldLifecycle(params: {
 				.filter((day) => day.date.length > 0 && Number.isFinite(day.price))
 		: []
 	if (!ratePlanId || !from || !to) return null
-	if (!Number.isFinite(occupancy) || occupancy < 1) return null
 	if (!Number.isFinite(nights) || nights < 1) return null
 	if (!Number.isFinite(totalPrice) || totalPrice <= 0) return null
 	if (!days.length) return null
@@ -142,7 +142,7 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	return {
 		ratePlanId,
 		currency,
-		occupancy: Math.max(1, Math.round(occupancy)),
+		occupancy: Math.max(1, Math.round(occupancyDetail.adults + occupancyDetail.children)),
 		occupancyDetail: {
 			adults: Math.max(1, Math.round(occupancyDetail.adults)),
 			children: Math.max(0, Math.round(occupancyDetail.children)),
