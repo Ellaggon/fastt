@@ -4,7 +4,11 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { evaluateVariantReadiness } from "@/modules/catalog/public"
-import { variantManagementRepository, productRepository } from "@/container"
+import {
+	variantManagementRepository,
+	productRepository,
+	ratePlanPricingReadRepository,
+} from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -34,7 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!owned) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
 
 		const result = await evaluateVariantReadiness(
-			{ repo: variantManagementRepository },
+			{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
 			{ variantId }
 		)
 		return new Response(JSON.stringify(result), {

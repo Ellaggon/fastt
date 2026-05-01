@@ -19,6 +19,7 @@ import { PriceRuleCommandRepository } from "../modules/pricing/infrastructure/re
 import { PriceRuleQueryRepository } from "../modules/pricing/infrastructure/repositories/PriceRuleQueryRepository"
 import { RatePlanOwnerContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanOwnerContextRepository"
 import { RatePlanPricingContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingContextRepository"
+import { RatePlanPricingReadRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -33,6 +34,7 @@ export const priceRuleCommandRepository = new PriceRuleCommandRepository()
 export const priceRuleQueryRepository = new PriceRuleQueryRepository()
 export const ratePlanOwnerContextRepository = new RatePlanOwnerContextRepository()
 export const ratePlanPricingContextRepository = new RatePlanPricingContextRepository()
+export const ratePlanPricingReadRepository = new RatePlanPricingReadRepository()
 
 // ---- Engine singletons ----
 export const promotionEngine = new PromotionEngine()

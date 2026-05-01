@@ -7,9 +7,7 @@ import {
 	Product,
 	RoomType,
 	RatePlan,
-	RatePlanOccupancyPolicy,
 	PriceRule,
-	EffectivePricingV2,
 	DailyInventory,
 	eq,
 	and,
@@ -24,12 +22,10 @@ import type {
 	VariantManagementRepositoryPort,
 	VariantReadinessSnapshot,
 } from "../../application/ports/VariantManagementRepositoryPort"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
+import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
-	private static readonly CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(
-		normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-	)
+	private readonly pricingReadRepository = new RatePlanPricingReadRepository()
 
 	async listVariantsByProductId(productId: string): Promise<
 		Array<{
@@ -54,8 +50,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				kind: Variant.kind,
 				status: Variant.status,
 				defaultRatePlanId: RatePlan.id,
-				defaultRatePlanCurrency: RatePlanOccupancyPolicy.baseCurrency,
-				defaultRatePlanBaseAmount: RatePlanOccupancyPolicy.baseAmount,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
 				maxOccupancy: VariantCapacity.maxOccupancy,
@@ -77,32 +71,37 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 					eq(RatePlan.isActive, true)
 				)
 			)
-			.leftJoin(RatePlanOccupancyPolicy, eq(RatePlanOccupancyPolicy.ratePlanId, RatePlan.id))
 			.where(eq(Variant.productId, productId))
 			.all()
 
-		return rows.map((r) => ({
-			id: r.id,
-			name: r.name,
-			kind: r.kind ?? null,
-			status: r.status ?? null,
-			pricing: {
-				hasBaseRate: r.defaultRatePlanBaseAmount != null && r.defaultRatePlanCurrency != null,
-				hasDefaultRatePlan: Boolean(r.defaultRatePlanId),
-			},
-			capacity: r.capVariantId
-				? {
-						minOccupancy: r.minOccupancy ?? 0,
-						maxOccupancy: r.maxOccupancy ?? 0,
-						maxAdults: r.maxAdults ?? null,
-						maxChildren: r.maxChildren ?? null,
-					}
-				: null,
-			subtype:
-				r.hotelRoomVariantId && r.roomTypeId
-					? { roomTypeId: r.roomTypeId, name: r.roomTypeName ?? null }
-					: null,
-		}))
+		return Promise.all(
+			rows.map(async (r) => {
+				const pricingSummary =
+					await this.pricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(String(r.id))
+				return {
+					id: r.id,
+					name: r.name,
+					kind: r.kind ?? null,
+					status: r.status ?? null,
+					pricing: {
+						hasBaseRate: pricingSummary != null,
+						hasDefaultRatePlan: Boolean(r.defaultRatePlanId),
+					},
+					capacity: r.capVariantId
+						? {
+								minOccupancy: r.minOccupancy ?? 0,
+								maxOccupancy: r.maxOccupancy ?? 0,
+								maxAdults: r.maxAdults ?? null,
+								maxChildren: r.maxChildren ?? null,
+							}
+						: null,
+					subtype:
+						r.hotelRoomVariantId && r.roomTypeId
+							? { roomTypeId: r.roomTypeId, name: r.roomTypeName ?? null }
+							: null,
+				}
+			})
+		)
 	}
 
 	async getProductById(productId: string) {
@@ -300,40 +299,13 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async getBaseRate(variantId: string) {
-		const targetDate = new Date()
-		const plan = await db
-			.select({ ratePlanId: RatePlan.id, createdAt: RatePlan.createdAt })
-			.from(RatePlan)
-			.where(
-				and(
-					eq(RatePlan.variantId, variantId),
-					eq(RatePlan.isDefault, true),
-					eq(RatePlan.isActive, true)
-				)
-			)
-			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
-		if (!plan?.ratePlanId) return null
-		const policy = await db
-			.select({
-				currency: RatePlanOccupancyPolicy.baseCurrency,
-				basePrice: RatePlanOccupancyPolicy.baseAmount,
-			})
-			.from(RatePlanOccupancyPolicy)
-			.where(
-				and(
-					eq(RatePlanOccupancyPolicy.ratePlanId, plan.ratePlanId),
-					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
-				)
-			)
-			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.get()
-		if (!policy) return null
+		const summary =
+			await this.pricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
+		if (!summary) return null
 		return {
 			variantId,
-			currency: String(policy.currency ?? "USD"),
-			basePrice: Number(policy.basePrice ?? 0),
+			currency: summary.currency,
+			basePrice: summary.basePrice,
 		}
 	}
 
@@ -405,24 +377,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				createdAt: r.createdAt,
 			})),
 		}
-	}
-
-	async countEffectivePricingDays(params: {
-		variantId: string
-		ratePlanId: string
-	}): Promise<number> {
-		const row = await db
-			.select({ value: sql<number>`count(distinct ${EffectivePricingV2.date})` })
-			.from(EffectivePricingV2)
-			.where(
-				and(
-					eq(EffectivePricingV2.variantId, params.variantId),
-					eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-					eq(EffectivePricingV2.occupancyKey, VariantManagementRepository.CANONICAL_OCCUPANCY_KEY)
-				)
-			)
-			.get()
-		return Number(row?.value ?? 0)
 	}
 
 	async countDailyInventoryDays(variantId: string): Promise<number> {
