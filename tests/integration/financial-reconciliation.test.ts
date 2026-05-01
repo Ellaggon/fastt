@@ -5,11 +5,10 @@ import {
 	Booking,
 	DailyInventory,
 	db,
-	EffectivePricing,
+	EffectivePricingV2,
 	eq,
 	FinancialShadowRecord,
 	InventoryLock,
-	PricingBaseRate,
 	RatePlan,
 	RatePlanTemplate,
 	Variant,
@@ -20,7 +19,9 @@ import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { GET as reconciliationGet } from "@/pages/api/internal/financial/reconciliation"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -197,23 +198,6 @@ async function seedBookingReadyVariant(params: {
 		})
 	}
 
-	await db
-		.insert(PricingBaseRate)
-		.values({
-			variantId: params.variantId,
-			currency: "USD",
-			basePrice: 100,
-			createdAt: new Date(),
-		} as any)
-		.onConflictDoUpdate({
-			target: [PricingBaseRate.variantId],
-			set: {
-				currency: "USD",
-				basePrice: 100,
-				createdAt: new Date(),
-			},
-		})
-
 	for (const date of params.dates) {
 		await db.insert(DailyInventory).values({
 			id: `di_finrec_${crypto.randomUUID()}`,
@@ -227,22 +211,28 @@ async function seedBookingReadyVariant(params: {
 		} as any)
 
 		await db
-			.insert(EffectivePricing)
+			.insert(EffectivePricingV2)
 			.values({
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date,
-				basePrice: 100,
+				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+				baseComponent: 100,
 				finalBasePrice: 100,
-				yieldMultiplier: 1,
+
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
-				target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+				target: [
+					EffectivePricingV2.variantId,
+					EffectivePricingV2.ratePlanId,
+					EffectivePricingV2.date,
+					EffectivePricingV2.occupancyKey,
+				],
 				set: {
-					basePrice: 100,
+					baseComponent: 100,
 					finalBasePrice: 100,
-					yieldMultiplier: 1,
+
 					computedAt: new Date(),
 				},
 			})
@@ -250,6 +240,15 @@ async function seedBookingReadyVariant(params: {
 
 	const from = params.dates[0]
 	const to = addDays(params.dates[params.dates.length - 1], 1)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: from,
+			checkOut: to,
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await recomputeEffectiveAvailabilityRange({
 		variantId: params.variantId,
 		from,

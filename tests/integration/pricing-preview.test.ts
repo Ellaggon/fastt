@@ -104,7 +104,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_base", email } }, async () => {
 			const fd = new FormData()
@@ -152,7 +156,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		// Create a plan + rule but NOT marked as default.
 		const templateId = `rpt_prev_nodef_${crypto.randomUUID()}`
@@ -223,7 +231,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const templateId = `rpt_prev_pct_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_pct_${crypto.randomUUID()}`
@@ -287,7 +299,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const templateId = `rpt_prev_order_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_order_${crypto.randomUUID()}`
@@ -365,7 +381,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const templateId = `rpt_prev_negpct_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_negpct_${crypto.randomUUID()}`
@@ -432,7 +452,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const templateId = `rpt_prev_badtype_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_badtype_${crypto.randomUUID()}`
@@ -494,7 +518,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const templateId = `rpt_prev_fixed_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_fixed_${crypto.randomUUID()}`
@@ -562,7 +590,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.upsert({ variantId, currency: "USD", basePrice: 100 })
+		await baseRateRepository.setCanonicalBaseForVariant({
+			variantId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		await withSupabaseAuthStub(
 			{

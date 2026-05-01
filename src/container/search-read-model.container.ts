@@ -3,7 +3,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	EffectiveRestriction,
 	gte,
 	inArray,
@@ -31,6 +31,17 @@ export type SearchUnitViewReadRow = {
 	cta: boolean
 	ctd: boolean
 	primaryBlocker: string | null
+}
+
+export type EffectivePricingV2ReadRow = {
+	variantId: string
+	ratePlanId: string
+	date: string
+	occupancyKey: string
+	finalBasePrice: number
+	baseComponent: number
+	occupancyAdjustment: number
+	ruleAdjustment: number
 }
 
 export type SearchUnitViewUpsertRow = {
@@ -222,6 +233,50 @@ export const searchReadModelRepository = {
 		}))
 	},
 
+	async listEffectivePricingV2Rows(params: {
+		unitIds: string[]
+		ratePlanIds: string[]
+		from: string
+		to: string
+		occupancyKey: string
+	}): Promise<EffectivePricingV2ReadRow[]> {
+		if (!params.unitIds.length || !params.ratePlanIds.length) return []
+		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).variantId) return []
+		const rows = await db
+			.select({
+				variantId: EffectivePricingV2.variantId,
+				ratePlanId: EffectivePricingV2.ratePlanId,
+				date: EffectivePricingV2.date,
+				occupancyKey: EffectivePricingV2.occupancyKey,
+				finalBasePrice: EffectivePricingV2.finalBasePrice,
+				baseComponent: EffectivePricingV2.baseComponent,
+				occupancyAdjustment: EffectivePricingV2.occupancyAdjustment,
+				ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+			})
+			.from(EffectivePricingV2)
+			.where(
+				and(
+					inArray(EffectivePricingV2.variantId, params.unitIds),
+					inArray(EffectivePricingV2.ratePlanId, params.ratePlanIds),
+					gte(EffectivePricingV2.date, params.from),
+					lt(EffectivePricingV2.date, params.to),
+					eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+				)
+			)
+			.all()
+
+		return rows.map((row) => ({
+			variantId: String(row.variantId),
+			ratePlanId: String(row.ratePlanId),
+			date: String(row.date),
+			occupancyKey: String(row.occupancyKey),
+			finalBasePrice: Number(row.finalBasePrice),
+			baseComponent: Number(row.baseComponent ?? 0),
+			occupancyAdjustment: Number(row.occupancyAdjustment ?? 0),
+			ruleAdjustment: Number(row.ruleAdjustment ?? 0),
+		}))
+	},
+
 	async resolveDefaultRatePlanIds(variantId: string): Promise<string[]> {
 		const rows = await db
 			.select({ id: RatePlan.id })
@@ -256,7 +311,56 @@ export const searchReadModelRepository = {
 		return Array.from({ length: maxOccupancy }, (_, i) => i + 1)
 	},
 
-	async loadMaterializationInputs(params: { variantId: string; ratePlanId: string; date: string }) {
+	async resolveOccupancyCombinations(
+		variantId: string
+	): Promise<Array<{ adults: number; children: number; infants: number }>> {
+		const capacity = await db
+			.select({
+				maxOccupancy: VariantCapacity.maxOccupancy,
+				maxAdults: VariantCapacity.maxAdults,
+				maxChildren: VariantCapacity.maxChildren,
+			})
+			.from(VariantCapacity)
+			.where(eq(VariantCapacity.variantId, variantId))
+			.get()
+		const maxOccupancy = Math.max(1, Number(capacity?.maxOccupancy ?? 2))
+		const maxAdults = Math.max(1, Number(capacity?.maxAdults ?? maxOccupancy))
+		const maxChildren = Math.max(0, Number(capacity?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
+
+		const out: Array<{ adults: number; children: number; infants: number }> = []
+		for (let adults = 1; adults <= maxAdults; adults += 1) {
+			for (let children = 0; children <= maxChildren; children += 1) {
+				if (adults + children > maxOccupancy) continue
+				out.push({ adults, children, infants: 0 })
+			}
+		}
+		return out
+	},
+
+	async loadMaterializationInputs(params: {
+		variantId: string
+		ratePlanId: string
+		date: string
+		occupancyKey: string
+	}) {
+		const pricingReadPromise: Promise<{ finalBasePrice: number | null } | null> =
+			EffectivePricingV2 && (EffectivePricingV2 as any).variantId
+				? db
+						.select({
+							finalBasePrice: EffectivePricingV2.finalBasePrice,
+						})
+						.from(EffectivePricingV2)
+						.where(
+							and(
+								eq(EffectivePricingV2.variantId, params.variantId),
+								eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
+								eq(EffectivePricingV2.date, params.date),
+								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+							)
+						)
+						.get()
+						.then((row) => row ?? null)
+				: Promise.resolve(null)
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
 			db
 				.select({
@@ -272,19 +376,15 @@ export const searchReadModelRepository = {
 					)
 				)
 				.get(),
-			db
-				.select({
-					finalBasePrice: EffectivePricing.finalBasePrice,
-				})
-				.from(EffectivePricing)
-				.where(
-					and(
-						eq(EffectivePricing.variantId, params.variantId),
-						eq(EffectivePricing.ratePlanId, params.ratePlanId),
-						eq(EffectivePricing.date, params.date)
-					)
-				)
-				.get(),
+			pricingReadPromise.then((v2Pricing) => {
+				if (
+					v2Pricing?.finalBasePrice != null &&
+					Number.isFinite(Number(v2Pricing.finalBasePrice))
+				) {
+					return { finalBasePrice: Number(v2Pricing.finalBasePrice) }
+				}
+				return null
+			}),
 			db
 				.select({
 					stopSell: EffectiveRestriction.stopSell,
@@ -309,7 +409,23 @@ export const searchReadModelRepository = {
 		variantId: string
 		ratePlanId: string
 		date: string
+		occupancyKey: string
 	}): Promise<string> {
+		const pricingVersionPromise =
+			EffectivePricingV2 && (EffectivePricingV2 as any).variantId
+				? db
+						.select({ computedAt: EffectivePricingV2.computedAt })
+						.from(EffectivePricingV2)
+						.where(
+							and(
+								eq(EffectivePricingV2.variantId, params.variantId),
+								eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
+								eq(EffectivePricingV2.date, params.date),
+								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+							)
+						)
+						.get()
+				: Promise.resolve(null)
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
 			db
 				.select({ computedAt: EffectiveAvailability.computedAt })
@@ -321,17 +437,7 @@ export const searchReadModelRepository = {
 					)
 				)
 				.get(),
-			db
-				.select({ computedAt: EffectivePricing.computedAt })
-				.from(EffectivePricing)
-				.where(
-					and(
-						eq(EffectivePricing.variantId, params.variantId),
-						eq(EffectivePricing.ratePlanId, params.ratePlanId),
-						eq(EffectivePricing.date, params.date)
-					)
-				)
-				.get(),
+			pricingVersionPromise,
 			db
 				.select({ computedAt: EffectiveRestriction.computedAt })
 				.from(EffectiveRestriction)
@@ -349,7 +455,19 @@ export const searchReadModelRepository = {
 		const p = pricingRow?.computedAt ? new Date(pricingRow.computedAt).toISOString() : "np"
 		const restrictionTimestamp =
 			restrictionRow?.computedAt != null ? new Date(restrictionRow.computedAt).toISOString() : "nr"
-		return createHash("sha1").update(`${a}|${p}|${restrictionTimestamp}`).digest("hex")
+		return createHash("sha1")
+			.update(
+				JSON.stringify({
+					variantId: params.variantId,
+					ratePlanId: params.ratePlanId,
+					date: params.date,
+					occupancyKey: params.occupancyKey,
+					availabilityComputedAt: a,
+					pricingComputedAt: p,
+					restrictionComputedAt: restrictionTimestamp,
+				})
+			)
+			.digest("hex")
 	},
 
 	async upsertSearchUnitViewRow(row: SearchUnitViewUpsertRow): Promise<void> {

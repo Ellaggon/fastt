@@ -4,13 +4,14 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	EffectiveRestriction,
 	SearchUnitView,
 } from "astro:db"
 
 import { GET as getSearchViewHealth } from "@/pages/api/internal/search/search-view-health"
 import { materializeSearchUnitRange, SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -103,24 +104,31 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 		})
 
 		for (const date of dates) {
+			const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 			await db
-				.insert(EffectivePricing)
+				.insert(EffectivePricingV2)
 				.values({
 					id: `ep_${seed}_${date}`,
 					variantId,
 					ratePlanId,
 					date,
-					basePrice: 100,
+					occupancyKey,
+					baseComponent: 100,
 					finalBasePrice: 100,
-					yieldMultiplier: 1,
+
 					computedAt: new Date("2026-11-09T12:00:00.000Z"),
 				} as any)
 				.onConflictDoUpdate({
-					target: [EffectivePricing.variantId, EffectivePricing.ratePlanId, EffectivePricing.date],
+					target: [
+						EffectivePricingV2.variantId,
+						EffectivePricingV2.ratePlanId,
+						EffectivePricingV2.date,
+						EffectivePricingV2.occupancyKey,
+					],
 					set: {
-						basePrice: 100,
+						baseComponent: 100,
 						finalBasePrice: 100,
-						yieldMultiplier: 1,
+
 						computedAt: new Date("2026-11-09T12:00:00.000Z"),
 					},
 				})

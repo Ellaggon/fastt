@@ -1,32 +1,124 @@
-import { db, PricingBaseRate, eq } from "astro:db"
+import { and, asc, db, desc, eq, lte, RatePlan, RatePlanOccupancyPolicy, sql } from "astro:db"
 import type { BaseRateRepositoryPort } from "../../application/ports/BaseRateRepositoryPort"
 
 export class BaseRateRepository implements BaseRateRepositoryPort {
-	async getByVariantId(variantId: string) {
-		const row = await db
-			.select()
-			.from(PricingBaseRate)
-			.where(eq(PricingBaseRate.variantId, variantId))
+	private readonly runtimeBaseByVariant = new Map<
+		string,
+		{ variantId: string; currency: string; basePrice: number; createdAt: Date }
+	>()
+
+	async getCanonicalBaseByVariantId(variantId: string) {
+		const plan = await db
+			.select({ ratePlanId: RatePlan.id })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, variantId),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
 			.get()
-		return row ?? null
+		if (!plan?.ratePlanId) return this.runtimeBaseByVariant.get(variantId) ?? null
+		const targetDate = new Date()
+
+		const policy = await db
+			.select({
+				basePrice: RatePlanOccupancyPolicy.baseAmount,
+				currency: RatePlanOccupancyPolicy.currency,
+				createdAt: RatePlanOccupancyPolicy.createdAt,
+			})
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, String(plan.ratePlanId)),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+			.get()
+		if (!policy) return this.runtimeBaseByVariant.get(variantId) ?? null
+
+		return {
+			variantId,
+			currency: String(policy.currency ?? "USD"),
+			basePrice: Number(policy.basePrice ?? 0),
+			createdAt: policy.createdAt ?? new Date(),
+		}
 	}
 
-	async upsert(params: { variantId: string; currency: string; basePrice: number }): Promise<void> {
-		await db
-			.insert(PricingBaseRate)
-			.values({
-				variantId: params.variantId,
-				currency: params.currency,
-				basePrice: params.basePrice,
-				createdAt: new Date(),
-			})
-			.onConflictDoUpdate({
-				target: [PricingBaseRate.variantId],
-				set: {
-					currency: params.currency,
-					basePrice: params.basePrice,
-					createdAt: new Date(),
-				},
-			})
+	async setCanonicalBaseForVariant(params: {
+		variantId: string
+		currency: string
+		basePrice: number
+	}): Promise<void> {
+		const now = new Date()
+		const normalizedCurrency = String(params.currency || "USD")
+			.trim()
+			.toUpperCase()
+		const normalizedBasePrice = Number(params.basePrice)
+		this.runtimeBaseByVariant.set(params.variantId, {
+			variantId: params.variantId,
+			currency: normalizedCurrency,
+			basePrice: normalizedBasePrice,
+			createdAt: now,
+		})
+		const plan = await db
+			.select({ ratePlanId: RatePlan.id })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, params.variantId),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
+			.get()
+		if (!plan?.ratePlanId) {
+			return
+		}
+		const nowDateOnly = now.toISOString().slice(0, 10)
+		const existingPolicy = await db
+			.select({ id: RatePlanOccupancyPolicy.id })
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, String(plan.ratePlanId)),
+					eq(RatePlanOccupancyPolicy.baseAdults, 2),
+					eq(RatePlanOccupancyPolicy.baseChildren, 0)
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+			.get()
+		if (existingPolicy?.id) {
+			await db
+				.update(RatePlanOccupancyPolicy)
+				.set({
+					baseAmount: normalizedBasePrice,
+					baseCurrency: normalizedCurrency,
+					currency: normalizedCurrency,
+				})
+				.where(eq(RatePlanOccupancyPolicy.id, existingPolicy.id))
+			return
+		}
+		await db.insert(RatePlanOccupancyPolicy).values({
+			id: crypto.randomUUID(),
+			ratePlanId: String(plan.ratePlanId),
+			baseAdults: 2,
+			baseChildren: 0,
+			extraAdultMode: "fixed",
+			extraAdultValue: 0,
+			childMode: "fixed",
+			childValue: 0,
+			currency: normalizedCurrency,
+			baseAmount: normalizedBasePrice,
+			baseCurrency: normalizedCurrency,
+			effectiveFrom: nowDateOnly,
+			effectiveTo: "2099-12-31",
+			createdAt: now,
+		} as any)
 	}
 }

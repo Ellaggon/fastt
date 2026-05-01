@@ -1,4 +1,4 @@
-export type PricingBaseRateSnapshot = {
+export type CanonicalBaseRateSnapshot = {
 	variantId: string
 	currency: string
 	basePrice: number
@@ -6,6 +6,10 @@ export type PricingBaseRateSnapshot = {
 }
 
 export interface BaseRateRepositoryPort {
-	getByVariantId(variantId: string): Promise<PricingBaseRateSnapshot | null>
-	upsert(params: { variantId: string; currency: string; basePrice: number }): Promise<void>
+	getCanonicalBaseByVariantId(variantId: string): Promise<CanonicalBaseRateSnapshot | null>
+	setCanonicalBaseForVariant(params: {
+		variantId: string
+		currency: string
+		basePrice: number
+	}): Promise<void>
 }

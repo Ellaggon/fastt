@@ -142,10 +142,9 @@ async function seedScenario(scenario: SeedScenario): Promise<void> {
 	for (const date of dates) {
 		for (const occupancy of scenario.occupancies) {
 			const occupancyKey = buildOccupancyKey({
-				rooms: 1,
 				adults: occupancy,
 				children: 0,
-				totalGuests: occupancy,
+				infants: 0,
 			})
 			const rowId = `suv_svh_${scenario.seed}_${date}_${occupancy}`
 

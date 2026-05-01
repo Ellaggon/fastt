@@ -4,10 +4,12 @@ import {
 	Product,
 	Variant,
 	VariantCapacity,
-	PricingBaseRate,
 	RatePlanTemplate,
 	RatePlan,
+	RatePlanOccupancyPolicy,
 	PriceRule,
+	eq,
+	and,
 } from "astro:db"
 
 export async function upsertDestination(row: {
@@ -103,22 +105,45 @@ export async function upsertVariant(row: {
 				? Number(row.basePrice)
 				: null
 	if (baseRatePrice != null && Number.isFinite(baseRatePrice)) {
-		await db
-			.insert(PricingBaseRate)
-			.values({
-				variantId: row.id,
-				currency: baseRateCurrency,
-				basePrice: baseRatePrice,
-				createdAt: new Date(),
-			})
-			.onConflictDoUpdate({
-				target: [PricingBaseRate.variantId],
-				set: {
+		const defaultPlans = await db
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, row.id),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+		for (const plan of defaultPlans.filter(Boolean)) {
+			await db
+				.insert(RatePlanOccupancyPolicy)
+				.values({
+					id: `rpop_${String(plan.id)}_a2c0`,
+					ratePlanId: String(plan.id),
+					baseAmount: baseRatePrice,
+					baseCurrency: baseRateCurrency,
+					baseAdults: 2,
+					baseChildren: 0,
+					extraAdultMode: "fixed",
+					extraAdultValue: 0,
+					childMode: "fixed",
+					childValue: 0,
 					currency: baseRateCurrency,
-					basePrice: baseRatePrice,
+					effectiveFrom: "2020-01-01",
+					effectiveTo: "2100-12-31",
 					createdAt: new Date(),
-				},
-			})
+				} as any)
+				.onConflictDoUpdate({
+					target: [RatePlanOccupancyPolicy.id],
+					set: {
+						baseAmount: baseRatePrice,
+						baseCurrency: baseRateCurrency,
+						currency: baseRateCurrency,
+						createdAt: new Date(),
+					},
+				})
+		}
 	}
 
 	const minOcc = row.minOccupancy ?? 1
@@ -212,6 +237,8 @@ export async function upsertRatePlan(row: {
 	variantId: string
 	isActive: boolean
 	isDefault?: boolean
+	baseAmount?: number
+	baseCurrency?: string
 }) {
 	await db
 		.insert(RatePlan)
@@ -230,6 +257,39 @@ export async function upsertRatePlan(row: {
 				variantId: row.variantId,
 				isDefault: row.isDefault ?? false,
 				isActive: row.isActive,
+			},
+		})
+
+	const today = new Date("2020-01-01T00:00:00.000Z")
+	const farFuture = new Date("2100-12-31T00:00:00.000Z")
+	const policyBaseAmount = Number(row.baseAmount ?? 100)
+	const policyBaseCurrency = String(row.baseCurrency ?? "USD")
+	await db
+		.insert(RatePlanOccupancyPolicy)
+		.values({
+			id: `rpop_${row.id}`,
+			ratePlanId: row.id,
+			baseAmount: policyBaseAmount,
+			baseCurrency: policyBaseCurrency,
+			baseAdults: 2,
+			baseChildren: 0,
+			extraAdultMode: "fixed",
+			extraAdultValue: 0,
+			childMode: "fixed",
+			childValue: 0,
+			currency: policyBaseCurrency,
+			effectiveFrom: today,
+			effectiveTo: farFuture,
+			createdAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [RatePlanOccupancyPolicy.id],
+			set: {
+				baseAmount: policyBaseAmount,
+				baseCurrency: policyBaseCurrency,
+				currency: policyBaseCurrency,
+				effectiveFrom: today,
+				effectiveTo: farFuture,
 			},
 		})
 }

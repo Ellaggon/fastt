@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro"
-import { pricingRepository, variantManagementRepository } from "@/container"
-import { evaluatePricingRules } from "@/modules/pricing/public"
+import { variantManagementRepository } from "@/container"
+import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 
 import {
-	listRulesByRatePlan,
 	optionalText,
 	parseNumber,
 	readRequestPayload,
@@ -65,41 +64,27 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 
-	const rules = (await listRulesByRatePlan(ratePlanId)).map((rule) => ({
-		id: rule.id,
-		type: rule.type,
-		value: Number(rule.value),
-		priority: Number(rule.priority),
-		dateRange:
-			rule.dateFrom || rule.dateTo
-				? { from: rule.dateFrom ?? undefined, to: rule.dateTo ?? undefined }
-				: null,
-		dayOfWeek: rule.dayOfWeek,
-		createdAt: new Date(rule.createdAt),
-		isActive: true,
-	}))
-	let writes = 0
-	for (const date of dates) {
-		const { price } = evaluatePricingRules({
-			basePrice: Number(baseRate.basePrice),
-			date,
-			ratePlanId,
-			rules,
-		})
-		await pricingRepository.saveEffectivePrice({
-			variantId: context.ownerContext.variantId,
-			ratePlanId,
-			date,
-			basePrice: Number(baseRate.basePrice),
-			finalBasePrice: Number(price),
-		})
-		writes += 1
-	}
+	const fromDate = dates[0]
+	const lastDate = dates[dates.length - 1]
+	const toDateExclusive = (() => {
+		const next = new Date(`${lastDate}T00:00:00.000Z`)
+		next.setUTCDate(next.getUTCDate() + 1)
+		return next.toISOString().slice(0, 10)
+	})()
+	const v2Rematerialization = await ensurePricingCoverageRuntime({
+		variantId: context.ownerContext.variantId,
+		ratePlanId,
+		from: fromDate,
+		to: toDateExclusive,
+		recomputeExisting: true,
+	})
+	const writes = v2Rematerialization.generatedDatesCount
 
 	return new Response(
 		JSON.stringify({
 			ok: true,
 			daysGenerated: writes,
+			v2Rematerialization,
 		}),
 		{
 			status: 200,

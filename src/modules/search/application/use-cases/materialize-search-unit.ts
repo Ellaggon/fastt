@@ -7,6 +7,7 @@ import {
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "../../domain/occupancy-key"
+import { normalizeOccupancy, type Occupancy } from "@/shared/domain/occupancy"
 import type { SearchUnitMaterializationRepositoryPort } from "../ports/SearchUnitMaterializationRepositoryPort"
 export {
 	SEARCH_VIEW_REASON_CODES,
@@ -22,7 +23,11 @@ const materializeSearchUnitSchema = z.object({
 	variantId: z.string().min(1),
 	ratePlanId: z.string().min(1),
 	date: z.string().min(1),
-	totalGuests: z.number().int().min(1),
+	occupancy: z.object({
+		adults: z.number().int().min(1),
+		children: z.number().int().min(0).optional(),
+		infants: z.number().int().min(0).optional(),
+	}),
 	currency: z.string().min(1).default("USD"),
 })
 
@@ -31,6 +36,15 @@ const materializeSearchUnitRangeSchema = z.object({
 	ratePlanId: z.string().min(1).optional(),
 	from: z.string().min(1),
 	to: z.string().min(1),
+	occupancies: z
+		.array(
+			z.object({
+				adults: z.number().int().min(1),
+				children: z.number().int().min(0).optional(),
+				infants: z.number().int().min(0).optional(),
+			})
+		)
+		.optional(),
 	currency: z.string().min(1).default("USD"),
 })
 
@@ -150,6 +164,40 @@ function hasMaterializationDrift(params: {
 	)
 }
 
+function buildDefaultOccupancyCombinations(input?: {
+	maxOccupancy?: number | null
+	maxAdults?: number | null
+	maxChildren?: number | null
+}): Occupancy[] {
+	const required: Occupancy[] = [
+		{ adults: 1, children: 0, infants: 0 },
+		{ adults: 2, children: 0, infants: 0 },
+		{ adults: 1, children: 1, infants: 0 },
+		{ adults: 2, children: 1, infants: 0 },
+		{ adults: 3, children: 0, infants: 0 },
+	]
+	const maxOccupancy = Math.max(1, Number(input?.maxOccupancy ?? 4))
+	const maxAdults = Math.max(1, Number(input?.maxAdults ?? maxOccupancy))
+	const maxChildren = Math.max(0, Number(input?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
+	const out: Occupancy[] = []
+	const seen = new Set<string>()
+	const push = (raw: Occupancy) => {
+		const normalized = normalizeOccupancy(raw)
+		if (normalized.adults + normalized.children > maxOccupancy) return
+		const key = buildOccupancyKey(normalized)
+		if (seen.has(key)) return
+		seen.add(key)
+		out.push(normalized)
+	}
+	for (const entry of required) push(entry)
+	for (let adults = 1; adults <= maxAdults; adults += 1) {
+		for (let children = 0; children <= maxChildren; children += 1) {
+			push({ adults, children, infants: 0 })
+		}
+	}
+	return out.slice(0, 8)
+}
+
 export async function materializeSearchUnit(
 	input: MaterializeSearchUnitInput
 ): Promise<{ updated: boolean; isSellable: boolean; blocker: string | null }> {
@@ -161,11 +209,15 @@ export async function materializeSearchUnit(
 		return { updated: false, isSellable: false, blocker: "MISSING_VARIANT" }
 	}
 
+	const occupancy = normalizeOccupancy(parsed.occupancy)
+	const occupancyKey = buildOccupancyKey(occupancy)
+
 	const { availabilityRow, pricingRow, restrictionRow } =
 		await repository.loadMaterializationInputs({
 			variantId: parsed.variantId,
 			ratePlanId: parsed.ratePlanId,
 			date: normalizedDate,
+			occupancyKey,
 		})
 
 	const hasAvailability = availabilityRow != null
@@ -222,16 +274,11 @@ export async function materializeSearchUnit(
 					: policyBlocked
 						? "POLICY_BLOCKED"
 						: null
-	const occupancyKey = buildOccupancyKey({
-		rooms: 1,
-		adults: parsed.totalGuests,
-		children: 0,
-		totalGuests: parsed.totalGuests,
-	})
 	const sourceVersion = await repository.resolveSourceVersion({
 		variantId: parsed.variantId,
 		ratePlanId: parsed.ratePlanId,
 		date: normalizedDate,
+		occupancyKey,
 	})
 	const candidateRow = {
 		variantId: parsed.variantId,
@@ -239,7 +286,7 @@ export async function materializeSearchUnit(
 		ratePlanId: parsed.ratePlanId,
 		date: normalizedDate,
 		occupancyKey,
-		totalGuests: parsed.totalGuests,
+		totalGuests: occupancy.adults + occupancy.children,
 		hasAvailability,
 		hasPrice,
 		isSellable: isSellable && !policyBlocked,
@@ -314,21 +361,35 @@ export async function materializeSearchUnitRange(
 		return { rows: 0, variantId: parsed.variantId, from: normalizedFrom, to: normalizedTo }
 	}
 
-	const guestRange = [...new Set(await repository.resolveGuestRange(parsed.variantId))]
-		.map((value) => Number(value))
-		.filter((value) => Number.isInteger(value) && value > 0)
-		.sort((a, b) => a - b)
+	const occupancyCombinations = parsed.occupancies
+		? parsed.occupancies.map((occupancy) => normalizeOccupancy(occupancy))
+		: repository.resolveOccupancyCombinations
+			? (await repository.resolveOccupancyCombinations(parsed.variantId)).map((occupancy) =>
+					normalizeOccupancy(occupancy)
+				)
+			: buildDefaultOccupancyCombinations(
+					repository.resolveGuestRange
+						? {
+								maxOccupancy: Math.max(
+									...(await repository.resolveGuestRange(parsed.variantId)).map((value) =>
+										Number(value)
+									),
+									1
+								),
+							}
+						: undefined
+				)
 	let rows = 0
 	let coveredRows = 0
 	let gapRows = 0
 	for (const ratePlanId of normalizedRatePlanIds) {
 		for (const date of dates) {
-			for (const totalGuests of guestRange) {
+			for (const occupancy of occupancyCombinations) {
 				const result = await materializeSearchUnit({
 					variantId: parsed.variantId,
 					ratePlanId,
 					date,
-					totalGuests,
+					occupancy,
 					currency: parsed.currency,
 				})
 				if (hasGapReason(result.blocker)) gapRows += 1

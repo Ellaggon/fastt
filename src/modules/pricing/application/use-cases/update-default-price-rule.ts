@@ -78,7 +78,7 @@ export async function updateDefaultPriceRule(
 		canonicalType === "fixed_adjustment" ||
 		canonicalType === "base_adjustment"
 
-	const baseRate = await deps.baseRateRepo.getByVariantId(parsed.variantId)
+	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
 	const basePrice = Number(baseRate?.basePrice ?? 0)
 
 	if (isPercentage && (parsed.value < 0 || parsed.value > 1000)) {

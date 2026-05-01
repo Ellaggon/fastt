@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { and, db, eq, gte, lt, SearchUnitView, Variant } from "astro:db"
 
-import { buildOccupancyKey } from "@/modules/search/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 function toISODateOnly(date: Date): string {
 	return date.toISOString().slice(0, 10)
@@ -38,13 +38,8 @@ export const GET: APIRoute = async ({ url }) => {
 		url.searchParams.get("to") ?? toISODateOnly(addDays(new Date(`${from}T00:00:00.000Z`), 90))
 	)
 	const occupancies = parseOccupancies(url.searchParams.get("occupancies"))
-	const occupancyKeys = occupancies.map((totalGuests) =>
-		buildOccupancyKey({
-			rooms: 1,
-			adults: totalGuests,
-			children: 0,
-			totalGuests,
-		})
+	const occupancyKeys = occupancies.map((adults) =>
+		buildOccupancyKey(normalizeOccupancy({ adults, children: 0, infants: 0 }))
 	)
 	const dates = enumerateDates(from, to)
 

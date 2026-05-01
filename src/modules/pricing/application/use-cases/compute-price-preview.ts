@@ -36,7 +36,7 @@ export async function computePricePreview(
 ): Promise<{ basePrice: number; finalPrice: number; currency: Currency }> {
 	const parsed = computePricePreviewSchema.parse(params)
 
-	const baseRate = await deps.baseRateRepo.getByVariantId(parsed.variantId)
+	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
 
 	// Base rate is mandatory for real sellability, but preview should remain callable:
 	// missing base rate yields a 0 price and is signaled elsewhere via readiness ("pricing_missing").

@@ -243,7 +243,7 @@ if (!owned) return Astro.redirect("/product/create")
 					value === "pricing_invalid"
 				) {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`,
+						href: `/rates/plans?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
 						label: "Configurar precios",
 					}
 				}
@@ -469,7 +469,7 @@ if (!owned) return Astro.redirect("/product/create")
 							"Precios",
 							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.pricing?.complete),
-							`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/pricing`,
+							`/rates/plans?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
 							"Editar precios"
 						),
 						blockCard(

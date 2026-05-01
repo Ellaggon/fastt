@@ -15,6 +15,7 @@ const bulkSchema = z.object({
 				dateTo: z.string().optional(),
 				dayOfWeek: z.union([z.array(z.number().int().min(0).max(6)), z.string()]).optional(),
 				contextKey: z.string().optional(),
+				occupancyKey: z.string().optional(),
 				previewFrom: z.string().optional(),
 				previewDays: z.number().int().min(1).max(120).optional(),
 				effectiveFrom: z.string().optional(),

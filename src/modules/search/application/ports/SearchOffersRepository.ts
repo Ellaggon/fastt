@@ -25,4 +25,21 @@ export type SearchOffersRepositoryPort = {
 		to: string
 		occupancyKey: string
 	}): Promise<SearchUnitViewRow[]>
+	listEffectivePricingV2Rows?(params: {
+		unitIds: string[]
+		ratePlanIds: string[]
+		from: string
+		to: string
+		occupancyKey: string
+	}): Promise<
+		Array<{
+			variantId: string
+			ratePlanId: string
+			date: string
+			finalBasePrice: number
+			baseComponent?: number
+			occupancyAdjustment?: number
+			ruleAdjustment?: number
+		}>
+	>
 }

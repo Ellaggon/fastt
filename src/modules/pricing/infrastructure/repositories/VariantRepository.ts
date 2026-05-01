@@ -1,4 +1,18 @@
-import { db, Variant, PricingBaseRate, VariantCapacity, eq, and, or, inArray } from "astro:db"
+import {
+	and,
+	asc,
+	db,
+	desc,
+	eq,
+	inArray,
+	lte,
+	or,
+	RatePlan,
+	RatePlanOccupancyPolicy,
+	sql,
+	Variant,
+	VariantCapacity,
+} from "astro:db"
 import type {
 	VariantKind,
 	VariantRepositoryPort,
@@ -23,13 +37,10 @@ export class VariantRepository implements VariantRepositoryPort {
 				productId: Variant.productId,
 				kind: Variant.kind,
 				name: Variant.name,
-				baseRateBasePrice: PricingBaseRate.basePrice,
-				baseRateCurrency: PricingBaseRate.currency,
 				capacityMin: VariantCapacity.minOccupancy,
 				capacityMax: VariantCapacity.maxOccupancy,
 			})
 			.from(Variant)
-			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.where(eq(Variant.id, id))
 			.get()
@@ -40,7 +51,9 @@ export class VariantRepository implements VariantRepositoryPort {
 			throw new Error(`Missing capacity for variant ${row.id}`)
 		}
 
-		if (row.baseRateBasePrice == null || !row.baseRateCurrency) {
+		const baseRate = await this.resolveBaseRateByVariantIds([row.id])
+		const variantBase = baseRate.get(row.id)
+		if (!variantBase) {
 			throw new Error(`Missing base rate for variant ${row.id}`)
 		}
 		return {
@@ -49,8 +62,8 @@ export class VariantRepository implements VariantRepositoryPort {
 			kind: assertVariantKind(row.kind),
 			name: row.name,
 			pricing: {
-				basePrice: row.baseRateBasePrice,
-				currency: row.baseRateCurrency,
+				basePrice: variantBase.basePrice,
+				currency: variantBase.currency,
 			},
 			capacity: {
 				minOccupancy: row.capacityMin,
@@ -72,13 +85,10 @@ export class VariantRepository implements VariantRepositoryPort {
 				productId: Variant.productId,
 				kind: Variant.kind,
 				name: Variant.name,
-				baseRateBasePrice: PricingBaseRate.basePrice,
-				baseRateCurrency: PricingBaseRate.currency,
 				capacityMin: VariantCapacity.minOccupancy,
 				capacityMax: VariantCapacity.maxOccupancy,
 			})
 			.from(Variant)
-			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.where(
 				and(
@@ -87,10 +97,14 @@ export class VariantRepository implements VariantRepositoryPort {
 				)
 			)
 			.all()
+		const baseRateByVariant = await this.resolveBaseRateByVariantIds(
+			rows.map((row) => String(row.id))
+		)
 
 		return rows.flatMap((row) => {
 			if (row.capacityMin == null || row.capacityMax == null) return []
-			if (row.baseRateBasePrice == null || !row.baseRateCurrency) return []
+			const baseRate = baseRateByVariant.get(String(row.id))
+			if (!baseRate) return []
 			return [
 				{
 					id: row.id,
@@ -98,8 +112,8 @@ export class VariantRepository implements VariantRepositoryPort {
 					kind: assertVariantKind(row.kind),
 					name: row.name,
 					pricing: {
-						basePrice: row.baseRateBasePrice,
-						currency: row.baseRateCurrency,
+						basePrice: baseRate.basePrice,
+						currency: baseRate.currency,
 					},
 					capacity: {
 						minOccupancy: row.capacityMin,
@@ -108,5 +122,76 @@ export class VariantRepository implements VariantRepositoryPort {
 				},
 			]
 		})
+	}
+
+	private async resolveBaseRateByVariantIds(
+		variantIds: string[]
+	): Promise<Map<string, { basePrice: number; currency: string }>> {
+		const ids = [...new Set(variantIds.map((id) => String(id)).filter(Boolean))]
+		if (!ids.length) return new Map()
+
+		const defaultPlans = await db
+			.select({
+				variantId: RatePlan.variantId,
+				ratePlanId: RatePlan.id,
+			})
+			.from(RatePlan)
+			.where(
+				and(
+					inArray(RatePlan.variantId, ids),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
+			.all()
+
+		const planByVariant = new Map<string, string>()
+		for (const plan of defaultPlans) {
+			const variantId = String(plan.variantId)
+			if (!planByVariant.has(variantId)) {
+				planByVariant.set(variantId, String(plan.ratePlanId))
+			}
+		}
+		const selectedRatePlanIds = [...new Set(planByVariant.values())]
+		if (!selectedRatePlanIds.length) return new Map()
+		const targetDate = new Date()
+
+		const policies = await db
+			.select({
+				id: RatePlanOccupancyPolicy.id,
+				ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
+				basePrice: RatePlanOccupancyPolicy.baseAmount,
+				currency: RatePlanOccupancyPolicy.currency,
+			})
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					inArray(RatePlanOccupancyPolicy.ratePlanId, selectedRatePlanIds),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+			.all()
+
+		const policyByRatePlan = new Map<string, { basePrice: number; currency: string }>()
+		for (const policy of policies) {
+			const ratePlanId = String(policy.ratePlanId)
+			if (!policyByRatePlan.has(ratePlanId)) {
+				policyByRatePlan.set(ratePlanId, {
+					basePrice: Number(policy.basePrice ?? 0),
+					currency: String(policy.currency ?? "USD"),
+				})
+			}
+		}
+
+		const result = new Map<string, { basePrice: number; currency: string }>()
+		for (const [variantId, ratePlanId] of planByVariant.entries()) {
+			const policy = policyByRatePlan.get(ratePlanId)
+			if (policy) result.set(variantId, policy)
+		}
+
+		return result
 	}
 }

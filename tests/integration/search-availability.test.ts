@@ -14,11 +14,13 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
 	db,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	EffectiveRestriction,
 	Restriction,
 	SearchUnitView,
@@ -133,7 +135,11 @@ async function seedSearchableVariant(params: {
 			.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
 	}
 
-	await baseRateRepository.upsert({ variantId: params.variantId, currency: "USD", basePrice: 100 })
+	await baseRateRepository.setCanonicalBaseForVariant({
+		variantId: params.variantId,
+		currency: "USD",
+		basePrice: 100,
+	})
 
 	for (const d of params.inventoryDates) {
 		await dailyInventoryRepository.upsert({
@@ -227,24 +233,26 @@ async function seedSearchableVariant(params: {
 		await Promise.all(
 			params.inventoryDates.map(async (date) => {
 				await db
-					.insert(EffectivePricing)
+					.insert(EffectivePricingV2)
 					.values({
 						variantId: params.variantId,
 						ratePlanId: params.ratePlanId,
 						date,
-						basePrice: nightly,
+						occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+						baseComponent: nightly,
 						finalBasePrice: nightly,
-						yieldMultiplier: 1,
+
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricing.variantId,
-							EffectivePricing.ratePlanId,
-							EffectivePricing.date,
+							EffectivePricingV2.variantId,
+							EffectivePricingV2.ratePlanId,
+							EffectivePricingV2.date,
+							EffectivePricingV2.occupancyKey,
 						],
 						set: {
-							basePrice: nightly,
+							baseComponent: nightly,
 							finalBasePrice: nightly,
 							computedAt: new Date(),
 						},
@@ -259,6 +267,15 @@ async function seedSearchableVariant(params: {
 	const extraDays = params.materializeCheckoutDay === false ? 1 : 2
 	// inventoryDates are stay nights ([from, checkOut)); optional extra day simulates checkout materialization.
 	to.setUTCDate(to.getUTCDate() + extraDays)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: from,
+			checkOut: to.toISOString().slice(0, 10),
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
@@ -498,6 +515,24 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 				},
 			})
 
+		for (const adults of [1, 2]) {
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId,
+				checkIn: "2026-03-10",
+				checkOut: "2026-03-14",
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+		}
+		for (const adults of [1, 2]) {
+			await ensurePricingCoverageForRequestRuntime({
+				variantId,
+				ratePlanId,
+				checkIn: "2026-03-10",
+				checkOut: "2026-03-12",
+				occupancy: { adults, children: 0, infants: 0 },
+			})
+		}
 		await materializeSearchUnitRange({
 			variantId,
 			ratePlanId,

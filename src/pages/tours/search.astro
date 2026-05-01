@@ -1,16 +1,18 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
 	and,
 	db,
 	Destination,
+	EffectivePricingV2,
 	eq,
 	Image,
 	or,
-	PricingBaseRate,
 	Product,
 	ProductContent,
+	RatePlan,
 	sql,
 	Tour,
 	Variant,
@@ -35,6 +37,9 @@ const checkout = params.get("checkout") || null
 const adults = params.get("adults") || "2"
 const children = params.get("children") || "0"
 const rooms = params.get("rooms") || "1"
+const canonicalOccupancyKey = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 let tours: ProductResult[] = []
 let destination = null
@@ -71,12 +76,12 @@ try {
 			description: ProductContent.description,
 			basePriceUSD: sql<
 				number | null
-			>`min(case when ${PricingBaseRate.currency} = 'USD' then ${PricingBaseRate.basePrice} end)`.as(
+			>`min(case when ${EffectivePricingV2.currency} = 'USD' then ${EffectivePricingV2.finalBasePrice} end)`.as(
 				"basePriceUSD"
 			),
 			basePriceBOB: sql<
 				number | null
-			>`min(case when ${PricingBaseRate.currency} = 'BOB' then ${PricingBaseRate.basePrice} end)`.as(
+			>`min(case when ${EffectivePricingV2.currency} = 'BOB' then ${EffectivePricingV2.finalBasePrice} end)`.as(
 				"basePriceBOB"
 			),
 			duration: Tour.duration,
@@ -89,7 +94,22 @@ try {
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
-		.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
+		.leftJoin(
+			RatePlan,
+			and(
+				eq(RatePlan.variantId, Variant.id),
+				eq(RatePlan.isDefault, true),
+				eq(RatePlan.isActive, true)
+			)
+		)
+		.leftJoin(
+			EffectivePricingV2,
+			and(
+				eq(EffectivePricingV2.variantId, Variant.id),
+				eq(EffectivePricingV2.ratePlanId, RatePlan.id),
+				eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey)
+			)
+		)
 		.where(whereClause)
 		.groupBy(Product.id)
 		.limit(50)

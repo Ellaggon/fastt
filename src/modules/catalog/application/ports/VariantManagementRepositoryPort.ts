@@ -83,6 +83,7 @@ export interface VariantManagementRepositoryPort {
 			id: string
 			type: string
 			value: number
+			occupancyKey?: string | null
 			priority: number
 			dateRange?: { from?: string | null; to?: string | null } | null
 			dayOfWeek?: number[] | null

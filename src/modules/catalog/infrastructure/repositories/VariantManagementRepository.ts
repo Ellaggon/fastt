@@ -6,23 +6,31 @@ import {
 	VariantReadiness,
 	Product,
 	RoomType,
-	PricingBaseRate,
 	RatePlan,
+	RatePlanOccupancyPolicy,
 	PriceRule,
-	EffectivePricing,
+	EffectivePricingV2,
 	DailyInventory,
 	eq,
 	and,
 	asc,
+	desc,
+	lte,
 	count,
+	sql,
 } from "astro:db"
 import type {
 	VariantLifecycleStatus,
 	VariantManagementRepositoryPort,
 	VariantReadinessSnapshot,
 } from "../../application/ports/VariantManagementRepositoryPort"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
+	private static readonly CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(
+		normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+	)
+
 	async listVariantsByProductId(productId: string): Promise<
 		Array<{
 			id: string
@@ -45,8 +53,9 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				name: Variant.name,
 				kind: Variant.kind,
 				status: Variant.status,
-				baseRateVariantId: PricingBaseRate.variantId,
 				defaultRatePlanId: RatePlan.id,
+				defaultRatePlanCurrency: RatePlanOccupancyPolicy.baseCurrency,
+				defaultRatePlanBaseAmount: RatePlanOccupancyPolicy.baseAmount,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
 				maxOccupancy: VariantCapacity.maxOccupancy,
@@ -60,8 +69,15 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
 			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
-			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
-			.leftJoin(RatePlan, and(eq(RatePlan.variantId, Variant.id), eq(RatePlan.isDefault, true)))
+			.leftJoin(
+				RatePlan,
+				and(
+					eq(RatePlan.variantId, Variant.id),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.leftJoin(RatePlanOccupancyPolicy, eq(RatePlanOccupancyPolicy.ratePlanId, RatePlan.id))
 			.where(eq(Variant.productId, productId))
 			.all()
 
@@ -71,7 +87,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			kind: r.kind ?? null,
 			status: r.status ?? null,
 			pricing: {
-				hasBaseRate: Boolean(r.baseRateVariantId),
+				hasBaseRate: r.defaultRatePlanBaseAmount != null && r.defaultRatePlanCurrency != null,
 				hasDefaultRatePlan: Boolean(r.defaultRatePlanId),
 			},
 			capacity: r.capVariantId
@@ -284,16 +300,41 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async getBaseRate(variantId: string) {
-		const row = await db
-			.select({
-				variantId: PricingBaseRate.variantId,
-				currency: PricingBaseRate.currency,
-				basePrice: PricingBaseRate.basePrice,
-			})
-			.from(PricingBaseRate)
-			.where(eq(PricingBaseRate.variantId, variantId))
+		const targetDate = new Date()
+		const plan = await db
+			.select({ ratePlanId: RatePlan.id, createdAt: RatePlan.createdAt })
+			.from(RatePlan)
+			.where(
+				and(
+					eq(RatePlan.variantId, variantId),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
+			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
 			.get()
-		return row ?? null
+		if (!plan?.ratePlanId) return null
+		const policy = await db
+			.select({
+				currency: RatePlanOccupancyPolicy.baseCurrency,
+				basePrice: RatePlanOccupancyPolicy.baseAmount,
+			})
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, plan.ratePlanId),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+			.get()
+		if (!policy) return null
+		return {
+			variantId,
+			currency: String(policy.currency ?? "USD"),
+			basePrice: Number(policy.basePrice ?? 0),
+		}
 	}
 
 	async getDefaultRatePlanWithRules(variantId: string) {
@@ -330,6 +371,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				id: PriceRule.id,
 				type: PriceRule.type,
 				value: PriceRule.value,
+				occupancyKey: (PriceRule as any).occupancyKey,
 				priority: PriceRule.priority,
 				dateRangeJson: PriceRule.dateRangeJson,
 				dayOfWeekJson: PriceRule.dayOfWeekJson,
@@ -346,6 +388,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				id: r.id,
 				type: String(r.type),
 				value: Number(r.value),
+				occupancyKey: String((r as any).occupancyKey ?? "").trim() || null,
 				priority: Number(r.priority ?? 10),
 				dateRange:
 					r.dateRangeJson && typeof r.dateRangeJson === "object"
@@ -369,12 +412,13 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		ratePlanId: string
 	}): Promise<number> {
 		const row = await db
-			.select({ value: count() })
-			.from(EffectivePricing)
+			.select({ value: sql<number>`count(distinct ${EffectivePricingV2.date})` })
+			.from(EffectivePricingV2)
 			.where(
 				and(
-					eq(EffectivePricing.variantId, params.variantId),
-					eq(EffectivePricing.ratePlanId, params.ratePlanId)
+					eq(EffectivePricingV2.variantId, params.variantId),
+					eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
+					eq(EffectivePricingV2.occupancyKey, VariantManagementRepository.CANONICAL_OCCUPANCY_KEY)
 				)
 			)
 			.get()

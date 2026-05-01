@@ -7,10 +7,9 @@ import {
 	DailyInventory,
 	Destination,
 	EffectiveAvailability,
-	EffectivePricing,
+	EffectivePricingV2,
 	eq,
 	InventoryLock,
-	PricingBaseRate,
 	Product,
 	RatePlan,
 	RatePlanTemplate,
@@ -21,7 +20,9 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
+import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -168,13 +169,6 @@ async function seedBookingReadyVariant(params: {
 		})
 	}
 
-	await db.insert(PricingBaseRate).values({
-		variantId: params.variantId,
-		currency: "USD",
-		basePrice: 100,
-		createdAt: new Date(),
-	} as any)
-
 	for (const date of params.dates) {
 		await db.insert(DailyInventory).values({
 			id: `di_${crypto.randomUUID()}`,
@@ -187,20 +181,33 @@ async function seedBookingReadyVariant(params: {
 			updatedAt: new Date(),
 		} as any)
 
-		await db.insert(EffectivePricing).values({
+		await db.insert(EffectivePricingV2).values({
 			id: `ep_${crypto.randomUUID()}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,
 			date,
-			basePrice: 100,
-			yieldMultiplier: 1,
+			occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+			baseComponent: 100,
+			occupancyAdjustment: 0,
+			ruleAdjustment: 0,
 			finalBasePrice: 100,
+			currency: "USD",
 			computedAt: new Date(),
+			sourceVersion: "test",
 		} as any)
 	}
 
 	const from = params.dates[0]
 	const to = addDays(params.dates[params.dates.length - 1], 1)
+	for (const adults of [1, 2]) {
+		await ensurePricingCoverageForRequestRuntime({
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: from,
+			checkOut: to,
+			occupancy: { adults, children: 0, infants: 0 },
+		})
+	}
 	await recomputeEffectiveAvailabilityRange({
 		variantId: params.variantId,
 		from,

@@ -10,7 +10,6 @@ import {
 	Image,
 	inArray,
 	Package,
-	PricingBaseRate,
 	Product,
 	ProductContent,
 	ProductLocation,
@@ -20,6 +19,7 @@ import {
 	ProviderUser,
 	ProviderVerification,
 	RatePlan,
+	RatePlanOccupancyPolicy,
 	Tour,
 	User,
 	sql,
@@ -241,7 +241,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				variantName: Variant.name,
 				variantKind: Variant.kind,
 				variantStatus: Variant.status,
-				baseRateVariantId: PricingBaseRate.variantId,
 				defaultRatePlanId: RatePlan.id,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
@@ -258,12 +257,32 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
 			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
-			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
-			.leftJoin(RatePlan, and(eq(RatePlan.variantId, Variant.id), eq(RatePlan.isDefault, true)))
+			.leftJoin(
+				RatePlan,
+				and(
+					eq(RatePlan.variantId, Variant.id),
+					eq(RatePlan.isDefault, true),
+					eq(RatePlan.isActive, true)
+				)
+			)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
 			.all()
 
 		if (!rows.length) return null
+		const defaultRatePlanIds = rows
+			.map((row) => String(row.defaultRatePlanId ?? "").trim())
+			.filter(Boolean)
+		const plansWithPolicy = defaultRatePlanIds.length
+			? await db
+					.select({
+						ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
+					})
+					.from(RatePlanOccupancyPolicy)
+					.where(inArray(RatePlanOccupancyPolicy.ratePlanId, defaultRatePlanIds))
+					.groupBy(RatePlanOccupancyPolicy.ratePlanId)
+					.all()
+			: []
+		const hasPolicyByRatePlan = new Set(plansWithPolicy.map((row) => String(row.ratePlanId)))
 
 		const first = rows[0]
 		const variants = rows
@@ -274,7 +293,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				kind: row.variantKind ?? null,
 				status: row.variantStatus ?? null,
 				pricing: {
-					hasBaseRate: Boolean(row.baseRateVariantId),
+					hasBaseRate: hasPolicyByRatePlan.has(String(row.defaultRatePlanId ?? "")),
 					hasDefaultRatePlan: Boolean(row.defaultRatePlanId),
 				},
 				capacity: row.capVariantId
@@ -323,8 +342,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				hotelRoomVariantId: VariantHotelRoom.variantId,
 				roomTypeId: VariantHotelRoom.roomTypeId,
 				roomTypeName: RoomType.name,
-				baseRateCurrency: PricingBaseRate.currency,
-				baseRatePrice: PricingBaseRate.basePrice,
 				defaultRatePlanId: RatePlan.id,
 				readinessState: VariantReadiness.state,
 				readinessErrors: VariantReadiness.validationErrorsJson,
@@ -334,7 +351,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
 			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
-			.leftJoin(PricingBaseRate, eq(PricingBaseRate.variantId, Variant.id))
 			.leftJoin(
 				RatePlan,
 				and(
@@ -354,6 +370,18 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.get()
 
 		if (!row) return null
+		const baseRate =
+			row.defaultRatePlanId != null
+				? await db
+						.select({
+							baseRateCurrency: RatePlanOccupancyPolicy.baseCurrency,
+							baseRatePrice: RatePlanOccupancyPolicy.baseAmount,
+						})
+						.from(RatePlanOccupancyPolicy)
+						.where(eq(RatePlanOccupancyPolicy.ratePlanId, row.defaultRatePlanId))
+						.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom))
+						.get()
+				: null
 
 		const readiness =
 			row.readinessState != null
@@ -384,8 +412,11 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					? { roomTypeId: row.roomTypeId, name: row.roomTypeName ?? null }
 					: null,
 			baseRate:
-				row.baseRateCurrency != null && row.baseRatePrice != null
-					? { currency: String(row.baseRateCurrency), basePrice: Number(row.baseRatePrice) }
+				baseRate?.baseRateCurrency != null && baseRate?.baseRatePrice != null
+					? {
+							currency: String(baseRate.baseRateCurrency),
+							basePrice: Number(baseRate.baseRatePrice),
+						}
 					: null,
 			defaultRatePlan: row.defaultRatePlanId ? { ratePlanId: row.defaultRatePlanId } : null,
 			readiness,

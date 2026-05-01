@@ -1,10 +1,11 @@
 import type { APIRoute } from "astro"
-import { and, db, EffectivePricing, eq } from "astro:db"
+import { and, db, EffectivePricingV2, eq } from "astro:db"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { evaluatePricingRules } from "@/modules/pricing/public"
 import { productRepository, variantManagementRepository } from "@/container"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -26,6 +27,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		const variantId = String(url.searchParams.get("variantId") ?? "").trim()
 		const date = String(url.searchParams.get("date") ?? "").trim()
+		const adults = Math.max(1, Number(url.searchParams.get("adults") ?? 2) || 2)
+		const children = Math.max(0, Number(url.searchParams.get("children") ?? 0) || 0)
+		const infants = Math.max(0, Number(url.searchParams.get("infants") ?? 0) || 0)
+		const occupancyKey = buildOccupancyKey(normalizeOccupancy({ adults, children, infants }))
 		const currency = String(url.searchParams.get("currency") ?? "USD")
 			.trim()
 			.toUpperCase()
@@ -83,13 +88,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 
 		const effective = await db
-			.select({ finalBasePrice: EffectivePricing.finalBasePrice })
-			.from(EffectivePricing)
+			.select({ finalBasePrice: EffectivePricingV2.finalBasePrice })
+			.from(EffectivePricingV2)
 			.where(
 				and(
-					eq(EffectivePricing.variantId, variantId),
-					eq(EffectivePricing.ratePlanId, String(defaultPlan.ratePlanId)),
-					eq(EffectivePricing.date, date)
+					eq(EffectivePricingV2.variantId, variantId),
+					eq(EffectivePricingV2.ratePlanId, String(defaultPlan.ratePlanId)),
+					eq(EffectivePricingV2.date, date),
+					eq(EffectivePricingV2.occupancyKey, occupancyKey)
 				)
 			)
 			.get()
