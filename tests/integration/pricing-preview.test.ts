@@ -598,7 +598,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const ratePlanId = `rp_prev_own_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
 			id: templateId,
-			name: "Own Default",
+			name: "Own Test",
 			paymentType: "prepaid",
 			refundable: false,
 		})

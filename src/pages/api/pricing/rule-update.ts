@@ -98,7 +98,6 @@ export const POST: APIRoute = async ({ request }) => {
 			contextKeyRaw === "manual"
 				? contextKeyRaw
 				: undefined
-
 		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
 		if (!variantId) {
@@ -161,25 +160,22 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const defaultPlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantId)
-		if (defaultPlan) {
-			const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
-			const rematerialize = await ensurePricingCoverageRuntime({
-				variantId,
-				ratePlanId: defaultPlan.ratePlanId,
-				from: rematerializationRange.from,
-				to: rematerializationRange.to,
-				recomputeExisting: true,
-			})
-			console.debug("pricing_rule_updated_materialized", {
-				ruleId,
-				variantId,
-				ratePlanId: defaultPlan.ratePlanId,
-				from: rematerializationRange.from,
-				to: rematerializationRange.to,
-				generatedDatesCount: rematerialize.generatedDatesCount,
-			})
-		}
+		const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
+		const rematerialize = await ensurePricingCoverageRuntime({
+			variantId,
+			ratePlanId,
+			from: rematerializationRange.from,
+			to: rematerializationRange.to,
+			recomputeExisting: true,
+		})
+		console.debug("pricing_rule_updated_materialized", {
+			ruleId,
+			variantId,
+			ratePlanId,
+			from: rematerializationRange.from,
+			to: rematerializationRange.to,
+			generatedDatesCount: rematerialize.generatedDatesCount,
+		})
 
 		await invalidateVariant(variantId, variant.productId)
 

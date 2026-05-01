@@ -85,27 +85,25 @@ export const POST: APIRoute = async ({ request }) => {
 			{ ruleId }
 		)
 
-		if (ratePlanId) {
-			const today = new Date()
-			today.setUTCHours(0, 0, 0, 0)
-			const from = toDateOnly(today)
-			const to = toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS))
-			const rematerialize = await ensurePricingCoverageRuntime({
-				variantId,
-				ratePlanId,
-				from,
-				to,
-				recomputeExisting: true,
-			})
-			console.debug("pricing_rule_deleted_materialized", {
-				ruleId,
-				variantId,
-				ratePlanId,
-				from,
-				to,
-				generatedDatesCount: rematerialize.generatedDatesCount,
-			})
-		}
+		const today = new Date()
+		today.setUTCHours(0, 0, 0, 0)
+		const from = toDateOnly(today)
+		const to = toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS))
+		const rematerialize = await ensurePricingCoverageRuntime({
+			variantId,
+			ratePlanId,
+			from,
+			to,
+			recomputeExisting: true,
+		})
+		console.debug("pricing_rule_deleted_materialized", {
+			ruleId,
+			variantId,
+			ratePlanId,
+			from,
+			to,
+			generatedDatesCount: rematerialize.generatedDatesCount,
+		})
 
 		await invalidateVariant(variantId, v.productId)
 
