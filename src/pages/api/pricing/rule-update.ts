@@ -4,12 +4,12 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { ensurePricingCoverageRuntime, updateDefaultPriceRule } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
 	priceRuleCommandRepository,
 	priceRuleQueryRepository,
+	ratePlanRepository,
 	variantManagementRepository,
 	productRepository,
 } from "@/container"
@@ -76,6 +76,21 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const ruleId = String(form.get("ruleId") ?? "").trim()
+		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [
+						{ path: ["ratePlanId"], message: "ratePlanId is required for pricing mutations" },
+					],
+				}),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -98,7 +113,6 @@ export const POST: APIRoute = async ({ request }) => {
 			contextKeyRaw === "manual"
 				? contextKeyRaw
 				: undefined
-		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
 		if (!variantId) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
@@ -123,16 +137,12 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-
-		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
-			ratePlanId: explicitRatePlanId,
-			variantId,
-		})
-		if (!ratePlanId) {
-			return new Response(
-				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
-				{ status: 400, headers: { "Content-Type": "application/json" } }
-			)
+		const ratePlan = await ratePlanRepository.get(ratePlanId)
+		if (!ratePlan || String(ratePlan.variantId ?? "").trim() !== variantId) {
+			return new Response(JSON.stringify({ error: "Not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 
 		const result = await updateDefaultPriceRule(
@@ -179,7 +189,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		await invalidateVariant(variantId, variant.productId)
 
-		return new Response(JSON.stringify({ ok: true, warnings: warning ? [warning] : [] }), {
+		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

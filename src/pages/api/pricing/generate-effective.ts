@@ -5,10 +5,11 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
-import { productRepository, variantManagementRepository } from "@/container"
+import { productRepository, ratePlanRepository, variantManagementRepository } from "@/container"
 
 const schema = z.object({
-	variantId: z.string().min(1),
+	ratePlanId: z.string().min(1),
+	variantId: z.string().min(1).optional(),
 	days: z.number().int().min(1).max(365).default(60),
 	from: z.string().trim().optional(),
 	to: z.string().trim().optional(),
@@ -61,6 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
 		} else {
 			const form = await request.formData()
 			payload = {
+				ratePlanId: String(form.get("ratePlanId") ?? "").trim(),
 				variantId: String(form.get("variantId") ?? "").trim(),
 				days: Number(form.get("days") ?? 60),
 				from: String(form.get("from") ?? "").trim() || undefined,
@@ -68,8 +70,28 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		}
 		const parsed = schema.parse(payload)
+		const plan = await ratePlanRepository.get(parsed.ratePlanId)
+		if (!plan) {
+			return new Response(JSON.stringify({ error: "ratePlan_not_found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		const variantId = String(plan.variantId ?? "").trim()
+		if (!variantId) {
+			return new Response(JSON.stringify({ error: "ratePlan_variant_not_found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (parsed.variantId && parsed.variantId !== variantId) {
+			return new Response(JSON.stringify({ error: "ratePlan_variant_mismatch" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 
-		const variant = await variantManagementRepository.getVariantById(parsed.variantId)
+		const variant = await variantManagementRepository.getVariantById(variantId)
 		if (!variant) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -87,18 +109,9 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const baseRate = await variantManagementRepository.getBaseRate(parsed.variantId)
+		const baseRate = await variantManagementRepository.getBaseRate(variantId)
 		if (!baseRate) {
 			return new Response(JSON.stringify({ error: "pricing_missing" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-		const defaultPlan = await variantManagementRepository.getDefaultRatePlanWithRules(
-			parsed.variantId
-		)
-		if (!defaultPlan) {
-			return new Response(JSON.stringify({ error: "no_default_rate_plan" }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
@@ -131,18 +144,19 @@ export const POST: APIRoute = async ({ request }) => {
 			return next.toISOString().slice(0, 10)
 		})()
 		const coverage = await ensurePricingCoverageRuntime({
-			variantId: parsed.variantId,
-			ratePlanId: defaultPlan.ratePlanId,
+			variantId,
+			ratePlanId: parsed.ratePlanId,
 			from: fromDate,
 			to: toDateExclusive,
 			recomputeExisting: true,
 		})
 		const writes = coverage.generatedDatesCount
 
-		await invalidateVariant(parsed.variantId, variant.productId)
+		await invalidateVariant(variantId, variant.productId)
 		const durationMs = Number((performance.now() - startedAt).toFixed(1))
 		console.debug("generate_effective_pricing", {
-			variantId: parsed.variantId,
+			variantId,
+			ratePlanId: parsed.ratePlanId,
 			daysRequested: parsed.days,
 			from: parsed.from ?? null,
 			to: parsed.to ?? null,
@@ -151,7 +165,8 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 		if (durationMs > 1000) {
 			console.warn("slow_generate_effective_pricing", {
-				variantId: parsed.variantId,
+				variantId,
+				ratePlanId: parsed.ratePlanId,
 				daysRequested: parsed.days,
 				from: parsed.from ?? null,
 				to: parsed.to ?? null,
