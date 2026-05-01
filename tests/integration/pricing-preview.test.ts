@@ -120,8 +120,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			} as any)
 			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("validation_error")
-			expect(body?.details?.[0]?.path).toEqual(["rules"])
+			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
 		})
 	})
 
@@ -196,8 +195,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			} as any)
 			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("validation_error")
-			expect(body?.details?.[0]?.path).toEqual(["rules"])
+			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
 		})
 	})
 
@@ -596,6 +594,21 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 100,
 		})
+		const templateId = `rpt_prev_own_${crypto.randomUUID()}`
+		const ratePlanId = `rp_prev_own_${crypto.randomUUID()}`
+		await upsertRatePlanTemplate({
+			id: templateId,
+			name: "Own Test",
+			paymentType: "prepaid",
+			refundable: false,
+		})
+		await upsertRatePlan({
+			id: ratePlanId,
+			templateId,
+			variantId,
+			isActive: true,
+			isDefault: true,
+		})
 
 		await withSupabaseAuthStub(
 			{
@@ -605,6 +618,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			async () => {
 				const fd = new FormData()
 				fd.set("variantId", variantId)
+				fd.set("ratePlanId", ratePlanId)
 
 				const res = await previewPost({
 					request: makeAuthedFormRequest({ path: "/api/pricing/preview", token: tokenB, form: fd }),

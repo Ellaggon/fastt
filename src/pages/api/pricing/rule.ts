@@ -4,6 +4,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
+import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { createDefaultPriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
@@ -89,6 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const variantId = String(form.get("variantId") ?? "").trim()
+		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -111,6 +113,17 @@ export const POST: APIRoute = async ({ request }) => {
 			contextKeyRaw === "manual"
 				? contextKeyRaw
 				: undefined
+
+		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
+			ratePlanId: explicitRatePlanId,
+			variantId,
+		})
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
 
 		const v = await variantManagementRepository.getVariantById(variantId)
 		if (!v) {
@@ -135,6 +148,7 @@ export const POST: APIRoute = async ({ request }) => {
 				priceRuleCmdRepo: priceRuleCommandRepository,
 			},
 			{
+				ratePlanId,
 				variantId,
 				type: type as any,
 				value,
@@ -165,10 +179,17 @@ export const POST: APIRoute = async ({ request }) => {
 
 		await invalidateVariant(variantId, v.productId)
 
-		return new Response(JSON.stringify({ ...result, rematerialization: rematerializeResult }), {
-			status: 201,
-			headers: { "Content-Type": "application/json" },
-		})
+		return new Response(
+			JSON.stringify({
+				...result,
+				rematerialization: rematerializeResult,
+				warnings: warning ? [warning] : [],
+			}),
+			{
+				status: 201,
+				headers: { "Content-Type": "application/json" },
+			}
+		)
 	} catch (e) {
 		if (e instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: e.issues }), {

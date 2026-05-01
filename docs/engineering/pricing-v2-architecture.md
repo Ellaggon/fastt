@@ -1,33 +1,67 @@
-# Pricing V2 Architecture (RatePlan-first, Occupancy-aware)
+# Pricing V2 Architecture (Source of Truth)
 
-## Canonical Sources
+## Canonical identity
 
-The pricing runtime is V2-only and must use these canonical sources:
+Pricing V2 is canonical by:
 
-- `EffectivePricingV2`: materialized nightly pricing by `(variantId, ratePlanId, date, occupancyKey)`.
-- `RatePlanOccupancyPolicy`: canonical base pricing policy and occupancy pricing rules.
+- `(variantId, ratePlanId, date, occupancyKey)` for effective prices
+- `ratePlanId` as the only selector for pricing mutations and previews
 
-## Runtime Rules
+`variantId` is never a semantic pricing selector. It is allowed only for:
 
-1. Runtime pricing in `src/` must not reference V1 entities.
-2. Forbidden runtime references:
-   - `EffectivePricing`
-   - `PricingBaseRate`
-3. Search, Hold, Booking consistency invariant:
-   - `Search total == Hold total == Booking total` for equivalent request/snapshot inputs.
-4. Read paths must stay pure:
+- physical-unit ownership checks
+- inventory/catalog context
+- cache invalidation context
+
+## Canonical sources
+
+Runtime pricing reads use:
+
+- `EffectivePricingV2` for materialized effective pricing
+- `RatePlanOccupancyPolicy` for canonical base policy and occupancy policy
+
+Legacy V1 pricing entities are forbidden at runtime.
+
+## Runtime invariants
+
+1. `Search == Hold == Booking` totals for equivalent inputs/snapshots.
+2. `Preview == Effective == Search` under same rule/base context.
+3. Read paths are pure:
    - no implicit recompute
    - no implicit coverage generation
-   - no auto-healing
+   - no auto-healing writes
+4. Search runtime is read-only and cannot trigger backfill side-effects.
+5. Hold is occupancy-canonical:
+   - input uses `occupancyDetail`
+   - `rooms` is separate from occupancy
+   - snapshot preserves full `occupancyDetail`
+6. Booking consumes hold snapshot and must not recompute pricing.
+7. Catalog does not decide pricing logic; it only consumes pricing read summaries.
 
-## Coverage Model
+## Legacy compatibility policy
 
-Pricing coverage is explicit and request-scoped. Coverage must be materialized before pricing reads.
+Legacy variant-first pricing surfaces can exist only as explicit adapters:
 
-## Guardrail Enforcement
+- adapters must resolve `ratePlanId` explicitly
+- adapters must emit structured warning:
+  - `code: pricing_legacy_variant_adapter_used`
+  - `severity: warning`
+- if `ratePlanId` cannot be resolved, request must fail explicitly with client error
 
-A hard-fail guardrail test enforces V2-only runtime usage:
+Silent fallback to default rate plan in mutation paths is forbidden.
 
-- `tests/guardrails/pricing-v1-runtime-guardrail.test.ts`
+## Enforcement suite
 
-This test scans `src/` runtime code and fails CI if any forbidden V1 token is reintroduced.
+Architecture invariants are enforced by guardrails in `tests/guardrails/`, including:
+
+- `pricing-v1-runtime-guardrail.test.ts`
+- `no-pricing-fallback-runtime.test.ts`
+- `no-manual-occupancy-key.test.ts`
+- `no-read-path-side-effects.test.ts`
+- `source-version-occupancy-aware-guardrail.test.ts`
+- `no-variant-first-pricing-mutations.test.ts`
+- `no-search-runtime-side-effects.test.ts`
+- `hold-occupancy-detail-contract.test.ts`
+- `no-default-rateplan-fallback-in-pricing-mutations.test.ts`
+
+Any guardrail failure blocks CI and indicates architecture regression.

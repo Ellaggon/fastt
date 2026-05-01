@@ -4,6 +4,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
+import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { deletePriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import {
 	priceRuleCommandRepository,
@@ -44,6 +45,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const ruleId = String(form.get("ruleId") ?? "").trim()
+		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 
 		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
 		if (!variantId) {
@@ -51,6 +53,16 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
+			ratePlanId: explicitRatePlanId,
+			variantId,
+		})
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
 		}
 
 		const v = await variantManagementRepository.getVariantById(variantId)
@@ -73,32 +85,29 @@ export const POST: APIRoute = async ({ request }) => {
 			{ ruleId }
 		)
 
-		const defaultPlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantId)
-		if (defaultPlan) {
-			const today = new Date()
-			today.setUTCHours(0, 0, 0, 0)
-			const from = toDateOnly(today)
-			const to = toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS))
-			const rematerialize = await ensurePricingCoverageRuntime({
-				variantId,
-				ratePlanId: defaultPlan.ratePlanId,
-				from,
-				to,
-				recomputeExisting: true,
-			})
-			console.debug("pricing_rule_deleted_materialized", {
-				ruleId,
-				variantId,
-				ratePlanId: defaultPlan.ratePlanId,
-				from,
-				to,
-				generatedDatesCount: rematerialize.generatedDatesCount,
-			})
-		}
+		const today = new Date()
+		today.setUTCHours(0, 0, 0, 0)
+		const from = toDateOnly(today)
+		const to = toDateOnly(addDays(today, REMATERIALIZE_HORIZON_DAYS))
+		const rematerialize = await ensurePricingCoverageRuntime({
+			variantId,
+			ratePlanId,
+			from,
+			to,
+			recomputeExisting: true,
+		})
+		console.debug("pricing_rule_deleted_materialized", {
+			ruleId,
+			variantId,
+			ratePlanId,
+			from,
+			to,
+			generatedDatesCount: rematerialize.generatedDatesCount,
+		})
 
 		await invalidateVariant(variantId, v.productId)
 
-		return new Response(JSON.stringify(result), {
+		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

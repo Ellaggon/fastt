@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { previewPricingRules } from "@/modules/pricing/public"
 import { productRepository, variantManagementRepository } from "@/container"
 
@@ -25,6 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const variantId = String(form.get("variantId") ?? "").trim()
+		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = String(form.get("priority") ?? "").trim()
@@ -48,6 +50,20 @@ export const POST: APIRoute = async ({ request }) => {
 		toDate.setUTCDate(fromDate.getUTCDate() + horizonDays)
 		const to = toDate.toISOString().slice(0, 10)
 
+		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
+			ratePlanId: explicitRatePlanId,
+			variantId,
+		})
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
+
 		const variant = await variantManagementRepository.getVariantById(variantId)
 		if (!variant) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
@@ -69,6 +85,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const result = await previewPricingRules(
 			{ variantRepo: variantManagementRepository },
 			{
+				ratePlanId,
 				variantId,
 				from,
 				to,
@@ -84,7 +101,7 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 			}
 		)
-		return new Response(JSON.stringify(result), {
+		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})
