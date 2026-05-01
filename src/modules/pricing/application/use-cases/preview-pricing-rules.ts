@@ -3,6 +3,7 @@ import { z } from "zod"
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 
 type VariantRepoForRulePreview = {
+	getDefaultRatePlanWithRules?(variantId: string): Promise<{ ratePlanId: string } | null>
 	getBaseRateByRatePlanId?(
 		ratePlanId: string
 	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
@@ -18,23 +19,6 @@ type VariantRepoForRulePreview = {
 			createdAt: Date
 		}>
 	>
-	getRatePlanVariantId?(ratePlanId: string): Promise<string | null>
-	getBaseRate(
-		variantId: string
-	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
-	getDefaultRatePlanWithRules(variantId: string): Promise<{
-		ratePlanId: string
-		rules: Array<{
-			id: string
-			type: string
-			value: number
-			occupancyKey?: string | null
-			priority: number
-			dateRange?: { from?: string | null; to?: string | null } | null
-			dayOfWeek?: number[] | null
-			createdAt: Date
-		}>
-	} | null>
 }
 
 const previewPricingRulesSchema = z.object({
@@ -65,31 +49,16 @@ export async function previewPricingRules(
 	params: PreviewPricingRulesInput
 ) {
 	const parsed = previewPricingRulesSchema.parse(params)
-	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
-	if (!ratePlanId && parsed.variantId) {
-		const compat = await deps.variantRepo.getDefaultRatePlanWithRules(parsed.variantId)
-		ratePlanId = String(compat?.ratePlanId ?? "").trim()
-	}
+	const ratePlanId = String(parsed.ratePlanId ?? "").trim()
 	if (!ratePlanId) {
 		throw new Error("ratePlanId_required")
 	}
-	const variantId =
-		parsed.variantId ??
-		(await deps.variantRepo.getRatePlanVariantId?.(ratePlanId)) ??
-		"__compat_variant__"
+	if (!deps.variantRepo.getBaseRateByRatePlanId || !deps.variantRepo.getPreviewRulesByRatePlanId) {
+		throw new Error("ratePlan_read_contract_required")
+	}
 	const [baseRate, rules] = await Promise.all([
-		deps.variantRepo.getBaseRateByRatePlanId
-			? deps.variantRepo.getBaseRateByRatePlanId(ratePlanId)
-			: deps.variantRepo
-					.getBaseRate(variantId)
-					.then((row) =>
-						row ? { ratePlanId, currency: row.currency, basePrice: row.basePrice } : null
-					),
-		deps.variantRepo.getPreviewRulesByRatePlanId
-			? deps.variantRepo.getPreviewRulesByRatePlanId(ratePlanId)
-			: deps.variantRepo
-					.getDefaultRatePlanWithRules(variantId)
-					.then((row) => (row && String(row.ratePlanId) === ratePlanId ? row.rules : [])),
+		deps.variantRepo.getBaseRateByRatePlanId(ratePlanId),
+		deps.variantRepo.getPreviewRulesByRatePlanId(ratePlanId),
 	])
 	if (!baseRate) {
 		return {

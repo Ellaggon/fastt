@@ -5,11 +5,9 @@ import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
 import type { RatePlanCommandRepositoryPort } from "../ports/RatePlanCommandRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRepositoryPort"
-import { ensureDefaultRatePlan } from "./ensure-default-rateplan"
 
 const createRuleSchema = z.object({
 	ratePlanId: z.string().trim().min(1).optional(),
-	variantId: z.string().trim().min(1).optional(),
 	type: z.enum([
 		"base_adjustment",
 		"percentage_discount",
@@ -74,14 +72,7 @@ export async function createDefaultPriceRule(
 	}
 ): Promise<{ ruleId: string; ratePlanId: string }> {
 	const parsed = createRuleSchema.parse(params)
-	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
-	if (!ratePlanId && parsed.variantId) {
-		const resolved = await ensureDefaultRatePlan(
-			{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
-			{ variantId: parsed.variantId }
-		)
-		ratePlanId = String(resolved.ratePlanId ?? "").trim()
-	}
+	const ratePlanId = String(parsed.ratePlanId ?? "").trim()
 	if (!ratePlanId) {
 		throw new z.ZodError([
 			{
