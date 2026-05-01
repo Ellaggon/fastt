@@ -53,7 +53,7 @@ describe("search shadow sampling", () => {
 			shadowEngine: makeEngine("canonical", canonicalRun),
 			primaryEngine: makeEngine("new", newRun),
 			random: () => 0.99,
-			enqueueAutoBackfill: () => {},
+			reportBackfillCandidate: () => {},
 		})
 		await orchestrator.executeSearchOffers({
 			input: {
@@ -97,7 +97,7 @@ describe("search shadow sampling", () => {
 			shadowEngine: makeEngine("canonical", canonicalRun),
 			primaryEngine: makeEngine("new", newRun),
 			random: () => 0.5,
-			enqueueAutoBackfill: () => {},
+			reportBackfillCandidate: () => {},
 		})
 		await orchestrator.executeSearchOffers({
 			input: {

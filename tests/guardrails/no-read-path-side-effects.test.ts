@@ -34,6 +34,10 @@ const BANNED_RULES: Rule[] = [
 	{ name: "direct db delete", pattern: /\bdb\s*\.\s*delete\s*\(/g },
 	{ name: "upsert usage", pattern: /\bupsert\s*\(/g },
 	{
+		name: "enqueue auto backfill trigger",
+		pattern: /\benqueueAutoBackfill\s*\(/g,
+	},
+	{
 		name: "import ensure-pricing-coverage module",
 		pattern: /from\s+["'][^"']*ensure-pricing-coverage(?:-for-request)?[^"']*["']/g,
 	},

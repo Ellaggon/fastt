@@ -69,7 +69,7 @@ export class SearchRuntimeOrchestrator {
 			primaryEngine: SearchEnginePort
 			shadowEngine?: SearchEnginePort
 			random?: () => number
-			enqueueAutoBackfill: (params: {
+			reportBackfillCandidate?: (params: {
 				productId: string
 				from: string
 				to: string
@@ -286,7 +286,7 @@ export class SearchRuntimeOrchestrator {
 						endpoint,
 						reason: result.reason,
 					})
-					this.deps.enqueueAutoBackfill({
+					this.deps.reportBackfillCandidate?.({
 						productId: params.productId,
 						from: toDateOnly(params.checkIn),
 						to: toDateOnly(new Date(params.checkOut.getTime() + 86_400_000)),
