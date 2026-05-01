@@ -9,25 +9,14 @@ import Input from "@/components/ui/Input.astro"
 import Section from "@/components/ui/Section.astro"
 import {
 	productRepository,
+	ratePlanPricingReadRepository,
 	variantInventoryConfigRepository,
 	variantManagementRepository,
 } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
-import {
-	and,
-	DailyInventory,
-	db,
-	EffectiveAvailability,
-	EffectivePricingV2,
-	eq,
-	gte,
-	lt,
-	RatePlan,
-	sql,
-} from "astro:db"
+import { and, DailyInventory, db, EffectiveAvailability, eq, gte, lt, sql } from "astro:db"
 
 function toISODateOnly(date: Date): string {
 	return date.toISOString().slice(0, 10)
@@ -76,11 +65,10 @@ const initialFrom = toISODateOnly(today)
 const initialToDate = new Date(today)
 initialToDate.setUTCDate(initialToDate.getUTCDate() + 60)
 const initialTo = toISODateOnly(initialToDate)
-const canonicalOccupancyKey = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
+const pricingSummary =
+	await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
 
-const [rawRows, auditStats, defaultPlanRows] = await Promise.all([
+const [rawRows, auditStats] = await Promise.all([
 	db
 		.select({
 			date: DailyInventory.date,
@@ -128,44 +116,8 @@ const [rawRows, auditStats, defaultPlanRows] = await Promise.all([
 			.where(eq(EffectiveAvailability.variantId, variantId))
 			.get(),
 	]),
-	db
-		.select({ id: RatePlan.id, createdAt: RatePlan.createdAt })
-		.from(RatePlan)
-		.where(
-			and(
-				eq(RatePlan.variantId, variantId),
-				eq(RatePlan.isDefault, true),
-				eq(RatePlan.isActive, true)
-			)
-		)
-		.all(),
 ])
-
-const defaultPlan = defaultPlanRows.slice().sort((a, b) => {
-	const at = new Date(a.createdAt as unknown as Date).getTime()
-	const bt = new Date(b.createdAt as unknown as Date).getTime()
-	if (Number.isNaN(at) && Number.isNaN(bt)) return 0
-	if (Number.isNaN(at)) return 1
-	if (Number.isNaN(bt)) return -1
-	return at - bt
-})[0]
-
-const priceRows = defaultPlan
-	? await db
-			.select({ date: EffectivePricingV2.date })
-			.from(EffectivePricingV2)
-			.where(
-				and(
-					eq(EffectivePricingV2.variantId, variantId),
-					eq(EffectivePricingV2.ratePlanId, String(defaultPlan.id)),
-					eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey),
-					gte(EffectivePricingV2.date, initialFrom),
-					lt(EffectivePricingV2.date, initialTo)
-				)
-			)
-			.all()
-	: []
-const hasPriceByDate = new Set(priceRows.map((row) => String(row.date)))
+const hasPricingCoverage = Boolean(pricingSummary?.ratePlanId)
 
 const [dailyStats, effectiveStats] = auditStats
 const dailyDays = Number(dailyStats?.dailyDays ?? 0)
@@ -193,14 +145,14 @@ const rowByDate = new Map(
 			stopSell: Boolean(row.stopSell ?? true),
 			isSellable: Boolean(row.isSellable ?? false),
 			hasEffective: Boolean(row.effectiveId),
-			hasPrice: hasPriceByDate.has(String(row.date)),
+			hasPrice: hasPricingCoverage,
 			unsellableReason: !Boolean(row.effectiveId)
 				? "MISSING_AVAILABILITY"
 				: Boolean(row.stopSell ?? true)
 					? "CLOSED"
 					: Number(row.availableUnits ?? 0) <= 0
 						? "NO_CAPACITY"
-						: !hasPriceByDate.has(String(row.date))
+						: !hasPricingCoverage
 							? "MISSING_PRICE"
 							: null,
 			computedAt: row.computedAt ? String(row.computedAt) : null,

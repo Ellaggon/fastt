@@ -1,19 +1,8 @@
 import { productRepository, variantManagementRepository } from "@/container"
+import { ratePlanPricingReadRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import {
-	and,
-	asc,
-	count,
-	db,
-	desc,
-	EffectivePricingV2,
-	eq,
-	PriceRule,
-	RatePlan,
-	RatePlanTemplate,
-} from "astro:db"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
+import { and, asc, count, db, desc, eq, PriceRule, RatePlan, RatePlanTemplate } from "astro:db"
 
 type Input = {
 	request: Request
@@ -29,10 +18,6 @@ type RatePlanItem = {
 	isActive: boolean
 	modifierLabel: string
 }
-
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
 
 export async function loadVariantPricingData(input: Input): Promise<
 	| {
@@ -84,9 +69,10 @@ export async function loadVariantPricingData(input: Input): Promise<
 	const owned = await productRepository.ensureProductOwnedByProvider(input.productId, providerId)
 	if (!owned) return { redirectTo: "/product/create" }
 
-	const baseRate = await variantManagementRepository.getBaseRate(input.variantId)
-	const initialCurrency = baseRate?.currency ?? "USD"
-	const initialBasePrice = baseRate?.basePrice != null ? String(baseRate.basePrice) : ""
+	const pricingSummary =
+		await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(input.variantId)
+	const initialCurrency = pricingSummary?.currency ?? "USD"
+	const initialBasePrice = pricingSummary?.basePrice != null ? String(pricingSummary.basePrice) : ""
 
 	const ratePlansRaw = await db
 		.select({
@@ -125,7 +111,10 @@ export async function loadVariantPricingData(input: Input): Promise<
 		})
 	)
 
-	const defaultPlan = ratePlans.find((plan) => plan.isDefault && plan.isActive) ?? null
+	const defaultPlan =
+		ratePlans.find((plan) => plan.id === String(pricingSummary?.ratePlanId ?? "")) ??
+		ratePlans.find((plan) => plan.isDefault && plan.isActive) ??
+		null
 	const defaultPlanLabel = defaultPlan ? `${defaultPlan.name} (${defaultPlan.id})` : "No existe"
 	const defaultRatePlanId = defaultPlan?.id ?? null
 
@@ -197,53 +186,7 @@ export async function loadVariantPricingData(input: Input): Promise<
 	})
 	const invalidActiveRuleRanges = activeRulesForUi.filter((rule) => rule.hasInvalidDateRange).length
 
-	const effectivePricingDays = defaultRatePlanId
-		? Number(
-				(
-					await db
-						.select({ value: count() })
-						.from(EffectivePricingV2)
-						.where(
-							and(
-								eq(EffectivePricingV2.variantId, input.variantId),
-								eq(EffectivePricingV2.ratePlanId, String(defaultRatePlanId)),
-								eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
-							)
-						)
-						.get()
-				)?.value ?? 0
-			)
-		: 0
-	const effectivePricingStart = defaultRatePlanId
-		? await db
-				.select({ date: EffectivePricingV2.date })
-				.from(EffectivePricingV2)
-				.where(
-					and(
-						eq(EffectivePricingV2.variantId, input.variantId),
-						eq(EffectivePricingV2.ratePlanId, String(defaultRatePlanId)),
-						eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
-					)
-				)
-				.orderBy(asc(EffectivePricingV2.date))
-				.limit(1)
-				.get()
-		: null
-	const effectivePricingEnd = defaultRatePlanId
-		? await db
-				.select({ date: EffectivePricingV2.date })
-				.from(EffectivePricingV2)
-				.where(
-					and(
-						eq(EffectivePricingV2.variantId, input.variantId),
-						eq(EffectivePricingV2.ratePlanId, String(defaultRatePlanId)),
-						eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
-					)
-				)
-				.orderBy(desc(EffectivePricingV2.date))
-				.limit(1)
-				.get()
-		: null
+	const effectivePricingDays = Number(pricingSummary?.effectivePricingDays ?? 0)
 
 	const coverageGaps = Math.max(30 - effectivePricingDays, 0)
 
@@ -260,8 +203,8 @@ export async function loadVariantPricingData(input: Input): Promise<
 		defaultRatePlanId,
 		activeRulesForUi,
 		effectivePricingDays,
-		effectivePricingStart: effectivePricingStart?.date ?? null,
-		effectivePricingEnd: effectivePricingEnd?.date ?? null,
+		effectivePricingStart: null,
+		effectivePricingEnd: null,
 		coverageGaps,
 		invalidActiveRuleRanges,
 	}

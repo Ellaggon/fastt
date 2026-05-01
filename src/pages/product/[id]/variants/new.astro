@@ -10,6 +10,7 @@ import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import {
 	productRepository,
+	ratePlanPricingReadRepository,
 	variantInventoryConfigRepository,
 	variantManagementRepository,
 } from "@/container"
@@ -17,8 +18,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductAggregate } from "@/modules/catalog/public"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
-import { and, asc, count, db, EffectivePricingV2, eq, RoomType } from "astro:db"
+import { asc, db, RoomType } from "astro:db"
 
 type WizardStep = "identity" | "capacity" | "subtype" | "pricing" | "inventory"
 
@@ -50,10 +50,6 @@ const requestedStepParam = String(Astro.url.searchParams.get("step") ?? "identit
 const requestedStep: WizardStep = steps.includes(requestedStepParam as WizardStep)
 	? (requestedStepParam as WizardStep)
 	: "identity"
-const canonicalOccupancyKey = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
-
 const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 
 const toStepUrl = (step: WizardStep, variantId?: string) => {
@@ -66,9 +62,7 @@ let capacity: Awaited<ReturnType<typeof variantManagementRepository.getCapacity>
 let subtype: Awaited<ReturnType<typeof variantManagementRepository.getHotelRoomSubtype>> | null =
 	null
 let baseRate: Awaited<ReturnType<typeof variantManagementRepository.getBaseRate>> | null = null
-let defaultRatePlan: Awaited<
-	ReturnType<typeof variantManagementRepository.getDefaultRatePlanWithRules>
-> | null = null
+let defaultRatePlanId: string | null = null
 let inventoryConfig: Awaited<
 	ReturnType<typeof variantInventoryConfigRepository.getByVariantId>
 > | null = null
@@ -81,26 +75,18 @@ if (variantIdParam) {
 	}
 	capacity = await variantManagementRepository.getCapacity(variantIdParam)
 	subtype = await variantManagementRepository.getHotelRoomSubtype(variantIdParam)
-	baseRate = await variantManagementRepository.getBaseRate(variantIdParam)
-	defaultRatePlan = await variantManagementRepository.getDefaultRatePlanWithRules(variantIdParam)
+	const pricingSummary =
+		await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantIdParam)
+	baseRate = pricingSummary
+		? {
+				variantId: variantIdParam,
+				currency: pricingSummary.currency,
+				basePrice: pricingSummary.basePrice,
+			}
+		: null
+	defaultRatePlanId = pricingSummary?.ratePlanId ?? null
 	inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantIdParam)
-	if (defaultRatePlan?.ratePlanId) {
-		effectivePricingDays = Number(
-			(
-				await db
-					.select({ value: count() })
-					.from(EffectivePricingV2)
-					.where(
-						and(
-							eq(EffectivePricingV2.variantId, variantIdParam),
-							eq(EffectivePricingV2.ratePlanId, defaultRatePlan.ratePlanId),
-							eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey)
-						)
-					)
-					.get()
-			)?.value ?? 0
-		)
-	}
+	effectivePricingDays = Number(pricingSummary?.effectivePricingDays ?? 0)
 }
 
 const subtypeRequired =
@@ -112,7 +98,7 @@ const completion = {
 	identity: Boolean(variant),
 	capacity: Boolean(capacity),
 	subtype: subtypeRequired ? Boolean(subtype) : true,
-	pricing: Boolean(baseRate && defaultRatePlan),
+	pricing: Boolean(baseRate && defaultRatePlanId),
 	inventory: Boolean(inventoryConfig),
 }
 

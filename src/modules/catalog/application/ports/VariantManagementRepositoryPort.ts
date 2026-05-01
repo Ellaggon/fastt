@@ -90,7 +90,5 @@ export interface VariantManagementRepositoryPort {
 			createdAt: Date
 		}>
 	} | null>
-
-	countEffectivePricingDays(params: { variantId: string; ratePlanId: string }): Promise<number>
 	countDailyInventoryDays(variantId: string): Promise<number>
 }

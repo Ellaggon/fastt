@@ -12,3 +12,4 @@ export type {
 	CreatePriceRuleCommand,
 } from "./PriceRuleCommandRepositoryPort"
 export type { PriceRuleQueryRepositoryPort } from "./PriceRuleQueryRepositoryPort"
+export type { RatePlanPricingReadRepositoryPort } from "./RatePlanPricingReadRepositoryPort"
