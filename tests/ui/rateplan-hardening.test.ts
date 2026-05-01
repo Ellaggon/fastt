@@ -22,8 +22,14 @@ describe("ui/rateplan hardening post-migration (modern)", () => {
 	it("superficies modernas operan en contexto ratePlan-first", () => {
 		const pricingSurface = read("src/pages/rates/plans/[ratePlanId]/pricing.astro")
 		const policiesSurface = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
+		const pricingSubnav = read("src/components/pricing/PricingSubnav.astro")
 
 		expect(pricingSurface).toContain("ratePlanId")
 		expect(policiesSurface).toContain("ratePlanId")
+		expect(pricingSubnav).not.toContain("routes.variantPricing(")
+		expect(pricingSubnav).not.toContain("routes.variantPricingCalendar(")
+		expect(pricingSubnav).not.toContain("routes.variantPricingSeasons(")
+		expect(pricingSubnav).not.toContain("routes.variantPricingPromotions(")
+		expect(pricingSubnav).not.toContain("routes.variantPricingOverrides(")
 	})
 })

@@ -41,4 +41,20 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(saveBlockMatch?.[0]).not.toContain("variantId:")
 		expect(saveBlockMatch?.[0]).not.toContain("productId:")
 	})
+
+	it("legacy variant pricing pages now redirect to ratePlan-first hub/surface", () => {
+		const pages = [
+			"src/pages/product/[id]/variants/[variantId]/pricing/index.astro",
+			"src/pages/product/[id]/variants/[variantId]/pricing/calendar.astro",
+			"src/pages/product/[id]/variants/[variantId]/pricing/seasons.astro",
+			"src/pages/product/[id]/variants/[variantId]/pricing/promotions.astro",
+			"src/pages/product/[id]/variants/[variantId]/pricing/overrides.astro",
+		]
+		for (const page of pages) {
+			const source = read(page)
+			expect(source).toContain("Astro.redirect")
+			expect(source).toContain("routes.ratePlanPricing")
+			expect(source).toContain("routes.ratePlansHub")
+		}
+	})
 })

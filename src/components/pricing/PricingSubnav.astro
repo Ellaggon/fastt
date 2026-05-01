@@ -7,30 +7,10 @@ interface Props {
 	pathname: string
 }
 
-const { productId, variantId, pathname } = Astro.props
+const { pathname } = Astro.props
 const items = [
 	{ href: routes.ratePlansHub(), label: "Rate Plans (Canónico)" },
 	{ href: routes.pricingBulk(), label: "Bulk Pricing (Canónico)" },
-	{
-		href: routes.variantPricing(productId, variantId),
-		label: "Variant Pricing Summary (Advanced, To Update)",
-	},
-	{
-		href: routes.variantPricingCalendar(productId, variantId),
-		label: "Variant Calendar (Deprecated, To Update)",
-	},
-	{
-		href: routes.variantPricingSeasons(productId, variantId),
-		label: "Variant Seasons (Deprecated, To Update)",
-	},
-	{
-		href: routes.variantPricingPromotions(productId, variantId),
-		label: "Variant Promotions (Deprecated, To Update)",
-	},
-	{
-		href: routes.variantPricingOverrides(productId, variantId),
-		label: "Variant Overrides (Advanced, To Update)",
-	},
 ]
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)

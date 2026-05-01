@@ -12,6 +12,7 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { POST as createRuleV2Post } from "@/pages/api/pricing/rules/v2/create"
 import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
 import { POST as previewRulesV2Post } from "@/pages/api/pricing/rules/v2/preview"
+import { POST as createLegacyRulePost } from "@/pages/api/pricing/rule"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -75,6 +76,23 @@ function makeAuthedGetRequest(params: { path: string; token?: string }): Request
 	if (params.token)
 		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
 	return new Request(`http://localhost:4321${params.path}`, { method: "GET", headers })
+}
+
+function makeAuthedFormRequest(params: {
+	path: string
+	token?: string
+	form: Record<string, string>
+}): Request {
+	const headers = new Headers()
+	if (params.token)
+		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
+	const formData = new FormData()
+	for (const [key, value] of Object.entries(params.form)) formData.set(key, value)
+	return new Request(`http://localhost:4321${params.path}`, {
+		method: "POST",
+		headers,
+		body: formData,
+	})
 }
 
 async function readJson(res: Response) {
@@ -188,6 +206,46 @@ describe("integration/pricing rules (rules v2, ratePlan-first)", () => {
 				expect(Array.isArray(previewBody?.days)).toBe(true)
 				expect(previewBody.days.length).toBe(3)
 				expect(previewBody.days.every((d: any) => Number(d.after) >= Number(d.before))).toBe(true)
+			}
+		)
+	})
+
+	it("legacy mutation endpoint requires ratePlanId or explicit adapter from variantId", async () => {
+		const token = "t_pr_rules_legacy"
+		const seeded = await seedRulesFixture({ ownerEmail: "rules-legacy@example.com" })
+
+		await withSupabaseAuthStub(
+			{ [token]: { id: "u_rules_legacy", email: seeded.ownerEmail } },
+			async () => {
+				const badRes = await createLegacyRulePost({
+					request: makeAuthedFormRequest({
+						path: "/api/pricing/rule",
+						token,
+						form: {
+							type: "percentage",
+							value: "10",
+						},
+					}),
+				} as any)
+				expect(badRes.status).toBe(400)
+				const badBody = (await readJson(badRes)) as any
+				expect(String(badBody?.error ?? "")).toContain("ratePlanId is required")
+
+				const okRes = await createLegacyRulePost({
+					request: makeAuthedFormRequest({
+						path: "/api/pricing/rule",
+						token,
+						form: {
+							ratePlanId: seeded.ratePlanId,
+							type: "percentage",
+							value: "10",
+						},
+					}),
+				} as any)
+				expect(okRes.status).toBe(201)
+				const okBody = (await readJson(okRes)) as any
+				expect(Array.isArray(okBody?.warnings)).toBe(true)
+				expect(okBody.warnings.length).toBe(0)
 			}
 		)
 	})

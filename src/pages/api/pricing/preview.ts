@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { computePricePreview, PricingPreviewValidationError } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
@@ -32,8 +33,26 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const variantId = String(form.get("variantId") ?? "").trim()
+		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
+		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
+			ratePlanId: explicitRatePlanId,
+			variantId,
+		})
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 
-		const v = await variantManagementRepository.getVariantById(variantId)
+		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
+		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
+		const v = targetVariantId
+			? await variantManagementRepository.getVariantById(targetVariantId)
+			: null
 		if (!v) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -55,10 +74,10 @@ export const POST: APIRoute = async ({ request }) => {
 				ratePlanRepo: ratePlanRepository,
 				pricingRepo: pricingRepository,
 			},
-			{ variantId }
+			{ ratePlanId, variantId: targetVariantId || undefined }
 		)
 
-		return new Response(JSON.stringify(result), {
+		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})
