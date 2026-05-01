@@ -3,12 +3,15 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { computePricePreview, PricingPreviewValidationError } from "@/modules/pricing/public"
+import {
+	computePricePreview,
+	PricingPreviewValidationError,
+	resolveRatePlanOwnerContext,
+} from "@/modules/pricing/public"
 import {
 	baseRateRepository,
 	ratePlanRepository,
 	pricingRepository,
-	variantManagementRepository,
 	productRepository,
 } from "@/container"
 
@@ -31,28 +34,28 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
-		const variantId = String(form.get("variantId") ?? "").trim()
 		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
 		if (!ratePlanId) {
-			return new Response(JSON.stringify({ error: "ratePlanId_required" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 
-		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
-		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
-		const v = targetVariantId
-			? await variantManagementRepository.getVariantById(targetVariantId)
-			: null
-		if (!v) {
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const targetVariantId = String(ownerContext.variantId)
+		const targetProductId = String(ownerContext.productId)
 
-		const owned = await productRepository.ensureProductOwnedByProvider(v.productId, providerId)
+		const owned = await productRepository.ensureProductOwnedByProvider(targetProductId, providerId)
 		if (!owned) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -66,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
 				ratePlanRepo: ratePlanRepository,
 				pricingRepo: pricingRepository,
 			},
-			{ ratePlanId, variantId: targetVariantId || undefined }
+			{ ratePlanId, variantId: targetVariantId }
 		)
 
 		return new Response(JSON.stringify({ ...result, warnings: [] }), {

@@ -116,10 +116,13 @@ export const POST: APIRoute = async ({ request }) => {
 				: undefined
 
 		if (!ratePlanId) {
-			return new Response(JSON.stringify({ error: "ratePlanId_required" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
+			return new Response(
+				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 
 		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
