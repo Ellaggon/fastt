@@ -10,6 +10,7 @@ import {
 	baseRateRepository,
 	priceRuleCommandRepository,
 	priceRuleQueryRepository,
+	ratePlanRepository,
 	variantManagementRepository,
 	productRepository,
 } from "@/container"
@@ -76,6 +77,21 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const ruleId = String(form.get("ruleId") ?? "").trim()
+		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [
+						{ path: ["ratePlanId"], message: "ratePlanId is required for pricing mutations" },
+					],
+				}),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -118,6 +134,13 @@ export const POST: APIRoute = async ({ request }) => {
 			providerId
 		)
 		if (!owned) {
+			return new Response(JSON.stringify({ error: "Not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		const ratePlan = await ratePlanRepository.get(ratePlanId)
+		if (!ratePlan || String(ratePlan.variantId ?? "").trim() !== variantId) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
