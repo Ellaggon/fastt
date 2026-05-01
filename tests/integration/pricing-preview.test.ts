@@ -73,7 +73,7 @@ async function readJson(res: Response) {
 }
 
 describe("integration/pricing preview (CAPA 4B minimal)", () => {
-	it("compute price with no rate plans/rules => final = base", async () => {
+	it("rejects preview when ratePlanId is not provided", async () => {
 		const token = "t_prev_base"
 		const email = "prev-base@example.com"
 		const providerId = "prov_prev_base"
@@ -113,19 +113,19 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_base", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("rules", "[]")
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
 			} as any)
-			expect(res.status).toBe(200)
+			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.basePrice).toBe(100)
-			expect(body?.finalPrice).toBe(100)
-			expect(body?.currency).toBe("USD")
+			expect(body?.error).toBe("validation_error")
+			expect(body?.details?.[0]?.path).toEqual(["rules"])
 		})
 	})
 
-	it("no default rate plan => returns basePrice unchanged (no silent fallback)", async () => {
+	it("does not silently fallback to default rate plan when missing ratePlanId", async () => {
 		const token = "t_prev_nodef"
 		const email = "prev-nodef@example.com"
 		const providerId = "prov_prev_nodef"
@@ -189,14 +189,15 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_nodef", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("rules", "[]")
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
 			} as any)
-			expect(res.status).toBe(200)
+			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.basePrice).toBe(100)
-			expect(body?.finalPrice).toBe(100)
+			expect(body?.error).toBe("validation_error")
+			expect(body?.details?.[0]?.path).toEqual(["rules"])
 		})
 	})
 
