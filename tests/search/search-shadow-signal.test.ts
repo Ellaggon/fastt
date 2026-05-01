@@ -107,7 +107,7 @@ describe("search shadow compare signal", () => {
 		const orchestrator = new SearchRuntimeOrchestrator({
 			shadowEngine,
 			primaryEngine,
-			enqueueAutoBackfill: () => {},
+			reportBackfillCandidate: () => {},
 		})
 
 		await orchestrator.executeSearchOffers({
@@ -178,5 +178,45 @@ describe("search shadow compare signal", () => {
 				kind: "price",
 			})
 		).toBeGreaterThan(baselineRatePlanPrice)
+	})
+
+	it("reports backfill candidates without mutating state when reason indicates missing coverage", async () => {
+		const reportBackfillCandidate = vi.fn()
+		const primaryEngine: SearchEnginePort = {
+			name: "new",
+			run: async () => ({
+				offers: [],
+				reason: "missing_coverage",
+				sellabilityByRatePlan: {},
+			}),
+		}
+		const orchestrator = new SearchRuntimeOrchestrator({
+			primaryEngine,
+			reportBackfillCandidate,
+		})
+
+		await orchestrator.executeSearchOffers({
+			input: {
+				productId: "p-backfill-candidate",
+				checkIn: new Date("2026-08-10T00:00:00.000Z"),
+				checkOut: new Date("2026-08-12T00:00:00.000Z"),
+				adults: 2,
+				children: 0,
+				rooms: 1,
+				currency: "USD",
+			},
+			productId: "p-backfill-candidate",
+			checkIn: new Date("2026-08-10T00:00:00.000Z"),
+			checkOut: new Date("2026-08-12T00:00:00.000Z"),
+			requestId: "req-backfill-candidate",
+		})
+
+		expect(reportBackfillCandidate).toHaveBeenCalledTimes(1)
+		expect(reportBackfillCandidate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				productId: "p-backfill-candidate",
+				reason: "missing_coverage",
+			})
+		)
 	})
 })
