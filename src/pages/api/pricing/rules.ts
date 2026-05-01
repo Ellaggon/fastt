@@ -3,12 +3,11 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { listDefaultPriceRules } from "@/modules/pricing/public"
+import { listDefaultPriceRules, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import {
 	ratePlanRepository,
 	ratePlanCommandRepository,
 	pricingRepository,
-	variantManagementRepository,
 	productRepository,
 } from "@/container"
 
@@ -30,22 +29,25 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 		}
 
-		const variantId = String(url.searchParams.get("variantId") ?? "").trim()
-		if (!variantId) {
-			return new Response(JSON.stringify({ error: "Missing variantId" }), {
+		const ratePlanId = String(url.searchParams.get("ratePlanId") ?? "").trim()
+		if (!ratePlanId) {
+			return new Response(JSON.stringify({ error: "ratePlanId_required" }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 
-		const v = await variantManagementRepository.getVariantById(variantId)
-		if (!v) {
-			return new Response(JSON.stringify({ error: "Not found" }), {
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext) {
+			return new Response(JSON.stringify({ error: "ratePlan_not_found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const owned = await productRepository.ensureProductOwnedByProvider(v.productId, providerId)
+		const owned = await productRepository.ensureProductOwnedByProvider(
+			String(ownerContext.productId),
+			providerId
+		)
 		if (!owned) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -59,7 +61,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				ratePlanCmdRepo: ratePlanCommandRepository,
 				pricingRepo: pricingRepository,
 			},
-			{ variantId }
+			{ ratePlanId }
 		)
 
 		return new Response(JSON.stringify({ rules }), {

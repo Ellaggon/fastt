@@ -1,18 +1,7 @@
-import { and, asc, db, desc, eq, lte, RatePlan, RatePlanOccupancyPolicy, sql } from "astro:db"
+import { and, db, desc, eq, lte, RatePlanOccupancyPolicy, sql } from "astro:db"
 import type { BaseRateRepositoryPort } from "../../application/ports/BaseRateRepositoryPort"
 
 export class BaseRateRepository implements BaseRateRepositoryPort {
-	private readonly runtimeBaseByVariant = new Map<
-		string,
-		{
-			variantId: string
-			ratePlanId: string
-			currency: string
-			basePrice: number
-			createdAt: Date
-		}
-	>()
-
 	async getCanonicalBaseByRatePlanId(ratePlanId: string) {
 		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
 		if (!normalizedRatePlanId) return null
@@ -54,7 +43,6 @@ export class BaseRateRepository implements BaseRateRepositoryPort {
 			.trim()
 			.toUpperCase()
 		const normalizedBasePrice = Number(params.basePrice)
-		const nowDateOnly = now.toISOString().slice(0, 10)
 		const existingPolicy = await db
 			.select({ id: RatePlanOccupancyPolicy.id })
 			.from(RatePlanOccupancyPolicy)
@@ -90,77 +78,9 @@ export class BaseRateRepository implements BaseRateRepositoryPort {
 			currency: normalizedCurrency,
 			baseAmount: normalizedBasePrice,
 			baseCurrency: normalizedCurrency,
-			effectiveFrom: nowDateOnly,
-			effectiveTo: "2099-12-31",
+			effectiveFrom: now,
+			effectiveTo: new Date("2099-12-31T00:00:00.000Z"),
 			createdAt: now,
 		} as any)
-	}
-
-	// Compatibility adapter: variantId no longer decides pricing; it only resolves owner ratePlanId.
-	async getCanonicalBaseByVariantId(variantId: string) {
-		const legacyRatePlanId = `legacy-variant:${variantId}`
-		const plan = await db
-			.select({ ratePlanId: RatePlan.id })
-			.from(RatePlan)
-			.where(
-				and(
-					eq(RatePlan.variantId, variantId),
-					eq(RatePlan.isDefault, true),
-					eq(RatePlan.isActive, true)
-				)
-			)
-			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
-		if (!plan?.ratePlanId) return this.runtimeBaseByVariant.get(variantId) ?? null
-		const canonical = await this.getCanonicalBaseByRatePlanId(String(plan.ratePlanId))
-		if (!canonical) return this.runtimeBaseByVariant.get(variantId) ?? null
-
-		return {
-			variantId,
-			ratePlanId: String(plan.ratePlanId),
-			currency: canonical.currency,
-			basePrice: canonical.basePrice,
-			createdAt: canonical.createdAt ?? new Date(),
-		}
-	}
-
-	// Compatibility adapter: maps legacy variant-level call to default active ratePlan.
-	async setCanonicalBaseForVariant(params: {
-		variantId: string
-		currency: string
-		basePrice: number
-	}): Promise<void> {
-		const now = new Date()
-		const normalizedCurrency = String(params.currency || "USD")
-			.trim()
-			.toUpperCase()
-		const normalizedBasePrice = Number(params.basePrice)
-		this.runtimeBaseByVariant.set(params.variantId, {
-			variantId: params.variantId,
-			ratePlanId: `legacy-variant:${params.variantId}`,
-			currency: normalizedCurrency,
-			basePrice: normalizedBasePrice,
-			createdAt: now,
-		})
-		const plan = await db
-			.select({ ratePlanId: RatePlan.id })
-			.from(RatePlan)
-			.where(
-				and(
-					eq(RatePlan.variantId, params.variantId),
-					eq(RatePlan.isDefault, true),
-					eq(RatePlan.isActive, true)
-				)
-			)
-			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
-		if (!plan?.ratePlanId) {
-			return
-		}
-		await this.setCanonicalBaseForRatePlan({
-			ratePlanId: String(plan.ratePlanId),
-			currency: normalizedCurrency,
-			basePrice: normalizedBasePrice,
-		})
 	}
 }

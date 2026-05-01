@@ -7,13 +7,8 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
 import { setBaseRateSchema } from "@/modules/pricing/application/schemas/base-rate.schemas"
-import { ensureDefaultRatePlan, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
-import {
-	ratePlanCommandRepository,
-	ratePlanRepository,
-	variantManagementRepository,
-	productRepository,
-} from "@/container"
+import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import { variantManagementRepository, productRepository } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -97,13 +92,6 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const ensuredDefault = await ensureDefaultRatePlan(
-			{
-				ratePlanRepo: ratePlanRepository,
-				ratePlanCmdRepo: ratePlanCommandRepository,
-			},
-			{ variantId }
-		)
 		const normalizedCurrency = String(currency).trim().toUpperCase()
 		const normalizedBasePrice = Number(basePrice)
 		const nowDateOnly = new Date().toISOString().slice(0, 10)
@@ -151,8 +139,8 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response(
 			JSON.stringify({
 				variantId,
-				defaultRatePlanId: ensuredDefault.ratePlanId,
-				defaultRatePlanCreated: ensuredDefault.created,
+				defaultRatePlanId: ratePlanId,
+				defaultRatePlanCreated: false,
 				nextStep: "inventory",
 				pricingCoverageReady: false,
 				note: "Tarifa base guardada. Falta generar pricing efectivo para vender.",

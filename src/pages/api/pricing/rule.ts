@@ -4,14 +4,16 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
-import { createDefaultPriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
+import {
+	createDefaultPriceRule,
+	ensurePricingCoverageRuntime,
+	resolveRatePlanOwnerContext,
+} from "@/modules/pricing/public"
 import {
 	baseRateRepository,
 	ratePlanRepository,
 	ratePlanCommandRepository,
 	priceRuleCommandRepository,
-	variantManagementRepository,
 	productRepository,
 } from "@/container"
 
@@ -89,8 +91,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
-		const variantId = String(form.get("variantId") ?? "").trim()
-		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
+		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -114,31 +115,26 @@ export const POST: APIRoute = async ({ request }) => {
 				? contextKeyRaw
 				: undefined
 
-		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
-			ratePlanId: explicitRatePlanId,
-			variantId,
-		})
 		if (!ratePlanId) {
-			return new Response(
-				JSON.stringify({
-					error: "ratePlanId is required for pricing mutations",
-				}),
-				{ status: 400, headers: { "Content-Type": "application/json" } }
-			)
+			return new Response(JSON.stringify({ error: "ratePlanId_required" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 
-		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
-		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
-		const v = targetVariantId
-			? await variantManagementRepository.getVariantById(targetVariantId)
-			: null
-		if (!v) {
-			return new Response(JSON.stringify({ error: "Not found" }), {
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext) {
+			return new Response(JSON.stringify({ error: "ratePlan_not_found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const owned = await productRepository.ensureProductOwnedByProvider(v.productId, providerId)
+		const resolvedVariantId = String(ownerContext.variantId)
+		const resolvedProductId = String(ownerContext.productId)
+		const owned = await productRepository.ensureProductOwnedByProvider(
+			resolvedProductId,
+			providerId
+		)
 		if (!owned) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -155,7 +151,6 @@ export const POST: APIRoute = async ({ request }) => {
 			},
 			{
 				ratePlanId,
-				variantId: targetVariantId,
 				type: type as any,
 				value,
 				priority,
@@ -168,14 +163,14 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
 		const rematerializeResult = await ensurePricingCoverageRuntime({
-			variantId: targetVariantId,
+			variantId: resolvedVariantId,
 			ratePlanId: result.ratePlanId,
 			from: rematerializationRange.from,
 			to: rematerializationRange.to,
 			recomputeExisting: true,
 		})
 		console.debug("pricing_rule_materialized", {
-			variantId: targetVariantId,
+			variantId: resolvedVariantId,
 			ruleId: result.ruleId,
 			ratePlanId: result.ratePlanId,
 			from: rematerializationRange.from,
@@ -183,13 +178,13 @@ export const POST: APIRoute = async ({ request }) => {
 			generatedDatesCount: rematerializeResult.generatedDatesCount,
 		})
 
-		await invalidateVariant(targetVariantId, v.productId)
+		await invalidateVariant(resolvedVariantId, resolvedProductId)
 
 		return new Response(
 			JSON.stringify({
 				...result,
 				rematerialization: rematerializeResult,
-				warnings: warning ? [warning] : [],
+				warnings: [],
 			}),
 			{
 				status: 201,

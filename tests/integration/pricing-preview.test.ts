@@ -104,12 +104,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_base", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
@@ -120,7 +114,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			} as any)
 			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
+			expect(body?.error).toBe("ratePlanId_required")
 		})
 	})
 
@@ -155,12 +149,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		// Create a plan + rule but NOT marked as default.
 		const templateId = `rpt_prev_nodef_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_nodef_${crypto.randomUUID()}`
@@ -177,6 +165,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			isActive: true,
 			isDefault: false,
 		})
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_nodef_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -188,14 +181,16 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_nodef", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			fd.set("rules", "[]")
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
 			} as any)
-			expect(res.status).toBe(400)
+			expect(res.status).toBe(200)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
+			expect(body?.basePrice).toBe(100)
+			expect(body?.finalPrice).toBe(110)
 		})
 	})
 
@@ -230,12 +225,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		const templateId = `rpt_prev_pct_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_pct_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
@@ -245,6 +234,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_pct_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -256,6 +250,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_pct", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
@@ -298,12 +293,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		const templateId = `rpt_prev_order_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_order_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
@@ -313,6 +302,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 
 		const t1 = new Date("2026-03-01T00:00:00.000Z")
 		const t2 = new Date("2026-03-02T00:00:00.000Z")
@@ -337,6 +331,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_order", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
@@ -380,12 +375,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		const templateId = `rpt_prev_negpct_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_negpct_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
@@ -395,6 +384,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_negpct_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -406,6 +400,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_negpct", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
@@ -451,12 +446,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		const templateId = `rpt_prev_badtype_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_badtype_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
@@ -466,6 +455,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_badtype_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -477,6 +471,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_badtype", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
 			} as any)
@@ -517,12 +512,6 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		const templateId = `rpt_prev_fixed_${crypto.randomUUID()}`
 		const ratePlanId = `rp_prev_fixed_${crypto.randomUUID()}`
 		await upsertRatePlanTemplate({
@@ -532,6 +521,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_fixed_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -543,6 +537,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_prev_fixed", email } }, async () => {
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 
 			const res = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
@@ -589,8 +584,17 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 999,
 		})
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
+		const templateId = `rpt_prev_own_${crypto.randomUUID()}`
+		const ratePlanId = `rp_prev_own_${crypto.randomUUID()}`
+		await upsertRatePlanTemplate({
+			id: templateId,
+			name: "Default",
+			paymentType: "prepaid",
+			refundable: false,
+		})
+		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
 		})

@@ -3,7 +3,6 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { computePricePreview, PricingPreviewValidationError } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
@@ -33,19 +32,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const variantId = String(form.get("variantId") ?? "").trim()
-		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
-		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
-			ratePlanId: explicitRatePlanId,
-			variantId,
-		})
+		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
 		if (!ratePlanId) {
-			return new Response(
-				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
-				{
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				}
-			)
+			return new Response(JSON.stringify({ error: "ratePlanId_required" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 
 		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
@@ -77,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
 			{ ratePlanId, variantId: targetVariantId || undefined }
 		)
 
-		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
+		return new Response(JSON.stringify({ ...result, warnings: [] }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

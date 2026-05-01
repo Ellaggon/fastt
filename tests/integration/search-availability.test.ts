@@ -135,12 +135,6 @@ async function seedSearchableVariant(params: {
 			.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
 	}
 
-	await baseRateRepository.setCanonicalBaseForVariant({
-		variantId: params.variantId,
-		currency: "USD",
-		basePrice: 100,
-	})
-
 	for (const d of params.inventoryDates) {
 		await dailyInventoryRepository.upsert({
 			id: `di_${crypto.randomUUID()}`,
@@ -189,6 +183,11 @@ async function seedSearchableVariant(params: {
 		variantId: params.variantId,
 		isActive: true,
 		isDefault: true,
+	})
+	await baseRateRepository.setCanonicalBaseForRatePlan({
+		ratePlanId: params.ratePlanId,
+		currency: "USD",
+		basePrice: 100,
 	})
 
 	const cancellation = await createPolicyCapa6({
