@@ -1,19 +1,16 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
+import { ratePlanPricingReadRepository } from "@/container"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
 	and,
 	db,
 	Destination,
-	EffectivePricingV2,
 	eq,
 	Image,
 	or,
 	Product,
 	ProductContent,
-	RatePlan,
-	sql,
 	Tour,
 	Variant,
 } from "astro:db"
@@ -37,10 +34,6 @@ const checkout = params.get("checkout") || null
 const adults = params.get("adults") || "2"
 const children = params.get("children") || "0"
 const rooms = params.get("rooms") || "1"
-const canonicalOccupancyKey = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
-
 let tours: ProductResult[] = []
 let destination = null
 
@@ -69,24 +62,15 @@ try {
 			)
 		: eq(Product.productType, "Tour")
 
-	tours = await db
+	const rows = await db
 		.select({
 			id: Product.id,
 			name: Product.name,
 			description: ProductContent.description,
-			basePriceUSD: sql<
-				number | null
-			>`min(case when ${EffectivePricingV2.currency} = 'USD' then ${EffectivePricingV2.finalBasePrice} end)`.as(
-				"basePriceUSD"
-			),
-			basePriceBOB: sql<
-				number | null
-			>`min(case when ${EffectivePricingV2.currency} = 'BOB' then ${EffectivePricingV2.finalBasePrice} end)`.as(
-				"basePriceBOB"
-			),
 			duration: Tour.duration,
 			difficultyLevel: Tour.difficultyLevel,
 			imageUrl: Image.url,
+			variantId: Variant.id,
 		})
 		.from(Product)
 		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
@@ -94,26 +78,33 @@ try {
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
-		.leftJoin(
-			RatePlan,
-			and(
-				eq(RatePlan.variantId, Variant.id),
-				eq(RatePlan.isDefault, true),
-				eq(RatePlan.isActive, true)
-			)
-		)
-		.leftJoin(
-			EffectivePricingV2,
-			and(
-				eq(EffectivePricingV2.variantId, Variant.id),
-				eq(EffectivePricingV2.ratePlanId, RatePlan.id),
-				eq(EffectivePricingV2.occupancyKey, canonicalOccupancyKey)
-			)
-		)
 		.where(whereClause)
 		.groupBy(Product.id)
 		.limit(50)
 		.all()
+
+	tours = await Promise.all(
+		rows.map(async (row) => {
+			const variantId = String(row.variantId ?? "").trim()
+			const summary = variantId
+				? await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
+				: null
+			const normalizedCurrency = String(summary?.currency ?? "USD")
+				.trim()
+				.toUpperCase()
+			const basePrice = Number(summary?.basePrice ?? 0)
+			return {
+				id: row.id,
+				name: row.name,
+				description: row.description,
+				basePriceUSD: normalizedCurrency === "USD" ? basePrice : null,
+				basePriceBOB: normalizedCurrency === "BOB" ? basePrice : null,
+				duration: row.duration,
+				difficultyLevel: row.difficultyLevel,
+				imageUrl: row.imageUrl,
+			}
+		})
+	)
 } catch (err) {
 	console.error("error querying hotels", err)
 }
