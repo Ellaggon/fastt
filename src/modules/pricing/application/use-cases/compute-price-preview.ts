@@ -7,7 +7,8 @@ import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 
 const computePricePreviewSchema = z.object({
-	variantId: z.string().trim().min(1),
+	ratePlanId: z.string().trim().min(1).optional(),
+	variantId: z.string().trim().min(1).optional(),
 })
 
 const allowedRuleTypes = new Set([
@@ -32,24 +33,26 @@ export async function computePricePreview(
 		ratePlanRepo: RatePlanRepositoryPort
 		pricingRepo: PricingRepositoryPort
 	},
-	params: { variantId: string }
+	params: { ratePlanId?: string; variantId?: string }
 ): Promise<{ basePrice: number; finalPrice: number; currency: Currency }> {
 	const parsed = computePricePreviewSchema.parse(params)
+	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
+	if (!ratePlanId && parsed.variantId) {
+		const legacyDefault = await deps.ratePlanRepo.getDefaultByVariant(parsed.variantId)
+		ratePlanId = String(legacyDefault?.id ?? "").trim()
+	}
+	if (!ratePlanId) {
+		throw new PricingPreviewValidationError("ratePlanId_required")
+	}
 
-	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
+	const baseRate = await deps.baseRateRepo.getCanonicalBaseByRatePlanId(ratePlanId)
 
 	// Base rate is mandatory for real sellability, but preview should remain callable:
 	// missing base rate yields a 0 price and is signaled elsewhere via readiness ("pricing_missing").
 	const basePrice = Number(baseRate?.basePrice ?? 0)
 	const currency: Currency = baseRate?.currency === "BOB" ? "BOB" : "USD"
 
-	const defaultPlan = await deps.ratePlanRepo.getDefaultByVariant(parsed.variantId)
-	if (!defaultPlan) {
-		// CAPA 4B hardening: no default plan means "no rules applied".
-		return { basePrice, finalPrice: basePrice, currency }
-	}
-
-	const dbRules = await deps.pricingRepo.getPreviewRules(defaultPlan.id)
+	const dbRules = await deps.pricingRepo.getPreviewRules(ratePlanId)
 	for (const rule of dbRules) {
 		const rawType = String(rule.type ?? "").trim()
 		if (!allowedRuleTypes.has(rawType)) {
@@ -60,7 +63,7 @@ export async function computePricePreview(
 	const finalPrice = evaluatePricingRules({
 		basePrice,
 		date: previewDate,
-		ratePlanId: defaultPlan.id,
+		ratePlanId,
 		rules: dbRules.map((rule) => {
 			const rawType = String(rule.type ?? "").trim()
 			const rawValue = Number(rule.value ?? 0)

@@ -3,6 +3,22 @@ import { z } from "zod"
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 
 type VariantRepoForRulePreview = {
+	getBaseRateByRatePlanId?(
+		ratePlanId: string
+	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
+	getPreviewRulesByRatePlanId?(ratePlanId: string): Promise<
+		Array<{
+			id: string
+			type: string
+			value: number
+			occupancyKey?: string | null
+			priority: number
+			dateRange?: { from?: string | null; to?: string | null } | null
+			dayOfWeek?: number[] | null
+			createdAt: Date
+		}>
+	>
+	getRatePlanVariantId?(ratePlanId: string): Promise<string | null>
 	getBaseRate(
 		variantId: string
 	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
@@ -22,7 +38,8 @@ type VariantRepoForRulePreview = {
 }
 
 const previewPricingRulesSchema = z.object({
-	variantId: z.string().trim().min(1),
+	ratePlanId: z.string().trim().min(1).optional(),
+	variantId: z.string().trim().min(1).optional(),
 	candidateRule: z.object({
 		type: z.string().trim().min(1),
 		value: z.number(),
@@ -48,15 +65,37 @@ export async function previewPricingRules(
 	params: PreviewPricingRulesInput
 ) {
 	const parsed = previewPricingRulesSchema.parse(params)
-	const [baseRate, defaultPlan] = await Promise.all([
-		deps.variantRepo.getBaseRate(parsed.variantId),
-		deps.variantRepo.getDefaultRatePlanWithRules(parsed.variantId),
+	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
+	if (!ratePlanId && parsed.variantId) {
+		const compat = await deps.variantRepo.getDefaultRatePlanWithRules(parsed.variantId)
+		ratePlanId = String(compat?.ratePlanId ?? "").trim()
+	}
+	if (!ratePlanId) {
+		throw new Error("ratePlanId_required")
+	}
+	const variantId =
+		parsed.variantId ??
+		(await deps.variantRepo.getRatePlanVariantId?.(ratePlanId)) ??
+		"__compat_variant__"
+	const [baseRate, rules] = await Promise.all([
+		deps.variantRepo.getBaseRateByRatePlanId
+			? deps.variantRepo.getBaseRateByRatePlanId(ratePlanId)
+			: deps.variantRepo
+					.getBaseRate(variantId)
+					.then((row) =>
+						row ? { ratePlanId, currency: row.currency, basePrice: row.basePrice } : null
+					),
+		deps.variantRepo.getPreviewRulesByRatePlanId
+			? deps.variantRepo.getPreviewRulesByRatePlanId(ratePlanId)
+			: deps.variantRepo
+					.getDefaultRatePlanWithRules(variantId)
+					.then((row) => (row && String(row.ratePlanId) === ratePlanId ? row.rules : [])),
 	])
-	if (!baseRate || !defaultPlan) {
+	if (!baseRate) {
 		return {
-			basePrice: Number(baseRate?.basePrice ?? 0),
-			currency: baseRate?.currency ?? "USD",
-			ratePlanId: defaultPlan?.ratePlanId ?? null,
+			basePrice: 0,
+			currency: "USD",
+			ratePlanId,
 			days: [],
 		}
 	}
@@ -87,7 +126,7 @@ export async function previewPricingRules(
 	}
 
 	const basePrice = Number(baseRate.basePrice)
-	const existingRules = defaultPlan.rules.map((rule) => ({
+	const existingRules = rules.map((rule) => ({
 		id: String(rule.id),
 		type: normalizeType(String(rule.type)),
 		value: Number(rule.value),
@@ -112,13 +151,13 @@ export async function previewPricingRules(
 		const beforeEval = evaluatePricingRules({
 			basePrice,
 			date,
-			ratePlanId: defaultPlan.ratePlanId,
+			ratePlanId,
 			rules: existingRules,
 		})
 		const afterEval = evaluatePricingRules({
 			basePrice,
 			date,
-			ratePlanId: defaultPlan.ratePlanId,
+			ratePlanId,
 			rules: [...existingRules, candidate],
 		})
 		days.push({
@@ -134,7 +173,7 @@ export async function previewPricingRules(
 	return {
 		basePrice,
 		currency: baseRate.currency,
-		ratePlanId: defaultPlan.ratePlanId,
+		ratePlanId,
 		days,
 	}
 }

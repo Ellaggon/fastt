@@ -5,7 +5,8 @@ import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRe
 
 const updateRuleSchema = z.object({
 	ruleId: z.string().trim().min(1),
-	variantId: z.string().trim().min(1),
+	ratePlanId: z.string().trim().min(1).optional(),
+	variantId: z.string().trim().min(1).optional(),
 	type: z.enum([
 		"base_adjustment",
 		"percentage_discount",
@@ -42,7 +43,8 @@ export async function updateDefaultPriceRule(
 	},
 	params: {
 		ruleId: string
-		variantId: string
+		ratePlanId?: string
+		variantId?: string
 		type:
 			| "base_adjustment"
 			| "percentage_discount"
@@ -61,6 +63,16 @@ export async function updateDefaultPriceRule(
 	}
 ): Promise<{ updated: boolean }> {
 	const parsed = updateRuleSchema.parse(params)
+	const ratePlanId = String(parsed.ratePlanId ?? "").trim()
+	if (!ratePlanId && !parsed.variantId) {
+		throw new z.ZodError([
+			{
+				code: "custom",
+				path: ["ratePlanId", "variantId"],
+				message: "ratePlanId required",
+			},
+		])
+	}
 	const canonicalType =
 		parsed.type === "percentage"
 			? "percentage_markup"
@@ -78,7 +90,9 @@ export async function updateDefaultPriceRule(
 		canonicalType === "fixed_adjustment" ||
 		canonicalType === "base_adjustment"
 
-	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
+	const baseRate = ratePlanId
+		? await deps.baseRateRepo.getCanonicalBaseByRatePlanId(ratePlanId)
+		: await deps.baseRateRepo.getCanonicalBaseByVariantId(String(parsed.variantId ?? ""))
 	const basePrice = Number(baseRate?.basePrice ?? 0)
 
 	if (isPercentage && (parsed.value < 0 || parsed.value > 1000)) {

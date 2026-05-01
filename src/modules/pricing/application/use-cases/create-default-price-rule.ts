@@ -8,7 +8,8 @@ import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRe
 import { ensureDefaultRatePlan } from "./ensure-default-rateplan"
 
 const createRuleSchema = z.object({
-	variantId: z.string().trim().min(1),
+	ratePlanId: z.string().trim().min(1).optional(),
+	variantId: z.string().trim().min(1).optional(),
 	type: z.enum([
 		"base_adjustment",
 		"percentage_discount",
@@ -53,7 +54,8 @@ export async function createDefaultPriceRule(
 		priceRuleCmdRepo: PriceRuleCommandRepositoryPort
 	},
 	params: {
-		variantId: string
+		ratePlanId?: string
+		variantId?: string
 		type:
 			| "base_adjustment"
 			| "percentage_discount"
@@ -72,6 +74,23 @@ export async function createDefaultPriceRule(
 	}
 ): Promise<{ ruleId: string; ratePlanId: string }> {
 	const parsed = createRuleSchema.parse(params)
+	let ratePlanId = String(parsed.ratePlanId ?? "").trim()
+	if (!ratePlanId && parsed.variantId) {
+		const resolved = await ensureDefaultRatePlan(
+			{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
+			{ variantId: parsed.variantId }
+		)
+		ratePlanId = String(resolved.ratePlanId ?? "").trim()
+	}
+	if (!ratePlanId) {
+		throw new z.ZodError([
+			{
+				code: "custom",
+				path: ["ratePlanId"],
+				message: "ratePlanId required",
+			},
+		])
+	}
 	const canonicalType =
 		parsed.type === "percentage"
 			? "percentage_markup"
@@ -89,7 +108,7 @@ export async function createDefaultPriceRule(
 		canonicalType === "fixed_adjustment" ||
 		canonicalType === "base_adjustment"
 
-	const baseRate = await deps.baseRateRepo.getCanonicalBaseByVariantId(parsed.variantId)
+	const baseRate = await deps.baseRateRepo.getCanonicalBaseByRatePlanId(ratePlanId)
 	const basePrice = Number(baseRate?.basePrice ?? 0)
 
 	if (isPercentage && (parsed.value < 0 || parsed.value > 1000)) {
@@ -154,11 +173,6 @@ export async function createDefaultPriceRule(
 			])
 		}
 	}
-
-	const { ratePlanId } = await ensureDefaultRatePlan(
-		{ ratePlanRepo: deps.ratePlanRepo, ratePlanCmdRepo: deps.ratePlanCmdRepo },
-		{ variantId: parsed.variantId }
-	)
 
 	const createdAt = new Date()
 	const ruleId = randomUUID()
