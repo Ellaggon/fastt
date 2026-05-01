@@ -26,7 +26,12 @@ const schema = z.object({
 		from: z.string().min(1),
 		to: z.string().min(1),
 	}),
-	occupancy: z.number().int().min(1),
+	rooms: z.number().int().min(1).default(1),
+	occupancyDetail: z.object({
+		adults: z.number().int().min(1),
+		children: z.number().int().min(0).default(0),
+		infants: z.number().int().min(0).default(0),
+	}),
 	sessionId: z.string().min(1).optional(),
 })
 
@@ -90,19 +95,13 @@ type HoldabilityResult =
 			}
 	  }
 
-function resolveHoldOccupancyDetail(occupancy: number) {
-	// Current endpoint contract receives only a numeric occupancy.
-	// We normalize it through the canonical occupancy model to keep one source of truth.
-	return normalizeOccupancy({ adults: occupancy, children: 0, infants: 0 })
-}
-
 async function resolveHoldabilityFromView(params: {
 	productId: string
 	variantId: string
 	ratePlanId: string
 	checkIn: string
 	checkOut: string
-	occupancy: number
+	occupancyDetail: { adults: number; children: number; infants: number }
 	requestedRooms: number
 }): Promise<HoldabilityResult> {
 	const stayDates = enumerateStayDates(params.checkIn, params.checkOut)
@@ -120,7 +119,7 @@ async function resolveHoldabilityFromView(params: {
 		}
 	}
 
-	const occupancyDetail = resolveHoldOccupancyDetail(params.occupancy)
+	const occupancyDetail = normalizeOccupancy(params.occupancyDetail)
 	const occupancyKey = buildOccupancyKey(occupancyDetail)
 	const predicates = [
 		eq(SearchUnitView.productId, params.productId),
@@ -352,8 +351,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
+		let usedLegacyNumericOccupancy = false
 		if (contentType.includes("application/json")) {
 			const raw = (await request.json().catch(() => ({}))) as Record<string, unknown>
+			const occupancyDetailFromRaw =
+				(raw as any).occupancyDetail && typeof (raw as any).occupancyDetail === "object"
+					? {
+							adults: Number((raw as any).occupancyDetail.adults ?? 0),
+							children: Number((raw as any).occupancyDetail.children ?? 0),
+							infants: Number((raw as any).occupancyDetail.infants ?? 0),
+						}
+					: null
+			const hasLegacyNumericOccupancy = raw.occupancy != null || raw.quantity != null
+			if (!occupancyDetailFromRaw && hasLegacyNumericOccupancy) usedLegacyNumericOccupancy = true
 			payload = {
 				variantId: String(raw.variantId ?? "").trim(),
 				ratePlanId: optionalTrimmed((raw as any).ratePlanId),
@@ -361,11 +371,28 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					from: String((raw as any)?.dateRange?.from ?? raw.checkIn ?? raw.from ?? "").trim(),
 					to: String((raw as any)?.dateRange?.to ?? raw.checkOut ?? raw.to ?? "").trim(),
 				},
-				occupancy: Number(raw.occupancy ?? raw.quantity ?? 1),
+				rooms: Number(raw.rooms ?? raw.quantity ?? 1),
+				occupancyDetail:
+					occupancyDetailFromRaw ??
+					(hasLegacyNumericOccupancy
+						? {
+								adults: Number(raw.occupancy ?? raw.quantity ?? 1),
+								children: 0,
+								infants: 0,
+							}
+						: null),
 				sessionId: optionalTrimmed(raw.sessionId ?? request.headers.get("x-session-id")),
 			}
 		} else {
 			const form = await request.formData()
+			const occupancyDetailAdultsRaw = form.get("occupancyDetail[adults]") ?? form.get("adults")
+			const occupancyDetailChildrenRaw =
+				form.get("occupancyDetail[children]") ?? form.get("children")
+			const occupancyDetailInfantsRaw = form.get("occupancyDetail[infants]") ?? form.get("infants")
+			const hasOccupancyDetailInForm = occupancyDetailAdultsRaw != null
+			const hasLegacyNumericOccupancy =
+				form.get("occupancy") != null || form.get("quantity") != null
+			if (!hasOccupancyDetailInForm && hasLegacyNumericOccupancy) usedLegacyNumericOccupancy = true
 			payload = {
 				variantId: String(form.get("variantId") ?? "").trim(),
 				ratePlanId: optionalTrimmed(form.get("ratePlanId")),
@@ -373,11 +400,27 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					from: String(form.get("checkIn") ?? form.get("from") ?? "").trim(),
 					to: String(form.get("checkOut") ?? form.get("to") ?? "").trim(),
 				},
-				occupancy: Number(form.get("occupancy") ?? form.get("quantity") ?? 1),
+				rooms: Number(form.get("rooms") ?? form.get("quantity") ?? 1),
+				occupancyDetail: hasOccupancyDetailInForm
+					? {
+							adults: Number(occupancyDetailAdultsRaw ?? 0),
+							children: Number(occupancyDetailChildrenRaw ?? 0),
+							infants: Number(occupancyDetailInfantsRaw ?? 0),
+						}
+					: hasLegacyNumericOccupancy
+						? {
+								adults: Number(form.get("occupancy") ?? form.get("quantity") ?? 1),
+								children: 0,
+								infants: 0,
+							}
+						: null,
 				sessionId: optionalTrimmed(form.get("sessionId")),
 			}
 		}
 		const parsed = schema.parse(payload)
+		const warnings = usedLegacyNumericOccupancy
+			? [{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" as const }]
+			: []
 		const cookieSessionId = String(cookies?.get?.(GUEST_SESSION_COOKIE)?.value ?? "").trim()
 		let generatedGuestSessionId: string | null = null
 		if (!cookieSessionId && !user?.id && !user?.email) {
@@ -418,8 +461,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					ratePlanId: parsed.ratePlanId,
 					checkIn: parsed.dateRange.from,
 					checkOut: parsed.dateRange.to,
-					occupancy: parsed.occupancy,
-					requestedRooms: parsed.occupancy,
+					occupancyDetail: parsed.occupancyDetail,
+					requestedRooms: parsed.rooms,
 				})
 				if (!holdability.holdable) {
 					const err = new Error("not_holdable")
@@ -443,7 +486,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 						},
 						resolvePricingSnapshot: async ({ from, to, occupancy }) => {
 							if (from !== parsed.dateRange.from || to !== parsed.dateRange.to) return null
-							if (occupancy !== parsed.occupancy) return null
+							if (occupancy !== parsed.rooms) return null
 							const pricingBreakdownV2Totals = holdability.days.reduce(
 								(acc, day) => {
 									const breakdown = day.pricingBreakdownV2
@@ -461,12 +504,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							return {
 								ratePlanId: holdability.ratePlanId,
 								currency: "USD",
-								occupancy: parsed.occupancy,
-								occupancyDetail: {
-									adults: parsed.occupancy,
-									children: 0,
-									infants: 0,
-								},
+								occupancy: Math.max(
+									1,
+									parsed.occupancyDetail.adults + parsed.occupancyDetail.children
+								),
+								occupancyDetail: parsed.occupancyDetail,
+								rooms: parsed.rooms,
 								from,
 								to,
 								nights: holdability.nights,
@@ -487,7 +530,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					{
 						variantId: parsed.variantId,
 						dateRange: parsed.dateRange,
-						occupancy: parsed.occupancy,
+						occupancy: parsed.rooms,
 						sessionId: effectiveSessionId,
 					}
 				)
@@ -519,7 +562,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 		})
 
 		return new Response(
-			JSON.stringify({ holdId: result.holdId, expiresAt: result.expiresAt.toISOString() }),
+			JSON.stringify({
+				holdId: result.holdId,
+				expiresAt: result.expiresAt.toISOString(),
+				warnings,
+			}),
 			{
 				status: 200,
 				headers: { "Content-Type": "application/json" },

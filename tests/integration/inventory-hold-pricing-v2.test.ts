@@ -255,6 +255,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 			const body = await readJson(response)
 			const holdId = String(body?.holdId ?? "")
 			expect(holdId.length).toBeGreaterThan(0)
+			expect(body?.warnings).toEqual([
+				{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" },
+			])
 
 			const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
 			expect(snapshot?.pricingBreakdownV2).toBeTruthy()
@@ -376,6 +379,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 		expect(response.status).toBe(200)
 		const body = await readJson(response)
 		const holdId = String(body?.holdId ?? "")
+		expect(body?.warnings).toEqual([
+			{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" },
+		])
 		const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
 		expect(snapshot?.days?.every((day: any) => day?.pricingSource === "v2")).toBe(true)
 		expect(snapshot?.totalPrice).toBeGreaterThan(0)
@@ -461,6 +467,87 @@ describe("integration/hold pricing V2 snapshot", () => {
 		expect(detail).toBeTruthy()
 		expect((detail as any)?.pricingBreakdownJson?.pricingBreakdownV2 ?? null).toBeNull()
 		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).toEqual({
+			adults: 2,
+			children: 0,
+			infants: 0,
+		})
+	})
+
+	it("preserves real multi-occupancy detail in hold snapshot and booking materialization", async () => {
+		const token = "t_hold_multi_occ"
+		const variantId = `var_hold_multi_occ_${crypto.randomUUID()}`
+		const productId = `prod_hold_multi_occ_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_multi_occ_${crypto.randomUUID()}`
+		const dates = ["2026-12-10", "2026-12-11"]
+		await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: true })
+		await ensurePricingCoverageForRequestRuntime({
+			variantId,
+			ratePlanId,
+			checkIn: "2026-12-10",
+			checkOut: "2026-12-12",
+			occupancy: { adults: 1, children: 1, infants: 0 },
+		})
+		await refreshSearchView(variantId, ratePlanId, "2026-12-10", "2026-12-12")
+
+		const holdForm = new FormData()
+		holdForm.set("variantId", variantId)
+		holdForm.set("ratePlanId", ratePlanId)
+		holdForm.set("checkIn", "2026-12-10")
+		holdForm.set("checkOut", "2026-12-12")
+		holdForm.set("rooms", "1")
+		holdForm.set("occupancyDetail[adults]", "1")
+		holdForm.set("occupancyDetail[children]", "1")
+		holdForm.set("occupancyDetail[infants]", "0")
+		holdForm.set("sessionId", `s_${crypto.randomUUID()}`)
+
+		const holdResponse = await withSupabaseAuthStub(
+			{ [token]: { id: "user_hold_multi_occ", email: "hold-multi-occ@example.com" } },
+			() =>
+				Promise.resolve(
+					holdPost({
+						request: makeAuthedFormRequest({
+							path: "/api/inventory/hold",
+							token,
+							form: holdForm,
+						}),
+					} as any)
+				)
+		)
+		expect(holdResponse.status).toBe(200)
+		const holdBody = await readJson(holdResponse)
+		const holdId = String(holdBody?.holdId ?? "")
+		const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
+		expect(snapshot?.occupancyDetail).toEqual({ adults: 1, children: 1, infants: 0 })
+
+		const confirmForm = new FormData()
+		confirmForm.set("holdId", holdId)
+		const confirmResponse = await withSupabaseAuthStub(
+			{ [token]: { id: "user_hold_multi_occ", email: "hold-multi-occ@example.com" } },
+			() =>
+				Promise.resolve(
+					bookingConfirmPost({
+						request: makeAuthedFormRequest({
+							path: "/api/booking/confirm",
+							token,
+							form: confirmForm,
+						}),
+					} as any)
+				)
+		)
+		expect(confirmResponse.status).toBe(200)
+		const confirmBody = await readJson(confirmResponse)
+		const bookingId = String(confirmBody?.bookingId ?? "")
+		const detail = await db
+			.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
+			.from(BookingRoomDetail)
+			.where(eq(BookingRoomDetail.bookingId, bookingId))
+			.get()
+		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).toEqual({
+			adults: 1,
+			children: 1,
+			infants: 0,
+		})
+		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).not.toEqual({
 			adults: 2,
 			children: 0,
 			infants: 0,
