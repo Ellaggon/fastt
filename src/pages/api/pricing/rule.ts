@@ -4,6 +4,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
+import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { createDefaultPriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
@@ -89,6 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const variantId = String(form.get("variantId") ?? "").trim()
+		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = form.get("priority")
@@ -112,7 +114,24 @@ export const POST: APIRoute = async ({ request }) => {
 				? contextKeyRaw
 				: undefined
 
-		const v = await variantManagementRepository.getVariantById(variantId)
+		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
+			ratePlanId: explicitRatePlanId,
+			variantId,
+		})
+		if (!ratePlanId) {
+			return new Response(
+				JSON.stringify({
+					error: "ratePlanId is required for pricing mutations",
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
+
+		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
+		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
+		const v = targetVariantId
+			? await variantManagementRepository.getVariantById(targetVariantId)
+			: null
 		if (!v) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -135,7 +154,8 @@ export const POST: APIRoute = async ({ request }) => {
 				priceRuleCmdRepo: priceRuleCommandRepository,
 			},
 			{
-				variantId,
+				ratePlanId,
+				variantId: targetVariantId,
 				type: type as any,
 				value,
 				priority,
@@ -148,14 +168,14 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
 		const rematerializeResult = await ensurePricingCoverageRuntime({
-			variantId,
+			variantId: targetVariantId,
 			ratePlanId: result.ratePlanId,
 			from: rematerializationRange.from,
 			to: rematerializationRange.to,
 			recomputeExisting: true,
 		})
 		console.debug("pricing_rule_materialized", {
-			variantId,
+			variantId: targetVariantId,
 			ruleId: result.ruleId,
 			ratePlanId: result.ratePlanId,
 			from: rematerializationRange.from,
@@ -163,12 +183,19 @@ export const POST: APIRoute = async ({ request }) => {
 			generatedDatesCount: rematerializeResult.generatedDatesCount,
 		})
 
-		await invalidateVariant(variantId, v.productId)
+		await invalidateVariant(targetVariantId, v.productId)
 
-		return new Response(JSON.stringify({ ...result, rematerialization: rematerializeResult }), {
-			status: 201,
-			headers: { "Content-Type": "application/json" },
-		})
+		return new Response(
+			JSON.stringify({
+				...result,
+				rematerialization: rematerializeResult,
+				warnings: warning ? [warning] : [],
+			}),
+			{
+				status: 201,
+				headers: { "Content-Type": "application/json" },
+			}
+		)
 	} catch (e) {
 		if (e instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: e.issues }), {

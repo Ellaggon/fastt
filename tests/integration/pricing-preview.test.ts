@@ -73,7 +73,7 @@ async function readJson(res: Response) {
 }
 
 describe("integration/pricing preview (CAPA 4B minimal)", () => {
-	it("rejects preview when ratePlanId is not provided", async () => {
+	it("legacy preview without resolvable ratePlanId fails explicitly", async () => {
 		const token = "t_prev_base"
 		const email = "prev-base@example.com"
 		const providerId = "prov_prev_base"
@@ -120,12 +120,11 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			} as any)
 			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("validation_error")
-			expect(body?.details?.[0]?.path).toEqual(["rules"])
+			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
 		})
 	})
 
-	it("does not silently fallback to default rate plan when missing ratePlanId", async () => {
+	it("does not silently fallback to non-default rate plan when missing ratePlanId", async () => {
 		const token = "t_prev_nodef"
 		const email = "prev-nodef@example.com"
 		const providerId = "prov_prev_nodef"
@@ -196,8 +195,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			} as any)
 			expect(res.status).toBe(400)
 			const body = (await readJson(res)) as any
-			expect(body?.error).toBe("validation_error")
-			expect(body?.details?.[0]?.path).toEqual(["rules"])
+			expect(body?.error).toBe("ratePlanId is required for pricing mutations")
 		})
 	})
 
@@ -596,6 +594,21 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			currency: "USD",
 			basePrice: 100,
 		})
+		const templateId = `rpt_prev_own_${crypto.randomUUID()}`
+		const ratePlanId = `rp_prev_own_${crypto.randomUUID()}`
+		await upsertRatePlanTemplate({
+			id: templateId,
+			name: "Own Default",
+			paymentType: "prepaid",
+			refundable: false,
+		})
+		await upsertRatePlan({
+			id: ratePlanId,
+			templateId,
+			variantId,
+			isActive: true,
+			isDefault: true,
+		})
 
 		await withSupabaseAuthStub(
 			{
@@ -605,6 +618,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			async () => {
 				const fd = new FormData()
 				fd.set("variantId", variantId)
+				fd.set("ratePlanId", ratePlanId)
 
 				const res = await previewPost({
 					request: makeAuthedFormRequest({ path: "/api/pricing/preview", token: tokenB, form: fd }),
