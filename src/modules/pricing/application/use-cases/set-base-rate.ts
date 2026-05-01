@@ -4,22 +4,26 @@ import { setBaseRateSchema } from "../schemas/base-rate.schemas"
 
 export async function setBaseRate(
 	deps: { baseRateRepo: BaseRateRepositoryPort; variantRepo: VariantRepositoryPort },
-	params: { variantId: string; currency: string; basePrice: number }
-): Promise<{ variantId: string }> {
+	params: { ratePlanId: string; currency: string; basePrice: number; variantId?: string }
+): Promise<{ ratePlanId: string; variantId?: string }> {
 	const parsed = setBaseRateSchema.parse({
-		variantId: params.variantId,
+		variantId: params.variantId ?? "__compat_variant__",
 		currency: params.currency,
 		basePrice: params.basePrice,
 	})
+	const normalizedRatePlanId = String(params.ratePlanId ?? "").trim()
+	if (!normalizedRatePlanId) throw new Error("ratePlanId required")
 
-	const exists = await deps.variantRepo.existsById(parsed.variantId)
-	if (!exists) throw new Error("Variant not found")
+	if (params.variantId) {
+		const exists = await deps.variantRepo.existsById(params.variantId)
+		if (!exists) throw new Error("Variant not found")
+	}
 
-	await deps.baseRateRepo.setCanonicalBaseForVariant({
-		variantId: parsed.variantId,
+	await deps.baseRateRepo.setCanonicalBaseForRatePlan({
+		ratePlanId: normalizedRatePlanId,
 		currency: parsed.currency,
 		basePrice: parsed.basePrice,
 	})
 
-	return { variantId: parsed.variantId }
+	return { ratePlanId: normalizedRatePlanId, variantId: params.variantId }
 }
