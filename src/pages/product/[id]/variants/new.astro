@@ -61,7 +61,7 @@ let variant: Awaited<ReturnType<typeof variantManagementRepository.getVariantByI
 let capacity: Awaited<ReturnType<typeof variantManagementRepository.getCapacity>> | null = null
 let subtype: Awaited<ReturnType<typeof variantManagementRepository.getHotelRoomSubtype>> | null =
 	null
-let baseRate: Awaited<ReturnType<typeof variantManagementRepository.getBaseRate>> | null = null
+let baseRate: { variantId: string; currency: string; basePrice: number } | null = null
 let defaultRatePlanId: string | null = null
 let inventoryConfig: Awaited<
 	ReturnType<typeof variantInventoryConfigRepository.getByVariantId>

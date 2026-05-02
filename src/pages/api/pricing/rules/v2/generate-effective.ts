@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { variantManagementRepository } from "@/container"
+import { ratePlanPricingReadRepository } from "@/container"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 
 import {
@@ -22,8 +22,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const context = await resolveOwnedRatePlanContext(request, ratePlanId)
 	if (!context.ok) return context.response
 
-	const baseRate = await variantManagementRepository.getBaseRate(context.ownerContext.variantId)
-	if (!baseRate) {
+	const pricingSummary = await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
+	if (!pricingSummary) {
 		return new Response(JSON.stringify({ error: "pricing_missing" }), {
 			status: 400,
 			headers: { "Content-Type": "application/json" },

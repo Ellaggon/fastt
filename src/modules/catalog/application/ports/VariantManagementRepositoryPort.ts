@@ -70,25 +70,5 @@ export interface VariantManagementRepositoryPort {
 		isActive?: boolean
 	}): Promise<void>
 
-	// CAPA 4A: pricing base rate (read-only). Used to emit pricing_missing accurately.
-	hasBaseRate(variantId: string): Promise<boolean>
-	getBaseRate(
-		variantId: string
-	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
-
-	// CAPA 4B: default rate plan + minimal rule snapshot for readiness signals.
-	getDefaultRatePlanWithRules(variantId: string): Promise<{
-		ratePlanId: string
-		rules: Array<{
-			id: string
-			type: string
-			value: number
-			occupancyKey?: string | null
-			priority: number
-			dateRange?: { from?: string | null; to?: string | null } | null
-			dayOfWeek?: number[] | null
-			createdAt: Date
-		}>
-	} | null>
 	countDailyInventoryDays(variantId: string): Promise<number>
 }

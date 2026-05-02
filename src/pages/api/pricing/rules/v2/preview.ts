@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { evaluatePricingRules } from "@/modules/pricing/public"
-import { variantManagementRepository } from "@/container"
+import { ratePlanPricingReadRepository } from "@/container"
 
 import {
 	listRulesByRatePlan,
@@ -26,8 +26,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const context = await resolveOwnedRatePlanContext(request, ratePlanId)
 	if (!context.ok) return context.response
 
-	const baseRate = await variantManagementRepository.getBaseRate(context.ownerContext.variantId)
-	if (!baseRate) {
+	const pricingSummary = await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
+	if (!pricingSummary) {
 		return new Response(JSON.stringify({ error: "pricing_missing" }), {
 			status: 400,
 			headers: { "Content-Type": "application/json" },
@@ -91,14 +91,14 @@ export const POST: APIRoute = async ({ request }) => {
 	while (cursor < end) {
 		const date = cursor.toISOString().slice(0, 10)
 		const beforeEval = evaluatePricingRules({
-			basePrice: Number(baseRate.basePrice),
+			basePrice: Number(pricingSummary.basePrice),
 			date,
 			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
 			rules,
 		})
 		const afterEval = evaluatePricingRules({
-			basePrice: Number(baseRate.basePrice),
+			basePrice: Number(pricingSummary.basePrice),
 			date,
 			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
@@ -116,8 +116,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 	return new Response(
 		JSON.stringify({
-			basePrice: Number(baseRate.basePrice),
-			currency: String(baseRate.currency),
+			basePrice: Number(pricingSummary.basePrice),
+			currency: String(pricingSummary.currency),
 			ratePlanId,
 			occupancyKey: occupancyKey ?? null,
 			days,

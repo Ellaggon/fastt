@@ -9,22 +9,9 @@ import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import { ensurePricingCoverage } from "./ensure-pricing-coverage"
 
 type VariantRepoForCoverage = {
-	getBaseRate(
+	getCapacity?(
 		variantId: string
-	): Promise<{ variantId: string; currency: string; basePrice: number } | null>
-	getDefaultRatePlanWithRules(variantId: string): Promise<{
-		ratePlanId: string
-		rules: Array<{
-			id: string
-			type: string
-			value: number
-			occupancyKey?: string | null
-			priority: number
-			dateRange?: { from?: string | null; to?: string | null } | null
-			dayOfWeek?: number[] | null
-			createdAt: Date
-		}>
-	} | null>
+	): Promise<{ maxOccupancy: number; maxAdults: number | null; maxChildren: number | null } | null>
 }
 
 type PricingV2CoverageRepo = {

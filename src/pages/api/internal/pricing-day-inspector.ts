@@ -4,7 +4,12 @@ import { and, db, EffectivePricingV2, eq } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { evaluatePricingRules } from "@/modules/pricing/public"
-import { productRepository, variantManagementRepository } from "@/container"
+import {
+	productRepository,
+	variantManagementRepository,
+	ratePlanPricingReadRepository,
+	pricingRepository,
+} from "@/container"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -59,28 +64,27 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 		}
 
-		const [baseRate, defaultPlan] = await Promise.all([
-			variantManagementRepository.getBaseRate(variantId),
-			variantManagementRepository.getDefaultRatePlanWithRules(variantId),
-		])
-		if (!baseRate || !defaultPlan) {
+		const pricingSummary =
+			await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
+		if (!pricingSummary) {
 			return new Response(JSON.stringify({ error: "pricing_not_initialized" }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const rules = await pricingRepository.getPreviewRules(pricingSummary.ratePlanId)
 
 		const evaluation = evaluatePricingRules({
-			basePrice: Number(baseRate.basePrice),
+			basePrice: Number(pricingSummary.basePrice),
 			date,
-			ratePlanId: String(defaultPlan.ratePlanId),
-			rules: defaultPlan.rules.map((rule) => ({
+			ratePlanId: String(pricingSummary.ratePlanId),
+			rules: rules.map((rule) => ({
 				id: String(rule.id),
 				type: String(rule.type),
 				value: Number(rule.value),
 				priority: Number((rule as any).priority ?? 10),
-				dateRange: (rule as any).dateRange ?? null,
-				dayOfWeek: (rule as any).dayOfWeek ?? null,
+				dateRange: (rule as any).dateRangeJson ?? null,
+				dayOfWeek: (rule as any).dayOfWeekJson ?? null,
 				createdAt: rule.createdAt,
 				isActive: true,
 			})),
@@ -93,7 +97,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.where(
 				and(
 					eq(EffectivePricingV2.variantId, variantId),
-					eq(EffectivePricingV2.ratePlanId, String(defaultPlan.ratePlanId)),
+					eq(EffectivePricingV2.ratePlanId, String(pricingSummary.ratePlanId)),
 					eq(EffectivePricingV2.date, date),
 					eq(EffectivePricingV2.occupancyKey, occupancyKey)
 				)
@@ -104,7 +108,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			JSON.stringify({
 				date,
 				currency,
-				basePrice: Number(baseRate.basePrice),
+				basePrice: Number(pricingSummary.basePrice),
 				finalPrice: effective?.finalBasePrice == null ? null : Number(effective.finalBasePrice),
 				computedPrice: Number(evaluation.price),
 				breakdown: evaluation.breakdown ?? [],
