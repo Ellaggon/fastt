@@ -13,6 +13,7 @@ const BANNED_PATTERNS = [
 
 function listMutationPathFiles(): string[] {
 	return [
+		"src/pages/api/pricing/generate-effective.ts",
 		"src/pages/api/pricing/rule.ts",
 		"src/pages/api/pricing/rule-update.ts",
 		"src/pages/api/pricing/rule-delete.ts",
