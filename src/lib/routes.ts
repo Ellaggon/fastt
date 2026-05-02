@@ -24,16 +24,6 @@ export const routes = {
 		`/product/${encodeURIComponent(String(productId))}/variants`,
 	variantDetail: (productId: string, variantId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}`,
-	variantPricing: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing`,
-	variantPricingCalendar: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing/calendar`,
-	variantPricingSeasons: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing/seasons`,
-	variantPricingPromotions: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing/promotions`,
-	variantPricingOverrides: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}/pricing/overrides`,
 }
 
 export type Routes = typeof routes
