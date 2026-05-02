@@ -1,4 +1,4 @@
-import { variantManagementRepository } from "@/container"
+import { ratePlanPricingReadRepository } from "@/container"
 
 export type LegacyAdapterWarning = {
 	code: "pricing_legacy_variant_adapter_used"
@@ -19,8 +19,9 @@ export async function resolveRatePlanIdFromLegacyInput(params: {
 		return { ratePlanId: null, warning: null }
 	}
 
-	const compat = await variantManagementRepository.getDefaultRatePlanWithRules(variantId)
-	const resolvedRatePlanId = String(compat?.ratePlanId ?? "").trim()
+	const summary =
+		await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
+	const resolvedRatePlanId = String(summary?.ratePlanId ?? "").trim()
 	if (!resolvedRatePlanId) {
 		return { ratePlanId: null, warning: null }
 	}

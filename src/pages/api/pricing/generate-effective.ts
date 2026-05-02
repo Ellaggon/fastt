@@ -109,14 +109,6 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const baseRate = await variantManagementRepository.getBaseRate(variantId)
-		if (!baseRate) {
-			return new Response(JSON.stringify({ error: "pricing_missing" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-
 		const dates =
 			parsed.from && parsed.to
 				? buildDateRange(parsed.from, parsed.to)

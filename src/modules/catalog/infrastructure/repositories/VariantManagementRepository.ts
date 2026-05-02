@@ -7,15 +7,11 @@ import {
 	Product,
 	RoomType,
 	RatePlan,
-	PriceRule,
 	DailyInventory,
 	eq,
 	and,
 	asc,
-	desc,
-	lte,
 	count,
-	sql,
 } from "astro:db"
 import type {
 	VariantLifecycleStatus,
@@ -85,7 +81,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 					status: r.status ?? null,
 					pricing: {
 						hasBaseRate: pricingSummary != null,
-						hasDefaultRatePlan: Boolean(r.defaultRatePlanId),
+						hasDefaultRatePlan: pricingSummary != null,
 					},
 					capacity: r.capVariantId
 						? {
@@ -292,91 +288,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				isActive: params.isActive ?? undefined,
 			} as any)
 			.where(eq(Variant.id, params.variantId))
-	}
-
-	async hasBaseRate(variantId: string): Promise<boolean> {
-		return Boolean(await this.getBaseRate(variantId))
-	}
-
-	async getBaseRate(variantId: string) {
-		const summary =
-			await this.pricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
-		if (!summary) return null
-		return {
-			variantId,
-			currency: summary.currency,
-			basePrice: summary.basePrice,
-		}
-	}
-
-	async getDefaultRatePlanWithRules(variantId: string) {
-		const plans = await db
-			.select({ id: RatePlan.id, createdAt: RatePlan.createdAt })
-			.from(RatePlan)
-			.where(
-				and(
-					eq(RatePlan.variantId, variantId),
-					eq(RatePlan.isDefault, true),
-					eq(RatePlan.isActive, true)
-				)
-			)
-			.all()
-		if (plans.length > 1) {
-			console.warn("multiple_default_rateplans_detected", {
-				variantId,
-				count: plans.length,
-				ratePlanIds: plans.map((plan) => String(plan.id)),
-			})
-		}
-		const plan = plans.slice().sort((a, b) => {
-			const at = new Date(a.createdAt as unknown as Date).getTime()
-			const bt = new Date(b.createdAt as unknown as Date).getTime()
-			if (Number.isNaN(at) && Number.isNaN(bt)) return 0
-			if (Number.isNaN(at)) return 1
-			if (Number.isNaN(bt)) return -1
-			return at - bt
-		})[0]
-		if (!plan?.id) return null
-
-		const rules = await db
-			.select({
-				id: PriceRule.id,
-				type: PriceRule.type,
-				value: PriceRule.value,
-				occupancyKey: (PriceRule as any).occupancyKey,
-				priority: PriceRule.priority,
-				dateRangeJson: PriceRule.dateRangeJson,
-				dayOfWeekJson: PriceRule.dayOfWeekJson,
-				createdAt: PriceRule.createdAt,
-			})
-			.from(PriceRule)
-			.where(and(eq(PriceRule.ratePlanId, plan.id), eq(PriceRule.isActive, true)))
-			.orderBy(asc(PriceRule.priority), asc(PriceRule.createdAt), asc(PriceRule.id))
-			.all()
-
-		return {
-			ratePlanId: plan.id,
-			rules: rules.map((r) => ({
-				id: r.id,
-				type: String(r.type),
-				value: Number(r.value),
-				occupancyKey: String((r as any).occupancyKey ?? "").trim() || null,
-				priority: Number(r.priority ?? 10),
-				dateRange:
-					r.dateRangeJson && typeof r.dateRangeJson === "object"
-						? {
-								from: String((r.dateRangeJson as any).from ?? "").trim() || null,
-								to: String((r.dateRangeJson as any).to ?? "").trim() || null,
-							}
-						: null,
-				dayOfWeek: Array.isArray(r.dayOfWeekJson)
-					? (r.dayOfWeekJson as unknown[])
-							.map((value) => Number(value))
-							.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
-					: null,
-				createdAt: r.createdAt,
-			})),
-		}
 	}
 
 	async countDailyInventoryDays(variantId: string): Promise<number> {

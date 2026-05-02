@@ -5,7 +5,13 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { previewPricingRules } from "@/modules/pricing/public"
-import { productRepository, ratePlanRepository, variantManagementRepository } from "@/container"
+import {
+	baseRateRepository,
+	pricingRepository,
+	productRepository,
+	ratePlanRepository,
+	variantManagementRepository,
+} from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -87,7 +93,14 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const result = await previewPricingRules(
-			{ variantRepo: variantManagementRepository },
+			{
+				variantRepo: {
+					getBaseRateByRatePlanId: (ratePlanId: string) =>
+						baseRateRepository.getCanonicalBaseByRatePlanId(ratePlanId),
+					getPreviewRulesByRatePlanId: (ratePlanId: string) =>
+						pricingRepository.getPreviewRules(ratePlanId),
+				},
+			},
 			{
 				ratePlanId,
 				variantId: targetVariantId || undefined,

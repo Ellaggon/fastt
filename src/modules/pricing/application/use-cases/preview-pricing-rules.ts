@@ -3,11 +3,10 @@ import { z } from "zod"
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 
 type VariantRepoForRulePreview = {
-	getDefaultRatePlanWithRules?(variantId: string): Promise<{ ratePlanId: string } | null>
 	getBaseRateByRatePlanId?(
 		ratePlanId: string
 	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
-	getPreviewRulesByRatePlanId?(ratePlanId: string): Promise<
+	getPreviewRulesByRatePlanId(ratePlanId: string): Promise<
 		Array<{
 			id: string
 			type: string

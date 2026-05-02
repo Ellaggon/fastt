@@ -5,19 +5,6 @@ import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import { recomputeEffectivePricingV2Range } from "./recompute-effective-pricing-v2"
 
 type VariantRepoForCoverage = {
-	getDefaultRatePlanWithRules(variantId: string): Promise<{
-		ratePlanId: string
-		rules: Array<{
-			id: string
-			type: string
-			value: number
-			occupancyKey?: string | null
-			priority: number
-			dateRange?: { from?: string | null; to?: string | null } | null
-			dayOfWeek?: number[] | null
-			createdAt: Date
-		}>
-	} | null>
 	getCapacity?(
 		variantId: string
 	): Promise<{ maxOccupancy: number; maxAdults: number | null; maxChildren: number | null } | null>
