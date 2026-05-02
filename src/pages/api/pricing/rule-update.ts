@@ -4,13 +4,15 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { ensurePricingCoverageRuntime, updateDefaultPriceRule } from "@/modules/pricing/public"
+import {
+	ensurePricingCoverageRuntime,
+	resolveRatePlanOwnerContext,
+	updateDefaultPriceRule,
+} from "@/modules/pricing/public"
 import {
 	baseRateRepository,
 	priceRuleCommandRepository,
 	priceRuleQueryRepository,
-	ratePlanRepository,
-	variantManagementRepository,
 	productRepository,
 } from "@/container"
 
@@ -113,22 +115,24 @@ export const POST: APIRoute = async ({ request }) => {
 			contextKeyRaw === "manual"
 				? contextKeyRaw
 				: undefined
-		const variantId = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
-		if (!variantId) {
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const variant = await variantManagementRepository.getVariantById(variantId)
-		if (!variant) {
+		const resolvedVariantId = String(ownerContext.variantId)
+		const resolvedProductId = String(ownerContext.productId)
+		const variantIdByRule = await priceRuleQueryRepository.getVariantIdByRuleId(ruleId)
+		if (!variantIdByRule || String(variantIdByRule) !== resolvedVariantId) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 		const owned = await productRepository.ensureProductOwnedByProvider(
-			variant.productId,
+			resolvedProductId,
 			providerId
 		)
 		if (!owned) {
@@ -137,14 +141,6 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const ratePlan = await ratePlanRepository.get(ratePlanId)
-		if (!ratePlan || String(ratePlan.variantId ?? "").trim() !== variantId) {
-			return new Response(JSON.stringify({ error: "Not found" }), {
-				status: 404,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-
 		const result = await updateDefaultPriceRule(
 			{
 				baseRateRepo: baseRateRepository,
@@ -153,7 +149,7 @@ export const POST: APIRoute = async ({ request }) => {
 			{
 				ruleId,
 				ratePlanId,
-				variantId,
+				variantId: resolvedVariantId,
 				type: type as any,
 				value,
 				priority,
@@ -172,7 +168,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const rematerializationRange = resolveRematerializationRange(dateFrom, dateTo)
 		const rematerialize = await ensurePricingCoverageRuntime({
-			variantId,
+			variantId: resolvedVariantId,
 			ratePlanId,
 			from: rematerializationRange.from,
 			to: rematerializationRange.to,
@@ -180,14 +176,14 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 		console.debug("pricing_rule_updated_materialized", {
 			ruleId,
-			variantId,
+			variantId: resolvedVariantId,
 			ratePlanId,
 			from: rematerializationRange.from,
 			to: rematerializationRange.to,
 			generatedDatesCount: rematerialize.generatedDatesCount,
 		})
 
-		await invalidateVariant(variantId, variant.productId)
+		await invalidateVariant(resolvedVariantId, resolvedProductId)
 
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,

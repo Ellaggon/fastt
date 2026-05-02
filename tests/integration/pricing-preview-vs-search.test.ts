@@ -108,12 +108,6 @@ describe("integration/pricing preview vs search parity", () => {
 			basePrice: 999,
 		})
 
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId,
-			currency: "USD",
-			basePrice: 100,
-		})
-
 		// Search requires inventory rows for the stay dates to consider the variant available.
 		await dailyInventoryRepository.upsert({
 			id: `di_${crypto.randomUUID()}`,
@@ -167,6 +161,11 @@ describe("integration/pricing preview vs search parity", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId,
+			currency: "USD",
+			basePrice: 100,
+		})
 		await upsertPriceRule({
 			id: `pr_prev_vs_search_${crypto.randomUUID()}`,
 			ratePlanId,
@@ -208,6 +207,7 @@ describe("integration/pricing preview vs search parity", () => {
 			// Preview (engine)
 			const fd = new FormData()
 			fd.set("variantId", variantId)
+			fd.set("ratePlanId", ratePlanId)
 			const previewRes = await previewPost({
 				request: makeAuthedFormRequest({ path: "/api/pricing/preview", token, form: fd }),
 			} as any)

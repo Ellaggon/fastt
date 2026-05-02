@@ -8,7 +8,7 @@ export async function listDefaultPriceRules(
 		ratePlanCmdRepo: RatePlanCommandRepositoryPort
 		pricingRepo: PricingRepositoryPort
 	},
-	params: { ratePlanId?: string; variantId?: string }
+	params: { ratePlanId: string }
 ): Promise<
 	Array<{
 		id: string

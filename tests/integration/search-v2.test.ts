@@ -59,14 +59,6 @@ async function seedHotelVariant(params: {
 		isActive: true,
 	})
 
-	if (params.baseRate !== undefined) {
-		await baseRateRepository.setCanonicalBaseForVariant({
-			variantId: params.variantId,
-			currency: "USD",
-			basePrice: params.baseRate,
-		})
-	}
-
 	await dailyInventoryRepository.upsert({
 		id: `di_${crypto.randomUUID()}`,
 		variantId: params.variantId,
@@ -117,6 +109,13 @@ async function seedHotelVariant(params: {
 		baseAmount: params.baseRate ?? 100,
 		baseCurrency: "USD",
 	})
+	if (params.baseRate !== undefined) {
+		await baseRateRepository.setCanonicalBaseForRatePlan({
+			ratePlanId: params.ratePlanId,
+			currency: "USD",
+			basePrice: params.baseRate,
+		})
+	}
 
 	if (params.baseRate !== undefined) {
 		const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
