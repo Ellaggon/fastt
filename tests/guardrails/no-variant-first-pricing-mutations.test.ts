@@ -37,11 +37,13 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 				violations.push(`${relativePath} -> missing explicit ratePlanId enforcement`)
 			}
 
+			if (/resolveRatePlanIdFromLegacyInput\s*\(/.test(content)) {
+				violations.push(`${relativePath} -> forbidden legacy variant->ratePlan adapter`)
+			}
+
 			// variantId may exist for ownership/invalidation context, but it cannot be used alone.
 			const hasVariantUsage = /\bvariantId\b/.test(content)
-			const hasExplicitAdapter =
-				/resolveRatePlanOwnerContext\s*\(/.test(content) ||
-				/resolveRatePlanIdFromLegacyInput\s*\(/.test(content)
+			const hasExplicitAdapter = /resolveRatePlanOwnerContext\s*\(/.test(content)
 			const hasVariantOwnershipCheck =
 				/ratePlan_variant_mismatch/.test(content) ||
 				/parsed\.variantId\s*&&\s*parsed\.variantId\s*!==\s*variantId/.test(content)
