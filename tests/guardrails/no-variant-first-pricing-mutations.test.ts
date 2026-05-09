@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 function listPricingMutationFiles(): string[] {
 	return [
+		"src/pages/api/pricing/generate-effective.ts",
 		"src/pages/api/pricing/rule.ts",
 		"src/pages/api/pricing/rule-update.ts",
 		"src/pages/api/pricing/rule-delete.ts",
@@ -28,7 +29,8 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 			const hasRatePlanRequirement =
 				/\bratePlanId\b/.test(content) &&
 				(/ratePlanId is required for pricing mutations/.test(content) ||
-					/resolveRatePlanIdFromLegacyInput\s*\(/.test(content) ||
+					/ratePlanId_required/.test(content) ||
+					/\bratePlanId:\s*z\.string\(\)\.min\(1\)/.test(content) ||
 					/resolveRatePlanOwnerContext\s*\(/.test(content))
 
 			if (!hasRatePlanRequirement) {
@@ -37,11 +39,17 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 
 			// variantId may exist for ownership/invalidation context, but it cannot be used alone.
 			const hasVariantUsage = /\bvariantId\b/.test(content)
-			const hasExplicitAdapter = /resolveRatePlanIdFromLegacyInput\s*\(/.test(content)
+			const hasExplicitAdapter =
+				/resolveRatePlanOwnerContext\s*\(/.test(content) ||
+				/resolveRatePlanIdFromLegacyInput\s*\(/.test(content)
+			const hasVariantOwnershipCheck =
+				/ratePlan_variant_mismatch/.test(content) ||
+				/parsed\.variantId\s*&&\s*parsed\.variantId\s*!==\s*variantId/.test(content)
 			if (
 				hasVariantUsage &&
 				!hasExplicitAdapter &&
-				!/resolveRatePlanOwnerContext\s*\(/.test(content)
+				!hasVariantOwnershipCheck &&
+				!/\bownerContext\b/.test(content)
 			) {
 				violations.push(`${relativePath} -> variantId present without explicit ratePlan adapter`)
 			}

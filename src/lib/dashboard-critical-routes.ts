@@ -5,10 +5,7 @@
  * y deben mantenerse estables durante las fases de transición.
  */
 export const DASHBOARD_CRITICAL_ROUTES = {
-	deepNavigation: [
-		"/product/:id/variants/:variantId/pricing/calendar",
-		"/product/:id/variants/:variantId/inventory",
-	],
+	deepNavigation: ["/product/:id/variants/:variantId/inventory"],
 	highBusinessImpact: ["/booking", "/api/inventory/hold", "/api/booking/confirm"],
 	policyAndRates: [
 		"/provider/policies",
@@ -16,12 +13,7 @@ export const DASHBOARD_CRITICAL_ROUTES = {
 		"/provider/policies/audit",
 		"/provider/policies/rate-plans",
 	],
-	nonBreakableCompatibility: [
-		"/product",
-		"/product/:id",
-		"/product/:id/variants",
-		"/product/:id/variants/:variantId/pricing",
-	],
+	nonBreakableCompatibility: ["/product", "/product/:id", "/product/:id/variants"],
 } as const
 
 export type DashboardCriticalRoutes = typeof DASHBOARD_CRITICAL_ROUTES

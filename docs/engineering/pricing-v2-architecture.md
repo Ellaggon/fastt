@@ -38,17 +38,13 @@ Legacy V1 pricing entities are forbidden at runtime.
 6. Booking consumes hold snapshot and must not recompute pricing.
 7. Catalog does not decide pricing logic; it only consumes pricing read summaries.
 
-## Legacy compatibility policy
+## Hard prohibitions
 
-Legacy variant-first pricing surfaces can exist only as explicit adapters:
-
-- adapters must resolve `ratePlanId` explicitly
-- adapters must emit structured warning:
-  - `code: pricing_legacy_variant_adapter_used`
-  - `severity: warning`
-- if `ratePlanId` cannot be resolved, request must fail explicitly with client error
-
-Silent fallback to default rate plan in mutation paths is forbidden.
+- Pricing mutations without explicit `ratePlanId` are forbidden.
+- `variantId` cannot be used directly or indirectly to select pricing.
+- Implicit default-rate-plan fallback is forbidden in core and API mutation paths.
+- Reintroduction of `PricingBaseRate` or `EffectivePricing` (V1 schema/runtime) is forbidden.
+- Search read paths cannot trigger write-side healing/materialization.
 
 ## Enforcement suite
 
@@ -63,5 +59,7 @@ Architecture invariants are enforced by guardrails in `tests/guardrails/`, inclu
 - `no-search-runtime-side-effects.test.ts`
 - `hold-occupancy-detail-contract.test.ts`
 - `no-default-rateplan-fallback-in-pricing-mutations.test.ts`
+- `no-pricing-v1-schema-runtime.test.ts`
+- `no-pricing-variant-core-fallback.test.ts`
 
 Any guardrail failure blocks CI and indicates architecture regression.
