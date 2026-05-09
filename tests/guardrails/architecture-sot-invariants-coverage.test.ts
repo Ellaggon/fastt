@@ -54,6 +54,10 @@ const MATRIX: InvariantCoverage[] = [
 		],
 	},
 	{
+		invariant: "Hold requires ratePlanId",
+		files: ["tests/guardrails/hold-rateplan-required-schema.test.ts"],
+	},
+	{
 		invariant: "SourceVersion occupancy-aware",
 		files: ["tests/search/source-version-integrity.test.ts"],
 	},
