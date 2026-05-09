@@ -18,6 +18,10 @@ describe("SourceVersion occupancy-aware guardrail", () => {
 		expect(content.includes("occupancyKey")).toBe(true)
 		expect(content).toMatch(/createHash\(["']sha1["']\)/)
 		expect(content).toMatch(/engine:\s*["']pricing_v2_shadow["']/)
+		expect(content).toMatch(/rules:\s*rules/)
+		expect(content).toMatch(/type:\s*String\(rule\.type\)/)
+		expect(content).toMatch(/value:\s*Number\(rule\.value\)/)
+		expect(content).toMatch(/priority:\s*Number\(rule\.priority/)
 	})
 
 	it("passes occupancyKey into search materialization sourceVersion resolver", () => {

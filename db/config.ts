@@ -603,31 +603,6 @@ const EffectiveRestriction = defineTable({
 	},
 	indexes: [{ on: ["variantId", "date"], unique: true }],
 })
-// Legacy V1 pricing tables kept as deprecated to support non-destructive remote convergence.
-// They must remain declared until all remote environments have the V2 tables created.
-const EffectivePricing = defineTable({
-	deprecated: true,
-	columns: {
-		id: column.text({ primaryKey: true }),
-		variantId: column.text({ references: () => Variant.columns.id }),
-		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
-		date: column.text(),
-		basePrice: column.number(),
-		yieldMultiplier: column.number({ default: 1 }),
-		finalBasePrice: column.number(),
-		computedAt: column.date(),
-	},
-	indexes: [{ on: ["variantId", "ratePlanId", "date"], unique: true }],
-})
-const PricingBaseRate = defineTable({
-	deprecated: true,
-	columns: {
-		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
-		currency: column.text({ default: "USD" }),
-		basePrice: column.number(),
-		createdAt: column.date({ default: NOW }),
-	},
-})
 const EffectivePricingV2 = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -760,7 +735,7 @@ const Hold = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		variantId: column.text({ references: () => Variant.columns.id }),
-		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		checkIn: column.text(), // YYYY-MM-DD
 		checkOut: column.text(), // YYYY-MM-DD (exclusive)
 		channel: column.text({ optional: true }),
@@ -912,8 +887,6 @@ export default defineDb({
 		PriceRule,
 		Restriction,
 		EffectiveRestriction,
-		EffectivePricing,
-		PricingBaseRate,
 		EffectivePricingV2,
 		TaxFee,
 		TaxFeeDefinition,

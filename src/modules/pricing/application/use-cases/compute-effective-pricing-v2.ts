@@ -116,7 +116,21 @@ export async function computeEffectivePricingV2(
 				policy,
 				base,
 				occupancyAdjustment,
-				ruleIds: rules.map((rule) => String(rule.id)),
+				rules: rules
+					.map((rule) => ({
+						id: String(rule.id),
+						type: String(rule.type),
+						value: Number(rule.value),
+						priority: Number(rule.priority ?? 10),
+						occupancyKey: String(rule.occupancyKey ?? "").trim() || null,
+						dateRange: rule.dateRangeJson ?? null,
+						dayOfWeek: rule.dayOfWeekJson ?? null,
+					}))
+					.sort((a, b) => {
+						const byPriority = a.priority - b.priority
+						if (byPriority !== 0) return byPriority
+						return a.id.localeCompare(b.id)
+					}),
 			})
 		)
 		.digest("hex")
