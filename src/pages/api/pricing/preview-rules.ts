@@ -3,7 +3,6 @@ import { ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { resolveRatePlanIdFromLegacyInput } from "@/lib/pricing/legacy-rateplan-adapter"
 import { previewPricingRules } from "@/modules/pricing/public"
 import {
 	baseRateRepository,
@@ -31,8 +30,8 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
-		const variantId = String(form.get("variantId") ?? "").trim()
-		const explicitRatePlanId = String(form.get("ratePlanId") ?? "").trim()
+		const requestedVariantId = String(form.get("variantId") ?? "").trim()
+		const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
 		const type = String(form.get("type") ?? "").trim()
 		const value = Number(form.get("value"))
 		const priorityRaw = String(form.get("priority") ?? "").trim()
@@ -56,10 +55,6 @@ export const POST: APIRoute = async ({ request }) => {
 		toDate.setUTCDate(fromDate.getUTCDate() + horizonDays)
 		const to = toDate.toISOString().slice(0, 10)
 
-		const { ratePlanId, warning } = await resolveRatePlanIdFromLegacyInput({
-			ratePlanId: explicitRatePlanId,
-			variantId,
-		})
 		if (!ratePlanId) {
 			return new Response(
 				JSON.stringify({ error: "ratePlanId is required for pricing mutations" }),
@@ -70,11 +65,28 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		const fallbackPlan = await ratePlanRepository.get(ratePlanId)
-		const targetVariantId = variantId || String(fallbackPlan?.variantId ?? "")
-		const variant = targetVariantId
-			? await variantManagementRepository.getVariantById(targetVariantId)
-			: null
+		const plan = await ratePlanRepository.get(ratePlanId)
+		if (!plan) {
+			return new Response(JSON.stringify({ error: "ratePlan_not_found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		const targetVariantId = String(plan.variantId ?? "").trim()
+		if (!targetVariantId) {
+			return new Response(JSON.stringify({ error: "ratePlan_variant_not_found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (requestedVariantId && requestedVariantId !== targetVariantId) {
+			return new Response(JSON.stringify({ error: "ratePlan_variant_mismatch" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+
+		const variant = await variantManagementRepository.getVariantById(targetVariantId)
 		if (!variant) {
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -95,8 +107,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const result = await previewPricingRules(
 			{
 				variantRepo: {
-					getBaseRateByRatePlanId: (ratePlanId: string) =>
-						baseRateRepository.getCanonicalBaseByRatePlanId(ratePlanId),
+					getPricingBaselineByRatePlanId: (ratePlanId: string) =>
+						baseRateRepository.getCanonicalPricingBaselineByRatePlanId(ratePlanId),
 					getPreviewRulesByRatePlanId: (ratePlanId: string) =>
 						pricingRepository.getPreviewRules(ratePlanId),
 				},
@@ -118,7 +130,7 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 			}
 		)
-		return new Response(JSON.stringify({ ...result, warnings: warning ? [warning] : [] }), {
+		return new Response(JSON.stringify({ ...result, warnings: [] }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

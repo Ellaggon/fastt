@@ -19,7 +19,6 @@ import {
 	ProviderUser,
 	ProviderVerification,
 	RatePlan,
-	RatePlanOccupancyPolicy,
 	Tour,
 	User,
 	sql,
@@ -38,6 +37,7 @@ import type {
 	ProviderBookingsAggregateInput,
 	ProviderBookingSummaryItem,
 } from "@/modules/catalog/application/ports/CatalogReadModelRepositoryPort"
+import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 
 function toIso(value: unknown): string | null {
 	if (!value) return null
@@ -47,6 +47,8 @@ function toIso(value: unknown): string | null {
 }
 
 export class CatalogReadModelRepository implements CatalogReadModelRepositoryPort {
+	private readonly pricingReadRepository = new RatePlanPricingReadRepository()
+
 	async getProductAggregate(productId: string) {
 		if (!productId) return null
 
@@ -269,20 +271,13 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.all()
 
 		if (!rows.length) return null
-		const defaultRatePlanIds = rows
-			.map((row) => String(row.defaultRatePlanId ?? "").trim())
-			.filter(Boolean)
-		const plansWithPolicy = defaultRatePlanIds.length
-			? await db
-					.select({
-						ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
-					})
-					.from(RatePlanOccupancyPolicy)
-					.where(inArray(RatePlanOccupancyPolicy.ratePlanId, defaultRatePlanIds))
-					.groupBy(RatePlanOccupancyPolicy.ratePlanId)
-					.all()
-			: []
-		const hasPolicyByRatePlan = new Set(plansWithPolicy.map((row) => String(row.ratePlanId)))
+		const hasBaseRateByDefaultPlan = new Map<string, boolean>()
+		for (const row of rows) {
+			const defaultRatePlanId = String(row.defaultRatePlanId ?? "").trim()
+			if (!defaultRatePlanId || hasBaseRateByDefaultPlan.has(defaultRatePlanId)) continue
+			const summary = await this.pricingReadRepository.getRatePlanPricingSummary(defaultRatePlanId)
+			hasBaseRateByDefaultPlan.set(defaultRatePlanId, summary != null)
+		}
 
 		const first = rows[0]
 		const variants = rows
@@ -293,7 +288,9 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				kind: row.variantKind ?? null,
 				status: row.variantStatus ?? null,
 				pricing: {
-					hasBaseRate: hasPolicyByRatePlan.has(String(row.defaultRatePlanId ?? "")),
+					hasBaseRate: Boolean(
+						hasBaseRateByDefaultPlan.get(String(row.defaultRatePlanId ?? "").trim())
+					),
 					hasDefaultRatePlan: Boolean(row.defaultRatePlanId),
 				},
 				capacity: row.capVariantId
@@ -370,17 +367,9 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.get()
 
 		if (!row) return null
-		const baseRate =
+		const summary =
 			row.defaultRatePlanId != null
-				? await db
-						.select({
-							baseRateCurrency: RatePlanOccupancyPolicy.baseCurrency,
-							baseRatePrice: RatePlanOccupancyPolicy.baseAmount,
-						})
-						.from(RatePlanOccupancyPolicy)
-						.where(eq(RatePlanOccupancyPolicy.ratePlanId, row.defaultRatePlanId))
-						.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom))
-						.get()
+				? await this.pricingReadRepository.getRatePlanPricingSummary(row.defaultRatePlanId)
 				: null
 
 		const readiness =
@@ -412,10 +401,10 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					? { roomTypeId: row.roomTypeId, name: row.roomTypeName ?? null }
 					: null,
 			baseRate:
-				baseRate?.baseRateCurrency != null && baseRate?.baseRatePrice != null
+				summary?.currency != null && summary?.basePrice != null
 					? {
-							currency: String(baseRate.baseRateCurrency),
-							basePrice: Number(baseRate.baseRatePrice),
+							currency: String(summary.currency),
+							basePrice: Number(summary.basePrice),
 						}
 					: null,
 			defaultRatePlan: row.defaultRatePlanId ? { ratePlanId: row.defaultRatePlanId } : null,

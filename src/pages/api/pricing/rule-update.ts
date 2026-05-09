@@ -143,7 +143,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const result = await updateDefaultPriceRule(
 			{
-				baseRateRepo: baseRateRepository,
+				pricingBaselineRepo: baseRateRepository,
 				priceRuleCmdRepo: priceRuleCommandRepository,
 			},
 			{
