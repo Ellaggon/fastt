@@ -233,7 +233,9 @@ describe("integration/search policy blocker", () => {
 			holdForm.set("ratePlanId", ratePlanId)
 			holdForm.set("checkIn", date)
 			holdForm.set("checkOut", checkout)
-			holdForm.set("occupancy", "1")
+			holdForm.set("adults", "1")
+			holdForm.set("children", "0")
+			holdForm.set("infants", "0")
 
 			await withSupabaseAuthStub(
 				{ [token]: { id: `user_${crypto.randomUUID()}`, email: "test@example.com" } },

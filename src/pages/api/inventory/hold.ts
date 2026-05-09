@@ -362,7 +362,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							infants: Number((raw as any).occupancyDetail.infants ?? 0),
 						}
 					: null
-			const hasLegacyNumericOccupancy = raw.occupancy != null || raw.quantity != null
+			const hasLegacyNumericOccupancy = raw.occupancy != null
 			if (!occupancyDetailFromRaw && hasLegacyNumericOccupancy) usedLegacyNumericOccupancy = true
 			payload = {
 				variantId: String(raw.variantId ?? "").trim(),
@@ -372,15 +372,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					to: String((raw as any)?.dateRange?.to ?? raw.checkOut ?? raw.to ?? "").trim(),
 				},
 				rooms: Number(raw.rooms ?? raw.quantity ?? 1),
-				occupancyDetail:
-					occupancyDetailFromRaw ??
-					(hasLegacyNumericOccupancy
-						? {
-								adults: Number(raw.occupancy ?? raw.quantity ?? 1),
-								children: 0,
-								infants: 0,
-							}
-						: null),
+				occupancyDetail: occupancyDetailFromRaw,
 				sessionId: optionalTrimmed(raw.sessionId ?? request.headers.get("x-session-id")),
 			}
 		} else {
@@ -390,8 +382,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				form.get("occupancyDetail[children]") ?? form.get("children")
 			const occupancyDetailInfantsRaw = form.get("occupancyDetail[infants]") ?? form.get("infants")
 			const hasOccupancyDetailInForm = occupancyDetailAdultsRaw != null
-			const hasLegacyNumericOccupancy =
-				form.get("occupancy") != null || form.get("quantity") != null
+			const hasLegacyNumericOccupancy = form.get("occupancy") != null
 			if (!hasOccupancyDetailInForm && hasLegacyNumericOccupancy) usedLegacyNumericOccupancy = true
 			payload = {
 				variantId: String(form.get("variantId") ?? "").trim(),
@@ -407,20 +398,30 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							children: Number(occupancyDetailChildrenRaw ?? 0),
 							infants: Number(occupancyDetailInfantsRaw ?? 0),
 						}
-					: hasLegacyNumericOccupancy
-						? {
-								adults: Number(form.get("occupancy") ?? form.get("quantity") ?? 1),
-								children: 0,
-								infants: 0,
-							}
-						: null,
+					: null,
 				sessionId: optionalTrimmed(form.get("sessionId")),
 			}
 		}
+		if (usedLegacyNumericOccupancy) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [
+						{
+							path: ["occupancyDetail"],
+							message: "occupancyDetail is required; numeric occupancy fallback was retired",
+							code: "hold_legacy_numeric_occupancy_removed",
+						},
+					],
+				}),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		const parsed = schema.parse(payload)
-		const warnings = usedLegacyNumericOccupancy
-			? [{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" as const }]
-			: []
+		const warnings: Array<{ code: string; severity: "warning" }> = []
 		const cookieSessionId = String(cookies?.get?.(GUEST_SESSION_COOKIE)?.value ?? "").trim()
 		let generatedGuestSessionId: string | null = null
 		if (!cookieSessionId && !user?.id && !user?.email) {
@@ -470,6 +471,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					throw err
 				}
 
+				const requestedOccupancy =
+					Math.max(1, Number(parsed.occupancyDetail.adults ?? 0)) +
+					Math.max(0, Number(parsed.occupancyDetail.children ?? 0))
 				return createInventoryHold(
 					{
 						repo: inventoryHoldRepository,
@@ -484,9 +488,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							ratePlanId: parsed.ratePlanId,
 							channel: "web",
 						},
-						resolvePricingSnapshot: async ({ from, to, occupancy }) => {
+						resolvePricingSnapshot: async ({ from, to }) => {
 							if (from !== parsed.dateRange.from || to !== parsed.dateRange.to) return null
-							if (occupancy !== parsed.rooms) return null
 							const pricingBreakdownV2Totals = holdability.days.reduce(
 								(acc, day) => {
 									const breakdown = day.pricingBreakdownV2

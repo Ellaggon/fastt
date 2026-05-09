@@ -39,3 +39,4 @@ describe("Guardrail: pricing baseline semantic naming", () => {
 		).toEqual([])
 	})
 })
+

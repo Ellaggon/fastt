@@ -278,6 +278,9 @@ async function createHold(params: {
 	holdForm.set("checkIn", params.checkIn)
 	holdForm.set("checkOut", params.checkOut)
 	holdForm.set("quantity", "1")
+	holdForm.set("adults", "2")
+	holdForm.set("children", "0")
+	holdForm.set("infants", "0")
 
 	const holdRes = await holdPost({
 		request: makeAuthedFormRequest({

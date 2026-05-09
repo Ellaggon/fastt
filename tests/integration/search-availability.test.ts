@@ -615,6 +615,9 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-11")
 			fd.set("quantity", "2")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 			const res = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
 			} as any)
@@ -661,6 +664,9 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			hold.set("checkIn", "2026-03-10")
 			hold.set("checkOut", "2026-03-11")
 			hold.set("quantity", "1")
+			hold.set("adults", "2")
+			hold.set("children", "0")
+			hold.set("infants", "0")
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: hold }),
 			} as any)

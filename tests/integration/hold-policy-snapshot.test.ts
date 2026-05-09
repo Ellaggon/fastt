@@ -211,6 +211,7 @@ describe("integration/hold policy snapshot", () => {
 					ratePlanId,
 					currency: "USD",
 					occupancy: 1,
+					occupancyDetail: { adults: 1, children: 0, infants: 0 },
 					from: checkIn,
 					to: checkOut,
 					nights: 2,
@@ -599,6 +600,9 @@ describe("integration/hold policy snapshot", () => {
 			invalid.set("checkIn", checkIn)
 			invalid.set("checkOut", checkOut)
 			invalid.set("quantity", "1")
+			invalid.set("adults", "2")
+			invalid.set("children", "0")
+			invalid.set("infants", "0")
 			const invalidRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: invalid }),
 			} as any)
@@ -610,6 +614,9 @@ describe("integration/hold policy snapshot", () => {
 			form.set("checkIn", checkIn)
 			form.set("checkOut", checkOut)
 			form.set("quantity", "1")
+			form.set("adults", "2")
+			form.set("children", "0")
+			form.set("infants", "0")
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form }),
 			} as any)
