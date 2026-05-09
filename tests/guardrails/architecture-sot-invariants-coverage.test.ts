@@ -51,6 +51,7 @@ const MATRIX: InvariantCoverage[] = [
 			"tests/guardrails/no-pricing-variant-core-fallback.test.ts",
 			"tests/guardrails/no-default-rateplan-fallback-in-pricing-mutations.test.ts",
 			"tests/guardrails/no-variant-first-pricing-mutations.test.ts",
+			"tests/guardrails/no-variant-pricing-ui-surfaces.test.ts",
 		],
 	},
 	{
