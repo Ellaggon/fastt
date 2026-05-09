@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type { Currency } from "../../domain/pricing.types"
-import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 
@@ -28,7 +28,7 @@ export class PricingPreviewValidationError extends Error {
 
 export async function computePricePreview(
 	deps: {
-		baseRateRepo: BaseRateRepositoryPort
+		pricingBaselineRepo: RatePlanPricingBaselineRepositoryPort
 		ratePlanRepo: RatePlanRepositoryPort
 		pricingRepo: PricingRepositoryPort
 	},
@@ -40,12 +40,13 @@ export async function computePricePreview(
 		throw new PricingPreviewValidationError("ratePlanId_required")
 	}
 
-	const baseRate = await deps.baseRateRepo.getCanonicalBaseByRatePlanId(ratePlanId)
+	const pricingBaseline =
+		await deps.pricingBaselineRepo.getCanonicalPricingBaselineByRatePlanId(ratePlanId)
 
 	// Base rate is mandatory for real sellability, but preview should remain callable:
 	// missing base rate yields a 0 price and is signaled elsewhere via readiness ("pricing_missing").
-	const basePrice = Number(baseRate?.basePrice ?? 0)
-	const currency: Currency = baseRate?.currency === "BOB" ? "BOB" : "USD"
+	const basePrice = Number(pricingBaseline?.basePrice ?? 0)
+	const currency: Currency = pricingBaseline?.currency === "BOB" ? "BOB" : "USD"
 
 	const dbRules = await deps.pricingRepo.getPreviewRules(ratePlanId)
 	for (const rule of dbRules) {

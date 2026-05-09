@@ -18,7 +18,14 @@ Pricing V2 is canonical by:
 Runtime pricing reads use:
 
 - `EffectivePricingV2` for materialized effective pricing
-- `RatePlanOccupancyPolicy` for canonical base policy and occupancy policy
+- `RatePlanOccupancyPolicy` for canonical pricing baseline policy and occupancy policy
+
+Canonical naming policy for Pricing V2:
+
+- `ratePlanId` is the commercial selector.
+- pricing baseline is modeled as a **rate-plan pricing baseline**.
+- `variantId` is never the semantic selector for baseline or price mutation.
+- legacy naming like "base rate by variant" is deprecated and forbidden in pricing core contracts.
 
 Legacy V1 pricing entities are forbidden at runtime.
 
@@ -61,5 +68,6 @@ Architecture invariants are enforced by guardrails in `tests/guardrails/`, inclu
 - `no-default-rateplan-fallback-in-pricing-mutations.test.ts`
 - `no-pricing-v1-schema-runtime.test.ts`
 - `no-pricing-variant-core-fallback.test.ts`
+- `pricing-baseline-semantic-naming.test.ts`
 
 Any guardrail failure blocks CI and indicates architecture regression.

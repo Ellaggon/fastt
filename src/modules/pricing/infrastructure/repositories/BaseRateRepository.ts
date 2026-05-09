@@ -1,8 +1,13 @@
 import { and, db, desc, eq, lte, RatePlanOccupancyPolicy, sql } from "astro:db"
-import type { BaseRateRepositoryPort } from "../../application/ports/BaseRateRepositoryPort"
+import type {
+	BaseRateRepositoryPort,
+	CanonicalPricingBaselineSnapshot,
+} from "../../application/ports/BaseRateRepositoryPort"
 
 export class BaseRateRepository implements BaseRateRepositoryPort {
-	async getCanonicalBaseByRatePlanId(ratePlanId: string) {
+	async getCanonicalPricingBaselineByRatePlanId(
+		ratePlanId: string
+	): Promise<CanonicalPricingBaselineSnapshot | null> {
 		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
 		if (!normalizedRatePlanId) return null
 		const targetDate = new Date()
@@ -31,7 +36,11 @@ export class BaseRateRepository implements BaseRateRepositoryPort {
 		}
 	}
 
-	async setCanonicalBaseForRatePlan(params: {
+	async getCanonicalBaseByRatePlanId(ratePlanId: string) {
+		return this.getCanonicalPricingBaselineByRatePlanId(ratePlanId)
+	}
+
+	async setCanonicalPricingBaselineForRatePlan(params: {
 		ratePlanId: string
 		currency: string
 		basePrice: number
@@ -82,5 +91,13 @@ export class BaseRateRepository implements BaseRateRepositoryPort {
 			effectiveTo: new Date("2099-12-31T00:00:00.000Z"),
 			createdAt: now,
 		} as any)
+	}
+
+	async setCanonicalBaseForRatePlan(params: {
+		ratePlanId: string
+		currency: string
+		basePrice: number
+	}): Promise<void> {
+		return this.setCanonicalPricingBaselineForRatePlan(params)
 	}
 }

@@ -52,7 +52,12 @@ const MATRIX: InvariantCoverage[] = [
 			"tests/guardrails/no-default-rateplan-fallback-in-pricing-mutations.test.ts",
 			"tests/guardrails/no-variant-first-pricing-mutations.test.ts",
 			"tests/guardrails/no-variant-pricing-ui-surfaces.test.ts",
+			"tests/guardrails/pricing-baseline-semantic-naming.test.ts",
 		],
+	},
+	{
+		invariant: "Hold requires ratePlanId",
+		files: ["tests/guardrails/hold-rateplan-required-schema.test.ts"],
 	},
 	{
 		invariant: "SourceVersion occupancy-aware",

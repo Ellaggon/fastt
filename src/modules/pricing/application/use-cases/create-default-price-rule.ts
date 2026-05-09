@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { z } from "zod"
 
-import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
 import type { RatePlanCommandRepositoryPort } from "../ports/RatePlanCommandRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRepositoryPort"
@@ -46,7 +46,7 @@ function isValidDateOnly(value: string): boolean {
  */
 export async function createDefaultPriceRule(
 	deps: {
-		baseRateRepo: BaseRateRepositoryPort
+		pricingBaselineRepo: RatePlanPricingBaselineRepositoryPort
 		ratePlanRepo: RatePlanRepositoryPort
 		ratePlanCmdRepo: RatePlanCommandRepositoryPort
 		priceRuleCmdRepo: PriceRuleCommandRepositoryPort
@@ -99,8 +99,9 @@ export async function createDefaultPriceRule(
 		canonicalType === "fixed_adjustment" ||
 		canonicalType === "base_adjustment"
 
-	const baseRate = await deps.baseRateRepo.getCanonicalBaseByRatePlanId(ratePlanId)
-	const basePrice = Number(baseRate?.basePrice ?? 0)
+	const pricingBaseline =
+		await deps.pricingBaselineRepo.getCanonicalPricingBaselineByRatePlanId(ratePlanId)
+	const basePrice = Number(pricingBaseline?.basePrice ?? 0)
 
 	if (isPercentage && (parsed.value < 0 || parsed.value > 1000)) {
 		throw new z.ZodError([

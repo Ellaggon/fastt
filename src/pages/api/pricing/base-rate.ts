@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
-import { setBaseRateSchema } from "@/modules/pricing/application/schemas/base-rate.schemas"
+import { setRatePlanPricingBaselineSchema } from "@/modules/pricing/application/schemas/base-rate.schemas"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { variantManagementRepository, productRepository } from "@/container"
 
@@ -74,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 		const variantId = ownerContext.variantId
-		setBaseRateSchema.parse({ variantId, currency, basePrice })
+		setRatePlanPricingBaselineSchema.parse({ variantId, currency, basePrice })
 
 		const v = await variantManagementRepository.getVariantById(variantId)
 		if (!v) {

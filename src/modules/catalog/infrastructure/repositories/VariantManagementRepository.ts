@@ -10,7 +10,6 @@ import {
 	DailyInventory,
 	eq,
 	and,
-	asc,
 	count,
 } from "astro:db"
 import type {
@@ -18,10 +17,13 @@ import type {
 	VariantManagementRepositoryPort,
 	VariantReadinessSnapshot,
 } from "../../application/ports/VariantManagementRepositoryPort"
+import type { RatePlanPricingReadRepositoryPort } from "@/modules/pricing/application/ports/RatePlanPricingReadRepositoryPort"
 import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
-	private readonly pricingReadRepository = new RatePlanPricingReadRepository()
+	constructor(
+		private readonly pricingReadRepository: RatePlanPricingReadRepositoryPort = new RatePlanPricingReadRepository()
+	) {}
 
 	async listVariantsByProductId(productId: string): Promise<
 		Array<{

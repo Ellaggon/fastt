@@ -7,12 +7,18 @@ import {
 	EffectivePricingV2,
 	eq,
 	lte,
+	PriceRule,
 	RatePlan,
 	RatePlanOccupancyPolicy,
+	RatePlanTemplate,
 	sql,
 } from "astro:db"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
-import type { RatePlanPricingReadRepositoryPort } from "../../application/ports/RatePlanPricingReadRepositoryPort"
+import type {
+	PricingRuleUiSummary,
+	RatePlanPricingReadRepositoryPort,
+	RatePlanPricingModifierSummary,
+} from "../../application/ports/RatePlanPricingReadRepositoryPort"
 
 const CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(
 	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
@@ -80,5 +86,112 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			effectivePricingDays,
 			coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
 		}
+	}
+
+	async listRatePlanModifierSummaryByVariant(
+		variantId: string
+	): Promise<RatePlanPricingModifierSummary[]> {
+		const plans = await db
+			.select({
+				id: RatePlan.id,
+				name: RatePlanTemplate.name,
+				isDefault: RatePlan.isDefault,
+				isActive: RatePlan.isActive,
+			})
+			.from(RatePlan)
+			.leftJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
+			.where(eq(RatePlan.variantId, variantId))
+			.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive), asc(RatePlan.createdAt))
+			.all()
+
+		return Promise.all(
+			plans.map(async (plan) => {
+				const activeModifiers = Number(
+					(
+						await db
+							.select({ value: count() })
+							.from(PriceRule)
+							.where(and(eq(PriceRule.ratePlanId, plan.id), eq(PriceRule.isActive, true)))
+							.get()
+					)?.value ?? 0
+				)
+				return {
+					id: String(plan.id),
+					name: String(plan.name ?? "Rate plan"),
+					isDefault: Boolean(plan.isDefault),
+					isActive: Boolean(plan.isActive),
+					activeModifiers,
+				}
+			})
+		)
+	}
+
+	async listActiveRulesForRatePlan(ratePlanId: string): Promise<PricingRuleUiSummary[]> {
+		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
+		if (!normalizedRatePlanId) return []
+
+		const rows = await db
+			.select({
+				id: PriceRule.id,
+				name: PriceRule.name,
+				type: PriceRule.type,
+				value: PriceRule.value,
+				priority: PriceRule.priority,
+				dateRangeJson: PriceRule.dateRangeJson,
+				dayOfWeekJson: PriceRule.dayOfWeekJson,
+			})
+			.from(PriceRule)
+			.where(and(eq(PriceRule.ratePlanId, normalizedRatePlanId), eq(PriceRule.isActive, true)))
+			.orderBy(asc(PriceRule.priority), asc(PriceRule.createdAt), asc(PriceRule.id))
+
+		return rows.map((rule) => {
+			const dateFrom =
+				rule.dateRangeJson && typeof rule.dateRangeJson === "object"
+					? String((rule.dateRangeJson as any).from ?? "").trim() || null
+					: null
+			const dateTo =
+				rule.dateRangeJson && typeof rule.dateRangeJson === "object"
+					? String((rule.dateRangeJson as any).to ?? "").trim() || null
+					: null
+			const hasInvalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo)
+			const dayOfWeek = Array.isArray(rule.dayOfWeekJson)
+				? (rule.dayOfWeekJson as unknown[])
+						.map((value) => Number(value))
+						.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+				: []
+			const rawName = typeof rule.name === "string" ? rule.name.trim() : ""
+			const contextFromName =
+				rawName.startsWith("ctx:") &&
+				(rawName.slice(4) === "season" ||
+					rawName.slice(4) === "promotion" ||
+					rawName.slice(4) === "day" ||
+					rawName.slice(4) === "manual")
+					? (rawName.slice(4) as "season" | "promotion" | "day" | "manual")
+					: null
+			const fallbackContext =
+				rule.type === "fixed_override"
+					? "manual"
+					: dateFrom || dateTo
+						? "season"
+						: dayOfWeek.length > 0
+							? "day"
+							: rule.type === "percentage_discount"
+								? "promotion"
+								: "season"
+			const contextKey = contextFromName ?? fallbackContext
+
+			return {
+				id: String(rule.id),
+				name: rawName || null,
+				type: String(rule.type),
+				value: Number(rule.value),
+				priority: Number(rule.priority ?? 10),
+				dateFrom,
+				dateTo,
+				dayOfWeek,
+				hasInvalidDateRange,
+				contextKey,
+			}
+		})
 	}
 }
