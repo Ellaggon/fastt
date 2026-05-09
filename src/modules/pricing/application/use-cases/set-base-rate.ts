@@ -1,12 +1,15 @@
-import type { BaseRateRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
 import type { VariantRepositoryPort } from "../ports/VariantRepositoryPort"
-import { setBaseRateSchema } from "../schemas/base-rate.schemas"
+import { setRatePlanPricingBaselineSchema } from "../schemas/base-rate.schemas"
 
-export async function setBaseRate(
-	deps: { baseRateRepo: BaseRateRepositoryPort; variantRepo: VariantRepositoryPort },
+export async function setRatePlanPricingBaseline(
+	deps: {
+		pricingBaselineRepo: RatePlanPricingBaselineRepositoryPort
+		variantRepo: VariantRepositoryPort
+	},
 	params: { ratePlanId: string; currency: string; basePrice: number; variantId?: string }
 ): Promise<{ ratePlanId: string; variantId?: string }> {
-	const parsed = setBaseRateSchema.parse({
+	const parsed = setRatePlanPricingBaselineSchema.parse({
 		variantId: params.variantId ?? "__compat_variant__",
 		currency: params.currency,
 		basePrice: params.basePrice,
@@ -19,7 +22,7 @@ export async function setBaseRate(
 		if (!exists) throw new Error("Variant not found")
 	}
 
-	await deps.baseRateRepo.setCanonicalBaseForRatePlan({
+	await deps.pricingBaselineRepo.setCanonicalPricingBaselineForRatePlan({
 		ratePlanId: normalizedRatePlanId,
 		currency: parsed.currency,
 		basePrice: parsed.basePrice,
@@ -27,3 +30,8 @@ export async function setBaseRate(
 
 	return { ratePlanId: normalizedRatePlanId, variantId: params.variantId }
 }
+
+/**
+ * @deprecated Use setRatePlanPricingBaseline.
+ */
+export const setBaseRate = setRatePlanPricingBaseline

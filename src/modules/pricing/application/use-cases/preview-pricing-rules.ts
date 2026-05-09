@@ -3,6 +3,12 @@ import { z } from "zod"
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 
 type VariantRepoForRulePreview = {
+	getPricingBaselineByRatePlanId?(
+		ratePlanId: string
+	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
+	/**
+	 * @deprecated Use getPricingBaselineByRatePlanId.
+	 */
 	getBaseRateByRatePlanId?(
 		ratePlanId: string
 	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
@@ -52,14 +58,16 @@ export async function previewPricingRules(
 	if (!ratePlanId) {
 		throw new Error("ratePlanId_required")
 	}
-	if (!deps.variantRepo.getBaseRateByRatePlanId || !deps.variantRepo.getPreviewRulesByRatePlanId) {
+	const getPricingBaselineByRatePlanId =
+		deps.variantRepo.getPricingBaselineByRatePlanId ?? deps.variantRepo.getBaseRateByRatePlanId
+	if (!getPricingBaselineByRatePlanId || !deps.variantRepo.getPreviewRulesByRatePlanId) {
 		throw new Error("ratePlan_read_contract_required")
 	}
-	const [baseRate, rules] = await Promise.all([
-		deps.variantRepo.getBaseRateByRatePlanId(ratePlanId),
+	const [pricingBaseline, rules] = await Promise.all([
+		getPricingBaselineByRatePlanId(ratePlanId),
 		deps.variantRepo.getPreviewRulesByRatePlanId(ratePlanId),
 	])
-	if (!baseRate) {
+	if (!pricingBaseline) {
 		return {
 			basePrice: 0,
 			currency: "USD",
@@ -93,7 +101,7 @@ export async function previewPricingRules(
 		isActive: true,
 	}
 
-	const basePrice = Number(baseRate.basePrice)
+	const basePrice = Number(pricingBaseline.basePrice)
 	const existingRules = rules.map((rule) => ({
 		id: String(rule.id),
 		type: normalizeType(String(rule.type)),
@@ -140,7 +148,7 @@ export async function previewPricingRules(
 
 	return {
 		basePrice,
-		currency: baseRate.currency,
+		currency: pricingBaseline.currency,
 		ratePlanId,
 		days,
 	}

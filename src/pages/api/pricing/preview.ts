@@ -65,7 +65,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const result = await computePricePreview(
 			{
-				baseRateRepo: baseRateRepository,
+				pricingBaselineRepo: baseRateRepository,
 				ratePlanRepo: ratePlanRepository,
 				pricingRepo: pricingRepository,
 			},

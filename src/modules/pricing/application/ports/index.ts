@@ -2,7 +2,12 @@ export type { PricingRepositoryPort } from "./PricingRepositoryPort"
 export type { RatePlanRepositoryPort } from "./RatePlanRepositoryPort"
 export type { VariantRepositoryPort, VariantSnapshot } from "./VariantRepositoryPort"
 export type { PriceRuleRepositoryPort } from "./PriceRuleRepositoryPort"
-export type { BaseRateRepositoryPort, CanonicalBaseRateSnapshot } from "./BaseRateRepositoryPort"
+export type {
+	RatePlanPricingBaselineRepositoryPort,
+	CanonicalPricingBaselineSnapshot,
+	BaseRateRepositoryPort,
+	CanonicalBaseRateSnapshot,
+} from "./BaseRateRepositoryPort"
 export type {
 	RatePlanCommandRepositoryPort,
 	CreateRatePlanCommand,

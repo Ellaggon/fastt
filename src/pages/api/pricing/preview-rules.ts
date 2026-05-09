@@ -107,8 +107,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const result = await previewPricingRules(
 			{
 				variantRepo: {
-					getBaseRateByRatePlanId: (ratePlanId: string) =>
-						baseRateRepository.getCanonicalBaseByRatePlanId(ratePlanId),
+					getPricingBaselineByRatePlanId: (ratePlanId: string) =>
+						baseRateRepository.getCanonicalPricingBaselineByRatePlanId(ratePlanId),
 					getPreviewRulesByRatePlanId: (ratePlanId: string) =>
 						pricingRepository.getPreviewRules(ratePlanId),
 				},
