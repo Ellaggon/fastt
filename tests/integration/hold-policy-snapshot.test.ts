@@ -225,7 +225,7 @@ describe("integration/hold policy snapshot", () => {
 			{
 				variantId,
 				dateRange: { from: checkIn, to: checkOut },
-				occupancy: 1,
+				rooms: 1,
 				sessionId: `sess_${crypto.randomUUID()}`,
 			}
 		)
@@ -401,7 +401,7 @@ describe("integration/hold policy snapshot", () => {
 				{
 					variantId,
 					dateRange: { from: checkIn, to: checkOut },
-					occupancy: 1,
+					rooms: 1,
 					sessionId: `sess_dbg_${crypto.randomUUID()}`,
 				}
 			)

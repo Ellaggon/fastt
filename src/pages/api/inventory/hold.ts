@@ -533,7 +533,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					{
 						variantId: parsed.variantId,
 						dateRange: parsed.dateRange,
-						occupancy: parsed.rooms,
+						rooms: parsed.rooms,
 						sessionId: effectiveSessionId,
 					}
 				)

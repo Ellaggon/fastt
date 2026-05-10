@@ -21,7 +21,9 @@ const createInventoryHoldSchema = z.object({
 		from: z.string().min(1),
 		to: z.string().min(1),
 	}),
-	occupancy: z.number().int().min(1),
+	rooms: z.number().int().min(1).optional(),
+	// Deprecated legacy alias kept for controlled compatibility.
+	occupancy: z.number().int().min(1).optional(),
 	sessionId: z.string().min(1),
 })
 
@@ -59,7 +61,7 @@ export async function createInventoryHold(
 			variantId: string
 			from: string
 			to: string
-			occupancy: number
+			rooms: number
 		}) => Promise<unknown | null>
 		resolveEffectivePolicies: (ctx: {
 			productId: string
@@ -91,6 +93,16 @@ export async function createInventoryHold(
 	input: CreateInventoryHoldInput
 ): Promise<{ holdId: string; expiresAt: Date }> {
 	const parsed = createInventoryHoldSchema.parse(input)
+	const requestedRooms = Number(parsed.rooms ?? parsed.occupancy ?? 0)
+	if (!Number.isFinite(requestedRooms) || requestedRooms < 1) {
+		throw new z.ZodError([
+			{
+				code: "custom",
+				path: ["rooms"],
+				message: "rooms must be >= 1",
+			},
+		])
+	}
 	const checkIn = parseDateOnly(parsed.dateRange.from)
 	const checkOut = parseDateOnly(parsed.dateRange.to)
 
@@ -135,7 +147,7 @@ export async function createInventoryHold(
 		variantId: parsed.variantId,
 		from: parsed.dateRange.from,
 		to: parsed.dateRange.to,
-		occupancy: parsed.occupancy,
+		rooms: requestedRooms,
 	})
 	const resolvedPolicies = await deps.resolveEffectivePolicies({
 		productId: deps.policyContext.productId,
@@ -313,7 +325,7 @@ export async function createInventoryHold(
 		ratePlanId: policyRatePlanId,
 		checkIn,
 		checkOut,
-		quantity: parsed.occupancy,
+		quantity: requestedRooms,
 		expiresAt,
 		channel: deps.policyContext.channel,
 		policySnapshotJson: policySnapshot,
