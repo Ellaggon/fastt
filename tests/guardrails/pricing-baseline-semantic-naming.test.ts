@@ -1,18 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { listFilesUnderRoot } from "./_file-utils"
 
 function listPricingUseCaseFiles(): string[] {
-	const stdout = execSync('rg --files -g "src/modules/pricing/application/use-cases/**/*.ts"', {
-		cwd: process.cwd(),
-		encoding: "utf8",
-	})
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.sort()
+	return listFilesUnderRoot("src/modules/pricing/application/use-cases")
 }
 
 describe("Guardrail: pricing baseline semantic naming", () => {

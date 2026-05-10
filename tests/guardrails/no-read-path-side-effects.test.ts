@@ -1,25 +1,23 @@
 import { describe, expect, it } from "vitest"
-import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { listFilesUnderRoot } from "./_file-utils"
 
 type Rule = {
 	name: string
 	pattern: RegExp
 }
 
-const INCLUDE_GLOBS = [
-	"src/modules/search/application/use-cases/**/*.ts",
-	"src/modules/search/application/queries/**/*.ts",
-	"src/modules/search/application/services/**/*.ts",
-	"src/modules/search/infrastructure/repositories/**/*.ts",
-	"src/pages/api/inventory/hold.ts",
-	"src/modules/booking/application/use-cases/get-policies-for-booking.ts",
+const INCLUDE_ROOTS = [
+	"src/modules/search/application/use-cases",
+	"src/modules/search/application/queries",
+	"src/modules/search/application/services",
+	"src/modules/search/infrastructure/repositories",
 ]
 
-const EXCLUDE_GLOBS = [
-	"src/modules/search/application/use-cases/materialize-search-unit.ts",
-	"src/modules/search/infrastructure/wiring/**",
+const EXTRA_INCLUDE_FILES = [
+	"src/pages/api/inventory/hold.ts",
+	"src/modules/booking/application/use-cases/get-policies-for-booking.ts",
 ]
 
 const BANNED_RULES: Rule[] = [
@@ -52,20 +50,12 @@ const BANNED_RULES: Rule[] = [
 ]
 
 function listReadPathFiles(): string[] {
-	const cmd = [
-		"rg",
-		"--files",
-		...INCLUDE_GLOBS.flatMap((glob) => ["-g", glob]),
-		...EXCLUDE_GLOBS.flatMap((glob) => ["-g", `!${glob}`]),
-	].join(" ")
-	const stdout = execSync(cmd, {
-		cwd: process.cwd(),
-		encoding: "utf8",
-	})
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
+	return [...INCLUDE_ROOTS.flatMap((root) => listFilesUnderRoot(root)), ...EXTRA_INCLUDE_FILES]
 		.filter((line) => line.length > 0)
+		.filter(
+			(line) => line !== "src/modules/search/application/use-cases/materialize-search-unit.ts"
+		)
+		.filter((line) => !line.startsWith("src/modules/search/infrastructure/wiring/"))
 		.sort()
 }
 

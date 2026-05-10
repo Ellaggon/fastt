@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { listFilesUnderRoot } from "./_file-utils"
 
-const SEARCH_RUNTIME_GLOBS = [
-	"src/modules/search/application/**/*.ts",
-	"src/modules/search/domain/**/*.ts",
-	"src/modules/search/infrastructure/**/*.ts",
+const SEARCH_RUNTIME_ROOTS = [
+	"src/modules/search/application",
+	"src/modules/search/domain",
+	"src/modules/search/infrastructure",
 ]
 
-const EXCLUDE_GLOBS = [
-	"src/modules/search/application/use-cases/materialize-search-unit.ts",
-	"src/modules/search/application/use-cases/*materialize*.ts",
-]
+const EXCLUDED_EXACT_PATH = "src/modules/search/application/use-cases/materialize-search-unit.ts"
 
 const BANNED = [
 	{ name: "enqueueAutoBackfill", pattern: /\benqueueAutoBackfill\s*\(/g },
@@ -24,24 +21,8 @@ const BANNED = [
 ]
 
 function listSearchRuntimeFiles(): string[] {
-	const cmd = [
-		"rg",
-		"--files",
-		...SEARCH_RUNTIME_GLOBS.flatMap((glob) => ["-g", glob]),
-		...EXCLUDE_GLOBS.flatMap((glob) => ["-g", `!${glob}`]),
-	].join(" ")
-	const stdout = execSync(cmd, {
-		cwd: process.cwd(),
-		encoding: "utf8",
-	})
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.filter(
-			(line) =>
-				!line.endsWith("src/modules/search/application/use-cases/materialize-search-unit.ts")
-		)
+	return SEARCH_RUNTIME_ROOTS.flatMap((root) => listFilesUnderRoot(root))
+		.filter((line) => line !== EXCLUDED_EXACT_PATH)
 		.filter((line) => !line.includes("/materialize-"))
 		.sort()
 }

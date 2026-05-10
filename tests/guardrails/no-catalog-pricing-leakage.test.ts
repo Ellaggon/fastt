@@ -1,18 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { listFilesUnderRoot } from "./_file-utils"
 
 function listCatalogFiles(): string[] {
-	const stdout = execSync('rg --files -g "src/modules/catalog/**/*.ts"', {
-		cwd: process.cwd(),
-		encoding: "utf8",
-	})
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.sort()
+	return listFilesUnderRoot("src/modules/catalog")
 }
 
 const BANNED: Array<{ name: string; pattern: RegExp }> = [

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { listFilesUnderRoot } from "./_file-utils"
 
-const INCLUDE_GLOBS = [
-	"src/modules/pricing/application/**/*.ts",
-	"src/modules/pricing/infrastructure/**/*.ts",
-	"src/modules/pricing/domain/**/*.ts",
+const INCLUDE_ROOTS = [
+	"src/modules/pricing/application",
+	"src/modules/pricing/infrastructure",
+	"src/modules/pricing/domain",
 ]
 
 const BANNED_RULES: Array<{ name: string; pattern: RegExp }> = [
@@ -19,13 +19,7 @@ const BANNED_RULES: Array<{ name: string; pattern: RegExp }> = [
 ]
 
 function listPricingCoreFiles(): string[] {
-	const cmd = ["rg", "--files", ...INCLUDE_GLOBS.flatMap((glob) => ["-g", glob])].join(" ")
-	const stdout = execSync(cmd, { cwd: process.cwd(), encoding: "utf8" })
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.sort()
+	return INCLUDE_ROOTS.flatMap((root) => listFilesUnderRoot(root)).sort()
 }
 
 describe("Guardrail: no pricing variant-core fallback", () => {
