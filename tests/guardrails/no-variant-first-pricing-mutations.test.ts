@@ -1,72 +1,79 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+
+import { listFilesUnderRoot } from "./_file-utils"
+import {
+	collectCalls,
+	collectHttpExportMethods,
+	collectImports,
+	collectObjectKeys,
+	collectStringLiterals,
+} from "./_guardrail-ast"
 
 function listPricingMutationFiles(): string[] {
-	return [
-		"src/pages/api/pricing/generate-effective.ts",
-		"src/pages/api/pricing/rule.ts",
-		"src/pages/api/pricing/rule-update.ts",
-		"src/pages/api/pricing/rule-delete.ts",
-		"src/pages/api/pricing/preview.ts",
-		"src/pages/api/pricing/preview-rules.ts",
-	]
-}
-
-function isMutationEndpoint(content: string): boolean {
-	return /\bexport\s+const\s+(POST|PUT|PATCH|DELETE)\s*:/.test(content)
+	return listFilesUnderRoot("src/pages/api/pricing")
 }
 
 describe("Guardrail: no variant-first pricing mutations", () => {
 	it("requires explicit ratePlanId validation/resolution for pricing mutation endpoints", () => {
 		const files = listPricingMutationFiles()
 		const violations: string[] = []
-		const legacyAdapterAllowlist = new Set([
-			"src/pages/api/pricing/rule-delete.ts",
-			"src/pages/api/pricing/preview-rules.ts",
-		])
 
 		for (const relativePath of files) {
-			const content = readFileSync(join(process.cwd(), relativePath), "utf8")
-			if (!isMutationEndpoint(content)) continue
+			const methods = collectHttpExportMethods(relativePath)
+			if (methods.size === 0) continue
+
+			const objectKeys = new Set(collectObjectKeys(relativePath))
+			const literals = new Set(collectStringLiterals(relativePath))
+			const imports = collectImports(relativePath)
+			const calls = collectCalls(relativePath)
+
+			const hasRatePlanObjectKey =
+				objectKeys.has("ratePlanId") || objectKeys.has("ratePlanIds") || literals.has("ratePlanId")
+			const hasRatePlanLiteralSignal =
+				literals.has("ratePlanId_required") ||
+				literals.has("ratePlanIds_required") ||
+				literals.has("ratePlanId_and_ruleId_required") ||
+				literals.has("ratePlanId is required for pricing mutations")
+			const hasRatePlanResolverCall = calls.some(
+				(call) =>
+					call.leaf === "resolveRatePlanOwnerContext" ||
+					call.leaf === "resolveOwnedRatePlanContext" ||
+					call.leaf === "requireText"
+			)
 
 			const hasRatePlanRequirement =
-				/\bratePlanId\b/.test(content) &&
-				(/ratePlanId is required for pricing mutations/.test(content) ||
-					/ratePlanId_required/.test(content) ||
-					/\bratePlanId:\s*z\.string\(\)\.min\(1\)/.test(content) ||
-					/resolveRatePlanOwnerContext\s*\(/.test(content))
-
+				hasRatePlanObjectKey &&
+				(hasRatePlanLiteralSignal ||
+					hasRatePlanResolverCall ||
+					calls.some((call) => call.leaf === "safeParse" || call.leaf === "parse"))
 			if (!hasRatePlanRequirement) {
 				violations.push(`${relativePath} -> missing explicit ratePlanId enforcement`)
 			}
 
-			if (/resolveRatePlanIdFromLegacyInput\s*\(/.test(content)) {
+			const hasLegacyResolverImport = imports.some(
+				(entry) => entry.imported === "resolveRatePlanIdFromLegacyInput"
+			)
+			const hasLegacyResolverCall = calls.some(
+				(call) => call.leaf === "resolveRatePlanIdFromLegacyInput"
+			)
+			if (hasLegacyResolverImport || hasLegacyResolverCall) {
 				violations.push(`${relativePath} -> forbidden legacy variant->ratePlan adapter`)
 			}
 
-			// variantId may exist for ownership/invalidation context, but it cannot be used alone.
-			const hasVariantUsage = /\bvariantId\b/.test(content)
-			const hasExplicitAdapter = /resolveRatePlanOwnerContext\s*\(/.test(content)
-			const hasVariantOwnershipCheck =
-				/ratePlan_variant_mismatch/.test(content) ||
-				/parsed\.variantId\s*&&\s*parsed\.variantId\s*!==\s*variantId/.test(content)
-			if (
-				hasVariantUsage &&
-				!hasExplicitAdapter &&
-				!hasVariantOwnershipCheck &&
-				!/\bownerContext\b/.test(content)
-			) {
-				violations.push(`${relativePath} -> variantId present without explicit ratePlan adapter`)
+			const hasFallbackCall = calls.some(
+				(call) => call.leaf === "getDefaultByVariant" || call.leaf === "ensureDefaultRatePlan"
+			)
+			if (hasFallbackCall) {
+				violations.push(`${relativePath} -> forbidden default-rate-plan fallback`)
 			}
 
-			if (
-				/resolveRatePlanIdFromLegacyInput\s*\(/.test(content) &&
-				!legacyAdapterAllowlist.has(relativePath)
-			) {
-				violations.push(
-					`${relativePath} -> legacy variant->ratePlan adapter introduced outside allowlist`
-				)
+			const hasVariantKey = objectKeys.has("variantId") || literals.has("variantId")
+			const hasOwnershipSignal =
+				literals.has("rateplan_variant_mismatch_ignored") ||
+				literals.has("ratePlan_variant_mismatch") ||
+				calls.some((call) => call.leaf === "resolveRatePlanOwnerContext")
+			if (hasVariantKey && !hasRatePlanRequirement && !hasOwnershipSignal) {
+				violations.push(`${relativePath} -> variant selector present without ratePlan contract`)
 			}
 		}
 

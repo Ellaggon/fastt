@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+
 import { listFilesUnderRoot } from "./_file-utils"
+import { collectCalls, collectImports } from "./_guardrail-ast"
 
 const SEARCH_RUNTIME_ROOTS = [
 	"src/modules/search/application",
@@ -11,14 +11,15 @@ const SEARCH_RUNTIME_ROOTS = [
 
 const EXCLUDED_EXACT_PATH = "src/modules/search/application/use-cases/materialize-search-unit.ts"
 
-const BANNED = [
-	{ name: "enqueueAutoBackfill", pattern: /\benqueueAutoBackfill\s*\(/g },
-	{ name: "ensurePricingCoverage", pattern: /\bensurePricingCoverage[A-Za-z0-9_]*\s*\(/g },
-	{ name: "materializeSearchUnit", pattern: /\bmaterializeSearchUnit(?:Range)?\s*\(/g },
-	{ name: "db.insert", pattern: /\bdb\s*\.\s*insert\s*\(/g },
-	{ name: "db.update", pattern: /\bdb\s*\.\s*update\s*\(/g },
-	{ name: "db.delete", pattern: /\bdb\s*\.\s*delete\s*\(/g },
-]
+const BANNED_IMPORTED_SYMBOLS = new Set([
+	"enqueueAutoBackfill",
+	"ensurePricingCoverage",
+	"ensurePricingCoverageForRequest",
+	"ensurePricingCoverageRuntime",
+	"recomputeEffectivePricingV2",
+	"materializeSearchUnit",
+	"materializeSearchUnitRange",
+])
 
 function listSearchRuntimeFiles(): string[] {
 	return SEARCH_RUNTIME_ROOTS.flatMap((root) => listFilesUnderRoot(root))
@@ -34,11 +35,26 @@ describe("Guardrail: search runtime side-effects", () => {
 
 		const violations: string[] = []
 		for (const relativePath of files) {
-			const content = readFileSync(join(process.cwd(), relativePath), "utf8")
-			for (const rule of BANNED) {
-				rule.pattern.lastIndex = 0
-				if (rule.pattern.test(content)) {
-					violations.push(`${relativePath} -> ${rule.name}`)
+			const imports = collectImports(relativePath)
+			const calls = collectCalls(relativePath)
+			const bannedLocals = new Set(
+				imports
+					.filter((entry) => BANNED_IMPORTED_SYMBOLS.has(entry.imported))
+					.map((entry) => entry.local)
+			)
+
+			for (const call of calls) {
+				if (call.root === "db" && ["insert", "update", "delete"].includes(call.leaf)) {
+					violations.push(`${relativePath} -> db.${call.leaf}`)
+					continue
+				}
+				if (
+					["enqueueAutoBackfill"].includes(call.leaf) ||
+					call.leaf.startsWith("ensurePricingCoverage") ||
+					call.leaf.startsWith("materializeSearchUnit") ||
+					bannedLocals.has(call.root)
+				) {
+					violations.push(`${relativePath} -> ${call.calleePath}`)
 				}
 			}
 		}
