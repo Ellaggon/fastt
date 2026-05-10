@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
-import { setRatePlanPricingBaselineSchema } from "@/modules/pricing/application/schemas/base-rate.schemas"
+import { setRatePlanPricingBaselineSchema } from "@/modules/pricing/application/schemas/pricing-baseline.schemas"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { variantManagementRepository, productRepository } from "@/container"
 

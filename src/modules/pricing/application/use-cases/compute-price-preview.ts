@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type { Currency } from "../../domain/pricing.types"
-import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/RatePlanPricingBaselineRepositoryPort"
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 

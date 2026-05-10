@@ -110,7 +110,7 @@ async function seedHotelVariant(params: {
 		baseCurrency: "USD",
 	})
 	if (params.baseRate !== undefined) {
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId: params.ratePlanId,
 			currency: "USD",
 			basePrice: params.baseRate,

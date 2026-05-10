@@ -3,37 +3,39 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { listFilesUnderRoot } from "./_file-utils"
 
-function listPricingUseCaseFiles(): string[] {
-	return listFilesUnderRoot("src/modules/pricing/application/use-cases")
-}
-
 describe("Guardrail: pricing baseline semantic naming", () => {
-	it("blocks expansion of legacy base-rate naming outside audited scope", () => {
-		const files = listPricingUseCaseFiles()
+	it("blocks legacy base-rate naming in pricing core modules", () => {
+		const files = listFilesUnderRoot("src/modules/pricing")
 		const violations: string[] = []
-		const allowlist = new Set([
-			"src/modules/pricing/application/use-cases/compute-price-preview.ts",
-			"src/modules/pricing/application/use-cases/create-default-price-rule.ts",
-			"src/modules/pricing/application/use-cases/set-base-rate.ts",
-			"src/modules/pricing/application/use-cases/update-default-price-rule.ts",
-		])
 
 		for (const relativePath of files) {
 			const source = readFileSync(join(process.cwd(), relativePath), "utf8")
-			if (/\bBaseRateRepositoryPort\b(?!["'])/.test(source) && !allowlist.has(relativePath)) {
+			if (/\bBaseRateRepositoryPort\b(?!["'])/.test(source)) {
 				violations.push(`${relativePath} -> BaseRateRepositoryPort`)
 			}
-			if (/\bgetCanonicalBaseByRatePlanId\s*\(/.test(source) && !allowlist.has(relativePath)) {
+			if (/\bCanonicalBaseRateSnapshot\b/.test(source)) {
+				violations.push(`${relativePath} -> CanonicalBaseRateSnapshot`)
+			}
+			if (/\bgetCanonicalBaseByRatePlanId\s*\(/.test(source)) {
 				violations.push(`${relativePath} -> getCanonicalBaseByRatePlanId`)
 			}
-			if (/\bsetCanonicalBaseForRatePlan\s*\(/.test(source) && !allowlist.has(relativePath)) {
+			if (/\bsetCanonicalBaseForRatePlan\s*\(/.test(source)) {
 				violations.push(`${relativePath} -> setCanonicalBaseForRatePlan`)
+			}
+			if (/\bgetBaseRateByRatePlanId\s*\(/.test(source)) {
+				violations.push(`${relativePath} -> getBaseRateByRatePlanId`)
+			}
+			if (/\bsetBaseRateSchema\b/.test(source)) {
+				violations.push(`${relativePath} -> setBaseRateSchema`)
+			}
+			if (/\bsetBaseRate\b/.test(source)) {
+				violations.push(`${relativePath} -> setBaseRate`)
 			}
 		}
 
 		expect(
 			violations,
-			`Found legacy base-rate naming in pricing use-cases:\n${violations.join("\n")}`
+			`Found legacy base-rate naming in pricing modules:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 })

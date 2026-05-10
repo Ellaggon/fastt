@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/RatePlanPricingBaselineRepositoryPort"
 import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRepositoryPort"
 
 const updateRuleSchema = z.object({

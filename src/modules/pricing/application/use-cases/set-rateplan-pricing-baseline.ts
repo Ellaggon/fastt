@@ -1,6 +1,6 @@
-import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/RatePlanPricingBaselineRepositoryPort"
 import type { VariantRepositoryPort } from "../ports/VariantRepositoryPort"
-import { setRatePlanPricingBaselineSchema } from "../schemas/base-rate.schemas"
+import { setRatePlanPricingBaselineSchema } from "../schemas/pricing-baseline.schemas"
 
 export async function setRatePlanPricingBaseline(
 	deps: {
@@ -30,8 +30,3 @@ export async function setRatePlanPricingBaseline(
 
 	return { ratePlanId: normalizedRatePlanId, variantId: params.variantId }
 }
-
-/**
- * @deprecated Use setRatePlanPricingBaseline.
- */
-export const setBaseRate = setRatePlanPricingBaseline
