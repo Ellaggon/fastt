@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 import { listFilesUnderRoot } from "./_file-utils"
-
-type Rule = {
-	name: string
-	pattern: RegExp
-}
+import { scanFilesWithRules, type GuardrailRule } from "./_guardrail-scanner"
 
 const INCLUDE_ROOTS = [
 	"src/modules/search/application/use-cases",
@@ -20,7 +14,7 @@ const EXTRA_INCLUDE_FILES = [
 	"src/modules/booking/application/use-cases/get-policies-for-booking.ts",
 ]
 
-const BANNED_RULES: Rule[] = [
+const BANNED_RULES: GuardrailRule[] = [
 	{
 		name: "ensurePricingCoverage call",
 		pattern: /\bensurePricingCoverage(?:ForRequest(?:Runtime)?)?\s*\(/g,
@@ -63,18 +57,7 @@ describe("Read path side-effects guardrail", () => {
 	it("blocks pricing coverage/recompute/materialization and writes in read paths", () => {
 		const files = listReadPathFiles()
 		expect(files.length).toBeGreaterThan(0)
-
-		const violations: string[] = []
-		for (const relativePath of files) {
-			const absolutePath = join(process.cwd(), relativePath)
-			const content = readFileSync(absolutePath, "utf8")
-			for (const rule of BANNED_RULES) {
-				rule.pattern.lastIndex = 0
-				if (rule.pattern.test(content)) {
-					violations.push(`${relativePath} -> ${rule.name}`)
-				}
-			}
-		}
+		const violations = scanFilesWithRules(files, BANNED_RULES)
 
 		expect(
 			violations,

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 import { listFilesUnderRoot } from "./_file-utils"
+import { scanFilesWithRules, type GuardrailRule } from "./_guardrail-scanner"
 
 const SEARCH_RUNTIME_ROOTS = [
 	"src/modules/search/application",
@@ -11,7 +10,7 @@ const SEARCH_RUNTIME_ROOTS = [
 
 const EXCLUDED_EXACT_PATH = "src/modules/search/application/use-cases/materialize-search-unit.ts"
 
-const BANNED = [
+const BANNED: GuardrailRule[] = [
 	{ name: "enqueueAutoBackfill", pattern: /\benqueueAutoBackfill\s*\(/g },
 	{ name: "ensurePricingCoverage", pattern: /\bensurePricingCoverage[A-Za-z0-9_]*\s*\(/g },
 	{ name: "materializeSearchUnit", pattern: /\bmaterializeSearchUnit(?:Range)?\s*\(/g },
@@ -31,17 +30,7 @@ describe("Guardrail: search runtime side-effects", () => {
 	it("blocks write/backfill side-effect patterns in search runtime paths", () => {
 		const files = listSearchRuntimeFiles()
 		expect(files.length).toBeGreaterThan(0)
-
-		const violations: string[] = []
-		for (const relativePath of files) {
-			const content = readFileSync(join(process.cwd(), relativePath), "utf8")
-			for (const rule of BANNED) {
-				rule.pattern.lastIndex = 0
-				if (rule.pattern.test(content)) {
-					violations.push(`${relativePath} -> ${rule.name}`)
-				}
-			}
-		}
+		const violations = scanFilesWithRules(files, BANNED)
 
 		expect(
 			violations,

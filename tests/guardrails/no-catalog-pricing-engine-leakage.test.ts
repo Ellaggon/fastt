@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { scanFilesWithRules, type GuardrailRule } from "./_guardrail-scanner"
 
 const CATALOG_FILES = [
 	"src/modules/catalog/infrastructure/repositories/CatalogReadModelRepository.ts",
@@ -9,20 +8,21 @@ const CATALOG_FILES = [
 	"src/lib/pricing/loadRatePlanPricingData.ts",
 ]
 
+const BANNED_RULES: GuardrailRule[] = [
+	{
+		name: "forbidden direct pricing persistence access",
+		pattern:
+			/\b(?:RatePlanOccupancyPolicy|EffectivePricingV2|PriceRule)\b|(?:db|sql)\s*\.\s*(?:select|insert|update|delete)\s*\([^)]*(?:RatePlanOccupancyPolicy|EffectivePricingV2|PriceRule)/g,
+	},
+	{
+		name: "forbidden default/fallback pricing resolution",
+		pattern: /\b(?:getDefaultRatePlanWithRules|ensureDefaultRatePlan|getDefaultByVariant)\b/g,
+	},
+]
+
 describe("Guardrail: catalog/pricing boundary", () => {
 	it("prevents pricing-engine persistence access from catalog and loaders", () => {
-		const violations: string[] = []
-		for (const relativePath of CATALOG_FILES) {
-			const content = readFileSync(join(process.cwd(), relativePath), "utf8")
-
-			if (/RatePlanOccupancyPolicy|EffectivePricingV2|PriceRule/.test(content)) {
-				violations.push(`${relativePath} -> forbidden direct pricing persistence access`)
-			}
-
-			if (/getDefaultRatePlanWithRules|ensureDefaultRatePlan|getDefaultByVariant/.test(content)) {
-				violations.push(`${relativePath} -> forbidden default/fallback pricing resolution`)
-			}
-		}
+		const violations = scanFilesWithRules(CATALOG_FILES, BANNED_RULES)
 
 		expect(
 			violations,
