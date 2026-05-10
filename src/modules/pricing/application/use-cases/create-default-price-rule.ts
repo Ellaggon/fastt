@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { z } from "zod"
 
-import type { RatePlanPricingBaselineRepositoryPort } from "../ports/BaseRateRepositoryPort"
+import type { RatePlanPricingBaselineRepositoryPort } from "../ports/RatePlanPricingBaselineRepositoryPort"
 import type { RatePlanCommandRepositoryPort } from "../ports/RatePlanCommandRepositoryPort"
 import type { RatePlanRepositoryPort } from "../ports/RatePlanRepositoryPort"
 import type { PriceRuleCommandRepositoryPort } from "../ports/PriceRuleCommandRepositoryPort"

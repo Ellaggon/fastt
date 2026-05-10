@@ -3,13 +3,7 @@ import { z } from "zod"
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 
 type VariantRepoForRulePreview = {
-	getPricingBaselineByRatePlanId?(
-		ratePlanId: string
-	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
-	/**
-	 * @deprecated Use getPricingBaselineByRatePlanId.
-	 */
-	getBaseRateByRatePlanId?(
+	getPricingBaselineByRatePlanId(
 		ratePlanId: string
 	): Promise<{ ratePlanId: string; currency: string; basePrice: number } | null>
 	getPreviewRulesByRatePlanId(ratePlanId: string): Promise<
@@ -58,13 +52,11 @@ export async function previewPricingRules(
 	if (!ratePlanId) {
 		throw new Error("ratePlanId_required")
 	}
-	const getPricingBaselineByRatePlanId =
-		deps.variantRepo.getPricingBaselineByRatePlanId ?? deps.variantRepo.getBaseRateByRatePlanId
-	if (!getPricingBaselineByRatePlanId || !deps.variantRepo.getPreviewRulesByRatePlanId) {
+	if (!deps.variantRepo.getPreviewRulesByRatePlanId) {
 		throw new Error("ratePlan_read_contract_required")
 	}
 	const [pricingBaseline, rules] = await Promise.all([
-		getPricingBaselineByRatePlanId(ratePlanId),
+		deps.variantRepo.getPricingBaselineByRatePlanId(ratePlanId),
 		deps.variantRepo.getPreviewRulesByRatePlanId(ratePlanId),
 	])
 	if (!pricingBaseline) {

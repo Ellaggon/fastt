@@ -165,7 +165,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			isActive: true,
 			isDefault: false,
 		})
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -234,7 +234,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -302,7 +302,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -384,7 +384,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -455,7 +455,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -521,7 +521,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,
@@ -593,7 +593,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			refundable: false,
 		})
 		await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true, isDefault: true })
-		await baseRateRepository.setCanonicalBaseForRatePlan({
+		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 			ratePlanId,
 			currency: "USD",
 			basePrice: 100,

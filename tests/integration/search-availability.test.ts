@@ -184,7 +184,7 @@ async function seedSearchableVariant(params: {
 		isActive: true,
 		isDefault: true,
 	})
-	await baseRateRepository.setCanonicalBaseForRatePlan({
+	await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
 		ratePlanId: params.ratePlanId,
 		currency: "USD",
 		basePrice: 100,

@@ -18,7 +18,7 @@ export * from "./domain/rate-plans/ratePlan.types"
 // Application use-cases
 export * from "./application/use-cases/build-create-rateplan-spec"
 export * from "./application/use-cases/create-rateplan"
-export * from "./application/use-cases/set-base-rate"
+export * from "./application/use-cases/set-rateplan-pricing-baseline"
 export * from "./application/use-cases/compute-price-preview"
 export * from "./application/use-cases/create-default-price-rule"
 export * from "./application/use-cases/update-default-price-rule"

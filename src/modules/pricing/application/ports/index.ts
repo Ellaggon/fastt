@@ -5,9 +5,7 @@ export type { PriceRuleRepositoryPort } from "./PriceRuleRepositoryPort"
 export type {
 	RatePlanPricingBaselineRepositoryPort,
 	CanonicalPricingBaselineSnapshot,
-	BaseRateRepositoryPort,
-	CanonicalBaseRateSnapshot,
-} from "./BaseRateRepositoryPort"
+} from "./RatePlanPricingBaselineRepositoryPort"
 export type {
 	RatePlanCommandRepositoryPort,
 	CreateRatePlanCommand,
