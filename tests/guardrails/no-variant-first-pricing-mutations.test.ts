@@ -21,6 +21,10 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 	it("requires explicit ratePlanId validation/resolution for pricing mutation endpoints", () => {
 		const files = listPricingMutationFiles()
 		const violations: string[] = []
+		const legacyAdapterAllowlist = new Set([
+			"src/pages/api/pricing/rule-delete.ts",
+			"src/pages/api/pricing/preview-rules.ts",
+		])
 
 		for (const relativePath of files) {
 			const content = readFileSync(join(process.cwd(), relativePath), "utf8")
@@ -54,6 +58,15 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 				!/\bownerContext\b/.test(content)
 			) {
 				violations.push(`${relativePath} -> variantId present without explicit ratePlan adapter`)
+			}
+
+			if (
+				/resolveRatePlanIdFromLegacyInput\s*\(/.test(content) &&
+				!legacyAdapterAllowlist.has(relativePath)
+			) {
+				violations.push(
+					`${relativePath} -> legacy variant->ratePlan adapter introduced outside allowlist`
+				)
 			}
 		}
 

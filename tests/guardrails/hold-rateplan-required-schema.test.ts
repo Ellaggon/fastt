@@ -19,4 +19,3 @@ describe("Guardrail: hold ratePlanId required schema", () => {
 		)
 	})
 })
-

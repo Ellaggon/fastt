@@ -53,6 +53,9 @@ const MATRIX: InvariantCoverage[] = [
 			"tests/guardrails/no-variant-first-pricing-mutations.test.ts",
 			"tests/guardrails/no-variant-pricing-ui-surfaces.test.ts",
 			"tests/guardrails/pricing-baseline-semantic-naming.test.ts",
+			"tests/guardrails/hold-rateplan-required-schema.test.ts",
+			"tests/guardrails/no-booking-pricing-recompute.test.ts",
+			"tests/guardrails/no-catalog-pricing-leakage.test.ts",
 		],
 	},
 	{
