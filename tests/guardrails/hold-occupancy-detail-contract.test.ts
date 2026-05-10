@@ -20,7 +20,7 @@ describe("Guardrail: hold occupancy detail contract", () => {
 
 		expect(source).toContain("occupancyDetail: parsed.occupancyDetail")
 		expect(source).toContain("rooms: parsed.rooms")
-		expect(source).toContain("hold_legacy_numeric_occupancy_used")
-		expect(source).toContain("occupancyDetailFromRaw ??")
+		expect(source).toContain("hold_legacy_numeric_occupancy_removed")
+		expect(source).not.toContain("occupancyDetailFromRaw ??")
 	})
 })

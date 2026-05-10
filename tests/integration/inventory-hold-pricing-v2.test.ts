@@ -240,7 +240,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 			fd.set("ratePlanId", ratePlanId)
 			fd.set("checkIn", "2026-11-10")
 			fd.set("checkOut", "2026-11-12")
-			fd.set("occupancy", "2")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 			fd.set("sessionId", `s_${crypto.randomUUID()}`)
 			const response = await withSupabaseAuthStub(
 				{ [token]: { id: "user_hold_v2", email: "hold-v2@example.com" } },
@@ -255,9 +257,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 			const body = await readJson(response)
 			const holdId = String(body?.holdId ?? "")
 			expect(holdId.length).toBeGreaterThan(0)
-			expect(body?.warnings).toEqual([
-				{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" },
-			])
+			expect(body?.warnings).toEqual([])
 
 			const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
 			expect(snapshot?.pricingBreakdownV2).toBeTruthy()
@@ -365,7 +365,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 		fd.set("ratePlanId", ratePlanId)
 		fd.set("checkIn", "2026-11-20")
 		fd.set("checkOut", "2026-11-22")
-		fd.set("occupancy", "2")
+		fd.set("adults", "2")
+		fd.set("children", "0")
+		fd.set("infants", "0")
 		fd.set("sessionId", `s_${crypto.randomUUID()}`)
 		const response = await withSupabaseAuthStub(
 			{ [token]: { id: "user_hold_v2_fb", email: "hold-v2-fallback@example.com" } },
@@ -379,15 +381,13 @@ describe("integration/hold pricing V2 snapshot", () => {
 		expect(response.status).toBe(200)
 		const body = await readJson(response)
 		const holdId = String(body?.holdId ?? "")
-		expect(body?.warnings).toEqual([
-			{ code: "hold_legacy_numeric_occupancy_used", severity: "warning" },
-		])
+		expect(body?.warnings).toEqual([])
 		const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
 		expect(snapshot?.days?.every((day: any) => day?.pricingSource === "v2")).toBe(true)
 		expect(snapshot?.totalPrice).toBeGreaterThan(0)
 	})
 
-	it("supports legacy snapshot fallback when V2 fields are absent", async () => {
+	it("rejects booking confirmation when hold snapshot is legacy/incomplete", async () => {
 		const token = "t_hold_legacy_fallback"
 		const variantId = `var_hold_legacy_${crypto.randomUUID()}`
 		const productId = `prod_hold_legacy_${crypto.randomUUID()}`
@@ -408,7 +408,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 		fd.set("ratePlanId", ratePlanId)
 		fd.set("checkIn", "2026-12-01")
 		fd.set("checkOut", "2026-12-03")
-		fd.set("occupancy", "2")
+		fd.set("adults", "2")
+		fd.set("children", "0")
+		fd.set("infants", "0")
 		fd.set("sessionId", `s_${crypto.randomUUID()}`)
 		const holdResponse = await withSupabaseAuthStub(
 			{ [token]: { id: "user_hold_legacy", email: "hold-legacy@example.com" } },
@@ -454,23 +456,9 @@ describe("integration/hold pricing V2 snapshot", () => {
 					} as any)
 				)
 		)
-		expect(confirmResponse.status).toBe(200)
+		expect(confirmResponse.status).toBe(409)
 		const confirmBody = await readJson(confirmResponse)
-		const bookingId = String(confirmBody?.bookingId ?? "")
-		expect(bookingId.length).toBeGreaterThan(0)
-
-		const detail = await db
-			.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
-			.from(BookingRoomDetail)
-			.where(eq(BookingRoomDetail.bookingId, bookingId))
-			.get()
-		expect(detail).toBeTruthy()
-		expect((detail as any)?.pricingBreakdownJson?.pricingBreakdownV2 ?? null).toBeNull()
-		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).toEqual({
-			adults: 2,
-			children: 0,
-			infants: 0,
-		})
+		expect(String((confirmBody as any)?.error ?? "")).toBe("INVENTORY_CONFLICT")
 	})
 
 	it("preserves real multi-occupancy detail in hold snapshot and booking materialization", async () => {

@@ -249,6 +249,9 @@ describe("integration/booking -> inventory materialization", () => {
 			holdForm.set("checkIn", checkIn)
 			holdForm.set("checkOut", checkOut)
 			holdForm.set("quantity", "1")
+			holdForm.set("adults", "2")
+			holdForm.set("children", "0")
+			holdForm.set("infants", "0")
 
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: holdForm }),

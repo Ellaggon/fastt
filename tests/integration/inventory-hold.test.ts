@@ -251,6 +251,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const res = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
@@ -347,6 +350,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const res = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
@@ -411,6 +417,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-20")
 			fd.set("checkOut", "2026-03-22")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const res = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
@@ -456,6 +465,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-13")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
@@ -506,6 +518,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				fd.set("checkIn", "2026-03-10")
 				fd.set("checkOut", "2026-03-11")
 				fd.set("quantity", "1")
+				fd.set("adults", "2")
+				fd.set("children", "0")
+				fd.set("infants", "0")
 				return holdPost({
 					request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
 				} as any)
@@ -554,6 +569,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-12")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),
@@ -643,6 +661,9 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			fd.set("checkIn", "2026-03-10")
 			fd.set("checkOut", "2026-03-11")
 			fd.set("quantity", "1")
+			fd.set("adults", "2")
+			fd.set("children", "0")
+			fd.set("infants", "0")
 
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: fd }),

@@ -27,7 +27,7 @@ type BookingPricingSnapshot = {
 	ratePlanId: string
 	currency: string
 	occupancy: number
-	occupancyDetail?: {
+	occupancyDetail: {
 		adults: number
 		children: number
 		infants: number
@@ -93,10 +93,9 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	const occupancyDetailRaw = snapshot.occupancyDetail as
 		| { adults?: unknown; children?: unknown; infants?: unknown }
 		| undefined
-	const occupancyLegacy = Number(snapshot.occupancy ?? 0)
+	if (!occupancyDetailRaw || typeof occupancyDetailRaw !== "object") return null
 	const occupancyDetail = {
-		// Deprecated compatibility branch: legacy snapshots may only contain numeric occupancy.
-		adults: Math.max(1, Number(occupancyDetailRaw?.adults ?? occupancyLegacy ?? 1)),
+		adults: Math.max(1, Number(occupancyDetailRaw?.adults ?? 1)),
 		children: Math.max(0, Number(occupancyDetailRaw?.children ?? 0)),
 		infants: Math.max(0, Number(occupancyDetailRaw?.infants ?? 0)),
 	}
@@ -284,9 +283,9 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			})
 			if (!snapshot) throw new Error("INVENTORY_CONFLICT")
 
-			const adults = Number(snapshot.occupancyDetail?.adults ?? snapshot.occupancy ?? 1)
-			const children = Number(snapshot.occupancyDetail?.children ?? 0)
-			const infants = Number(snapshot.occupancyDetail?.infants ?? 0)
+			const adults = Number(snapshot.occupancyDetail.adults ?? 1)
+			const children = Number(snapshot.occupancyDetail.children ?? 0)
+			const infants = Number(snapshot.occupancyDetail.infants ?? 0)
 			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
 			const baseTotal = Number(snapshot.totalPrice)
