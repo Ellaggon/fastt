@@ -38,4 +38,3 @@ describe("Guardrail: no variant-pricing UI surfaces", () => {
 		expect(subnavSource).toContain("routes.ratePlansHub()")
 	})
 })
-
