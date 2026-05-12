@@ -19,7 +19,6 @@ export const routes = {
 	analyticsRevenue: () => "/analytics/revenue",
 	analyticsOccupancy: () => "/analytics/occupancy",
 	systemIntegrations: () => "/system/integrations",
-	catalog: () => "/catalog",
 	productDetail: (productId: string) => `/product/${encodeURIComponent(String(productId))}`,
 	productVariants: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/variants`,

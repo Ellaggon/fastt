@@ -7,6 +7,7 @@ import {
 	backofficeShells,
 	enterpriseNavigation,
 } from "../../src/lib/backoffice-governance"
+import type { BackofficeRouteClassification } from "../../src/lib/backoffice-governance"
 
 function toPosix(value: string): string {
 	return value.replace(/\\/g, "/")
@@ -58,15 +59,63 @@ function patternToRegExp(pattern: string): RegExp {
 	return new RegExp(`^${escaped}$`)
 }
 
-function matchingClassification(route: string): string | null {
+function matchingClassification(route: string): BackofficeRouteClassification | null {
 	for (const classification of backofficeRouteClassifications) {
-		if (patternToRegExp(classification.pattern).test(route)) return classification.pattern
+		if (patternToRegExp(classification.pattern).test(route)) return classification
 	}
 	return null
 }
 
 function flattenNavigationHrefs(): string[] {
 	return enterpriseNavigation.flatMap((section) => section.items.map((item) => item.href))
+}
+
+function isRedirectOnly(source: string): boolean {
+	return source.includes("return Astro.redirect(") && !source.includes("<WorkspaceLayout")
+}
+
+function shellViolationForPage(route: string, relativePath: string): string | null {
+	const source = readFileSync(join(process.cwd(), relativePath), "utf8")
+	const classification = matchingClassification(route)
+	if (!classification) return `${relativePath}: missing classification`
+	if (isRedirectOnly(source)) return null
+
+	const usesWorkspace = source.includes("WorkspaceLayout")
+	const usesInternalAdmin = source.includes("InternalAdminLayout")
+	const usesLegacyDashboard = source.includes("DashboardLayout")
+	const usesPublicShell = source.includes("SearchLayout") || source.includes("UILayout")
+	const usesBaseLayout = source.includes("@/layouts/Layout.astro")
+
+	if (usesLegacyDashboard) return `${relativePath}: uses legacy DashboardLayout`
+	if (classification.context === "internal-admin" && !usesInternalAdmin) {
+		return `${relativePath}: internal-admin route must use InternalAdminLayout`
+	}
+	if (classification.context === "internal-admin" && usesWorkspace) {
+		return `${relativePath}: internal-admin route must not use WorkspaceLayout`
+	}
+	if (
+		["provider-workspace", "enterprise-operations", "governance"].includes(
+			classification.context
+		) &&
+		!usesWorkspace
+	) {
+		return `${relativePath}: workspace route must use WorkspaceLayout`
+	}
+	if (classification.context === "public-marketplace" && (usesWorkspace || usesInternalAdmin)) {
+		return `${relativePath}: public route must not use workspace/admin shell`
+	}
+	if (
+		classification.context === "public-marketplace" &&
+		!(usesPublicShell || usesBaseLayout || source.includes("<html"))
+	) {
+		return `${relativePath}: public route must use public/base shell`
+	}
+	return null
+}
+
+function extractInternalApiPaths(source: string): string[] {
+	const matches = source.matchAll(/\/api\/internal\/[A-Za-z0-9_./-]+/g)
+	return Array.from(matches, (match) => match[0].replace(/[")'`},].*$/, ""))
 }
 
 describe("Guardrail: backoffice governance navigation", () => {
@@ -104,6 +153,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(backofficeRouteClassifications).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ pattern: "/api/internal/**", status: "internal-only" }),
+				expect.objectContaining({
+					pattern: "/api/internal/dashboard-summary",
+					status: "canonical",
+				}),
+				expect.objectContaining({
+					pattern: "/api/internal/inventory/recompute",
+					status: "transitional",
+				}),
 				expect.objectContaining({ pattern: "/api/pricing/**", status: "canonical" }),
 				expect.objectContaining({ pattern: "/pricing/calendar", status: "legacy" }),
 				expect.objectContaining({ pattern: "/rates/plans/**", status: "canonical" }),
@@ -128,6 +185,47 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(
 			missing,
 			`Every API route must have a governance classification:\n${missing.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps page shell usage aligned with route governance context", () => {
+		const pages = walkFiles(join(process.cwd(), "src/pages"), [".astro"])
+		const violations = pages
+			.map((relativePath) => shellViolationForPage(pageRouteFromFile(relativePath), relativePath))
+			.filter((violation): violation is string => Boolean(violation))
+
+		expect(
+			violations,
+			`Route context and shell usage must stay aligned:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps enterprise navigation targets compatible with route classifications", () => {
+		const violations = enterpriseNavigation.flatMap((section) =>
+			section.items.flatMap((item) => {
+				const classification = matchingClassification(item.href)
+				if (!classification) return [`${section.title}/${item.label}: missing route classification`]
+				const mismatches: string[] = []
+				if (classification.status !== item.status) {
+					mismatches.push(
+						`${section.title}/${item.label}: nav=${item.status}, route=${classification.status}`
+					)
+				}
+				if (classification.owner !== section.title) {
+					mismatches.push(
+						`${section.title}/${item.label}: section does not match owner ${classification.owner}`
+					)
+				}
+				if (classification.status === "legacy" || classification.status === "internal-only") {
+					mismatches.push(`${section.title}/${item.label}: exposes ${classification.status}`)
+				}
+				return mismatches
+			})
+		)
+
+		expect(
+			violations,
+			`Enterprise navigation must point only to compatible canonical/transitional routes:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
@@ -166,6 +264,23 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(source).toContain('href="/admin/providers"')
 	})
 
+	it("prevents provider-facing pages from calling truly internal-only APIs", () => {
+		const pages = walkFiles(join(process.cwd(), "src/pages"), [".astro"])
+		const violations = pages.flatMap((relativePath) => {
+			const source = readFileSync(join(process.cwd(), relativePath), "utf8")
+			return extractInternalApiPaths(source).flatMap((apiPath) => {
+				const classification = matchingClassification(apiPath)
+				if (classification?.status !== "internal-only") return []
+				return [`${relativePath}: ${apiPath} is classified internal-only`]
+			})
+		})
+
+		expect(
+			violations,
+			`Provider-facing pages must not call APIs classified as internal-only:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
 	it("prevents legacy helpers and contradictory system naming from resurfacing", () => {
 		const routesSource = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
 		const sidebarSource = readFileSync(
@@ -178,10 +293,19 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 
 		expect(routesSource).not.toContain("pricingCalendar")
+		expect(routesSource).not.toContain("catalog:")
 		expect(sidebarSource).not.toContain("/api/internal")
 		expect(sidebarSource).not.toContain("Calendar (Deprecated)")
 		expect(sidebarSource).not.toContain("Financial Control")
 		expect(sidebarSource).not.toContain("Variant Inventory (To Update")
 		expect(integrationsSource).not.toContain("System · Integrations")
+	})
+
+	it("keeps legacy pricing calendar as redirect-only, not an operational workspace", () => {
+		const source = readFileSync(join(process.cwd(), "src/pages/pricing/calendar.astro"), "utf8")
+
+		expect(source).toContain("return Astro.redirect")
+		expect(source).not.toContain("WorkspaceLayout")
+		expect(source).not.toContain("PricingCalendar")
 	})
 })

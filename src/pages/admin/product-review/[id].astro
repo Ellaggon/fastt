@@ -1,16 +1,29 @@
 ---
+import { productRepository } from "@/container"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { evaluateProductReadiness } from "@/modules/catalog/public"
+
+const ADMIN_EMAILS = ["ellaggon@proton.me"]
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+const isAdmin = ADMIN_EMAILS.includes(user.email)
 
 const productId = String(Astro.params.id ?? "")
-if (!productId) return Astro.redirect("/product/create")
+if (!productId) return Astro.redirect("/admin/providers")
+
+let readiness: Awaited<ReturnType<typeof evaluateProductReadiness>> | { error: string } | null =
+	null
+
+if (isAdmin) {
+	try {
+		readiness = await evaluateProductReadiness({ repo: productRepository }, { productId })
+	} catch (error) {
+		readiness = { error: error instanceof Error ? error.message : "internal_error" }
+	}
+}
 ---
 
 <InternalAdminLayout title="Admin · Product Review">
@@ -20,61 +33,27 @@ if (!productId) return Astro.redirect("/product/create")
 		<h1>Product: Review</h1>
 		<p>Product: <code>{productId}</code></p>
 
-		<button id="evalBtn" type="button">Evaluate readiness</button>
-		<pre id="out" style="white-space: pre-wrap; margin-top: 16px;"></pre>
+		{
+			!isAdmin ? (
+				<div class="rounded-lg border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+					Forbidden: this internal review surface is restricted to platform admins.
+				</div>
+			) : readiness && "error" in readiness ? (
+				<pre style="white-space: pre-wrap; margin-top: 16px;">{readiness.error}</pre>
+			) : readiness ? (
+				<pre style="white-space: pre-wrap; margin-top: 16px;">
+					{`state=${readiness.state}
+validationErrors:${
+						readiness.validationErrors.length
+							? `\n- ${readiness.validationErrors.map((error) => error.code).join("\n- ")}`
+							: " []"
+					}`}
+				</pre>
+			) : null
+		}
 
 		<p style="margin-top: 16px;">
-			<a href="/product/create">Create another</a>
+			<a href="/admin/providers">Back to internal admin</a>
 		</p>
 	</main>
-
-	<script type="module">
-		const out = document.getElementById("out")
-		const btn = document.getElementById("evalBtn")
-		const productId = String(document.getElementById("productId")?.textContent || "").trim()
-
-		function safeJsonParse(txt) {
-			try {
-				return txt ? JSON.parse(txt) : null
-			} catch {
-				return null
-			}
-		}
-
-		async function run() {
-			out.textContent = ""
-			btn.disabled = true
-			try {
-				if (!productId) {
-					out.textContent = "Missing productId"
-					return
-				}
-				const fd = new FormData()
-				fd.set("productId", productId)
-				const res = await fetch("/api/product/evaluate", { method: "POST", body: fd })
-				const txt = await res.text()
-				const json = safeJsonParse(txt)
-				if (!res.ok) {
-					out.textContent = `status=${res.status}\n${txt}`
-					return
-				}
-
-				const state = json?.state || json?.status?.state || "unknown"
-				const errors = Array.isArray(json?.validationErrors) ? json.validationErrors : []
-				out.textContent =
-					`state=${state}\n` +
-					(errors.length
-						? `validationErrors:\n- ${errors.map((e) => e.code || e).join("\n- ")}\n`
-						: "validationErrors: []\n")
-			} catch (err) {
-				out.textContent = `network error: ${String(err)}`
-			} finally {
-				btn.disabled = false
-			}
-		}
-
-		btn?.addEventListener("click", run)
-		run()
-	</script>
-	<span id="productId" style="display:none">{productId}</span>
 </InternalAdminLayout>

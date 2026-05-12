@@ -17,15 +17,15 @@ Runtime invariants remain unchanged:
 
 ## Operating contexts
 
-| Context                      | Purpose                                                      | Surface rule                                                    |
-| ---------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------- |
-| Public Marketplace           | Guest-facing discovery, auth, search, and product detail     | Uses public/search/base layouts only.                           |
-| Provider Workspace           | Provider operational workspace                               | Uses WorkspaceLayout and ownership-driven navigation.           |
-| Enterprise Operations        | Rooms/rates, reservations, content, finance setup, analytics | Uses WorkspaceLayout and canonical enterprise sidebar.          |
-| Internal Admin               | Platform/provider governance                                 | Uses InternalAdminLayout only.                                  |
-| Internal Ops / Observability | Health, debug, backfills, shadow reports                     | API/internal only; never linked directly from provider sidebar. |
-| Governance                   | Provider settings, verification, controls                    | Visible only as Administration & Governance.                    |
-| Support                      | Help, cases, escalation                                      | Planned; not active until support workflow exists.              |
+| Context                      | Purpose                                                      | Surface rule                                                     |
+| ---------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Public Marketplace           | Guest-facing discovery, auth, search, and product detail     | Uses public/search/base layouts only.                            |
+| Provider Workspace           | Provider operational workspace                               | Uses WorkspaceLayout and ownership-driven navigation.            |
+| Enterprise Operations        | Rooms/rates, reservations, content, finance setup, analytics | Uses WorkspaceLayout and canonical enterprise sidebar.           |
+| Internal Admin               | Platform/provider governance                                 | Uses InternalAdminLayout only.                                   |
+| Internal Ops / Observability | Health, debug, backfills, shadow reports                     | Internal-only APIs; never linked directly from provider sidebar. |
+| Governance                   | Provider settings, verification, controls                    | Visible only as Administration & Governance.                     |
+| Support                      | Help, cases, escalation                                      | Planned; not active until support workflow exists.               |
 
 ## Shell governance
 
@@ -47,39 +47,48 @@ Mandatory coverage:
 
 - Every `src/pages/**/*.astro` route must match one governance classification.
 - Every `src/pages/api/**/*.ts` route must match one governance classification.
-- `/api/internal/**` must remain internal-only.
+- `/api/internal/**` defaults to internal-only, except explicitly classified provider-facing BFF/read/operational endpoints.
 - `/admin/**` must remain internal-admin.
-- `/pricing/calendar` remains legacy and must not be exported as a normal route helper.
+- `/pricing/calendar` remains legacy redirect-only and must not be exported as a normal route helper.
 - No active page may import or render `DashboardLayout`.
 - `InternalAdminLayout` may only be used under `src/pages/admin/**`.
+- Provider-facing pages may not call APIs classified as `internal-only`.
+- Navigation targets must match their route classification status and owner.
+- Active pages must use the shell expected by their route governance context.
 
 ## Primary route ownership families
 
-| Route pattern                                        | Status        | Context                      | Owner                       |
-| ---------------------------------------------------- | ------------- | ---------------------------- | --------------------------- |
-| /dashboard                                           | Canonical     | Enterprise Operations        | Command Center              |
-| /product/\*\*                                        | Canonical     | Provider Workspace           | Property Content            |
-| /rates/plans/\*\*                                    | Canonical     | Enterprise Operations        | Rooms & Rates               |
-| /pricing/bulk                                        | Canonical     | Enterprise Operations        | Rooms & Rates               |
-| /pricing/rules                                       | Transitional  | Enterprise Operations        | Rooms & Rates               |
-| /pricing/calendar                                    | Legacy        | Enterprise Operations        | Rooms & Rates               |
-| /inventory/bulk                                      | Canonical     | Enterprise Operations        | Rooms & Rates               |
-| /booking/\*\*                                        | Canonical     | Enterprise Operations        | Reservations                |
-| /provider/policies/\*\*                              | Transitional  | Enterprise Operations        | Rooms & Rates               |
-| /provider/tax-fees                                   | Transitional  | Enterprise Operations        | Payments & Finance          |
-| /analytics/\*\*                                      | Transitional  | Enterprise Operations        | Analytics & Performance     |
-| /system/integrations                                 | Transitional  | Enterprise Operations        | Connectivity                |
-| /provider, /provider/verification                    | Transitional  | Governance                   | Administration & Governance |
-| /provider/profile, /provider/register                | Legacy        | Governance                   | Administration & Governance |
-| /admin/\*\*                                          | Internal-only | Internal Admin               | Internal Admin              |
-| /api/internal/\*\*                                   | Internal-only | Internal Ops / Observability | Internal Ops                |
-| /api/pricing/**, /api/rateplans/**, /api/rates/\*\*  | Canonical     | Enterprise Operations        | Rooms & Rates               |
-| /api/inventory/\*\*                                  | Canonical     | Enterprise Operations        | Rooms & Rates               |
-| /api/booking/\*\*                                    | Canonical     | Enterprise Operations        | Reservations                |
-| /api/product/**, /api/products/**, /api/variant/\*\* | Canonical     | Provider Workspace           | Property Content            |
-| /api/provider/**, /api/providers/**                  | Transitional  | Governance                   | Administration & Governance |
-| /api/admin/\*\*                                      | Internal-only | Internal Admin               | Internal Admin              |
-| /, /hotels/**, /tours/**, /api/search-v2             | Public        | Public Marketplace           | Public Marketplace / Search |
+| Route pattern                                                          | Status                   | Context                      | Owner                       |
+| ---------------------------------------------------------------------- | ------------------------ | ---------------------------- | --------------------------- |
+| /dashboard                                                             | Canonical                | Enterprise Operations        | Command Center              |
+| /product/\*\*                                                          | Canonical                | Provider Workspace           | Property Content            |
+| /rates/plans/\*\*                                                      | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /pricing/bulk                                                          | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /pricing/rules                                                         | Transitional             | Enterprise Operations        | Rooms & Rates               |
+| /pricing/calendar                                                      | Legacy                   | Enterprise Operations        | Rooms & Rates               |
+| /inventory/bulk                                                        | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /booking/\*\*                                                          | Canonical                | Enterprise Operations        | Reservations                |
+| /provider/policies/\*\*                                                | Transitional             | Enterprise Operations        | Rooms & Rates               |
+| /provider/tax-fees                                                     | Transitional             | Enterprise Operations        | Payments & Finance          |
+| /analytics/\*\*                                                        | Transitional             | Enterprise Operations        | Analytics & Performance     |
+| /system/integrations                                                   | Transitional             | Enterprise Operations        | Connectivity                |
+| /provider, /provider/verification                                      | Transitional             | Governance                   | Administration & Governance |
+| /provider/profile, /provider/register                                  | Legacy                   | Governance                   | Administration & Governance |
+| /admin/\*\*                                                            | Internal-only            | Internal Admin               | Internal Admin              |
+| /api/internal/dashboard-summary                                        | Canonical                | Enterprise Operations        | Command Center              |
+| /api/internal/product-summary                                          | Canonical                | Provider Workspace           | Property Content            |
+| /api/internal/variants-summary, /api/internal/variant-summary          | Canonical                | Provider Workspace           | Property Content            |
+| /api/internal/availability-summary, /api/internal/inventory/recompute  | Canonical / Transitional | Enterprise Operations        | Rooms & Rates               |
+| /api/internal/provider-bookings-summary, /api/internal/booking-summary | Canonical                | Enterprise Operations        | Reservations                |
+| /api/internal/provider-summary                                         | Transitional             | Governance                   | Administration & Governance |
+| /api/internal/\*\*                                                     | Internal-only fallback   | Internal Ops / Observability | Internal Ops                |
+| /api/pricing/**, /api/rateplans/**, /api/rates/\*\*                    | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /api/inventory/\*\*                                                    | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /api/booking/\*\*                                                      | Canonical                | Enterprise Operations        | Reservations                |
+| /api/product/**, /api/products/**, /api/variant/\*\*                   | Canonical                | Provider Workspace           | Property Content            |
+| /api/provider/**, /api/providers/**                                    | Transitional             | Governance                   | Administration & Governance |
+| /api/admin/\*\*                                                        | Internal-only            | Internal Admin               | Internal Admin              |
+| /, /hotels/**, /tours/**, /api/search-v2                               | Public                   | Public Marketplace           | Public Marketplace / Search |
 
 ## Canonical enterprise navigation
 
@@ -109,26 +118,33 @@ The following modules remain planned and must not be represented as mature opera
 - Do not link provider sidebar items directly to `/api/**`.
 - Do not expose legacy `/pricing/calendar` in primary navigation.
 - Do not export `routes.pricingCalendar()` as a normal helper.
+- Do not export route helpers for nonexistent pages.
 - Do not use a generic System bucket for governance, connectivity, or provider setup.
 - Do not duplicate conceptual entries that navigate to the same route unless they represent different valid contexts.
 - Do not create variant-pricing navigation. Variants may provide physical context only.
 - Do not expose admin/debug/backfill/shadow-report surfaces as provider workspace pages.
+- Do not call endpoints classified as internal-only from provider-facing pages.
 - Do not introduce write behavior through search, analytics, or dashboard read paths.
 
 ## Completed baseline
 
 - Provider sidebar is ownership-driven and consumes `enterpriseNavigation`.
 - Direct internal API links were removed from operator navigation.
-- `/pricing/calendar` is legacy, removed from primary navigation, and no longer exported by `routes.ts`.
+- Provider-facing `/api/internal/*` BFF/read endpoints are explicitly classified; true internal ops remain internal-only.
+- `/pricing/calendar` is legacy redirect-only, removed from primary navigation, and no longer exported by `routes.ts`.
+- `routes.catalog()` was removed because no `/catalog` surface exists.
 - Provider policies and tax-fees run on `WorkspaceLayout`.
 - Internal admin pages run on `InternalAdminLayout`.
+- Internal admin product review no longer depends on provider context or redirects to provider workspace.
 - Active pages no longer use `DashboardLayout`.
 - Astro page and API route governance coverage is enforced in CI.
 - Navigation guardrails block internal-only and legacy-route leakage.
+- Shell/context alignment and navigation/owner compatibility are enforced in CI.
 
 ## Residual debt accepted after Capa 0
 
 - `DashboardLayout` and `NavDashboardLayout` still exist as isolated legacy files but are not used by active pages.
 - Several surfaces remain transitional by design: Analytics, Connectivity, provider policies, taxes/fees, provider settings, verification.
 - `/system/integrations` keeps its historical path for compatibility, but visible ownership is Connectivity.
+- Several provider-facing BFF endpoints still live under `/api/internal/*` for URL compatibility, but their governance classification is no longer internal-only.
 - A full role-aware shell and planned-module UX belong to Capa 1, not Capa 0.
