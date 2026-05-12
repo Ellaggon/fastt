@@ -138,6 +138,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sectionTitles).toContain("Connectivity")
 		expect(sectionTitles).not.toContain("System")
 		expect(sectionTitles).not.toContain("Financial Control")
+
+		for (const section of enterpriseNavigation) {
+			expect(section.context, `${section.title} must declare its operational context`).toMatch(
+				/^(provider-workspace|enterprise-operations|governance)$/
+			)
+			expect(section.owner, `${section.title} must declare operational owner`).not.toEqual("")
+			expect(section.subtitle, `${section.title} must declare operational subtitle`).not.toEqual("")
+		}
 	})
 
 	it("declares shell and route governance source of truth", () => {
@@ -229,6 +237,51 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
+	it("keeps planned enterprise modules visible but non-navigable", () => {
+		const violations = enterpriseNavigation.flatMap((section) =>
+			(section.planned ?? []).flatMap((label) => {
+				if (!label.trim()) return [`${section.title}: empty planned module label`]
+				const collidesWithActiveItem = section.items.some((item) => item.label === label)
+				return collidesWithActiveItem
+					? [`${section.title}/${label}: planned module also exists as an active navigation item`]
+					: []
+			})
+		)
+
+		expect(
+			violations,
+			`Planned modules must stay as non-clickable maturity markers:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps enterprise shell context-aware instead of a generic wrapper", () => {
+		const workspaceSource = readFileSync(
+			join(process.cwd(), "src/layouts/WorkspaceLayout.astro"),
+			"utf8"
+		)
+		const topbarSource = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardTopBar.astro"),
+			"utf8"
+		)
+		const sidebarSource = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
+			"utf8"
+		)
+		const itemSource = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebarItem.astro"),
+			"utf8"
+		)
+
+		expect(workspaceSource).toContain("getBackofficeRouteClassification")
+		expect(workspaceSource).toContain("getEnterpriseNavigationSection")
+		expect(topbarSource).toContain("classification?.status")
+		expect(topbarSource).toContain("classification?.context")
+		expect(sidebarSource).toContain("OTA Enterprise Workspace")
+		expect(sidebarSource).toContain("section.planned")
+		expect(itemSource).toContain("data-governance-status")
+		expect(itemSource).not.toContain("(Transitional)")
+	})
+
 	it("prevents legacy dashboard shell usage from active pages", () => {
 		const pages = walkFiles(join(process.cwd(), "src/pages"), [".astro"])
 		const violations = pages.filter((relativePath) =>
@@ -298,6 +351,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("Calendar (Deprecated)")
 		expect(sidebarSource).not.toContain("Financial Control")
 		expect(sidebarSource).not.toContain("Variant Inventory (To Update")
+		expect(sidebarSource).not.toContain("System")
 		expect(integrationsSource).not.toContain("System · Integrations")
 	})
 

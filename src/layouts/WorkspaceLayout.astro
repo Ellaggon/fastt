@@ -2,25 +2,42 @@
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
 import Layout from "@/layouts/Layout.astro"
+import {
+	getBackofficeRouteClassification,
+	getEnterpriseNavigationSection,
+} from "@/lib/backoffice-governance"
 
 interface Props {
 	title?: string
 }
 
 const { title = "Workspace" } = Astro.props
+const pathname = Astro.url.pathname
+const classification = getBackofficeRouteClassification(pathname)
+const activeSection = getEnterpriseNavigationSection(pathname)
 ---
 
 <Layout title={title}>
 	<div class="min-h-screen bg-black text-slate-100">
 		<div class="flex min-h-screen">
-			<aside class="w-64 border-r border-slate-800 bg-slate-900 p-4">
-				<DashboardSidebar pathname={Astro.url.pathname} />
+			<aside class="hidden w-80 shrink-0 border-r border-slate-800 bg-slate-950 p-4 xl:block">
+				<DashboardSidebar pathname={pathname} />
 			</aside>
 
 			<div class="flex min-h-screen flex-1 flex-col">
-				<DashboardTopBar />
+				<DashboardTopBar title={title} classification={classification} section={activeSection} />
 				<main class="flex-1">
 					<div class="mx-auto max-w-7xl px-6 py-8">
+						<div class="mb-6 xl:hidden">
+							<details class="rounded-2xl border border-slate-800 bg-slate-950 p-3">
+								<summary class="cursor-pointer text-sm font-semibold text-slate-200">
+									Enterprise navigation
+								</summary>
+								<div class="mt-4">
+									<DashboardSidebar pathname={pathname} />
+								</div>
+							</details>
+						</div>
 						<slot />
 					</div>
 				</main>

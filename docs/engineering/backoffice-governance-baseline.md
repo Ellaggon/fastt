@@ -113,6 +113,24 @@ The following modules remain planned and must not be represented as mature opera
 - Observability Console
 - Administration RBAC
 
+## Capa 1 enterprise shell canonicalization
+
+WorkspaceLayout is no longer a generic dashboard wrapper. It is the canonical enterprise
+operations shell and must derive its visible context from `backofficeRouteClassifications`
+and `enterpriseNavigation`.
+
+The enterprise shell must show:
+
+- active ownership section,
+- route governance status (`canonical` or `transitional`),
+- operational context,
+- provider account session,
+- planned modules as non-clickable roadmap markers only.
+
+Transitional modules are allowed in navigation when they represent real, governed surfaces,
+but they must be visually marked as transitional. Planned modules must not link anywhere
+until a real route and ownership classification exist.
+
 ## Navigation rules
 
 - Do not link provider sidebar items directly to `/api/**`.
@@ -125,6 +143,9 @@ The following modules remain planned and must not be represented as mature opera
 - Do not expose admin/debug/backfill/shadow-report surfaces as provider workspace pages.
 - Do not call endpoints classified as internal-only from provider-facing pages.
 - Do not introduce write behavior through search, analytics, or dashboard read paths.
+- Do not render planned modules as active navigation links.
+- Do not hide transitional state by folding it into canonical-looking labels.
+- WorkspaceLayout must use the route governance SoT to render owner/context/status.
 
 ## Completed baseline
 
@@ -140,6 +161,9 @@ The following modules remain planned and must not be represented as mature opera
 - Astro page and API route governance coverage is enforced in CI.
 - Navigation guardrails block internal-only and legacy-route leakage.
 - Shell/context alignment and navigation/owner compatibility are enforced in CI.
+- WorkspaceLayout now renders governance-aware owner, context, and route status.
+- Transitional navigation items are visually marked without changing their labels.
+- Planned modules are visible only as disabled maturity markers, not active workspaces.
 
 ## Residual debt accepted after Capa 0
 
@@ -147,4 +171,4 @@ The following modules remain planned and must not be represented as mature opera
 - Several surfaces remain transitional by design: Analytics, Connectivity, provider policies, taxes/fees, provider settings, verification.
 - `/system/integrations` keeps its historical path for compatibility, but visible ownership is Connectivity.
 - Several provider-facing BFF endpoints still live under `/api/internal/*` for URL compatibility, but their governance classification is no longer internal-only.
-- A full role-aware shell and planned-module UX belong to Capa 1, not Capa 0.
+- Full role-aware permissions remain future work; Capa 1 only canonicalizes visible shell/navigation governance.

@@ -2,17 +2,37 @@
 interface Props {
 	title: string
 	subtitle?: string
+	owner?: string
+	active?: boolean
 	withDivider?: boolean
 }
 
-const { title, subtitle = "", withDivider = false } = Astro.props
+const { title, subtitle = "", owner = "", active = false, withDivider = false } = Astro.props
 ---
 
 <section
-	class={`space-y-3 rounded-xl border border-slate-800/80 bg-slate-900/40 p-2 ${withDivider ? "mt-1" : ""}`}
+	data-nav-section
+	data-active={active ? "true" : "false"}
+	class={`space-y-3 rounded-xl border p-2 transition ${
+		active
+			? "border-blue-500/40 bg-blue-950/25 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.14)]"
+			: "border-slate-800/80 bg-slate-900/40"
+	} ${withDivider ? "mt-1" : ""}`}
 >
 	<div class="space-y-1 px-3 pt-1">
-		<p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</p>
+		<div class="flex items-center justify-between gap-2">
+			<p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</p>
+			{
+				active ? (
+					<span class="h-2 w-2 rounded-full bg-blue-400" aria-label="Active section" />
+				) : null
+			}
+		</div>
+		{
+			owner ? (
+				<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">{owner}</p>
+			) : null
+		}
 		{subtitle ? <p class="text-xs font-medium text-slate-300">{subtitle}</p> : null}
 	</div>
 	<div class="space-y-1 pb-1">

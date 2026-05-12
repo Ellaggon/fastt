@@ -15,21 +15,48 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 ---
 
 <nav class="space-y-4" aria-label="Enterprise backoffice navigation">
+	<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+		<p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-300">
+			OTA Enterprise Workspace
+		</p>
+		<p class="mt-1 text-xs leading-5 text-slate-400">
+			Ownership-driven operations. Planned modules are visible as roadmap markers, not active
+			workspaces.
+		</p>
+	</div>
 	{
 		enterpriseNavigation.map((section) => (
 			<DashboardSidebarSection
 				title={section.title}
+				owner={section.owner}
+				active={isSectionActive(section.items)}
 				subtitle={isSectionActive(section.items) ? "Active workspace" : section.subtitle}
 			>
 				{section.items.map((item) => (
 					<DashboardSidebarItem
 						href={item.href}
-						label={item.status === "transitional" ? `${item.label} (Transitional)` : item.label}
+						label={item.label}
+						status={item.status}
+						summary={item.summary}
 						active={isActive(item.href)}
 						prefetch={true}
 						level={item.level ?? 1}
 					/>
 				))}
+				{section.planned?.length ? (
+					<div class="border-t border-slate-800/80 px-3 pt-2">
+						<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">
+							Planned
+						</p>
+						<div class="mt-1 flex flex-wrap gap-1.5">
+							{section.planned.map((label) => (
+								<span class="rounded-full border border-slate-700/80 px-2 py-1 text-[10px] font-medium text-slate-500">
+									{label}
+								</span>
+							))}
+						</div>
+					</div>
+				) : null}
 			</DashboardSidebarSection>
 		))
 	}

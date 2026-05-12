@@ -37,13 +37,27 @@ export type EnterpriseNavigationItem = {
 	href: string
 	status: Extract<GovernanceStatus, "canonical" | "transitional">
 	level?: 1 | 2 | 3 | 4
+	summary?: string
 }
 
 export type EnterpriseNavigationSection = {
 	title: string
 	subtitle: string
 	owner: string
+	context: OperationalContext
 	items: EnterpriseNavigationItem[]
+	planned?: readonly string[]
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function patternToRegExp(pattern: string): RegExp {
+	const escaped = escapeRegExp(pattern)
+		.replace(/\/\*\*/g, "(?:/.*)?")
+		.replace(/:\w+/g, "[^/]+")
+	return new RegExp(`^${escaped}$`)
 }
 
 export const backofficeShells: BackofficeShellClassification[] = [
@@ -508,28 +522,60 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		title: "Command Center",
 		subtitle: "Operational control",
 		owner: "Enterprise Operations",
-		items: [{ label: "Overview", href: routes.dashboard(), status: "canonical" }],
+		context: "enterprise-operations",
+		items: [
+			{
+				label: "Overview",
+				href: routes.dashboard(),
+				status: "canonical",
+				summary: "Provider readiness, catalog progress, and operational shortcuts.",
+			},
+		],
 	},
 	{
 		title: "Rooms & Rates",
 		subtitle: "ARI, rate plans, inventory, policies",
 		owner: "Commercial Operations",
+		context: "enterprise-operations",
 		items: [
-			{ label: "Rate Plans", href: routes.ratePlansHub(), status: "canonical" },
-			{ label: "Bulk Pricing", href: routes.pricingBulk(), status: "canonical" },
-			{ label: "Bulk Inventory", href: routes.inventoryBulk(), status: "canonical" },
-			{ label: "Rules / Overrides", href: routes.pricingRules(), status: "transitional", level: 2 },
+			{
+				label: "Rate Plans",
+				href: routes.ratePlansHub(),
+				status: "canonical",
+				summary: "RatePlan-first commercial setup and rate plan detail surfaces.",
+			},
+			{
+				label: "Bulk Pricing",
+				href: routes.pricingBulk(),
+				status: "canonical",
+				summary: "RatePlan-first bulk pricing operations.",
+			},
+			{
+				label: "Bulk Inventory",
+				href: routes.inventoryBulk(),
+				status: "canonical",
+				summary: "Physical inventory operations; variant-first ownership is intentional.",
+			},
+			{
+				label: "Rules / Overrides",
+				href: routes.pricingRules(),
+				status: "transitional",
+				level: 2,
+				summary: "Advanced pricing rule management while rate plan surfaces remain canonical.",
+			},
 			{
 				label: "Cancellation Policies",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
+				summary: "Policy library awaiting full Rooms & Rates surface consolidation.",
 			},
 			{
 				label: "Policy Audit",
 				href: routes.providerPoliciesAudit(),
 				status: "transitional",
 				level: 2,
+				summary: "Policy auditability surface for commercial governance.",
 			},
 		],
 	},
@@ -537,44 +583,107 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		title: "Reservations",
 		subtitle: "Snapshot-driven booking operations",
 		owner: "Booking Operations",
-		items: [{ label: "Reservations", href: routes.bookingList(), status: "canonical" }],
+		context: "enterprise-operations",
+		items: [
+			{
+				label: "Reservations",
+				href: routes.bookingList(),
+				status: "canonical",
+				summary: "Snapshot-driven reservation lifecycle.",
+			},
+		],
 	},
 	{
 		title: "Property Content",
 		subtitle: "Catalog and physical product context",
 		owner: "Catalog Operations",
-		items: [{ label: "Products & Room Types", href: routes.productList(), status: "canonical" }],
+		context: "provider-workspace",
+		items: [
+			{
+				label: "Products & Room Types",
+				href: routes.productList(),
+				status: "canonical",
+				summary: "Catalog content and physical variant context.",
+			},
+		],
 	},
 	{
 		title: "Payments & Finance",
 		subtitle: "Commercial charges and financial setup",
 		owner: "Financial Operations",
-		items: [{ label: "Taxes & Fees", href: routes.providerTaxFees(), status: "transitional" }],
+		context: "enterprise-operations",
+		items: [
+			{
+				label: "Taxes & Fees",
+				href: routes.providerTaxFees(),
+				status: "transitional",
+				summary: "Financial setup surface; payments console is not active yet.",
+			},
+		],
+		planned: ["Payments Console", "Reconciliation Workspace"],
 	},
 	{
 		title: "Analytics & Performance",
 		subtitle: "Operational intelligence",
 		owner: "Performance Operations",
+		context: "enterprise-operations",
 		items: [
-			{ label: "Revenue", href: routes.analyticsRevenue(), status: "transitional" },
-			{ label: "Performance", href: routes.analyticsPerformance(), status: "transitional" },
-			{ label: "Occupancy", href: routes.analyticsOccupancy(), status: "transitional" },
+			{
+				label: "Revenue",
+				href: routes.analyticsRevenue(),
+				status: "transitional",
+				summary: "Placeholder reporting surface; no revenue engine is active.",
+			},
+			{
+				label: "Performance",
+				href: routes.analyticsPerformance(),
+				status: "transitional",
+				summary: "Placeholder KPI surface; not an advanced analytics module.",
+			},
+			{
+				label: "Occupancy",
+				href: routes.analyticsOccupancy(),
+				status: "transitional",
+				summary: "Placeholder occupancy reporting surface.",
+			},
 		],
+		planned: ["Revenue Management", "Opportunities"],
 	},
 	{
 		title: "Connectivity",
 		subtitle: "External systems and integrations",
 		owner: "Connectivity Operations",
-		items: [{ label: "Integrations", href: routes.systemIntegrations(), status: "transitional" }],
+		context: "enterprise-operations",
+		items: [
+			{
+				label: "Integrations",
+				href: routes.systemIntegrations(),
+				status: "transitional",
+				summary: "Connector planning surface; channel sync runtime is not active.",
+			},
+		],
+		planned: ["Channel Manager", "Provider APIs"],
 	},
 	{
 		title: "Administration & Governance",
 		subtitle: "Organization, verification, controls",
 		owner: "Platform Governance",
+		context: "governance",
 		items: [
-			{ label: "Provider Settings", href: routes.provider(), status: "transitional" },
-			{ label: "Verification", href: routes.providerVerification(), status: "transitional" },
+			{
+				label: "Provider Settings",
+				href: routes.provider(),
+				status: "transitional",
+				summary: "Provider organization settings while RBAC is planned.",
+			},
+			{
+				label: "Verification",
+				href: routes.providerVerification(),
+				status: "transitional",
+				summary: "Provider verification workflow.",
+			},
 		],
+		planned: ["Administration RBAC", "Support Operations"],
 	},
 ]
 
@@ -587,3 +696,27 @@ export const plannedEnterpriseModules = [
 	"Observability Console",
 	"Administration RBAC",
 ] as const
+
+export function getBackofficeRouteClassification(
+	pathname: string
+): BackofficeRouteClassification | null {
+	const cleanPath = pathname.split("?")[0]?.replace(/\/$/, "") || "/"
+	for (const classification of backofficeRouteClassifications) {
+		if (patternToRegExp(classification.pattern).test(cleanPath)) return classification
+	}
+	return null
+}
+
+export function getEnterpriseNavigationSection(
+	pathname: string
+): EnterpriseNavigationSection | null {
+	const cleanPath = pathname.split("?")[0]?.replace(/\/$/, "") || "/"
+	return (
+		enterpriseNavigation.find((section) =>
+			section.items.some((item) => {
+				const href = item.href.replace(/\/$/, "") || "/"
+				return cleanPath === href || cleanPath.startsWith(`${href}/`)
+			})
+		) ?? null
+	)
+}
