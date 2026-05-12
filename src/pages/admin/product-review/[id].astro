@@ -1,5 +1,5 @@
 ---
-import Layout from "@/layouts/Layout.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
@@ -13,8 +13,10 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 ---
 
-<Layout title="Product - Review">
-	<main style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+<InternalAdminLayout title="Admin · Product Review">
+	<main
+		class="max-w-3xl space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100"
+	>
 		<h1>Product: Review</h1>
 		<p>Product: <code>{productId}</code></p>
 
@@ -74,5 +76,5 @@ if (!productId) return Astro.redirect("/product/create")
 		btn?.addEventListener("click", run)
 		run()
 	</script>
-</Layout>
-<span id="productId" style="display:none">{productId}</span>
+	<span id="productId" style="display:none">{productId}</span>
+</InternalAdminLayout>
