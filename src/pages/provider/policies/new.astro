@@ -1,5 +1,5 @@
 ---
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { createPolicyCapa6, PolicyValidationError } from "@/modules/policies/public"
 import { z } from "zod"
@@ -136,7 +136,7 @@ if (Astro.request.method === "POST") {
 }
 ---
 
-<DashboardLayout>
+<WorkspaceLayout title="Policies">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex items-center justify-between">
@@ -312,7 +312,7 @@ if (Astro.request.method === "POST") {
 			</form>
 		</div>
 	</main>
-</DashboardLayout>
+</WorkspaceLayout>
 
 <script>
 	// @ts-nocheck

@@ -1,5 +1,5 @@
 ---
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 
 // Provider-only page. If unauthenticated or no provider, redirect to existing flows.
@@ -42,7 +42,7 @@ for (const c of categories) {
 }
 ---
 
-<DashboardLayout>
+<WorkspaceLayout title="Policies">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex items-center justify-between">
@@ -129,4 +129,4 @@ for (const c of categories) {
 			}
 		</div>
 	</main>
-</DashboardLayout>
+</WorkspaceLayout>
