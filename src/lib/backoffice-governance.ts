@@ -52,6 +52,24 @@ export type EnterpriseNavigationSection = {
 	planned?: readonly string[]
 }
 
+export type RoomsAndRatesOwnership = "commercial" | "physical" | "financial" | "planned"
+
+export type RoomsAndRatesSurface = {
+	label: string
+	status: GovernanceStatus
+	owner: string
+	description: string
+	href?: string
+}
+
+export type RoomsAndRatesOperationalLane = {
+	title: string
+	ownership: RoomsAndRatesOwnership
+	status: "operational" | "transitional" | "planned"
+	intent: string
+	surfaces: readonly RoomsAndRatesSurface[]
+}
+
 export type OperationalContextMetadata = {
 	label: string
 	description: string
@@ -619,16 +637,16 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Commercial Operations",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Commercial operating core for rate plans, pricing, physical inventory, and policy assignment.",
+			"ARI operating core separating commercial rate-plan control from physical inventory operations.",
 		maturity: "operational",
 		nextMaturity:
-			"Capa 2 should consolidate this into an ARI hub with summary, restrictions, occupancy pricing, and audit depth.",
+			"Rooms & Rates is the enterprise ARI hub: rate plans own commercial pricing while inventory remains physical and variant-first.",
 		items: [
 			{
-				label: "Rate Plans",
+				label: "Rooms & Rates Hub",
 				href: routes.ratePlansHub(),
 				status: "canonical",
-				summary: "RatePlan-first commercial setup and rate plan detail surfaces.",
+				summary: "Enterprise ARI hub for commercial and physical operating lanes.",
 			},
 			{
 				label: "Bulk Pricing",
@@ -789,6 +807,125 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		planned: ["Administration RBAC", "Support Operations"],
 	},
 ]
+
+export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
+	{
+		title: "Commercial rate plan layer",
+		ownership: "commercial",
+		status: "operational",
+		intent:
+			"RatePlan-first commercial ownership for pricing, selling conditions, and tariff readiness.",
+		surfaces: [
+			{
+				label: "Rooms & Rates Hub",
+				href: routes.ratePlansHub(),
+				status: "canonical",
+				owner: "Rooms & Rates",
+				description: "Operational command surface for rate plans and ARI readiness.",
+			},
+			{
+				label: "Bulk Pricing",
+				href: routes.pricingBulk(),
+				status: "canonical",
+				owner: "Rooms & Rates",
+				description: "Bulk commercial pricing operations over explicit rate plans.",
+			},
+			{
+				label: "Rules / Overrides",
+				href: routes.pricingRules(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description: "Advanced pricing rule surface governed under rate-plan ownership.",
+			},
+		],
+	},
+	{
+		title: "Physical inventory layer",
+		ownership: "physical",
+		status: "operational",
+		intent:
+			"Variant-first physical inventory ownership for room types, availability, and unit capacity.",
+		surfaces: [
+			{
+				label: "Products & Room Types",
+				href: routes.productList(),
+				status: "canonical",
+				owner: "Property Content",
+				description: "Catalog and room-type setup that provides physical context for inventory.",
+			},
+			{
+				label: "Bulk Inventory",
+				href: routes.inventoryBulk(),
+				status: "canonical",
+				owner: "Rooms & Rates",
+				description: "Bulk physical inventory operations; variant-first ownership is intentional.",
+			},
+		],
+	},
+	{
+		title: "Commercial conditions",
+		ownership: "commercial",
+		status: "transitional",
+		intent:
+			"Governed selling conditions that support rate-plan readiness without becoming pricing engines.",
+		surfaces: [
+			{
+				label: "Cancellation Policies",
+				href: routes.providerPolicies(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description: "Policy library awaiting deeper Rooms & Rates consolidation.",
+			},
+			{
+				label: "Policy Audit",
+				href: routes.providerPoliciesAudit(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description: "Policy auditability surface for commercial governance.",
+			},
+			{
+				label: "Taxes & Fees",
+				href: routes.providerTaxFees(),
+				status: "transitional",
+				owner: "Payments & Finance",
+				description: "Financial-commercial charges surfaced as a governed cross-owner dependency.",
+			},
+		],
+	},
+	{
+		title: "ARI maturity roadmap",
+		ownership: "planned",
+		status: "planned",
+		intent:
+			"Roadmap markers only. These are not active workspaces until real ownership and routes exist.",
+		surfaces: [
+			{
+				label: "ARI Summary",
+				status: "planned",
+				owner: "Rooms & Rates",
+				description: "Future cross-lane operating summary.",
+			},
+			{
+				label: "Restrictions",
+				status: "planned",
+				owner: "Rooms & Rates",
+				description: "Future restriction workspace; no runtime channel manager exists yet.",
+			},
+			{
+				label: "Occupancy Pricing",
+				status: "planned",
+				owner: "Rooms & Rates",
+				description: "Future occupancy pricing management over rate-plan semantics.",
+			},
+			{
+				label: "Audit History",
+				status: "planned",
+				owner: "Rooms & Rates",
+				description: "Future ARI audit history surface.",
+			},
+		],
+	},
+] as const
 
 export const plannedEnterpriseModules = [
 	"Revenue Management",

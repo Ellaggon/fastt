@@ -8,6 +8,7 @@ import {
 	enterpriseNavigation,
 	getGovernanceStatusMetadata,
 	getOperationalContextMetadata,
+	roomsAndRatesOperationalMap,
 } from "../../src/lib/backoffice-governance"
 import type { BackofficeRouteClassification } from "../../src/lib/backoffice-governance"
 
@@ -263,15 +264,75 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
-	it("prepares Rooms & Rates as the next operational hub without implementing Capa 2", () => {
+	it("keeps Rooms & Rates as an enterprise ARI hub with explicit ownership lanes", () => {
 		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("Commercial operating core")
-		expect(roomsAndRates?.nextMaturity).toContain("Capa 2")
+		expect(roomsAndRates?.operationalIntent).toContain("ARI operating core")
+		expect(roomsAndRates?.nextMaturity).toContain("rate plans own commercial pricing")
+		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
 		expect(roomsAndRates?.planned).toEqual(
 			expect.arrayContaining(["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"])
 		)
+	})
+
+	it("enforces physical vs commercial ownership separation inside Rooms & Rates", () => {
+		const ownerships = new Set(roomsAndRatesOperationalMap.map((lane) => lane.ownership))
+		expect(ownerships.has("commercial")).toBe(true)
+		expect(ownerships.has("physical")).toBe(true)
+		expect(ownerships.has("planned")).toBe(true)
+
+		const physicalHrefViolations = roomsAndRatesOperationalMap
+			.filter((lane) => lane.ownership === "physical")
+			.flatMap((lane) =>
+				lane.surfaces.flatMap((surface) => {
+					if (!surface.href) return []
+					return surface.href.startsWith("/pricing") || surface.href.includes("/pricing")
+						? [`${lane.title}/${surface.label}: physical lane must not navigate to pricing`]
+						: []
+				})
+			)
+
+		const commercialHrefViolations = roomsAndRatesOperationalMap
+			.filter((lane) => lane.ownership === "commercial")
+			.flatMap((lane) =>
+				lane.surfaces.flatMap((surface) => {
+					if (!surface.href) return []
+					return surface.href.startsWith("/product/") && surface.href.includes("/variants/")
+						? [
+								`${lane.title}/${surface.label}: commercial lane must not navigate to variant internals`,
+							]
+						: []
+				})
+			)
+
+		const plannedHrefViolations = roomsAndRatesOperationalMap
+			.filter((lane) => lane.status === "planned" || lane.ownership === "planned")
+			.flatMap((lane) =>
+				lane.surfaces.flatMap((surface) =>
+					surface.href ? [`${lane.title}/${surface.label}: planned ARI surfaces must not link`] : []
+				)
+			)
+
+		expect(
+			[...physicalHrefViolations, ...commercialHrefViolations, ...plannedHrefViolations],
+			`Rooms & Rates lanes must keep ARI ownership boundaries explicit:\n${[
+				...physicalHrefViolations,
+				...commercialHrefViolations,
+				...plannedHrefViolations,
+			].join("\n")}`
+		).toEqual([])
+	})
+
+	it("renders the Rooms & Rates hub from the governance ARI map", () => {
+		const source = readFileSync(join(process.cwd(), "src/pages/rates/plans/index.astro"), "utf8")
+
+		expect(source).toContain("roomsAndRatesOperationalMap")
+		expect(source).toContain("ARI ownership map")
+		expect(source).toContain("Contexto físico")
+		expect(source).toContain("window.location.href = `/pricing/bulk?")
+		expect(source).not.toContain("NEW_DASHBOARD_ARCH")
+		expect(source).not.toContain("window.location.href = `/rates/plans?")
 	})
 
 	it("exposes human-readable context and status metadata for shell rendering", () => {

@@ -133,10 +133,26 @@ but they must be visually marked as transitional in both navigation and shell co
 Planned modules must not link anywhere until a real route and ownership classification exist.
 They are collapsed by default to avoid roadmap clutter.
 
-Rooms & Rates is the next maturity focus. Before Capa 2 implements deeper ARI workflows,
-its navigation must already communicate the intended operational map: rate plans, pricing,
-inventory, policies, restrictions, occupancy pricing, and audit history. Missing ARI areas
-remain roadmap markers, not active surfaces.
+## Capa 2 Rooms & Rates enterprise core
+
+Rooms & Rates is now the enterprise ARI operating hub. `/rates/plans` is no longer only a
+rate-plan list; it is the governed Rooms & Rates Hub and must communicate the separation
+between:
+
+- **Commercial rate plan layer:** rate plans, rate-plan pricing, pricing rules, and selling
+  conditions. RatePlan remains the commercial selector for pricing.
+- **Physical inventory layer:** products, room types, variants, availability, capacity, and
+  bulk inventory. Variant remains the physical/inventory owner where that ownership is correct.
+- **Commercial conditions:** cancellation policy and policy audit surfaces remain transitional
+  under Rooms & Rates; taxes and fees are a governed financial dependency owned by Payments &
+  Finance.
+- **ARI maturity roadmap:** ARI Summary, Restrictions, Occupancy Pricing, and Audit History
+  remain non-clickable roadmap markers until real routes and ownership exist.
+
+The canonical operating map lives in `roomsAndRatesOperationalMap` inside
+`src/lib/backoffice-governance.ts`. The Rooms & Rates Hub consumes that map directly, and CI
+enforces that physical lanes do not navigate into pricing surfaces, commercial lanes do not
+navigate into variant internals, and planned ARI surfaces remain non-navigable.
 
 ## Navigation rules
 
@@ -175,7 +191,8 @@ remain roadmap markers, not active surfaces.
 - Planned modules are collapsed roadmap markers, not active workspaces.
 - Topbar uses human-readable operational context labels instead of raw governance enums.
 - WorkspaceLayout renders a shared page-level context panel for all workspace pages.
-- Rooms & Rates declares the Capa 2 readiness map without implementing Capa 2 workflows.
+- Rooms & Rates renders the Capa 2 ARI ownership map without adding new pricing, inventory, or
+  channel-management runtime behavior.
 
 ## Residual debt accepted after Capa 0
 

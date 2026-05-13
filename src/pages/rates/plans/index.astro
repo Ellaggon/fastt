@@ -3,9 +3,9 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
-import { featureFlags } from "@/config/featureFlags"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { roomsAndRatesOperationalMap } from "@/lib/backoffice-governance"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
@@ -25,36 +25,140 @@ const rows = await loadRatePlansReadModel({
 	checkOut,
 	channel: "web",
 })
+
+const activeRatePlans = rows.filter((row) => row.isActive).length
+const defaultRatePlans = rows.filter((row) => row.isDefault).length
+const completePolicies = rows.filter((row) => row.policyCoverage?.isComplete).length
+const physicalVariants = new Set(rows.map((row) => String(row.variantId))).size
+
+const ownershipLabel = {
+	commercial: "Commercial",
+	physical: "Physical",
+	financial: "Financial dependency",
+	planned: "Roadmap",
+}
+
+const statusLabel = {
+	operational: "Operational",
+	transitional: "Transitional",
+	planned: "Planned",
+}
+
+const statusBadgeVariant = {
+	"canonical": "success",
+	"transitional": "warning",
+	"planned": "neutral",
+	"legacy": "neutral",
+	"internal-only": "neutral",
+	"public": "neutral",
+}
 ---
 
-<WorkspaceLayout title="Rate Plans Hub">
+<WorkspaceLayout title="Rooms & Rates Hub">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Inventory · Rate Plans
+					Rooms & Rates · ARI Core
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Rate Plans Hub</h1>
-				<p class="text-sm text-slate-300">
-					Gestiona precios y condiciones por tarifa desde un solo lugar.
+				<h1 class="text-3xl font-semibold text-slate-100">Rooms & Rates Hub</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-300">
+					Núcleo operativo ARI: separa el ownership comercial de rate plans y pricing del ownership
+					físico de room types, variantes e inventario.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Badge variant={featureFlags.NEW_DASHBOARD_ARCH ? "success" : "warning"}>
-					{
-						featureFlags.NEW_DASHBOARD_ARCH
-							? "NEW_DASHBOARD_ARCH activo"
-							: "NEW_DASHBOARD_ARCH inactivo"
-					}
-				</Badge>
-				<Button href={routes.ratePlansHub()} variant="primary">Rate plans hub</Button>
-				<Button href={routes.productList()} variant="secondary">Volver a productos</Button>
+				<Button href={routes.pricingBulk()} variant="primary">Bulk Pricing</Button>
+				<Button href={routes.inventoryBulk()} variant="secondary">Bulk Inventory</Button>
 			</div>
 		</header>
 
+		<section class="grid gap-4 md:grid-cols-4">
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Rate plans</p>
+				<p class="mt-2 text-2xl font-semibold">{rows.length}</p>
+				<p class="mt-1 text-xs text-slate-400">{activeRatePlans} activos</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Physical variants</p>
+				<p class="mt-2 text-2xl font-semibold">{physicalVariants}</p>
+				<p class="mt-1 text-xs text-slate-400">Contexto físico, no selector comercial</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Policy readiness</p>
+				<p class="mt-2 text-2xl font-semibold">{completePolicies}/{rows.length}</p>
+				<p class="mt-1 text-xs text-slate-400">Rate plans con condiciones completas</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Default plans</p>
+				<p class="mt-2 text-2xl font-semibold">{defaultRatePlans}</p>
+				<p class="mt-1 text-xs text-slate-400">Contexto comercial explícito</p>
+			</Card>
+		</section>
+
 		<Section
-			title="Rate Plans"
-			description="Centro operativo de tarifas con acciones directas para precio y condiciones."
+			title="ARI ownership map"
+			description="Mapa operacional de Rooms & Rates. Las capas físicas y comerciales conviven, pero no comparten ownership."
+		>
+			<div class="grid gap-4 lg:grid-cols-2">
+				{
+					roomsAndRatesOperationalMap.map((lane) => (
+						<Card className="border-slate-800 bg-slate-950 text-slate-100">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div class="space-y-1">
+									<p class="text-xs font-semibold tracking-wide text-blue-300 uppercase">
+										{ownershipLabel[lane.ownership]}
+									</p>
+									<h3 class="text-lg font-semibold">{lane.title}</h3>
+								</div>
+								<Badge
+									variant={
+										lane.status === "operational"
+											? "success"
+											: lane.status === "transitional"
+												? "warning"
+												: "neutral"
+									}
+								>
+									{statusLabel[lane.status]}
+								</Badge>
+							</div>
+							<p class="mt-3 text-sm leading-6 text-slate-400">{lane.intent}</p>
+							<div class="mt-4 space-y-2">
+								{lane.surfaces.map((surface) => (
+									<div class="rounded-xl border border-slate-800 bg-black/25 p-3">
+										<div class="flex flex-wrap items-center justify-between gap-2">
+											<div>
+												<p class="text-sm font-semibold text-slate-100">{surface.label}</p>
+												<p class="mt-1 text-xs leading-5 text-slate-400">{surface.description}</p>
+											</div>
+											<div class="flex items-center gap-2">
+												<Badge variant={statusBadgeVariant[surface.status]}>
+													{surface.status === "canonical"
+														? "Operational"
+														: surface.status === "transitional"
+															? "Transitional"
+															: "Planned"}
+												</Badge>
+												{surface.href ? (
+													<Button href={surface.href} variant="secondary" size="sm">
+														Open
+													</Button>
+												) : null}
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Commercial rate plans"
+			description="RatePlan es el selector comercial. Variant aparece solo como contexto físico de operación."
 		>
 			{
 				rows.length === 0 ? (
@@ -84,7 +188,7 @@ const rows = await loadRatePlansReadModel({
 										className="disabled:cursor-not-allowed disabled:opacity-50"
 										disabled
 									>
-										Ir a bulk pricing
+										Abrir Bulk Pricing
 									</Button>
 								</div>
 							</div>
@@ -105,7 +209,8 @@ const rows = await loadRatePlansReadModel({
 												Producto: <span class="font-medium text-slate-800">{row.productName}</span>
 											</p>
 											<p class="text-sm text-slate-600">
-												Variante: <span class="font-medium text-slate-800">{row.variantName}</span>
+												Contexto físico:{" "}
+												<span class="font-medium text-slate-800">{row.variantName}</span>
 											</p>
 										</div>
 									</div>
@@ -220,7 +325,7 @@ const rows = await loadRatePlansReadModel({
 			if (!selectedRatePlanIds.size) return
 			const ids = Array.from(selectedRatePlanIds)
 			const params = new URLSearchParams({ ratePlanIds: ids.join(",") })
-			window.location.href = `/rates/plans?${params.toString()}`
+			window.location.href = `/pricing/bulk?${params.toString()}`
 		})
 
 		updateSelectionUI()
