@@ -243,8 +243,8 @@ if (!owned) return Astro.redirect("/product/create")
 					value === "pricing_invalid"
 				) {
 					return {
-						href: `/rates/plans?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
-						label: "Configurar precios",
+						href: "/rates/plans",
+						label: "Abrir cobertura comercial",
 					}
 				}
 				if (value === "inventory_missing") {
@@ -466,11 +466,11 @@ if (!owned) return Astro.redirect("/product/create")
 							"Editar subtipo"
 						),
 						blockCard(
-							"Precios",
+							"Cobertura comercial",
 							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.pricing?.complete),
-							`/rates/plans?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
-							"Editar precios"
+							"/rates/plans",
+							"Abrir Rate Plans"
 						),
 						blockCard(
 							"Inventario",

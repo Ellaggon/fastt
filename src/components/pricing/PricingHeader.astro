@@ -23,19 +23,22 @@ const {
 } = Astro.props
 ---
 
-<Section title="Resumen de pricing" description="Vista rápida del estado comercial de la variante.">
+<Section
+	title="Resumen de pricing"
+	description="Vista rápida de cobertura comercial rate-plan-first con contexto físico relacionado."
+>
 	<Card class="bg-slate-100">
 		<div class="grid gap-3 md:grid-cols-3">
 			<div class="rounded-lg border border-slate-200 bg-white p-4">
-				<p class="text-xs text-slate-500">Variante</p>
+				<p class="text-xs text-slate-500">Contexto físico relacionado</p>
 				<p class="text-sm font-semibold text-slate-900">{variantName}</p>
 			</div>
 			<div class="rounded-lg border border-slate-200 bg-white p-4">
-				<p class="text-xs text-slate-500">Moneda / tarifa base</p>
+				<p class="text-xs text-slate-500">Moneda / baseline comercial</p>
 				<p class="text-sm font-semibold text-slate-900">{currency} {basePrice}</p>
 			</div>
 			<div class="rounded-lg border border-slate-200 bg-white p-4">
-				<p class="text-xs text-slate-500">Rate plan por defecto</p>
+				<p class="text-xs text-slate-500">Rate plan comercial</p>
 				<p class="text-sm font-semibold text-slate-900">{defaultRatePlanLabel}</p>
 			</div>
 			<div class="rounded-lg border border-slate-200 bg-white p-4">

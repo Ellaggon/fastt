@@ -90,11 +90,39 @@ const statusBadgeVariant = {
 				<p class="mt-1 text-xs text-slate-400">Rate plans con condiciones completas</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Default plans</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Primary commercial plans</p>
 				<p class="mt-2 text-2xl font-semibold">{defaultRatePlans}</p>
-				<p class="mt-1 text-xs text-slate-400">Contexto comercial explícito</p>
+				<p class="mt-1 text-xs text-slate-400">Rate-plan ownership explícito</p>
 			</Card>
 		</section>
+
+		<Section
+			title="Operational readiness lanes"
+			description="Rooms & Rates coordina readiness física y comercial sin mezclar ownership: inventory prepara unidades vendibles; rate plans preparan cobertura comercial."
+		>
+			<div class="grid gap-4 lg:grid-cols-2">
+				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+					<p class="text-xs font-semibold uppercase tracking-wide text-blue-300">
+						Physical readiness
+					</p>
+					<h2 class="mt-2 text-xl font-semibold">Inventory, capacity, availability</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-300">
+						La capa física responde si existen unidades, cupo y disponibilidad por variante. Puede
+						señalar dependencias comerciales, pero no administra pricing.
+					</p>
+				</Card>
+				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+						Commercial readiness
+					</p>
+					<h2 class="mt-2 text-xl font-semibold">Rate plans, coverage, conditions</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-300">
+						La capa comercial define cobertura de venta por rate plan, condiciones, políticas y
+						dependencias financieras. Variant permanece como contexto físico relacionado.
+					</p>
+				</Card>
+			</div>
+		</Section>
 
 		<Section
 			title="ARI ownership map"
@@ -216,7 +244,7 @@ const statusBadgeVariant = {
 									</div>
 									<div class="flex flex-col items-end gap-2">
 										<div class="flex items-center gap-2">
-											{row.isDefault && <Badge variant="info">Default</Badge>}
+											{row.isDefault && <Badge variant="info">Plan comercial principal</Badge>}
 											<Badge variant={row.isActive ? "success" : "warning"}>
 												{row.isActive ? "Activo" : "Inactivo"}
 											</Badge>
@@ -239,7 +267,7 @@ const statusBadgeVariant = {
 												variant="secondary"
 												size="sm"
 											>
-												Editar precios
+												Gestionar cobertura comercial
 											</Button>
 											<Button
 												href={routes.ratePlanDetail(String(row.ratePlanId))}

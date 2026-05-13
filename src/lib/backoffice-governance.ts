@@ -652,7 +652,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				label: "Bulk Pricing",
 				href: routes.pricingBulk(),
 				status: "canonical",
-				summary: "RatePlan-first bulk pricing operations.",
+				summary: "Rate-plan-first bulk commercial coverage operations.",
 			},
 			{
 				label: "Bulk Inventory",
@@ -665,7 +665,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.pricingRules(),
 				status: "transitional",
 				level: 2,
-				summary: "Advanced pricing rule management while rate plan surfaces remain canonical.",
+				summary: "Commercial rule management governed under explicit rate-plan ownership.",
 			},
 			{
 				label: "Cancellation Policies",
@@ -814,7 +814,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"RatePlan-first commercial ownership for pricing, selling conditions, and tariff readiness.",
+			"RatePlan-first commercial ownership for pricing coverage, selling conditions, and sellability readiness.",
 		surfaces: [
 			{
 				label: "Rooms & Rates Hub",
@@ -828,7 +828,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				href: routes.pricingBulk(),
 				status: "canonical",
 				owner: "Rooms & Rates",
-				description: "Bulk commercial pricing operations over explicit rate plans.",
+				description: "Bulk commercial coverage operations over explicit rate plans.",
 			},
 			{
 				label: "Rules / Overrides",
@@ -909,7 +909,8 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Restrictions",
 				status: "planned",
 				owner: "Rooms & Rates",
-				description: "Future restriction workspace; no runtime channel manager exists yet.",
+				description:
+					"Future restriction workspace. Current rate plans may expose restriction signals, but no dedicated ARI restriction runtime exists yet.",
 			},
 			{
 				label: "Occupancy Pricing",
