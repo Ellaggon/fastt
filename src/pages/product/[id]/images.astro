@@ -28,32 +28,11 @@ const existingImages = product.images || []
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Property Content · Media Readiness
-				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Media Readiness</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Gobierna la galería visible del producto. Esta capa valida cobertura visual y
-					presentación; no administra pricing, inventario ni ARI.
+					Gestiona la galería visible del producto y su cobertura visual mínima.
 				</p>
 			</header>
-
-			<div class="grid gap-4 lg:grid-cols-3">
-				<Card class="border-emerald-200 bg-emerald-50 text-emerald-950">
-					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Owned here</p>
-					<p class="mt-2 text-sm">Imágenes, orden visual y presentación del catálogo.</p>
-				</Card>
-				<Card class="border-slate-200 bg-slate-100 text-slate-800">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Quality signal</p>
-					<p class="mt-2 text-sm">Sin score artificial: mínimo honesto de galería cargada.</p>
-				</Card>
-				<Card class="border-blue-200 bg-blue-50 text-blue-950">
-					<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Not owned here</p>
-					<p class="mt-2 text-sm">
-						La foto no decide sellability comercial ni disponibilidad física.
-					</p>
-				</Card>
-			</div>
 
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 				<form

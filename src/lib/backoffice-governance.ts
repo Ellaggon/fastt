@@ -204,11 +204,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Primary operational entry point.",
 	},
 	{
+		pattern: "/product/:id/variants/**",
+		status: "transitional",
+		context: "provider-workspace",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Transitional physical variant workspace under the product tree; catalog may navigate here, but pricing and ARI ownership stay outside Property Content.",
+	},
+	{
 		pattern: "/product/**",
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Catalog/content and physical variant context.",
+		rationale: "Catalog content, media, location, metadata, and editorial readiness.",
 	},
 	{
 		pattern: "/rates/plans/**",
@@ -338,17 +346,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/api/internal/variants-summary",
-		status: "canonical",
+		status: "transitional",
 		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Provider-facing BFF read model for physical variants.",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Provider-facing BFF for transitional physical variant context under the product tree.",
 	},
 	{
 		pattern: "/api/internal/variant-summary",
-		status: "canonical",
+		status: "transitional",
 		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Provider-facing BFF read model for a physical variant.",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Provider-facing BFF for a transitional physical variant surface; not catalog editorial ownership.",
 	},
 	{
 		pattern: "/api/internal/availability-summary",

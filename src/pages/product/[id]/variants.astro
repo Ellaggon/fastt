@@ -21,15 +21,15 @@ const owned = await productRepository.ensureProductOwnedByProvider(productId, pr
 if (!owned) return Astro.redirect("/product/create")
 ---
 
-<WorkspaceLayout title="Producto · Variantes">
+<WorkspaceLayout title="Physical Context · Variants">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
-					<h1 class="text-3xl font-semibold text-slate-100">Variantes del producto</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Physical variants</h1>
 					<p class="text-sm text-slate-400">
-						Contexto físico del catálogo: capacidad, subtipo, cobertura comercial relacionada e
-						inventario físico. Pricing sigue siendo ownership de Rate Plans.
+						Configura el contexto físico del producto: variantes, capacidad e inventario. La
+						cobertura comercial relacionada se abre en Rooms & Rates.
 					</p>
 					<p id="productDisplayName" class="text-sm text-slate-300">Producto: {owned.name}</p>
 				</div>
@@ -48,8 +48,8 @@ if (!owned) return Astro.redirect("/product/create")
 				>
 					<p class="font-semibold text-slate-100">Physical context boundary</p>
 					<p>
-						Las variantes son contexto físico. Esta vista puede mostrar si falta cobertura
-						comercial, pero no configura pricing ni decide rate plans.
+						Las variantes no seleccionan cobertura comercial. Esta vista muestra dependencias
+						comerciales solo como handoff hacia Rooms & Rates.
 					</p>
 				</div>
 				<div class="space-y-4">
@@ -84,7 +84,7 @@ if (!owned) return Astro.redirect("/product/create")
 		</Section>
 
 		<Section
-			title="Variantes existentes"
+			title="Physical variant worklist"
 			description="Configura cada variante por bloques operativos."
 		>
 			<div id="variantsEmptyState" class="hidden">

@@ -60,13 +60,10 @@ const getStatusMeta = (rawState: string | undefined) => {
 <WorkspaceLayout title="Property Content · Catalog Readiness">
 	<section class="space-y-8">
 		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-				Property Content · Catalog Layer
-			</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Catalog Readiness Hub</h1>
+			<h1 class="text-3xl font-semibold text-slate-100">Catalog worklist</h1>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">
-				Consola editorial para contenido, media, ubicación y metadata. Muestra contexto de
-				sellability, pero no administra pricing, inventario ni ARI runtime.
+				Revisa contenido, media, ubicación y metadata de cada producto. Las señales comerciales y
+				físicas se mantienen como contexto, no como ownership editorial.
 			</p>
 		</header>
 
@@ -92,43 +89,6 @@ const getStatusMeta = (rawState: string | undefined) => {
 				<p class="mt-1 text-xs text-slate-400">Requiere readiness editorial</p>
 			</Card>
 		</section>
-
-		<Section
-			title="Readiness ownership"
-			description="Property Content separa calidad editorial de readiness comercial y física. Las dependencias cruzadas se muestran como contexto, no como ownership."
-		>
-			<div class="grid gap-4 lg:grid-cols-3">
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">
-						Catalog readiness
-					</p>
-					<h2 class="mt-2 text-lg font-semibold">Content, media, location, metadata</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-300">
-						Owned here. Determines whether the offer is understandable, discoverable, and
-						presentable to guests.
-					</p>
-				</Card>
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs font-semibold uppercase tracking-wide text-blue-300">
-						Commercial readiness
-					</p>
-					<h2 class="mt-2 text-lg font-semibold">Rate plans, coverage, policies</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-300">
-						Context only. Owned by Rooms & Rates; catalog must never resolve pricing or rate plans.
-					</p>
-				</Card>
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs font-semibold uppercase tracking-wide text-amber-300">
-						Inventory readiness
-					</p>
-					<h2 class="mt-2 text-lg font-semibold">Variants, capacity, availability</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-300">
-						Context only. Physical inventory remains variant-first and operationally governed
-						outside the editorial catalog layer.
-					</p>
-				</Card>
-			</div>
-		</Section>
 
 		<Section
 			title="Catalog worklist"

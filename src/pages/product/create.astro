@@ -15,13 +15,13 @@ const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 ---
 
-<WorkspaceLayout title="Producto · Crear">
+<WorkspaceLayout title="Property Content · Create Catalog Item">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Crear producto</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Create catalog item</h1>
 				<p class="text-sm text-slate-400">
-					Crea la identidad base del producto para comenzar su configuración operativa.
+					Crea la identidad editorial mínima para iniciar catalog readiness.
 				</p>
 			</header>
 

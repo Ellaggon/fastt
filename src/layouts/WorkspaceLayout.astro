@@ -16,7 +16,14 @@ interface Props {
 const { title = "Workspace" } = Astro.props
 const pathname = Astro.url.pathname
 const classification = getBackofficeRouteClassification(pathname)
-const activeSection = getEnterpriseNavigationSection(pathname)
+const matchedSection = getEnterpriseNavigationSection(pathname)
+const activeSection =
+	classification &&
+	matchedSection &&
+	classification.owner !== matchedSection.title &&
+	classification.owner !== matchedSection.owner
+		? null
+		: matchedSection
 const statusMeta = getGovernanceStatusMetadata(classification?.status)
 const contextMeta = getOperationalContextMetadata(classification?.context ?? activeSection?.context)
 const statusPanelClass =
