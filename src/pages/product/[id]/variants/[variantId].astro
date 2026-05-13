@@ -487,7 +487,10 @@ if (!owned) return Astro.redirect("/product/create")
 					summaryContainer.append(
 						summaryCard("Capacidad", String(payload?.summary?.capacity ?? "Sin información")),
 						summaryCard("Subtipo", String(payload?.summary?.subtype ?? "Sin información")),
-						summaryCard("Precios", String(payload?.summary?.pricing ?? "Sin información")),
+						summaryCard(
+							"Cobertura comercial",
+							String(payload?.summary?.pricing ?? "Sin información")
+						),
 						summaryCard("Inventario", String(payload?.summary?.inventory ?? "Sin información"))
 					)
 				}

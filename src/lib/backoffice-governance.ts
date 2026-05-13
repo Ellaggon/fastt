@@ -702,20 +702,22 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Property Content",
-		subtitle: "Catalog and physical product context",
+		subtitle: "Catalog readiness and editorial quality",
 		owner: "Catalog Operations",
 		context: "provider-workspace",
 		operationalIntent:
-			"Provider-owned catalog content, media, location, services, and physical room context.",
+			"Provider-owned catalog content, media, location, metadata, and discoverability readiness. Commercial and inventory readiness remain contextual signals owned by Rooms & Rates.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Products & Room Types",
+				label: "Catalog Readiness",
 				href: routes.productList(),
 				status: "canonical",
-				summary: "Catalog content and physical variant context.",
+				summary:
+					"Editorial content, media, location, metadata, and product presentation readiness.",
 			},
 		],
+		planned: ["Media Quality Review", "SEO Metadata", "Content Quality Workflow"],
 	},
 	{
 		title: "Payments & Finance",

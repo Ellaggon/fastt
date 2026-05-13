@@ -33,15 +33,40 @@ const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.
 const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
 ---
 
-<WorkspaceLayout title="Producto · Ubicación">
+<WorkspaceLayout title="Property Content · Location Readiness">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Ubicación del producto</h1>
-				<p class="text-sm text-slate-400">
-					Define la ubicación con el mapa para mejorar la visibilidad del producto.
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Property Content · Location Readiness
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Location Readiness</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Define ubicación, coordenadas y contexto geográfico para discoverability. Esta superficie
+					es editorial/geográfica; no calcula disponibilidad ni inventario.
 				</p>
 			</header>
+
+			<div class="grid gap-4 lg:grid-cols-3">
+				<Card class="border-emerald-200 bg-emerald-50 text-emerald-950">
+					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+						Catalog readiness
+					</p>
+					<p class="mt-2 text-sm">Owned here: dirección, coordenadas y confianza geográfica.</p>
+				</Card>
+				<Card class="border-slate-200 bg-slate-100 text-slate-800">
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+						Discoverability
+					</p>
+					<p class="mt-2 text-sm">
+						Prepara búsqueda y presentación pública sin mutar search runtime.
+					</p>
+				</Card>
+				<Card class="border-amber-200 bg-amber-50 text-amber-950">
+					<p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Boundary</p>
+					<p class="mt-2 text-sm">No administra stock, capacidad, restricciones ni pricing.</p>
+				</Card>
+			</div>
 
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 				<form
@@ -57,7 +82,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Datos de ubicación</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Metadata geográfica</h2>
 							<p class="text-sm text-slate-600">Selecciona el punto en el mapa y guarda.</p>
 						</div>
 

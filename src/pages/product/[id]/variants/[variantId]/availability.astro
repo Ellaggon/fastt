@@ -166,7 +166,7 @@ const to = toDate.toISOString().slice(0, 10)
 					const status = day.sellable
 						? "Disponible"
 						: day.price == null
-							? "Sin pricing configurado"
+							? "Sin cobertura comercial"
 							: Number(day.capacity ?? 0) <= 0
 								? "Sin inventario disponible"
 								: day.closed
@@ -222,7 +222,7 @@ const to = toDate.toISOString().slice(0, 10)
 						const missingPricing = days.some((day) => day?.price == null)
 						const noInventory = days.every((day) => Number(day?.capacity ?? 0) <= 0)
 						const reason = missingPricing
-							? "Sin pricing configurado"
+							? "Sin cobertura comercial"
 							: noInventory
 								? "Sin inventario disponible"
 								: sellable

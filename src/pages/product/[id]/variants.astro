@@ -28,7 +28,8 @@ if (!owned) return Astro.redirect("/product/create")
 				<div class="space-y-2">
 					<h1 class="text-3xl font-semibold text-slate-100">Variantes del producto</h1>
 					<p class="text-sm text-slate-400">
-						Gestiona capacidad, subtipo, precios e inventario por variante.
+						Contexto físico del catálogo: capacidad, subtipo, cobertura comercial relacionada e
+						inventario físico. Pricing sigue siendo ownership de Rate Plans.
 					</p>
 					<p id="productDisplayName" class="text-sm text-slate-300">Producto: {owned.name}</p>
 				</div>
@@ -42,6 +43,15 @@ if (!owned) return Astro.redirect("/product/create")
 			className="space-y-4"
 		>
 			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
+				<div
+					class="rounded-lg border border-slate-700 bg-slate-950 p-4 text-sm leading-6 text-slate-300"
+				>
+					<p class="font-semibold text-slate-100">Physical context boundary</p>
+					<p>
+						Las variantes son contexto físico. Esta vista puede mostrar si falta cobertura
+						comercial, pero no configura pricing ni decide rate plans.
+					</p>
+				</div>
 				<div class="space-y-4">
 					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
 						<div id="variantsProgressBar" class="h-full w-0 bg-[#1E3A8A]"></div>
@@ -82,7 +92,7 @@ if (!owned) return Astro.redirect("/product/create")
 					<div class="space-y-1">
 						<h2 class="text-xl font-semibold text-slate-900">Aún no hay variantes</h2>
 						<p class="text-sm text-slate-600">
-							Crea la primera variante para habilitar disponibilidad y precios.
+							Crea la primera variante para habilitar contexto físico y dependencias de sellability.
 						</p>
 					</div>
 					<div class="flex justify-end">
@@ -220,7 +230,7 @@ if (!owned) return Astro.redirect("/product/create")
 							middle.append(
 								sectionBadge("Capacidad", Boolean(variant?.states?.capacityComplete)),
 								sectionBadge("Subtipo", Boolean(variant?.states?.subtypeComplete)),
-								sectionBadge("Precios", Boolean(variant?.states?.pricingComplete)),
+								sectionBadge("Cobertura comercial", Boolean(variant?.states?.pricingComplete)),
 								sectionBadge("Inventario", Boolean(variant?.states?.inventoryComplete))
 							)
 

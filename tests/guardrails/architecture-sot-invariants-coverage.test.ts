@@ -92,6 +92,10 @@ const MATRIX: InvariantCoverage[] = [
 		invariant: "Rooms & Rates operational semantics",
 		files: ["tests/guardrails/rooms-rates-operational-semantics.test.ts"],
 	},
+	{
+		invariant: "Property Content catalog ownership semantics",
+		files: ["tests/guardrails/property-content-operational-semantics.test.ts"],
+	},
 ]
 
 describe("Architecture SoT invariants enforcement matrix", () => {
