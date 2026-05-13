@@ -122,14 +122,21 @@ and `enterpriseNavigation`.
 The enterprise shell must show:
 
 - active ownership section,
-- route governance status (`canonical` or `transitional`),
-- operational context,
+- human-readable route governance status (`Operational` or `Transitional`),
+- human-readable operational context (`Enterprise Operations`, `Provider Workspace`, `Governance`),
 - provider account session,
-- planned modules as non-clickable roadmap markers only.
+- a page-level context panel that explains ownership and maturity,
+- planned modules as collapsed, non-clickable roadmap markers only.
 
 Transitional modules are allowed in navigation when they represent real, governed surfaces,
-but they must be visually marked as transitional. Planned modules must not link anywhere
-until a real route and ownership classification exist.
+but they must be visually marked as transitional in both navigation and shell context.
+Planned modules must not link anywhere until a real route and ownership classification exist.
+They are collapsed by default to avoid roadmap clutter.
+
+Rooms & Rates is the next maturity focus. Before Capa 2 implements deeper ARI workflows,
+its navigation must already communicate the intended operational map: rate plans, pricing,
+inventory, policies, restrictions, occupancy pricing, and audit history. Missing ARI areas
+remain roadmap markers, not active surfaces.
 
 ## Navigation rules
 
@@ -146,6 +153,8 @@ until a real route and ownership classification exist.
 - Do not render planned modules as active navigation links.
 - Do not hide transitional state by folding it into canonical-looking labels.
 - WorkspaceLayout must use the route governance SoT to render owner/context/status.
+- Do not expose raw governance enum values such as `enterprise-operations` in operator UI.
+- Do not add a WorkspaceLayout page without the shared page-level context panel.
 
 ## Completed baseline
 
@@ -163,7 +172,10 @@ until a real route and ownership classification exist.
 - Shell/context alignment and navigation/owner compatibility are enforced in CI.
 - WorkspaceLayout now renders governance-aware owner, context, and route status.
 - Transitional navigation items are visually marked without changing their labels.
-- Planned modules are visible only as disabled maturity markers, not active workspaces.
+- Planned modules are collapsed roadmap markers, not active workspaces.
+- Topbar uses human-readable operational context labels instead of raw governance enums.
+- WorkspaceLayout renders a shared page-level context panel for all workspace pages.
+- Rooms & Rates declares the Capa 2 readiness map without implementing Capa 2 workflows.
 
 ## Residual debt accepted after Capa 0
 

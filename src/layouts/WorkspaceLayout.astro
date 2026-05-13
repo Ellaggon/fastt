@@ -5,6 +5,8 @@ import Layout from "@/layouts/Layout.astro"
 import {
 	getBackofficeRouteClassification,
 	getEnterpriseNavigationSection,
+	getGovernanceStatusMetadata,
+	getOperationalContextMetadata,
 } from "@/lib/backoffice-governance"
 
 interface Props {
@@ -15,6 +17,14 @@ const { title = "Workspace" } = Astro.props
 const pathname = Astro.url.pathname
 const classification = getBackofficeRouteClassification(pathname)
 const activeSection = getEnterpriseNavigationSection(pathname)
+const statusMeta = getGovernanceStatusMetadata(classification?.status)
+const contextMeta = getOperationalContextMetadata(classification?.context ?? activeSection?.context)
+const statusPanelClass =
+	statusMeta.tone === "amber"
+		? "border-amber-400/20 bg-amber-500/10 text-amber-100"
+		: statusMeta.tone === "green"
+			? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
+			: "border-slate-700 bg-slate-900 text-slate-200"
 ---
 
 <Layout title={title}>
@@ -38,6 +48,56 @@ const activeSection = getEnterpriseNavigationSection(pathname)
 								</div>
 							</details>
 						</div>
+						<section
+							data-workspace-context-panel
+							data-governance-status={classification?.status ?? "unclassified"}
+							class={`mb-8 rounded-3xl border p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] ${statusPanelClass}`}
+						>
+							<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+								<div class="max-w-3xl">
+									<p class="text-xs font-bold uppercase tracking-[0.16em] opacity-75">
+										{contextMeta.label}
+									</p>
+									<h1 class="mt-2 text-2xl font-semibold tracking-tight text-white">{title}</h1>
+									<p class="mt-2 text-sm leading-6 opacity-80">
+										{
+											activeSection?.operationalIntent ??
+												classification?.rationale ??
+												contextMeta.description
+										}
+									</p>
+									{
+										activeSection?.nextMaturity ? (
+											<p class="mt-3 text-xs leading-5 opacity-70">{activeSection.nextMaturity}</p>
+										) : null
+									}
+								</div>
+								<div class="flex flex-wrap gap-2 lg:justify-end">
+									<span
+										class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-white/80"
+									>
+										{statusMeta.label}
+									</span>
+									{
+										activeSection?.maturity ? (
+											<span class="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-bold tracking-[0.1em] text-white/70 uppercase">
+												{activeSection.maturity === "operational"
+													? "Operational surface"
+													: "Transitional surface"}
+											</span>
+										) : null
+									}
+								</div>
+							</div>
+							{
+								classification?.status === "transitional" ? (
+									<div class="mt-4 rounded-2xl border border-amber-300/20 bg-black/20 p-3 text-xs leading-5 text-amber-50/80">
+										<strong class="text-amber-100">Transitional scope:</strong>{" "}
+										{statusMeta.description}
+									</div>
+								) : null
+							}
+						</section>
 						<slot />
 					</div>
 				</main>

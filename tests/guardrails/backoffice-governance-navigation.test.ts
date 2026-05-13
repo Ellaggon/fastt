@@ -6,6 +6,8 @@ import {
 	backofficeRouteClassifications,
 	backofficeShells,
 	enterpriseNavigation,
+	getGovernanceStatusMetadata,
+	getOperationalContextMetadata,
 } from "../../src/lib/backoffice-governance"
 import type { BackofficeRouteClassification } from "../../src/lib/backoffice-governance"
 
@@ -145,6 +147,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 			)
 			expect(section.owner, `${section.title} must declare operational owner`).not.toEqual("")
 			expect(section.subtitle, `${section.title} must declare operational subtitle`).not.toEqual("")
+			expect(
+				section.operationalIntent,
+				`${section.title} must describe operational intent`
+			).not.toEqual("")
+			expect(section.maturity, `${section.title} must declare maturity`).toMatch(
+				/^(operational|transitional)$/
+			)
 		}
 	})
 
@@ -254,6 +263,28 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
+	it("prepares Rooms & Rates as the next operational hub without implementing Capa 2", () => {
+		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
+		expect(roomsAndRates).toBeDefined()
+		expect(roomsAndRates?.maturity).toEqual("operational")
+		expect(roomsAndRates?.operationalIntent).toContain("Commercial operating core")
+		expect(roomsAndRates?.nextMaturity).toContain("Capa 2")
+		expect(roomsAndRates?.planned).toEqual(
+			expect.arrayContaining(["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"])
+		)
+	})
+
+	it("exposes human-readable context and status metadata for shell rendering", () => {
+		expect(getOperationalContextMetadata("enterprise-operations").label).toEqual(
+			"Enterprise Operations"
+		)
+		expect(getOperationalContextMetadata("provider-workspace").label).toEqual("Provider Workspace")
+		expect(getGovernanceStatusMetadata("canonical").label).toEqual("Operational")
+		expect(getGovernanceStatusMetadata("transitional").description).toContain(
+			"not yet the final enterprise module"
+		)
+	})
+
 	it("keeps enterprise shell context-aware instead of a generic wrapper", () => {
 		const workspaceSource = readFileSync(
 			join(process.cwd(), "src/layouts/WorkspaceLayout.astro"),
@@ -274,10 +305,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(workspaceSource).toContain("getBackofficeRouteClassification")
 		expect(workspaceSource).toContain("getEnterpriseNavigationSection")
-		expect(topbarSource).toContain("classification?.status")
-		expect(topbarSource).toContain("classification?.context")
+		expect(workspaceSource).toContain("data-workspace-context-panel")
+		expect(workspaceSource).toContain("Transitional scope")
+		expect(topbarSource).toContain("getOperationalContextMetadata")
+		expect(topbarSource).not.toContain("classification.context")
 		expect(sidebarSource).toContain("OTA Enterprise Workspace")
 		expect(sidebarSource).toContain("section.planned")
+		expect(sidebarSource).toContain("Roadmap markers")
+		expect(sidebarSource).not.toContain(
+			'<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">\n\t\t\t\t\t\t\tPlanned'
+		)
 		expect(itemSource).toContain("data-governance-status")
 		expect(itemSource).not.toContain("(Transitional)")
 	})

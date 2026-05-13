@@ -44,18 +44,18 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 					/>
 				))}
 				{section.planned?.length ? (
-					<div class="border-t border-slate-800/80 px-3 pt-2">
-						<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">
-							Planned
-						</p>
-						<div class="mt-1 flex flex-wrap gap-1.5">
+					<details class="border-t border-slate-800/80 px-3 pt-2">
+						<summary class="cursor-pointer text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase hover:text-slate-400">
+							Roadmap markers ({section.planned.length})
+						</summary>
+						<div class="mt-2 flex flex-wrap gap-1.5">
 							{section.planned.map((label) => (
 								<span class="rounded-full border border-slate-700/80 px-2 py-1 text-[10px] font-medium text-slate-500">
 									{label}
 								</span>
 							))}
 						</div>
-					</div>
+					</details>
 				) : null}
 			</DashboardSidebarSection>
 		))

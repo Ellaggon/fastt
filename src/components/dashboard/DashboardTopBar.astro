@@ -4,6 +4,10 @@ import type {
 	BackofficeRouteClassification,
 	EnterpriseNavigationSection,
 } from "@/lib/backoffice-governance"
+import {
+	getGovernanceStatusMetadata,
+	getOperationalContextMetadata,
+} from "@/lib/backoffice-governance"
 
 interface Props {
 	title?: string
@@ -14,11 +18,14 @@ interface Props {
 const user = await getUserFromRequest(Astro.request)
 const email = user?.email?.trim() || "Sin sesión"
 const { title = "Workspace", classification = null, section = null } = Astro.props
-const statusLabel = classification?.status === "transitional" ? "Transitional" : "Canonical"
+const statusMeta = getGovernanceStatusMetadata(classification?.status)
+const contextMeta = getOperationalContextMetadata(classification?.context ?? section?.context)
 const statusClass =
-	classification?.status === "transitional"
+	statusMeta.tone === "amber"
 		? "border-amber-400/30 bg-amber-500/10 text-amber-200"
-		: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+		: statusMeta.tone === "green"
+			? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+			: "border-slate-500/30 bg-slate-700/30 text-slate-300"
 ---
 
 <header class="border-b border-slate-800 bg-slate-950">
@@ -33,14 +40,15 @@ const statusClass =
 						<span
 							class={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-[0.08em] uppercase ${statusClass}`}
 						>
-							{statusLabel}
+							{statusMeta.label}
 						</span>
 					) : null
 				}
 			</div>
 			<p class="mt-1 text-xs text-slate-500">
 				{section?.title ?? classification?.owner ?? "Workspace"}
-				{classification?.context ? ` · ${classification.context}` : ""}
+				{" · "}
+				{contextMeta.label}
 			</p>
 		</div>
 

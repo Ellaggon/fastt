@@ -45,8 +45,22 @@ export type EnterpriseNavigationSection = {
 	subtitle: string
 	owner: string
 	context: OperationalContext
+	operationalIntent: string
+	maturity: "operational" | "transitional"
+	nextMaturity?: string
 	items: EnterpriseNavigationItem[]
 	planned?: readonly string[]
+}
+
+export type OperationalContextMetadata = {
+	label: string
+	description: string
+}
+
+export type GovernanceStatusMetadata = {
+	label: string
+	description: string
+	tone: "green" | "amber" | "slate"
 }
 
 function escapeRegExp(value: string): string {
@@ -98,6 +112,70 @@ export const backofficeShells: BackofficeShellClassification[] = [
 		rule: "Base shell for auth/public/simple pages; not a provider workspace shell.",
 	},
 ]
+
+export const operationalContextMetadata: Record<OperationalContext, OperationalContextMetadata> = {
+	"public-marketplace": {
+		label: "Public Marketplace",
+		description: "Consumer-facing discovery and conversion surfaces.",
+	},
+	"provider-workspace": {
+		label: "Provider Workspace",
+		description: "Provider-owned content and physical product setup.",
+	},
+	"enterprise-operations": {
+		label: "Enterprise Operations",
+		description: "Commercial, reservation, finance, and operational control surfaces.",
+	},
+	"internal-admin": {
+		label: "Internal Admin",
+		description: "Platform-only administration and governance.",
+	},
+	"internal-ops": {
+		label: "Internal Ops",
+		description: "Diagnostics, observability, and operational tooling.",
+	},
+	"governance": {
+		label: "Governance",
+		description: "Provider organization, verification, and control surfaces.",
+	},
+	"support": {
+		label: "Support",
+		description: "Support operations and knowledge workflows.",
+	},
+}
+
+export const governanceStatusMetadata: Record<GovernanceStatus, GovernanceStatusMetadata> = {
+	"canonical": {
+		label: "Operational",
+		description: "Canonical workspace surface for current operations.",
+		tone: "green",
+	},
+	"transitional": {
+		label: "Transitional",
+		description: "Real surface with governed scope; not yet the final enterprise module.",
+		tone: "amber",
+	},
+	"legacy": {
+		label: "Legacy",
+		description: "Isolated compatibility surface; not primary navigation.",
+		tone: "slate",
+	},
+	"internal-only": {
+		label: "Internal Only",
+		description: "Hidden from provider workspace navigation.",
+		tone: "slate",
+	},
+	"public": {
+		label: "Public",
+		description: "Consumer or authentication surface.",
+		tone: "slate",
+	},
+	"planned": {
+		label: "Planned",
+		description: "Roadmap marker only; not an active workspace.",
+		tone: "slate",
+	},
+}
 
 export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	{
@@ -523,6 +601,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "Operational control",
 		owner: "Enterprise Operations",
 		context: "enterprise-operations",
+		operationalIntent:
+			"Control center for provider readiness, operational health, and high-priority workflows.",
+		maturity: "operational",
 		items: [
 			{
 				label: "Overview",
@@ -537,6 +618,11 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "ARI, rate plans, inventory, policies",
 		owner: "Commercial Operations",
 		context: "enterprise-operations",
+		operationalIntent:
+			"Commercial operating core for rate plans, pricing, physical inventory, and policy assignment.",
+		maturity: "operational",
+		nextMaturity:
+			"Capa 2 should consolidate this into an ARI hub with summary, restrictions, occupancy pricing, and audit depth.",
 		items: [
 			{
 				label: "Rate Plans",
@@ -578,12 +664,15 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Policy auditability surface for commercial governance.",
 			},
 		],
+		planned: ["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"],
 	},
 	{
 		title: "Reservations",
 		subtitle: "Snapshot-driven booking operations",
 		owner: "Booking Operations",
 		context: "enterprise-operations",
+		operationalIntent: "Reservation lifecycle workspace anchored on immutable booking snapshots.",
+		maturity: "operational",
 		items: [
 			{
 				label: "Reservations",
@@ -598,6 +687,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "Catalog and physical product context",
 		owner: "Catalog Operations",
 		context: "provider-workspace",
+		operationalIntent:
+			"Provider-owned catalog content, media, location, services, and physical room context.",
+		maturity: "operational",
 		items: [
 			{
 				label: "Products & Room Types",
@@ -612,6 +704,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "Commercial charges and financial setup",
 		owner: "Financial Operations",
 		context: "enterprise-operations",
+		operationalIntent:
+			"Financial setup for taxes and guest-facing charges; payment lifecycle is not active yet.",
+		maturity: "transitional",
 		items: [
 			{
 				label: "Taxes & Fees",
@@ -627,6 +722,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "Operational intelligence",
 		owner: "Performance Operations",
 		context: "enterprise-operations",
+		operationalIntent:
+			"Transitional reporting surfaces that identify future performance workflows without implying a mature analytics platform.",
+		maturity: "transitional",
 		items: [
 			{
 				label: "Revenue",
@@ -654,6 +752,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "External systems and integrations",
 		owner: "Connectivity Operations",
 		context: "enterprise-operations",
+		operationalIntent:
+			"Transitional integration planning surface; no channel sync runtime is active from this workspace.",
+		maturity: "transitional",
 		items: [
 			{
 				label: "Integrations",
@@ -669,6 +770,8 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "Organization, verification, controls",
 		owner: "Platform Governance",
 		context: "governance",
+		operationalIntent: "Provider organization, onboarding, verification, and governance controls.",
+		maturity: "transitional",
 		items: [
 			{
 				label: "Provider Settings",
@@ -719,4 +822,24 @@ export function getEnterpriseNavigationSection(
 			})
 		) ?? null
 	)
+}
+
+export function getOperationalContextMetadata(
+	context: OperationalContext | null | undefined
+): OperationalContextMetadata {
+	if (!context) return { label: "Workspace", description: "Enterprise backoffice surface." }
+	return operationalContextMetadata[context]
+}
+
+export function getGovernanceStatusMetadata(
+	status: GovernanceStatus | null | undefined
+): GovernanceStatusMetadata {
+	if (!status) {
+		return {
+			label: "Workspace",
+			description: "Governance status unavailable for this surface.",
+			tone: "slate",
+		}
+	}
+	return governanceStatusMetadata[status]
 }
