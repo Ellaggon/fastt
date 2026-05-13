@@ -2,13 +2,24 @@
 interface Props {
 	href: string
 	label: string
+	status?: "canonical" | "transitional"
+	summary?: string
 	active?: boolean
 	prefetch?: boolean
 	level?: 1 | 2 | 3 | 4
 	compact?: boolean
 }
 
-const { href, label, active = false, prefetch = false, level = 1, compact = false } = Astro.props
+const {
+	href,
+	label,
+	status = "canonical",
+	summary = "",
+	active = false,
+	prefetch = false,
+	level = 1,
+	compact = false,
+} = Astro.props
 const levelClass =
 	level === 4
 		? "ml-8 text-xs font-medium"
@@ -26,11 +37,22 @@ const toneClass = level === 4 ? "text-slate-400" : level === 3 ? "text-slate-300
 	data-workspace-nav
 	aria-current={active ? "page" : undefined}
 	data-astro-prefetch={prefetch ? true : undefined}
+	data-governance-status={status}
 	class={`block rounded-lg px-3 ${compactClass} transition ${levelClass} ${toneClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 ${
 		active
 			? "border-l-2 border-blue-500 bg-slate-800 pl-2.5 text-white shadow-[inset_0_0_0_1px_rgba(96,165,250,0.25)]"
 			: "border-l-2 border-transparent hover:bg-slate-800/90 hover:text-white"
 	}`}
 >
-	{label}
+	<span class="flex items-center justify-between gap-2">
+		<span>{label}</span>
+		{
+			status === "transitional" ? (
+				<span class="rounded-full border border-amber-400/30 px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em] text-amber-200 uppercase">
+					Transition
+				</span>
+			) : null
+		}
+	</span>
+	{summary ? <span class="mt-1 block text-[11px] leading-4 text-slate-500">{summary}</span> : null}
 </a>

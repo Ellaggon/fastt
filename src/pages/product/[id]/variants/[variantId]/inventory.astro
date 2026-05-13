@@ -65,7 +65,7 @@ const initialFrom = toISODateOnly(today)
 const initialToDate = new Date(today)
 initialToDate.setUTCDate(initialToDate.getUTCDate() + 60)
 const initialTo = toISODateOnly(initialToDate)
-const pricingSummary =
+const commercialPricingSummary =
 	await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
 
 const [rawRows, auditStats] = await Promise.all([
@@ -117,7 +117,7 @@ const [rawRows, auditStats] = await Promise.all([
 			.get(),
 	]),
 ])
-const hasPricingCoverage = Boolean(pricingSummary?.ratePlanId)
+const hasCommercialCoverage = Boolean(commercialPricingSummary?.ratePlanId)
 
 const [dailyStats, effectiveStats] = auditStats
 const dailyDays = Number(dailyStats?.dailyDays ?? 0)
@@ -145,14 +145,14 @@ const rowByDate = new Map(
 			stopSell: Boolean(row.stopSell ?? true),
 			isSellable: Boolean(row.isSellable ?? false),
 			hasEffective: Boolean(row.effectiveId),
-			hasPrice: hasPricingCoverage,
+			hasPrice: hasCommercialCoverage,
 			unsellableReason: !Boolean(row.effectiveId)
 				? "MISSING_AVAILABILITY"
 				: Boolean(row.stopSell ?? true)
 					? "CLOSED"
 					: Number(row.availableUnits ?? 0) <= 0
 						? "NO_CAPACITY"
-						: !hasPricingCoverage
+						: !hasCommercialCoverage
 							? "MISSING_PRICE"
 							: null,
 			computedAt: row.computedAt ? String(row.computedAt) : null,
@@ -531,8 +531,8 @@ const taskQueue = [
 					action: "Recalcular disponibilidad",
 				},
 				MISSING_PRICE: {
-					label: "Precio pendiente",
-					action: "Generar precios",
+					label: "Cobertura comercial pendiente",
+					action: "Abrir Rate Plans",
 				},
 				MIN_STAY_NOT_MET: {
 					label: "Estadía mínima no cumplida",
@@ -862,7 +862,7 @@ const taskQueue = [
 			state.selectionPrimaryReason = primaryReason
 			const reasonToAction = {
 				MISSING_AVAILABILITY: "Recalcular disponibilidad",
-				MISSING_PRICE: "Ir a precios y generar cobertura",
+				MISSING_PRICE: "Abrir Rate Plans para cobertura comercial",
 				MIN_STAY_NOT_MET: "Revisar reglas de estadía mínima",
 				CLOSED: "Abrir ventas",
 				NO_CAPACITY: "Actualizar cupo",
@@ -882,7 +882,7 @@ const taskQueue = [
 				if (reviewCount > 0) {
 					selectionResolveBtn.textContent =
 						primaryReason === "MISSING_PRICE"
-							? "Ir a precios"
+							? "Abrir Rate Plans"
 							: selected.length === 1
 								? "Recalcular este día"
 								: "Resolver"
@@ -1362,7 +1362,7 @@ const taskQueue = [
 		})
 		selectionResolveBtn?.addEventListener("click", () => {
 			if (state.selectionPrimaryReason === "MISSING_PRICE") {
-				window.location.href = `/rates/plans?productId=${encodeURIComponent(String(productId))}&variantId=${encodeURIComponent(String(variantId))}`
+				window.location.href = "/rates/plans"
 				return
 			}
 			void resolveTask()

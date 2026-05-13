@@ -213,8 +213,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const readinessStateVariant = readinessState === "ready" ? "success" : "warning"
 
 	const pricingSummary = aggregate.baseRate
-		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · plan por defecto activo" : " · falta plan por defecto"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con pricing efectivo` : " · pricing efectivo pendiente"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
-		: "Sin tarifa base"
+		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · rate plan comercial activo" : " · falta rate plan comercial"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con pricing efectivo` : " · pricing efectivo pendiente"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
+		: "Sin baseline comercial"
 
 	logEndpoint()
 	return new Response(

@@ -1,13 +1,58 @@
 ---
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import type {
+	BackofficeRouteClassification,
+	EnterpriseNavigationSection,
+} from "@/lib/backoffice-governance"
+import {
+	getGovernanceStatusMetadata,
+	getOperationalContextMetadata,
+} from "@/lib/backoffice-governance"
+
+interface Props {
+	title?: string
+	classification?: BackofficeRouteClassification | null
+	section?: EnterpriseNavigationSection | null
+}
 
 const user = await getUserFromRequest(Astro.request)
 const email = user?.email?.trim() || "Sin sesión"
+const { title = "Workspace", classification = null, section = null } = Astro.props
+const statusMeta = getGovernanceStatusMetadata(classification?.status)
+const contextMeta = getOperationalContextMetadata(classification?.context ?? section?.context)
+const statusClass =
+	statusMeta.tone === "amber"
+		? "border-amber-400/30 bg-amber-500/10 text-amber-200"
+		: statusMeta.tone === "green"
+			? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+			: "border-slate-500/30 bg-slate-700/30 text-slate-300"
 ---
 
-<header class="h-14 border-b border-slate-800 bg-slate-950">
-	<div class="mx-auto flex h-full max-w-7xl items-center justify-end px-6">
-		<div class="flex items-center gap-4 text-sm">
+<header class="border-b border-slate-800 bg-slate-950">
+	<div
+		class="mx-auto flex min-h-16 max-w-7xl flex-col gap-3 px-6 py-3 lg:flex-row lg:items-center lg:justify-between"
+	>
+		<div class="min-w-0">
+			<div class="flex flex-wrap items-center gap-2">
+				<p class="truncate text-sm font-semibold text-slate-100">{title}</p>
+				{
+					classification ? (
+						<span
+							class={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-[0.08em] uppercase ${statusClass}`}
+						>
+							{statusMeta.label}
+						</span>
+					) : null
+				}
+			</div>
+			<p class="mt-1 text-xs text-slate-500">
+				{section?.title ?? classification?.owner ?? "Workspace"}
+				{" · "}
+				{contextMeta.label}
+			</p>
+		</div>
+
+		<div class="flex shrink-0 items-center gap-4 text-sm">
 			<span class="text-slate-300">{email}</span>
 			<a
 				href="/api/auth/logout"

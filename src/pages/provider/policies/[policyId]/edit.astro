@@ -1,5 +1,5 @@
 ---
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 
 const policyId = String(Astro.params.policyId ?? "").trim()
@@ -30,7 +30,7 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 }
 ---
 
-<DashboardLayout>
+<WorkspaceLayout title="Policies">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex items-center justify-between">
@@ -259,7 +259,7 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 			</form>
 		</div>
 	</main>
-</DashboardLayout>
+</WorkspaceLayout>
 
 <script define:vars={{ category, policyId }}>
 	// @ts-nocheck

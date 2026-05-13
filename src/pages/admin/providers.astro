@@ -2,7 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { db, desc, Provider, ProviderVerification } from "astro:db"
 
@@ -80,8 +80,8 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 })
 ---
 
-<DashboardLayout title="Admin · Verificación de proveedores">
-	<main class="min-h-screen bg-black text-slate-200">
+<InternalAdminLayout title="Admin · Verificación de proveedores">
+	<section class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-6 px-6">
 			<header class="space-y-2">
 				<h1 class="text-2xl font-semibold text-white">Verificación de proveedores</h1>
@@ -130,7 +130,7 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 							<div class="overflow-x-auto">
 								<table class="min-w-full divide-y divide-slate-200">
 									<thead>
-										<tr class="text-left text-xs uppercase tracking-wide text-slate-600">
+										<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
 											<th class="px-3 py-2">Proveedor</th>
 											<th class="px-3 py-2">Estado verificación</th>
 											<th class="px-3 py-2">Actualizado</th>
@@ -216,8 +216,8 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 				)
 			}
 		</div>
-	</main>
-</DashboardLayout>
+	</section>
+</InternalAdminLayout>
 
 <script is:inline>
 	const feedback = document.getElementById("admin-verification-feedback")

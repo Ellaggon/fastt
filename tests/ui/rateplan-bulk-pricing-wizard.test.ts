@@ -12,8 +12,9 @@ describe("ui/rateplan bulk pricing wizard", () => {
 		expect(source).toContain("data-rateplan-checkbox")
 		expect(source).toContain('id="bulkSelectAll"')
 		expect(source).toContain('id="bulkEditOpenBtn"')
-		expect(source).toContain("Ir a bulk pricing")
-		expect(source).toContain("window.location.href = `/rates/plans?")
+		expect(source).toContain("Abrir Bulk Pricing")
+		expect(source).toContain("window.location.href = `/pricing/bulk?")
+		expect(source).not.toContain("window.location.href = `/rates/plans?")
 	})
 
 	it("wizard integra preview y apply con endpoints bulk v2", () => {

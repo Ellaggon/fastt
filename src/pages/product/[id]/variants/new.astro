@@ -331,15 +331,16 @@ const pageSubtitle =
 
 					{
 						currentStep === "pricing" && (
-							<FormSection title="Precio base de la variante" class="text-neutral-800">
+							<FormSection title="Cobertura comercial inicial" class="text-neutral-800">
 								<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-									<p class="font-medium">Estás configurando el precio base.</p>
+									<p class="font-medium">Estás preparando el baseline comercial inicial.</p>
 									<p>
-										El precio final de venta se materializa con cobertura diaria en pricing
-										efectivo.
+										El precio final de venta se materializa por rate plan con cobertura diaria en
+										pricing efectivo.
 									</p>
 									<p>
-										Este paso guarda la base y asegura un plan tarifario por defecto para continuar.
+										La variante aporta contexto físico; el rate plan mantiene el ownership
+										comercial.
 									</p>
 								</div>
 								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -361,7 +362,7 @@ const pageSubtitle =
 										<option value="BOB">BOB</option>
 									</Select>
 								</FormField>
-								<FormField label="Precio base" htmlFor="basePrice" required>
+								<FormField label="Baseline comercial" htmlFor="basePrice" required>
 									<Input
 										id="basePrice"
 										name="basePrice"

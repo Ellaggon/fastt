@@ -1,6 +1,6 @@
 ---
 import TaxFeePage from "@/components/tax-fees/TaxFeePage"
-import DashboardLayout from "@/layouts/DashboardLayout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 
 try {
@@ -21,7 +21,7 @@ const hasDefinitions = Array.isArray(initialDefinitions) && initialDefinitions.l
 const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : "idle"
 ---
 
-<DashboardLayout>
+<WorkspaceLayout title="Taxes & Fees">
 	<main class="min-h-screen bg-black text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header
@@ -59,8 +59,8 @@ const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : 
 			<section
 				class="rounded-[2rem] border border-dashed border-neutral-300 bg-white/70 p-5 text-sm text-neutral-600"
 			>
-				<strong class="text-neutral-900">Cómo funciona:</strong> elija un preset, confirme el monto,
-				guarde la definición y luego ejecute una vista previa real antes de asignar.
+				<strong class="text-neutral-900">Cómo funciona:</strong> elija un preset, confirme el monto, guarde
+				la definición y luego ejecute una vista previa real antes de asignar.
 			</section>
 
 			<section class="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-sm">
@@ -107,4 +107,4 @@ const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : 
 			/>
 		</div>
 	</main>
-</DashboardLayout>
+</WorkspaceLayout>

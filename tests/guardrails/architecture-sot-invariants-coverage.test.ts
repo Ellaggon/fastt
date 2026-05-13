@@ -88,6 +88,10 @@ const MATRIX: InvariantCoverage[] = [
 			"tests/integration/pricing-preview-vs-search.test.ts",
 		],
 	},
+	{
+		invariant: "Rooms & Rates operational semantics",
+		files: ["tests/guardrails/rooms-rates-operational-semantics.test.ts"],
+	},
 ]
 
 describe("Architecture SoT invariants enforcement matrix", () => {
