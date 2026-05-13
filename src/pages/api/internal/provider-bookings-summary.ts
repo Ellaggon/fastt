@@ -34,33 +34,73 @@ function deriveLifecycle(params: {
 	status: string | null
 	checkIn: string | null
 	checkOut: string | null
-}): { state: LifecycleState; label: string; basis: "stored_status" | "derived_from_snapshot" } {
+}): {
+	state: LifecycleState
+	label: string
+	basis: "stored_status" | "derived_visibility"
+	reality: "persisted_status" | "date_derived_visibility"
+} {
 	const status = String(params.status ?? "")
 		.trim()
 		.toLowerCase()
 	if (status === "cancelled") {
-		return { state: "cancelled", label: "Cancelled", basis: "stored_status" }
+		return {
+			state: "cancelled",
+			label: "Cancelled",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
 	}
 	if (status !== "confirmed") {
-		return { state: "pending_confirmation", label: "Pending confirmation", basis: "stored_status" }
+		return {
+			state: "pending_confirmation",
+			label: "Pending confirmation",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
 	}
 
 	const today = todayIso()
 	const checkIn = params.checkIn
 	const checkOut = params.checkOut
 	if (!checkIn || !checkOut) {
-		return { state: "unknown", label: "Snapshot incomplete", basis: "derived_from_snapshot" }
+		return {
+			state: "unknown",
+			label: "Snapshot incomplete",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today < checkIn) {
-		return { state: "upcoming_arrival", label: "Upcoming arrival", basis: "derived_from_snapshot" }
+		return {
+			state: "upcoming_arrival",
+			label: "Upcoming arrival",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today === checkOut) {
-		return { state: "departure_due", label: "Departure due", basis: "derived_from_snapshot" }
+		return {
+			state: "departure_due",
+			label: "Departure due",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today > checkOut) {
-		return { state: "checked_out", label: "Checked out", basis: "derived_from_snapshot" }
+		return {
+			state: "checked_out",
+			label: "Checked out",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
-	return { state: "in_house", label: "In-house", basis: "derived_from_snapshot" }
+	return {
+		state: "in_house",
+		label: "In-house",
+		basis: "derived_visibility",
+		reality: "date_derived_visibility",
+	}
 }
 
 function readOccupancyDetail(snapshot: unknown): {
@@ -116,7 +156,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const from = String(url.searchParams.get("from") ?? "").trim()
 		const to = String(url.searchParams.get("to") ?? "").trim()
 
-		const filters = [eq(Product.providerId, providerId)]
+		const filters = [
+			sql`(${Product.providerId} = ${providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${providerId})`,
+		]
 		if (status && status !== "all") {
 			filters.push(eq(Booking.status, status))
 		}
@@ -147,6 +189,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 				adults: BookingRoomDetail.adults,
 				children: BookingRoomDetail.children,
 				pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
+				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
+				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
+				occupancySnapshotJson: BookingRoomDetail.occupancySnapshotJson,
 				productId: Product.id,
 				productName: Product.name,
 				variantName: Variant.name,
@@ -166,54 +214,69 @@ export const GET: APIRoute = async ({ request, url }) => {
 			grouped.set(row.bookingId, bucket)
 		}
 
-		const items = Array.from(grouped.values()).map((group) => {
-			const row = group[0]
-			const currency = String(row.currency ?? "USD")
-				.trim()
-				.toUpperCase()
-			const totalPrice =
-				currency === "BOB"
-					? Number(row.totalAmountBOB ?? row.detailTotalPrice ?? 0)
-					: Number(row.totalAmountUSD ?? row.detailTotalPrice ?? 0)
-			const checkIn = dateOnly(row.detailCheckIn ?? row.checkInDate)
-			const checkOut = dateOnly(row.detailCheckOut ?? row.checkOutDate)
-			const lifecycle = deriveLifecycle({ status: row.status, checkIn, checkOut })
-			const firstSnapshot = group.find((item) => item.pricingBreakdownJson)?.pricingBreakdownJson
-			const occupancyDetail = readOccupancyDetail(firstSnapshot)
-			const roomCount = Math.max(1, group.filter((item) => item.detailId).length)
-			const refundHandoffState: RefundHandoffState =
-				lifecycle.state === "cancelled" ? "handoff_required" : "not_applicable"
-			const hasSnapshot = Boolean(row.detailRatePlanId && firstSnapshot)
+		const items = Array.from(grouped.values())
+			.filter((group) =>
+				group.some((row) => row.providerIdSnapshot === providerId || row.productId)
+			)
+			.map((group) => {
+				const row = group[0]
+				const currency = String(row.currency ?? "USD")
+					.trim()
+					.toUpperCase()
+				const totalPrice =
+					currency === "BOB"
+						? Number(row.totalAmountBOB ?? row.detailTotalPrice ?? 0)
+						: Number(row.totalAmountUSD ?? row.detailTotalPrice ?? 0)
+				const checkIn = dateOnly(row.detailCheckIn ?? row.checkInDate)
+				const checkOut = dateOnly(row.detailCheckOut ?? row.checkOutDate)
+				const lifecycle = deriveLifecycle({ status: row.status, checkIn, checkOut })
+				const firstSnapshot =
+					group.find((item) => item.occupancySnapshotJson)?.occupancySnapshotJson ??
+					group.find((item) => item.pricingBreakdownJson)?.pricingBreakdownJson
+				const occupancyDetail = readOccupancyDetail(firstSnapshot)
+				const roomCount = group.filter((item) => item.detailId).length
+				const refundHandoffState: RefundHandoffState =
+					lifecycle.state === "cancelled" ? "handoff_required" : "not_applicable"
+				const hasSnapshot = Boolean(row.detailRatePlanId && firstSnapshot)
+				const hasTextualSnapshot = group.every(
+					(item) =>
+						Boolean(item.productNameSnapshot ?? item.productName) &&
+						Boolean(item.variantNameSnapshot ?? item.variantName) &&
+						Boolean(item.ratePlanNameSnapshot)
+				)
 
-			return {
-				bookingId: row.bookingId,
-				productId: row.productId ?? null,
-				productName: row.productName ?? null,
-				variantId: row.detailVariantId ?? null,
-				variantName: row.variantName ?? null,
-				ratePlanId: row.detailRatePlanId ?? null,
-				checkIn,
-				checkOut,
-				totalPrice,
-				currency,
-				status: String(row.status ?? "draft"),
-				createdAt: row.bookingDate ? new Date(row.bookingDate).toISOString() : null,
-				confirmedAt: row.confirmedAt ? new Date(row.confirmedAt).toISOString() : null,
-				rooms: roomCount,
-				occupancyDetail: {
-					adults: occupancyDetail.adults || Number(row.adults ?? 0),
-					children: occupancyDetail.children || Number(row.children ?? 0),
-					infants: occupancyDetail.infants,
-				},
-				lifecycleState: lifecycle.state,
-				lifecycleLabel: lifecycle.label,
-				lifecycleBasis: lifecycle.basis,
-				refundHandoffState,
-				reconciliationState:
-					refundHandoffState === "handoff_required" ? "handoff_pending" : "snapshot_ready",
-				snapshotState: hasSnapshot ? "contract_snapshot_present" : "snapshot_incomplete",
-			}
-		})
+				return {
+					bookingId: row.bookingId,
+					productId: row.productIdSnapshot ?? row.productId ?? null,
+					productName: row.productNameSnapshot ?? row.productName ?? null,
+					variantId: row.detailVariantId ?? null,
+					variantName: row.variantNameSnapshot ?? row.variantName ?? null,
+					ratePlanId: row.detailRatePlanId ?? null,
+					ratePlanName: row.ratePlanNameSnapshot ?? null,
+					checkIn,
+					checkOut,
+					totalPrice,
+					currency,
+					status: String(row.status ?? "draft"),
+					createdAt: row.bookingDate ? new Date(row.bookingDate).toISOString() : null,
+					confirmedAt: row.confirmedAt ? new Date(row.confirmedAt).toISOString() : null,
+					rooms: roomCount,
+					occupancyDetail: {
+						adults: occupancyDetail.adults || Number(row.adults ?? 0),
+						children: occupancyDetail.children || Number(row.children ?? 0),
+						infants: occupancyDetail.infants,
+					},
+					lifecycleState: lifecycle.state,
+					lifecycleLabel: lifecycle.label,
+					lifecycleBasis: lifecycle.basis,
+					lifecycleReality: lifecycle.reality,
+					refundHandoffState,
+					reconciliationState:
+						refundHandoffState === "handoff_required" ? "handoff_pending" : "snapshot_ready",
+					snapshotState:
+						hasSnapshot && hasTextualSnapshot ? "contract_snapshot_present" : "snapshot_incomplete",
+				}
+			})
 
 		const summary = {
 			total: items.length,

@@ -23,13 +23,13 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 		<header class="grid gap-6 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
 			<div class="space-y-3">
 				<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
-					Snapshot-driven operations
+					Contract-safe lifecycle visibility
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Reservations Lifecycle Hub</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
 					Coordina llegadas, estadías, salidas, cancelaciones y handoffs financieros desde el
-					contrato congelado de cada reserva. Esta superficie no recalcula pricing ni opera
-					inventario vivo.
+					contrato congelado de cada reserva. Las señales de arrival/in-house/departure son
+					visibilidad derivada del snapshot, no check-in/check-out operacional persistido.
 				</p>
 			</div>
 			<Card class="border-slate-700 bg-slate-900/70 text-slate-100">
@@ -42,8 +42,8 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 		</header>
 
 		<Section
-			title="Lifecycle snapshot"
-			description="Señales operacionales derivadas de reservas confirmadas y sus snapshots."
+			title="Lifecycle visibility"
+			description="Señales derivadas desde contrato; no representan una state machine PMS."
 		>
 			<div id="lifecycleSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				{
@@ -94,7 +94,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 
 		<Section
 			title="Reservation queue"
-			description="Lifecycle, snapshot readiness y handoff operativo por reserva."
+			description="Lifecycle visibility, contract readiness y handoff financiero sin ejecutar workflows externos."
 		>
 			<Card class="min-h-[280px] space-y-4 bg-slate-100">
 				<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -241,8 +241,8 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 					const guests = `${Number(occupancy?.adults ?? 0)}A · ${Number(occupancy?.children ?? 0)}C · ${Number(occupancy?.infants ?? 0)}I`
 					const handoff =
 						item?.refundHandoffState === "handoff_required"
-							? "Refund handoff pending"
-							: "Snapshot ready"
+							? "Finance handoff visibility"
+							: "Contract snapshot ready"
 					const snapshotTone =
 						item?.snapshotState === "contract_snapshot_present"
 							? "text-emerald-700"
@@ -254,8 +254,8 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 							<div class="mt-1 text-xs text-slate-500">${statusLabel(item?.status)}</div>
 						</td>
 						<td class="px-3 py-3 text-slate-700">
-							<div class="font-medium text-slate-900">${String(item?.lifecycleLabel ?? "Lifecycle unknown")}</div>
-							<div class="mt-1 text-xs text-slate-500">${String(item?.lifecycleBasis ?? "snapshot")}</div>
+								<div class="font-medium text-slate-900">${String(item?.lifecycleLabel ?? "Lifecycle unknown")}</div>
+								<div class="mt-1 text-xs text-slate-500">${String(item?.lifecycleBasis ?? "derived_visibility")}</div>
 						</td>
 						<td class="px-3 py-3 text-slate-700">
 							<div>${checkIn} → ${checkOut}</div>
@@ -304,7 +304,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 					renderSummary(payload?.summary ?? {})
 					render(items)
 					if (summary) {
-						summary.textContent = `${items.length} reservation(s) in lifecycle queue. Modification workflow: ${String(payload?.summary?.modificationWorkflow ?? "not_automated")}.`
+						summary.textContent = `${items.length} reservation(s) in lifecycle visibility queue. Modification workflow: ${String(payload?.summary?.modificationWorkflow ?? "not_automated")}.`
 					}
 					const durationMs = Number((performance.now() - started).toFixed(1))
 					if (latency) latency.textContent = `Endpoint latency: ${durationMs}ms`

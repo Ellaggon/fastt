@@ -8,7 +8,11 @@ import {
 	eq,
 	Hold,
 	InventoryLock,
+	Product,
+	RatePlan,
+	RatePlanTemplate,
 	sql,
+	User,
 	Variant,
 } from "astro:db"
 
@@ -59,6 +63,14 @@ type BookingPricingSnapshot = {
 function isMissingHoldTableError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error)
 	return message.includes("no such table: Hold")
+}
+
+function compactName(parts: Array<string | null | undefined>): string | null {
+	const value = parts
+		.map((part) => String(part ?? "").trim())
+		.filter(Boolean)
+		.join(" ")
+	return value || null
 }
 
 function resolveHoldDateRange(
@@ -247,11 +259,18 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const variantId = variantIds[0]
 
 			const variant = await tx
-				.select({ productId: Variant.productId })
+				.select({ productId: Variant.productId, variantName: Variant.name })
 				.from(Variant)
 				.where(eq(Variant.id, variantId))
 				.get()
 			if (!variant) throw new Error("HOLD_NOT_FOUND")
+
+			const product = await tx
+				.select({ id: Product.id, providerId: Product.providerId, productName: Product.name })
+				.from(Product)
+				.where(eq(Product.id, variant.productId))
+				.get()
+			if (!product) throw new Error("HOLD_NOT_FOUND")
 
 			let holdSnapshot: HoldPolicySnapshot | null | undefined = null
 			try {
@@ -289,6 +308,43 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
 			const baseTotal = Number(snapshot.totalPrice)
+			const ratePlan = await tx
+				.select({ templateId: RatePlan.templateId })
+				.from(RatePlan)
+				.where(eq(RatePlan.id, snapshot.ratePlanId))
+				.get()
+			const ratePlanTemplate = ratePlan
+				? await tx
+						.select({ name: RatePlanTemplate.name })
+						.from(RatePlanTemplate)
+						.where(eq(RatePlanTemplate.id, ratePlan.templateId))
+						.get()
+				: null
+			const guest = params.input.userId
+				? await tx
+						.select({
+							email: User.email,
+							firstName: User.firstName,
+							lastName: User.lastName,
+						})
+						.from(User)
+						.where(eq(User.id, params.input.userId))
+						.get()
+				: null
+			const guestNameSnapshot = guest ? compactName([guest.firstName, guest.lastName]) : null
+			const guestEmailSnapshot = String(guest?.email ?? "").trim() || null
+			const lifecycleAuditSnapshot = {
+				mode: "derived_visibility",
+				createdAt: now.toISOString(),
+				storedStatus: "confirmed",
+				derivedStatesAreNotPersistedOperations: true,
+			}
+			const refundHandoffSnapshot = {
+				state: "not_applicable",
+				owner: "Payments & Finance",
+				boundary: "visibility_only",
+				reason: "Booking confirmation does not create a refund workflow.",
+			}
 
 			const taxResolved = await params.resolveEffectiveTaxFees({
 				productId: variant.productId,
@@ -323,6 +379,16 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					currency: snapshot.currency,
 					source: String(params.input.source ?? "web"),
 					confirmedAt: now,
+					guestEmailSnapshot,
+					guestNameSnapshot,
+					guestContactSnapshotJson: {
+						email: guestEmailSnapshot,
+						name: guestNameSnapshot,
+						userId: params.input.userId ?? null,
+					},
+					lifecycleAuditJson: lifecycleAuditSnapshot,
+					refundHandoffSnapshotJson: refundHandoffSnapshot,
+					contractSnapshotVersion: "reservations_contract_snapshot_v1",
 				} as any)
 				.run()
 
@@ -352,6 +418,17 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 						},
 						pricingBreakdownV2: snapshot.pricingBreakdownV2 ?? null,
 						pricingSource: snapshot.pricingSource ?? null,
+					},
+					providerIdSnapshot: product.providerId ?? null,
+					productIdSnapshot: product.id,
+					productNameSnapshot: product.productName,
+					variantNameSnapshot: variant.variantName,
+					ratePlanNameSnapshot: ratePlanTemplate?.name ?? null,
+					occupancySnapshotJson: {
+						adults: Math.max(1, adults),
+						children: Math.max(0, children),
+						infants: Math.max(0, infants),
+						label: `${Math.max(1, adults)} adults · ${Math.max(0, children)} children · ${Math.max(0, infants)} infants`,
 					},
 					createdAt: now,
 				} as any)

@@ -261,6 +261,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Snapshot-driven reservation lifecycle.",
 	},
 	{
+		pattern: "/financial/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Snapshot-safe financial operations and reconciliation visibility; not an accounting or PSP engine.",
+	},
+	{
 		pattern: "/provider/policies/**",
 		status: "transitional",
 		context: "enterprise-operations",
@@ -409,6 +417,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "internal-ops",
 		owner: "Internal Ops / Observability",
 		rationale: "Inventory diagnostics and jobs remain internal operations surfaces.",
+	},
+	{
+		pattern: "/api/internal/financial/operations",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF read model for financial operations and reconciliation visibility.",
 	},
 	{
 		pattern: "/api/internal/financial/**",
@@ -733,21 +749,28 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Payments & Finance",
-		subtitle: "Commercial charges and financial setup",
+		subtitle: "Reconciliation and financial visibility",
 		owner: "Financial Operations",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Financial setup for taxes and guest-facing charges; payment lifecycle is not active yet.",
+			"Snapshot-safe financial operations for reconciliation visibility, refund handoff, payout/commission visibility, and tax/fee audit. This is not a PSP, ledger, or invoicing engine.",
 		maturity: "transitional",
 		items: [
+			{
+				label: "Financial Operations",
+				href: routes.financialOperations(),
+				status: "canonical",
+				summary:
+					"Booking contract snapshots, shadow payment visibility, refund handoff, payout/commission and reconciliation states.",
+			},
 			{
 				label: "Taxes & Fees",
 				href: routes.providerTaxFees(),
 				status: "transitional",
-				summary: "Financial setup surface; payments console is not active yet.",
+				summary: "Financial-commercial setup surface for guest-facing charges.",
 			},
 		],
-		planned: ["Payments Console", "Reconciliation Workspace"],
+		planned: ["PSP Operations", "Invoice Issuance", "Payout Automation"],
 	},
 	{
 		title: "Analytics & Performance",

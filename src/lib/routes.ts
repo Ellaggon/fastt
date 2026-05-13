@@ -8,6 +8,7 @@ export const routes = {
 	providerVerification: () => "/provider/verification",
 	productList: () => "/product",
 	bookingList: () => "/booking",
+	financialOperations: () => "/financial",
 	ratePlansHub: () => "/rates/plans",
 	ratePlanPolicies: (id: string) => `/rates/plans/${encodeURIComponent(String(id))}/policies`,
 	ratePlanPricing: (id: string) => `/rates/plans/${encodeURIComponent(String(id))}/pricing`,

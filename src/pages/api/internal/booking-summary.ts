@@ -42,29 +42,69 @@ function deriveLifecycle(params: {
 	status: string | null
 	checkIn: string | null
 	checkOut: string | null
-}): { state: LifecycleState; label: string; basis: "stored_status" | "derived_from_snapshot" } {
+}): {
+	state: LifecycleState
+	label: string
+	basis: "stored_status" | "derived_visibility"
+	reality: "persisted_status" | "date_derived_visibility"
+} {
 	const status = String(params.status ?? "")
 		.trim()
 		.toLowerCase()
 	if (status === "cancelled")
-		return { state: "cancelled", label: "Cancelled", basis: "stored_status" }
+		return {
+			state: "cancelled",
+			label: "Cancelled",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
 	if (status !== "confirmed") {
-		return { state: "pending_confirmation", label: "Pending confirmation", basis: "stored_status" }
+		return {
+			state: "pending_confirmation",
+			label: "Pending confirmation",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
 	}
 	const today = todayIso()
 	if (!params.checkIn || !params.checkOut) {
-		return { state: "unknown", label: "Snapshot incomplete", basis: "derived_from_snapshot" }
+		return {
+			state: "unknown",
+			label: "Snapshot incomplete",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today < params.checkIn) {
-		return { state: "upcoming_arrival", label: "Upcoming arrival", basis: "derived_from_snapshot" }
+		return {
+			state: "upcoming_arrival",
+			label: "Upcoming arrival",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today === params.checkOut) {
-		return { state: "departure_due", label: "Departure due", basis: "derived_from_snapshot" }
+		return {
+			state: "departure_due",
+			label: "Departure due",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
 	if (today > params.checkOut) {
-		return { state: "checked_out", label: "Checked out", basis: "derived_from_snapshot" }
+		return {
+			state: "checked_out",
+			label: "Checked out",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
 	}
-	return { state: "in_house", label: "In-house", basis: "derived_from_snapshot" }
+	return {
+		state: "in_house",
+		label: "In-house",
+		basis: "derived_visibility",
+		reality: "date_derived_visibility",
+	}
 }
 
 function readOccupancyDetail(snapshot: unknown, fallback: { adults: number; children: number }) {
@@ -120,6 +160,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 				id: Booking.id,
 				userId: Booking.userId,
 				guestEmail: User.email,
+				guestFirstName: User.firstName,
+				guestLastName: User.lastName,
+				guestEmailSnapshot: Booking.guestEmailSnapshot,
+				guestNameSnapshot: Booking.guestNameSnapshot,
+				guestContactSnapshotJson: Booking.guestContactSnapshotJson,
+				lifecycleAuditJson: Booking.lifecycleAuditJson,
+				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
+				contractSnapshotVersion: Booking.contractSnapshotVersion,
 				ratePlanId: Booking.ratePlanId,
 				status: Booking.status,
 				checkInDate: Booking.checkInDate,
@@ -159,6 +207,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 				taxes: BookingRoomDetail.taxes,
 				totalPrice: BookingRoomDetail.totalPrice,
 				pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
+				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
+				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
+				occupancySnapshotJson: BookingRoomDetail.occupancySnapshotJson,
 				productId: Product.id,
 				providerId: Product.providerId,
 				productName: Product.name,
@@ -170,7 +224,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.where(eq(BookingRoomDetail.bookingId, bookingId))
 			.all()
 
-		if (!roomRows.length || !roomRows.some((row) => row.productId && row.productId.length > 0)) {
+		if (
+			!roomRows.length ||
+			!roomRows.some((row) => row.productIdSnapshot || (row.productId && row.productId.length > 0))
+		) {
 			logEndpoint()
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -178,7 +235,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 		}
 
-		if (!roomRows.some((row) => row.providerId === providerId)) {
+		if (
+			!roomRows.some(
+				(row) => row.providerIdSnapshot === providerId || row.providerId === providerId
+			)
+		) {
 			logEndpoint()
 			return new Response(JSON.stringify({ error: "Not found" }), {
 				status: 404,
@@ -226,21 +287,26 @@ export const GET: APIRoute = async ({ request, url }) => {
 				: Number(booking.totalAmountUSD ?? firstRoom?.totalPrice ?? 0)
 
 		const allocations = roomRows.map((row, index) => {
-			const occupancyDetail = readOccupancyDetail(row.pricingBreakdownJson, {
-				adults: Number(row.adults ?? 0),
-				children: Number(row.children ?? 0),
-			})
+			const occupancyDetail = readOccupancyDetail(
+				row.occupancySnapshotJson ?? row.pricingBreakdownJson,
+				{
+					adults: Number(row.adults ?? 0),
+					children: Number(row.children ?? 0),
+				}
+			)
 			return {
 				allocationId: row.id,
 				sequence: index + 1,
-				productId: row.productId ?? null,
-				productName: row.productName ?? null,
+				productId: row.productIdSnapshot ?? row.productId ?? null,
+				productName: row.productNameSnapshot ?? row.productName ?? null,
 				variantId: row.variantId ?? null,
-				variantName: row.variantName ?? null,
+				variantName: row.variantNameSnapshot ?? row.variantName ?? null,
 				ratePlanId: row.ratePlanId ?? booking.ratePlanId ?? null,
+				ratePlanName: row.ratePlanNameSnapshot ?? null,
 				checkIn: dateOnly(row.checkIn),
 				checkOut: dateOnly(row.checkOut),
 				occupancyDetail,
+				occupancySnapshot: row.occupancySnapshotJson ?? null,
 				bookedSubtotal: Number(row.bookedSubtotal ?? 0),
 				taxes: Number(row.taxes ?? 0),
 				totalPrice: Number(row.totalPrice ?? 0),
@@ -256,23 +322,43 @@ export const GET: APIRoute = async ({ request, url }) => {
 			hasOccupancyDetail: allocations.every(
 				(row) => row.occupancyDetail.adults + row.occupancyDetail.children > 0
 			),
+			hasTextualSnapshot: allocations.every(
+				(row) => Boolean(row.productName) && Boolean(row.variantName) && Boolean(row.ratePlanName)
+			),
+			hasGuestSnapshot: Boolean(booking.guestEmailSnapshot || booking.guestContactSnapshotJson),
 			source: "booking_contract_snapshot",
 		}
 
+		const refundHandoffSnapshot =
+			booking.refundHandoffSnapshotJson && typeof booking.refundHandoffSnapshotJson === "object"
+				? (booking.refundHandoffSnapshotJson as Record<string, unknown>)
+				: null
 		const refundHandoff =
 			lifecycle.state === "cancelled"
 				? {
 						state: "handoff_required",
-						label: "Refund handoff required",
+						label: "Refund handoff visibility",
+						owner: "Payments & Finance",
+						boundary: "visibility_only",
 						description:
 							"Cancellation is visible to Reservations. Refund execution remains a Finance/Payments handoff, not a booking recompute.",
 					}
 				: {
-						state: "not_applicable",
+						state: String(refundHandoffSnapshot?.state ?? "not_applicable"),
 						label: "No refund handoff",
+						owner: "Payments & Finance",
+						boundary: "visibility_only",
 						description:
 							"No refund workflow is active for this snapshot. Payments orchestration is intentionally outside Reservations.",
 					}
+		const guestContactSnapshot =
+			booking.guestContactSnapshotJson && typeof booking.guestContactSnapshotJson === "object"
+				? (booking.guestContactSnapshotJson as Record<string, unknown>)
+				: null
+		const liveGuestName = [booking.guestFirstName, booking.guestLastName]
+			.map((part) => String(part ?? "").trim())
+			.filter(Boolean)
+			.join(" ")
 
 		logEndpoint()
 		return new Response(
@@ -290,19 +376,40 @@ export const GET: APIRoute = async ({ request, url }) => {
 					ratePlanId: booking.ratePlanId ?? null,
 					guestSnapshot: {
 						userId: booking.userId ?? null,
-						email: booking.guestEmail ?? null,
+						name:
+							booking.guestNameSnapshot ??
+							(String(guestContactSnapshot?.name ?? "").trim() || liveGuestName || null),
+						email:
+							booking.guestEmailSnapshot ??
+							(String(guestContactSnapshot?.email ?? "").trim() || (booking.guestEmail ?? null)),
 						adults: Number(booking.numAdults ?? 0),
 						children: Number(booking.numChildren ?? 0),
+						source: booking.guestContactSnapshotJson ? "contract_snapshot" : "live_user_fallback",
 					},
 					rooms: allocations.length,
 					lifecycle,
 					refundHandoff,
 					reconciliation: {
 						state:
-							refundHandoff.state === "handoff_required" ? "handoff_pending" : "snapshot_ready",
+							refundHandoff.state === "handoff_required"
+								? "handoff_pending"
+								: refundHandoff.state === "not_applicable"
+									? "not_required"
+									: "unknown",
 						owner: "Payments & Finance",
+						boundary: "handoff_visibility_only",
 					},
 					snapshotIntegrity,
+					lifecycleAudit:
+						booking.lifecycleAuditJson && typeof booking.lifecycleAuditJson === "object"
+							? booking.lifecycleAuditJson
+							: {
+									mode: "derived_visibility",
+									storedStatus: booking.status ?? null,
+									derivedStatesAreNotPersistedOperations: true,
+								},
+					contractSnapshotVersion:
+						booking.contractSnapshotVersion ?? "legacy_snapshot_compatibility",
 				},
 				allocations,
 				taxes: taxLines.map((line) => ({

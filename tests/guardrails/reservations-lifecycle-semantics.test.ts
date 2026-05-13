@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { collectCalls, collectImports, collectHttpExportMethods } from "./_guardrail-ast"
+import {
+	collectCalls,
+	collectImports,
+	collectObjectKeys,
+	collectHttpExportMethods,
+} from "./_guardrail-ast"
 
 function read(relativePath: string): string {
 	return readFileSync(join(process.cwd(), relativePath), "utf8")
@@ -118,15 +123,15 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 		const requiredSignals: Record<string, string[]> = {
 			"src/pages/booking/index.astro": [
 				"Reservations Lifecycle Hub",
-				"Snapshot-driven operations",
+				"Contract-safe lifecycle visibility",
 				"Refund handoff",
-				"no recalcula pricing",
+				"visibilidad derivada",
 			],
 			"src/pages/booking/[id].astro": [
 				"Reservation operational workspace",
 				"Contract snapshot audit",
 				"Room allocation visibility",
-				"no se consulta pricing vivo",
+				"visibilidad derivada",
 			],
 		}
 
@@ -165,6 +170,90 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 		expect(
 			violations,
 			`Reservations lifecycle must stay operational and honest, not CRM/support/analytics theater:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("requires immutable textual and guest snapshots in booking materialization", () => {
+		const schema = read("db/config.ts")
+		const repo = read(
+			"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"
+		)
+		const requiredSchemaFields = [
+			"guestEmailSnapshot",
+			"guestNameSnapshot",
+			"guestContactSnapshotJson",
+			"lifecycleAuditJson",
+			"refundHandoffSnapshotJson",
+			"contractSnapshotVersion",
+			"providerIdSnapshot",
+			"productIdSnapshot",
+			"productNameSnapshot",
+			"variantNameSnapshot",
+			"ratePlanNameSnapshot",
+			"occupancySnapshotJson",
+		]
+		const missingSchema = requiredSchemaFields.filter((field) => !schema.includes(field))
+		const missingMaterialization = requiredSchemaFields.filter((field) => !repo.includes(field))
+
+		expect(
+			[...missingSchema, ...missingMaterialization],
+			`Reservations contract snapshots must survive catalog/user edits. Missing fields:\n${[
+				...missingSchema.map((field) => `schema:${field}`),
+				...missingMaterialization.map((field) => `materialization:${field}`),
+			].join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps booking read models snapshot-first when exposing labels and guest contact", () => {
+		const violations = reservationBffs.flatMap((relativePath) => {
+			const keys = new Set(collectObjectKeys(relativePath))
+			const source = read(relativePath)
+			const requiredKeys = [
+				"productNameSnapshot",
+				"variantNameSnapshot",
+				"ratePlanNameSnapshot",
+				"hasTextualSnapshot",
+			]
+			if (relativePath.endsWith("booking-summary.ts")) {
+				requiredKeys.push("guestEmailSnapshot", "guestNameSnapshot", "hasGuestSnapshot")
+			}
+			const missingKeys = requiredKeys.filter((key) => !keys.has(key) && !source.includes(key))
+			const fallbackViolations =
+				source.includes("productName: row.productName ?? null") ||
+				source.includes("variantName: row.variantName ?? null")
+					? [`${relativePath}: exposes live catalog labels without snapshot-first fallback`]
+					: []
+			return [
+				...missingKeys.map((key) => `${relativePath}: missing snapshot-first key ${key}`),
+				...fallbackViolations,
+			]
+		})
+
+		expect(
+			violations,
+			`Reservation BFFs may use live labels only as legacy fallback, never as contract source:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("labels date-based lifecycle as derived visibility, not persisted operations", () => {
+		const violations = [...reservationBffs, ...reservationPages].flatMap((relativePath) => {
+			const source = read(relativePath)
+			const missingDerivedSignal = source.includes("derived_from_snapshot")
+				? [`${relativePath}: uses deprecated derived_from_snapshot lifecycle label`]
+				: []
+			const fakePersistedLifecycle =
+				/persisted operational lifecycle|persisted lifecycle state/i.test(source)
+					? [`${relativePath}: claims persisted lifecycle operations without runtime support`]
+					: []
+			const missingVisibilitySignal = source.includes("derived_visibility")
+				? []
+				: [`${relativePath}: missing derived_visibility lifecycle semantics`]
+			return [...missingDerivedSignal, ...fakePersistedLifecycle, ...missingVisibilitySignal]
+		})
+
+		expect(
+			violations,
+			`Reservations must separate lifecycle visibility from real operational lifecycle state:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 })
