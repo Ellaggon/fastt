@@ -12,36 +12,111 @@ const bookingId = String(Astro.params.id ?? "").trim()
 if (!bookingId) return Astro.redirect("/dashboard")
 ---
 
-<WorkspaceLayout title="Reserva">
+<WorkspaceLayout title="Reservation Workspace">
 	<section class="space-y-8">
-		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Reserva confirmada</h1>
-			<p class="text-sm text-slate-400">Revisa el detalle final de tu reserva.</p>
+		<header class="grid gap-6 lg:grid-cols-[1.35fr_0.85fr] lg:items-end">
+			<div class="space-y-3">
+				<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+					Contract snapshot audit
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Reservation operational workspace</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Vista operacional de la reserva {bookingId}. Toda la información comercial mostrada viene
+					del snapshot contractual confirmado; no se consulta pricing vivo ni disponibilidad actual.
+				</p>
+			</div>
+			<Card class="border-slate-700 bg-slate-900/70 text-slate-100">
+				<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+					Operational boundary
+				</p>
+				<p class="mt-2 text-sm leading-6 text-slate-300">
+					Reservations coordina lifecycle, auditabilidad y handoff. Pricing, Inventory y Payments
+					mantienen ownership separado.
+				</p>
+			</Card>
 		</header>
 
-		<Section title="Estado de reserva" description="Información principal de confirmación.">
+		<Section
+			title="Lifecycle command view"
+			description="Estado contractual, señal lifecycle derivada y handoffs sin mutar dominios externos."
+		>
 			<Card class="min-h-[180px] space-y-6 bg-slate-100">
-				<div class="flex items-center justify-between gap-4">
-					<p id="bookingIdText" class="text-sm text-slate-600">Reserva: {bookingId}</p>
+				<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+					<p id="bookingIdText" class="text-sm text-slate-600">Reservation: {bookingId}</p>
 					<div class="flex items-center gap-3">
 						<p id="bookingSummaryLatency" class="text-xs text-slate-500"></p>
 						<Badge id="bookingStatusBadge" variant="neutral">Cargando...</Badge>
 					</div>
 				</div>
-				<div id="bookingSummary" class="grid gap-4 md:grid-cols-2">
-					<div class="h-20 animate-pulse rounded bg-slate-200"></div>
+				<div id="bookingLifecycle" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					{
+						Array.from({ length: 4 }).map(() => (
+							<div class="h-28 animate-pulse rounded bg-slate-200" />
+						))
+					}
+				</div>
+			</Card>
+		</Section>
+
+		<div class="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+			<Section
+				title="Contract snapshots"
+				description="Guest, stay, commercial and tax snapshots captured at confirmation."
+			>
+				<Card class="space-y-4 bg-slate-100">
+					<div id="contractSnapshot" class="grid gap-4 md:grid-cols-2">
+						<div class="h-24 animate-pulse rounded bg-slate-200"></div>
+						<div class="h-24 animate-pulse rounded bg-slate-200"></div>
+					</div>
+				</Card>
+			</Section>
+
+			<Section
+				title="Snapshot integrity"
+				description="Checks de auditabilidad; no recalculan el contrato."
+			>
+				<Card class="bg-slate-100">
+					<ul id="snapshotIntegrity" class="space-y-2 text-sm text-slate-700">
+						<li class="text-slate-500">Cargando integridad...</li>
+					</ul>
+				</Card>
+			</Section>
+		</div>
+
+		<Section
+			title="Room allocation visibility"
+			description="Agrupación multi-room desde BookingRoomDetail; no asigna habitaciones físicas vivas."
+		>
+			<Card class="bg-slate-100">
+				<div id="allocationList" class="space-y-3 text-sm text-slate-700">
 					<div class="h-20 animate-pulse rounded bg-slate-200"></div>
 				</div>
 			</Card>
 		</Section>
 
-		<Section title="Impuestos y cargos" description="Detalle agregado aplicado en la confirmación.">
-			<Card class="min-h-[140px] bg-slate-100">
-				<ul id="bookingTaxesList" class="space-y-2 text-sm text-slate-700">
-					<li class="text-slate-500">Cargando detalle...</li>
-				</ul>
-			</Card>
-		</Section>
+		<div class="grid gap-8 xl:grid-cols-2">
+			<Section
+				title="Policies snapshot"
+				description="Políticas congeladas desde hold/booking snapshot."
+			>
+				<Card class="min-h-[140px] bg-slate-100">
+					<ul id="bookingPoliciesList" class="space-y-2 text-sm text-slate-700">
+						<li class="text-slate-500">Cargando políticas...</li>
+					</ul>
+				</Card>
+			</Section>
+
+			<Section
+				title="Taxes and fees snapshot"
+				description="Detalle agregado aplicado en la confirmación; no usa reglas fiscales vivas."
+			>
+				<Card class="min-h-[140px] bg-slate-100">
+					<ul id="bookingTaxesList" class="space-y-2 text-sm text-slate-700">
+						<li class="text-slate-500">Cargando impuestos y cargos...</li>
+					</ul>
+				</Card>
+			</Section>
+		</div>
 	</section>
 
 	<script is:inline define:vars={{ bookingId }}>
@@ -49,7 +124,7 @@ if (!bookingId) return Astro.redirect("/dashboard")
 			const shellStart = performance.now()
 			const logShellVisible = () => {
 				console.debug("shell visible", {
-					page: "booking-detail",
+					page: "reservation-workspace",
 					durationMs: Number((performance.now() - shellStart).toFixed(1)),
 				})
 			}
@@ -62,6 +137,11 @@ if (!bookingId) return Astro.redirect("/dashboard")
 			if (!bookingId) return
 			const hydrationStart = performance.now()
 
+			const currencyAmount = (currency, value) =>
+				`${String(currency ?? "USD")} ${Number(value ?? 0).toFixed(2)}`
+			const yesNo = (value) => (value ? "Ready" : "Missing")
+			const stateTone = (value) => (value ? "text-emerald-700" : "text-amber-700")
+
 			fetch(`/api/internal/booking-summary?bookingId=${encodeURIComponent(bookingId)}`, {
 				headers: { accept: "application/json" },
 			})
@@ -73,12 +153,17 @@ if (!bookingId) return Astro.redirect("/dashboard")
 					const booking = payload?.booking ?? {}
 					const badge = document.getElementById("bookingStatusBadge")
 					const latencyLabel = document.getElementById("bookingSummaryLatency")
-					const summary = document.getElementById("bookingSummary")
+					const lifecycle = document.getElementById("bookingLifecycle")
+					const snapshot = document.getElementById("contractSnapshot")
+					const integrity = document.getElementById("snapshotIntegrity")
+					const allocations = document.getElementById("allocationList")
 					const taxesList = document.getElementById("bookingTaxesList")
+					const policiesList = document.getElementById("bookingPoliciesList")
 
 					if (badge) {
-						const isConfirmed = String(booking?.status ?? "").toLowerCase() === "confirmed"
-						badge.textContent = isConfirmed ? "Confirmada" : String(booking?.status ?? "Pendiente")
+						const value = String(booking?.status ?? "").toLowerCase()
+						const isConfirmed = value === "confirmed"
+						badge.textContent = isConfirmed ? "Confirmed" : String(booking?.status ?? "Pending")
 						badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
 							isConfirmed
 								? "bg-green-100 text-green-800 border-green-200"
@@ -86,56 +171,161 @@ if (!bookingId) return Astro.redirect("/dashboard")
 						}`
 					}
 
-					if (summary) {
-						summary.innerHTML = ""
-						const items = [
-							`Fechas: ${String(booking?.checkIn ?? "—")} a ${String(booking?.checkOut ?? "—")}`,
-							`Huéspedes: ${Number(booking?.adults ?? 0)} adultos, ${Number(booking?.children ?? 0)} niños`,
-							`Moneda: ${String(booking?.currency ?? "USD")}`,
-							`Total: ${String(booking?.currency ?? "USD")} ${Number(booking?.total ?? 0).toFixed(2)}`,
-							`Creada: ${booking?.createdAt ? new Date(String(booking.createdAt)).toLocaleString("es-CL") : "—"}`,
+					if (lifecycle) {
+						const cards = [
+							{
+								label: "Lifecycle",
+								value: booking?.lifecycle?.label ?? "Unknown",
+								detail: `Basis: ${String(booking?.lifecycle?.basis ?? "snapshot")}`,
+							},
+							{
+								label: "Stay",
+								value: `${String(booking?.checkIn ?? "-")} → ${String(booking?.checkOut ?? "-")}`,
+								detail: `${Number(booking?.rooms ?? 0)} room allocation(s)`,
+							},
+							{
+								label: "Refund handoff",
+								value: booking?.refundHandoff?.label ?? "No handoff",
+								detail: booking?.refundHandoff?.description ?? "Payments remains separate.",
+							},
+							{
+								label: "Reconciliation",
+								value: booking?.reconciliation?.state ?? "snapshot_ready",
+								detail: `Owner: ${booking?.reconciliation?.owner ?? "Payments & Finance"}`,
+							},
 						]
-						for (const item of items) {
-							const p = document.createElement("p")
-							p.className = "rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
-							p.textContent = item
-							summary.appendChild(p)
-						}
+						lifecycle.innerHTML = cards
+							.map(
+								(card) => `<div class="rounded-2xl border border-slate-200 bg-white p-4">
+									<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${card.label}</p>
+									<p class="mt-2 text-base font-semibold text-slate-950">${card.value}</p>
+									<p class="mt-2 text-xs leading-5 text-slate-600">${card.detail}</p>
+								</div>`
+							)
+							.join("")
+					}
+
+					if (snapshot) {
+						const guest = booking?.guestSnapshot ?? {}
+						const cards = [
+							{
+								label: "Guest snapshot",
+								lines: [
+									`Email: ${String(guest?.email ?? "not captured")}`,
+									`Occupancy: ${Number(guest?.adults ?? 0)} adults · ${Number(guest?.children ?? 0)} children`,
+								],
+							},
+							{
+								label: "Commercial snapshot",
+								lines: [
+									`Rate plan: ${String(booking?.ratePlanId ?? "captured per allocation")}`,
+									`Total: ${currencyAmount(booking?.currency, booking?.total)}`,
+								],
+							},
+							{
+								label: "Source",
+								lines: [
+									`Channel/source: ${String(booking?.source ?? "web")}`,
+									`Confirmed: ${booking?.confirmedAt ? new Date(String(booking.confirmedAt)).toLocaleString("es-CL") : "not captured"}`,
+								],
+							},
+							{
+								label: "Modification trail",
+								lines: [
+									String(payload?.modifications?.label ?? "No modification workflow captured"),
+									String(payload?.modifications?.description ?? "No live workflow exists."),
+								],
+							},
+						]
+						snapshot.innerHTML = cards
+							.map(
+								(card) => `<div class="rounded-2xl border border-slate-200 bg-white p-4">
+									<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${card.label}</p>
+									${card.lines.map((line) => `<p class="mt-2 text-sm text-slate-700">${line}</p>`).join("")}
+								</div>`
+							)
+							.join("")
+					}
+
+					if (integrity) {
+						const checks = booking?.snapshotIntegrity ?? {}
+						const rows = [
+							["Rate plan captured", checks?.hasRatePlanId],
+							["Pricing breakdown snapshot", checks?.hasPricingBreakdown],
+							["Policy snapshot", checks?.hasPolicySnapshot],
+							["Taxes/fees snapshot", checks?.hasTaxSnapshot],
+							["Occupancy detail", checks?.hasOccupancyDetail],
+						]
+						integrity.innerHTML = rows
+							.map(
+								([label, value]) =>
+									`<li class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3"><span>${label}</span><strong class="${stateTone(value)}">${yesNo(value)}</strong></li>`
+							)
+							.join("")
+					}
+
+					if (allocations) {
+						const items = Array.isArray(payload?.allocations) ? payload.allocations : []
+						allocations.innerHTML = items.length
+							? items
+									.map((item) => {
+										const occ = item?.occupancyDetail ?? {}
+										return `<div class="rounded-2xl border border-slate-200 bg-white p-4">
+										<div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+											<div>
+												<p class="text-sm font-semibold text-slate-950">Allocation ${Number(item?.sequence ?? 0)} · ${String(item?.variantName ?? "Physical room context")}</p>
+												<p class="mt-1 text-xs text-slate-500">${String(item?.productName ?? "Property")} · ${String(item?.checkIn ?? "-")} → ${String(item?.checkOut ?? "-")}</p>
+											</div>
+											<p class="text-sm font-medium text-slate-700">${currencyAmount(booking?.currency, item?.totalPrice)}</p>
+										</div>
+										<div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+											<span>Rate plan snapshot: ${String(item?.ratePlanId ?? "missing")}</span>
+											<span>Occupancy: ${Number(occ?.adults ?? 0)}A · ${Number(occ?.children ?? 0)}C · ${Number(occ?.infants ?? 0)}I</span>
+											<span>Snapshot source: booking detail</span>
+										</div>
+									</div>`
+									})
+									.join("")
+							: '<p class="text-slate-500">No room allocation snapshot was captured.</p>'
 					}
 
 					if (taxesList) {
-						taxesList.innerHTML = ""
 						const taxes = Array.isArray(payload?.taxes) ? payload.taxes : []
-						if (!taxes.length) {
-							const li = document.createElement("li")
-							li.className = "text-slate-500"
-							li.textContent = "No hay líneas de impuestos adicionales."
-							taxesList.appendChild(li)
-						} else {
-							for (const tax of taxes) {
-								const li = document.createElement("li")
-								li.className = "rounded-lg border border-slate-200 bg-white p-3"
-								li.textContent = `${String(tax?.name ?? "Impuesto")} · ${Number(tax?.totalAmount ?? 0).toFixed(2)}`
-								taxesList.appendChild(li)
-							}
-						}
+						taxesList.innerHTML = taxes.length
+							? taxes
+									.map(
+										(tax) =>
+											`<li class="rounded-lg border border-slate-200 bg-white p-3">${String(tax?.name ?? "Taxes and fees snapshot")} · ${Number(tax?.totalAmount ?? 0).toFixed(2)}</li>`
+									)
+									.join("")
+							: '<li class="text-slate-500">No hay líneas de impuestos adicionales.</li>'
+					}
+
+					if (policiesList) {
+						const policies = Array.isArray(payload?.policies) ? payload.policies : []
+						policiesList.innerHTML = policies.length
+							? policies
+									.map(
+										(policy) =>
+											`<li class="rounded-lg border border-slate-200 bg-white p-3"><strong>${String(policy?.policyType ?? "Policy")}</strong><p class="mt-1 text-slate-600">${String(policy?.description ?? "Snapshot captured")}</p></li>`
+									)
+									.join("")
+							: '<li class="text-slate-500">No policy snapshot lines were captured.</li>'
 					}
 
 					console.debug("data hydrated", {
-						page: "booking-detail",
+						page: "reservation-workspace",
 						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
 					})
 					if (latencyLabel) {
-						latencyLabel.textContent = `Latencia endpoint: ${Number(
-							(performance.now() - hydrationStart).toFixed(1)
-						)}ms`
+						latencyLabel.textContent = `Endpoint latency: ${Number((performance.now() - hydrationStart).toFixed(1))}ms`
 					}
 				})
 				.catch(() => {
 					const taxesList = document.getElementById("bookingTaxesList")
 					if (taxesList) {
 						taxesList.innerHTML =
-							'<li class="text-red-600">No se pudo cargar el detalle de la reserva.</li>'
+							'<li class="text-red-600">No se pudo cargar el workspace de la reserva.</li>'
 					}
 				})
 		})()

@@ -36,7 +36,6 @@ import {
 	createGetProductVariantsAggregateQuery,
 	createGetVariantFullAggregateQuery,
 	createGetProviderFullAggregateQuery,
-	createGetProviderBookingsAggregateQuery,
 } from "../modules/catalog/application/queries"
 
 // ---- Infrastructure singletons ----
@@ -54,9 +53,8 @@ export const variantManagementRepository = new VariantManagementRepository()
 
 export async function cleanupStaleUploads(params: { olderThanMinutes: number }) {
 	if (!process.env.R2_BUCKET_NAME) throw new Error("R2_BUCKET_NAME is not defined")
-	const { cleanupStaleUploads } = await import(
-		"../modules/catalog/infrastructure/uploads/cleanupStaleUploads"
-	)
+	const { cleanupStaleUploads } =
+		await import("../modules/catalog/infrastructure/uploads/cleanupStaleUploads")
 	return cleanupStaleUploads({
 		repo: imageUploadRepository,
 		r2,
@@ -118,8 +116,5 @@ export const getVariantFullAggregate = createGetVariantFullAggregateQuery({
 	repo: catalogReadModelRepository,
 })
 export const getProviderFullAggregate = createGetProviderFullAggregateQuery({
-	repo: catalogReadModelRepository,
-})
-export const getProviderBookingsAggregate = createGetProviderBookingsAggregateQuery({
 	repo: catalogReadModelRepository,
 })

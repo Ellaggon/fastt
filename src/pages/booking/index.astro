@@ -18,16 +18,50 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 	.toLowerCase()
 ---
 
-<WorkspaceLayout title="Reservas">
+<WorkspaceLayout title="Reservations Lifecycle">
 	<section class="space-y-8">
-		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Reservas realizadas por clientes</h1>
-			<p class="text-sm text-slate-400">
-				Cada fila representa una reserva confirmada o en proceso con su estado operativo.
-			</p>
+		<header class="grid gap-6 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
+			<div class="space-y-3">
+				<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+					Snapshot-driven operations
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Reservations Lifecycle Hub</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Coordina llegadas, estadías, salidas, cancelaciones y handoffs financieros desde el
+					contrato congelado de cada reserva. Esta superficie no recalcula pricing ni opera
+					inventario vivo.
+				</p>
+			</div>
+			<Card class="border-slate-700 bg-slate-900/70 text-slate-100">
+				<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Ownership</p>
+				<p class="mt-2 text-sm leading-6 text-slate-300">
+					Reservations coordina lifecycle y auditabilidad contractual. Pricing, inventory y payments
+					siguen siendo dominios separados.
+				</p>
+			</Card>
 		</header>
 
-		<Section title="Filtros" description="Acota por rango de fechas o estado.">
+		<Section
+			title="Lifecycle snapshot"
+			description="Señales operacionales derivadas de reservas confirmadas y sus snapshots."
+		>
+			<div id="lifecycleSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				{
+					["Arrivals", "In-house", "Departures", "Refund handoff"].map((label) => (
+						<Card class="bg-slate-100">
+							<p class="text-xs font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</p>
+							<div class="mt-3 h-8 w-16 animate-pulse rounded bg-slate-200" />
+							<div class="mt-2 h-3 w-32 animate-pulse rounded bg-slate-200" />
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Operational filters"
+			description="Acota la cola lifecycle sin cambiar contratos ni recalcular importes."
+		>
 			<Card class="bg-slate-100">
 				<form id="bookingFilters" class="grid gap-4 md:grid-cols-4">
 					<FormField label="Desde" htmlFor="from">
@@ -36,7 +70,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 					<FormField label="Hasta" htmlFor="to">
 						<DatesModal id="to" name="to" value={initialTo} />
 					</FormField>
-					<FormField label="Estado" htmlFor="status">
+					<FormField label="Estado contractual" htmlFor="status">
 						<Select id="status" name="status" value={initialStatus}>
 							<option value="all">Todos</option>
 							<option value="draft">Borrador</option>
@@ -58,9 +92,12 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 			</Card>
 		</Section>
 
-		<Section title="Listado de reservas" description="Resumen por reserva con acceso a detalle.">
+		<Section
+			title="Reservation queue"
+			description="Lifecycle, snapshot readiness y handoff operativo por reserva."
+		>
 			<Card class="min-h-[280px] space-y-4 bg-slate-100">
-				<div class="flex items-center justify-between gap-4">
+				<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
 					<p id="bookingListSummary" class="text-sm text-slate-700">Cargando reservas...</p>
 					<p id="bookingListLatency" class="text-xs text-slate-500"></p>
 				</div>
@@ -69,11 +106,11 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 						<thead>
 							<tr class="text-left text-slate-700">
 								<th class="px-3 py-2">Reserva</th>
-								<th class="px-3 py-2">Producto / Variante</th>
-								<th class="px-3 py-2">Fechas</th>
-								<th class="px-3 py-2">Total</th>
-								<th class="px-3 py-2">Estado</th>
-								<th class="px-3 py-2">Creada</th>
+								<th class="px-3 py-2">Lifecycle</th>
+								<th class="px-3 py-2">Stay snapshot</th>
+								<th class="px-3 py-2">Allocation</th>
+								<th class="px-3 py-2">Contract total</th>
+								<th class="px-3 py-2">Audit / handoff</th>
 								<th class="px-3 py-2 text-right">Acción</th>
 							</tr>
 						</thead>
@@ -85,19 +122,19 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 											<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
 										</td>
 										<td class="px-3 py-2">
-											<div class="h-4 w-48 animate-pulse rounded bg-slate-200" />
+											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
 										</td>
 										<td class="px-3 py-2">
-											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+											<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
 										</td>
 										<td class="px-3 py-2">
-											<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
-										</td>
-										<td class="px-3 py-2">
-											<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
 										</td>
 										<td class="px-3 py-2">
 											<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
 										</td>
 										<td class="px-3 py-2 text-right">
 											<div class="ml-auto h-8 w-24 animate-pulse rounded bg-slate-200" />
@@ -117,7 +154,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 			const shellStart = performance.now()
 			const logShellVisible = () => {
 				console.debug("shell visible", {
-					page: "bookings-list",
+					page: "reservations-lifecycle-hub",
 					durationMs: Number((performance.now() - shellStart).toFixed(1)),
 				})
 			}
@@ -135,6 +172,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 			const fromInput = document.getElementById("from")
 			const toInput = document.getElementById("to")
 			const statusInput = document.getElementById("status")
+			const lifecycleSummary = document.getElementById("lifecycleSummary")
 
 			const statusLabel = (status) => {
 				const value = String(status || "").toLowerCase()
@@ -145,11 +183,40 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 				return "Borrador"
 			}
 
-			const formatDateTime = (value) => {
-				if (!value) return "—"
-				const date = new Date(String(value))
-				if (Number.isNaN(date.getTime())) return "—"
-				return date.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })
+			const renderSummary = (data) => {
+				if (!lifecycleSummary) return
+				const metrics = [
+					{
+						label: "Upcoming arrivals",
+						value: data?.upcomingArrivals ?? 0,
+						detail: "Llegadas futuras derivadas del stay snapshot.",
+					},
+					{
+						label: "In-house",
+						value: data?.inHouse ?? 0,
+						detail: "Estadías activas por fechas snapshot.",
+					},
+					{
+						label: "Departures due",
+						value: data?.departuresDue ?? 0,
+						detail: "Salidas del día por check-out snapshot.",
+					},
+					{
+						label: "Refund handoff",
+						value: data?.refundHandoffRequired ?? 0,
+						detail: "Cancelaciones que requieren handoff a Finance/Payments.",
+					},
+				]
+				lifecycleSummary.innerHTML = metrics
+					.map(
+						(metric) => `
+							<div class="rounded-2xl border border-slate-200 bg-slate-100 p-5">
+								<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${metric.label}</p>
+								<p class="mt-3 text-3xl font-semibold text-slate-950">${metric.value}</p>
+								<p class="mt-2 text-xs leading-5 text-slate-600">${metric.detail}</p>
+							</div>`
+					)
+					.join("")
 			}
 
 			const render = (items) => {
@@ -165,37 +232,46 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 
 				for (const item of items) {
 					const row = document.createElement("tr")
-					row.className = "border-t border-slate-200"
+					row.className = "border-t border-slate-200 align-top"
 					const total = `${String(item?.currency ?? "USD")} ${Number(item?.totalPrice ?? 0).toFixed(2)}`
-					const productVariant = `${String(item?.productName ?? "Producto sin nombre")} · ${String(item?.variantName ?? "Variante")}`
-					const created = formatDateTime(item?.createdAt)
+					const productVariant = `${String(item?.productName ?? "Producto sin nombre")} · ${String(item?.variantName ?? "Allocation")}`
 					const checkIn = String(item?.checkIn ?? "—")
 					const checkOut = String(item?.checkOut ?? "—")
-					const confirmationLatency =
-						item?.createdAt && item?.confirmedAt
-							? Math.max(
-									0,
-									Math.round(
-										(new Date(String(item.confirmedAt)).getTime() -
-											new Date(String(item.createdAt)).getTime()) /
-											1000
-									)
-								)
-							: null
-					const confirmText =
-						confirmationLatency === null
-							? ""
-							: `<div class="text-xs text-slate-500">Confirmación: ${confirmationLatency}s</div>`
+					const occupancy = item?.occupancyDetail ?? {}
+					const guests = `${Number(occupancy?.adults ?? 0)}A · ${Number(occupancy?.children ?? 0)}C · ${Number(occupancy?.infants ?? 0)}I`
+					const handoff =
+						item?.refundHandoffState === "handoff_required"
+							? "Refund handoff pending"
+							: "Snapshot ready"
+					const snapshotTone =
+						item?.snapshotState === "contract_snapshot_present"
+							? "text-emerald-700"
+							: "text-amber-700"
 
 					row.innerHTML = `
-						<td class="px-3 py-2 text-slate-900">${String(item?.bookingId ?? "—")}</td>
-						<td class="px-3 py-2 text-slate-700">${productVariant}</td>
-						<td class="px-3 py-2 text-slate-700">${checkIn} → ${checkOut}</td>
-						<td class="px-3 py-2 text-slate-700">${total}</td>
-						<td class="px-3 py-2 text-slate-700">${statusLabel(item?.status)}</td>
-						<td class="px-3 py-2 text-slate-700">${created}${confirmText}</td>
-						<td class="px-3 py-2 text-right">
-							<a href="/booking/${encodeURIComponent(String(item?.bookingId ?? ""))}" class="inline-flex h-8 items-center justify-center rounded-md bg-[#1E3A8A] px-3 text-xs font-medium text-white hover:bg-[#1e40af]" data-astro-prefetch>Ver detalle</a>
+						<td class="px-3 py-3 text-slate-900">
+							<div class="font-medium">${String(item?.bookingId ?? "—")}</div>
+							<div class="mt-1 text-xs text-slate-500">${statusLabel(item?.status)}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<div class="font-medium text-slate-900">${String(item?.lifecycleLabel ?? "Lifecycle unknown")}</div>
+							<div class="mt-1 text-xs text-slate-500">${String(item?.lifecycleBasis ?? "snapshot")}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<div>${checkIn} → ${checkOut}</div>
+							<div class="mt-1 text-xs text-slate-500">${guests}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<div>${Number(item?.rooms ?? 1)} room(s)</div>
+							<div class="mt-1 text-xs text-slate-500">${productVariant}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">${total}</td>
+						<td class="px-3 py-3">
+							<div class="text-sm ${snapshotTone}">${handoff}</div>
+							<div class="mt-1 text-xs text-slate-500">${String(item?.snapshotState ?? "snapshot")}</div>
+						</td>
+						<td class="px-3 py-3 text-right">
+							<a href="/booking/${encodeURIComponent(String(item?.bookingId ?? ""))}" class="inline-flex h-8 items-center justify-center rounded-md bg-[#1E3A8A] px-3 text-xs font-medium text-white hover:bg-[#1e40af]" data-astro-prefetch>Ver workspace</a>
 						</td>
 					`
 					rows.appendChild(row)
@@ -225,15 +301,16 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 					if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
 					const payload = await response.json()
 					const items = Array.isArray(payload?.items) ? payload.items : []
+					renderSummary(payload?.summary ?? {})
 					render(items)
-					if (summary) summary.textContent = `${items.length} reserva(s) encontrada(s).`
+					if (summary) {
+						summary.textContent = `${items.length} reservation(s) in lifecycle queue. Modification workflow: ${String(payload?.summary?.modificationWorkflow ?? "not_automated")}.`
+					}
 					const durationMs = Number((performance.now() - started).toFixed(1))
-					if (latency) latency.textContent = `Latencia endpoint: ${durationMs}ms`
-					console.debug("data hydrated", {
-						page: "bookings-list",
-						durationMs,
-					})
+					if (latency) latency.textContent = `Endpoint latency: ${durationMs}ms`
+					console.debug("data hydrated", { page: "reservations-lifecycle-hub", durationMs })
 				} catch {
+					renderSummary({})
 					render([])
 					if (summary) summary.textContent = "No se pudo cargar el listado de reservas."
 					if (latency) latency.textContent = ""

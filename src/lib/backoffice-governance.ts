@@ -696,19 +696,21 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Reservations",
-		subtitle: "Snapshot-driven booking operations",
+		subtitle: "Lifecycle, audit, handoff",
 		owner: "Booking Operations",
 		context: "enterprise-operations",
-		operationalIntent: "Reservation lifecycle workspace anchored on immutable booking snapshots.",
+		operationalIntent:
+			"Reservation lifecycle coordination anchored on immutable booking contract snapshots, with pricing, inventory, and payments owned by their domains.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Reservations",
+				label: "Lifecycle Hub",
 				href: routes.bookingList(),
 				status: "canonical",
-				summary: "Snapshot-driven reservation lifecycle.",
+				summary: "Arrivals, stays, departures, cancellations, and audit handoffs.",
 			},
 		],
+		planned: ["Modification Workflow", "Guest Relations", "Refund Operations"],
 	},
 	{
 		title: "Property Content",

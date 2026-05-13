@@ -96,6 +96,10 @@ const MATRIX: InvariantCoverage[] = [
 		invariant: "Property Content catalog ownership semantics",
 		files: ["tests/guardrails/property-content-operational-semantics.test.ts"],
 	},
+	{
+		invariant: "Reservations lifecycle snapshot ownership",
+		files: ["tests/guardrails/reservations-lifecycle-semantics.test.ts"],
+	},
 ]
 
 describe("Architecture SoT invariants enforcement matrix", () => {
