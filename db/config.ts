@@ -840,6 +840,105 @@ const FinancialShadowRecord = defineTable({
 	},
 	indexes: [{ on: ["bookingId", "type"] }],
 })
+const FinancialExceptionRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		code: column.text(),
+		severity: column.text(),
+		status: column.text(),
+		basis: column.text(),
+		reason: column.text(),
+		nextOwner: column.text(),
+		source: column.text(),
+		openedAt: column.date(),
+		acknowledgedAt: column.date({ optional: true }),
+		resolvedAt: column.date({ optional: true }),
+		resolvedBy: column.text({ optional: true }),
+		resolutionNote: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["bookingId", "code"] },
+		{ on: ["providerId", "status"] },
+		{ on: ["providerId", "code", "status"] },
+		{ on: ["providerId", "nextOwner", "status"] },
+		{ on: ["openedAt"] },
+	],
+})
+const FinancialReference = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		type: column.text(),
+		referenceValue: column.text(),
+		externalSystem: column.text({ optional: true }),
+		amount: column.number({ optional: true }),
+		currency: column.text({ optional: true }),
+		recordedAt: column.date(),
+		source: column.text(),
+		basis: column.text(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["bookingId", "type"] },
+		{ on: ["providerId", "type"] },
+		{ on: ["referenceValue"] },
+	],
+})
+const RefundHandoffRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		status: column.text(),
+		reason: column.text(),
+		refundType: column.text(),
+		expectedAmount: column.number({ optional: true }),
+		currency: column.text({ optional: true }),
+		basis: column.text(),
+		nextOwner: column.text(),
+		openedAt: column.date(),
+		acknowledgedAt: column.date({ optional: true }),
+		closedAt: column.date({ optional: true }),
+		notes: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "status"] },
+		{ on: ["providerId", "nextOwner", "status"] },
+		{ on: ["openedAt"] },
+	],
+})
+const FinancialReviewEvent = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		financialExceptionId: column.text({ optional: true }),
+		financialReferenceId: column.text({ optional: true }),
+		refundHandoffId: column.text({ optional: true }),
+		type: column.text(),
+		actorId: column.text({ optional: true }),
+		actorType: column.text(),
+		payloadJson: column.json({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "createdAt"] },
+		{ on: ["financialExceptionId"] },
+		{ on: ["financialReferenceId"] },
+		{ on: ["refundHandoffId"] },
+	],
+})
 
 export default defineDb({
 	tables: {
@@ -919,5 +1018,9 @@ export default defineDb({
 		ProviderPayout,
 		ProviderPayoutBooking,
 		FinancialShadowRecord,
+		FinancialExceptionRecord,
+		FinancialReference,
+		RefundHandoffRecord,
+		FinancialReviewEvent,
 	},
 })

@@ -1,8 +1,11 @@
 import type { APIRoute } from "astro"
 
+import { requireFinancialProvider, json } from "./_stage2"
 import { readCounter } from "@/lib/observability/metrics"
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	const auth = await requireFinancialProvider(request)
+	if (!auth.ok) return auth.response
 	const created = readCounter("financial.shadow_write.created", { source: "booking_confirm" })
 	const deduped = readCounter("financial.shadow_write.deduped", { source: "booking_confirm" })
 	const failed = readCounter("financial.shadow_write.failed", { source: "booking_confirm" })
@@ -13,23 +16,17 @@ export const GET: APIRoute = async () => {
 	const missing = readCounter("financial.reconciliation.missing")
 	const ok = Math.max(0, observed - mismatch - missing)
 
-	return new Response(
-		JSON.stringify({
-			totals: {
-				bookingsObserved: observed,
-				shadowWrites,
-				deduped,
-				failed,
-			},
-			reconciliation: {
-				ok,
-				mismatch,
-				missing,
-			},
-		}),
-		{
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		}
-	)
+	return json({
+		totals: {
+			bookingsObserved: observed,
+			shadowWrites,
+			deduped,
+			failed,
+		},
+		reconciliation: {
+			ok,
+			mismatch,
+			missing,
+		},
+	})
 }
