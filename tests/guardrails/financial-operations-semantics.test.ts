@@ -183,13 +183,13 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 					? [`Financial Operations uses fake lifecycle naming ${signal}`]
 					: []
 			),
-			page.includes("item?.transactions?.financialEvidence?.paymentIntentShadow")
+			page.includes("operation?.transactions?.financialEvidence?.paymentIntentShadow")
 				? null
 				: `${financialPage}: transaction column must render financial evidence semantics`,
-			page.includes("item?.operationalException?.primary")
+			page.includes("operation?.operationalException?.all")
 				? null
-				: `${financialPage}: financial table must render primary operational exception`,
-			page.includes("item?.snapshotIntegrity?.multiRoomAllocationCount")
+				: `${financialPage}: financial table must preserve derived operational exception fallback`,
+			page.includes("operation?.snapshotIntegrity?.multiRoomAllocationCount")
 				? null
 				: `${financialPage}: tax/invoice column must expose snapshot allocation completeness`,
 		].filter(Boolean)
