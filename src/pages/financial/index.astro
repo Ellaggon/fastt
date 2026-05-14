@@ -10,37 +10,25 @@ if (!user) return Astro.redirect("/SignInPage")
 ---
 
 <WorkspaceLayout title="Financial Operations">
-	<section class="space-y-8">
-		<header class="grid gap-6 lg:grid-cols-[1.35fr_0.85fr] lg:items-end">
-			<div class="space-y-3">
-				<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
-					Snapshot-safe finance visibility
-				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">
-					Financial Operations & Reconciliation Workspace
-				</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Visibilidad financiera operacional basada en snapshots contractuales y registros shadow.
-					Esta superficie no orquesta PSP, no recalcula pricing, no ejecuta payouts y no actúa como
-					ledger contable.
-				</p>
-			</div>
-			<Card class="border-slate-700 bg-slate-900/70 text-slate-100">
-				<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Ownership</p>
-				<p class="mt-2 text-sm leading-6 text-slate-300">
-					Payments & Finance owns reconciliation visibility, payment lifecycle visibility and
-					financial handoff context. Reservations remains the contract snapshot owner.
-				</p>
-			</Card>
+	<section class="space-y-6">
+		<header class="space-y-3">
+			<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+				Financial exception review
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Operations requiring finance review</h1>
+			<p class="max-w-3xl text-sm leading-6 text-slate-400">
+				Cola sobria de evidencia financiera: refunds pendientes, referencias faltantes y gaps de
+				snapshot contractual. Financial observa y coordina; no ejecuta PSP, payouts ni ledger.
+			</p>
 		</header>
 
 		<Section
-			title="Financial lifecycle visibility"
-			description="Estados operacionales honestos: snapshots, handoffs y registros shadow; no settlement automation."
+			title="Exception queues"
+			description="Prioriza problemas revisables usando snapshots y financial shadow records existentes."
 		>
 			<div id="financialSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				{
-					["Contract value", "Refund handoff", "Partial reconciliation", "Snapshot ready"].map(
+					["Open exceptions", "Refund handoffs", "Missing references", "Snapshot gaps"].map(
 						(label) => (
 							<Card class="bg-slate-100">
 								<p class="text-xs font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</p>
@@ -54,11 +42,11 @@ if (!user) return Astro.redirect("/SignInPage")
 		</Section>
 
 		<Section
-			title="Reconciliation filters"
-			description="Filtra visibilidad financiera sin cambiar contratos ni ejecutar workflows financieros."
+			title="Review scope"
+			description="Filtra la cola sin cambiar contratos ni disparar workflows financieros."
 		>
-			<Card class="bg-slate-100">
-				<div class="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+			<Card class="bg-slate-100 p-4">
+				<div class="grid gap-4 md:grid-cols-[280px_1fr] md:items-end">
 					<label class="space-y-2 text-sm font-medium text-slate-700">
 						<span>Reconciliation state</span>
 						<Select id="financialStateFilter" name="state" value="all">
@@ -70,34 +58,33 @@ if (!user) return Astro.redirect("/SignInPage")
 							<option value="reconciliation_unknown">Unknown</option>
 						</Select>
 					</label>
-					<p class="text-xs leading-5 text-slate-500">
-						Financial estados aquí son read models. PSP execution, ledger settlement e invoicing
-						fiscal permanecen fuera de esta capa.
+					<p class="text-xs leading-5 text-slate-500 md:max-w-xl">
+						Los estados son evidencia de visibilidad, no lifecycle PSP ejecutado. Usa la cola para
+						identificar handoffs y snapshots incompletos.
 					</p>
 				</div>
 			</Card>
 		</Section>
 
 		<Section
-			title="Financial operations queue"
-			description="Bookings con snapshots financieros, handoff de refund, visibilidad de payout/commission e invoice references."
+			title="Financial exceptions"
+			description="Ordenado primero por problemas abiertos; los contratos limpios quedan como evidencia secundaria."
 		>
 			<Card class="min-h-[280px] space-y-4 bg-slate-100">
 				<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
 					<p id="financialListSummary" class="text-sm text-slate-700">
 						Cargando operaciones financieras...
 					</p>
-					<p id="financialListLatency" class="text-xs text-slate-500"></p>
 				</div>
 				<div class="overflow-x-auto">
 					<table class="min-w-full divide-y divide-slate-200 text-sm">
 						<thead>
 							<tr class="text-left text-slate-700">
+								<th class="px-3 py-2">Issue</th>
 								<th class="px-3 py-2">Booking contract</th>
-								<th class="px-3 py-2">Transaction visibility</th>
-								<th class="px-3 py-2">Refund / reconciliation</th>
-								<th class="px-3 py-2">Payout / commission</th>
-								<th class="px-3 py-2">Taxes / invoice</th>
+								<th class="px-3 py-2">Financial evidence</th>
+								<th class="px-3 py-2">Owner</th>
+								<th class="px-3 py-2">Snapshot integrity</th>
 							</tr>
 						</thead>
 						<tbody id="financialRows">
@@ -135,7 +122,6 @@ if (!user) return Astro.redirect("/SignInPage")
 			const summary = document.getElementById("financialSummary")
 			const rows = document.getElementById("financialRows")
 			const listSummary = document.getElementById("financialListSummary")
-			const latency = document.getElementById("financialListLatency")
 
 			const money = (currency, value) =>
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
@@ -145,24 +131,24 @@ if (!user) return Astro.redirect("/SignInPage")
 				if (!summary) return
 				const metrics = [
 					{
-						label: "Contract value",
-						value: money("USD", data?.contractValue ?? 0),
-						detail: "Valor contractual visible desde booking snapshots.",
+						label: "Open exceptions",
+						value: data?.openExceptions ?? 0,
+						detail: "Contratos que necesitan revisión financiera.",
 					},
 					{
-						label: "Refund handoff",
+						label: "Refund handoffs",
 						value: data?.refundHandoffPending ?? 0,
-						detail: "Cancelaciones que requieren handoff financiero.",
+						detail: "Cancelaciones con handoff sin evidencia final.",
 					},
 					{
-						label: "Partial reconciliation",
-						value: data?.partiallyReconciled ?? 0,
-						detail: "Shadow records presentes sin cierre contable real.",
+						label: "Missing references",
+						value: data?.missingReferenceCount ?? 0,
+						detail: "Evidencia shadow sin referencia estable.",
 					},
 					{
-						label: "Snapshot ready",
-						value: data?.snapshotReady ?? 0,
-						detail: "Contrato listo; sin workflow financiero activo.",
+						label: "Snapshot gaps",
+						value: data?.snapshotGapCount ?? 0,
+						detail: "Contratos con evidencia snapshot incompleta o legacy.",
 					},
 				]
 				summary.innerHTML = metrics
@@ -187,34 +173,46 @@ if (!user) return Astro.redirect("/SignInPage")
 				for (const item of items) {
 					const tr = document.createElement("tr")
 					tr.className = "border-t border-slate-200 align-top"
+					const issue = item?.operationalException?.primary
+					const issueLabel = issue?.code ? stateLabel(issue.code) : "No exception"
+					const issueReason =
+						issue?.reason ||
+						"Snapshot evidence is available; no financial handoff is currently flagged."
+					const nextOwner = issue?.nextOwner ? stateLabel(issue.nextOwner) : "None"
+					const issueAge = Number.isFinite(Number(item?.operationalException?.ageDays))
+						? `${Number(item.operationalException.ageDays)}d since confirmation`
+						: "Age unavailable"
+					const paymentRefs = Number(item?.transactions?.references?.payment?.length || 0)
+					const settlementRefs = Number(item?.transactions?.references?.settlement?.length || 0)
+					const refundRefs = Number(item?.transactions?.references?.refund?.length || 0)
 					tr.innerHTML = `
+						<td class="px-3 py-3 text-slate-700">
+							<div class="font-medium ${issue ? "text-slate-950" : "text-emerald-700"}">${issueLabel}</div>
+							<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${issueReason}</div>
+							<div class="mt-1 text-xs text-slate-400">${issueAge}</div>
+						</td>
 						<td class="px-3 py-3 text-slate-700">
 							<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${String(item.bookingId || "-")}</a>
 							<div class="mt-1 text-xs text-slate-500">${String(item?.contract?.productName || "Property")} · ${String(item?.contract?.variantName || "Allocation")}</div>
 							<div class="mt-1 text-xs text-slate-500">${money(item.currency, item.contractTotal)} · ${String(item?.contract?.version || "snapshot")}</div>
 						</td>
-						<td class="px-3 py-3 text-slate-700">
-							<div>${Number(item?.transactions?.paymentIntents || 0)} payment intent(s)</div>
-							<div class="mt-1 text-xs text-slate-500">${Number(item?.transactions?.settlementRecords || 0)} settlement · ${Number(item?.transactions?.refundRecords || 0)} refund</div>
-						</td>
-						<td class="px-3 py-3 text-slate-700">
-							<div class="font-medium text-slate-950">${stateLabel(item?.reconciliation?.state)}</div>
-							<div class="mt-1 text-xs text-slate-500">Refund: ${String(item?.refund?.state || "not_applicable")}</div>
-						</td>
-						<td class="px-3 py-3 text-slate-700">
-							<div>${money(item.currency, item.netPayoutEstimate)} payout visibility</div>
-							<div class="mt-1 text-xs text-slate-500">Commission: ${money(item.currency, item.commissionTotal)}</div>
-						</td>
-						<td class="px-3 py-3 text-slate-700">
-							<div>${Number(item?.taxFeeVisibility?.lines || 0)} tax/fee snapshot line(s)</div>
-							<div class="mt-1 text-xs text-slate-500">Invoice: ${String(item?.invoice?.state || "reference_not_issued")}</div>
-						</td>`
+							<td class="px-3 py-3 text-slate-700">
+								<div>${stateLabel(item?.transactions?.shadowVisibility?.paymentIntent)}</div>
+								<div class="mt-1 text-xs text-slate-500">Payment refs: ${paymentRefs} · Settlement refs: ${settlementRefs} · Refund refs: ${refundRefs}</div>
+							</td>
+							<td class="px-3 py-3 text-slate-700">
+								<div class="font-medium text-slate-950">${nextOwner}</div>
+								<div class="mt-1 text-xs text-slate-500">${stateLabel(item?.reconciliation?.state)} · Refund: ${stateLabel(item?.refund?.state || "not_applicable")}</div>
+							</td>
+							<td class="px-3 py-3 text-slate-700">
+								<div>${Number(item?.taxFeeVisibility?.lines || 0)} tax/fee line(s) · Rooms: ${Number(item?.snapshotIntegrity?.multiRoomAllocationCount || 0)}</div>
+								<div class="mt-1 text-xs text-slate-500">${item?.snapshotIntegrity?.hasRoomSnapshots ? "Room snapshot ok" : "Room snapshot gap"} · ${item?.snapshotIntegrity?.hasTaxFeeSnapshots ? "Tax snapshot ok" : "Tax snapshot gap"}</div>
+							</td>`
 					rows.appendChild(tr)
 				}
 			}
 
 			async function fetchOperations() {
-				const started = performance.now()
 				const state = String(stateFilter?.value || "all")
 				try {
 					const params = new URLSearchParams()
@@ -227,14 +225,11 @@ if (!user) return Astro.redirect("/SignInPage")
 					renderSummary(payload?.summary || {})
 					renderRows(Array.isArray(payload?.items) ? payload.items : [])
 					if (listSummary)
-						listSummary.textContent = `${payload?.summary?.totalBookings || 0} booking contract(s) in financial visibility.`
-					if (latency)
-						latency.textContent = `Endpoint latency: ${Number((performance.now() - started).toFixed(1))}ms`
+						listSummary.textContent = `${payload?.summary?.openExceptions || 0} open exception(s) across ${payload?.summary?.totalBookings || 0} booking contract(s).`
 				} catch {
 					renderSummary({})
 					renderRows([])
 					if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
-					if (latency) latency.textContent = ""
 				}
 			}
 

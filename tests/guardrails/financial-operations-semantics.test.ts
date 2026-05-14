@@ -27,6 +27,34 @@ const bannedRuntimeCalls = new Set([
 	"createLedgerEntry",
 ])
 
+const requiredFinancialStates = [
+	"payment_intent_created",
+	"authorization_visible",
+	"capture_visible",
+	"refund_handoff_required",
+	"refund_snapshot_visible",
+	"payout_visibility",
+	"settlement_visibility",
+	"reconciliation_state",
+]
+
+const requiredExceptionSignals = [
+	"operationalException",
+	"openExceptions",
+	"missingReferenceCount",
+	"snapshotGapCount",
+	"refund_handoff_required",
+	"reconciliation_unknown",
+	"missing_payment_reference",
+	"missing_settlement_reference",
+	"missing_refund_reference",
+	"incomplete_contract_snapshot",
+	"legacy_snapshot_compatibility",
+	"multi_room_review",
+	"nextOwner",
+	"ageDays",
+]
+
 describe("Guardrail: Financial Operations enterprise semantics", () => {
 	it("keeps financial read models snapshot-first and out of pricing/inventory engines", () => {
 		const imports = collectImports(financialBff)
@@ -88,6 +116,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 
 	it("keeps contract value visibility multi-room snapshot aware", () => {
 		const source = read(financialBff)
+		const confirmSource = read("src/pages/api/booking/confirm.ts")
 		const violations = [
 			source.includes("const detailTotal = group.reduce")
 				? null
@@ -98,6 +127,17 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			source.includes("const contractTotal = Number(first.detailTotalPrice")
 				? `${financialBff}: contract total must not use only the first room detail`
 				: null,
+			confirmSource.includes("const bookingDetails = await db") &&
+			confirmSource.includes(".where(eq(BookingRoomDetail.bookingId, result.bookingId))") &&
+			confirmSource.includes(".all()")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must read all room snapshots",
+			confirmSource.includes("const roomTotal = bookingDetails.reduce")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must aggregate multi-room totals",
+			confirmSource.includes("const finalTotal = roomTotal > 0 ? roomTotal : fallbackFinal")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must prefer room snapshot totals",
 		].filter(Boolean)
 
 		expect(
@@ -106,16 +146,63 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 		).toEqual([])
 	})
 
+	it("requires explicit financial lifecycle and snapshot integrity semantics", () => {
+		const source = read(financialBff)
+		const page = read(financialPage)
+		const requiredSignals = [
+			...requiredFinancialStates,
+			...requiredExceptionSignals,
+			"deriveTransactionLifecycle",
+			"snapshotIntegrity",
+			"hasPaymentReference",
+			"hasSettlementReference",
+			"hasRefundReference",
+			"multiRoomAllocationCount",
+			"refund_handoff_visibility",
+			"settlement_context_visible",
+			"visibility_not_psp_orchestration",
+		]
+		const violations = [
+			...requiredSignals.flatMap((signal) =>
+				source.includes(signal) ? [] : [`${financialBff}: missing ${signal}`]
+			),
+			page.includes("item?.transactions?.shadowVisibility?.paymentIntent")
+				? null
+				: `${financialPage}: transaction column must render shadow visibility semantics`,
+			page.includes("item?.operationalException?.primary")
+				? null
+				: `${financialPage}: financial table must render primary operational exception`,
+			page.includes("item?.snapshotIntegrity?.multiRoomAllocationCount")
+				? null
+				: `${financialPage}: tax/invoice column must expose snapshot allocation completeness`,
+		].filter(Boolean)
+
+		expect(
+			violations,
+			`Financial Operations must expose lifecycle and snapshot integrity semantics, not only counters:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
 	it("requires honest finance UX framing without command-center or analytics theater", () => {
 		const source = read(financialPage)
 		const requiredSignals = [
-			"Financial Operations & Reconciliation Workspace",
-			"Snapshot-safe finance visibility",
-			"no orquesta PSP",
-			"no recalcula pricing",
-			"ledger contable",
+			"Financial exception review",
+			"Operations requiring finance review",
+			"Exception queues",
+			"Financial exceptions",
+			"no ejecuta PSP",
+			"ni ledger",
 		]
-		const forbiddenTheater = [/command center/i, /\bAI\b/i, /forecast/i, /revenue optimization/i]
+		const forbiddenTheater = [
+			/command center/i,
+			/\bAI\b/i,
+			/forecast/i,
+			/revenue optimization/i,
+			/Endpoint latency/i,
+			/Ownership<\/p>/,
+			/Financial lifecycle visibility/,
+			/Snapshot ready<\/p>/,
+		]
 		const violations = [
 			...requiredSignals.flatMap((signal) =>
 				source.includes(signal) ? [] : [`${financialPage}: missing ${signal}`]
