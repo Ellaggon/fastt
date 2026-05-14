@@ -10,6 +10,8 @@ function read(relativePath: string): string {
 
 const financialPage = "src/pages/financial/index.astro"
 const financialBff = "src/pages/api/internal/financial/operations.ts"
+const financialDetector =
+	"src/modules/financial/application/use-cases/detect-financial-exceptions.ts"
 
 const bannedRuntimeCalls = new Set([
 	"computeEffectivePricingV2",
@@ -28,13 +30,12 @@ const bannedRuntimeCalls = new Set([
 ])
 
 const requiredFinancialStates = [
-	"payment_intent_created",
-	"authorization_visible",
-	"capture_visible",
+	"payment_intent_shadow_visible",
+	"payment_recorded_shadow_visible",
 	"refund_handoff_required",
-	"refund_snapshot_visible",
-	"payout_visibility",
-	"settlement_visibility",
+	"refund_evidence_visible",
+	"settlement_shadow_visible",
+	"settlement_recorded_shadow_visible",
 	"reconciliation_state",
 ]
 
@@ -146,29 +147,45 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 		).toEqual([])
 	})
 
-	it("requires explicit financial lifecycle and snapshot integrity semantics", () => {
-		const source = read(financialBff)
+	it("requires explicit financial evidence and snapshot integrity semantics", () => {
+		const source = `${read(financialBff)}\n${read(financialDetector)}`
 		const page = read(financialPage)
 		const requiredSignals = [
 			...requiredFinancialStates,
 			...requiredExceptionSignals,
-			"deriveTransactionLifecycle",
+			"deriveFinancialEvidenceVisibility",
+			"financialEvidence",
 			"snapshotIntegrity",
 			"hasPaymentReference",
 			"hasSettlementReference",
 			"hasRefundReference",
 			"multiRoomAllocationCount",
 			"refund_handoff_visibility",
-			"settlement_context_visible",
+			"settlement_shadow_context_visible",
 			"visibility_not_psp_orchestration",
+		]
+		const forbiddenFakeLifecycle = [
+			"authorization_visible",
+			"capture_visible",
+			"payment_intent_created",
+			"refund_snapshot_visible",
+			"settlement_visibility",
+			"payout_visibility",
+			"deriveTransactionLifecycle",
+			"transactions?.shadowVisibility",
 		]
 		const violations = [
 			...requiredSignals.flatMap((signal) =>
 				source.includes(signal) ? [] : [`${financialBff}: missing ${signal}`]
 			),
-			page.includes("item?.transactions?.shadowVisibility?.paymentIntent")
+			...forbiddenFakeLifecycle.flatMap((signal) =>
+				source.includes(signal) || page.includes(signal)
+					? [`Financial Operations uses fake lifecycle naming ${signal}`]
+					: []
+			),
+			page.includes("item?.transactions?.financialEvidence?.paymentIntentShadow")
 				? null
-				: `${financialPage}: transaction column must render shadow visibility semantics`,
+				: `${financialPage}: transaction column must render financial evidence semantics`,
 			page.includes("item?.operationalException?.primary")
 				? null
 				: `${financialPage}: financial table must render primary operational exception`,
@@ -179,19 +196,19 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 
 		expect(
 			violations,
-			`Financial Operations must expose lifecycle and snapshot integrity semantics, not only counters:\n${violations.join("\n")}`
+			`Financial Operations must expose evidence and snapshot integrity semantics, not fake lifecycle counters:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
 	it("requires honest finance UX framing without command-center or analytics theater", () => {
 		const source = read(financialPage)
 		const requiredSignals = [
-			"Financial exception review",
-			"Operations requiring finance review",
-			"Exception queues",
-			"Financial exceptions",
-			"no ejecuta PSP",
-			"ni ledger",
+			"Review queue",
+			"Open exceptions",
+			"Missing references",
+			"Snapshot gaps",
+			"Clean records",
+			"No items match this queue",
 		]
 		const forbiddenTheater = [
 			/command center/i,
@@ -200,8 +217,15 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			/revenue optimization/i,
 			/Endpoint latency/i,
 			/Ownership<\/p>/,
+			/Financial exception review/,
+			/Operations requiring finance review/,
+			/Financial exceptions requiring review/,
 			/Financial lifecycle visibility/,
-			/Snapshot ready<\/p>/,
+			/Snapshot ready/,
+			/financial dashboard/i,
+			/executive KPI/i,
+			/no\s+ejecuta\s+PSP/i,
+			/ni ledger/i,
 		]
 		const violations = [
 			...requiredSignals.flatMap((signal) =>

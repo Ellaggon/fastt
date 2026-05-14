@@ -1,6 +1,5 @@
 ---
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -10,156 +9,193 @@ if (!user) return Astro.redirect("/SignInPage")
 ---
 
 <WorkspaceLayout title="Financial Operations">
-	<section class="space-y-6">
-		<header class="space-y-3">
-			<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
-				Financial exception review
-			</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Operations requiring finance review</h1>
-			<p class="max-w-3xl text-sm leading-6 text-slate-400">
-				Cola sobria de evidencia financiera: refunds pendientes, referencias faltantes y gaps de
-				snapshot contractual. Financial observa y coordina; no ejecuta PSP, payouts ni ledger.
-			</p>
-		</header>
-
-		<Section
-			title="Exception queues"
-			description="Prioriza problemas revisables usando snapshots y financial shadow records existentes."
-		>
-			<div id="financialSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				{
-					["Open exceptions", "Refund handoffs", "Missing references", "Snapshot gaps"].map(
-						(label) => (
-							<Card class="bg-slate-100">
-								<p class="text-xs font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</p>
-								<div class="mt-3 h-8 w-20 animate-pulse rounded bg-slate-200" />
-								<div class="mt-2 h-3 w-32 animate-pulse rounded bg-slate-200" />
-							</Card>
-						)
-					)
-				}
+	<section>
+		<Card class="overflow-hidden bg-slate-100 p-0">
+			<div class="border-b border-slate-200 p-4">
+				<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<div class="space-y-1">
+						<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Review queue</p>
+						<p id="financialListSummary" class="text-sm text-slate-700">
+							Cargando operaciones financieras...
+						</p>
+					</div>
+					<div class="grid gap-3 sm:grid-cols-2">
+						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Queue</span>
+							<Select id="financialQueueFilter" name="queue" value="all_open">
+								<option value="all_open">Open exceptions</option>
+								<option value="refund_handoff_required">Refund handoffs</option>
+								<option value="missing_references">Missing references</option>
+								<option value="snapshot_gaps">Snapshot gaps</option>
+								<option value="reconciliation_unknown">Reconciliation unknown</option>
+								<option value="multi_room_review">Multi-room review</option>
+								<option value="clean_records">Clean records</option>
+								<option value="all">All records</option>
+							</Select>
+						</label>
+						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Reconciliation</span>
+							<Select id="financialStateFilter" name="state" value="all">
+								<option value="all">All states</option>
+								<option value="snapshot_ready">Evidence ready</option>
+								<option value="handoff_pending">Handoff pending</option>
+								<option value="partially_reconciled">Partially reconciled</option>
+								<option value="reconciled">Reconciled</option>
+								<option value="reconciliation_unknown">Unknown</option>
+							</Select>
+						</label>
+					</div>
+				</div>
+				<div id="financialSummary" class="mt-4 flex flex-wrap gap-2">
+					{
+						[
+							"Open exceptions",
+							"Refund handoffs",
+							"Missing references",
+							"Snapshot gaps",
+							"Clean records",
+						].map((label) => (
+							<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
+								<span class="text-xs font-semibold text-slate-500">{label}</span>
+							</div>
+						))
+					}
+				</div>
 			</div>
-		</Section>
-
-		<Section
-			title="Review scope"
-			description="Filtra la cola sin cambiar contratos ni disparar workflows financieros."
-		>
-			<Card class="bg-slate-100 p-4">
-				<div class="grid gap-4 md:grid-cols-[280px_1fr] md:items-end">
-					<label class="space-y-2 text-sm font-medium text-slate-700">
-						<span>Reconciliation state</span>
-						<Select id="financialStateFilter" name="state" value="all">
-							<option value="all">Todos</option>
-							<option value="snapshot_ready">Snapshot ready</option>
-							<option value="handoff_pending">Handoff pending</option>
-							<option value="partially_reconciled">Partially reconciled</option>
-							<option value="reconciled">Reconciled</option>
-							<option value="reconciliation_unknown">Unknown</option>
-						</Select>
-					</label>
-					<p class="text-xs leading-5 text-slate-500 md:max-w-xl">
-						Los estados son evidencia de visibilidad, no lifecycle PSP ejecutado. Usa la cola para
-						identificar handoffs y snapshots incompletos.
-					</p>
-				</div>
-			</Card>
-		</Section>
-
-		<Section
-			title="Financial exceptions"
-			description="Ordenado primero por problemas abiertos; los contratos limpios quedan como evidencia secundaria."
-		>
-			<Card class="min-h-[280px] space-y-4 bg-slate-100">
-				<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-					<p id="financialListSummary" class="text-sm text-slate-700">
-						Cargando operaciones financieras...
-					</p>
-				</div>
-				<div class="overflow-x-auto">
-					<table class="min-w-full divide-y divide-slate-200 text-sm">
-						<thead>
-							<tr class="text-left text-slate-700">
-								<th class="px-3 py-2">Issue</th>
-								<th class="px-3 py-2">Booking contract</th>
-								<th class="px-3 py-2">Financial evidence</th>
-								<th class="px-3 py-2">Owner</th>
-								<th class="px-3 py-2">Snapshot integrity</th>
-							</tr>
-						</thead>
-						<tbody id="financialRows">
-							{
-								Array.from({ length: 5 }).map(() => (
-									<tr class="border-t border-slate-200">
-										<td class="px-3 py-2">
-											<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
-										</td>
-										<td class="px-3 py-2">
-											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
-										</td>
-										<td class="px-3 py-2">
-											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
-										</td>
-										<td class="px-3 py-2">
-											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
-										</td>
-										<td class="px-3 py-2">
-											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
-										</td>
-									</tr>
-								))
-							}
-						</tbody>
-					</table>
-				</div>
-			</Card>
-		</Section>
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-slate-200 text-sm">
+					<thead>
+						<tr class="text-left text-slate-700">
+							<th class="px-3 py-2">Issue</th>
+							<th class="px-3 py-2">Booking contract</th>
+							<th class="px-3 py-2">Financial evidence</th>
+							<th class="px-3 py-2">Owner</th>
+							<th class="px-3 py-2">Snapshot integrity</th>
+						</tr>
+					</thead>
+					<tbody id="financialRows">
+						{
+							Array.from({ length: 5 }).map(() => (
+								<tr class="border-t border-slate-200">
+									<td class="px-3 py-2">
+										<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+									</td>
+								</tr>
+							))
+						}
+					</tbody>
+				</table>
+			</div>
+		</Card>
 	</section>
 
 	<script is:inline>
 		;(function () {
+			const queueFilter = document.getElementById("financialQueueFilter")
 			const stateFilter = document.getElementById("financialStateFilter")
 			const summary = document.getElementById("financialSummary")
 			const rows = document.getElementById("financialRows")
 			const listSummary = document.getElementById("financialListSummary")
+			let allItems = []
 
 			const money = (currency, value) =>
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
 			const stateLabel = (state) => String(state || "reconciliation_unknown").replaceAll("_", " ")
+			const exceptionCodes = (item) =>
+				Array.isArray(item?.operationalException?.all)
+					? item.operationalException.all.map((entry) => String(entry?.code || ""))
+					: []
+			const hasAnyCode = (item, codes) => exceptionCodes(item).some((code) => codes.includes(code))
+			const isCleanRecord = (item) => !item?.operationalException?.hasOpenException
 
-			function renderSummary(data) {
+			function queueMatches(item, queue) {
+				if (queue === "all") return true
+				if (queue === "all_open") return Boolean(item?.operationalException?.hasOpenException)
+				if (queue === "clean_records") return isCleanRecord(item)
+				if (queue === "missing_references") {
+					return hasAnyCode(item, [
+						"missing_payment_reference",
+						"missing_settlement_reference",
+						"missing_refund_reference",
+					])
+				}
+				if (queue === "snapshot_gaps") {
+					return hasAnyCode(item, ["incomplete_contract_snapshot", "legacy_snapshot_compatibility"])
+				}
+				return hasAnyCode(item, [queue])
+			}
+
+			function applyFilters(items) {
+				const queue = String(queueFilter?.value || "all_open")
+				const state = String(stateFilter?.value || "all")
+				return items.filter((item) => {
+					const stateMatches = state === "all" || item?.reconciliation?.state === state
+					return stateMatches && queueMatches(item, queue)
+				})
+			}
+
+			function countQueue(items, queue) {
+				return items.filter((item) => queueMatches(item, queue)).length
+			}
+
+			function renderSummary(items) {
 				if (!summary) return
 				const metrics = [
 					{
 						label: "Open exceptions",
-						value: data?.openExceptions ?? 0,
-						detail: "Contratos que necesitan revisión financiera.",
+						value: countQueue(items, "all_open"),
+						queue: "all_open",
 					},
 					{
 						label: "Refund handoffs",
-						value: data?.refundHandoffPending ?? 0,
-						detail: "Cancelaciones con handoff sin evidencia final.",
+						value: countQueue(items, "refund_handoff_required"),
+						queue: "refund_handoff_required",
 					},
 					{
 						label: "Missing references",
-						value: data?.missingReferenceCount ?? 0,
-						detail: "Evidencia shadow sin referencia estable.",
+						value: countQueue(items, "missing_references"),
+						queue: "missing_references",
 					},
 					{
 						label: "Snapshot gaps",
-						value: data?.snapshotGapCount ?? 0,
-						detail: "Contratos con evidencia snapshot incompleta o legacy.",
+						value: countQueue(items, "snapshot_gaps"),
+						queue: "snapshot_gaps",
+					},
+					{
+						label: "Clean records",
+						value: countQueue(items, "clean_records"),
+						queue: "clean_records",
 					},
 				]
 				summary.innerHTML = metrics
 					.map(
-						(metric) => `<div class="rounded-2xl border border-slate-200 bg-slate-100 p-5">
-							<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${metric.label}</p>
-							<p class="mt-3 text-2xl font-semibold text-slate-950">${metric.value}</p>
-							<p class="mt-2 text-xs leading-5 text-slate-600">${metric.detail}</p>
-						</div>`
+						(
+							metric
+						) => `<button type="button" data-queue="${metric.queue}" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-white">
+							<span class="text-slate-950">${metric.value}</span>
+							<span class="ml-1">${metric.label}</span>
+						</button>`
 					)
 					.join("")
+				summary.querySelectorAll("[data-queue]").forEach((button) => {
+					button.addEventListener("click", () => {
+						if (queueFilter)
+							queueFilter.value = String(button.getAttribute("data-queue") || "all_open")
+						renderFinancialView()
+					})
+				})
 			}
 
 			function renderRows(items) {
@@ -167,7 +203,7 @@ if (!user) return Astro.redirect("/SignInPage")
 				rows.innerHTML = ""
 				if (!Array.isArray(items) || !items.length) {
 					rows.innerHTML =
-						'<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No financial operations for this filter.</td></tr>'
+						'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No items match this queue. Change filters to inspect clean or historical records.</td></tr>'
 					return
 				}
 				for (const item of items) {
@@ -197,7 +233,7 @@ if (!user) return Astro.redirect("/SignInPage")
 							<div class="mt-1 text-xs text-slate-500">${money(item.currency, item.contractTotal)} · ${String(item?.contract?.version || "snapshot")}</div>
 						</td>
 							<td class="px-3 py-3 text-slate-700">
-								<div>${stateLabel(item?.transactions?.shadowVisibility?.paymentIntent)}</div>
+								<div>${stateLabel(item?.transactions?.financialEvidence?.paymentIntentShadow)}</div>
 								<div class="mt-1 text-xs text-slate-500">Payment refs: ${paymentRefs} · Settlement refs: ${settlementRefs} · Refund refs: ${refundRefs}</div>
 							</td>
 							<td class="px-3 py-3 text-slate-700">
@@ -212,28 +248,36 @@ if (!user) return Astro.redirect("/SignInPage")
 				}
 			}
 
+			function renderFinancialView() {
+				const filteredItems = applyFilters(allItems)
+				renderSummary(allItems)
+				renderRows(filteredItems)
+				if (listSummary) {
+					const openCount = countQueue(allItems, "all_open")
+					const shownCount = filteredItems.length
+					listSummary.textContent = `${openCount} open exception(s). Showing ${shownCount} review item(s).`
+				}
+			}
+
 			async function fetchOperations() {
-				const state = String(stateFilter?.value || "all")
 				try {
-					const params = new URLSearchParams()
-					if (state && state !== "all") params.set("state", state)
-					const response = await fetch(`/api/internal/financial/operations?${params.toString()}`, {
+					const response = await fetch("/api/internal/financial/operations", {
 						headers: { accept: "application/json" },
 					})
 					if (!response.ok) throw new Error(`financial_operations_${response.status}`)
 					const payload = await response.json()
-					renderSummary(payload?.summary || {})
-					renderRows(Array.isArray(payload?.items) ? payload.items : [])
-					if (listSummary)
-						listSummary.textContent = `${payload?.summary?.openExceptions || 0} open exception(s) across ${payload?.summary?.totalBookings || 0} booking contract(s).`
+					allItems = Array.isArray(payload?.items) ? payload.items : []
+					renderFinancialView()
 				} catch {
-					renderSummary({})
+					allItems = []
+					renderSummary([])
 					renderRows([])
 					if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
 				}
 			}
 
-			stateFilter?.addEventListener("change", () => void fetchOperations())
+			queueFilter?.addEventListener("change", renderFinancialView)
+			stateFilter?.addEventListener("change", renderFinancialView)
 			void fetchOperations()
 		})()
 	</script>

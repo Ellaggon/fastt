@@ -16,6 +16,10 @@ import {
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	detectFinancialExceptions,
+	type DetectedFinancialException,
+} from "@/modules/financial/application/use-cases/detect-financial-exceptions"
 
 type ReconciliationState =
 	| "snapshot_ready"
@@ -24,12 +28,11 @@ type ReconciliationState =
 	| "reconciled"
 	| "reconciliation_unknown"
 
-type PaymentIntentVisibility = "not_visible" | "payment_intent_created"
-type AuthorizationVisibility = "not_visible" | "authorization_visible"
-type CaptureVisibility = "not_visible" | "capture_visible"
-type RefundVisibility = "not_applicable" | "refund_handoff_required" | "refund_snapshot_visible"
-type SettlementVisibility = "not_started" | "settlement_visibility"
-type PayoutVisibility = "not_started" | "payout_visibility"
+type PaymentIntentEvidence = "not_visible" | "payment_intent_shadow_visible"
+type RecordedPaymentEvidence = "not_visible" | "payment_recorded_shadow_visible"
+type RefundEvidence = "not_applicable" | "refund_handoff_required" | "refund_evidence_visible"
+type SettlementEvidence = "not_visible" | "settlement_shadow_visible"
+type RecordedSettlementEvidence = "not_visible" | "settlement_recorded_shadow_visible"
 type FinancialExceptionCode =
 	| "refund_handoff_required"
 	| "reconciliation_unknown"
@@ -39,14 +42,6 @@ type FinancialExceptionCode =
 	| "incomplete_contract_snapshot"
 	| "legacy_snapshot_compatibility"
 	| "multi_room_review"
-
-type FinancialException = {
-	code: FinancialExceptionCode
-	severity: "review" | "attention"
-	reason: string
-	nextOwner: "financial_operations" | "reservations" | "external_finance" | "none"
-	basis: "contract_snapshot" | "financial_shadow_record" | "refund_handoff" | "legacy_fallback"
-}
 
 function dateOnly(value: unknown): string | null {
 	if (!value) return null
@@ -108,19 +103,18 @@ function daysSince(value: unknown): number | null {
 	return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000))
 }
 
-function deriveTransactionLifecycle(params: {
+function deriveFinancialEvidenceVisibility(params: {
 	status: string
 	paymentIntents: Array<{ payload: unknown }>
 	settlementRecords: Array<{ payload: unknown }>
 	refundRecords: Array<{ payload: unknown }>
 	refundSnapshot: Record<string, unknown> | null
 }): {
-	paymentIntent: PaymentIntentVisibility
-	authorization: AuthorizationVisibility
-	capture: CaptureVisibility
-	refund: RefundVisibility
-	settlement: SettlementVisibility
-	payout: PayoutVisibility
+	paymentIntentShadow: PaymentIntentEvidence
+	recordedPaymentShadow: RecordedPaymentEvidence
+	refundEvidence: RefundEvidence
+	settlementShadow: SettlementEvidence
+	recordedSettlementShadow: RecordedSettlementEvidence
 } {
 	const hasPaymentIntent = params.paymentIntents.length > 0
 	const hasRecordedPayment = anyRecorded(params.paymentIntents)
@@ -130,16 +124,17 @@ function deriveTransactionLifecycle(params: {
 	const isCancelled = params.status.toLowerCase() === "cancelled"
 
 	return {
-		paymentIntent: hasPaymentIntent ? "payment_intent_created" : "not_visible",
-		authorization: hasRecordedPayment ? "authorization_visible" : "not_visible",
-		capture: hasRecordedPayment ? "capture_visible" : "not_visible",
-		refund: hasRefundSnapshot
-			? "refund_snapshot_visible"
+		paymentIntentShadow: hasPaymentIntent ? "payment_intent_shadow_visible" : "not_visible",
+		recordedPaymentShadow: hasRecordedPayment ? "payment_recorded_shadow_visible" : "not_visible",
+		refundEvidence: hasRefundSnapshot
+			? "refund_evidence_visible"
 			: isCancelled
 				? "refund_handoff_required"
 				: "not_applicable",
-		settlement: hasSettlement ? "settlement_visibility" : "not_started",
-		payout: hasRecordedSettlement ? "payout_visibility" : "not_started",
+		settlementShadow: hasSettlement ? "settlement_shadow_visible" : "not_visible",
+		recordedSettlementShadow: hasRecordedSettlement
+			? "settlement_recorded_shadow_visible"
+			: "not_visible",
 	}
 }
 
@@ -313,7 +308,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				first.refundHandoffSnapshotJson && typeof first.refundHandoffSnapshotJson === "object"
 					? (first.refundHandoffSnapshotJson as Record<string, unknown>)
 					: null
-			const transactionLifecycle = deriveTransactionLifecycle({
+			const financialEvidence = deriveFinancialEvidenceVisibility({
 				status: String(first.status ?? "draft"),
 				paymentIntents,
 				settlementRecords,
@@ -338,84 +333,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const hasRefundReference = refundReferences.length > 0 || refundSnapshot != null
 			const multiRoomAllocationCount = group.filter((row) => row.detailId != null).length
 			const snapshotVersion = first.contractSnapshotVersion ?? "legacy_snapshot_compatibility"
-			const exceptions: FinancialException[] = []
-
-			if (reconciliationState === "handoff_pending") {
-				exceptions.push({
-					code: "refund_handoff_required",
-					severity: "attention",
-					reason:
-						"Cancelled reservation has refund handoff visibility but no refund evidence recorded.",
-					nextOwner: "financial_operations",
-					basis: "refund_handoff",
-				})
-			}
-			if (reconciliationState === "reconciliation_unknown") {
-				exceptions.push({
-					code: "reconciliation_unknown",
-					severity: "attention",
-					reason:
-						"Financial shadow records exist but do not provide enough evidence to reconcile the contract.",
-					nextOwner: "financial_operations",
-					basis: "financial_shadow_record",
-				})
-			}
-			if (paymentIntents.length > 0 && !hasPaymentReference) {
-				exceptions.push({
-					code: "missing_payment_reference",
-					severity: "attention",
-					reason: "Payment evidence is visible but no stable transaction reference was captured.",
-					nextOwner: "external_finance",
-					basis: "financial_shadow_record",
-				})
-			}
-			if (settlementRecords.length > 0 && !hasSettlementReference) {
-				exceptions.push({
-					code: "missing_settlement_reference",
-					severity: "attention",
-					reason: "Settlement visibility exists without a stable settlement reference.",
-					nextOwner: "external_finance",
-					basis: "financial_shadow_record",
-				})
-			}
-			if (transactionLifecycle.refund === "refund_handoff_required" && !hasRefundReference) {
-				exceptions.push({
-					code: "missing_refund_reference",
-					severity: "attention",
-					reason: "Refund handoff is required but no refund reference is available yet.",
-					nextOwner: "financial_operations",
-					basis: "refund_handoff",
-				})
-			}
-			if (!hasRoomSnapshots || (taxesTotal > 0 && !hasTaxFeeSnapshots)) {
-				exceptions.push({
-					code: "incomplete_contract_snapshot",
-					severity: "attention",
-					reason: "Contract audit evidence is incomplete for room or tax/fee snapshots.",
-					nextOwner: "reservations",
-					basis: "contract_snapshot",
-				})
-			}
-			if (snapshotVersion === "legacy_snapshot_compatibility" || !hasRoomSnapshots) {
-				exceptions.push({
-					code: "legacy_snapshot_compatibility",
-					severity: "review",
-					reason:
-						"This record still depends on legacy snapshot compatibility or live label fallback.",
-					nextOwner: "reservations",
-					basis: "legacy_fallback",
-				})
-			}
-			if (multiRoomAllocationCount > 1) {
-				exceptions.push({
-					code: "multi_room_review",
-					severity: "review",
-					reason:
-						"Multi-room contract: totals are aggregated from room snapshots and should be reviewed as a group.",
-					nextOwner: "financial_operations",
-					basis: "contract_snapshot",
-				})
-			}
+			const exceptions: DetectedFinancialException[] = detectFinancialExceptions({
+				bookingId: first.bookingId,
+				providerId: String(first.providerIdSnapshot ?? providerId),
+				reconciliationState,
+				financialEvidence,
+				paymentIntentCount: paymentIntents.length,
+				settlementRecordCount: settlementRecords.length,
+				hasPaymentReference,
+				hasSettlementReference,
+				hasRefundReference,
+				hasRoomSnapshots,
+				hasTaxFeeSnapshots,
+				taxesTotal,
+				multiRoomAllocationCount,
+				snapshotVersion,
+			})
 			const primaryException =
 				exceptions.find((entry) => entry.severity === "attention") ?? exceptions[0] ?? null
 
@@ -444,8 +377,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					settlementRecords: settlementRecords.length,
 					refundRecords: refundRecords.length,
 					statuses: [...new Set(shadows.map((row) => readStatus(row.payload)))],
-					lifecycle: transactionLifecycle,
-					shadowVisibility: transactionLifecycle,
+					financialEvidence,
 					references: {
 						payment: paymentReferences,
 						settlement: settlementReferences,
@@ -453,16 +385,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 					},
 				},
 				refund: {
-					state: transactionLifecycle.refund,
+					state: financialEvidence.refundEvidence,
 					owner: "Payments & Finance",
 					boundary: "visibility_only",
 					cancellationLinked: String(first.status ?? "").toLowerCase() === "cancelled",
 					references: refundReferences,
 				},
-				payout: {
-					state: transactionLifecycle.payout,
+				providerSettlementEvidence: {
+					state: financialEvidence.recordedSettlementShadow,
 					basis: "financial_shadow_record",
-					settlementVisibility: transactionLifecycle.settlement,
+					settlementEvidence: financialEvidence.settlementShadow,
 					references: settlementReferences,
 				},
 				invoice: {
@@ -476,14 +408,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 				},
 				reconciliation: {
 					state: reconciliationState,
-					lifecycle: "reconciliation_state",
+					visibility: "reconciliation_state",
 					basis: "snapshot_and_financial_shadow_visibility",
 					owner: "Payments & Finance",
 					context:
 						reconciliationState === "handoff_pending"
 							? "refund_handoff_visibility"
-							: transactionLifecycle.settlement === "settlement_visibility"
-								? "settlement_context_visible"
+							: financialEvidence.settlementShadow === "settlement_shadow_visible"
+								? "settlement_shadow_context_visible"
 								: "snapshot_visibility",
 				},
 				snapshotIntegrity: {

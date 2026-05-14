@@ -83,6 +83,17 @@ function makeAuthedFormRequest(params: { path: string; token?: string; form: For
 	})
 }
 
+function makeAuthedGetRequest(params: { path: string; token?: string }): Request {
+	const headers = new Headers()
+	if (params.token) {
+		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
+	}
+	return new Request(`http://localhost:4321${params.path}`, {
+		method: "GET",
+		headers,
+	})
+}
+
 async function readJson<T = any>(res: Response): Promise<T> {
 	const txt = await res.text()
 	return txt ? (JSON.parse(txt) as T) : (null as T)
@@ -97,6 +108,7 @@ function addDays(dateOnly: string, days: number): string {
 async function seedBookingReadyVariant(params: {
 	productId: string
 	providerId: string
+	ownerEmail: string
 	variantId: string
 	ratePlanId: string
 	totalUnits: number
@@ -116,7 +128,7 @@ async function seedBookingReadyVariant(params: {
 	await upsertProvider({
 		id: params.providerId,
 		displayName: "Financial Reconciliation Provider",
-		ownerEmail: `owner+${params.providerId}@example.com`,
+		ownerEmail: params.ownerEmail,
 	})
 
 	await upsertProduct({
@@ -316,11 +328,11 @@ async function confirmBooking(params: {
 	return bookingId
 }
 
-async function callReconciliation(bookingId: string) {
+async function callReconciliation(bookingId: string, token: string) {
+	const path = `/api/internal/financial/reconciliation?bookingId=${bookingId}`
 	const response = await reconciliationGet({
-		url: new URL(
-			`http://localhost:4321/api/internal/financial/reconciliation?bookingId=${bookingId}`
-		),
+		request: makeAuthedGetRequest({ path, token }),
+		url: new URL(`http://localhost:4321${path}`),
 	} as any)
 	expect(response.status).toBe(200)
 	return readJson<any>(response)
@@ -340,6 +352,7 @@ describe("integration/financial reconciliation", () => {
 		await seedBookingReadyVariant({
 			productId,
 			providerId,
+			ownerEmail: email,
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
@@ -349,7 +362,7 @@ describe("integration/financial reconciliation", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_finrec_happy", email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const bookingId = await confirmBooking({ token, holdId, enableFinancialShadow: true })
-			const payload = await callReconciliation(bookingId)
+			const payload = await callReconciliation(bookingId, token)
 
 			expect(payload.reconciliation.status).toBe("ok")
 			expect(payload.booking.bookingId).toBe(bookingId)
@@ -376,6 +389,7 @@ describe("integration/financial reconciliation", () => {
 		await seedBookingReadyVariant({
 			productId,
 			providerId,
+			ownerEmail: email,
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
@@ -385,7 +399,7 @@ describe("integration/financial reconciliation", () => {
 		await withSupabaseAuthStub({ [token]: { id: "u_finrec_missing", email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const bookingId = await confirmBooking({ token, holdId, enableFinancialShadow: false })
-			const payload = await callReconciliation(bookingId)
+			const payload = await callReconciliation(bookingId, token)
 
 			expect(payload.reconciliation.status).toBe("missing")
 			expect(payload.financial.paymentIntents.length).toBe(0)
@@ -406,6 +420,7 @@ describe("integration/financial reconciliation", () => {
 		await seedBookingReadyVariant({
 			productId,
 			providerId,
+			ownerEmail: email,
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
@@ -443,7 +458,7 @@ describe("integration/financial reconciliation", () => {
 				.where(eq(FinancialShadowRecord.id, String(paymentRow?.id)))
 				.run()
 
-			const reconciled = await callReconciliation(bookingId)
+			const reconciled = await callReconciliation(bookingId, token)
 			expect(reconciled.reconciliation.status).toBe("mismatch")
 		})
 	})
@@ -461,6 +476,7 @@ describe("integration/financial reconciliation", () => {
 		await seedBookingReadyVariant({
 			productId,
 			providerId,
+			ownerEmail: email,
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
@@ -512,7 +528,7 @@ describe("integration/financial reconciliation", () => {
 			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
 			expect(bookingRows).toHaveLength(1)
 
-			const reconciled = await callReconciliation(bookingId)
+			const reconciled = await callReconciliation(bookingId, token)
 			expect(reconciled.reconciliation.status).toBe("ok")
 		})
 	})
