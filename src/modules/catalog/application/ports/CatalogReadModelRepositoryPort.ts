@@ -128,32 +128,6 @@ export type ProviderFullAggregate = {
 	ownerUser: { id: string; email: string } | null
 }
 
-export type ProviderBookingsAggregateInput = {
-	providerId: string
-	status?: string | null
-	from?: string | null
-	to?: string | null
-}
-
-export type ProviderBookingSummaryItem = {
-	bookingId: string
-	productId: string | null
-	productName: string | null
-	variantId: string | null
-	variantName: string | null
-	checkIn: string | null
-	checkOut: string | null
-	totalPrice: number
-	currency: string
-	status: string
-	createdAt: string | null
-	confirmedAt: string | null
-}
-
-export type ProviderBookingsAggregate = {
-	items: ProviderBookingSummaryItem[]
-}
-
 export interface CatalogReadModelRepositoryPort {
 	getProductAggregate(productId: string): Promise<CatalogProductAggregate | null>
 	getProductFullAggregate(
@@ -173,7 +147,4 @@ export interface CatalogReadModelRepositoryPort {
 		providerId: string,
 		currentUserId: string
 	): Promise<ProviderFullAggregate | null>
-	getProviderBookingsAggregate(
-		input: ProviderBookingsAggregateInput
-	): Promise<ProviderBookingsAggregate>
 }

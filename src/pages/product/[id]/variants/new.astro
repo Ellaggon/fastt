@@ -27,7 +27,7 @@ const stepLabels: Record<WizardStep, string> = {
 	identity: "Identidad",
 	capacity: "Capacidad",
 	subtype: "Subtipo",
-	pricing: "Precios",
+	pricing: "Handoff comercial",
 	inventory: "Inventario",
 }
 
@@ -175,15 +175,15 @@ const previousHref =
 
 const submitLabel = currentStep === "inventory" ? "Guardar y finalizar" : "Guardar y continuar"
 const pageSubtitle =
-	"Completa los pasos para crear la variante de forma guiada y dejarla lista para operar."
+	"Completa el contexto físico de la variante. El paso comercial es un handoff transicional hacia Rooms & Rates."
 ---
 
-<WorkspaceLayout title="Producto · Crear variante (Wizard)">
+<WorkspaceLayout title="Physical Context · Create Variant">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
-					<h1 class="text-3xl font-semibold text-slate-100">Nueva variante</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Nueva variante física</h1>
 					<p class="text-sm text-slate-400">{pageSubtitle}</p>
 					<p class="text-sm text-slate-300">Producto: {product.displayName}</p>
 				</div>
@@ -331,12 +331,12 @@ const pageSubtitle =
 
 					{
 						currentStep === "pricing" && (
-							<FormSection title="Cobertura comercial inicial" class="text-neutral-800">
+							<FormSection title="Handoff comercial inicial" class="text-neutral-800">
 								<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-									<p class="font-medium">Estás preparando el baseline comercial inicial.</p>
+									<p class="font-medium">Paso transicional: crea cobertura mínima vendible.</p>
 									<p>
-										El precio final de venta se materializa por rate plan con cobertura diaria en
-										pricing efectivo.
+										La gestión comercial completa vive en Rooms & Rates; este asistente solo evita
+										que la variante física quede sin handoff comercial inicial.
 									</p>
 									<p>
 										La variante aporta contexto físico; el rate plan mantiene el ownership
@@ -345,13 +345,13 @@ const pageSubtitle =
 								</div>
 								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
 									{effectivePricingDays > 0
-										? `Estado actual: cobertura disponible (${effectivePricingDays} día(s) de pricing efectivo).`
-										: "Estado actual: sin pricing efectivo generado. La variante aún no está lista para vender."}
+										? `Estado actual: cobertura comercial disponible (${effectivePricingDays} día(s)).`
+										: "Estado actual: sin cobertura comercial materializada. Completa el handoff o continúa en Rooms & Rates."}
 									{variant?.id && (
 										<>
 											{" "}
 											<a class="font-medium underline" href="/rates/plans">
-												Podrás configurar cobertura y reglas detalladas desde Rates / Plans.
+												Configurar cobertura y reglas detalladas en Rooms & Rates.
 											</a>
 										</>
 									)}
@@ -362,7 +362,7 @@ const pageSubtitle =
 										<option value="BOB">BOB</option>
 									</Select>
 								</FormField>
-								<FormField label="Baseline comercial" htmlFor="basePrice" required>
+								<FormField label="Baseline de handoff comercial" htmlFor="basePrice" required>
 									<Input
 										id="basePrice"
 										name="basePrice"

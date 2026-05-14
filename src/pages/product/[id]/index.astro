@@ -35,7 +35,7 @@ const statusBadgeVariant =
 const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
 ---
 
-<WorkspaceLayout title="Producto · Superficie">
+<WorkspaceLayout title="Property Content · Product Readiness">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
@@ -43,6 +43,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					<h1 class="text-3xl font-semibold uppercase tracking-wide text-slate-100">
 						{owned.name}
 					</h1>
+					<p class="max-w-3xl text-sm leading-6 text-slate-400">
+						Completa la presentación editorial del producto y revisa dependencias físicas como
+						contexto operativo.
+					</p>
 					<p id="productMissingStepsText" class="text-sm text-slate-300">
 						Cargando resumen del producto...
 					</p>
@@ -51,7 +55,11 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 			</div>
 		</header>
 
-		<Section title="Configuración del producto" className="space-y-4">
+		<Section
+			title="Catalog readiness"
+			description="Contenido, ubicación, media y metadata que determinan si el producto está listo para presentarse."
+			className="space-y-4"
+		>
 			<Card class="border-slate-700 bg-slate-900 text-white">
 				<div class="space-y-4">
 					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
@@ -62,8 +70,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Contenido</p>
-									<p class="text-sm text-slate-600">Descripción, destacados y reglas.</p>
+									<p class="text-sm font-semibold text-slate-900">Editorial content</p>
+									<p class="text-sm text-slate-600">
+										Descripción, destacados y reglas visibles para huéspedes.
+									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
 									<Badge id="blockBadge-content" variant="warning" class="whitespace-nowrap">
@@ -82,8 +92,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Ubicación</p>
-									<p class="text-sm text-slate-600">Dirección y coordenadas del producto.</p>
+									<p class="text-sm font-semibold text-slate-900">Location readiness</p>
+									<p class="text-sm text-slate-600">
+										Dirección, coordenadas y discoverability geográfica.
+									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
 									<Badge id="blockBadge-location" variant="warning" class="whitespace-nowrap">
@@ -102,8 +114,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Imágenes</p>
-									<p class="text-sm text-slate-600">Galería de presentación del producto.</p>
+									<p class="text-sm font-semibold text-slate-900">Media readiness</p>
+									<p class="text-sm text-slate-600">
+										Galería de presentación y cobertura visual mínima.
+									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
 									<Badge id="blockBadge-images" variant="warning" class="whitespace-nowrap">
@@ -122,9 +136,9 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Subtipo</p>
+									<p class="text-sm font-semibold text-slate-900">Metadata readiness</p>
 									<p class="text-sm text-slate-600">
-										Configuración específica por tipo de producto.
+										Categoría, subtipo y atributos de descubrimiento.
 									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
@@ -144,9 +158,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						<Card class="min-h-[118px] bg-slate-100 md:col-span-2">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Variantes</p>
+									<p class="text-sm font-semibold text-slate-900">Physical context</p>
 									<p class="text-sm text-slate-600">
-										Configuración CAPA 3 (pendiente en esta fase).
+										Variantes, capacidad e inventario pertenecen a readiness física; aquí se
+										muestran como dependencia contextual.
 									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 text-xs lg:flex-row">
@@ -157,7 +172,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 										href={`/product/${encodeURIComponent(productId)}/variants`}
 										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Ir a variantes</Button
+										>Abrir contexto físico</Button
 									>
 								</div>
 							</div>
@@ -167,11 +182,14 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 			</Card>
 		</Section>
 
-		<Section title="Resumen operativo" description="Vista rápida del estado actual de cada bloque.">
+		<Section
+			title="Editorial summary"
+			description="Vista rápida del estado actual de cada bloque de catálogo."
+		>
 			<div class="grid gap-4 md:grid-cols-2">
 				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Contenido</p>
+						<p class="text-sm font-semibold text-slate-900">Editorial content</p>
 						<p id="summaryDescription" class="text-sm text-slate-600">Cargando contenido...</p>
 						<p id="summaryHighlights" class="text-sm text-slate-600">Destacados: —</p>
 						<div class="flex justify-end">
@@ -187,7 +205,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 
 				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Ubicación</p>
+						<p class="text-sm font-semibold text-slate-900">Location readiness</p>
 						<p id="summaryAddress" class="text-sm text-slate-600">Cargando dirección...</p>
 						<p id="summaryCoordinates" class="text-sm text-slate-600">Cargando coordenadas...</p>
 						<div class="flex justify-end">
@@ -203,7 +221,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 
 				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Imágenes</p>
+						<p class="text-sm font-semibold text-slate-900">Media readiness</p>
 						<p id="summaryImagesCount" class="text-sm text-slate-600">Total de imágenes: —</p>
 						<div id="summaryImageGrid" class="grid min-h-[74px] grid-cols-3 gap-2">
 							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
@@ -223,7 +241,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 
 				<Card class="min-h-[210px] bg-slate-100">
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Subtipo</p>
+						<p class="text-sm font-semibold text-slate-900">Metadata readiness</p>
 						<p id="summaryProductType" class="text-sm text-slate-600">Tipo: cargando...</p>
 						<p id="summarySubtype" class="text-sm text-slate-600">Cargando subtipo...</p>
 						<div class="flex justify-end">
@@ -289,7 +307,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					if (missingStepsText) {
 						missingStepsText.textContent =
 							missing === 0
-								? "Producto completo. Puedes continuar con publicación y variantes."
+								? "Catalog readiness completo. Puedes revisar contexto comercial y físico."
 								: `Te faltan ${missing} pasos para completar este producto`
 					}
 					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`

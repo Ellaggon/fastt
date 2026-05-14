@@ -1,0 +1,220 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { describe, expect, it } from "vitest"
+
+import { collectCalls, collectHttpExportMethods, collectImports } from "./_guardrail-ast"
+
+function read(relativePath: string): string {
+	return readFileSync(join(process.cwd(), relativePath), "utf8")
+}
+
+const financialPage = "src/pages/financial/index.astro"
+const financialBff = "src/pages/api/internal/financial/operations.ts"
+
+const bannedRuntimeCalls = new Set([
+	"computeEffectivePricingV2",
+	"computePricePreview",
+	"previewPricingRules",
+	"materializeEffectivePricing",
+	"createInventoryHold",
+	"releaseInventoryHold",
+	"consumeInventory",
+	"materializeAvailability",
+	"executeRefund",
+	"capturePayment",
+	"settlePayout",
+	"issueInvoice",
+	"createLedgerEntry",
+])
+
+const requiredFinancialStates = [
+	"payment_intent_created",
+	"authorization_visible",
+	"capture_visible",
+	"refund_handoff_required",
+	"refund_snapshot_visible",
+	"payout_visibility",
+	"settlement_visibility",
+	"reconciliation_state",
+]
+
+const requiredExceptionSignals = [
+	"operationalException",
+	"openExceptions",
+	"missingReferenceCount",
+	"snapshotGapCount",
+	"refund_handoff_required",
+	"reconciliation_unknown",
+	"missing_payment_reference",
+	"missing_settlement_reference",
+	"missing_refund_reference",
+	"incomplete_contract_snapshot",
+	"legacy_snapshot_compatibility",
+	"multi_room_review",
+	"nextOwner",
+	"ageDays",
+]
+
+describe("Guardrail: Financial Operations enterprise semantics", () => {
+	it("keeps financial read models snapshot-first and out of pricing/inventory engines", () => {
+		const imports = collectImports(financialBff)
+		const calls = collectCalls(financialBff)
+		const violations = [
+			...imports.flatMap((entry) => {
+				if (entry.module.includes("/modules/pricing/") || entry.module.includes("/lib/pricing/")) {
+					return [`${financialBff}: imports pricing runtime ${entry.module}`]
+				}
+				if (
+					entry.module.includes("/modules/inventory/") ||
+					entry.module.includes("/lib/inventory/")
+				) {
+					return [`${financialBff}: imports inventory runtime ${entry.module}`]
+				}
+				if (entry.module.includes("/modules/catalog/")) {
+					return [`${financialBff}: imports catalog module ${entry.module}`]
+				}
+				return []
+			}),
+			...calls.flatMap((call) =>
+				bannedRuntimeCalls.has(call.leaf)
+					? [`${financialBff}: forbidden financial/runtime orchestration call ${call.calleePath}`]
+					: []
+			),
+		]
+
+		expect(
+			violations,
+			`Financial Operations may show booking/financial snapshots, not recompute or orchestrate external runtimes:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps financial operations BFF read-only and free of fake PSP/accounting workflows", () => {
+		const source = read(financialBff)
+		const methods = collectHttpExportMethods(financialBff)
+		const forbidden = [
+			/PaymentProvider/,
+			/chargeback/i,
+			/dispute/i,
+			/retry payment/i,
+			/execute refund/i,
+			/settle payout/i,
+			/issue invoice/i,
+			/accounting automation/i,
+		]
+		const violations = [
+			...[...methods].map((method) => `${financialBff}: exports ${method} on a read BFF`),
+			...forbidden.flatMap((pattern) =>
+				pattern.test(source) ? [`${financialBff}: fake finance workflow ${pattern}`] : []
+			),
+		]
+
+		expect(
+			violations,
+			`Financial Operations must stay visibility/reconciliation only, not PSP/accounting orchestration:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps contract value visibility multi-room snapshot aware", () => {
+		const source = read(financialBff)
+		const confirmSource = read("src/pages/api/booking/confirm.ts")
+		const violations = [
+			source.includes("const detailTotal = group.reduce")
+				? null
+				: `${financialBff}: contract total must aggregate booking room snapshots`,
+			source.includes("const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal")
+				? null
+				: `${financialBff}: contract total must prefer room snapshot totals before booking fallback totals`,
+			source.includes("const contractTotal = Number(first.detailTotalPrice")
+				? `${financialBff}: contract total must not use only the first room detail`
+				: null,
+			confirmSource.includes("const bookingDetails = await db") &&
+			confirmSource.includes(".where(eq(BookingRoomDetail.bookingId, result.bookingId))") &&
+			confirmSource.includes(".all()")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must read all room snapshots",
+			confirmSource.includes("const roomTotal = bookingDetails.reduce")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must aggregate multi-room totals",
+			confirmSource.includes("const finalTotal = roomTotal > 0 ? roomTotal : fallbackFinal")
+				? null
+				: "src/pages/api/booking/confirm.ts: financial shadow write must prefer room snapshot totals",
+		].filter(Boolean)
+
+		expect(
+			violations,
+			`Financial visibility must not understate multi-room booking contracts:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("requires explicit financial lifecycle and snapshot integrity semantics", () => {
+		const source = read(financialBff)
+		const page = read(financialPage)
+		const requiredSignals = [
+			...requiredFinancialStates,
+			...requiredExceptionSignals,
+			"deriveTransactionLifecycle",
+			"snapshotIntegrity",
+			"hasPaymentReference",
+			"hasSettlementReference",
+			"hasRefundReference",
+			"multiRoomAllocationCount",
+			"refund_handoff_visibility",
+			"settlement_context_visible",
+			"visibility_not_psp_orchestration",
+		]
+		const violations = [
+			...requiredSignals.flatMap((signal) =>
+				source.includes(signal) ? [] : [`${financialBff}: missing ${signal}`]
+			),
+			page.includes("item?.transactions?.shadowVisibility?.paymentIntent")
+				? null
+				: `${financialPage}: transaction column must render shadow visibility semantics`,
+			page.includes("item?.operationalException?.primary")
+				? null
+				: `${financialPage}: financial table must render primary operational exception`,
+			page.includes("item?.snapshotIntegrity?.multiRoomAllocationCount")
+				? null
+				: `${financialPage}: tax/invoice column must expose snapshot allocation completeness`,
+		].filter(Boolean)
+
+		expect(
+			violations,
+			`Financial Operations must expose lifecycle and snapshot integrity semantics, not only counters:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("requires honest finance UX framing without command-center or analytics theater", () => {
+		const source = read(financialPage)
+		const requiredSignals = [
+			"Financial exception review",
+			"Operations requiring finance review",
+			"Exception queues",
+			"Financial exceptions",
+			"no ejecuta PSP",
+			"ni ledger",
+		]
+		const forbiddenTheater = [
+			/command center/i,
+			/\bAI\b/i,
+			/forecast/i,
+			/revenue optimization/i,
+			/Endpoint latency/i,
+			/Ownership<\/p>/,
+			/Financial lifecycle visibility/,
+			/Snapshot ready<\/p>/,
+		]
+		const violations = [
+			...requiredSignals.flatMap((signal) =>
+				source.includes(signal) ? [] : [`${financialPage}: missing ${signal}`]
+			),
+			...forbiddenTheater.flatMap((pattern) =>
+				pattern.test(source) ? [`${financialPage}: forbidden finance theater ${pattern}`] : []
+			),
+		]
+
+		expect(
+			violations,
+			`Financial UX must communicate operational visibility without theater:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+})

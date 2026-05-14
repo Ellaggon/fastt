@@ -42,11 +42,6 @@ export type {
 	VariantFullAggregate,
 } from "./application/queries/getProductFullAggregate"
 export type { ProviderFullAggregate } from "./application/queries/getProviderFullAggregate"
-export type {
-	ProviderBookingsAggregateInput,
-	ProviderBookingSummaryItem,
-	ProviderBookingsAggregate,
-} from "./application/queries/getProviderBookingsAggregate"
 
 // Variant (CAPA 3)
 export * from "./application/use-cases/variant/create-variant"
@@ -138,16 +133,6 @@ export async function getVariantFullAggregate(
 export async function getProviderFullAggregate(providerId: string, currentUserId: string) {
 	const { getProviderFullAggregate } = await import("@/container")
 	return getProviderFullAggregate(providerId, currentUserId)
-}
-
-export async function getProviderBookingsAggregate(input: {
-	providerId: string
-	status?: string | null
-	from?: string | null
-	to?: string | null
-}) {
-	const { getProviderBookingsAggregate } = await import("@/container")
-	return getProviderBookingsAggregate(input)
 }
 
 export async function listProductServiceConfigs(productId: string) {

@@ -1,0 +1,240 @@
+---
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+---
+
+<WorkspaceLayout title="Financial Operations">
+	<section class="space-y-6">
+		<header class="space-y-3">
+			<p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+				Financial exception review
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Operations requiring finance review</h1>
+			<p class="max-w-3xl text-sm leading-6 text-slate-400">
+				Cola sobria de evidencia financiera: refunds pendientes, referencias faltantes y gaps de
+				snapshot contractual. Financial observa y coordina; no ejecuta PSP, payouts ni ledger.
+			</p>
+		</header>
+
+		<Section
+			title="Exception queues"
+			description="Prioriza problemas revisables usando snapshots y financial shadow records existentes."
+		>
+			<div id="financialSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				{
+					["Open exceptions", "Refund handoffs", "Missing references", "Snapshot gaps"].map(
+						(label) => (
+							<Card class="bg-slate-100">
+								<p class="text-xs font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</p>
+								<div class="mt-3 h-8 w-20 animate-pulse rounded bg-slate-200" />
+								<div class="mt-2 h-3 w-32 animate-pulse rounded bg-slate-200" />
+							</Card>
+						)
+					)
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Review scope"
+			description="Filtra la cola sin cambiar contratos ni disparar workflows financieros."
+		>
+			<Card class="bg-slate-100 p-4">
+				<div class="grid gap-4 md:grid-cols-[280px_1fr] md:items-end">
+					<label class="space-y-2 text-sm font-medium text-slate-700">
+						<span>Reconciliation state</span>
+						<Select id="financialStateFilter" name="state" value="all">
+							<option value="all">Todos</option>
+							<option value="snapshot_ready">Snapshot ready</option>
+							<option value="handoff_pending">Handoff pending</option>
+							<option value="partially_reconciled">Partially reconciled</option>
+							<option value="reconciled">Reconciled</option>
+							<option value="reconciliation_unknown">Unknown</option>
+						</Select>
+					</label>
+					<p class="text-xs leading-5 text-slate-500 md:max-w-xl">
+						Los estados son evidencia de visibilidad, no lifecycle PSP ejecutado. Usa la cola para
+						identificar handoffs y snapshots incompletos.
+					</p>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Financial exceptions"
+			description="Ordenado primero por problemas abiertos; los contratos limpios quedan como evidencia secundaria."
+		>
+			<Card class="min-h-[280px] space-y-4 bg-slate-100">
+				<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+					<p id="financialListSummary" class="text-sm text-slate-700">
+						Cargando operaciones financieras...
+					</p>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-slate-200 text-sm">
+						<thead>
+							<tr class="text-left text-slate-700">
+								<th class="px-3 py-2">Issue</th>
+								<th class="px-3 py-2">Booking contract</th>
+								<th class="px-3 py-2">Financial evidence</th>
+								<th class="px-3 py-2">Owner</th>
+								<th class="px-3 py-2">Snapshot integrity</th>
+							</tr>
+						</thead>
+						<tbody id="financialRows">
+							{
+								Array.from({ length: 5 }).map(() => (
+									<tr class="border-t border-slate-200">
+										<td class="px-3 py-2">
+											<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+										</td>
+										<td class="px-3 py-2">
+											<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+										</td>
+									</tr>
+								))
+							}
+						</tbody>
+					</table>
+				</div>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline>
+		;(function () {
+			const stateFilter = document.getElementById("financialStateFilter")
+			const summary = document.getElementById("financialSummary")
+			const rows = document.getElementById("financialRows")
+			const listSummary = document.getElementById("financialListSummary")
+
+			const money = (currency, value) =>
+				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
+			const stateLabel = (state) => String(state || "reconciliation_unknown").replaceAll("_", " ")
+
+			function renderSummary(data) {
+				if (!summary) return
+				const metrics = [
+					{
+						label: "Open exceptions",
+						value: data?.openExceptions ?? 0,
+						detail: "Contratos que necesitan revisión financiera.",
+					},
+					{
+						label: "Refund handoffs",
+						value: data?.refundHandoffPending ?? 0,
+						detail: "Cancelaciones con handoff sin evidencia final.",
+					},
+					{
+						label: "Missing references",
+						value: data?.missingReferenceCount ?? 0,
+						detail: "Evidencia shadow sin referencia estable.",
+					},
+					{
+						label: "Snapshot gaps",
+						value: data?.snapshotGapCount ?? 0,
+						detail: "Contratos con evidencia snapshot incompleta o legacy.",
+					},
+				]
+				summary.innerHTML = metrics
+					.map(
+						(metric) => `<div class="rounded-2xl border border-slate-200 bg-slate-100 p-5">
+							<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${metric.label}</p>
+							<p class="mt-3 text-2xl font-semibold text-slate-950">${metric.value}</p>
+							<p class="mt-2 text-xs leading-5 text-slate-600">${metric.detail}</p>
+						</div>`
+					)
+					.join("")
+			}
+
+			function renderRows(items) {
+				if (!rows) return
+				rows.innerHTML = ""
+				if (!Array.isArray(items) || !items.length) {
+					rows.innerHTML =
+						'<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No financial operations for this filter.</td></tr>'
+					return
+				}
+				for (const item of items) {
+					const tr = document.createElement("tr")
+					tr.className = "border-t border-slate-200 align-top"
+					const issue = item?.operationalException?.primary
+					const issueLabel = issue?.code ? stateLabel(issue.code) : "No exception"
+					const issueReason =
+						issue?.reason ||
+						"Snapshot evidence is available; no financial handoff is currently flagged."
+					const nextOwner = issue?.nextOwner ? stateLabel(issue.nextOwner) : "None"
+					const issueAge = Number.isFinite(Number(item?.operationalException?.ageDays))
+						? `${Number(item.operationalException.ageDays)}d since confirmation`
+						: "Age unavailable"
+					const paymentRefs = Number(item?.transactions?.references?.payment?.length || 0)
+					const settlementRefs = Number(item?.transactions?.references?.settlement?.length || 0)
+					const refundRefs = Number(item?.transactions?.references?.refund?.length || 0)
+					tr.innerHTML = `
+						<td class="px-3 py-3 text-slate-700">
+							<div class="font-medium ${issue ? "text-slate-950" : "text-emerald-700"}">${issueLabel}</div>
+							<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${issueReason}</div>
+							<div class="mt-1 text-xs text-slate-400">${issueAge}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${String(item.bookingId || "-")}</a>
+							<div class="mt-1 text-xs text-slate-500">${String(item?.contract?.productName || "Property")} · ${String(item?.contract?.variantName || "Allocation")}</div>
+							<div class="mt-1 text-xs text-slate-500">${money(item.currency, item.contractTotal)} · ${String(item?.contract?.version || "snapshot")}</div>
+						</td>
+							<td class="px-3 py-3 text-slate-700">
+								<div>${stateLabel(item?.transactions?.shadowVisibility?.paymentIntent)}</div>
+								<div class="mt-1 text-xs text-slate-500">Payment refs: ${paymentRefs} · Settlement refs: ${settlementRefs} · Refund refs: ${refundRefs}</div>
+							</td>
+							<td class="px-3 py-3 text-slate-700">
+								<div class="font-medium text-slate-950">${nextOwner}</div>
+								<div class="mt-1 text-xs text-slate-500">${stateLabel(item?.reconciliation?.state)} · Refund: ${stateLabel(item?.refund?.state || "not_applicable")}</div>
+							</td>
+							<td class="px-3 py-3 text-slate-700">
+								<div>${Number(item?.taxFeeVisibility?.lines || 0)} tax/fee line(s) · Rooms: ${Number(item?.snapshotIntegrity?.multiRoomAllocationCount || 0)}</div>
+								<div class="mt-1 text-xs text-slate-500">${item?.snapshotIntegrity?.hasRoomSnapshots ? "Room snapshot ok" : "Room snapshot gap"} · ${item?.snapshotIntegrity?.hasTaxFeeSnapshots ? "Tax snapshot ok" : "Tax snapshot gap"}</div>
+							</td>`
+					rows.appendChild(tr)
+				}
+			}
+
+			async function fetchOperations() {
+				const state = String(stateFilter?.value || "all")
+				try {
+					const params = new URLSearchParams()
+					if (state && state !== "all") params.set("state", state)
+					const response = await fetch(`/api/internal/financial/operations?${params.toString()}`, {
+						headers: { accept: "application/json" },
+					})
+					if (!response.ok) throw new Error(`financial_operations_${response.status}`)
+					const payload = await response.json()
+					renderSummary(payload?.summary || {})
+					renderRows(Array.isArray(payload?.items) ? payload.items : [])
+					if (listSummary)
+						listSummary.textContent = `${payload?.summary?.openExceptions || 0} open exception(s) across ${payload?.summary?.totalBookings || 0} booking contract(s).`
+				} catch {
+					renderSummary({})
+					renderRows([])
+					if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
+				}
+			}
+
+			stateFilter?.addEventListener("change", () => void fetchOperations())
+			void fetchOperations()
+		})()
+	</script>
+</WorkspaceLayout>

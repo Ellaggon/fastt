@@ -175,7 +175,7 @@ export const POST: APIRoute = async ({ request }) => {
 					.from(Booking)
 					.where(eq(Booking.id, result.bookingId))
 					.get()
-				const bookingDetail = await db
+				const bookingDetails = await db
 					.select({
 						basePrice: BookingRoomDetail.basePrice,
 						taxes: BookingRoomDetail.taxes,
@@ -183,16 +183,17 @@ export const POST: APIRoute = async ({ request }) => {
 					})
 					.from(BookingRoomDetail)
 					.where(eq(BookingRoomDetail.bookingId, result.bookingId))
-					.get()
+					.all()
 
 				const currency = String(bookingAmounts?.currency ?? "USD").trim() || "USD"
-				const baseTotal = Number(bookingDetail?.basePrice ?? 0)
-				const taxesTotal = Number(bookingDetail?.taxes ?? 0)
+				const baseTotal = bookingDetails.reduce((sum, row) => sum + Number(row.basePrice ?? 0), 0)
+				const taxesTotal = bookingDetails.reduce((sum, row) => sum + Number(row.taxes ?? 0), 0)
+				const roomTotal = bookingDetails.reduce((sum, row) => sum + Number(row.totalPrice ?? 0), 0)
 				const fallbackFinal =
 					currency === "BOB"
 						? Number(bookingAmounts?.totalAmountBOB ?? 0)
 						: Number(bookingAmounts?.totalAmountUSD ?? 0)
-				const finalTotal = Number(bookingDetail?.totalPrice ?? fallbackFinal)
+				const finalTotal = roomTotal > 0 ? roomTotal : fallbackFinal
 
 				if (!providerId) {
 					incrementCounter("financial.shadow_write.failed", { source: "booking_confirm" }, 1)

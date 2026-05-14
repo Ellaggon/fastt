@@ -33,12 +33,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 const rulesValue = aggregate.content.rules ?? ""
 ---
 
-<WorkspaceLayout title="Producto · Contenido">
+<WorkspaceLayout title="Property Content · Editorial Content">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Contenido del producto</h1>
-				<p class="text-sm text-slate-400">Completa la descripción y destacados del producto.</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Editorial Content</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Define la narrativa visible del producto: descripción, destacados y reglas editoriales.
+				</p>
 			</header>
 
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
@@ -52,7 +54,7 @@ const rulesValue = aggregate.content.rules ?? ""
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Contenido editorial principal</h2>
 							<p class="text-sm text-slate-600">
 								Este bloque define la información visible del producto.
 							</p>

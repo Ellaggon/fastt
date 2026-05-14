@@ -1,7 +1,124 @@
 import type { APIRoute } from "astro"
+import { and, Booking, BookingRoomDetail, db, desc, eq, Product, sql, Variant } from "astro:db"
+
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProviderBookingsAggregate } from "@/modules/catalog/public"
+
+type LifecycleState =
+	| "upcoming_arrival"
+	| "in_house"
+	| "departure_due"
+	| "checked_out"
+	| "cancelled"
+	| "pending_confirmation"
+	| "unknown"
+
+type RefundHandoffState = "not_applicable" | "handoff_required" | "manual_review"
+
+function dateOnly(value: unknown): string | null {
+	if (!value) return null
+	if (value instanceof Date) return value.toISOString().slice(0, 10)
+	const raw = String(value).trim()
+	if (!raw) return null
+	if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+	const parsed = new Date(raw)
+	if (Number.isNaN(parsed.getTime())) return null
+	return parsed.toISOString().slice(0, 10)
+}
+
+function todayIso(): string {
+	return new Date().toISOString().slice(0, 10)
+}
+
+function deriveLifecycle(params: {
+	status: string | null
+	checkIn: string | null
+	checkOut: string | null
+}): {
+	state: LifecycleState
+	label: string
+	basis: "stored_status" | "derived_visibility"
+	reality: "persisted_status" | "date_derived_visibility"
+} {
+	const status = String(params.status ?? "")
+		.trim()
+		.toLowerCase()
+	if (status === "cancelled") {
+		return {
+			state: "cancelled",
+			label: "Cancelled",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
+	}
+	if (status !== "confirmed") {
+		return {
+			state: "pending_confirmation",
+			label: "Pending confirmation",
+			basis: "stored_status",
+			reality: "persisted_status",
+		}
+	}
+
+	const today = todayIso()
+	const checkIn = params.checkIn
+	const checkOut = params.checkOut
+	if (!checkIn || !checkOut) {
+		return {
+			state: "unknown",
+			label: "Snapshot incomplete",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
+	}
+	if (today < checkIn) {
+		return {
+			state: "upcoming_arrival",
+			label: "Upcoming arrival",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
+	}
+	if (today === checkOut) {
+		return {
+			state: "departure_due",
+			label: "Departure due",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
+	}
+	if (today > checkOut) {
+		return {
+			state: "checked_out",
+			label: "Checked out",
+			basis: "derived_visibility",
+			reality: "date_derived_visibility",
+		}
+	}
+	return {
+		state: "in_house",
+		label: "In-house",
+		basis: "derived_visibility",
+		reality: "date_derived_visibility",
+	}
+}
+
+function readOccupancyDetail(snapshot: unknown): {
+	adults: number
+	children: number
+	infants: number
+} {
+	const value = snapshot && typeof snapshot === "object" ? (snapshot as any).occupancyDetail : null
+	return {
+		adults: Math.max(0, Number(value?.adults ?? 0)),
+		children: Math.max(0, Number(value?.children ?? 0)),
+		infants: Math.max(0, Number(value?.infants ?? 0)),
+	}
+}
+
+function countBy<T extends string>(items: Array<{ lifecycleState: T }>, state: T): number {
+	return items.filter((item) => item.lifecycleState === state).length
+}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
@@ -33,19 +150,153 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 		}
 
-		const status = String(url.searchParams.get("status") ?? "").trim() || null
-		const from = String(url.searchParams.get("from") ?? "").trim() || null
-		const to = String(url.searchParams.get("to") ?? "").trim() || null
+		const status = String(url.searchParams.get("status") ?? "all")
+			.trim()
+			.toLowerCase()
+		const from = String(url.searchParams.get("from") ?? "").trim()
+		const to = String(url.searchParams.get("to") ?? "").trim()
 
-		const aggregate = await getProviderBookingsAggregate({
-			providerId,
-			status,
-			from,
-			to,
-		})
+		const filters = [
+			sql`(${Product.providerId} = ${providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${providerId})`,
+		]
+		if (status && status !== "all") {
+			filters.push(eq(Booking.status, status))
+		}
+		if (from) {
+			filters.push(sql`${Booking.checkInDate} >= ${from}`)
+		}
+		if (to) {
+			filters.push(sql`${Booking.checkOutDate} <= ${to}`)
+		}
+
+		const rows = await db
+			.select({
+				bookingId: Booking.id,
+				status: Booking.status,
+				currency: Booking.currency,
+				totalAmountUSD: Booking.totalAmountUSD,
+				totalAmountBOB: Booking.totalAmountBOB,
+				bookingDate: Booking.bookingDate,
+				confirmedAt: Booking.confirmedAt,
+				checkInDate: Booking.checkInDate,
+				checkOutDate: Booking.checkOutDate,
+				detailId: BookingRoomDetail.id,
+				detailCheckIn: BookingRoomDetail.checkIn,
+				detailCheckOut: BookingRoomDetail.checkOut,
+				detailTotalPrice: BookingRoomDetail.totalPrice,
+				detailVariantId: BookingRoomDetail.variantId,
+				detailRatePlanId: BookingRoomDetail.ratePlanId,
+				adults: BookingRoomDetail.adults,
+				children: BookingRoomDetail.children,
+				pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
+				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
+				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
+				occupancySnapshotJson: BookingRoomDetail.occupancySnapshotJson,
+				productId: Product.id,
+				productName: Product.name,
+				variantName: Variant.name,
+			})
+			.from(Booking)
+			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
+			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+			.leftJoin(Product, eq(Product.id, Variant.productId))
+			.where(and(...filters))
+			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
+			.all()
+
+		const grouped = new Map<string, typeof rows>()
+		for (const row of rows) {
+			const bucket = grouped.get(row.bookingId) ?? []
+			bucket.push(row)
+			grouped.set(row.bookingId, bucket)
+		}
+
+		const items = Array.from(grouped.values())
+			.filter((group) =>
+				group.some((row) => row.providerIdSnapshot === providerId || row.productId)
+			)
+			.map((group) => {
+				const row = group[0]
+				const currency = String(row.currency ?? "USD")
+					.trim()
+					.toUpperCase()
+				const totalPrice =
+					currency === "BOB"
+						? Number(row.totalAmountBOB ?? row.detailTotalPrice ?? 0)
+						: Number(row.totalAmountUSD ?? row.detailTotalPrice ?? 0)
+				const checkIn = dateOnly(row.detailCheckIn ?? row.checkInDate)
+				const checkOut = dateOnly(row.detailCheckOut ?? row.checkOutDate)
+				const lifecycle = deriveLifecycle({ status: row.status, checkIn, checkOut })
+				const firstSnapshot =
+					group.find((item) => item.occupancySnapshotJson)?.occupancySnapshotJson ??
+					group.find((item) => item.pricingBreakdownJson)?.pricingBreakdownJson
+				const occupancyDetail = readOccupancyDetail(firstSnapshot)
+				const roomCount = group.filter((item) => item.detailId).length
+				const refundHandoffState: RefundHandoffState =
+					lifecycle.state === "cancelled" ? "handoff_required" : "not_applicable"
+				const hasSnapshot = Boolean(row.detailRatePlanId && firstSnapshot)
+				const hasTextualSnapshot = group.every(
+					(item) =>
+						Boolean(item.productNameSnapshot ?? item.productName) &&
+						Boolean(item.variantNameSnapshot ?? item.variantName) &&
+						Boolean(item.ratePlanNameSnapshot)
+				)
+
+				return {
+					bookingId: row.bookingId,
+					productId: row.productIdSnapshot ?? row.productId ?? null,
+					productName: row.productNameSnapshot ?? row.productName ?? null,
+					variantId: row.detailVariantId ?? null,
+					variantName: row.variantNameSnapshot ?? row.variantName ?? null,
+					ratePlanId: row.detailRatePlanId ?? null,
+					ratePlanName: row.ratePlanNameSnapshot ?? null,
+					checkIn,
+					checkOut,
+					totalPrice,
+					currency,
+					status: String(row.status ?? "draft"),
+					createdAt: row.bookingDate ? new Date(row.bookingDate).toISOString() : null,
+					confirmedAt: row.confirmedAt ? new Date(row.confirmedAt).toISOString() : null,
+					rooms: roomCount,
+					occupancyDetail: {
+						adults: occupancyDetail.adults || Number(row.adults ?? 0),
+						children: occupancyDetail.children || Number(row.children ?? 0),
+						infants: occupancyDetail.infants,
+					},
+					lifecycleState: lifecycle.state,
+					lifecycleLabel: lifecycle.label,
+					lifecycleBasis: lifecycle.basis,
+					lifecycleReality: lifecycle.reality,
+					refundHandoffState,
+					reconciliationState:
+						refundHandoffState === "handoff_required" ? "handoff_pending" : "snapshot_ready",
+					snapshotState:
+						hasSnapshot && hasTextualSnapshot ? "contract_snapshot_present" : "snapshot_incomplete",
+				}
+			})
+
+		const summary = {
+			total: items.length,
+			upcomingArrivals: countBy(items, "upcoming_arrival"),
+			inHouse: countBy(items, "in_house"),
+			departuresDue: countBy(items, "departure_due"),
+			checkedOut: countBy(items, "checked_out"),
+			cancelled: countBy(items, "cancelled"),
+			refundHandoffRequired: items.filter((item) => item.refundHandoffState === "handoff_required")
+				.length,
+			reconciliationPending: items.filter((item) => item.reconciliationState === "handoff_pending")
+				.length,
+			contractSnapshotsReady: items.filter(
+				(item) => item.snapshotState === "contract_snapshot_present"
+			).length,
+			modificationWorkflow: "not_automated",
+		}
 
 		logEndpoint()
-		return new Response(JSON.stringify(aggregate), {
+		return new Response(JSON.stringify({ summary, items }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

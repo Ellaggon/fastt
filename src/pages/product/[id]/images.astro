@@ -24,12 +24,14 @@ if (!product) return Astro.redirect("/product/create")
 const existingImages = product.images || []
 ---
 
-<WorkspaceLayout title="Producto · Imágenes">
+<WorkspaceLayout title="Property Content · Media Readiness">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Imágenes del producto</h1>
-				<p class="text-sm text-slate-400">Sube imágenes para mostrar tu producto a los clientes.</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Media Readiness</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Gestiona la galería visible del producto y su cobertura visual mínima.
+				</p>
 			</header>
 
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
@@ -43,7 +45,7 @@ const existingImages = product.images || []
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Galería del producto</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Galería editorial</h2>
 							<p class="text-sm text-slate-600">
 								Arrastra imágenes aquí o haz clic para seleccionarlas.
 							</p>

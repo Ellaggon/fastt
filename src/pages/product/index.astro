@@ -38,6 +38,15 @@ const statusMap = new Map(
 	statuses.map((status) => [status.productId, String(status.state ?? "draft")])
 )
 
+const totalProducts = products.length
+const publishedProducts = statuses.filter(
+	(status) => String(status.state ?? "").toLowerCase() === "published"
+).length
+const readyProducts = statuses.filter(
+	(status) => String(status.state ?? "").toLowerCase() === "ready"
+).length
+const draftProducts = Math.max(0, totalProducts - publishedProducts - readyProducts)
+
 const getStatusMeta = (rawState: string | undefined) => {
 	const state = String(rawState ?? "draft")
 		.trim()
@@ -48,16 +57,42 @@ const getStatusMeta = (rawState: string | undefined) => {
 }
 ---
 
-<WorkspaceLayout title="Productos">
+<WorkspaceLayout title="Property Content · Catalog Readiness">
 	<section class="space-y-8">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Productos</h1>
-			<p class="text-sm text-slate-400">Administra todos tus productos desde un solo lugar.</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Catalog worklist</h1>
+			<p class="max-w-3xl text-sm leading-6 text-slate-400">
+				Revisa contenido, media, ubicación y metadata de cada producto. Las señales comerciales y
+				físicas se mantienen como contexto, no como ownership editorial.
+			</p>
 		</header>
 
+		<section class="grid gap-4 md:grid-cols-4">
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Catalog items</p>
+				<p class="mt-2 text-2xl font-semibold">{totalProducts}</p>
+				<p class="mt-1 text-xs text-slate-400">Productos bajo ownership editorial</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Published</p>
+				<p class="mt-2 text-2xl font-semibold">{publishedProducts}</p>
+				<p class="mt-1 text-xs text-slate-400">Presentación pública activa</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Ready</p>
+				<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
+				<p class="mt-1 text-xs text-slate-400">Contenido preparado para operación</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Draft</p>
+				<p class="mt-2 text-2xl font-semibold">{draftProducts}</p>
+				<p class="mt-1 text-xs text-slate-400">Requiere readiness editorial</p>
+			</Card>
+		</section>
+
 		<Section
-			title="Listado de productos"
-			description="Accede al detalle y configuración de cada producto."
+			title="Catalog worklist"
+			description="Accede a cada producto para revisar su contenido, media, ubicación, metadata y contexto de sellability."
 		>
 			{
 				products.length === 0 ? (
@@ -65,7 +100,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes productos</h2>
 							<p class="text-sm text-slate-600">
-								Crea tu primer producto para empezar la configuración operativa.
+								Crea tu primer producto para iniciar readiness editorial y presentación comercial.
 							</p>
 						</div>
 						<div class="flex justify-end">
@@ -98,7 +133,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 												data-astro-prefetch
 												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 											>
-												Ver producto
+												Abrir readiness
 											</Button>
 										</div>
 									</div>
@@ -110,10 +145,13 @@ const getStatusMeta = (rawState: string | undefined) => {
 			}
 		</Section>
 
-		<Section title="Acción principal" description="Crea nuevos productos cuando lo necesites.">
+		<Section
+			title="Editorial workflow"
+			description="El alta crea identidad de catálogo; pricing, inventario y reservas se gobiernan en sus dominios operacionales."
+		>
 			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
 				<p class="text-sm text-slate-600">
-					El alta crea la identidad base del producto para continuar con su configuración.
+					Property Content prepara la presentación vendible: contenido, media, ubicación y metadata.
 				</p>
 				<Button
 					href="/product/create"

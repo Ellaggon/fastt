@@ -696,6 +696,13 @@ const Booking = defineTable({
 		currency: column.text({ optional: true }), // "USD" | "BOB"
 		source: column.text({ default: "web" }),
 		confirmedAt: column.date({ optional: true }),
+		// Capa 4 hardening: immutable guest/lifecycle metadata for contract audit.
+		guestEmailSnapshot: column.text({ optional: true }),
+		guestNameSnapshot: column.text({ optional: true }),
+		guestContactSnapshotJson: column.json({ optional: true }),
+		lifecycleAuditJson: column.json({ optional: true }),
+		refundHandoffSnapshotJson: column.json({ optional: true }),
+		contractSnapshotVersion: column.text({ optional: true }),
 	},
 })
 const BookingRoomDetail = defineTable({
@@ -713,6 +720,13 @@ const BookingRoomDetail = defineTable({
 		totalPrice: column.number(),
 		// CAPA 4/6: immutable pricing snapshot consumed by booking confirmation.
 		pricingBreakdownJson: column.json({ optional: true }),
+		// Capa 4 hardening: immutable labels/context so booking audit survives catalog edits.
+		providerIdSnapshot: column.text({ optional: true }),
+		productIdSnapshot: column.text({ optional: true }),
+		productNameSnapshot: column.text({ optional: true }),
+		variantNameSnapshot: column.text({ optional: true }),
+		ratePlanNameSnapshot: column.text({ optional: true }),
+		occupancySnapshotJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 })

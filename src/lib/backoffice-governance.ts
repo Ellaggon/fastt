@@ -204,11 +204,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Primary operational entry point.",
 	},
 	{
+		pattern: "/product/:id/variants/**",
+		status: "transitional",
+		context: "provider-workspace",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Transitional physical variant workspace under the product tree; catalog may navigate here, but pricing and ARI ownership stay outside Property Content.",
+	},
+	{
 		pattern: "/product/**",
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Catalog/content and physical variant context.",
+		rationale: "Catalog content, media, location, metadata, and editorial readiness.",
 	},
 	{
 		pattern: "/rates/plans/**",
@@ -251,6 +259,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Reservations",
 		rationale: "Snapshot-driven reservation lifecycle.",
+	},
+	{
+		pattern: "/financial/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Snapshot-safe financial operations and reconciliation visibility; not an accounting or PSP engine.",
 	},
 	{
 		pattern: "/provider/policies/**",
@@ -338,17 +354,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/api/internal/variants-summary",
-		status: "canonical",
+		status: "transitional",
 		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Provider-facing BFF read model for physical variants.",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Provider-facing BFF for transitional physical variant context under the product tree.",
 	},
 	{
 		pattern: "/api/internal/variant-summary",
-		status: "canonical",
+		status: "transitional",
 		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Provider-facing BFF read model for a physical variant.",
+		owner: "Physical Inventory Context",
+		rationale:
+			"Provider-facing BFF for a transitional physical variant surface; not catalog editorial ownership.",
 	},
 	{
 		pattern: "/api/internal/availability-summary",
@@ -399,6 +417,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "internal-ops",
 		owner: "Internal Ops / Observability",
 		rationale: "Inventory diagnostics and jobs remain internal operations surfaces.",
+	},
+	{
+		pattern: "/api/internal/financial/operations",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF read model for financial operations and reconciliation visibility.",
 	},
 	{
 		pattern: "/api/internal/financial/**",
@@ -686,54 +712,65 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Reservations",
-		subtitle: "Snapshot-driven booking operations",
+		subtitle: "Lifecycle, audit, handoff",
 		owner: "Booking Operations",
 		context: "enterprise-operations",
-		operationalIntent: "Reservation lifecycle workspace anchored on immutable booking snapshots.",
+		operationalIntent:
+			"Reservation lifecycle coordination anchored on immutable booking contract snapshots, with pricing, inventory, and payments owned by their domains.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Reservations",
+				label: "Lifecycle Hub",
 				href: routes.bookingList(),
 				status: "canonical",
-				summary: "Snapshot-driven reservation lifecycle.",
+				summary: "Arrivals, stays, departures, cancellations, and audit handoffs.",
 			},
 		],
+		planned: ["Modification Workflow", "Guest Relations", "Refund Operations"],
 	},
 	{
 		title: "Property Content",
-		subtitle: "Catalog and physical product context",
+		subtitle: "Catalog readiness and editorial quality",
 		owner: "Catalog Operations",
 		context: "provider-workspace",
 		operationalIntent:
-			"Provider-owned catalog content, media, location, services, and physical room context.",
+			"Provider-owned catalog content, media, location, metadata, and discoverability readiness. Commercial and inventory readiness remain contextual signals owned by Rooms & Rates.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Products & Room Types",
+				label: "Catalog Readiness",
 				href: routes.productList(),
 				status: "canonical",
-				summary: "Catalog content and physical variant context.",
+				summary:
+					"Editorial content, media, location, metadata, and product presentation readiness.",
 			},
 		],
+		planned: ["Media Quality Review", "SEO Metadata", "Content Quality Workflow"],
 	},
 	{
 		title: "Payments & Finance",
-		subtitle: "Commercial charges and financial setup",
+		subtitle: "Reconciliation and financial visibility",
 		owner: "Financial Operations",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Financial setup for taxes and guest-facing charges; payment lifecycle is not active yet.",
+			"Snapshot-safe financial operations for reconciliation visibility, refund handoff, payout/commission visibility, and tax/fee audit. This is not a PSP, ledger, or invoicing engine.",
 		maturity: "transitional",
 		items: [
+			{
+				label: "Financial Operations",
+				href: routes.financialOperations(),
+				status: "canonical",
+				summary:
+					"Booking contract snapshots, shadow payment visibility, refund handoff, payout/commission and reconciliation states.",
+			},
 			{
 				label: "Taxes & Fees",
 				href: routes.providerTaxFees(),
 				status: "transitional",
-				summary: "Financial setup surface; payments console is not active yet.",
+				summary: "Financial-commercial setup surface for guest-facing charges.",
 			},
 		],
-		planned: ["Payments Console", "Reconciliation Workspace"],
+		planned: ["PSP Operations", "Invoice Issuance", "Payout Automation"],
 	},
 	{
 		title: "Analytics & Performance",

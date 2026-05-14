@@ -21,14 +21,15 @@ const owned = await productRepository.ensureProductOwnedByProvider(productId, pr
 if (!owned) return Astro.redirect("/product/create")
 ---
 
-<WorkspaceLayout title="Producto · Variantes">
+<WorkspaceLayout title="Physical Context · Variants">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
-					<h1 class="text-3xl font-semibold text-slate-100">Variantes del producto</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Physical variants</h1>
 					<p class="text-sm text-slate-400">
-						Gestiona capacidad, subtipo, precios e inventario por variante.
+						Configura el contexto físico del producto: variantes, capacidad e inventario. La
+						cobertura comercial relacionada se abre en Rooms & Rates.
 					</p>
 					<p id="productDisplayName" class="text-sm text-slate-300">Producto: {owned.name}</p>
 				</div>
@@ -42,6 +43,15 @@ if (!owned) return Astro.redirect("/product/create")
 			className="space-y-4"
 		>
 			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
+				<div
+					class="rounded-lg border border-slate-700 bg-slate-950 p-4 text-sm leading-6 text-slate-300"
+				>
+					<p class="font-semibold text-slate-100">Physical context boundary</p>
+					<p>
+						Las variantes no seleccionan cobertura comercial. Esta vista muestra dependencias
+						comerciales solo como handoff hacia Rooms & Rates.
+					</p>
+				</div>
 				<div class="space-y-4">
 					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
 						<div id="variantsProgressBar" class="h-full w-0 bg-[#1E3A8A]"></div>
@@ -74,7 +84,7 @@ if (!owned) return Astro.redirect("/product/create")
 		</Section>
 
 		<Section
-			title="Variantes existentes"
+			title="Physical variant worklist"
 			description="Configura cada variante por bloques operativos."
 		>
 			<div id="variantsEmptyState" class="hidden">
@@ -82,7 +92,7 @@ if (!owned) return Astro.redirect("/product/create")
 					<div class="space-y-1">
 						<h2 class="text-xl font-semibold text-slate-900">Aún no hay variantes</h2>
 						<p class="text-sm text-slate-600">
-							Crea la primera variante para habilitar disponibilidad y precios.
+							Crea la primera variante para habilitar contexto físico y dependencias de sellability.
 						</p>
 					</div>
 					<div class="flex justify-end">
@@ -220,7 +230,7 @@ if (!owned) return Astro.redirect("/product/create")
 							middle.append(
 								sectionBadge("Capacidad", Boolean(variant?.states?.capacityComplete)),
 								sectionBadge("Subtipo", Boolean(variant?.states?.subtypeComplete)),
-								sectionBadge("Precios", Boolean(variant?.states?.pricingComplete)),
+								sectionBadge("Cobertura comercial", Boolean(variant?.states?.pricingComplete)),
 								sectionBadge("Inventario", Boolean(variant?.states?.inventoryComplete))
 							)
 
