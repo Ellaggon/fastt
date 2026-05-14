@@ -22,7 +22,11 @@ describe("Guardrail: financial references are evidence only", () => {
 			/createLedgerEntry/,
 			/retryPayment/,
 			/paymentCompleted/,
+			/refundProcessed/,
+			/settlementExecuted/,
 			/payoutSent/,
+			/captureSucceeded/,
+			/invoiceIssued/,
 			/journalEntry/,
 		]
 		const violations = [
