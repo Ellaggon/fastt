@@ -427,6 +427,44 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Provider-facing BFF read model for financial operations and reconciliation visibility.",
 	},
 	{
+		pattern: "/api/internal/financial/exceptions/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF for persisted financial review workflow actions; not PSP execution.",
+	},
+	{
+		pattern: "/api/internal/financial/exceptions",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF read model for persisted plus derived financial review overlay.",
+	},
+	{
+		pattern: "/api/internal/financial/review-events",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale: "Provider-facing BFF read model for financial review audit timeline.",
+	},
+	{
+		pattern: "/api/internal/financial/references",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF for financial evidence/reference visibility; not payment execution.",
+	},
+	{
+		pattern: "/api/internal/financial/refund-handoffs/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale: "Provider-facing BFF for refund handoff review visibility; not refund execution.",
+	},
+	{
 		pattern: "/api/internal/financial/**",
 		status: "internal-only",
 		context: "internal-ops",

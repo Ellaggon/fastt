@@ -14,6 +14,11 @@ describe("Guardrail: financial UI remains queue-first", () => {
 			/refund now/i,
 			/settle payout/i,
 			/issue invoice/i,
+			/payout sent/i,
+			/settlement completed/i,
+			/ledger/i,
+			/revenue recognized/i,
+			/AI finance assistant/i,
 		]
 		const violations = forbidden.flatMap((pattern) =>
 			pattern.test(source) ? [`Financial UI contains theater/action ${pattern}`] : []

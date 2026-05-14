@@ -40,7 +40,7 @@ if (!user) return Astro.redirect("/SignInPage")
 								<option value="snapshot_ready">Evidence ready</option>
 								<option value="handoff_pending">Handoff pending</option>
 								<option value="partially_reconciled">Partially reconciled</option>
-								<option value="reconciled">Reconciled</option>
+								<option value="reconciled">Evidence matched</option>
 								<option value="reconciliation_unknown">Unknown</option>
 							</Select>
 						</label>
@@ -69,8 +69,10 @@ if (!user) return Astro.redirect("/SignInPage")
 							<th class="px-3 py-2">Issue</th>
 							<th class="px-3 py-2">Booking contract</th>
 							<th class="px-3 py-2">Financial evidence</th>
-							<th class="px-3 py-2">Owner</th>
+							<th class="px-3 py-2">Owner / aging</th>
+							<th class="px-3 py-2">Financial evidence</th>
 							<th class="px-3 py-2">Snapshot integrity</th>
+							<th class="px-3 py-2 text-right">Review</th>
 						</tr>
 					</thead>
 					<tbody id="financialRows">
@@ -101,6 +103,26 @@ if (!user) return Astro.redirect("/SignInPage")
 		</Card>
 	</section>
 
+	<div id="financialReviewBackdrop" class="hidden fixed inset-0 z-40 bg-slate-950/30"></div>
+	<aside
+		id="financialReviewDrawer"
+		class="fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl transition-transform duration-200"
+	>
+		<div class="mb-4 flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
+			<div>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Review detail</p>
+				<p class="text-sm text-slate-600">Evidence, status, owner and timeline.</p>
+			</div>
+			<button
+				id="financialReviewDrawerClose"
+				type="button"
+				class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+				>Close</button
+			>
+		</div>
+		<div id="financialReviewDrawerBody"></div>
+	</aside>
+
 	<script is:inline>
 		;(function () {
 			const queueFilter = document.getElementById("financialQueueFilter")
@@ -108,21 +130,111 @@ if (!user) return Astro.redirect("/SignInPage")
 			const summary = document.getElementById("financialSummary")
 			const rows = document.getElementById("financialRows")
 			const listSummary = document.getElementById("financialListSummary")
-			let allItems = []
+			const drawer = document.getElementById("financialReviewDrawer")
+			const drawerBackdrop = document.getElementById("financialReviewBackdrop")
+			const drawerBody = document.getElementById("financialReviewDrawerBody")
+			const drawerClose = document.getElementById("financialReviewDrawerClose")
+			let operationsItems = []
+			let workflowItems = []
+			let reviewEvents = []
+			let combinedItems = []
+			let selectedItem = null
 
 			const money = (currency, value) =>
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
-			const stateLabel = (state) => String(state || "reconciliation_unknown").replaceAll("_", " ")
+			const text = (value, fallback = "-") => {
+				const raw = String(value ?? "").trim()
+				return raw || fallback
+			}
+			const label = (value) => text(value).replaceAll("_", " ")
+			const escapeHtml = (value) =>
+				String(value ?? "")
+					.replaceAll("&", "&amp;")
+					.replaceAll("<", "&lt;")
+					.replaceAll(">", "&gt;")
+					.replaceAll('"', "&quot;")
+					.replaceAll("'", "&#039;")
+			const ageDays = (value) => {
+				if (!value) return null
+				const date = new Date(String(value))
+				if (Number.isNaN(date.getTime())) return null
+				return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
+			}
+			const formatDate = (value) => {
+				if (!value) return "-"
+				const date = new Date(String(value))
+				if (Number.isNaN(date.getTime())) return "-"
+				return date.toISOString().slice(0, 10)
+			}
+			const statusLabel = (status) => {
+				const labels = {
+					open: "open",
+					acknowledged: "acknowledged",
+					waiting_external: "waiting external",
+					resolved: "review resolved",
+					dismissed: "dismissed",
+				}
+				return labels[String(status || "open")] || label(status || "open")
+			}
+			const ownerLabel = (owner) => {
+				const labels = {
+					financial_operations: "Financial ops",
+					reservations: "Reservations",
+					provider_followup: "Provider follow-up",
+					external_finance: "External finance",
+					support: "Support context",
+					none: "No owner",
+				}
+				return labels[String(owner || "none")] || label(owner)
+			}
+			const statusClass = (status) => {
+				const map = {
+					open: "border-amber-200 bg-amber-50 text-amber-800",
+					acknowledged: "border-blue-200 bg-blue-50 text-blue-800",
+					waiting_external: "border-sky-200 bg-sky-50 text-sky-800",
+					resolved: "border-emerald-200 bg-emerald-50 text-emerald-800",
+					dismissed: "border-slate-200 bg-slate-50 text-slate-600",
+				}
+				return map[String(status || "open")] || "border-slate-200 bg-white text-slate-700"
+			}
+			const statusChip = (status) =>
+				`<span class="inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusClass(status)}">${escapeHtml(statusLabel(status))}</span>`
+			const ownerChip = (owner) =>
+				`<span class="inline-flex rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(ownerLabel(owner))}</span>`
 			const exceptionCodes = (item) =>
-				Array.isArray(item?.operationalException?.all)
-					? item.operationalException.all.map((entry) => String(entry?.code || ""))
+				Array.isArray(item?.operation?.operationalException?.all)
+					? item.operation.operationalException.all.map((entry) => String(entry?.code || ""))
 					: []
-			const hasAnyCode = (item, codes) => exceptionCodes(item).some((code) => codes.includes(code))
-			const isCleanRecord = (item) => !item?.operationalException?.hasOpenException
+			const hasAnyCode = (item, codes) =>
+				String(item?.code || "")
+					? codes.includes(String(item.code))
+					: exceptionCodes(item).some((code) => codes.includes(code))
+			const isCleanRecord = (item) =>
+				!item?.workflow && !item?.operation?.operationalException?.hasOpenException
+			const sourceLabel = (item) => {
+				if (item?.overlaySource === "derived_only") return "derived only"
+				if (item?.overlaySource === "persisted_overlay") return "derived still present"
+				if (item?.workflow) return "persisted"
+				return "visibility only"
+			}
+			const itemKey = (item) => `${item?.bookingId || ""}::${item?.code || "clean_record"}`
+
+			function operationalAge(item) {
+				const opened = item?.openedAt || item?.workflow?.openedAt
+				const openedAge = ageDays(opened)
+				if (openedAge != null) return `${statusLabel(item?.status)} ${openedAge}d`
+				const confirmedAge = ageDays(item?.operation?.confirmedAt)
+				if (confirmedAge != null) return `booking confirmed ${confirmedAge}d ago`
+				return "age unavailable"
+			}
 
 			function queueMatches(item, queue) {
 				if (queue === "all") return true
-				if (queue === "all_open") return Boolean(item?.operationalException?.hasOpenException)
+				if (queue === "all_open")
+					return (
+						!["resolved", "dismissed"].includes(String(item?.status || "open")) &&
+						!isCleanRecord(item)
+					)
 				if (queue === "clean_records") return isCleanRecord(item)
 				if (queue === "missing_references") {
 					return hasAnyCode(item, [
@@ -141,7 +253,7 @@ if (!user) return Astro.redirect("/SignInPage")
 				const queue = String(queueFilter?.value || "all_open")
 				const state = String(stateFilter?.value || "all")
 				return items.filter((item) => {
-					const stateMatches = state === "all" || item?.reconciliation?.state === state
+					const stateMatches = state === "all" || item?.operation?.reconciliation?.state === state
 					return stateMatches && queueMatches(item, queue)
 				})
 			}
@@ -150,14 +262,59 @@ if (!user) return Astro.redirect("/SignInPage")
 				return items.filter((item) => queueMatches(item, queue)).length
 			}
 
+			function mergeItems() {
+				const operationByBooking = new Map(
+					operationsItems.map((item) => [String(item.bookingId), item])
+				)
+				const merged = workflowItems.map((workflow) => ({
+					...workflow,
+					workflow,
+					operation: operationByBooking.get(String(workflow.bookingId)) || null,
+				}))
+				const workflowKeys = new Set(merged.map(itemKey))
+				for (const operation of operationsItems) {
+					const exceptions = operation?.operationalException?.all || []
+					if (exceptions.length) {
+						for (const issue of exceptions) {
+							const candidate = {
+								...issue,
+								id: `operation:${issue.bookingId}:${issue.code}`,
+								status: "open",
+								overlaySource: "derived_only",
+								persistedId: null,
+								openedAt: null,
+								operation,
+								workflow: null,
+							}
+							if (!workflowKeys.has(itemKey(candidate))) merged.push(candidate)
+						}
+					} else {
+						const candidate = {
+							id: `clean:${operation.bookingId}`,
+							bookingId: operation.bookingId,
+							providerId: operation?.providerId || "",
+							code: "clean_record",
+							severity: "review",
+							status: "open",
+							basis: "contract_snapshot",
+							reason: "Financial evidence is visible with no open review exception.",
+							nextOwner: "none",
+							overlaySource: "visibility_only",
+							persistedId: null,
+							openedAt: null,
+							operation,
+							workflow: null,
+						}
+						merged.push(candidate)
+					}
+				}
+				combinedItems = merged
+			}
+
 			function renderSummary(items) {
 				if (!summary) return
 				const metrics = [
-					{
-						label: "Open exceptions",
-						value: countQueue(items, "all_open"),
-						queue: "all_open",
-					},
+					{ label: "Open exceptions", value: countQueue(items, "all_open"), queue: "all_open" },
 					{
 						label: "Refund handoffs",
 						value: countQueue(items, "refund_handoff_required"),
@@ -203,73 +360,228 @@ if (!user) return Astro.redirect("/SignInPage")
 				rows.innerHTML = ""
 				if (!Array.isArray(items) || !items.length) {
 					rows.innerHTML =
-						'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No items match this queue. Change filters to inspect clean or historical records.</td></tr>'
+						'<tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">No items match this queue. Change filters to inspect clean or historical records.</td></tr>'
 					return
 				}
 				for (const item of items) {
+					const operation = item.operation || {}
 					const tr = document.createElement("tr")
-					tr.className = "border-t border-slate-200 align-top"
-					const issue = item?.operationalException?.primary
-					const issueLabel = issue?.code ? stateLabel(issue.code) : "No exception"
-					const issueReason =
-						issue?.reason ||
-						"Snapshot evidence is available; no financial handoff is currently flagged."
-					const nextOwner = issue?.nextOwner ? stateLabel(issue.nextOwner) : "None"
-					const issueAge = Number.isFinite(Number(item?.operationalException?.ageDays))
-						? `${Number(item.operationalException.ageDays)}d since confirmation`
-						: "Age unavailable"
-					const paymentRefs = Number(item?.transactions?.references?.payment?.length || 0)
-					const settlementRefs = Number(item?.transactions?.references?.settlement?.length || 0)
-					const refundRefs = Number(item?.transactions?.references?.refund?.length || 0)
+					tr.className = "border-t border-slate-200 align-top hover:bg-white"
+					const issueLabel =
+						item?.code && item.code !== "clean_record" ? label(item.code) : "No exception"
+					const paymentRefs = Number(operation?.transactions?.references?.payment?.length || 0)
+					const settlementRefs = Number(
+						operation?.transactions?.references?.settlement?.length || 0
+					)
+					const refundRefs = Number(operation?.transactions?.references?.refund?.length || 0)
 					tr.innerHTML = `
 						<td class="px-3 py-3 text-slate-700">
-							<div class="font-medium ${issue ? "text-slate-950" : "text-emerald-700"}">${issueLabel}</div>
-							<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${issueReason}</div>
-							<div class="mt-1 text-xs text-slate-400">${issueAge}</div>
+							<div class="font-medium ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${escapeHtml(issueLabel)}</div>
+							<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${escapeHtml(item.reason)}</div>
+							<div class="mt-2 flex flex-wrap gap-1">
+								${statusChip(item.status)}
+								<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${escapeHtml(sourceLabel(item))}</span>
+							</div>
 						</td>
 						<td class="px-3 py-3 text-slate-700">
-							<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${String(item.bookingId || "-")}</a>
-							<div class="mt-1 text-xs text-slate-500">${String(item?.contract?.productName || "Property")} · ${String(item?.contract?.variantName || "Allocation")}</div>
-							<div class="mt-1 text-xs text-slate-500">${money(item.currency, item.contractTotal)} · ${String(item?.contract?.version || "snapshot")}</div>
+							<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${escapeHtml(item.bookingId || "-")}</a>
+							<div class="mt-1 text-xs text-slate-500">${escapeHtml(operation?.contract?.productName || "Property")} · ${escapeHtml(operation?.contract?.variantName || "Allocation")}</div>
+							<div class="mt-1 text-xs text-slate-500">${escapeHtml(money(operation.currency, operation.contractTotal))} · ${escapeHtml(operation?.contract?.version || "snapshot")}</div>
 						</td>
-							<td class="px-3 py-3 text-slate-700">
-								<div>${stateLabel(item?.transactions?.financialEvidence?.paymentIntentShadow)}</div>
-								<div class="mt-1 text-xs text-slate-500">Payment refs: ${paymentRefs} · Settlement refs: ${settlementRefs} · Refund refs: ${refundRefs}</div>
-							</td>
-							<td class="px-3 py-3 text-slate-700">
-								<div class="font-medium text-slate-950">${nextOwner}</div>
-								<div class="mt-1 text-xs text-slate-500">${stateLabel(item?.reconciliation?.state)} · Refund: ${stateLabel(item?.refund?.state || "not_applicable")}</div>
-							</td>
-							<td class="px-3 py-3 text-slate-700">
-								<div>${Number(item?.taxFeeVisibility?.lines || 0)} tax/fee line(s) · Rooms: ${Number(item?.snapshotIntegrity?.multiRoomAllocationCount || 0)}</div>
-								<div class="mt-1 text-xs text-slate-500">${item?.snapshotIntegrity?.hasRoomSnapshots ? "Room snapshot ok" : "Room snapshot gap"} · ${item?.snapshotIntegrity?.hasTaxFeeSnapshots ? "Tax snapshot ok" : "Tax snapshot gap"}</div>
-							</td>`
+						<td class="px-3 py-3 text-slate-700">
+							<div class="flex flex-wrap gap-1">${ownerChip(item.nextOwner)}</div>
+							<div class="mt-2 text-xs text-slate-500">${escapeHtml(operationalAge(item))}</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<div>${escapeHtml(label(operation?.transactions?.financialEvidence?.paymentIntentShadow || "not_visible"))}</div>
+							<div class="mt-1 text-xs text-slate-500">Payment refs: ${paymentRefs} · Settlement refs: ${settlementRefs} · Refund refs: ${refundRefs}</div>
+							<div class="mt-1 text-xs text-slate-500">reference recorded / evidence visible</div>
+						</td>
+						<td class="px-3 py-3 text-slate-700">
+							<div>${Number(operation?.taxFeeVisibility?.lines || 0)} tax/fee line(s) · Rooms: ${Number(operation?.snapshotIntegrity?.multiRoomAllocationCount || 0)}</div>
+							<div class="mt-1 text-xs text-slate-500">${operation?.snapshotIntegrity?.hasRoomSnapshots ? "Room snapshot ok" : "Room snapshot gap"} · ${operation?.snapshotIntegrity?.hasTaxFeeSnapshots ? "Tax snapshot ok" : "Tax snapshot gap"}</div>
+						</td>
+						<td class="px-3 py-3 text-right">
+							<button type="button" data-review-key="${escapeHtml(itemKey(item))}" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Review</button>
+						</td>`
 					rows.appendChild(tr)
 				}
+				rows.querySelectorAll("[data-review-key]").forEach((button) => {
+					button.addEventListener("click", () => {
+						const key = String(button.getAttribute("data-review-key") || "")
+						const item = combinedItems.find((entry) => itemKey(entry) === key)
+						if (item) openDrawer(item)
+					})
+				})
+			}
+
+			function eventsFor(item) {
+				return reviewEvents.filter((event) => {
+					if (item.persistedId && event.financialExceptionId === item.persistedId) return true
+					return event.bookingId === item.bookingId
+				})
+			}
+
+			function evidenceHtml(item) {
+				const refs = item?.operation?.transactions?.references || {}
+				const entries = [
+					...(refs.payment || []).map((value) => ["payment_evidence", value]),
+					...(refs.settlement || []).map((value) => ["settlement_evidence", value]),
+					...(refs.refund || []).map((value) => ["refund_evidence", value]),
+				]
+				if (!entries.length)
+					return '<p class="text-sm text-slate-500">No stable reference visible yet.</p>'
+				return `<ul class="space-y-2">${entries
+					.map(
+						([type, value]) => `<li class="rounded-lg border border-slate-200 bg-white p-3">
+							<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${escapeHtml(type)}</div>
+							<div class="mt-1 font-mono text-xs text-slate-800">${escapeHtml(value)}</div>
+							<div class="mt-1 text-xs text-slate-500">evidence visible · reference recorded</div>
+						</li>`
+					)
+					.join("")}</ul>`
+			}
+
+			function timelineHtml(item) {
+				const events = eventsFor(item)
+				if (!events.length)
+					return '<p class="text-sm text-slate-500">No review events recorded yet.</p>'
+				return `<ol class="space-y-3">${events
+					.map(
+						(event) => `<li class="border-l border-slate-200 pl-3">
+							<div class="text-sm font-semibold text-slate-900">${escapeHtml(label(event.type))}</div>
+							<div class="text-xs text-slate-500">${escapeHtml(formatDate(event.createdAt))} · ${escapeHtml(label(event.actorType || "operator"))}</div>
+						</li>`
+					)
+					.join("")}</ol>`
+			}
+
+			function openDrawer(item) {
+				selectedItem = item
+				const operation = item.operation || {}
+				const canReview =
+					Boolean(item.persistedId) && !["resolved", "dismissed"].includes(String(item.status))
+				const refundState = operation?.refund?.state || "not_applicable"
+				if (drawerBody) {
+					drawerBody.innerHTML = `
+						<div class="space-y-5">
+							<div>
+								<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Operational review</p>
+								<h2 class="mt-1 text-xl font-semibold text-slate-950">${escapeHtml(label(item.code))}</h2>
+								<p class="mt-2 text-sm leading-6 text-slate-600">${escapeHtml(item.reason)}</p>
+								<div class="mt-3 flex flex-wrap gap-2">${statusChip(item.status)}${ownerChip(item.nextOwner)}<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${escapeHtml(sourceLabel(item))}</span></div>
+							</div>
+							<div class="grid gap-3 sm:grid-cols-2">
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Booking id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${escapeHtml(item.bookingId)}</div></div>
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Provider id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${escapeHtml(item.providerId)}</div></div>
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Basis</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(label(item.basis))}</div></div>
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Age</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(operationalAge(item))}</div></div>
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Opened</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(formatDate(item.openedAt))}</div></div>
+								<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund handoff</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(label(refundState))}</div></div>
+							</div>
+							<div class="rounded-xl border border-slate-200 bg-white p-3">
+								<div class="text-sm font-semibold text-slate-950">Evidence references</div>
+								<div class="mt-3">${evidenceHtml(item)}</div>
+							</div>
+							<div class="rounded-xl border border-slate-200 bg-white p-3">
+								<div class="text-sm font-semibold text-slate-950">Timeline</div>
+								<div class="mt-3">${timelineHtml(item)}</div>
+							</div>
+							<div class="rounded-xl border border-slate-200 bg-white p-3">
+								<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Resolution note</label>
+								<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for resolve or dismiss">${escapeHtml(item.resolutionNote || "")}</textarea>
+								<p class="mt-2 text-xs text-slate-500">Resolved means operational review closed, not financially matched.</p>
+								<div class="mt-3 flex flex-wrap gap-2">
+									<button type="button" data-review-action="acknowledge" ${canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Acknowledge</button>
+									<button type="button" data-review-action="resolve" ${canReview ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Resolve review</button>
+									<button type="button" data-review-action="dismiss" ${canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss</button>
+								</div>
+								${item.persistedId ? "" : '<p class="mt-3 text-xs text-slate-500">Derived-only item: persisted review actions become available after an operator opens a persisted record.</p>'}
+							</div>
+						</div>`
+					drawerBody.querySelectorAll("[data-review-action]").forEach((button) => {
+						button.addEventListener(
+							"click",
+							() => void submitReviewAction(String(button.getAttribute("data-review-action") || ""))
+						)
+					})
+				}
+				drawer?.classList.remove("translate-x-full")
+				drawerBackdrop?.classList.remove("hidden")
+			}
+
+			function closeDrawer() {
+				selectedItem = null
+				drawer?.classList.add("translate-x-full")
+				drawerBackdrop?.classList.add("hidden")
+			}
+
+			async function submitReviewAction(action) {
+				if (!selectedItem?.persistedId) return
+				const note = String(document.getElementById("financialResolutionNote")?.value || "").trim()
+				const endpoint = `/api/internal/financial/exceptions/${encodeURIComponent(selectedItem.persistedId)}/${action}`
+				const body = action === "acknowledge" ? {} : { resolutionNote: note }
+				if (action !== "acknowledge" && !note) {
+					alert("Resolution note is required.")
+					return
+				}
+				const response = await fetch(endpoint, {
+					method: "POST",
+					headers: { "Content-Type": "application/json", "accept": "application/json" },
+					body: JSON.stringify(body),
+				})
+				if (!response.ok) {
+					alert("Review action could not be saved.")
+					return
+				}
+				await fetchWorkspace()
+				const refreshed = combinedItems.find((entry) => itemKey(entry) === itemKey(selectedItem))
+				if (refreshed) openDrawer(refreshed)
+				else closeDrawer()
 			}
 
 			function renderFinancialView() {
-				const filteredItems = applyFilters(allItems)
-				renderSummary(allItems)
+				mergeItems()
+				const filteredItems = applyFilters(combinedItems)
+				renderSummary(combinedItems)
 				renderRows(filteredItems)
 				if (listSummary) {
-					const openCount = countQueue(allItems, "all_open")
+					const openCount = countQueue(combinedItems, "all_open")
 					const shownCount = filteredItems.length
-					listSummary.textContent = `${openCount} open exception(s). Showing ${shownCount} review item(s).`
+					listSummary.textContent = `${openCount} open review item(s). Showing ${shownCount} queue item(s).`
 				}
+			}
+
+			async function fetchWorkspace() {
+				const [operationsResponse, exceptionsResponse, eventsResponse] = await Promise.all([
+					fetch("/api/internal/financial/operations", { headers: { accept: "application/json" } }),
+					fetch("/api/internal/financial/exceptions?status=all&limit=250", {
+						headers: { accept: "application/json" },
+					}),
+					fetch("/api/internal/financial/review-events?limit=250", {
+						headers: { accept: "application/json" },
+					}),
+				])
+				if (!operationsResponse.ok || !exceptionsResponse.ok || !eventsResponse.ok) {
+					throw new Error("financial_workspace_load_failed")
+				}
+				const operationsPayload = await operationsResponse.json()
+				const exceptionsPayload = await exceptionsResponse.json()
+				const eventsPayload = await eventsResponse.json()
+				operationsItems = Array.isArray(operationsPayload?.items) ? operationsPayload.items : []
+				workflowItems = Array.isArray(exceptionsPayload?.items) ? exceptionsPayload.items : []
+				reviewEvents = Array.isArray(eventsPayload?.items) ? eventsPayload.items : []
+				renderFinancialView()
 			}
 
 			async function fetchOperations() {
 				try {
-					const response = await fetch("/api/internal/financial/operations", {
-						headers: { accept: "application/json" },
-					})
-					if (!response.ok) throw new Error(`financial_operations_${response.status}`)
-					const payload = await response.json()
-					allItems = Array.isArray(payload?.items) ? payload.items : []
-					renderFinancialView()
+					await fetchWorkspace()
 				} catch {
-					allItems = []
+					operationsItems = []
+					workflowItems = []
+					reviewEvents = []
+					combinedItems = []
 					renderSummary([])
 					renderRows([])
 					if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
@@ -278,6 +590,8 @@ if (!user) return Astro.redirect("/SignInPage")
 
 			queueFilter?.addEventListener("change", renderFinancialView)
 			stateFilter?.addEventListener("change", renderFinancialView)
+			drawerClose?.addEventListener("click", closeDrawer)
+			drawerBackdrop?.addEventListener("click", closeDrawer)
 			void fetchOperations()
 		})()
 	</script>
