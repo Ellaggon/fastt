@@ -48,12 +48,20 @@ export const GET: APIRoute = async ({ request }) => {
 			.filter(Boolean),
 	]
 	const limit = Number(url.searchParams.get("limit") ?? 500)
-	const items = await financialReferenceRepository.findByProvider({
-		providerId: auth.providerId,
-		bookingIds,
-		limit: Number.isFinite(limit) ? limit : 500,
-	})
-	return json({ items })
+	try {
+		const items = await financialReferenceRepository.findByProvider({
+			providerId: auth.providerId,
+			bookingIds,
+			limit: Number.isFinite(limit) ? limit : 500,
+		})
+		return json({ items })
+	} catch (error) {
+		console.warn("financial_reference_lookup_degraded", {
+			providerId: auth.providerId,
+			error: error instanceof Error ? error.message : "unknown",
+		})
+		return json({ items: [], degraded: true })
+	}
 }
 
 export const POST: APIRoute = async ({ request }) => {

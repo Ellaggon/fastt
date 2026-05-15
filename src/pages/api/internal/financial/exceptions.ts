@@ -63,17 +63,27 @@ export const GET: APIRoute = async ({ request, url }) => {
 		url,
 	} as Parameters<APIRoute>[0])
 	if (derivedResult.response) return derivedResult.response
-	const persisted = await listFinancialExceptions(
-		{ exceptions: financialExceptionRepository },
-		{
+	let persisted: FinancialExceptionRecord[] = []
+	let degraded = false
+	try {
+		persisted = await listFinancialExceptions(
+			{ exceptions: financialExceptionRepository },
+			{
+				providerId: auth.providerId,
+				status: "all",
+				code: "all",
+				nextOwner: "all",
+				bookingId,
+				limit: 500,
+			}
+		)
+	} catch (error) {
+		degraded = true
+		console.warn("financial_exception_lookup_degraded", {
 			providerId: auth.providerId,
-			status: "all",
-			code: "all",
-			nextOwner: "all",
-			bookingId,
-			limit: 500,
-		}
-	)
+			error: error instanceof Error ? error.message : "unknown",
+		})
+	}
 	const items = buildFinancialReviewOverlay({
 		persisted,
 		derived: derivedResult.derived,
@@ -109,6 +119,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			autoBackfill: false,
 			autoReopen: false,
 			readOnly: true,
+			degraded,
 		},
 	})
 }

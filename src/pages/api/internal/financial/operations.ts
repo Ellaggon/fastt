@@ -85,8 +85,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.all()
 
 		const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
-		const shadowRows = bookingIds.length
-			? await db
+		let shadowRows: Array<{
+			bookingId: string
+			type: string
+			payload: unknown
+			createdAt: unknown
+		}> = []
+		if (bookingIds.length) {
+			try {
+				shadowRows = await db
 					.select({
 						bookingId: FinancialShadowRecord.bookingId,
 						type: FinancialShadowRecord.type,
@@ -96,9 +103,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(FinancialShadowRecord)
 					.where(inArray(FinancialShadowRecord.bookingId, bookingIds))
 					.all()
-			: []
-		const taxRows = bookingIds.length
-			? await db
+			} catch (error) {
+				console.warn("financial_shadow_lookup_degraded", {
+					providerId,
+					error: error instanceof Error ? error.message : "unknown",
+				})
+			}
+		}
+		let taxRows: Array<{
+			bookingId: string
+			totalAmount: unknown
+			breakdownJson: unknown
+		}> = []
+		if (bookingIds.length) {
+			try {
+				taxRows = await db
 					.select({
 						bookingId: BookingTaxFee.bookingId,
 						totalAmount: BookingTaxFee.totalAmount,
@@ -107,7 +126,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(BookingTaxFee)
 					.where(inArray(BookingTaxFee.bookingId, bookingIds))
 					.all()
-			: []
+			} catch (error) {
+				console.warn("booking_tax_fee_lookup_degraded", {
+					providerId,
+					error: error instanceof Error ? error.message : "unknown",
+				})
+			}
+		}
 
 		const shadowByBooking = new Map<string, typeof shadowRows>()
 		for (const row of shadowRows) {
@@ -206,8 +231,33 @@ export const GET: APIRoute = async ({ request, url }) => {
 		)
 	} catch (error) {
 		return new Response(
-			JSON.stringify({ error: error instanceof Error ? error.message : "internal_error" }),
-			{ status: 500, headers: { "Content-Type": "application/json" } }
+			JSON.stringify({
+				summary: {
+					totalBookings: 0,
+					openExceptions: 0,
+					contractValue: 0,
+					taxesVisible: 0,
+					commissionVisible: 0,
+					refundHandoffPending: 0,
+					partiallyReconciled: 0,
+					reconciled: 0,
+					snapshotReady: 0,
+					reconciliationUnknown: 0,
+					missingReferenceCount: 0,
+					snapshotGapCount: 0,
+					multiRoomReview: 0,
+				},
+				items: [],
+				boundaries: {
+					pricing: "snapshot_only_no_live_pricing",
+					inventory: "no_inventory_mutation",
+					payments: "visibility_not_psp_orchestration",
+					accounting: "not_a_ledger",
+				},
+				degraded: true,
+				error: error instanceof Error ? error.message : "internal_error",
+			}),
+			{ status: 200, headers: { "Content-Type": "application/json" } }
 		)
 	}
 }

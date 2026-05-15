@@ -32,11 +32,19 @@ export const GET: APIRoute = async ({ request }) => {
 	const status = String(url.searchParams.get("status") ?? "all").trim()
 	if (!allowedStatuses.has(status)) return json({ error: "validation_error" }, 400)
 	const limit = Number(url.searchParams.get("limit") ?? 500)
-	const items = await refundHandoffRepository.findByProvider({
-		providerId: auth.providerId,
-		bookingIds,
-		status: status as RefundHandoffStatus | "all",
-		limit: Number.isFinite(limit) ? limit : 500,
-	})
-	return json({ items })
+	try {
+		const items = await refundHandoffRepository.findByProvider({
+			providerId: auth.providerId,
+			bookingIds,
+			status: status as RefundHandoffStatus | "all",
+			limit: Number.isFinite(limit) ? limit : 500,
+		})
+		return json({ items })
+	} catch (error) {
+		console.warn("refund_handoff_lookup_degraded", {
+			providerId: auth.providerId,
+			error: error instanceof Error ? error.message : "unknown",
+		})
+		return json({ items: [], degraded: true })
+	}
 }
