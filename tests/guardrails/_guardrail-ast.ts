@@ -14,6 +14,12 @@ export type CallBinding = {
 	leaf: string
 }
 
+export type DbWriteBinding = {
+	method: "insert" | "update" | "delete"
+	target: string
+	calleePath: string
+}
+
 export type ParsedSource = {
 	sourceFile: ts.SourceFile
 }
@@ -104,6 +110,96 @@ export function collectCalls(relativePath: string): CallBinding[] {
 
 	walk(sourceFile)
 	return calls
+}
+
+function callBindingFromExpression(node: ts.Expression): CallBinding | null {
+	const path = buildCallPath(node)
+	if (!path) return null
+	const parts = path.split(".")
+	return {
+		calleePath: path,
+		root: parts[0] ?? path,
+		leaf: parts[parts.length - 1] ?? path,
+	}
+}
+
+function isExportedConstNamed(node: ts.Node, exportName: string): node is ts.VariableStatement {
+	if (!ts.isVariableStatement(node)) return false
+	const isExported = node.modifiers?.some(
+		(modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+	)
+	if (!isExported) return false
+	return node.declarationList.declarations.some(
+		(declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === exportName
+	)
+}
+
+export function hasExportedConst(relativePath: string, exportName: string): boolean {
+	const { sourceFile } = parseSource(relativePath)
+	return sourceFile.statements.some((node) => isExportedConstNamed(node, exportName))
+}
+
+export function collectCallsInsideExportedConst(
+	relativePath: string,
+	exportName: string
+): CallBinding[] {
+	const { sourceFile } = parseSource(relativePath)
+	const calls: CallBinding[] = []
+
+	function collectFrom(node: ts.Node): void {
+		if (ts.isCallExpression(node)) {
+			const binding = callBindingFromExpression(node.expression)
+			if (binding) calls.push(binding)
+		}
+		ts.forEachChild(node, collectFrom)
+	}
+
+	for (const statement of sourceFile.statements) {
+		if (!isExportedConstNamed(statement, exportName)) continue
+		for (const declaration of statement.declarationList.declarations) {
+			if (!ts.isIdentifier(declaration.name) || declaration.name.text !== exportName) continue
+			if (declaration.initializer) collectFrom(declaration.initializer)
+		}
+	}
+
+	return calls
+}
+
+function expressionName(node: ts.Expression): string | null {
+	if (ts.isIdentifier(node)) return node.text
+	if (ts.isPropertyAccessExpression(node)) return node.name.text
+	return null
+}
+
+export function collectDbWriteTargets(relativePath: string): DbWriteBinding[] {
+	const { sourceFile } = parseSource(relativePath)
+	const writes: DbWriteBinding[] = []
+
+	function walk(node: ts.Node): void {
+		if (ts.isCallExpression(node)) {
+			const binding = callBindingFromExpression(node.expression)
+			if (
+				binding &&
+				(binding.leaf === "insert" || binding.leaf === "update" || binding.leaf === "delete")
+			) {
+				const firstArg = node.arguments[0]
+				if (firstArg) {
+					const target = expressionName(firstArg)
+					if (target) {
+						writes.push({
+							method: binding.leaf,
+							target,
+							calleePath: binding.calleePath,
+						})
+					}
+				}
+			}
+		}
+		ts.forEachChild(node, walk)
+	}
+
+	walk(sourceFile)
+	return writes
 }
 
 export function collectObjectKeys(relativePath: string): string[] {

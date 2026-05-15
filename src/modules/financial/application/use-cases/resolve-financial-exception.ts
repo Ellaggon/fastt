@@ -17,6 +17,12 @@ export async function resolveFinancialException(
 ) {
 	const note = String(input.resolutionNote ?? "").trim()
 	if (!note) throw new Error("FINANCIAL_RESOLUTION_NOTE_REQUIRED")
+	const existing = await deps.exceptions.findByIdForProvider(input.exceptionId, input.providerId)
+	if (!existing) return null
+	if (existing.status === "resolved") {
+		return { exception: existing, event: null, idempotent: true }
+	}
+	if (existing.status === "dismissed") return null
 	const now = new Date()
 	const exception = await deps.exceptions.resolve({
 		id: input.exceptionId,
