@@ -1,20 +1,20 @@
 import { FinancialShadowRecord, db, eq } from "astro:db"
 
 import type { FinancialRepositoryPort } from "../../application/ports/FinancialRepositoryPort"
-import type { PaymentIntent } from "../../domain/payment-intent"
-import type { RefundRecord } from "../../domain/refund-record"
-import type { SettlementRecord } from "../../domain/settlement-record"
+import type { LegacyPaymentIntentShadow } from "../../domain/payment-intent"
+import type { LegacyRefundShadow } from "../../domain/refund-record"
+import type { LegacySettlementShadow } from "../../domain/settlement-record"
 
 type BookingFinancialRecords = {
-	paymentIntents: PaymentIntent[]
-	settlementRecords: SettlementRecord[]
-	refundRecords: RefundRecord[]
+	paymentIntents: LegacyPaymentIntentShadow[]
+	settlementRecords: LegacySettlementShadow[]
+	refundRecords: LegacyRefundShadow[]
 }
 
 export class FinancialRepository implements FinancialRepositoryPort {
-	async savePaymentIntentIfAbsentByIdempotencyKey(params: {
+	async saveLegacyPaymentIntentShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: PaymentIntent
+		record: LegacyPaymentIntentShadow
 	}): Promise<"created" | "already_exists"> {
 		return this.saveIfAbsent({
 			idempotencyKey: params.idempotencyKey,
@@ -24,9 +24,9 @@ export class FinancialRepository implements FinancialRepositoryPort {
 		})
 	}
 
-	async saveSettlementRecordIfAbsentByIdempotencyKey(params: {
+	async saveLegacySettlementShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: SettlementRecord
+		record: LegacySettlementShadow
 	}): Promise<"created" | "already_exists"> {
 		return this.saveIfAbsent({
 			idempotencyKey: params.idempotencyKey,
@@ -36,9 +36,9 @@ export class FinancialRepository implements FinancialRepositoryPort {
 		})
 	}
 
-	async saveRefundRecordIfAbsentByIdempotencyKey(params: {
+	async saveLegacyRefundShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: RefundRecord
+		record: LegacyRefundShadow
 	}): Promise<"created" | "already_exists"> {
 		return this.saveIfAbsent({
 			idempotencyKey: params.idempotencyKey,
@@ -48,7 +48,9 @@ export class FinancialRepository implements FinancialRepositoryPort {
 		})
 	}
 
-	async findPaymentIntentByIdempotencyKey(idempotencyKey: string): Promise<PaymentIntent | null> {
+	async findLegacyPaymentIntentShadowByIdempotencyKey(
+		idempotencyKey: string
+	): Promise<LegacyPaymentIntentShadow | null> {
 		const key = String(idempotencyKey ?? "").trim()
 		if (!key) return null
 		const row = await db
@@ -67,7 +69,7 @@ export class FinancialRepository implements FinancialRepositoryPort {
 		) {
 			return null
 		}
-		return row.payload as PaymentIntent
+		return row.payload as LegacyPaymentIntentShadow
 	}
 
 	async findByBookingId(bookingId: string): Promise<BookingFinancialRecords> {
@@ -88,22 +90,22 @@ export class FinancialRepository implements FinancialRepositoryPort {
 			.where(eq(FinancialShadowRecord.bookingId, key))
 			.all()
 
-		const paymentIntents: PaymentIntent[] = []
-		const settlementRecords: SettlementRecord[] = []
-		const refundRecords: RefundRecord[] = []
+		const paymentIntents: LegacyPaymentIntentShadow[] = []
+		const settlementRecords: LegacySettlementShadow[] = []
+		const refundRecords: LegacyRefundShadow[] = []
 
 		for (const row of rows) {
 			if (row.payload == null || typeof row.payload !== "object") continue
 			if (row.type === "payment_intent") {
-				paymentIntents.push(row.payload as PaymentIntent)
+				paymentIntents.push(row.payload as LegacyPaymentIntentShadow)
 				continue
 			}
 			if (row.type === "settlement_record") {
-				settlementRecords.push(row.payload as SettlementRecord)
+				settlementRecords.push(row.payload as LegacySettlementShadow)
 				continue
 			}
 			if (row.type === "refund_record") {
-				refundRecords.push(row.payload as RefundRecord)
+				refundRecords.push(row.payload as LegacyRefundShadow)
 			}
 		}
 		return {

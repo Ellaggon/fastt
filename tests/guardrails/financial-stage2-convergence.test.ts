@@ -21,12 +21,15 @@ describe("Guardrail: financial Stage 2 derivation converges on pure helpers", ()
 			route.includes("function deriveFinancialEvidenceVisibility")
 				? `${operationsRoute}: must not re-own evidence derivation locally`
 				: null,
-			route.includes("function deriveReconciliationState")
-				? `${operationsRoute}: must not re-own reconciliation derivation locally`
+			route.includes("function deriveFinancialReconciliationState")
+				? `${operationsRoute}: must not re-own evidence alignment derivation locally`
 				: null,
 			builder.includes("detectFinancialExceptions")
 				? null
 				: `${operationBuilder}: must centralize detect-financial-exceptions in the pipeline`,
+			builder.includes("deriveFinancialEvidenceAlignmentState")
+				? null
+				: `${operationBuilder}: must use evidence alignment semantics, not reconciliation finality`,
 			builder.includes("db.") || builder.includes("astro:db")
 				? `${operationBuilder}: pure derivation helper must not read or write db`
 				: null,

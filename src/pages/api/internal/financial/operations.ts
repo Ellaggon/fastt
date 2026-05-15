@@ -19,7 +19,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { buildFinancialOperationReview } from "@/modules/financial/application/use-cases/build-financial-operation-review"
 type FinancialExceptionCode =
 	| "refund_handoff_required"
-	| "reconciliation_unknown"
+	| "evidence_unknown"
 	| "missing_payment_reference"
 	| "missing_settlement_reference"
 	| "missing_refund_reference"
@@ -172,7 +172,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 
 		if (stateFilter !== "all") {
-			items = items.filter((item) => item.reconciliation.state === stateFilter)
+			items = items.filter((item) => item.evidenceAlignment.state === stateFilter)
 		}
 
 		const exceptionCodes = (code: FinancialExceptionCode) =>
@@ -201,16 +201,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 			commissionVisible: Number(
 				items.reduce((sum, item) => sum + item.commissionTotal, 0).toFixed(2)
 			),
-			refundHandoffPending: items.filter((item) => item.reconciliation.state === "handoff_pending")
+			refundHandoffPending: items.filter(
+				(item) => item.evidenceAlignment.state === "handoff_pending"
+			).length,
+			evidencePartial: items.filter((item) => item.evidenceAlignment.state === "evidence_partial")
 				.length,
-			partiallyReconciled: items.filter(
-				(item) => item.reconciliation.state === "partially_reconciled"
-			).length,
-			reconciled: items.filter((item) => item.reconciliation.state === "reconciled").length,
-			snapshotReady: items.filter((item) => item.reconciliation.state === "snapshot_ready").length,
-			reconciliationUnknown: items.filter(
-				(item) => item.reconciliation.state === "reconciliation_unknown"
-			).length,
+			evidenceMatched: items.filter((item) => item.evidenceAlignment.state === "evidence_matched")
+				.length,
+			snapshotReady: items.filter((item) => item.evidenceAlignment.state === "snapshot_ready")
+				.length,
+			evidenceUnknown: items.filter((item) => item.evidenceAlignment.state === "evidence_unknown")
+				.length,
 			missingReferenceCount,
 			snapshotGapCount,
 			multiRoomReview: exceptionCodes("multi_room_review"),
@@ -239,10 +240,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 					taxesVisible: 0,
 					commissionVisible: 0,
 					refundHandoffPending: 0,
-					partiallyReconciled: 0,
-					reconciled: 0,
+					evidencePartial: 0,
+					evidenceMatched: 0,
 					snapshotReady: 0,
-					reconciliationUnknown: 0,
+					evidenceUnknown: 0,
 					missingReferenceCount: 0,
 					snapshotGapCount: 0,
 					multiRoomReview: 0,

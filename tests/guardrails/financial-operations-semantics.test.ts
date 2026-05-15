@@ -38,7 +38,7 @@ const requiredFinancialStates = [
 	"refund_evidence_visible",
 	"settlement_shadow_visible",
 	"settlement_recorded_shadow_visible",
-	"reconciliation_state",
+	"evidence_alignment_visibility",
 ]
 
 const requiredExceptionSignals = [
@@ -113,7 +113,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 
 		expect(
 			violations,
-			`Financial Operations must stay visibility/reconciliation only, not PSP/accounting orchestration:\n${violations.join("\n")}`
+			`Financial Operations must stay evidence/review visibility only, not PSP/accounting orchestration:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
@@ -159,6 +159,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			...requiredFinancialStates,
 			...requiredExceptionSignals,
 			"deriveFinancialEvidenceVisibility",
+			"deriveFinancialEvidenceAlignmentState",
 			"financialEvidence",
 			"snapshotIntegrity",
 			"hasPaymentReference",
@@ -168,9 +169,15 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			"refund_handoff_visibility",
 			"settlement_shadow_context_visible",
 			"visibility_not_psp_orchestration",
+			"evidence_matched",
+			"evidence_partial",
+			"evidence_unknown",
 		]
 		const forbiddenFakeLifecycle = [
 			"authorization_visible",
+			"partially_reconciled",
+			"reconciled",
+			"reconciliation_state",
 			"capture_visible",
 			"payment_intent_created",
 			"refund_snapshot_visible",

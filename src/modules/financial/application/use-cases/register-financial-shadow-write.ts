@@ -1,5 +1,5 @@
-import type { PaymentIntent } from "../../domain/payment-intent"
-import type { SettlementRecord } from "../../domain/settlement-record"
+import type { LegacyPaymentIntentShadow } from "../../domain/payment-intent"
+import type { LegacySettlementShadow } from "../../domain/settlement-record"
 
 export type RegisterFinancialShadowWriteInput = {
 	bookingId: string
@@ -15,8 +15,8 @@ export type RegisterFinancialShadowWriteInput = {
 
 export type RegisterFinancialShadowWriteResult = {
 	bookingId: string
-	paymentIntent: PaymentIntent
-	settlementRecord: SettlementRecord
+	paymentIntent: LegacyPaymentIntentShadow
+	settlementRecord: LegacySettlementShadow
 }
 
 export async function registerFinancialShadowWrite(
@@ -39,7 +39,7 @@ export async function registerFinancialShadowWrite(
 		throw new Error("FINANCIAL_INVALID_CURRENCY")
 	}
 
-	const paymentIntent: PaymentIntent = {
+	const paymentIntent: LegacyPaymentIntentShadow = {
 		id: crypto.randomUUID(),
 		bookingId: input.bookingId,
 		amount: input.grossAmount,
@@ -50,7 +50,7 @@ export async function registerFinancialShadowWrite(
 		metadata: input.metadata,
 	}
 
-	const settlementRecord: SettlementRecord = {
+	const settlementRecord: LegacySettlementShadow = {
 		id: crypto.randomUUID(),
 		bookingId: input.bookingId,
 		providerId: input.providerId,

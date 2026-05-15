@@ -458,8 +458,8 @@ describe("integration/financial reconciliation", () => {
 				.where(eq(FinancialShadowRecord.id, String(paymentRow?.id)))
 				.run()
 
-			const reconciled = await callReconciliation(bookingId, token)
-			expect(reconciled.reconciliation.status).toBe("mismatch")
+			const evidenceComparison = await callReconciliation(bookingId, token)
+			expect(evidenceComparison.reconciliation.status).toBe("mismatch")
 		})
 	})
 
@@ -528,8 +528,8 @@ describe("integration/financial reconciliation", () => {
 			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
 			expect(bookingRows).toHaveLength(1)
 
-			const reconciled = await callReconciliation(bookingId, token)
-			expect(reconciled.reconciliation.status).toBe("ok")
+			const evidenceComparison = await callReconciliation(bookingId, token)
+			expect(evidenceComparison.reconciliation.status).toBe("ok")
 		})
 	})
 })

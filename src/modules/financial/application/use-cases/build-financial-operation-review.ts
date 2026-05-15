@@ -3,12 +3,12 @@ import {
 	type DetectedFinancialException,
 } from "./detect-financial-exceptions"
 
-export type FinancialReconciliationState =
+export type FinancialEvidenceAlignmentState =
 	| "snapshot_ready"
 	| "handoff_pending"
-	| "partially_reconciled"
-	| "reconciled"
-	| "reconciliation_unknown"
+	| "evidence_partial"
+	| "evidence_matched"
+	| "evidence_unknown"
 
 export type PaymentIntentEvidence = "not_visible" | "payment_intent_shadow_visible"
 export type RecordedPaymentEvidence = "not_visible" | "payment_recorded_shadow_visible"
@@ -153,13 +153,13 @@ export function deriveFinancialEvidenceVisibility(params: {
 	}
 }
 
-export function deriveFinancialReconciliationState(params: {
+export function deriveFinancialEvidenceAlignmentState(params: {
 	status: string
 	contractTotal: number
 	paymentIntents: Array<{ payload: unknown }>
 	settlementRecords: Array<{ payload: unknown }>
 	refundRecords: Array<{ payload: unknown }>
-}): FinancialReconciliationState {
+}): FinancialEvidenceAlignmentState {
 	const isCancelled = params.status.toLowerCase() === "cancelled"
 	if (isCancelled && params.refundRecords.length === 0) return "handoff_pending"
 
@@ -178,7 +178,7 @@ export function deriveFinancialReconciliationState(params: {
 		allRecorded(params.paymentIntents) &&
 		allRecorded(params.settlementRecords)
 	) {
-		return "reconciled"
+		return "evidence_matched"
 	}
 	if (
 		paymentMatches ||
@@ -186,9 +186,9 @@ export function deriveFinancialReconciliationState(params: {
 		hasRecorded(params.paymentIntents) ||
 		hasRecorded(params.settlementRecords)
 	) {
-		return "partially_reconciled"
+		return "evidence_partial"
 	}
-	return "reconciliation_unknown"
+	return "evidence_unknown"
 }
 
 export function buildFinancialOperationReview(params: {
@@ -214,7 +214,7 @@ export function buildFinancialOperationReview(params: {
 		(sum, row) => sum + readFinancialShadowCommission(row.payload),
 		0
 	)
-	const reconciliationState = deriveFinancialReconciliationState({
+	const evidenceAlignmentState = deriveFinancialEvidenceAlignmentState({
 		status: String(first.status ?? "draft"),
 		contractTotal,
 		paymentIntents,
@@ -253,7 +253,7 @@ export function buildFinancialOperationReview(params: {
 	const exceptions: DetectedFinancialException[] = detectFinancialExceptions({
 		bookingId: first.bookingId,
 		providerId: String(first.providerIdSnapshot ?? params.providerId),
-		reconciliationState,
+		evidenceAlignmentState,
 		financialEvidence,
 		paymentIntentCount: paymentIntents.length,
 		settlementRecordCount: settlementRecords.length,
@@ -325,13 +325,13 @@ export function buildFinancialOperationReview(params: {
 			lines: params.taxRows.length,
 			basis: "booking_tax_fee_snapshot",
 		},
-		reconciliation: {
-			state: reconciliationState,
-			visibility: "reconciliation_state",
-			basis: "snapshot_and_financial_shadow_visibility",
+		evidenceAlignment: {
+			state: evidenceAlignmentState,
+			visibility: "evidence_alignment_visibility",
+			basis: "snapshot_and_financial_shadow_evidence",
 			owner: "Payments & Finance",
 			context:
-				reconciliationState === "handoff_pending"
+				evidenceAlignmentState === "handoff_pending"
 					? "refund_handoff_visibility"
 					: financialEvidence.settlementShadow === "settlement_shadow_visible"
 						? "settlement_shadow_context_visible"

@@ -10,9 +10,9 @@ describe("Guardrail: resolved review does not mean reconciled", () => {
 		const page = read("src/pages/financial/index.astro")
 		const violations = [
 			domain.includes("reconciled") ? "FinancialExceptionRecord cannot include reconciled" : null,
-			source.includes("resolved_not_reconciled")
+			source.includes("operational_review_closed_only")
 				? null
-				: "Financial source must preserve resolved_not_reconciled semantics",
+				: "Financial source must preserve operational_review_closed_only semantics",
 			refundDomain.includes("closed") && page.includes("Review closed")
 				? null
 				: "Refund handoff closed must be presented as review closed",

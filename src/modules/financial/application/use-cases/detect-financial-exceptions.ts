@@ -19,7 +19,7 @@ export type DetectedFinancialException = {
 export type DetectFinancialExceptionsInput = {
 	bookingId: string
 	providerId: string
-	reconciliationState: string
+	evidenceAlignmentState: string
 	financialEvidence: { refundEvidence?: string; settlementShadow?: string }
 	paymentIntentCount: number
 	settlementRecordCount: number
@@ -43,7 +43,7 @@ export function detectFinancialExceptions(
 		source: "derived_queue" as const,
 	}
 
-	if (input.reconciliationState === "handoff_pending") {
+	if (input.evidenceAlignmentState === "handoff_pending") {
 		exceptions.push({
 			...base,
 			code: "refund_handoff_required",
@@ -54,13 +54,13 @@ export function detectFinancialExceptions(
 			basis: "refund_handoff",
 		})
 	}
-	if (input.reconciliationState === "reconciliation_unknown") {
+	if (input.evidenceAlignmentState === "evidence_unknown") {
 		exceptions.push({
 			...base,
 			code: "reconciliation_unknown",
 			severity: "attention",
 			reason:
-				"Financial shadow records exist but do not provide enough evidence to reconcile the contract.",
+				"Financial shadow records exist but do not provide enough evidence alignment for the contract.",
 			nextOwner: "financial_operations",
 			basis: "financial_shadow_record",
 		})

@@ -1,26 +1,28 @@
-import type { PaymentIntent } from "../../domain/payment-intent"
-import type { RefundRecord } from "../../domain/refund-record"
-import type { SettlementRecord } from "../../domain/settlement-record"
+import type { LegacyPaymentIntentShadow } from "../../domain/payment-intent"
+import type { LegacyRefundShadow } from "../../domain/refund-record"
+import type { LegacySettlementShadow } from "../../domain/settlement-record"
 
 export type FinancialSaveResult = "created" | "already_exists"
 
 export type FinancialRepositoryPort = {
-	savePaymentIntentIfAbsentByIdempotencyKey(params: {
+	saveLegacyPaymentIntentShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: PaymentIntent
+		record: LegacyPaymentIntentShadow
 	}): Promise<FinancialSaveResult>
-	saveSettlementRecordIfAbsentByIdempotencyKey(params: {
+	saveLegacySettlementShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: SettlementRecord
+		record: LegacySettlementShadow
 	}): Promise<FinancialSaveResult>
-	saveRefundRecordIfAbsentByIdempotencyKey(params: {
+	saveLegacyRefundShadowIfAbsentByIdempotencyKey(params: {
 		idempotencyKey: string
-		record: RefundRecord
+		record: LegacyRefundShadow
 	}): Promise<FinancialSaveResult>
-	findPaymentIntentByIdempotencyKey(idempotencyKey: string): Promise<PaymentIntent | null>
+	findLegacyPaymentIntentShadowByIdempotencyKey(
+		idempotencyKey: string
+	): Promise<LegacyPaymentIntentShadow | null>
 	findByBookingId(bookingId: string): Promise<{
-		paymentIntents: PaymentIntent[]
-		settlementRecords: SettlementRecord[]
-		refundRecords: RefundRecord[]
+		paymentIntents: LegacyPaymentIntentShadow[]
+		settlementRecords: LegacySettlementShadow[]
+		refundRecords: LegacyRefundShadow[]
 	}>
 }
