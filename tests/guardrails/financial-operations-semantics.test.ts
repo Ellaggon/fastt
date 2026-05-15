@@ -12,6 +12,8 @@ const financialPage = "src/pages/financial/index.astro"
 const financialBff = "src/pages/api/internal/financial/operations.ts"
 const financialDetector =
 	"src/modules/financial/application/use-cases/detect-financial-exceptions.ts"
+const financialReviewBuilder =
+	"src/modules/financial/application/use-cases/build-financial-operation-review.ts"
 
 const bannedRuntimeCalls = new Set([
 	"computeEffectivePricingV2",
@@ -116,17 +118,20 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 	})
 
 	it("keeps contract value visibility multi-room snapshot aware", () => {
-		const source = read(financialBff)
+		const source = read(financialReviewBuilder)
 		const confirmSource = read("src/pages/api/booking/confirm.ts")
 		const violations = [
 			source.includes("const detailTotal = group.reduce")
+				? `${financialReviewBuilder}: contract total must use params.group.reduce explicitly`
+				: null,
+			source.includes("params.group.reduce")
 				? null
-				: `${financialBff}: contract total must aggregate booking room snapshots`,
+				: `${financialReviewBuilder}: contract total must aggregate booking room snapshots`,
 			source.includes("const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal")
 				? null
-				: `${financialBff}: contract total must prefer room snapshot totals before booking fallback totals`,
+				: `${financialReviewBuilder}: contract total must prefer room snapshot totals before booking fallback totals`,
 			source.includes("const contractTotal = Number(first.detailTotalPrice")
-				? `${financialBff}: contract total must not use only the first room detail`
+				? `${financialReviewBuilder}: contract total must not use only the first room detail`
 				: null,
 			confirmSource.includes("const bookingDetails = await db") &&
 			confirmSource.includes(".where(eq(BookingRoomDetail.bookingId, result.bookingId))") &&
@@ -148,7 +153,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 	})
 
 	it("requires explicit financial evidence and snapshot integrity semantics", () => {
-		const source = `${read(financialBff)}\n${read(financialDetector)}`
+		const source = `${read(financialBff)}\n${read(financialDetector)}\n${read(financialReviewBuilder)}`
 		const page = read(financialPage)
 		const requiredSignals = [
 			...requiredFinancialStates,
