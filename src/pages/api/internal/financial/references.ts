@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import {
+	financialExceptionRepository,
 	financialReferenceRepository,
 	financialReviewEventRepository,
 } from "@/container/financial.container"
@@ -19,6 +20,41 @@ const allowedTypes = new Set([
 	"settlement_evidence",
 	"invoice_reference",
 ])
+const allowedSources = new Set([
+	"operator_entry",
+	"financial_shadow_record",
+	"legacy_payload",
+	"import",
+])
+const allowedBasis = new Set([
+	"financial_evidence",
+	"external_reference",
+	"contract_snapshot",
+	"legacy_payload",
+])
+
+export const GET: APIRoute = async ({ request }) => {
+	const auth = await requireFinancialProvider(request)
+	if (!auth.ok) return auth.response
+	const url = new URL(request.url)
+	const bookingIds = [
+		...String(url.searchParams.get("bookingIds") ?? "")
+			.split(",")
+			.map((value) => value.trim())
+			.filter(Boolean),
+		...String(url.searchParams.get("bookingId") ?? "")
+			.split(",")
+			.map((value) => value.trim())
+			.filter(Boolean),
+	]
+	const limit = Number(url.searchParams.get("limit") ?? 500)
+	const items = await financialReferenceRepository.findByProvider({
+		providerId: auth.providerId,
+		bookingIds,
+		limit: Number.isFinite(limit) ? limit : 500,
+	})
+	return json({ items })
+}
 
 export const POST: APIRoute = async ({ request }) => {
 	const auth = await requireFinancialProvider(request)
@@ -34,6 +70,20 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ error: "not_found" }, 404)
 	const amount = body.amount == null ? null : Number(body.amount)
 	if (amount != null && !Number.isFinite(amount)) return json({ error: "validation_error" }, 400)
+	const recordedAt = body.recordedAt ? new Date(String(body.recordedAt)) : new Date()
+	if (Number.isNaN(recordedAt.getTime())) return json({ error: "validation_error" }, 400)
+	const source = String(body.source ?? "operator_entry").trim() || "operator_entry"
+	const basis = String(body.basis ?? "external_reference").trim() || "external_reference"
+	if (!allowedSources.has(source) || !allowedBasis.has(basis))
+		return json({ error: "validation_error" }, 400)
+	const linkedExceptionId = String(body.linkedExceptionId ?? "").trim() || null
+	if (linkedExceptionId) {
+		const linked = await financialExceptionRepository.findByIdForProvider(
+			linkedExceptionId,
+			auth.providerId
+		)
+		if (!linked || linked.bookingId !== bookingId) return json({ error: "not_found" }, 404)
+	}
 	const actorId = String((auth.user as any)?.id ?? "").trim() || String(auth.user.email)
 	const result = await recordFinancialReference(
 		{ references: financialReferenceRepository, events: financialReviewEventRepository },
@@ -45,13 +95,12 @@ export const POST: APIRoute = async ({ request }) => {
 			externalSystem: String(body.externalSystem ?? "").trim() || null,
 			amount,
 			currency: String(body.currency ?? "").trim() || null,
-			recordedAt: body.recordedAt ? new Date(String(body.recordedAt)) : new Date(),
-			source: (String(body.source ?? "operator_entry") ||
-				"operator_entry") as FinancialReferenceSource,
-			basis: (String(body.basis ?? "external_reference") ||
-				"external_reference") as FinancialReferenceBasis,
-			linkedExceptionId: String(body.linkedExceptionId ?? "").trim() || null,
+			recordedAt,
+			source: source as FinancialReferenceSource,
+			basis: basis as FinancialReferenceBasis,
+			linkedExceptionId,
 			actorId,
+			note: String(body.note ?? "").trim() || null,
 		}
 	)
 	return json(result, result.created ? 201 : 200)

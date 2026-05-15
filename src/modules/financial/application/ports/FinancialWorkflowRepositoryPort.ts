@@ -56,7 +56,13 @@ export type FinancialExceptionRepositoryPort = {
 
 export type FinancialReferenceRepositoryPort = {
 	findByBookingId(bookingId: string): Promise<FinancialReference[]>
+	findByProvider(params: {
+		providerId: string
+		bookingIds?: string[]
+		limit?: number
+	}): Promise<FinancialReference[]>
 	findExisting(params: {
+		providerId: string
 		bookingId: string
 		type: FinancialReferenceType
 		referenceValue: string

@@ -26,6 +26,7 @@ export async function recordFinancialReference(
 		basis: FinancialReferenceBasis
 		linkedExceptionId?: string | null
 		actorId?: string | null
+		note?: string | null
 	}
 ) {
 	const referenceValue = String(input.referenceValue ?? "").trim()
@@ -51,7 +52,12 @@ export async function recordFinancialReference(
 				type: "reference_added",
 				actorId: input.actorId ?? null,
 				actorType: input.actorId ? "operator" : "system",
-				payloadJson: { referenceType: input.type, basis: input.basis },
+				payloadJson: {
+					referenceType: input.type,
+					externalSystem: input.externalSystem ?? null,
+					linkedExceptionId: input.linkedExceptionId ?? null,
+					note: input.note ?? null,
+				},
 			})
 		: null
 	return { reference: result.reference, created: result.created, event }

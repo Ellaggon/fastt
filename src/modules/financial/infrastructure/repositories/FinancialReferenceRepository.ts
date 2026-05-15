@@ -1,4 +1,12 @@
-import { and, desc, eq, FinancialReference as FinancialReferenceTable, db } from "astro:db"
+import {
+	and,
+	desc,
+	eq,
+	FinancialReference as FinancialReferenceTable,
+	db,
+	inArray,
+	sql,
+} from "astro:db"
 
 import type {
 	FinancialReferenceCreateInput,
@@ -34,19 +42,39 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 		return rows.map(map)
 	}
 
+	async findByProvider(params: {
+		providerId: string
+		bookingIds?: string[]
+		limit?: number
+	}): Promise<FinancialReference[]> {
+		const bookingIds = Array.from(new Set((params.bookingIds || []).map(String).filter(Boolean)))
+		const filters = [eq(FinancialReferenceTable.providerId, params.providerId)]
+		if (bookingIds.length) filters.push(inArray(FinancialReferenceTable.bookingId, bookingIds))
+		const rows = await db
+			.select()
+			.from(FinancialReferenceTable)
+			.where(and(...filters))
+			.orderBy(desc(FinancialReferenceTable.recordedAt))
+			.limit(Math.max(1, Math.min(Number(params.limit || 500), 1000)))
+			.all()
+		return rows.map(map)
+	}
+
 	async findExisting(params: {
+		providerId: string
 		bookingId: string
 		type: FinancialReferenceType
 		referenceValue: string
 		externalSystem?: string | null
 	}): Promise<FinancialReference | null> {
+		const externalSystem = String(params.externalSystem ?? "")
 		const filters = [
+			eq(FinancialReferenceTable.providerId, params.providerId),
 			eq(FinancialReferenceTable.bookingId, params.bookingId),
 			eq(FinancialReferenceTable.type, params.type),
 			eq(FinancialReferenceTable.referenceValue, params.referenceValue),
+			sql`COALESCE(${FinancialReferenceTable.externalSystem}, '') = ${externalSystem}`,
 		]
-		if (params.externalSystem)
-			filters.push(eq(FinancialReferenceTable.externalSystem, params.externalSystem))
 		const row = await db
 			.select()
 			.from(FinancialReferenceTable)
@@ -60,6 +88,7 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 		created: boolean
 	}> {
 		const existing = await this.findExisting({
+			providerId: input.providerId,
 			bookingId: input.bookingId,
 			type: input.type,
 			referenceValue: input.referenceValue,
