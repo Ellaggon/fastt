@@ -210,6 +210,8 @@ export function buildFinancialOperationReview(params: {
 	const paymentIntents = params.shadowRows.filter((row) => row.type === "payment_intent")
 	const settlementRecords = params.shadowRows.filter((row) => row.type === "settlement_record")
 	const refundRecords = params.shadowRows.filter((row) => row.type === "refund_record")
+	// Compatibility visibility only. Provider Finance must create its own payable snapshots from
+	// Stage 3 truth sources rather than treating shadow commission/net payout values as final.
 	const commissionTotal = settlementRecords.reduce(
 		(sum, row) => sum + readFinancialShadowCommission(row.payload),
 		0
