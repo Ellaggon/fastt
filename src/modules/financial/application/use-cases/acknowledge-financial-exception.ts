@@ -10,6 +10,11 @@ export async function acknowledgeFinancialException(
 	},
 	input: { providerId: string; exceptionId: string; actorId?: string | null }
 ) {
+	const existing = await deps.exceptions.findByIdForProvider(input.exceptionId, input.providerId)
+	if (!existing) return null
+	if (existing.status === "acknowledged") {
+		return { exception: existing, event: null, idempotent: true }
+	}
 	const now = new Date()
 	const exception = await deps.exceptions.acknowledge({
 		id: input.exceptionId,

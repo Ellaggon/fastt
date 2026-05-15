@@ -1,26 +1,67 @@
 import { describe, expect, it } from "vitest"
 
-import { financialSourceWithoutTests } from "./financial-stage2-guardrail-utils"
+import { collectDbWriteTargets, collectImports } from "./_guardrail-ast"
+import { financialSourceFiles } from "./financial-stage2-guardrail-utils"
 
 describe("Guardrail: financial Stage 2 write boundaries", () => {
-	it("allows writes only to Stage 2 financial workflow tables and shadow records", () => {
-		const source = financialSourceWithoutTests()
-		const forbiddenWrites = [
-			/\.insert\s*\(\s*Booking\b/,
-			/\.update\s*\(\s*Booking\b/,
-			/\.delete\s*\(\s*Booking\b/,
-			/\.insert\s*\(\s*BookingRoomDetail\b/,
-			/\.update\s*\(\s*BookingRoomDetail\b/,
-			/\.insert\s*\(\s*BookingTaxFee\b/,
-			/\.update\s*\(\s*BookingTaxFee\b/,
-			/\.insert\s*\(\s*Payment\b/,
-			/\.update\s*\(\s*Payment\b/,
-			/\.insert\s*\(\s*ProviderPayout\b/,
-			/\.update\s*\(\s*ProviderPayout\b/,
-		]
-		const violations = forbiddenWrites.flatMap((pattern) =>
-			pattern.test(source) ? [`Financial Stage 2 source writes forbidden table ${pattern}`] : []
-		)
+	const allowedWorkflowTables = new Set([
+		"FinancialExceptionRecord",
+		"FinancialReference",
+		"RefundHandoffRecord",
+		"FinancialReviewEvent",
+	])
+
+	it("allows Stage 2 workflow writes only to financial workflow tables", () => {
+		const violations = financialSourceFiles.flatMap((file) => {
+			if (!file.startsWith("src/modules/financial/")) return []
+			if (file.endsWith("FinancialRepository.ts")) return []
+			const imports = collectImports(file)
+			const astroDbImportByLocal = new Map(
+				imports
+					.filter((entry) => entry.module === "astro:db")
+					.map((entry) => [entry.local, entry.imported])
+			)
+			return collectDbWriteTargets(file).flatMap((write) => {
+				const importedTable = astroDbImportByLocal.get(write.target) ?? write.target
+				return allowedWorkflowTables.has(importedTable)
+					? []
+					: [
+							`${file}: ${write.method} writes ${importedTable}; financial Stage 2 may only write workflow records`,
+						]
+			})
+		})
+		expect(violations).toEqual([])
+	})
+
+	it("blocks financial route handlers from writing external OTA ownership tables", () => {
+		const forbiddenTables = new Set([
+			"Booking",
+			"BookingRoomDetail",
+			"BookingTaxFee",
+			"Payment",
+			"ProviderPayout",
+			"ProviderPayoutBooking",
+			"Product",
+			"Variant",
+			"PricingRule",
+			"RatePlan",
+			"Inventory",
+		])
+		const violations = financialSourceFiles.flatMap((file) => {
+			if (!file.startsWith("src/pages/api/internal/financial/")) return []
+			const imports = collectImports(file)
+			const astroDbImportByLocal = new Map(
+				imports
+					.filter((entry) => entry.module === "astro:db")
+					.map((entry) => [entry.local, entry.imported])
+			)
+			return collectDbWriteTargets(file).flatMap((write) => {
+				const importedTable = astroDbImportByLocal.get(write.target) ?? write.target
+				return forbiddenTables.has(importedTable)
+					? [`${file}: ${write.method} writes forbidden ownership table ${importedTable}`]
+					: []
+			})
+		})
 		expect(violations).toEqual([])
 	})
 })

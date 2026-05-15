@@ -10,6 +10,11 @@ export async function acknowledgeRefundHandoff(
 	},
 	input: { providerId: string; refundHandoffId: string; actorId?: string | null }
 ) {
+	const existing = await deps.handoffs.findByIdForProvider(input.refundHandoffId, input.providerId)
+	if (!existing) return null
+	if (existing.status === "acknowledged") {
+		return { handoff: existing, event: null, idempotent: true }
+	}
 	const handoff = await deps.handoffs.acknowledge({
 		id: input.refundHandoffId,
 		providerId: input.providerId,
