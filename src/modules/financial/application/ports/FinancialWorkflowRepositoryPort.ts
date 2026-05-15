@@ -77,7 +77,18 @@ export type FinancialReferenceRepositoryPort = {
 export type RefundHandoffRepositoryPort = {
 	findByIdForProvider(id: string, providerId: string): Promise<RefundHandoffRecord | null>
 	findByBookingId(bookingId: string): Promise<RefundHandoffRecord[]>
+	findByProvider(params: {
+		providerId: string
+		bookingIds?: string[]
+		status?: RefundHandoffRecord["status"] | "all"
+		limit?: number
+	}): Promise<RefundHandoffRecord[]>
+	findActiveByBookingId(bookingId: string, providerId: string): Promise<RefundHandoffRecord | null>
 	createIfAbsent(input: RefundHandoffCreateInput): Promise<{
+		handoff: RefundHandoffRecord
+		created: boolean
+	}>
+	createIfAbsentForBooking(input: RefundHandoffCreateInput): Promise<{
 		handoff: RefundHandoffRecord
 		created: boolean
 	}>
@@ -85,6 +96,13 @@ export type RefundHandoffRepositoryPort = {
 		id: string
 		providerId: string
 		acknowledgedAt: Date
+	}): Promise<RefundHandoffRecord | null>
+	close(params: {
+		id: string
+		providerId: string
+		closedAt: Date
+		notes: string
+		status: Extract<RefundHandoffRecord["status"], "closed" | "dismissed">
 	}): Promise<RefundHandoffRecord | null>
 }
 

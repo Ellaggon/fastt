@@ -8,6 +8,7 @@ export const FINANCIAL_REVIEW_EVENT_TYPES = [
 	"refund_handoff_opened",
 	"refund_handoff_acknowledged",
 	"refund_handoff_closed",
+	"refund_handoff_dismissed",
 	"note_added",
 ] as const
 

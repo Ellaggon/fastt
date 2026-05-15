@@ -1,10 +1,12 @@
-import { and, desc, eq, RefundHandoffRecord as RefundHandoffTable, db } from "astro:db"
+import { and, desc, eq, inArray, RefundHandoffRecord as RefundHandoffTable, db } from "astro:db"
 
 import type {
 	RefundHandoffCreateInput,
 	RefundHandoffRepositoryPort,
 } from "../../application/ports/FinancialWorkflowRepositoryPort"
 import type { RefundHandoffRecord } from "../../domain/refund-handoff-record"
+
+const terminalStatuses = new Set(["closed", "dismissed"])
 
 function map(row: any): RefundHandoffRecord {
 	return {
@@ -47,13 +49,40 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		return rows.map(map)
 	}
 
+	async findByProvider(params: {
+		providerId: string
+		bookingIds?: string[]
+		status?: RefundHandoffRecord["status"] | "all"
+		limit?: number
+	}): Promise<RefundHandoffRecord[]> {
+		const bookingIds = Array.from(new Set((params.bookingIds || []).map(String).filter(Boolean)))
+		const filters = [eq(RefundHandoffTable.providerId, params.providerId)]
+		if (bookingIds.length) filters.push(inArray(RefundHandoffTable.bookingId, bookingIds))
+		if (params.status && params.status !== "all")
+			filters.push(eq(RefundHandoffTable.status, params.status))
+		const rows = await db
+			.select()
+			.from(RefundHandoffTable)
+			.where(and(...filters))
+			.orderBy(desc(RefundHandoffTable.openedAt))
+			.limit(Math.max(1, Math.min(Number(params.limit || 500), 1000)))
+			.all()
+		return rows.map(map)
+	}
+
+	async findActiveByBookingId(
+		bookingId: string,
+		providerId: string
+	): Promise<RefundHandoffRecord | null> {
+		const records = await this.findByProvider({ providerId, bookingIds: [bookingId], limit: 20 })
+		return records.find((row) => !terminalStatuses.has(row.status)) ?? null
+	}
+
 	async createIfAbsent(input: RefundHandoffCreateInput): Promise<{
 		handoff: RefundHandoffRecord
 		created: boolean
 	}> {
-		const existing = (await this.findByBookingId(input.bookingId)).find(
-			(row) => row.status !== "closed" && row.status !== "dismissed"
-		)
+		const existing = await this.findActiveByBookingId(input.bookingId, input.providerId)
 		if (existing) return { handoff: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
@@ -64,6 +93,13 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		return { handoff: map(row), created: true }
 	}
 
+	async createIfAbsentForBooking(input: RefundHandoffCreateInput): Promise<{
+		handoff: RefundHandoffRecord
+		created: boolean
+	}> {
+		return this.createIfAbsent(input)
+	}
+
 	async acknowledge(params: {
 		id: string
 		providerId: string
@@ -71,12 +107,41 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 	}): Promise<RefundHandoffRecord | null> {
 		const existing = await this.findByIdForProvider(params.id, params.providerId)
 		if (!existing) return null
+		if (terminalStatuses.has(existing.status)) return null
 		if (existing.status === "acknowledged") return existing
 		await db
 			.update(RefundHandoffTable)
 			.set({
 				status: "acknowledged",
 				acknowledgedAt: params.acknowledgedAt,
+				updatedAt: new Date(),
+			} as any)
+			.where(
+				and(
+					eq(RefundHandoffTable.id, params.id),
+					eq(RefundHandoffTable.providerId, params.providerId)
+				)
+			)
+			.run()
+		return this.findByIdForProvider(params.id, params.providerId)
+	}
+
+	async close(params: {
+		id: string
+		providerId: string
+		closedAt: Date
+		notes: string
+		status: Extract<RefundHandoffRecord["status"], "closed" | "dismissed">
+	}): Promise<RefundHandoffRecord | null> {
+		const existing = await this.findByIdForProvider(params.id, params.providerId)
+		if (!existing) return null
+		if (terminalStatuses.has(existing.status)) return null
+		await db
+			.update(RefundHandoffTable)
+			.set({
+				status: params.status,
+				closedAt: params.closedAt,
+				notes: params.notes,
 				updatedAt: new Date(),
 			} as any)
 			.where(
