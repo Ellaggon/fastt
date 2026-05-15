@@ -1,3 +1,9 @@
+/**
+ * Stage 2 operational audit trail only.
+ *
+ * FinancialReviewEvent documents operator/system review actions. It is not event sourcing, not a
+ * transaction history, not PSP lifecycle, and must not be used to rebuild financial state.
+ */
 export const FINANCIAL_REVIEW_EVENT_TYPES = [
 	"exception_opened",
 	"exception_acknowledged",

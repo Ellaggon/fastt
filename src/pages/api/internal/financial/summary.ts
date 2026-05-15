@@ -23,10 +23,11 @@ export const GET: APIRoute = async ({ request }) => {
 			deduped,
 			failed,
 		},
-		reconciliation: {
+		evidenceComparison: {
 			ok,
 			mismatch,
 			missing,
+			basis: "shadow_evidence_visibility",
 		},
 	})
 }

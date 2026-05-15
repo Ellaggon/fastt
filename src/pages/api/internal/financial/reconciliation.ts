@@ -1,11 +1,26 @@
 import type { APIRoute } from "astro"
-import { Booking, BookingRoomDetail, db, eq } from "astro:db"
+import {
+	and,
+	Booking,
+	BookingRoomDetail,
+	BookingTaxFee,
+	db,
+	desc,
+	eq,
+	FinancialShadowRecord,
+	Product,
+	sql,
+	Variant,
+} from "astro:db"
 
-import { financialRepository } from "@/container/financial.container"
+import {
+	buildFinancialOperationReview,
+	readFinancialShadowAmount,
+} from "@/modules/financial/application/use-cases/build-financial-operation-review"
 
 import { bookingBelongsToProvider, json, requireFinancialProvider } from "./_stage2"
 
-type ReconciliationStatus = "ok" | "mismatch" | "missing"
+type EvidenceComparisonStatus = "ok" | "mismatch" | "missing"
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -18,59 +33,94 @@ export const GET: APIRoute = async ({ request, url }) => {
 		if (!(await bookingBelongsToProvider(bookingId, auth.providerId)))
 			return json({ error: "not_found" }, 404)
 
-		const bookingRow = await db
+		const rows = await db
 			.select({
-				id: Booking.id,
+				bookingId: Booking.id,
+				status: Booking.status,
 				currency: Booking.currency,
 				totalAmountUSD: Booking.totalAmountUSD,
 				totalAmountBOB: Booking.totalAmountBOB,
+				confirmedAt: Booking.confirmedAt,
+				checkInDate: Booking.checkInDate,
+				checkOutDate: Booking.checkOutDate,
+				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
+				contractSnapshotVersion: Booking.contractSnapshotVersion,
+				detailId: BookingRoomDetail.id,
+				detailTotalPrice: BookingRoomDetail.totalPrice,
+				detailTaxes: BookingRoomDetail.taxes,
+				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
+				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
+				productName: Product.name,
+				variantName: Variant.name,
 			})
 			.from(Booking)
-			.where(eq(Booking.id, bookingId))
-			.get()
-		if (!bookingRow) {
-			return json({ error: "not_found" }, 404)
-		}
+			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
+			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+			.leftJoin(Product, eq(Product.id, Variant.productId))
+			.where(
+				and(
+					eq(Booking.id, bookingId),
+					sql`(${Product.providerId} = ${auth.providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${auth.providerId})`
+				)
+			)
+			.orderBy(desc(BookingRoomDetail.id))
+			.all()
+		if (!rows.length) return json({ error: "not_found" }, 404)
 
-		const detailRow = await db
+		const shadowRows = await db
 			.select({
-				totalPrice: BookingRoomDetail.totalPrice,
+				bookingId: FinancialShadowRecord.bookingId,
+				type: FinancialShadowRecord.type,
+				payload: FinancialShadowRecord.payload,
+				createdAt: FinancialShadowRecord.createdAt,
 			})
-			.from(BookingRoomDetail)
-			.where(eq(BookingRoomDetail.bookingId, bookingId))
-			.get()
+			.from(FinancialShadowRecord)
+			.where(eq(FinancialShadowRecord.bookingId, bookingId))
+			.all()
+		const taxRows = await db
+			.select({
+				bookingId: BookingTaxFee.bookingId,
+				totalAmount: BookingTaxFee.totalAmount,
+				breakdownJson: BookingTaxFee.breakdownJson,
+			})
+			.from(BookingTaxFee)
+			.where(eq(BookingTaxFee.bookingId, bookingId))
+			.all()
+		const review = buildFinancialOperationReview({
+			group: rows,
+			shadowRows,
+			taxRows,
+			providerId: auth.providerId,
+		})
 
-		const currency = String(bookingRow.currency ?? "USD").trim() || "USD"
-		const fallbackTotal =
-			currency === "BOB"
-				? Number(bookingRow.totalAmountBOB ?? 0)
-				: Number(bookingRow.totalAmountUSD ?? 0)
-		const finalTotal = Number(detailRow?.totalPrice ?? fallbackTotal)
-
-		const financial = await financialRepository.findByBookingId(bookingId)
-		const matchedPaymentIntent = financial.paymentIntents.some(
-			(intent) => intent.currency === currency && Number(intent.amount) === finalTotal
+		const paymentEvidenceRows = shadowRows.filter((row) => row.type === "payment_intent")
+		const paymentEvidenceAligned = paymentEvidenceRows.some(
+			(row) => readFinancialShadowAmount(row.payload) === review.contractTotal
 		)
-
-		let status: ReconciliationStatus = "ok"
-		if (financial.paymentIntents.length === 0) {
-			status = "missing"
-		} else if (!matchedPaymentIntent) {
-			status = "mismatch"
-		}
+		let status: EvidenceComparisonStatus = "ok"
+		if (paymentEvidenceRows.length === 0) status = "missing"
+		else if (!paymentEvidenceAligned) status = "mismatch"
 
 		return json({
 			booking: {
 				bookingId,
-				finalTotal,
-				currency,
+				finalTotal: review.contractTotal,
+				currency: review.currency,
+				multiRoomAllocationCount: review.snapshotIntegrity.multiRoomAllocationCount,
 			},
 			financial: {
-				paymentIntents: financial.paymentIntents,
-				settlementRecords: financial.settlementRecords,
+				paymentIntents: paymentEvidenceRows.map((row) => row.payload),
+				settlementRecords: shadowRows
+					.filter((row) => row.type === "settlement_record")
+					.map((row) => row.payload),
 			},
+			evidenceAlignment: review.evidenceAlignment,
 			reconciliation: {
 				status,
+				basis: "snapshot_and_shadow_evidence_comparison",
+				readOnly: true,
 			},
 		})
 	} catch (error) {

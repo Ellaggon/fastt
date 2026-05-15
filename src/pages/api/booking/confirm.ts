@@ -222,7 +222,7 @@ export const POST: APIRoute = async ({ request }) => {
 					})
 
 					const paymentSaveResult =
-						await financialRepository.savePaymentIntentIfAbsentByIdempotencyKey({
+						await financialRepository.saveLegacyPaymentIntentShadowIfAbsentByIdempotencyKey({
 							idempotencyKey: paymentIntentKey,
 							record: {
 								...shadowPayload.paymentIntent,
@@ -230,7 +230,7 @@ export const POST: APIRoute = async ({ request }) => {
 							},
 						})
 					const settlementSaveResult =
-						await financialRepository.saveSettlementRecordIfAbsentByIdempotencyKey({
+						await financialRepository.saveLegacySettlementShadowIfAbsentByIdempotencyKey({
 							idempotencyKey: settlementKey,
 							record: {
 								...shadowPayload.settlementRecord,

@@ -40,7 +40,7 @@ export async function resolveFinancialException(
 		type: "exception_resolved",
 		actorId: input.actorId,
 		actorType: "operator",
-		payloadJson: { resolutionNote: note, reviewStatus: "resolved_not_reconciled" },
+		payloadJson: { resolutionNote: note, reviewStatus: "operational_review_closed_only" },
 	})
 	return { exception, event }
 }

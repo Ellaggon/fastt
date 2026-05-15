@@ -1,3 +1,11 @@
+/**
+ * Stage 2 evidence/reference visibility only.
+ *
+ * FinancialReference records that an external or shadow reference is visible for operational
+ * review. It is not a payment transaction, not PSP lifecycle, not settlement execution, and not
+ * an accounting source of truth. Recording a reference must never move money or auto-resolve
+ * reconciliation.
+ */
 export const FINANCIAL_REFERENCE_TYPES = [
 	"payment_evidence",
 	"refund_evidence",

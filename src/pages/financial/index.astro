@@ -27,21 +27,23 @@ if (!user) return Astro.redirect("/SignInPage")
 								<option value="refund_handoff_required">Refund handoffs</option>
 								<option value="missing_references">Missing references</option>
 								<option value="snapshot_gaps">Snapshot gaps</option>
-								<option value="reconciliation_unknown">Reconciliation unknown</option>
+								<option value="evidence_unknown">Evidence unknown</option>
 								<option value="multi_room_review">Multi-room review</option>
 								<option value="clean_records">Clean records</option>
 								<option value="all">All records</option>
 							</Select>
 						</label>
 						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Reconciliation</span>
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
+								>Evidence alignment</span
+							>
 							<Select id="financialStateFilter" name="state" value="all">
 								<option value="all">All states</option>
 								<option value="snapshot_ready">Evidence ready</option>
 								<option value="handoff_pending">Handoff pending</option>
-								<option value="partially_reconciled">Partially reconciled</option>
-								<option value="reconciled">Evidence matched</option>
-								<option value="reconciliation_unknown">Unknown</option>
+								<option value="evidence_partial">Partial evidence</option>
+								<option value="evidence_matched">Evidence matched</option>
+								<option value="evidence_unknown">Unknown evidence</option>
 							</Select>
 						</label>
 					</div>
@@ -311,7 +313,8 @@ if (!user) return Astro.redirect("/SignInPage")
 				const state = String(stateFilter?.value || "all")
 				return items.filter((item) => {
 					if (refundHandoffDerivedSuppressed(item)) return false
-					const stateMatches = state === "all" || item?.operation?.reconciliation?.state === state
+					const stateMatches =
+						state === "all" || item?.operation?.evidenceAlignment?.state === state
 					return stateMatches && queueMatches(item, queue)
 				})
 			}

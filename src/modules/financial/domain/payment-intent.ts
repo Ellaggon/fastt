@@ -1,12 +1,23 @@
-export type PaymentIntentStatus = "pending" | "recorded" | "duplicate" | "failed"
+/**
+ * Stage 2 shadow compatibility only.
+ *
+ * This object is persisted inside FinancialShadowRecord as operational evidence produced by
+ * booking confirmation. It is NOT a PSP transaction, NOT a payment lifecycle model, and NOT a
+ * source of truth for money movement. Stage 3 must introduce a separate transaction model rather
+ * than promoting this shadow payload.
+ */
+export type LegacyPaymentIntentShadowStatus = "pending" | "recorded" | "duplicate" | "failed"
 
-export type PaymentIntent = {
+export type LegacyPaymentIntentShadow = {
 	id: string
 	bookingId: string
 	amount: number
 	currency: string
-	status: PaymentIntentStatus
+	status: LegacyPaymentIntentShadowStatus
 	source: string
 	idempotencyKey: string
 	metadata?: Record<string, unknown>
 }
+
+export type PaymentIntentStatus = LegacyPaymentIntentShadowStatus
+export type PaymentIntent = LegacyPaymentIntentShadow

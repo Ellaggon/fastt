@@ -16,9 +16,9 @@ describe("Guardrail: financial exception lifecycle", () => {
 			domain.includes("reconciled")
 				? "financial exception status must not include reconciled"
 				: null,
-			resolveUseCase.includes("resolved_not_reconciled")
+			resolveUseCase.includes("operational_review_closed_only")
 				? null
-				: "resolve use-case must document resolved_not_reconciled semantics",
+				: "resolve use-case must document operational_review_closed_only semantics",
 		].filter(Boolean)
 		expect(violations).toEqual([])
 	})
