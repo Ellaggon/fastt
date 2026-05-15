@@ -835,6 +835,11 @@ if (!user) return Astro.redirect("/SignInPage")
 			}
 
 			async function fetchWorkspace() {
+				async function readWorkspaceJson(response, fallback) {
+					if (response.ok) return response.json()
+					if (response.status === 404) return fallback
+					throw new Error("financial_workspace_load_failed")
+				}
 				const [
 					operationsResponse,
 					exceptionsResponse,
@@ -858,20 +863,12 @@ if (!user) return Astro.redirect("/SignInPage")
 						headers: { accept: "application/json" },
 					}),
 				])
-				if (
-					!operationsResponse.ok ||
-					!exceptionsResponse.ok ||
-					!eventsResponse.ok ||
-					!referencesResponse.ok ||
-					!handoffsResponse.ok
-				) {
-					throw new Error("financial_workspace_load_failed")
-				}
-				const operationsPayload = await operationsResponse.json()
-				const exceptionsPayload = await exceptionsResponse.json()
-				const eventsPayload = await eventsResponse.json()
-				const referencesPayload = await referencesResponse.json()
-				const handoffsPayload = await handoffsResponse.json()
+				const emptyPayload = { items: [], degraded: true }
+				const operationsPayload = await readWorkspaceJson(operationsResponse, emptyPayload)
+				const exceptionsPayload = await readWorkspaceJson(exceptionsResponse, emptyPayload)
+				const eventsPayload = await readWorkspaceJson(eventsResponse, emptyPayload)
+				const referencesPayload = await readWorkspaceJson(referencesResponse, emptyPayload)
+				const handoffsPayload = await readWorkspaceJson(handoffsResponse, emptyPayload)
 				operationsItems = Array.isArray(operationsPayload?.items) ? operationsPayload.items : []
 				workflowItems = Array.isArray(exceptionsPayload?.items) ? exceptionsPayload.items : []
 				reviewEvents = Array.isArray(eventsPayload?.items) ? eventsPayload.items : []
