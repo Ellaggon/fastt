@@ -16,8 +16,16 @@ function map(row: any): ReconciliationMatch {
 		settlementAmount: row.settlementAmount == null ? null : Number(row.settlementAmount),
 		differenceAmount: Number(row.differenceAmount ?? 0),
 		status: String(row.status) as ReconciliationMatch["status"],
+		mismatchReasons: Array.isArray(row.mismatchReasons)
+			? row.mismatchReasons
+			: typeof row.mismatchReasons === "string"
+				? JSON.parse(row.mismatchReasons || "[]")
+				: [],
 		basis: String(row.basis),
 		reviewStatus: (row.reviewStatus ?? null) as ReconciliationMatch["reviewStatus"],
+		reviewState: (row.reviewState ?? null) as ReconciliationMatch["reviewState"],
+		comparisonFingerprint: row.comparisonFingerprint ?? null,
+		reviewFingerprint: row.reviewFingerprint ?? null,
 		reviewedAt: row.reviewedAt ? new Date(row.reviewedAt) : null,
 		reviewedBy: row.reviewedBy ?? null,
 		reviewNote: row.reviewNote ?? null,
@@ -34,6 +42,26 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 			.select()
 			.from(ReconciliationMatchTable)
 			.where(eq(ReconciliationMatchTable.bookingId, key))
+			.get()
+		return row ? map(row) : null
+	}
+
+	async findByBookingIdForProvider(
+		bookingId: string,
+		providerId: string
+	): Promise<ReconciliationMatch | null> {
+		const key = String(bookingId ?? "").trim()
+		const provider = String(providerId ?? "").trim()
+		if (!key || !provider) return null
+		const row = await db
+			.select()
+			.from(ReconciliationMatchTable)
+			.where(
+				and(
+					eq(ReconciliationMatchTable.bookingId, key),
+					eq(ReconciliationMatchTable.providerId, provider)
+				)
+			)
 			.get()
 		return row ? map(row) : null
 	}
@@ -63,7 +91,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 	}
 
 	async createOrUpdate(input: ReconciliationMatchCreateInput): Promise<ReconciliationMatch> {
-		const existing = await this.findByBookingId(input.bookingId)
+		const existing = await this.findByBookingIdForProvider(input.bookingId, input.providerId)
 		const now = new Date()
 		if (existing) {
 			await db
@@ -76,7 +104,10 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 					)
 				)
 				.run()
-			return (await this.findByBookingId(input.bookingId)) as ReconciliationMatch
+			return (await this.findByBookingIdForProvider(
+				input.bookingId,
+				input.providerId
+			)) as ReconciliationMatch
 		}
 		const row = {
 			...input,

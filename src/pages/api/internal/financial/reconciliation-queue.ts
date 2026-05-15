@@ -68,7 +68,42 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.all()
 	const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
 	if (!bookingIds.length) {
-		return json({ items: [], duplicateExternalReferences: [], summary: emptySummary() })
+		const [unmatchedPaymentTransactions, unmatchedSettlementRecords, duplicateRaw] =
+			await Promise.all([
+				paymentTransactionRepository.findUnmatchedByProvider({
+					providerId: auth.providerId,
+					limit: 250,
+				}),
+				financialSettlementRecordRepository.findUnmatchedByProvider({
+					providerId: auth.providerId,
+					limit: 250,
+				}),
+				paymentTransactionRepository.findDuplicateExternalReferences(auth.providerId),
+			])
+		const duplicateExternalReferences = buildDuplicateExternalReferenceSignals({
+			providerId: auth.providerId,
+			duplicates: duplicateRaw,
+		})
+		return json({
+			items: [],
+			duplicateExternalReferences,
+			unmatchedEvidence: {
+				paymentTransactions: unmatchedPaymentTransactions.map((row) => ({
+					...row,
+					mismatchReason: "unmatched_payment_transaction",
+				})),
+				settlementRecords: unmatchedSettlementRecords.map((row) => ({
+					...row,
+					mismatchReason: "unmatched_settlement_record",
+				})),
+			},
+			summary: emptySummary({
+				duplicateExternalReferences: duplicateExternalReferences.length,
+				unmatchedPaymentTransactions: unmatchedPaymentTransactions.length,
+				unmatchedSettlementRecords: unmatchedSettlementRecords.length,
+			}),
+			readOnly: true,
+		})
 	}
 
 	const [
@@ -78,6 +113,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		settlementRecords,
 		references,
 		persistedMatches,
+		unmatchedPaymentTransactions,
+		unmatchedSettlementRecords,
 		duplicateRaw,
 	] = await Promise.all([
 		db
@@ -115,6 +152,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 			limit: 1000,
 		}),
 		reconciliationMatchRepository.findByProvider({ providerId: auth.providerId, limit: 1000 }),
+		paymentTransactionRepository.findUnmatchedByProvider({
+			providerId: auth.providerId,
+			limit: 250,
+		}),
+		financialSettlementRecordRepository.findUnmatchedByProvider({
+			providerId: auth.providerId,
+			limit: 250,
+		}),
 		paymentTransactionRepository.findDuplicateExternalReferences(auth.providerId),
 	])
 
@@ -126,6 +171,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const referencesByBooking = groupBy(references, (row) => row.bookingId)
 	const persistedByBooking = new Map(persistedMatches.map((row) => [row.bookingId, row]))
 
+	const duplicateExternalReferences = buildDuplicateExternalReferenceSignals({
+		providerId: auth.providerId,
+		duplicates: duplicateRaw,
+	})
 	let items = [...grouped.values()].map((group) => {
 		const bookingId = String(group[0]?.bookingId ?? "")
 		const match = buildFinancialReconciliationMatch({
@@ -138,25 +187,48 @@ export const GET: APIRoute = async ({ request, url }) => {
 			references: referencesByBooking.get(bookingId) ?? [],
 		})
 		const persisted = persistedByBooking.get(bookingId)
-		return persisted
-			? {
-					...match,
-					reviewStatus: persisted.reviewStatus,
-					reviewedAt: persisted.reviewedAt,
-					reviewedBy: persisted.reviewedBy,
-					reviewNote: persisted.reviewNote,
-				}
-			: match
+		const hasDuplicateReference = duplicateExternalReferences.some((signal) =>
+			(signal.bookingIds || []).includes(bookingId)
+		)
+		const mismatchReasons = [
+			...(match.mismatchReasons || []),
+			...(hasDuplicateReference ? ["duplicate_external_reference" as const] : []),
+		]
+		const reviewState =
+			persisted?.reviewStatus === "reviewed"
+				? persisted.reviewFingerprint === match.comparisonFingerprint
+					? "fresh"
+					: "stale"
+				: (persisted?.reviewState ?? null)
+		return {
+			...match,
+			mismatchReasons:
+				reviewState === "stale"
+					? [...new Set([...mismatchReasons, "stale_review"])]
+					: mismatchReasons,
+			reviewStatus: persisted?.reviewStatus ?? match.reviewStatus,
+			reviewState,
+			reviewedAt: persisted?.reviewedAt ?? match.reviewedAt,
+			reviewedBy: persisted?.reviewedBy ?? match.reviewedBy,
+			reviewNote: persisted?.reviewNote ?? match.reviewNote,
+			reviewFingerprint: persisted?.reviewFingerprint ?? null,
+		}
 	})
 	if (status !== "all") items = items.filter((item) => item.status === status)
 	items = items.slice(0, limit)
-	const duplicateExternalReferences = buildDuplicateExternalReferenceSignals({
-		providerId: auth.providerId,
-		duplicates: duplicateRaw,
-	})
 	return json({
 		items,
 		duplicateExternalReferences,
+		unmatchedEvidence: {
+			paymentTransactions: unmatchedPaymentTransactions.map((row) => ({
+				...row,
+				mismatchReason: "unmatched_payment_transaction",
+			})),
+			settlementRecords: unmatchedSettlementRecords.map((row) => ({
+				...row,
+				mismatchReason: "unmatched_settlement_record",
+			})),
+		},
 		summary: {
 			total: items.length,
 			matched: items.filter((item) => item.status === "matched").length,
@@ -165,6 +237,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			missingSettlement: items.filter((item) => item.status === "missing_settlement").length,
 			currencyMismatch: items.filter((item) => item.status === "currency_mismatch").length,
 			duplicateExternalReferences: duplicateExternalReferences.length,
+			unmatchedPaymentTransactions: unmatchedPaymentTransactions.length,
+			unmatchedSettlementRecords: unmatchedSettlementRecords.length,
 		},
 		readOnly: true,
 	})
@@ -181,7 +255,19 @@ function groupBy<T>(rows: T[], keyFn: (row: T) => string): Map<string, T[]> {
 	return grouped
 }
 
-function emptySummary() {
+type EmptySummaryOverrides = Partial<{
+	total: number
+	matched: number
+	mismatch: number
+	missingPayment: number
+	missingSettlement: number
+	currencyMismatch: number
+	duplicateExternalReferences: number
+	unmatchedPaymentTransactions: number
+	unmatchedSettlementRecords: number
+}>
+
+function emptySummary(overrides: EmptySummaryOverrides = {}) {
 	return {
 		total: 0,
 		matched: 0,
@@ -190,5 +276,8 @@ function emptySummary() {
 		missingSettlement: 0,
 		currencyMismatch: 0,
 		duplicateExternalReferences: 0,
+		unmatchedPaymentTransactions: 0,
+		unmatchedSettlementRecords: 0,
+		...overrides,
 	}
 }

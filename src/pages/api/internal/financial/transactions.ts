@@ -58,7 +58,6 @@ export const POST: APIRoute = async ({ request }) => {
 		.toUpperCase()
 	const occurredAt = body.occurredAt ? new Date(String(body.occurredAt)) : new Date()
 	if (
-		!bookingId ||
 		!allowedTypes.has(type) ||
 		!allowedStatuses.has(status) ||
 		!externalReference ||
@@ -70,13 +69,14 @@ export const POST: APIRoute = async ({ request }) => {
 	) {
 		return json({ error: "validation_error" }, 400)
 	}
-	if (!(await bookingBelongsToProvider(bookingId, auth.providerId)))
+	if (bookingId && !(await bookingBelongsToProvider(bookingId, auth.providerId)))
 		return json({ error: "not_found" }, 404)
 	const idempotencyKey =
 		String(body.idempotencyKey ?? "").trim() ||
 		`payment_transaction:${auth.providerId}:${pspProvider}:${type}:${externalReference}`
 	const result = await paymentTransactionRepository.createIfAbsent({
-		bookingId,
+		bookingId:
+			bookingId || `unmatched:${auth.providerId}:${pspProvider}:${type}:${externalReference}`,
 		providerId: auth.providerId,
 		type,
 		status,
