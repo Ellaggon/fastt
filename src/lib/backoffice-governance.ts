@@ -465,6 +465,36 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Provider-facing BFF for refund handoff review visibility; not refund execution.",
 	},
 	{
+		pattern: "/api/internal/financial/reconciliation-queue",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF read model for Stage 3 reconciliation comparison visibility; not PSP execution.",
+	},
+	{
+		pattern: "/api/internal/financial/reconciliation-matches/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF for marking reconciliation comparison review only; not financial finality.",
+	},
+	{
+		pattern: "/api/internal/financial/transactions",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale: "Provider-facing BFF for persisted PSP evidence identity; not payment execution.",
+	},
+	{
+		pattern: "/api/internal/financial/settlements",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale: "Provider-facing BFF for settlement evidence visibility; not payout execution.",
+	},
+	{
 		pattern: "/api/internal/financial/**",
 		status: "internal-only",
 		context: "internal-ops",

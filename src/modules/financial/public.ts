@@ -9,11 +9,16 @@ export * from "./domain/financial-exception-record"
 export * from "./domain/financial-reference"
 export * from "./domain/refund-handoff-record"
 export * from "./domain/financial-review-event"
+export * from "./domain/payment-transaction"
+export * from "./domain/payment-attempt"
+export * from "./domain/financial-settlement-record"
+export * from "./domain/reconciliation-match"
 
 // Application ports
 export * from "./application/ports/FinancialRepositoryPort"
 export * from "./application/ports/FinancialEventPublisherPort"
 export * from "./application/ports/FinancialWorkflowRepositoryPort"
+export * from "./application/ports/FinancialStage3RepositoryPort"
 
 // Application use-cases
 export * from "./application/use-cases/register-financial-shadow-write"
@@ -28,3 +33,4 @@ export * from "./application/use-cases/record-financial-reference"
 export * from "./application/use-cases/acknowledge-refund-handoff"
 export * from "./application/use-cases/close-refund-handoff"
 export * from "./application/use-cases/dismiss-refund-handoff"
+export * from "./application/use-cases/build-financial-reconciliation-match"
