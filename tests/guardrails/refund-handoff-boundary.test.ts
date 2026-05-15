@@ -21,6 +21,18 @@ describe("Guardrail: refund handoff remains visibility only", () => {
 			...[/executeRefund/, /processRefund/, /refundNow/, /RefundProvider/].flatMap((pattern) =>
 				pattern.test(source) ? [`Refund handoff drifted into execution ${pattern}`] : []
 			),
+			...[
+				/retryRefund/,
+				/refundCompleted/,
+				/refundProcessed/,
+				/refundSucceeded/,
+				/payoutSent/,
+				/moneyReturned/,
+			].flatMap((pattern) =>
+				pattern.test(source)
+					? [`Refund handoff contains forbidden execution wording ${pattern}`]
+					: []
+			),
 		]
 		expect(violations).toEqual([])
 	})
