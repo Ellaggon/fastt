@@ -32,19 +32,21 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 		return map(row)
 	}
 
-	async findByProvider(params: {
+	async findByProvider(params?: {
 		providerId: string
 		bookingId?: string
 		financialExceptionId?: string
 		refundHandoffId?: string
 		limit?: number
 	}): Promise<FinancialReviewEvent[]> {
-		const filters = [eq(FinancialReviewEventTable.providerId, params.providerId)]
-		if (params.bookingId) filters.push(eq(FinancialReviewEventTable.bookingId, params.bookingId))
-		if (params.financialExceptionId) {
+		const providerId = String(params?.providerId ?? "").trim()
+		if (!providerId) return []
+		const filters = [eq(FinancialReviewEventTable.providerId, providerId)]
+		if (params?.bookingId) filters.push(eq(FinancialReviewEventTable.bookingId, params.bookingId))
+		if (params?.financialExceptionId) {
 			filters.push(eq(FinancialReviewEventTable.financialExceptionId, params.financialExceptionId))
 		}
-		if (params.refundHandoffId) {
+		if (params?.refundHandoffId) {
 			filters.push(eq(FinancialReviewEventTable.refundHandoffId, params.refundHandoffId))
 		}
 		const rows = await db
@@ -52,7 +54,7 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 			.from(FinancialReviewEventTable)
 			.where(and(...filters))
 			.orderBy(desc(FinancialReviewEventTable.createdAt))
-			.limit(Math.min(Math.max(Number(params.limit ?? 100), 1), 250))
+			.limit(Math.min(Math.max(Number(params?.limit ?? 100), 1), 250))
 			.all()
 		return rows.map(map)
 	}

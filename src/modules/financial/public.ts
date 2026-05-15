@@ -18,6 +18,8 @@ export * from "./application/ports/FinancialWorkflowRepositoryPort"
 // Application use-cases
 export * from "./application/use-cases/register-financial-shadow-write"
 export * from "./application/use-cases/detect-financial-exceptions"
+export * from "./application/use-cases/build-financial-operation-review"
+export * from "./application/use-cases/build-financial-review-overlay"
 export * from "./application/use-cases/list-financial-exceptions"
 export * from "./application/use-cases/acknowledge-financial-exception"
 export * from "./application/use-cases/resolve-financial-exception"

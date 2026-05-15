@@ -143,6 +143,14 @@ if (!user) return Astro.redirect("/SignInPage")
 			let persistedRefundHandoffs = []
 			let combinedItems = []
 			let selectedItem = null
+			const reviewTerminalStatuses = new Set(["resolved", "dismissed"])
+			const refundHandoffTerminalStatuses = new Set(["closed", "dismissed"])
+			const overlaySourceLabels = {
+				derived_only: "derived only",
+				persisted_overlay: "derived still present",
+				persisted: "persisted",
+				visibility_only: "visibility only",
+			}
 
 			const money = (currency, value) =>
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
@@ -240,14 +248,12 @@ if (!user) return Astro.redirect("/SignInPage")
 			const isCleanRecord = (item) =>
 				!item?.workflow && !item?.operation?.operationalException?.hasOpenException
 			const sourceLabel = (item) => {
-				if (item?.overlaySource === "derived_only") return "derived only"
-				if (item?.overlaySource === "persisted_overlay") return "derived still present"
-				if (item?.workflow) return "persisted"
-				return "visibility only"
+				const source = String(item?.overlaySource || "")
+				return overlaySourceLabels[source] || (item?.workflow ? "persisted" : "visibility only")
 			}
 			const itemKey = (item) => `${item?.bookingId || ""}::${item?.code || "clean_record"}`
 			const handoffTerminal = (handoff) =>
-				["closed", "dismissed"].includes(String(handoff?.status || ""))
+				refundHandoffTerminalStatuses.has(String(handoff?.status || ""))
 
 			function operationalAge(item) {
 				const opened = item?.openedAt || item?.workflow?.openedAt
@@ -285,10 +291,7 @@ if (!user) return Astro.redirect("/SignInPage")
 			function queueMatches(item, queue) {
 				if (queue === "all") return true
 				if (queue === "all_open")
-					return (
-						!["resolved", "dismissed"].includes(String(item?.status || "open")) &&
-						!isCleanRecord(item)
-					)
+					return !reviewTerminalStatuses.has(String(item?.status || "open")) && !isCleanRecord(item)
 				if (queue === "clean_records") return isCleanRecord(item)
 				if (queue === "missing_references") {
 					return hasAnyCode(item, [
@@ -613,7 +616,7 @@ if (!user) return Astro.redirect("/SignInPage")
 				selectedItem = item
 				const operation = item.operation || {}
 				const canReview =
-					Boolean(item.persistedId) && !["resolved", "dismissed"].includes(String(item.status))
+					Boolean(item.persistedId) && !reviewTerminalStatuses.has(String(item.status))
 				if (drawerBody) {
 					drawerBody.innerHTML = `
 						<div class="space-y-5">

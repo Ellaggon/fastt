@@ -13,6 +13,8 @@ describe("Guardrail: financial references remain provider scoped", () => {
 			"bookingBelongsToProvider(bookingId, auth.providerId)",
 			"findByProvider",
 			"providerId: auth.providerId",
+			'const providerId = String(params?.providerId ?? "").trim()',
+			"if (!providerId) return []",
 			"FinancialReferenceTable.providerId",
 		]
 		const forbidden = [/Payment/, /ProviderPayout/, /ProviderPayoutBooking/]

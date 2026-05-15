@@ -42,20 +42,22 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 		return rows.map(map)
 	}
 
-	async findByProvider(params: {
+	async findByProvider(params?: {
 		providerId: string
 		bookingIds?: string[]
 		limit?: number
 	}): Promise<FinancialReference[]> {
-		const bookingIds = Array.from(new Set((params.bookingIds || []).map(String).filter(Boolean)))
-		const filters = [eq(FinancialReferenceTable.providerId, params.providerId)]
+		const providerId = String(params?.providerId ?? "").trim()
+		if (!providerId) return []
+		const bookingIds = Array.from(new Set((params?.bookingIds || []).map(String).filter(Boolean)))
+		const filters = [eq(FinancialReferenceTable.providerId, providerId)]
 		if (bookingIds.length) filters.push(inArray(FinancialReferenceTable.bookingId, bookingIds))
 		const rows = await db
 			.select()
 			.from(FinancialReferenceTable)
 			.where(and(...filters))
 			.orderBy(desc(FinancialReferenceTable.recordedAt))
-			.limit(Math.max(1, Math.min(Number(params.limit || 500), 1000)))
+			.limit(Math.max(1, Math.min(Number(params?.limit || 500), 1000)))
 			.all()
 		return rows.map(map)
 	}

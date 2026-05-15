@@ -33,7 +33,7 @@ function map(row: any): FinancialExceptionRecord {
 }
 
 export class FinancialExceptionRepository implements FinancialExceptionRepositoryPort {
-	async findByProvider(params: {
+	async findByProvider(params?: {
 		providerId: string
 		status?: FinancialExceptionStatus | "all"
 		code?: FinancialExceptionCode | "all"
@@ -41,20 +41,22 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 		bookingId?: string
 		limit?: number
 	}): Promise<FinancialExceptionRecord[]> {
-		const filters = [eq(FinancialExceptionTable.providerId, params.providerId)]
-		if (params.status && params.status !== "all")
+		const providerId = String(params?.providerId ?? "").trim()
+		if (!providerId) return []
+		const filters = [eq(FinancialExceptionTable.providerId, providerId)]
+		if (params?.status && params.status !== "all")
 			filters.push(eq(FinancialExceptionTable.status, params.status))
-		if (params.code && params.code !== "all")
+		if (params?.code && params.code !== "all")
 			filters.push(eq(FinancialExceptionTable.code, params.code))
-		if (params.nextOwner && params.nextOwner !== "all")
+		if (params?.nextOwner && params.nextOwner !== "all")
 			filters.push(eq(FinancialExceptionTable.nextOwner, params.nextOwner))
-		if (params.bookingId) filters.push(eq(FinancialExceptionTable.bookingId, params.bookingId))
+		if (params?.bookingId) filters.push(eq(FinancialExceptionTable.bookingId, params.bookingId))
 		const query = db
 			.select()
 			.from(FinancialExceptionTable)
 			.where(and(...filters))
 			.orderBy(desc(FinancialExceptionTable.openedAt))
-			.limit(Math.min(Math.max(Number(params.limit ?? 100), 1), 250))
+			.limit(Math.min(Math.max(Number(params?.limit ?? 100), 1), 250))
 		const rows = await query.all()
 		return rows.map(map)
 	}

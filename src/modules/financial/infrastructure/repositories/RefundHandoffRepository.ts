@@ -49,23 +49,25 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		return rows.map(map)
 	}
 
-	async findByProvider(params: {
+	async findByProvider(params?: {
 		providerId: string
 		bookingIds?: string[]
 		status?: RefundHandoffRecord["status"] | "all"
 		limit?: number
 	}): Promise<RefundHandoffRecord[]> {
-		const bookingIds = Array.from(new Set((params.bookingIds || []).map(String).filter(Boolean)))
-		const filters = [eq(RefundHandoffTable.providerId, params.providerId)]
+		const providerId = String(params?.providerId ?? "").trim()
+		if (!providerId) return []
+		const bookingIds = Array.from(new Set((params?.bookingIds || []).map(String).filter(Boolean)))
+		const filters = [eq(RefundHandoffTable.providerId, providerId)]
 		if (bookingIds.length) filters.push(inArray(RefundHandoffTable.bookingId, bookingIds))
-		if (params.status && params.status !== "all")
+		if (params?.status && params.status !== "all")
 			filters.push(eq(RefundHandoffTable.status, params.status))
 		const rows = await db
 			.select()
 			.from(RefundHandoffTable)
 			.where(and(...filters))
 			.orderBy(desc(RefundHandoffTable.openedAt))
-			.limit(Math.max(1, Math.min(Number(params.limit || 500), 1000)))
+			.limit(Math.max(1, Math.min(Number(params?.limit || 500), 1000)))
 			.all()
 		return rows.map(map)
 	}

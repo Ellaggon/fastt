@@ -16,23 +16,7 @@ import {
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import {
-	detectFinancialExceptions,
-	type DetectedFinancialException,
-} from "@/modules/financial/application/use-cases/detect-financial-exceptions"
-
-type ReconciliationState =
-	| "snapshot_ready"
-	| "handoff_pending"
-	| "partially_reconciled"
-	| "reconciled"
-	| "reconciliation_unknown"
-
-type PaymentIntentEvidence = "not_visible" | "payment_intent_shadow_visible"
-type RecordedPaymentEvidence = "not_visible" | "payment_recorded_shadow_visible"
-type RefundEvidence = "not_applicable" | "refund_handoff_required" | "refund_evidence_visible"
-type SettlementEvidence = "not_visible" | "settlement_shadow_visible"
-type RecordedSettlementEvidence = "not_visible" | "settlement_recorded_shadow_visible"
+import { buildFinancialOperationReview } from "@/modules/financial/application/use-cases/build-financial-operation-review"
 type FinancialExceptionCode =
 	| "refund_handoff_required"
 	| "reconciliation_unknown"
@@ -42,139 +26,6 @@ type FinancialExceptionCode =
 	| "incomplete_contract_snapshot"
 	| "legacy_snapshot_compatibility"
 	| "multi_room_review"
-
-function dateOnly(value: unknown): string | null {
-	if (!value) return null
-	if (value instanceof Date) return value.toISOString().slice(0, 10)
-	const raw = String(value).trim()
-	if (!raw) return null
-	if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
-	const parsed = new Date(raw)
-	if (Number.isNaN(parsed.getTime())) return null
-	return parsed.toISOString().slice(0, 10)
-}
-
-function readAmount(payload: unknown): number | null {
-	if (!payload || typeof payload !== "object") return null
-	const value = Number((payload as any).amount ?? (payload as any).grossAmount ?? NaN)
-	return Number.isFinite(value) ? value : null
-}
-
-function readReference(payload: unknown): string | null {
-	if (!payload || typeof payload !== "object") return null
-	for (const key of ["transactionId", "captureId", "authorizationId", "id", "idempotencyKey"]) {
-		const value = String((payload as any)[key] ?? "").trim()
-		if (value) return value
-	}
-	return null
-}
-
-function readStatus(payload: unknown): string {
-	if (!payload || typeof payload !== "object") return "unknown"
-	return (
-		String((payload as any).status ?? "unknown")
-			.trim()
-			.toLowerCase() || "unknown"
-	)
-}
-
-function readCommission(payload: unknown): number {
-	if (!payload || typeof payload !== "object") return 0
-	const value = Number((payload as any).commissionAmount ?? 0)
-	return Number.isFinite(value) ? value : 0
-}
-
-function hasRecorded(rows: Array<{ payload: unknown }>): boolean {
-	return rows.some((row) => readStatus(row.payload) === "recorded")
-}
-
-function allRecorded(rows: Array<{ payload: unknown }>): boolean {
-	return rows.length > 0 && rows.every((row) => readStatus(row.payload) === "recorded")
-}
-
-function anyRecorded(rows: Array<{ payload: unknown }>): boolean {
-	return rows.some((row) => readStatus(row.payload) === "recorded")
-}
-
-function daysSince(value: unknown): number | null {
-	if (!value) return null
-	const date = value instanceof Date ? value : new Date(String(value))
-	if (Number.isNaN(date.getTime())) return null
-	return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000))
-}
-
-function deriveFinancialEvidenceVisibility(params: {
-	status: string
-	paymentIntents: Array<{ payload: unknown }>
-	settlementRecords: Array<{ payload: unknown }>
-	refundRecords: Array<{ payload: unknown }>
-	refundSnapshot: Record<string, unknown> | null
-}): {
-	paymentIntentShadow: PaymentIntentEvidence
-	recordedPaymentShadow: RecordedPaymentEvidence
-	refundEvidence: RefundEvidence
-	settlementShadow: SettlementEvidence
-	recordedSettlementShadow: RecordedSettlementEvidence
-} {
-	const hasPaymentIntent = params.paymentIntents.length > 0
-	const hasRecordedPayment = anyRecorded(params.paymentIntents)
-	const hasSettlement = params.settlementRecords.length > 0
-	const hasRecordedSettlement = anyRecorded(params.settlementRecords)
-	const hasRefundSnapshot = params.refundRecords.length > 0 || params.refundSnapshot != null
-	const isCancelled = params.status.toLowerCase() === "cancelled"
-
-	return {
-		paymentIntentShadow: hasPaymentIntent ? "payment_intent_shadow_visible" : "not_visible",
-		recordedPaymentShadow: hasRecordedPayment ? "payment_recorded_shadow_visible" : "not_visible",
-		refundEvidence: hasRefundSnapshot
-			? "refund_evidence_visible"
-			: isCancelled
-				? "refund_handoff_required"
-				: "not_applicable",
-		settlementShadow: hasSettlement ? "settlement_shadow_visible" : "not_visible",
-		recordedSettlementShadow: hasRecordedSettlement
-			? "settlement_recorded_shadow_visible"
-			: "not_visible",
-	}
-}
-
-function deriveReconciliationState(params: {
-	status: string
-	contractTotal: number
-	paymentIntents: Array<{ payload: unknown }>
-	settlementRecords: Array<{ payload: unknown }>
-	refundRecords: Array<{ payload: unknown }>
-}): ReconciliationState {
-	const isCancelled = params.status.toLowerCase() === "cancelled"
-	if (isCancelled && params.refundRecords.length === 0) return "handoff_pending"
-
-	const hasFinancialShadow = params.paymentIntents.length > 0 || params.settlementRecords.length > 0
-	if (!hasFinancialShadow) return "snapshot_ready"
-
-	const paymentMatches = params.paymentIntents.some(
-		(row) => readAmount(row.payload) === params.contractTotal
-	)
-	const settlementMatches = params.settlementRecords.some(
-		(row) => readAmount(row.payload) === params.contractTotal
-	)
-	if (
-		paymentMatches &&
-		settlementMatches &&
-		allRecorded(params.paymentIntents) &&
-		allRecorded(params.settlementRecords)
-	) {
-		return "reconciled"
-	}
-	if (
-		paymentMatches ||
-		settlementMatches ||
-		hasRecorded(params.paymentIntents) ||
-		hasRecorded(params.settlementRecords)
-	) {
-		return "partially_reconciled"
-	}
-	return "reconciliation_unknown"
-}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -234,8 +85,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.all()
 
 		const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
-		const shadowRows = bookingIds.length
-			? await db
+		let shadowRows: Array<{
+			bookingId: string
+			type: string
+			payload: unknown
+			createdAt: unknown
+		}> = []
+		if (bookingIds.length) {
+			try {
+				shadowRows = await db
 					.select({
 						bookingId: FinancialShadowRecord.bookingId,
 						type: FinancialShadowRecord.type,
@@ -245,9 +103,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(FinancialShadowRecord)
 					.where(inArray(FinancialShadowRecord.bookingId, bookingIds))
 					.all()
-			: []
-		const taxRows = bookingIds.length
-			? await db
+			} catch (error) {
+				console.warn("financial_shadow_lookup_degraded", {
+					providerId,
+					error: error instanceof Error ? error.message : "unknown",
+				})
+			}
+		}
+		let taxRows: Array<{
+			bookingId: string
+			totalAmount: unknown
+			breakdownJson: unknown
+		}> = []
+		if (bookingIds.length) {
+			try {
+				taxRows = await db
 					.select({
 						bookingId: BookingTaxFee.bookingId,
 						totalAmount: BookingTaxFee.totalAmount,
@@ -256,7 +126,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(BookingTaxFee)
 					.where(inArray(BookingTaxFee.bookingId, bookingIds))
 					.all()
-			: []
+			} catch (error) {
+				console.warn("booking_tax_fee_lookup_degraded", {
+					providerId,
+					error: error instanceof Error ? error.message : "unknown",
+				})
+			}
+		}
 
 		const shadowByBooking = new Map<string, typeof shadowRows>()
 		for (const row of shadowRows) {
@@ -280,160 +156,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		let items = Array.from(grouped.values()).map((group) => {
 			const first = group[0]
-			const currency =
-				String(first.currency ?? "USD")
-					.trim()
-					.toUpperCase() || "USD"
-			const fallbackTotal =
-				currency === "BOB" ? Number(first.totalAmountBOB ?? 0) : Number(first.totalAmountUSD ?? 0)
-			const detailTotal = group.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
-			const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal
-			const taxesTotal = group.reduce((sum, row) => sum + Number(row.detailTaxes ?? 0), 0)
-			const shadows = shadowByBooking.get(first.bookingId) ?? []
-			const paymentIntents = shadows.filter((row) => row.type === "payment_intent")
-			const settlementRecords = shadows.filter((row) => row.type === "settlement_record")
-			const refundRecords = shadows.filter((row) => row.type === "refund_record")
-			const commissionTotal = settlementRecords.reduce(
-				(sum, row) => sum + readCommission(row.payload),
-				0
-			)
-			const reconciliationState = deriveReconciliationState({
-				status: String(first.status ?? "draft"),
-				contractTotal,
-				paymentIntents,
-				settlementRecords,
-				refundRecords,
+			return buildFinancialOperationReview({
+				group,
+				shadowRows: shadowByBooking.get(first.bookingId) ?? [],
+				taxRows: taxByBooking.get(first.bookingId) ?? [],
+				providerId,
 			})
-			const refundSnapshot =
-				first.refundHandoffSnapshotJson && typeof first.refundHandoffSnapshotJson === "object"
-					? (first.refundHandoffSnapshotJson as Record<string, unknown>)
-					: null
-			const financialEvidence = deriveFinancialEvidenceVisibility({
-				status: String(first.status ?? "draft"),
-				paymentIntents,
-				settlementRecords,
-				refundRecords,
-				refundSnapshot,
-			})
-			const paymentReferences = paymentIntents
-				.map((row) => readReference(row.payload))
-				.filter(Boolean)
-			const settlementReferences = settlementRecords
-				.map((row) => readReference(row.payload))
-				.filter(Boolean)
-			const refundReferences = refundRecords
-				.map((row) => readReference(row.payload))
-				.filter(Boolean)
-			const hasRoomSnapshots = group.some(
-				(row) => row.productNameSnapshot != null && row.variantNameSnapshot != null
-			)
-			const hasTaxFeeSnapshots = (taxByBooking.get(first.bookingId)?.length ?? 0) > 0
-			const hasPaymentReference = paymentReferences.length > 0
-			const hasSettlementReference = settlementReferences.length > 0
-			const hasRefundReference = refundReferences.length > 0 || refundSnapshot != null
-			const multiRoomAllocationCount = group.filter((row) => row.detailId != null).length
-			const snapshotVersion = first.contractSnapshotVersion ?? "legacy_snapshot_compatibility"
-			const exceptions: DetectedFinancialException[] = detectFinancialExceptions({
-				bookingId: first.bookingId,
-				providerId: String(first.providerIdSnapshot ?? providerId),
-				reconciliationState,
-				financialEvidence,
-				paymentIntentCount: paymentIntents.length,
-				settlementRecordCount: settlementRecords.length,
-				hasPaymentReference,
-				hasSettlementReference,
-				hasRefundReference,
-				hasRoomSnapshots,
-				hasTaxFeeSnapshots,
-				taxesTotal,
-				multiRoomAllocationCount,
-				snapshotVersion,
-			})
-			const primaryException =
-				exceptions.find((entry) => entry.severity === "attention") ?? exceptions[0] ?? null
-
-			return {
-				bookingId: first.bookingId,
-				status: String(first.status ?? "draft"),
-				currency,
-				contractTotal,
-				taxesTotal,
-				commissionTotal,
-				netPayoutEstimate: Math.max(0, contractTotal - commissionTotal),
-				confirmedAt: first.confirmedAt ?? null,
-				stay: {
-					checkIn: dateOnly(first.checkInDate),
-					checkOut: dateOnly(first.checkOutDate),
-				},
-				contract: {
-					version: first.contractSnapshotVersion ?? "legacy_snapshot_compatibility",
-					productName: first.productNameSnapshot ?? first.productName ?? null,
-					variantName: first.variantNameSnapshot ?? first.variantName ?? null,
-					ratePlanName: first.ratePlanNameSnapshot ?? null,
-					snapshotFirst: Boolean(first.productNameSnapshot && first.variantNameSnapshot),
-				},
-				transactions: {
-					paymentIntents: paymentIntents.length,
-					settlementRecords: settlementRecords.length,
-					refundRecords: refundRecords.length,
-					statuses: [...new Set(shadows.map((row) => readStatus(row.payload)))],
-					financialEvidence,
-					references: {
-						payment: paymentReferences,
-						settlement: settlementReferences,
-						refund: refundReferences,
-					},
-				},
-				refund: {
-					state: financialEvidence.refundEvidence,
-					owner: "Payments & Finance",
-					boundary: "visibility_only",
-					cancellationLinked: String(first.status ?? "").toLowerCase() === "cancelled",
-					references: refundReferences,
-				},
-				providerSettlementEvidence: {
-					state: financialEvidence.recordedSettlementShadow,
-					basis: "financial_shadow_record",
-					settlementEvidence: financialEvidence.settlementShadow,
-					references: settlementReferences,
-				},
-				invoice: {
-					state: "reference_not_issued",
-					reference: null,
-					basis: "booking_contract_snapshot",
-				},
-				taxFeeVisibility: {
-					lines: taxByBooking.get(first.bookingId)?.length ?? 0,
-					basis: "booking_tax_fee_snapshot",
-				},
-				reconciliation: {
-					state: reconciliationState,
-					visibility: "reconciliation_state",
-					basis: "snapshot_and_financial_shadow_visibility",
-					owner: "Payments & Finance",
-					context:
-						reconciliationState === "handoff_pending"
-							? "refund_handoff_visibility"
-							: financialEvidence.settlementShadow === "settlement_shadow_visible"
-								? "settlement_shadow_context_visible"
-								: "snapshot_visibility",
-				},
-				snapshotIntegrity: {
-					contractSnapshotVersion: snapshotVersion,
-					hasRoomSnapshots,
-					hasTaxFeeSnapshots,
-					hasPaymentReference,
-					hasSettlementReference,
-					hasRefundReference,
-					multiRoomAllocationCount,
-				},
-				operationalException: {
-					hasOpenException: exceptions.some((entry) => entry.severity === "attention"),
-					primary: primaryException,
-					all: exceptions,
-					ageDays: daysSince(first.confirmedAt),
-				},
-			}
 		})
 
 		items.sort((left, right) => {
@@ -503,8 +231,33 @@ export const GET: APIRoute = async ({ request, url }) => {
 		)
 	} catch (error) {
 		return new Response(
-			JSON.stringify({ error: error instanceof Error ? error.message : "internal_error" }),
-			{ status: 500, headers: { "Content-Type": "application/json" } }
+			JSON.stringify({
+				summary: {
+					totalBookings: 0,
+					openExceptions: 0,
+					contractValue: 0,
+					taxesVisible: 0,
+					commissionVisible: 0,
+					refundHandoffPending: 0,
+					partiallyReconciled: 0,
+					reconciled: 0,
+					snapshotReady: 0,
+					reconciliationUnknown: 0,
+					missingReferenceCount: 0,
+					snapshotGapCount: 0,
+					multiRoomReview: 0,
+				},
+				items: [],
+				boundaries: {
+					pricing: "snapshot_only_no_live_pricing",
+					inventory: "no_inventory_mutation",
+					payments: "visibility_not_psp_orchestration",
+					accounting: "not_a_ledger",
+				},
+				degraded: true,
+				error: error instanceof Error ? error.message : "internal_error",
+			}),
+			{ status: 200, headers: { "Content-Type": "application/json" } }
 		)
 	}
 }

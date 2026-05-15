@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { financialExceptionRepository } from "@/container/financial.container"
+import { buildFinancialReviewOverlay } from "@/modules/financial/application/use-cases/build-financial-review-overlay"
 import { listFinancialExceptions } from "@/modules/financial/application/use-cases/list-financial-exceptions"
 import type {
 	FinancialExceptionCode,
@@ -22,21 +23,6 @@ type DerivedFinancialException = {
 	source: "derived_queue"
 }
 
-type OverlayFinancialException = Omit<
-	FinancialExceptionRecord,
-	"id" | "openedAt" | "createdAt" | "updatedAt"
-> & {
-	id: string
-	openedAt: Date | null
-	createdAt: Date | null
-	updatedAt: Date | null
-	overlaySource: "persisted" | "derived_only" | "persisted_overlay"
-	persistedId: string | null
-	derived: boolean
-}
-
-const CLOSED_STATUSES = new Set<FinancialExceptionStatus>(["resolved", "dismissed"])
-
 function readStatusFilter(value: string): FinancialExceptionStatus | "all" {
 	const allowed = new Set<FinancialExceptionStatus | "all">([
 		"all",
@@ -49,10 +35,6 @@ function readStatusFilter(value: string): FinancialExceptionStatus | "all" {
 	return allowed.has(value as FinancialExceptionStatus | "all")
 		? (value as FinancialExceptionStatus | "all")
 		: "all"
-}
-
-function exceptionKey(input: { bookingId: string; code: string }): string {
-	return `${input.bookingId}::${input.code}`
 }
 
 async function readOperationsDerivedExceptions(context: Parameters<APIRoute>[0]) {
@@ -68,74 +50,6 @@ async function readOperationsDerivedExceptions(context: Parameters<APIRoute>[0])
 	return { response: null, derived }
 }
 
-function buildOverlay(params: {
-	persisted: FinancialExceptionRecord[]
-	derived: DerivedFinancialException[]
-	status: FinancialExceptionStatus | "all"
-	code: FinancialExceptionCode | "all"
-	nextOwner: string | "all"
-	bookingId?: string
-	limit: number
-}): OverlayFinancialException[] {
-	const persistedByKey = new Map(params.persisted.map((item) => [exceptionKey(item), item]))
-	const overlay: OverlayFinancialException[] = params.persisted.map((item) => ({
-		...item,
-		id: item.id,
-		overlaySource: "persisted",
-		persistedId: item.id,
-		derived: false,
-	}))
-
-	for (const item of params.derived) {
-		const persisted = persistedByKey.get(exceptionKey(item))
-		if (persisted) {
-			if (CLOSED_STATUSES.has(persisted.status)) continue
-			const existingIndex = overlay.findIndex((entry) => entry.id === persisted.id)
-			const overlayItem: OverlayFinancialException = {
-				...persisted,
-				reason: persisted.reason || item.reason,
-				nextOwner: persisted.nextOwner || item.nextOwner,
-				overlaySource: "persisted_overlay",
-				persistedId: persisted.id,
-				derived: true,
-			}
-			if (existingIndex >= 0) overlay[existingIndex] = overlayItem
-			else overlay.push(overlayItem)
-			continue
-		}
-
-		overlay.push({
-			id: `derived:${item.bookingId}:${item.code}`,
-			bookingId: item.bookingId,
-			providerId: item.providerId,
-			code: item.code,
-			severity: item.severity,
-			status: "open",
-			basis: item.basis,
-			reason: item.reason,
-			nextOwner: item.nextOwner,
-			source: item.source,
-			openedAt: null,
-			acknowledgedAt: null,
-			resolvedAt: null,
-			resolvedBy: null,
-			resolutionNote: null,
-			createdAt: null,
-			updatedAt: null,
-			overlaySource: "derived_only",
-			persistedId: null,
-			derived: true,
-		})
-	}
-
-	return overlay
-		.filter((item) => (params.status === "all" ? true : item.status === params.status))
-		.filter((item) => (params.code === "all" ? true : item.code === params.code))
-		.filter((item) => (params.nextOwner === "all" ? true : item.nextOwner === params.nextOwner))
-		.filter((item) => (params.bookingId ? item.bookingId === params.bookingId : true))
-		.slice(0, params.limit)
-}
-
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
@@ -149,25 +63,37 @@ export const GET: APIRoute = async ({ request, url }) => {
 		url,
 	} as Parameters<APIRoute>[0])
 	if (derivedResult.response) return derivedResult.response
-	const persisted = await listFinancialExceptions(
-		{ exceptions: financialExceptionRepository },
-		{
+	let persisted: FinancialExceptionRecord[] = []
+	let degraded = false
+	try {
+		persisted = await listFinancialExceptions(
+			{ exceptions: financialExceptionRepository },
+			{
+				providerId: auth.providerId,
+				status: "all",
+				code: "all",
+				nextOwner: "all",
+				bookingId,
+				limit: 500,
+			}
+		)
+	} catch (error) {
+		degraded = true
+		console.warn("financial_exception_lookup_degraded", {
 			providerId: auth.providerId,
-			status: "all",
-			code: "all",
-			nextOwner: "all",
-			bookingId,
-			limit: 500,
-		}
-	)
-	const items = buildOverlay({
+			error: error instanceof Error ? error.message : "unknown",
+		})
+	}
+	const items = buildFinancialReviewOverlay({
 		persisted,
 		derived: derivedResult.derived,
-		status,
-		code,
-		nextOwner,
-		bookingId,
-		limit,
+		filter: {
+			status,
+			code,
+			nextOwner,
+			bookingId,
+			limit,
+		},
 	})
 	const persistedCount = items.filter((item) => item.overlaySource !== "derived_only").length
 	const derivedOnlyCount = items.filter((item) => item.overlaySource === "derived_only").length
@@ -193,6 +119,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			autoBackfill: false,
 			autoReopen: false,
 			readOnly: true,
+			degraded,
 		},
 	})
 }
