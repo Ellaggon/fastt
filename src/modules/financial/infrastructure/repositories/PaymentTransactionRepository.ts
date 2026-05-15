@@ -1,4 +1,12 @@
-import { and, desc, eq, inArray, PaymentTransaction as PaymentTransactionTable, db } from "astro:db"
+import {
+	and,
+	desc,
+	eq,
+	inArray,
+	PaymentTransaction as PaymentTransactionTable,
+	db,
+	sql,
+} from "astro:db"
 
 import type {
 	PaymentTransactionCreateInput,
@@ -82,6 +90,27 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 		return row ? map(row) : null
 	}
 
+	async findUnmatchedByProvider(params: {
+		providerId: string
+		limit?: number
+	}): Promise<PaymentTransaction[]> {
+		const providerId = String(params.providerId ?? "").trim()
+		if (!providerId) return []
+		const rows = await db
+			.select()
+			.from(PaymentTransactionTable)
+			.where(
+				and(
+					eq(PaymentTransactionTable.providerId, providerId),
+					sql`${PaymentTransactionTable.bookingId} LIKE 'unmatched:%'`
+				)
+			)
+			.orderBy(desc(PaymentTransactionTable.occurredAt))
+			.limit(Math.max(1, Math.min(Number(params.limit ?? 100), 500)))
+			.all()
+		return rows.map(map)
+	}
+
 	async createIfAbsent(input: PaymentTransactionCreateInput): Promise<{
 		transaction: PaymentTransaction
 		created: boolean
@@ -95,10 +124,21 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 		if (existing) return { transaction: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
-		await db
-			.insert(PaymentTransactionTable)
-			.values(row as any)
-			.run()
+		try {
+			await db
+				.insert(PaymentTransactionTable)
+				.values(row as any)
+				.run()
+		} catch (error) {
+			const existingAfterCollision = await this.findExisting({
+				providerId: input.providerId,
+				pspProvider: input.pspProvider,
+				externalReference: input.externalReference,
+				type: input.type,
+			})
+			if (existingAfterCollision) return { transaction: existingAfterCollision, created: false }
+			throw error
+		}
 		return { transaction: map(row), created: true }
 	}
 

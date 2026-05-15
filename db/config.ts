@@ -925,6 +925,7 @@ const FinancialReviewEvent = defineTable({
 		financialExceptionId: column.text({ optional: true }),
 		financialReferenceId: column.text({ optional: true }),
 		refundHandoffId: column.text({ optional: true }),
+		reconciliationMatchId: column.text({ optional: true }),
 		type: column.text(),
 		actorId: column.text({ optional: true }),
 		actorType: column.text(),
@@ -937,6 +938,7 @@ const FinancialReviewEvent = defineTable({
 		{ on: ["financialExceptionId"] },
 		{ on: ["financialReferenceId"] },
 		{ on: ["refundHandoffId"] },
+		{ on: ["reconciliationMatchId"] },
 	],
 })
 const PaymentTransaction = defineTable({
@@ -1005,8 +1007,12 @@ const ReconciliationMatch = defineTable({
 		settlementAmount: column.number({ optional: true }),
 		differenceAmount: column.number(),
 		status: column.text(), // matched | mismatch | missing_payment | missing_settlement | currency_mismatch
+		mismatchReasons: column.json({ optional: true }),
 		basis: column.text(),
 		reviewStatus: column.text({ optional: true }),
+		reviewState: column.text({ optional: true }),
+		comparisonFingerprint: column.text({ optional: true }),
+		reviewFingerprint: column.text({ optional: true }),
 		reviewedAt: column.date({ optional: true }),
 		reviewedBy: column.text({ optional: true }),
 		reviewNote: column.text({ optional: true }),

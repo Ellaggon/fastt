@@ -113,6 +113,7 @@ export type FinancialReviewEventRepositoryPort = {
 		bookingId?: string
 		financialExceptionId?: string
 		refundHandoffId?: string
+		reconciliationMatchId?: string
 		limit?: number
 	}): Promise<FinancialReviewEvent[]>
 }

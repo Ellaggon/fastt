@@ -37,7 +37,6 @@ export const POST: APIRoute = async ({ request }) => {
 	const settlementDate = body.settlementDate ? new Date(String(body.settlementDate)) : new Date()
 	const source = String(body.source ?? "import").trim() as FinancialSettlementRecordSource
 	if (
-		!bookingId ||
 		!settlementReference ||
 		!Number.isFinite(amount) ||
 		!currency ||
@@ -46,10 +45,10 @@ export const POST: APIRoute = async ({ request }) => {
 	) {
 		return json({ error: "validation_error" }, 400)
 	}
-	if (!(await bookingBelongsToProvider(bookingId, auth.providerId)))
+	if (bookingId && !(await bookingBelongsToProvider(bookingId, auth.providerId)))
 		return json({ error: "not_found" }, 404)
 	const result = await financialSettlementRecordRepository.createIfAbsent({
-		bookingId,
+		bookingId: bookingId || `unmatched:${auth.providerId}:settlement:${settlementReference}`,
 		providerId: auth.providerId,
 		settlementReference,
 		amount,

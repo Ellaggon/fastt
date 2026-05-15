@@ -166,7 +166,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			evidenceAlignment: review.evidenceAlignment,
 			reconciliation: {
 				status,
-				basis: "snapshot_and_shadow_evidence_comparison",
+				basis: "legacy_snapshot_and_shadow_evidence_comparison",
+				deprecated: true,
+				compatibilityOnly: true,
+				replacement: "match.status",
+				readOnly: true,
+			},
+			legacyReconciliationCompatibility: {
+				status,
+				basis: "legacy_snapshot_and_shadow_evidence_comparison",
 				readOnly: true,
 			},
 		})

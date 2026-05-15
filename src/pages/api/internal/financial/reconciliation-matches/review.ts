@@ -14,6 +14,7 @@ import {
 } from "astro:db"
 
 import {
+	financialReviewEventRepository,
 	financialReferenceRepository,
 	financialSettlementRecordRepository,
 	paymentTransactionRepository,
@@ -105,6 +106,42 @@ export const POST: APIRoute = async ({ request }) => {
 			settlementRecords: settlementRecords.filter((row) => row.providerId === auth.providerId),
 			references: references.filter((row) => row.providerId === auth.providerId),
 		})
+		const previous = await reconciliationMatchRepository.findByBookingIdForProvider(
+			match.bookingId,
+			auth.providerId
+		)
+		const previousState =
+			previous?.reviewStatus === "reviewed"
+				? previous.reviewFingerprint === match.comparisonFingerprint
+					? "fresh"
+					: "stale"
+				: (previous?.reviewState ?? "fresh")
+		if (
+			previous?.reviewStatus === "reviewed" &&
+			previous.reviewFingerprint !== match.comparisonFingerprint
+		) {
+			await financialReviewEventRepository.append({
+				bookingId: match.bookingId,
+				providerId: auth.providerId,
+				reconciliationMatchId: previous.id,
+				type: "reconciliation_review_marked_stale",
+				actorId: auth.user.email,
+				actorType: "operator",
+				payloadJson: {
+					previousState,
+					newState: "stale",
+					previousFingerprint: previous.reviewFingerprint,
+					currentFingerprint: match.comparisonFingerprint,
+					evidenceBasis: {
+						status: match.status,
+						mismatchReasons: match.mismatchReasons,
+						paymentAmount: match.paymentAmount,
+						settlementAmount: match.settlementAmount,
+						contractAmount: match.contractAmount,
+					},
+				},
+			})
+		}
 		const reviewed = await reconciliationMatchRepository.createOrUpdate({
 			id: match.id,
 			bookingId: match.bookingId,
@@ -114,11 +151,38 @@ export const POST: APIRoute = async ({ request }) => {
 			settlementAmount: match.settlementAmount,
 			differenceAmount: match.differenceAmount,
 			status: match.status,
+			mismatchReasons: match.mismatchReasons,
 			basis: match.basis,
 			reviewStatus: "reviewed",
+			reviewState: "fresh",
+			comparisonFingerprint: match.comparisonFingerprint,
+			reviewFingerprint: match.comparisonFingerprint,
 			reviewedAt: new Date(),
 			reviewedBy: auth.user.email,
 			reviewNote,
+		})
+		await financialReviewEventRepository.append({
+			bookingId: match.bookingId,
+			providerId: auth.providerId,
+			reconciliationMatchId: reviewed.id,
+			type: "reconciliation_match_reviewed",
+			actorId: auth.user.email,
+			actorType: "operator",
+			payloadJson: {
+				previousState,
+				newState: "fresh",
+				previousReviewStatus: previous?.reviewStatus ?? "unreviewed",
+				newReviewStatus: "reviewed",
+				evidenceBasis: {
+					status: match.status,
+					mismatchReasons: match.mismatchReasons,
+					comparisonFingerprint: match.comparisonFingerprint,
+					contractAmount: match.contractAmount,
+					paymentAmount: match.paymentAmount,
+					settlementAmount: match.settlementAmount,
+					differenceAmount: match.differenceAmount,
+				},
+			},
 		})
 		return json({ item: reviewed, reviewOnly: true })
 	} catch (error) {

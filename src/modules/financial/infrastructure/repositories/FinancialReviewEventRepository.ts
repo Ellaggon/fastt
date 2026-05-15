@@ -14,6 +14,7 @@ function map(row: any): FinancialReviewEvent {
 		financialExceptionId: row.financialExceptionId ?? null,
 		financialReferenceId: row.financialReferenceId ?? null,
 		refundHandoffId: row.refundHandoffId ?? null,
+		reconciliationMatchId: row.reconciliationMatchId ?? null,
 		type: String(row.type) as FinancialReviewEvent["type"],
 		actorId: row.actorId ?? null,
 		actorType: String(row.actorType) as FinancialReviewEvent["actorType"],
@@ -37,6 +38,7 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 		bookingId?: string
 		financialExceptionId?: string
 		refundHandoffId?: string
+		reconciliationMatchId?: string
 		limit?: number
 	}): Promise<FinancialReviewEvent[]> {
 		const providerId = String(params?.providerId ?? "").trim()
@@ -48,6 +50,11 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 		}
 		if (params?.refundHandoffId) {
 			filters.push(eq(FinancialReviewEventTable.refundHandoffId, params.refundHandoffId))
+		}
+		if (params?.reconciliationMatchId) {
+			filters.push(
+				eq(FinancialReviewEventTable.reconciliationMatchId, params.reconciliationMatchId)
+			)
 		}
 		const rows = await db
 			.select()

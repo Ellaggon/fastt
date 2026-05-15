@@ -1,7 +1,11 @@
 import type { FinancialSettlementRecord } from "../../domain/financial-settlement-record"
 import type { FinancialReference } from "../../domain/financial-reference"
 import type { PaymentTransaction } from "../../domain/payment-transaction"
-import type { ReconciliationMatchStatus } from "../../domain/reconciliation-match"
+import type {
+	ReconciliationMatchStatus,
+	ReconciliationMismatchReason,
+	ReconciliationReviewState,
+} from "../../domain/reconciliation-match"
 import type {
 	FinancialOperationBookingRow,
 	FinancialShadowEvidenceRow,
@@ -32,7 +36,9 @@ export type FinancialReconciliationMatchDraft = {
 	settlementAmount: number | null
 	differenceAmount: number
 	status: ReconciliationMatchStatus
+	mismatchReasons: ReconciliationMismatchReason[]
 	basis: "booking_snapshot_payment_transaction_settlement_evidence"
+	comparisonFingerprint: string
 	currency: string
 	contract: {
 		amount: number
@@ -54,10 +60,19 @@ export type FinancialReconciliationMatchDraft = {
 	}
 	references: FinancialReference[]
 	reviewStatus?: "unreviewed" | "reviewed" | null
+	reviewState?: ReconciliationReviewState | null
+	reviewFingerprint?: string | null
 	reviewedAt?: Date | null
 	reviewedBy?: string | null
 	reviewNote?: string | null
-	queues: Array<"missing_payment" | "missing_settlement" | "mismatch" | "currency_mismatch">
+	queues: Array<
+		| "missing_payment"
+		| "missing_settlement"
+		| "mismatch"
+		| "currency_mismatch"
+		| "missing_capture_reference"
+		| "refund_without_matching_cancellation"
+	>
 	compatibility: {
 		usesFinancialShadowEvidence: boolean
 		shadowPaymentAmount: number | null
@@ -87,6 +102,56 @@ function firstCurrency(rows: Array<{ currency: string }>): string | null {
 
 function nonTerminalPaymentTransactions(rows: PaymentTransaction[]): PaymentTransaction[] {
 	return rows.filter((row) => row.status !== "failed" && row.status !== "cancelled")
+}
+
+function stableJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+	if (value && typeof value === "object") {
+		return `{${Object.entries(value as Record<string, unknown>)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+			.join(",")}}`
+	}
+	return JSON.stringify(value)
+}
+
+export function buildFinancialReconciliationFingerprint(params: {
+	bookingId: string
+	contractAmount: number
+	currency: string
+	paymentTransactions: PaymentTransaction[]
+	settlementRecords: FinancialSettlementRecord[]
+}): string {
+	const payment = params.paymentTransactions
+		.map((row) => ({
+			type: row.type,
+			status: row.status,
+			amount: row.amount,
+			currency: row.currency,
+			externalReference: row.externalReference,
+			pspProvider: row.pspProvider,
+			occurredAt: row.occurredAt?.toISOString?.() ?? String(row.occurredAt),
+		}))
+		.sort((a, b) =>
+			`${a.pspProvider}:${a.externalReference}:${a.type}`.localeCompare(
+				`${b.pspProvider}:${b.externalReference}:${b.type}`
+			)
+		)
+	const settlement = params.settlementRecords
+		.map((row) => ({
+			amount: row.amount,
+			currency: row.currency,
+			settlementReference: row.settlementReference,
+			settlementDate: row.settlementDate?.toISOString?.() ?? String(row.settlementDate),
+		}))
+		.sort((a, b) => a.settlementReference.localeCompare(b.settlementReference))
+	return stableJson({
+		bookingId: params.bookingId,
+		contractAmount: roundMoney(params.contractAmount),
+		currency: params.currency,
+		payment,
+		settlement,
+	})
 }
 
 function difference(
@@ -134,6 +199,11 @@ export function buildFinancialReconciliationMatch(params: {
 		providerId: params.providerId,
 	})
 	const paymentTransactions = nonTerminalPaymentTransactions(params.paymentTransactions)
+	const hasIntentOrAuthorization = paymentTransactions.some(
+		(row) => row.type === "intent" || row.type === "authorization"
+	)
+	const hasCapture = paymentTransactions.some((row) => row.type === "capture")
+	const hasRefundTransaction = paymentTransactions.some((row) => row.type === "refund")
 	const paymentAmount = sumAmounts(
 		paymentTransactions.filter((row) => row.type !== "refund" && row.type !== "void")
 	)
@@ -162,10 +232,48 @@ export function buildFinancialReconciliationMatch(params: {
 			.filter((row) => Number.isFinite(row.amount))
 	)
 	const queues: FinancialReconciliationMatchDraft["queues"] = []
+	const mismatchReasons: ReconciliationMismatchReason[] = []
+	if (
+		paymentAmount != null &&
+		paymentCurrency === review.currency &&
+		Math.abs(review.contractTotal - paymentAmount) > 0.01
+	) {
+		mismatchReasons.push("payment_amount_mismatch")
+	}
+	if (
+		settlementAmount != null &&
+		settlementCurrency === review.currency &&
+		Math.abs(review.contractTotal - settlementAmount) > 0.01
+	) {
+		mismatchReasons.push("settlement_amount_mismatch")
+	}
+	if (hasIntentOrAuthorization && !hasCapture) {
+		mismatchReasons.push("missing_capture_reference")
+	}
+	if (
+		hasRefundTransaction &&
+		review.status.toLowerCase() !== "cancelled" &&
+		review.refund.state !== "refund_handoff_required" &&
+		review.refund.state !== "refund_evidence_visible"
+	) {
+		mismatchReasons.push("refund_without_matching_cancellation")
+	}
 	if (status === "missing_payment") queues.push("missing_payment")
 	if (status === "missing_settlement") queues.push("missing_settlement")
 	if (status === "mismatch") queues.push("mismatch")
 	if (status === "currency_mismatch") queues.push("currency_mismatch")
+	if (mismatchReasons.includes("missing_capture_reference"))
+		queues.push("missing_capture_reference")
+	if (mismatchReasons.includes("refund_without_matching_cancellation")) {
+		queues.push("refund_without_matching_cancellation")
+	}
+	const comparisonFingerprint = buildFinancialReconciliationFingerprint({
+		bookingId: review.bookingId,
+		contractAmount: review.contractTotal,
+		currency: review.currency,
+		paymentTransactions,
+		settlementRecords: params.settlementRecords,
+	})
 
 	return {
 		id: `recon:${review.bookingId}`,
@@ -176,7 +284,9 @@ export function buildFinancialReconciliationMatch(params: {
 		settlementAmount,
 		differenceAmount,
 		status,
+		mismatchReasons,
 		basis: "booking_snapshot_payment_transaction_settlement_evidence",
+		comparisonFingerprint,
 		currency: review.currency,
 		contract: {
 			amount: review.contractTotal,

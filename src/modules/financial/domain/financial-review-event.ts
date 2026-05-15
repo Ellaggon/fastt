@@ -15,6 +15,9 @@ export const FINANCIAL_REVIEW_EVENT_TYPES = [
 	"refund_handoff_acknowledged",
 	"refund_handoff_closed",
 	"refund_handoff_dismissed",
+	"reconciliation_match_reviewed",
+	"reconciliation_review_reopened",
+	"reconciliation_review_marked_stale",
 	"note_added",
 ] as const
 
@@ -28,6 +31,7 @@ export type FinancialReviewEvent = {
 	financialExceptionId?: string | null
 	financialReferenceId?: string | null
 	refundHandoffId?: string | null
+	reconciliationMatchId?: string | null
 	type: FinancialReviewEventType
 	actorId?: string | null
 	actorType: FinancialReviewActorType

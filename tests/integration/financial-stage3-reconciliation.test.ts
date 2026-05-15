@@ -149,4 +149,68 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 		})
 		expect(currencyMismatch.status).toBe("currency_mismatch")
 	})
+
+	it("explains payment, settlement, capture, and refund/cancellation diagnostics", () => {
+		const missingCapture = buildFinancialReconciliationMatch({
+			group: baseGroup,
+			shadowRows: [],
+			taxRows: [],
+			providerId: "provider_stage3",
+			paymentTransactions: [payment({ type: "authorization" })],
+			settlementRecords: [settlement()],
+			references: [],
+		})
+		expect(missingCapture.mismatchReasons).toContain("missing_capture_reference")
+		expect(missingCapture.queues).toContain("missing_capture_reference")
+
+		const amountMismatch = buildFinancialReconciliationMatch({
+			group: baseGroup,
+			shadowRows: [],
+			taxRows: [],
+			providerId: "provider_stage3",
+			paymentTransactions: [payment({ amount: 190 })],
+			settlementRecords: [settlement({ amount: 205 })],
+			references: [],
+		})
+		expect(amountMismatch.mismatchReasons).toEqual(
+			expect.arrayContaining(["payment_amount_mismatch", "settlement_amount_mismatch"])
+		)
+
+		const refundMismatch = buildFinancialReconciliationMatch({
+			group: baseGroup,
+			shadowRows: [],
+			taxRows: [],
+			providerId: "provider_stage3",
+			paymentTransactions: [
+				payment({ type: "refund", amount: 20, externalReference: "refund_ref" }),
+			],
+			settlementRecords: [settlement()],
+			references: [],
+		})
+		expect(refundMismatch.mismatchReasons).toContain("refund_without_matching_cancellation")
+	})
+
+	it("builds deterministic comparison fingerprints from snapshots and persisted evidence", () => {
+		const first = buildFinancialReconciliationMatch({
+			group: baseGroup,
+			shadowRows: [],
+			taxRows: [],
+			providerId: "provider_stage3",
+			paymentTransactions: [payment()],
+			settlementRecords: [settlement()],
+			references: [],
+		})
+		const second = buildFinancialReconciliationMatch({
+			group: [...baseGroup].reverse(),
+			shadowRows: [
+				{ bookingId: "booking_stage3_1", type: "payment_intent", payload: { amount: 200 } },
+			],
+			taxRows: [],
+			providerId: "provider_stage3",
+			paymentTransactions: [payment()],
+			settlementRecords: [settlement()],
+			references: [],
+		})
+		expect(first.comparisonFingerprint).toBe(second.comparisonFingerprint)
+	})
 })

@@ -5,6 +5,7 @@ import {
 	FinancialSettlementRecord as FinancialSettlementRecordTable,
 	db,
 	inArray,
+	sql,
 } from "astro:db"
 
 import type {
@@ -79,6 +80,27 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 		return row ? map(row) : null
 	}
 
+	async findUnmatchedByProvider(params: {
+		providerId: string
+		limit?: number
+	}): Promise<FinancialSettlementRecord[]> {
+		const providerId = String(params.providerId ?? "").trim()
+		if (!providerId) return []
+		const rows = await db
+			.select()
+			.from(FinancialSettlementRecordTable)
+			.where(
+				and(
+					eq(FinancialSettlementRecordTable.providerId, providerId),
+					sql`${FinancialSettlementRecordTable.bookingId} LIKE 'unmatched:%'`
+				)
+			)
+			.orderBy(desc(FinancialSettlementRecordTable.settlementDate))
+			.limit(Math.max(1, Math.min(Number(params.limit ?? 100), 500)))
+			.all()
+		return rows.map(map)
+	}
+
 	async createIfAbsent(input: FinancialSettlementRecordCreateInput): Promise<{
 		settlement: FinancialSettlementRecord
 		created: boolean
@@ -89,10 +111,19 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 		})
 		if (existing) return { settlement: existing, created: false }
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: new Date() }
-		await db
-			.insert(FinancialSettlementRecordTable)
-			.values(row as any)
-			.run()
+		try {
+			await db
+				.insert(FinancialSettlementRecordTable)
+				.values(row as any)
+				.run()
+		} catch (error) {
+			const existingAfterCollision = await this.findExisting({
+				providerId: input.providerId,
+				settlementReference: input.settlementReference,
+			})
+			if (existingAfterCollision) return { settlement: existingAfterCollision, created: false }
+			throw error
+		}
 		return { settlement: map(row), created: true }
 	}
 }

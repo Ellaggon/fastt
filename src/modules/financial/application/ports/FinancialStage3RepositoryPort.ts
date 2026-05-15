@@ -31,6 +31,10 @@ export type PaymentTransactionRepositoryPort = {
 		type?: PaymentTransactionType | "all"
 		limit?: number
 	}): Promise<PaymentTransaction[]>
+	findUnmatchedByProvider(params: {
+		providerId: string
+		limit?: number
+	}): Promise<PaymentTransaction[]>
 	findExisting(params: {
 		providerId: string
 		pspProvider: string
@@ -60,6 +64,10 @@ export type FinancialSettlementRecordRepositoryPort = {
 		bookingIds?: string[]
 		limit?: number
 	}): Promise<FinancialSettlementRecord[]>
+	findUnmatchedByProvider(params: {
+		providerId: string
+		limit?: number
+	}): Promise<FinancialSettlementRecord[]>
 	findExisting(params: {
 		providerId: string
 		settlementReference: string
@@ -72,6 +80,10 @@ export type FinancialSettlementRecordRepositoryPort = {
 
 export type ReconciliationMatchRepositoryPort = {
 	findByBookingId(bookingId: string): Promise<ReconciliationMatch | null>
+	findByBookingIdForProvider(
+		bookingId: string,
+		providerId: string
+	): Promise<ReconciliationMatch | null>
 	findByProvider(params: {
 		providerId: string
 		status?: ReconciliationMatch["status"] | "all"
