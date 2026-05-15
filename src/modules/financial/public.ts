@@ -2,6 +2,10 @@
 // External consumers MUST import from "@/modules/financial/public".
 
 // Domain contracts
+export * from "./domain/stage3-truth-boundary"
+
+// Stage 2 shadow compatibility contracts. These remain public for existing booking confirmation
+// and legacy visibility reads, but they are not Stage 3 truth sources for Provider Finance.
 export * from "./domain/payment-intent"
 export * from "./domain/settlement-record"
 export * from "./domain/refund-record"

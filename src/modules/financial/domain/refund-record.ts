@@ -16,5 +16,7 @@ export type LegacyRefundShadow = {
 	status: LegacyRefundShadowStatus
 }
 
+/** @deprecated Use PaymentTransaction(type: "refund") for Stage 3 refund evidence identity. */
 export type RefundRecordStatus = LegacyRefundShadowStatus
+/** @deprecated Compatibility alias only. Do not use as refund execution truth. */
 export type RefundRecord = LegacyRefundShadow

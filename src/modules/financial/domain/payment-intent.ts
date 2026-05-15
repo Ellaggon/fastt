@@ -19,5 +19,7 @@ export type LegacyPaymentIntentShadow = {
 	metadata?: Record<string, unknown>
 }
 
+/** @deprecated Use PaymentTransaction for Stage 3 PSP evidence identity. */
 export type PaymentIntentStatus = LegacyPaymentIntentShadowStatus
+/** @deprecated Compatibility alias only. Do not use as payment transaction truth. */
 export type PaymentIntent = LegacyPaymentIntentShadow
