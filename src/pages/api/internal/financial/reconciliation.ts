@@ -17,6 +17,12 @@ import {
 	buildFinancialOperationReview,
 	readFinancialShadowAmount,
 } from "@/modules/financial/application/use-cases/build-financial-operation-review"
+import { buildFinancialReconciliationMatch } from "@/modules/financial/application/use-cases/build-financial-reconciliation-match"
+import {
+	financialReferenceRepository,
+	financialSettlementRecordRepository,
+	paymentTransactionRepository,
+} from "@/container/financial.container"
 
 import { bookingBelongsToProvider, json, requireFinancialProvider } from "./_stage2"
 
@@ -94,6 +100,37 @@ export const GET: APIRoute = async ({ request, url }) => {
 			taxRows,
 			providerId: auth.providerId,
 		})
+		let paymentTransactions: Awaited<
+			ReturnType<typeof paymentTransactionRepository.findByBookingId>
+		> = []
+		let settlementRecords: Awaited<
+			ReturnType<typeof financialSettlementRecordRepository.findByBookingId>
+		> = []
+		let references: Awaited<ReturnType<typeof financialReferenceRepository.findByBookingId>> = []
+		let stage3Degraded = false
+		try {
+			;[paymentTransactions, settlementRecords, references] = await Promise.all([
+				paymentTransactionRepository.findByBookingId(bookingId),
+				financialSettlementRecordRepository.findByBookingId(bookingId),
+				financialReferenceRepository.findByBookingId(bookingId),
+			])
+		} catch (error) {
+			stage3Degraded = true
+			console.warn("financial_stage3_reconciliation_lookup_degraded", {
+				providerId: auth.providerId,
+				bookingId,
+				error: error instanceof Error ? error.message : "unknown",
+			})
+		}
+		const match = buildFinancialReconciliationMatch({
+			group: rows,
+			shadowRows,
+			taxRows,
+			providerId: auth.providerId,
+			paymentTransactions: paymentTransactions.filter((row) => row.providerId === auth.providerId),
+			settlementRecords: settlementRecords.filter((row) => row.providerId === auth.providerId),
+			references: references.filter((row) => row.providerId === auth.providerId),
+		})
 
 		const paymentEvidenceRows = shadowRows.filter((row) => row.type === "payment_intent")
 		const paymentEvidenceAligned = paymentEvidenceRows.some(
@@ -110,11 +147,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 				currency: review.currency,
 				multiRoomAllocationCount: review.snapshotIntegrity.multiRoomAllocationCount,
 			},
+			match,
+			queues: match.queues,
+			stage3: {
+				degraded: stage3Degraded,
+				source: "payment_transaction_and_settlement_evidence",
+				readOnly: true,
+			},
 			financial: {
 				paymentIntents: paymentEvidenceRows.map((row) => row.payload),
 				settlementRecords: shadowRows
 					.filter((row) => row.type === "settlement_record")
 					.map((row) => row.payload),
+				paymentTransactions,
+				financialSettlementRecords: settlementRecords,
+				references,
 			},
 			evidenceAlignment: review.evidenceAlignment,
 			reconciliation: {

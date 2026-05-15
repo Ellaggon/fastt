@@ -939,6 +939,87 @@ const FinancialReviewEvent = defineTable({
 		{ on: ["refundHandoffId"] },
 	],
 })
+const PaymentTransaction = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		type: column.text(), // intent | authorization | capture | void | refund
+		status: column.text(), // created | visible | recorded | failed | cancelled | unknown
+		amount: column.number(),
+		currency: column.text(),
+		externalReference: column.text(),
+		pspProvider: column.text(),
+		idempotencyKey: column.text(),
+		occurredAt: column.date(),
+		source: column.text(),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "type", "status"] },
+		{ on: ["providerId", "pspProvider", "externalReference"] },
+		{ on: ["idempotencyKey"] },
+		{ on: ["occurredAt"] },
+	],
+})
+const PaymentAttempt = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		paymentTransactionId: column.text(),
+		attemptType: column.text(),
+		status: column.text(),
+		failureReason: column.text({ optional: true }),
+		externalReference: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["paymentTransactionId"] }, { on: ["externalReference"] }],
+})
+const FinancialSettlementRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		settlementReference: column.text(),
+		amount: column.number(),
+		currency: column.text(),
+		settlementDate: column.date(),
+		source: column.text(),
+		matchedAt: column.date({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "settlementReference"] },
+		{ on: ["settlementDate"] },
+	],
+})
+const ReconciliationMatch = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		contractAmount: column.number(),
+		paymentAmount: column.number({ optional: true }),
+		settlementAmount: column.number({ optional: true }),
+		differenceAmount: column.number(),
+		status: column.text(), // matched | mismatch | missing_payment | missing_settlement | currency_mismatch
+		basis: column.text(),
+		reviewStatus: column.text({ optional: true }),
+		reviewedAt: column.date({ optional: true }),
+		reviewedBy: column.text({ optional: true }),
+		reviewNote: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "status"] },
+		{ on: ["providerId", "reviewStatus"] },
+		{ on: ["updatedAt"] },
+	],
+})
 
 export default defineDb({
 	tables: {
@@ -1022,5 +1103,9 @@ export default defineDb({
 		FinancialReference,
 		RefundHandoffRecord,
 		FinancialReviewEvent,
+		PaymentTransaction,
+		PaymentAttempt,
+		FinancialSettlementRecord,
+		ReconciliationMatch,
 	},
 })

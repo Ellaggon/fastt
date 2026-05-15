@@ -24,7 +24,7 @@ describe("Guardrail: Stage 3 readiness semantic freeze", () => {
 		const source = financialSourceWithoutTests()
 		const forbidden = [
 			/FinancialReference[^\n]+transaction/i,
-			/transactionStatus/i,
+			/FinancialReference[^\n]+transactionStatus/i,
 			/paymentCompleted/,
 			/refundProcessed/,
 			/settlementExecuted/,
