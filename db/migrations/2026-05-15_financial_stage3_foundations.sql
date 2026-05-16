@@ -20,18 +20,6 @@ CREATE INDEX IF NOT EXISTS "PaymentTransaction_providerId_pspProvider_externalRe
 CREATE INDEX IF NOT EXISTS "PaymentTransaction_idempotencyKey_idx" ON "PaymentTransaction" ("idempotencyKey");
 CREATE INDEX IF NOT EXISTS "PaymentTransaction_occurredAt_idx" ON "PaymentTransaction" ("occurredAt");
 
-CREATE TABLE IF NOT EXISTS "PaymentAttempt" (
-  "id" TEXT PRIMARY KEY NOT NULL,
-  "paymentTransactionId" TEXT NOT NULL,
-  "attemptType" TEXT NOT NULL,
-  "status" TEXT NOT NULL,
-  "failureReason" TEXT,
-  "externalReference" TEXT,
-  "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
-);
-CREATE INDEX IF NOT EXISTS "PaymentAttempt_paymentTransactionId_idx" ON "PaymentAttempt" ("paymentTransactionId");
-CREATE INDEX IF NOT EXISTS "PaymentAttempt_externalReference_idx" ON "PaymentAttempt" ("externalReference");
-
 CREATE TABLE IF NOT EXISTS "FinancialSettlementRecord" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "bookingId" TEXT NOT NULL,

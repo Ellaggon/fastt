@@ -1,9 +1,6 @@
 import type { APIRoute } from "astro"
 
-import {
-	paymentAttemptRepository,
-	paymentTransactionRepository,
-} from "@/container/financial.container"
+import { paymentTransactionRepository } from "@/container/financial.container"
 import type {
 	PaymentTransactionSource,
 	PaymentTransactionStatus,
@@ -88,12 +85,11 @@ export const POST: APIRoute = async ({ request }) => {
 		occurredAt,
 		source,
 	})
-	const attempt = await paymentAttemptRepository.create({
-		paymentTransactionId: result.transaction.id,
-		attemptType: result.created ? "import" : "duplicate_detection",
-		status: result.created ? "recorded" : "duplicate",
-		externalReference,
-		failureReason: result.created ? null : "duplicate_external_reference_visible",
-	})
-	return json({ ...result, attempt }, result.created ? 201 : 200)
+	return json(
+		{
+			...result,
+			diagnostic: result.created ? "transaction evidence recorded" : "duplicate reference visible",
+		},
+		result.created ? 201 : 200
+	)
 }

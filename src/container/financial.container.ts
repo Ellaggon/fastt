@@ -5,7 +5,6 @@ import { FinancialRepository } from "@/modules/financial/infrastructure/reposito
 import { FinancialReviewEventRepository } from "@/modules/financial/infrastructure/repositories/FinancialReviewEventRepository"
 import { FinancialSettlementRecordRepository } from "@/modules/financial/infrastructure/repositories/FinancialSettlementRecordRepository"
 import { CommissionSnapshotRepository } from "@/modules/financial/infrastructure/repositories/CommissionSnapshotRepository"
-import { PaymentAttemptRepository } from "@/modules/financial/infrastructure/repositories/PaymentAttemptRepository"
 import { PaymentTransactionRepository } from "@/modules/financial/infrastructure/repositories/PaymentTransactionRepository"
 import { PayoutRecordRepository } from "@/modules/financial/infrastructure/repositories/PayoutRecordRepository"
 import { ProviderFinancialProfileRepository } from "@/modules/financial/infrastructure/repositories/ProviderFinancialProfileRepository"
@@ -21,7 +20,6 @@ export const financialReferenceRepository = new FinancialReferenceRepository()
 export const refundHandoffRepository = new RefundHandoffRepository()
 export const financialReviewEventRepository = new FinancialReviewEventRepository()
 export const paymentTransactionRepository = new PaymentTransactionRepository()
-export const paymentAttemptRepository = new PaymentAttemptRepository()
 export const financialSettlementRecordRepository = new FinancialSettlementRecordRepository()
 export const reconciliationMatchRepository = new ReconciliationMatchRepository()
 export const providerFinancialProfileRepository = new ProviderFinancialProfileRepository()

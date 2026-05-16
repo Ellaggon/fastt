@@ -495,6 +495,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Provider-facing BFF for settlement evidence visibility; not payout execution.",
 	},
 	{
+		pattern: "/api/internal/financial/provider-finance",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Payments & Finance",
+		rationale:
+			"Provider-facing BFF read model for provider finance visibility; not payout execution or accounting.",
+	},
+	{
 		pattern: "/api/internal/financial/**",
 		status: "internal-only",
 		context: "internal-ops",
