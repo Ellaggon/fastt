@@ -88,6 +88,8 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 			/settled payout/i,
 			/provider balance/i,
 			/provider wallet/i,
+			/wallet/i,
+			/balance engine/i,
 			/tax filing/i,
 			/bank transfer/i,
 			/settlement automation/i,
@@ -156,8 +158,36 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 		expect(materialization).toContain("buildProviderFinanceMaterialization")
 		expect(materialization).toContain("fingerprint")
 		expect(materialization).toContain("staleReasons")
+		expect(materialization).toContain("dependencies")
+		expect(materialization).toContain("provenance")
+		expect(materialization).toContain("lifecycle")
+		expect(materialization).toContain("invalidationReasons")
+		expect(materialization).toContain("nextOperationalAction")
 		expect(materialization).toContain("BookingRoomDetail.totalPrice")
 		expect(materialization).toContain("ProviderPayableSnapshot")
 		expect(materialization).not.toMatch(/\.insert\(|\.update\(|\.delete\(|FinancialShadowRecord/)
+	})
+
+	it("requires Provider Finance summaries to expose operational ownership and next actions", () => {
+		const builder = read(providerFinanceBuilder)
+		expect(builder).toContain("blockingDetails")
+		expect(builder).toContain("operationalOwner")
+		expect(builder).toContain("nextOperationalAction")
+		expect(builder).toContain("snapshotLifecycle")
+		expect(builder).toContain("freshness")
+		expect(builder).toContain("provenance")
+		expect(builder).toContain("statementState")
+		expect(builder).toContain("reconciliation_match")
+		expect(builder).toContain("provider_statement_pending")
+	})
+
+	it("keeps Provider Finance useful by exposing it in the operational /financial surface", () => {
+		const page = read("src/pages/financial/index.astro")
+		expect(page).toContain("/api/internal/financial/provider-finance")
+		expect(page).toContain("Provider finance")
+		expect(page).toContain("blockingDetails")
+		expect(page).toContain("nextOperationalAction")
+		expect(page).toContain("statement freshness")
+		expect(page).not.toMatch(/execute payout|send payout|provider wallet|provider balance|ledger/i)
 	})
 })

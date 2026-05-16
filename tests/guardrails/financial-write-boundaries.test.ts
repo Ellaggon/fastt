@@ -10,7 +10,6 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 		"RefundHandoffRecord",
 		"FinancialReviewEvent",
 		"PaymentTransaction",
-		"PaymentAttempt",
 		"FinancialSettlementRecord",
 		"ReconciliationMatch",
 		"ProviderFinancialProfile",

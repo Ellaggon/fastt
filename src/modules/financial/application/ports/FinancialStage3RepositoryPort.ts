@@ -1,5 +1,4 @@
 import type { FinancialSettlementRecord } from "../../domain/financial-settlement-record"
-import type { PaymentAttempt } from "../../domain/payment-attempt"
 import type { PaymentTransaction, PaymentTransactionType } from "../../domain/payment-transaction"
 import type { ReconciliationMatch } from "../../domain/reconciliation-match"
 
@@ -9,7 +8,6 @@ export type PaymentTransactionCreateInput = Omit<
 > & {
 	id?: string
 }
-export type PaymentAttemptCreateInput = Omit<PaymentAttempt, "id" | "createdAt"> & { id?: string }
 export type FinancialSettlementRecordCreateInput = Omit<
 	FinancialSettlementRecord,
 	"id" | "createdAt"
@@ -50,11 +48,6 @@ export type PaymentTransactionRepositoryPort = {
 	): Promise<
 		Array<{ pspProvider: string; externalReference: string; count: number; bookingIds: string[] }>
 	>
-}
-
-export type PaymentAttemptRepositoryPort = {
-	findByTransactionId(paymentTransactionId: string): Promise<PaymentAttempt[]>
-	create(input: PaymentAttemptCreateInput): Promise<PaymentAttempt>
 }
 
 export type FinancialSettlementRecordRepositoryPort = {

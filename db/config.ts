@@ -792,42 +792,7 @@ const BookingTaxFee = defineTable({
 	indexes: [{ on: ["bookingId"] }],
 })
 
-// 8. Payments / Finance
-
-const Payment = defineTable({
-	/* --- Pagos / Reembolsos / Payouts --- */
-	columns: {
-		id: column.text({ primaryKey: true }),
-		type: column.text(), // payment | refund | adjustment
-		bookingId: column.text({ references: () => Booking.columns.id }),
-		amount: column.number(),
-		currency: column.text(),
-		paymentDate: column.date({ default: NOW }),
-		paymentMethod: column.text(),
-		status: column.text({ default: "Completed" }),
-		processor: column.text({ optional: true }),
-		transactionId: column.text({ optional: true }),
-	},
-})
-const ProviderPayout = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		providerId: column.text({ references: () => Provider.columns.id }),
-		periodStart: column.date(),
-		periodEnd: column.date(),
-		amountUSD: column.number(),
-		commissionUSD: column.number(),
-		paymentDate: column.date({ optional: true }),
-		status: column.text({ default: "Pending" }),
-	},
-})
-const ProviderPayoutBooking = defineTable({
-	columns: {
-		payoutId: column.text({ references: () => ProviderPayout.columns.id }),
-		bookingId: column.text({ references: () => Booking.columns.id }),
-		amountUSD: column.number(),
-	},
-})
+// 8. Financial operations
 
 const FinancialShadowRecord = defineTable({
 	columns: {
@@ -965,18 +930,6 @@ const PaymentTransaction = defineTable({
 		{ on: ["idempotencyKey"] },
 		{ on: ["occurredAt"] },
 	],
-})
-const PaymentAttempt = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		paymentTransactionId: column.text(),
-		attemptType: column.text(),
-		status: column.text(),
-		failureReason: column.text({ optional: true }),
-		externalReference: column.text({ optional: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["paymentTransactionId"] }, { on: ["externalReference"] }],
 })
 const FinancialSettlementRecord = defineTable({
 	columns: {
@@ -1180,16 +1133,12 @@ export default defineDb({
 		BookingTaxFee,
 
 		// 8 finance
-		Payment,
-		ProviderPayout,
-		ProviderPayoutBooking,
 		FinancialShadowRecord,
 		FinancialExceptionRecord,
 		FinancialReference,
 		RefundHandoffRecord,
 		FinancialReviewEvent,
 		PaymentTransaction,
-		PaymentAttempt,
 		FinancialSettlementRecord,
 		ReconciliationMatch,
 		ProviderFinancialProfile,

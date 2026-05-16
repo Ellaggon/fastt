@@ -38,6 +38,25 @@ export type ProviderFinanceQueueCode =
 	| "payout_reference_missing"
 	| "provider_finance_dispute"
 
+export type ProviderFinanceOperationalOwner =
+	| "provider_finance"
+	| "financial_operations"
+	| "provider_followup"
+	| "external_finance"
+
+export type ProviderFinanceBlockingDetail = {
+	code: ProviderFinanceQueueCode
+	owner: ProviderFinanceOperationalOwner
+	reason: string
+	nextOperationalAction: string
+	basis:
+		| "profile"
+		| "commission_snapshot"
+		| "payable_snapshot"
+		| "reconciliation_match"
+		| "statement"
+}
+
 export type ProviderFinanceReviewItem = {
 	bookingId: string
 	providerId: string
@@ -48,6 +67,9 @@ export type ProviderFinanceReviewItem = {
 	netPayable: number | null
 	eligibilityStatus: "eligible" | "blocked" | "pending_reference" | "recorded" | "unknown"
 	blockedReasons: ProviderFinanceQueueCode[]
+	blockingDetails: ProviderFinanceBlockingDetail[]
+	operationalOwner: ProviderFinanceOperationalOwner
+	nextOperationalAction: string
 	contract: {
 		grossAmount: number
 		taxAmount: number
@@ -58,11 +80,28 @@ export type ProviderFinanceReviewItem = {
 		snapshot: CommissionSnapshot | null
 		missing: boolean
 		basis: "commission_snapshot" | "missing_commission_snapshot"
+		provenance: {
+			basis: "booking_room_detail_snapshot" | "missing_commission_snapshot"
+			contractFingerprint: string
+			snapshotAt: Date | null
+			freshness: ProviderFinanceReviewItem["snapshotLifecycle"]["freshness"]
+			staleReasons: string[]
+		}
 	}
 	payable: {
 		snapshot: ProviderPayableSnapshot | null
 		netPayable: number | null
 		basis: "provider_payable_snapshot" | "pending_commission_snapshot"
+		provenance: {
+			basis: "booking_room_detail_snapshot_commission_snapshot" | "pending_commission_snapshot"
+			contractFingerprint: string
+			commissionFingerprint: string | null
+			reconciliationStatus: string | null
+			profileReady: boolean
+			statementState: ProviderFinanceStatementDraft["status"]
+			freshness: ProviderFinanceReviewItem["snapshotLifecycle"]["freshness"]
+			staleReasons: string[]
+		}
 	}
 	reconciliation: {
 		match: ReconciliationMatch | null
@@ -82,6 +121,11 @@ export type ProviderFinanceReviewItem = {
 		visible: boolean
 		pending: boolean
 		state: ProviderFinanceStatementDraft["status"]
+		lifecycle: ProviderFinanceStatementDraft["lifecycle"]
+		staleReasons: string[]
+		dependencies: ProviderFinanceStatementDraft["dependencies"]
+		provenance: ProviderFinanceStatementDraft["provenance"]
+		nextOperationalAction: string
 	}
 	snapshotLifecycle: {
 		commissionState: ProviderFinanceMaterializationItem["commission"]["state"]
@@ -90,6 +134,7 @@ export type ProviderFinanceReviewItem = {
 		commissionFingerprint: string | null
 		payableFingerprint: string | null
 		staleReasons: string[]
+		freshness: "fresh" | "stale" | "blocked" | "missing"
 	}
 	explainability: ProviderFinanceMaterializationItem["explainability"]
 	queues: ProviderFinanceQueueCode[]
@@ -153,6 +198,90 @@ function isProfileReady(profile: ProviderFinancialProfile | null): boolean {
 
 function isReconciliationReady(match: ReconciliationMatch | null): boolean {
 	return Boolean(match && match.status === "matched" && (match.reviewState ?? "fresh") !== "stale")
+}
+
+const queuePriority: ProviderFinanceQueueCode[] = [
+	"provider_profile_incomplete",
+	"commission_snapshot_missing",
+	"provider_finance_dispute",
+	"payout_reference_missing",
+	"provider_statement_pending",
+	"payout_blocked",
+]
+
+function detailForQueue(code: ProviderFinanceQueueCode): ProviderFinanceBlockingDetail {
+	switch (code) {
+		case "provider_profile_incomplete":
+			return {
+				code,
+				owner: "provider_followup",
+				reason: "Provider finance profile is not ready for operational visibility.",
+				nextOperationalAction: "Review provider finance profile requirements.",
+				basis: "profile",
+			}
+		case "commission_snapshot_missing":
+			return {
+				code,
+				owner: "provider_finance",
+				reason: "Commission snapshot is missing or stale against booking snapshots.",
+				nextOperationalAction: "Refresh commission snapshot from persisted contract snapshots.",
+				basis: "commission_snapshot",
+			}
+		case "provider_finance_dispute":
+			return {
+				code,
+				owner: "financial_operations",
+				reason: "Reconciliation match is missing, mismatched, or stale.",
+				nextOperationalAction:
+					"Review reconciliation evidence before provider finance visibility advances.",
+				basis: "reconciliation_match",
+			}
+		case "provider_statement_pending":
+			return {
+				code,
+				owner: "provider_finance",
+				reason: "Provider statement read artifact is missing or stale.",
+				nextOperationalAction: "Review statement draft totals against fresh payable snapshots.",
+				basis: "statement",
+			}
+		case "payout_reference_missing":
+			return {
+				code,
+				owner: "external_finance",
+				reason: "Provider finance reference visibility has not been recorded.",
+				nextOperationalAction:
+					"Record external finance reference when operational evidence is available.",
+				basis: "payable_snapshot",
+			}
+		case "payout_blocked":
+			return {
+				code,
+				owner: "provider_finance",
+				reason: "Provider finance visibility is blocked by upstream operational requirements.",
+				nextOperationalAction:
+					"Resolve the specific blocking reasons before recording reference visibility.",
+				basis: "payable_snapshot",
+			}
+	}
+}
+
+function primaryOperationalDetail(
+	details: ProviderFinanceBlockingDetail[]
+): ProviderFinanceBlockingDetail | null {
+	return (
+		queuePriority.map((code) => details.find((detail) => detail.code === code)).find(Boolean) ??
+		null
+	)
+}
+
+function snapshotFreshness(params: {
+	commissionState: ProviderFinanceMaterializationItem["commission"]["state"]
+	payableState: ProviderFinanceMaterializationItem["payable"]["state"]
+}): ProviderFinanceReviewItem["snapshotLifecycle"]["freshness"] {
+	if (params.commissionState === "blocked" || params.payableState === "blocked") return "blocked"
+	if (params.commissionState === "stale" || params.payableState === "stale") return "stale"
+	if (params.commissionState === "missing" || params.payableState === "missing") return "missing"
+	return "fresh"
 }
 
 export function buildProviderFinanceSummary(params: {
@@ -230,7 +359,19 @@ export function buildProviderFinanceSummary(params: {
 		) {
 			queues.push("payout_reference_missing")
 		}
+		const uniqueQueues = [...new Set(queues)]
+		const blockingDetails = uniqueQueues.map(detailForQueue)
+		const primaryDetail = primaryOperationalDetail(blockingDetails)
 		const payoutStatus = payout?.status ?? (blocked ? "blocked" : "pending_reference")
+		const commissionState = materialized?.commission.state ?? "missing"
+		const payableState = materialized?.payable.state ?? "missing"
+		const freshness = snapshotFreshness({ commissionState, payableState })
+		const contractFingerprint = materialized?.contract.fingerprint ?? ""
+		const commissionFingerprint = materialized?.commission.fingerprint ?? null
+		const staleReasons = [
+			...(materialized?.commission.staleReasons ?? []),
+			...(materialized?.payable.staleReasons ?? []),
+		]
 		return {
 			bookingId,
 			providerId: params.providerId,
@@ -246,6 +387,10 @@ export function buildProviderFinanceSummary(params: {
 					queue !== "provider_statement_pending" &&
 					queue !== "payout_blocked"
 			),
+			blockingDetails,
+			operationalOwner: primaryDetail?.owner ?? "provider_finance",
+			nextOperationalAction:
+				primaryDetail?.nextOperationalAction ?? "Monitor provider finance visibility.",
 			contract: {
 				grossAmount,
 				taxAmount,
@@ -258,6 +403,15 @@ export function buildProviderFinanceSummary(params: {
 				basis: commission
 					? ("commission_snapshot" as const)
 					: ("missing_commission_snapshot" as const),
+				provenance: {
+					basis: commission
+						? ("booking_room_detail_snapshot" as const)
+						: ("missing_commission_snapshot" as const),
+					contractFingerprint,
+					snapshotAt: commission?.snapshotAt ?? null,
+					freshness,
+					staleReasons: materialized?.commission.staleReasons ?? [],
+				},
 			},
 			payable: {
 				snapshot: payable,
@@ -265,6 +419,18 @@ export function buildProviderFinanceSummary(params: {
 				basis: payable
 					? ("provider_payable_snapshot" as const)
 					: ("pending_commission_snapshot" as const),
+				provenance: {
+					basis: payable
+						? ("booking_room_detail_snapshot_commission_snapshot" as const)
+						: ("pending_commission_snapshot" as const),
+					contractFingerprint,
+					commissionFingerprint,
+					reconciliationStatus: reconciliation?.status ?? null,
+					profileReady,
+					statementState: materialization.statement.status,
+					freshness,
+					staleReasons: materialized?.payable.staleReasons ?? [],
+				},
 			},
 			reconciliation: {
 				match: reconciliation,
@@ -284,19 +450,22 @@ export function buildProviderFinanceSummary(params: {
 			},
 			statement: {
 				visible: hasVisibleStatement,
-				pending: !hasVisibleStatement || materialization.statement.status === "stale",
+				pending: materialization.statement.status !== "fresh",
 				state: materialization.statement.status,
+				lifecycle: materialization.statement.lifecycle,
+				staleReasons: materialization.statement.staleReasons,
+				dependencies: materialization.statement.dependencies,
+				provenance: materialization.statement.provenance,
+				nextOperationalAction: materialization.statement.nextOperationalAction,
 			},
 			snapshotLifecycle: {
-				commissionState: materialized?.commission.state ?? "missing",
-				payableState: materialized?.payable.state ?? "missing",
-				contractFingerprint: materialized?.contract.fingerprint ?? "",
-				commissionFingerprint: materialized?.commission.fingerprint ?? null,
+				commissionState,
+				payableState,
+				contractFingerprint,
+				commissionFingerprint,
 				payableFingerprint: materialized?.payable.fingerprint ?? null,
-				staleReasons: [
-					...(materialized?.commission.staleReasons ?? []),
-					...(materialized?.payable.staleReasons ?? []),
-				],
+				staleReasons,
+				freshness,
 			},
 			explainability: materialized?.explainability ?? {
 				grossAmountSource: "BookingRoomDetail.totalPrice",
@@ -305,7 +474,7 @@ export function buildProviderFinanceSummary(params: {
 				payableSource: "pending_provider_payable_snapshot",
 				reconciliationSource: "ReconciliationMatch",
 			},
-			queues,
+			queues: uniqueQueues,
 		}
 	})
 

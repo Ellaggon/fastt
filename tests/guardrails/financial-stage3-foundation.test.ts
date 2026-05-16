@@ -5,7 +5,6 @@ import { financialSourceFiles, read } from "./financial-stage2-guardrail-utils"
 
 const stage3Domains = [
 	"src/modules/financial/domain/payment-transaction.ts",
-	"src/modules/financial/domain/payment-attempt.ts",
 	"src/modules/financial/domain/financial-settlement-record.ts",
 	"src/modules/financial/domain/reconciliation-match.ts",
 ]
@@ -18,13 +17,8 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 	it("defines real Stage 3 models without reusing legacy finance tables", () => {
 		const dbConfig = read("db/config.ts")
 		const violations = [
-			...[
-				"PaymentTransaction",
-				"PaymentAttempt",
-				"FinancialSettlementRecord",
-				"ReconciliationMatch",
-			].flatMap((table) =>
-				dbConfig.includes(`const ${table} = defineTable`) ? [] : [`missing ${table}`]
+			...["PaymentTransaction", "FinancialSettlementRecord", "ReconciliationMatch"].flatMap(
+				(table) => (dbConfig.includes(`const ${table} = defineTable`) ? [] : [`missing ${table}`])
 			),
 			/const SettlementRecord = defineTable/.test(dbConfig)
 				? "Stage 3 must not introduce a real table named SettlementRecord"
@@ -102,7 +96,6 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 			"RefundHandoffRecord",
 			"FinancialReviewEvent",
 			"PaymentTransaction",
-			"PaymentAttempt",
 			"FinancialSettlementRecord",
 			"ReconciliationMatch",
 			"ProviderFinancialProfile",
