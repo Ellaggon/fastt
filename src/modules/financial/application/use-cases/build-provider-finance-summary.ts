@@ -5,6 +5,11 @@ import type { ProviderFinancialProfile } from "../../domain/provider-financial-p
 import type { ProviderPayableSnapshot } from "../../domain/provider-payable-snapshot"
 import type { ProviderStatement } from "../../domain/provider-statement"
 import type { ReconciliationMatch } from "../../domain/reconciliation-match"
+import {
+	buildProviderFinanceMaterialization,
+	type ProviderFinanceMaterializationItem,
+	type ProviderFinanceStatementDraft,
+} from "./build-provider-finance-materialization"
 
 export type ProviderFinanceBookingSnapshotRow = {
 	bookingId: string
@@ -76,7 +81,17 @@ export type ProviderFinanceReviewItem = {
 	statement: {
 		visible: boolean
 		pending: boolean
+		state: ProviderFinanceStatementDraft["status"]
 	}
+	snapshotLifecycle: {
+		commissionState: ProviderFinanceMaterializationItem["commission"]["state"]
+		payableState: ProviderFinanceMaterializationItem["payable"]["state"]
+		contractFingerprint: string
+		commissionFingerprint: string | null
+		payableFingerprint: string | null
+		staleReasons: string[]
+	}
+	explainability: ProviderFinanceMaterializationItem["explainability"]
 	queues: ProviderFinanceQueueCode[]
 }
 
@@ -85,6 +100,7 @@ export type ProviderFinanceSummary = {
 	profile: ProviderFinancialProfile | null
 	items: ProviderFinanceReviewItem[]
 	statements: ProviderStatement[]
+	statementDraft: ProviderFinanceStatementDraft
 	summary: {
 		totalBookings: number
 		payoutBlocked: number
@@ -151,6 +167,16 @@ export function buildProviderFinanceSummary(params: {
 	reconciliationMatches: ReconciliationMatch[]
 	settlementRecords: FinancialSettlementRecord[]
 }): ProviderFinanceSummary {
+	const materialization = buildProviderFinanceMaterialization({
+		providerId: params.providerId,
+		bookingRows: params.bookingRows,
+		taxRows: params.taxRows,
+		commissionSnapshots: params.commissionSnapshots,
+		payableSnapshots: params.payableSnapshots,
+		statements: params.statements,
+		reconciliationMatches: params.reconciliationMatches,
+		settlementRecords: params.settlementRecords,
+	})
 	const groupedBookings = groupBy(params.bookingRows, (row) => String(row.bookingId))
 	const taxByBooking = groupBy(params.taxRows, (row) => String(row.bookingId))
 	const commissionByBooking = new Map(params.commissionSnapshots.map((row) => [row.bookingId, row]))
@@ -166,8 +192,12 @@ export function buildProviderFinanceSummary(params: {
 	const hasVisibleStatement = params.statements.some(
 		(row) => row.status === "visible" || row.status === "recorded"
 	)
+	const materializationByBooking = new Map(
+		materialization.items.map((item) => [item.bookingId, item])
+	)
 
 	const items = [...groupedBookings.entries()].map(([bookingId, rows]) => {
+		const materialized = materializationByBooking.get(bookingId)
 		const currency = firstCurrency(rows)
 		const grossAmount = roundMoney(
 			rows.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
@@ -186,9 +216,13 @@ export function buildProviderFinanceSummary(params: {
 		const queues: ProviderFinanceQueueCode[] = []
 		if (!profileReady) queues.push("provider_profile_incomplete")
 		if (!commission) queues.push("commission_snapshot_missing")
+		if (materialized?.commission.state === "stale") queues.push("commission_snapshot_missing")
 		if (!reconciliationReady) queues.push("provider_finance_dispute")
-		if (!hasVisibleStatement) queues.push("provider_statement_pending")
-		const blocked = !profileReady || !commission || !reconciliationReady
+		if (!hasVisibleStatement || materialization.statement.status === "stale")
+			queues.push("provider_statement_pending")
+		const snapshotBlocked =
+			materialized?.commission.state === "stale" || materialized?.payable.state === "stale"
+		const blocked = !profileReady || !commission || !reconciliationReady || snapshotBlocked
 		if (blocked) queues.push("payout_blocked")
 		if (
 			!blocked &&
@@ -250,7 +284,26 @@ export function buildProviderFinanceSummary(params: {
 			},
 			statement: {
 				visible: hasVisibleStatement,
-				pending: !hasVisibleStatement,
+				pending: !hasVisibleStatement || materialization.statement.status === "stale",
+				state: materialization.statement.status,
+			},
+			snapshotLifecycle: {
+				commissionState: materialized?.commission.state ?? "missing",
+				payableState: materialized?.payable.state ?? "missing",
+				contractFingerprint: materialized?.contract.fingerprint ?? "",
+				commissionFingerprint: materialized?.commission.fingerprint ?? null,
+				payableFingerprint: materialized?.payable.fingerprint ?? null,
+				staleReasons: [
+					...(materialized?.commission.staleReasons ?? []),
+					...(materialized?.payable.staleReasons ?? []),
+				],
+			},
+			explainability: materialized?.explainability ?? {
+				grossAmountSource: "BookingRoomDetail.totalPrice",
+				taxAmountSource: "BookingRoomDetail.taxes",
+				commissionSource: "missing_commission_snapshot",
+				payableSource: "pending_provider_payable_snapshot",
+				reconciliationSource: "ReconciliationMatch",
 			},
 			queues,
 		}
@@ -261,6 +314,7 @@ export function buildProviderFinanceSummary(params: {
 		profile: params.profile,
 		items,
 		statements: params.statements,
+		statementDraft: materialization.statement,
 		summary: {
 			totalBookings: items.length,
 			payoutBlocked: items.filter((item) => item.queues.includes("payout_blocked")).length,
