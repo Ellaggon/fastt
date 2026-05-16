@@ -18,5 +18,7 @@ export type LegacySettlementShadow = {
 	status: LegacySettlementShadowStatus
 }
 
+/** @deprecated Use FinancialSettlementRecord for Stage 3 settlement evidence identity. */
 export type SettlementRecordStatus = LegacySettlementShadowStatus
+/** @deprecated Compatibility alias only. Do not use as settlement or payable truth. */
 export type SettlementRecord = LegacySettlementShadow
