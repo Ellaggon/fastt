@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { buildProviderFinanceMaterialization } from "@/modules/financial/application/use-cases/build-provider-finance-materialization"
 import { buildProviderFinanceSummary } from "@/modules/financial/application/use-cases/build-provider-finance-summary"
 import type {
 	CommissionSnapshot,
@@ -194,5 +195,83 @@ describe("integration/financial Stage 4 provider finance foundation", () => {
 		expect(summary.items[0]?.eligibilityStatus).toBe("blocked")
 		expect(summary.summary.providerFinanceDispute).toBe(1)
 		expect(summary.summary.payoutBlocked).toBe(1)
+	})
+
+	it("detects stale commission and payable snapshots from deterministic snapshot materialization", () => {
+		const materialization = buildProviderFinanceMaterialization({
+			providerId,
+			bookingRows,
+			taxRows: [{ bookingId, totalAmount: 20 }],
+			commissionSnapshots: [commission({ commissionAmount: 25 })],
+			payableSnapshots: [payable({ commissionAmount: 25, netPayable: 155 })],
+			statements: [],
+			reconciliationMatches: [match()],
+			settlementRecords: [settlement()],
+		})
+
+		expect(materialization.items[0]?.commission.state).toBe("stale")
+		expect(materialization.items[0]?.commission.staleReasons).toContain("commission_amount_stale")
+		expect(materialization.items[0]?.payable.state).toBe("stale")
+		expect(materialization.items[0]?.payable.staleReasons).toEqual(
+			expect.arrayContaining(["payable_commission_amount_stale", "payable_net_amount_stale"])
+		)
+		expect(materialization.items[0]?.contract.fingerprint).toMatch(/^pf_/)
+	})
+
+	it("builds statement draft aggregation from fresh payable snapshots without accounting semantics", () => {
+		const materialization = buildProviderFinanceMaterialization({
+			providerId,
+			bookingRows,
+			taxRows: [{ bookingId, totalAmount: 20 }],
+			commissionSnapshots: [commission()],
+			payableSnapshots: [payable()],
+			statements: [],
+			reconciliationMatches: [match()],
+			settlementRecords: [settlement()],
+		})
+
+		expect(materialization.statement.status).toBe("pending")
+		expect(materialization.statement.totalGrossAmount).toBe(200)
+		expect(materialization.statement.totalCommissionAmount).toBe(30)
+		expect(materialization.statement.totalTaxAmount).toBe(20)
+		expect(materialization.statement.totalNetPayable).toBe(150)
+		expect(materialization.statement.fingerprint).toMatch(/^pf_/)
+	})
+
+	it("marks visible statements stale when persisted totals drift from payable snapshots", () => {
+		const summary = buildProviderFinanceSummary({
+			providerId,
+			bookingRows,
+			taxRows: [{ bookingId, totalAmount: 20 }],
+			profile: profile(),
+			commissionSnapshots: [commission()],
+			payableSnapshots: [payable()],
+			payoutRecords: [],
+			statements: [
+				{
+					id: "statement_stage4_1",
+					providerId,
+					statementReference: "statement_visible_1",
+					periodStart: null,
+					periodEnd: null,
+					status: "visible",
+					totalGrossAmount: 199,
+					totalCommissionAmount: 30,
+					totalTaxAmount: 20,
+					totalNetPayable: 150,
+					currency: "USD",
+					basis: "provider_payable_snapshot_aggregation",
+					createdAt: now,
+					updatedAt: now,
+				},
+			],
+			reconciliationMatches: [match()],
+			settlementRecords: [settlement()],
+		})
+
+		expect(summary.statementDraft.status).toBe("stale")
+		expect(summary.statementDraft.staleReasons).toContain("statement_gross_amount_stale")
+		expect(summary.items[0]?.statement.state).toBe("stale")
+		expect(summary.summary.providerStatementPending).toBe(1)
 	})
 })

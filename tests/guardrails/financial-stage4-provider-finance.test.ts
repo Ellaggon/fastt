@@ -86,6 +86,11 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 			/ledger entry/i,
 			/payout executed/i,
 			/settled payout/i,
+			/provider balance/i,
+			/provider wallet/i,
+			/tax filing/i,
+			/bank transfer/i,
+			/settlement automation/i,
 		]
 		const violations = stage4Files.flatMap((file) => {
 			const source = read(file)
@@ -142,5 +147,17 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 		expect(builder).not.toMatch(
 			/modules\/pricing|lib\/pricing|rate engine|commissionTotal|netPayoutEstimate/i
 		)
+	})
+
+	it("keeps Stage 4.1 materialization deterministic, read-only, and explainable", () => {
+		const materialization = read(
+			"src/modules/financial/application/use-cases/build-provider-finance-materialization.ts"
+		)
+		expect(materialization).toContain("buildProviderFinanceMaterialization")
+		expect(materialization).toContain("fingerprint")
+		expect(materialization).toContain("staleReasons")
+		expect(materialization).toContain("BookingRoomDetail.totalPrice")
+		expect(materialization).toContain("ProviderPayableSnapshot")
+		expect(materialization).not.toMatch(/\.insert\(|\.update\(|\.delete\(|FinancialShadowRecord/)
 	})
 })
