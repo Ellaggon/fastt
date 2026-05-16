@@ -4,8 +4,13 @@ import { FinancialReferenceRepository } from "@/modules/financial/infrastructure
 import { FinancialRepository } from "@/modules/financial/infrastructure/repositories/FinancialRepository"
 import { FinancialReviewEventRepository } from "@/modules/financial/infrastructure/repositories/FinancialReviewEventRepository"
 import { FinancialSettlementRecordRepository } from "@/modules/financial/infrastructure/repositories/FinancialSettlementRecordRepository"
+import { CommissionSnapshotRepository } from "@/modules/financial/infrastructure/repositories/CommissionSnapshotRepository"
 import { PaymentAttemptRepository } from "@/modules/financial/infrastructure/repositories/PaymentAttemptRepository"
 import { PaymentTransactionRepository } from "@/modules/financial/infrastructure/repositories/PaymentTransactionRepository"
+import { PayoutRecordRepository } from "@/modules/financial/infrastructure/repositories/PayoutRecordRepository"
+import { ProviderFinancialProfileRepository } from "@/modules/financial/infrastructure/repositories/ProviderFinancialProfileRepository"
+import { ProviderPayableSnapshotRepository } from "@/modules/financial/infrastructure/repositories/ProviderPayableSnapshotRepository"
+import { ProviderStatementRepository } from "@/modules/financial/infrastructure/repositories/ProviderStatementRepository"
 import { ReconciliationMatchRepository } from "@/modules/financial/infrastructure/repositories/ReconciliationMatchRepository"
 import { RefundHandoffRepository } from "@/modules/financial/infrastructure/repositories/RefundHandoffRepository"
 import type { RegisterFinancialShadowWriteInput } from "@/modules/financial/public"
@@ -19,6 +24,11 @@ export const paymentTransactionRepository = new PaymentTransactionRepository()
 export const paymentAttemptRepository = new PaymentAttemptRepository()
 export const financialSettlementRecordRepository = new FinancialSettlementRecordRepository()
 export const reconciliationMatchRepository = new ReconciliationMatchRepository()
+export const providerFinancialProfileRepository = new ProviderFinancialProfileRepository()
+export const commissionSnapshotRepository = new CommissionSnapshotRepository()
+export const providerPayableSnapshotRepository = new ProviderPayableSnapshotRepository()
+export const payoutRecordRepository = new PayoutRecordRepository()
+export const providerStatementRepository = new ProviderStatementRepository()
 
 export function registerFinancialShadowWriteUseCase(input: RegisterFinancialShadowWriteInput) {
 	return registerFinancialShadowWrite(input)

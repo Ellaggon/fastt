@@ -2,6 +2,7 @@
 // External consumers MUST import from "@/modules/financial/public".
 
 // Domain contracts
+export * from "./domain/stage3-truth-boundary"
 export * from "./domain/payment-intent"
 export * from "./domain/settlement-record"
 export * from "./domain/refund-record"
@@ -13,18 +14,25 @@ export * from "./domain/payment-transaction"
 export * from "./domain/payment-attempt"
 export * from "./domain/financial-settlement-record"
 export * from "./domain/reconciliation-match"
+export * from "./domain/provider-financial-profile"
+export * from "./domain/commission-snapshot"
+export * from "./domain/provider-payable-snapshot"
+export * from "./domain/payout-record"
+export * from "./domain/provider-statement"
 
 // Application ports
 export * from "./application/ports/FinancialRepositoryPort"
 export * from "./application/ports/FinancialEventPublisherPort"
 export * from "./application/ports/FinancialWorkflowRepositoryPort"
 export * from "./application/ports/FinancialStage3RepositoryPort"
+export * from "./application/ports/ProviderFinanceRepositoryPort"
 
 // Application use-cases
 export * from "./application/use-cases/register-financial-shadow-write"
 export * from "./application/use-cases/detect-financial-exceptions"
 export * from "./application/use-cases/build-financial-operation-review"
 export * from "./application/use-cases/build-financial-review-overlay"
+export * from "./application/use-cases/build-provider-finance-summary"
 export * from "./application/use-cases/list-financial-exceptions"
 export * from "./application/use-cases/acknowledge-financial-exception"
 export * from "./application/use-cases/resolve-financial-exception"

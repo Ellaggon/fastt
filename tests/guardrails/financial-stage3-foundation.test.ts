@@ -105,6 +105,11 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 			"PaymentAttempt",
 			"FinancialSettlementRecord",
 			"ReconciliationMatch",
+			"ProviderFinancialProfile",
+			"CommissionSnapshot",
+			"ProviderPayableSnapshot",
+			"PayoutRecord",
+			"ProviderStatement",
 			"FinancialShadowRecord",
 		])
 		const violations = financialSourceFiles.flatMap((file) => {

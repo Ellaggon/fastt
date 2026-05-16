@@ -1026,6 +1026,85 @@ const ReconciliationMatch = defineTable({
 		{ on: ["updatedAt"] },
 	],
 })
+const ProviderFinancialProfile = defineTable({
+	columns: {
+		providerId: column.text({ primaryKey: true }),
+		payoutMethodReference: column.text({ optional: true }),
+		payoutSchedule: column.text(),
+		currency: column.text(),
+		taxProfileStatus: column.text(),
+		status: column.text(),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["status"] }, { on: ["taxProfileStatus"] }],
+})
+const CommissionSnapshot = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		commissionRate: column.number(),
+		commissionAmount: column.number(),
+		basis: column.text(),
+		currency: column.text(),
+		snapshotAt: column.date(),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["bookingId", "providerId"] }, { on: ["providerId", "snapshotAt"] }],
+})
+const ProviderPayableSnapshot = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		grossAmount: column.number(),
+		commissionAmount: column.number(),
+		taxAmount: column.number(),
+		netPayable: column.number(),
+		currency: column.text(),
+		basis: column.text(),
+		snapshotAt: column.date(),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["bookingId", "providerId"] }, { on: ["providerId", "snapshotAt"] }],
+})
+const PayoutRecord = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text({ optional: true }),
+		providerId: column.text(),
+		status: column.text(),
+		payoutReference: column.text({ optional: true }),
+		amount: column.number({ optional: true }),
+		currency: column.text({ optional: true }),
+		basis: column.text(),
+		recordedAt: column.date({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["bookingId"] }, { on: ["providerId", "status"] }, { on: ["payoutReference"] }],
+})
+const ProviderStatement = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text(),
+		statementReference: column.text({ optional: true }),
+		periodStart: column.date({ optional: true }),
+		periodEnd: column.date({ optional: true }),
+		status: column.text(),
+		totalGrossAmount: column.number(),
+		totalCommissionAmount: column.number(),
+		totalTaxAmount: column.number(),
+		totalNetPayable: column.number(),
+		currency: column.text(),
+		basis: column.text(),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "status"] }, { on: ["statementReference"] }],
+})
 
 export default defineDb({
 	tables: {
@@ -1113,5 +1192,10 @@ export default defineDb({
 		PaymentAttempt,
 		FinancialSettlementRecord,
 		ReconciliationMatch,
+		ProviderFinancialProfile,
+		CommissionSnapshot,
+		ProviderPayableSnapshot,
+		PayoutRecord,
+		ProviderStatement,
 	},
 })
