@@ -197,7 +197,7 @@ describe("integration/financial Stage 4 provider finance foundation", () => {
 		expect(summary.summary.payoutBlocked).toBe(1)
 	})
 
-	it("detects stale commission and payable snapshots from deterministic materialization", () => {
+	it("detects stale commission and payable snapshots from deterministic snapshot materialization", () => {
 		const materialization = buildProviderFinanceMaterialization({
 			providerId,
 			bookingRows,

@@ -149,7 +149,7 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 		)
 	})
 
-	it("keeps Stage 4 materialization deterministic, read-only, and explainable", () => {
+	it("keeps Stage 4.1 materialization deterministic, read-only, and explainable", () => {
 		const materialization = read(
 			"src/modules/financial/application/use-cases/build-provider-finance-materialization.ts"
 		)

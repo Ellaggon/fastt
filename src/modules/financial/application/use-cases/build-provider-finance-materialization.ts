@@ -78,9 +78,8 @@ function roundMoney(value: number): number {
 	return Number(value.toFixed(2))
 }
 
-function stableFingerprint(value: Record<string, unknown>): string {
-	const keys = Object.keys(value).sort()
-	const raw = JSON.stringify(value, keys)
+function stableFingerprint(value: unknown): string {
+	const raw = JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort())
 	let hash = 5381
 	for (let index = 0; index < raw.length; index += 1) {
 		hash = (hash * 33) ^ raw.charCodeAt(index)
@@ -207,7 +206,6 @@ export function buildProviderFinanceMaterialization(params: {
 					? "stale"
 					: "fresh"
 				: "missing"
-		const settlements = settlementByBooking.get(bookingId) ?? []
 		return {
 			bookingId,
 			providerId: params.providerId,
@@ -252,8 +250,8 @@ export function buildProviderFinanceMaterialization(params: {
 				reviewState: reconciliation?.reviewState ?? null,
 			},
 			settlement: {
-				visible: settlements.length > 0,
-				count: settlements.length,
+				visible: (settlementByBooking.get(bookingId) ?? []).length > 0,
+				count: (settlementByBooking.get(bookingId) ?? []).length,
 			},
 			explainability: {
 				grossAmountSource: "BookingRoomDetail.totalPrice" as const,
