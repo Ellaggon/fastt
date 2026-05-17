@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { actorFilterOptions } from "./_client/financial-actor-filters"
 import { evidenceStateLabels } from "./_client/financial-labels"
 import { primaryQueueOptions } from "./_client/financial-queues"
 
@@ -51,7 +52,17 @@ if (!user) return Astro.redirect("/SignInPage")
 							Cargando operaciones financieras...
 						</p>
 					</div>
-					<div class="grid gap-3 sm:grid-cols-2">
+					<div class="grid gap-3 sm:grid-cols-3">
+						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Operator view</span>
+							<Select id="financialActorFilter" name="actor" value="all">
+								{
+									actorFilterOptions.map((option) => (
+										<option value={option.value}>{option.label}</option>
+									))
+								}
+							</Select>
+						</label>
 						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
 							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Queue</span>
 							<Select id="financialQueueFilter" name="queue" value="needs_review">
