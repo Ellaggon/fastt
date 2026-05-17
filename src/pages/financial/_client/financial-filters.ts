@@ -40,6 +40,17 @@ export function queueMatchesRow(params: {
 		return row.queue === "refund_handoffs"
 	if (queue === "provider_finance" || queue === "provider_finance_review")
 		return row.queue === "provider_finance"
+	if (
+		[
+			"payable_blocked",
+			"statement_stale",
+			"reconciliation_blocked",
+			"commission_missing",
+			"reference_missing",
+		].includes(queue)
+	) {
+		return row.queue === "provider_finance" && row.operationalState === queue
+	}
 	if (queue === "reconciliation_issues") return row.queue === "reconciliation_issues"
 	if (queue === "evidence_issues") return row.queue === "evidence_issues"
 	if (queue === "waiting_external") return row.queue === "waiting_external"

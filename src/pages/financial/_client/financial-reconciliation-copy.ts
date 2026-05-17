@@ -25,6 +25,26 @@ export function reconciliationIssueDescription(match: any): string {
 	return `${status}. ${reasons.join(", ") || "Review the evidence before closing."}`
 }
 
+export function explainReconciliationIssue(match: any): string {
+	return reconciliationIssueDescription(match)
+}
+
+export function explainEvidenceGap(kind: "payment" | "settlement" | "refund" | "capture"): string {
+	const labels: Record<typeof kind, string> = {
+		payment:
+			"Payment evidence is not visible yet. Record the external reference when it is available.",
+		settlement:
+			"Settlement evidence is not visible yet. Keep provider finance visibility blocked until evidence can be reviewed.",
+		refund: "Refund evidence is not visible yet. Review refund handoff context before closing.",
+		capture: "Capture evidence is not visible yet. Review external PSP evidence before closing.",
+	}
+	return labels[kind]
+}
+
+export function explainStaleReview(): string {
+	return "This comparison was reviewed before evidence changed. Review the updated evidence again before closing."
+}
+
 export function duplicateReferenceDescription(signal: any): string {
 	const reference = String(signal?.externalReference || "external reference")
 	const count = Array.isArray(signal?.bookingIds) ? signal.bookingIds.length : 0

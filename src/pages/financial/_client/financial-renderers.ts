@@ -1,4 +1,5 @@
 import type { FinancialRowViewModel } from "./financial-row-view-model"
+import { buildProviderFinanceRowViewModel } from "./financial-provider-finance-view-model"
 
 type RowRenderDeps = {
 	escapeHtml: (value: unknown) => string
@@ -47,8 +48,11 @@ export function renderFinancialRowHtml(params: {
 		row.queue === "provider_finance" || row.queue === "reconciliation_issues"
 			? "border-l-4 border-l-amber-400 bg-amber-50/40"
 			: ""
-	const providerFinanceLine = item.providerFinance
-		? `<div class="mt-1 text-xs font-semibold text-amber-800">Statement freshness: ${deps.escapeHtml(deps.label(item.providerFinance?.statement?.state || "unknown"))}</div>`
+	const financeView = item.providerFinance
+		? buildProviderFinanceRowViewModel(item.providerFinance)
+		: null
+	const providerFinanceLine = financeView
+		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(deps.label(financeView.operationalState))} · Statement freshness: ${deps.escapeHtml(deps.label(financeView.statementState))}</div>`
 		: ""
 	return `
 		<td class="px-3 py-3 text-slate-700 ${blockerClass}">
