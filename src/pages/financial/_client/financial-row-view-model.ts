@@ -194,7 +194,7 @@ export function buildDuplicateReferenceWorkItem(signal: any): any {
 			description: duplicateReferenceDescription(signal),
 			blocker: "External reference is visible on multiple booking records.",
 			nextAction: "Confirm evidence ownership before closing the review.",
-			owner: "financial_operations",
+			owner: "reconciliation_ops",
 			severity: "review",
 		},
 	}
@@ -221,7 +221,7 @@ export function buildUnmatchedEvidenceWorkItem(kind: "payment" | "settlement", r
 			description: unmatchedEvidenceDescription(kind, row),
 			blocker: "Evidence is visible but not matched to a booking.",
 			nextAction: "Review external reference ownership before using this evidence.",
-			owner: "financial_operations",
+			owner: "reconciliation_ops",
 			severity: "review",
 		},
 	}

@@ -1,20 +1,40 @@
 // @ts-nocheck
 import {
+	submitFinancialReference,
+	submitFinancialReviewAction,
+	submitReconciliationReviewMarker,
+	submitRefundHandoffReview,
+} from "./financial-actions"
+import { actorNoiseHint } from "./financial-actor-filters"
+import {
 	handoffStatusLabels,
 	overlaySourceLabels,
 	ownerLabels,
 	reconciliationStatusLabels,
 	statusLabels,
 } from "./financial-labels"
+import {
+	countFinancialQueue,
+	filterFinancialRows,
+	isCleanFinancialRecord,
+	queueMatchesRow,
+} from "./financial-filters"
 import { primarySummaryQueues } from "./financial-queues"
 import { buildFinancialDrawerViewModel } from "./financial-drawer-view-model"
 import { renderFinancialDrawerContent } from "./financial-drawer-sections"
+import { renderFinancialRowHtml } from "./financial-renderers"
+import {
+	createFinancialWorkspaceState,
+	resetFinancialWorkspaceState,
+} from "./financial-workspace-state"
 import {
 	buildDuplicateReferenceWorkItem,
 	buildFinancialRowViewModel,
 	buildUnmatchedEvidenceWorkItem,
 } from "./financial-row-view-model"
 ;(function () {
+	const workspaceState = createFinancialWorkspaceState()
+	const actorFilter = document.getElementById("financialActorFilter")
 	const queueFilter = document.getElementById("financialQueueFilter")
 	const stateFilter = document.getElementById("financialStateFilter")
 	const summary = document.getElementById("financialSummary")
@@ -109,8 +129,7 @@ import {
 		String(item?.code || "")
 			? codes.includes(String(item.code))
 			: exceptionCodes(item).some((code) => codes.includes(code))
-	const isCleanRecord = (item) =>
-		!item?.workflow && !item?.operation?.operationalException?.hasOpenException
+	const isCleanRecord = isCleanFinancialRecord
 	const sourceLabel = (item) => {
 		const source = String(item?.overlaySource || "")
 		return overlaySourceLabels[source] || (item?.workflow ? "persisted" : "visibility only")
@@ -165,48 +184,39 @@ import {
 		})
 	}
 
+	function isTerminalReview(item) {
+		return reviewTerminalStatuses.has(String(item?.status || "open"))
+	}
+
 	function queueMatches(item, queue) {
-		const row = rowViewFor(item)
-		if (queue === "advanced_all" || queue === "all") return true
-		if (queue === "needs_review" || queue === "all_open")
-			return !reviewTerminalStatuses.has(String(item?.status || "open")) && !isCleanRecord(item)
-		if (queue === "resolved_history") return row.queue === "resolved_history"
-		if (queue === "refund_handoffs" || queue === "refund_handoff_required")
-			return row.queue === "refund_handoffs"
-		if (queue === "provider_finance" || queue === "provider_finance_review")
-			return row.queue === "provider_finance"
-		if (queue === "reconciliation_issues") return row.queue === "reconciliation_issues"
-		if (queue === "evidence_issues") return row.queue === "evidence_issues"
-		if (queue === "waiting_external") return row.queue === "waiting_external"
-		if (queue === "clean_records") return isCleanRecord(item)
-		if (queue === "missing_references") {
-			return hasAnyCode(item, [
-				"missing_payment_reference",
-				"missing_settlement_reference",
-				"missing_refund_reference",
-			])
+		return queueMatchesRow({
+			item,
+			row: rowViewFor(item),
+			queue,
+			isTerminalReview: isTerminalReview(item),
+		})
+	}
+
+	function currentFilters() {
+		return {
+			actor: String(actorFilter?.value || "all"),
+			queue: String(queueFilter?.value || "needs_review"),
+			evidenceState: String(stateFilter?.value || "all"),
 		}
-		if (queue === "snapshot_gaps") {
-			return hasAnyCode(item, ["incomplete_contract_snapshot", "legacy_snapshot_compatibility"])
-		}
-		return hasAnyCode(item, [queue])
 	}
 
 	function applyFilters(items) {
-		const queue = String(queueFilter?.value || "needs_review")
-		const state = String(stateFilter?.value || "all")
-		return items.filter((item) => {
-			if (refundHandoffDerivedSuppressed(item)) return false
-			const stateMatches =
-				state === "all" ||
-				Boolean(item?.providerFinance) ||
-				item?.operation?.evidenceAlignment?.state === state
-			return stateMatches && queueMatches(item, queue)
+		return filterFinancialRows({
+			items,
+			filters: currentFilters(),
+			rowFor: rowViewFor,
+			isTerminalReview,
+			isSuppressed: refundHandoffDerivedSuppressed,
 		})
 	}
 
 	function countQueue(items, queue) {
-		return items.filter((item) => queueMatches(item, queue)).length
+		return countFinancialQueue({ items, queue, rowFor: rowViewFor, isTerminalReview })
 	}
 
 	function mergeItems() {
@@ -362,6 +372,7 @@ import {
 			merged.push(issue)
 		}
 		combinedItems = merged
+		workspaceState.combinedItems = combinedItems
 	}
 
 	function renderSummary(items) {
@@ -401,48 +412,28 @@ import {
 			const operation = item.operation || {}
 			const tr = document.createElement("tr")
 			tr.className = "border-t border-slate-200 align-top hover:bg-white"
-			const counts = referenceCounts(item)
 			const rowView = rowViewFor(item)
 			const handoff = refundHandoffFor(item)
 			const ownerMarkup =
 				handoff && hasAnyCode(item, ["refund_handoff_required"])
 					? `${ownerChip(handoff.nextOwner)}<div class="mt-2 text-xs text-slate-500">${escapeHtml(refundHandoffAge(handoff))}</div>`
 					: `${ownerChip(rowView.owner)}<div class="mt-2 text-xs text-slate-500">${escapeHtml(rowView.ageLabel)}</div>`
-			tr.innerHTML = `
-				<td class="px-3 py-3 text-slate-700">
-					<div class="font-medium ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${escapeHtml(rowView.title)}</div>
-					<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${escapeHtml(rowView.description)}</div>
-					<div class="mt-2 flex flex-wrap gap-1">
-						${statusChip(item.status)}
-						${handoff ? handoffStatusChip(handoff.status) : ""}
-						<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${escapeHtml(rowView.sourceKind)}</span>
-					</div>
-				</td>
-				<td class="px-3 py-3 text-slate-700">
-					${
-						item.bookingId
-							? `<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${escapeHtml(item.bookingId || "-")}</a>`
-							: `<div class="font-medium text-slate-950">Unmatched evidence</div>`
-					}
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(operation?.contract?.productName || "Property")} · ${escapeHtml(operation?.contract?.variantName || "Allocation")}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(money(operation.currency, operation.contractTotal))} · ${escapeHtml(operation?.contract?.version || "snapshot")}</div>
-				</td>
-				<td class="px-3 py-3 text-slate-700">
-					<div class="flex flex-wrap gap-1">${ownerMarkup}</div>
-				</td>
-				<td class="px-3 py-3 text-slate-700">
-					<div>${escapeHtml(label(operation?.transactions?.financialEvidence?.paymentIntentShadow || rowView.staleState || "not_visible"))}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(rowView.evidenceSummary)}</div>
-					<div class="mt-1 text-xs text-slate-500">reference recorded / evidence visible</div>
-				</td>
-				<td class="px-3 py-3 text-slate-700">
-					<div class="max-w-xs text-sm text-slate-900">${escapeHtml(rowView.blocker)}</div>
-					<div class="mt-1 text-xs text-slate-500">Snapshot integrity: ${Number(operation?.taxFeeVisibility?.lines || 0)} tax/fee line(s) · Rooms: ${Number(operation?.snapshotIntegrity?.multiRoomAllocationCount || 0)} · ${operation?.snapshotIntegrity?.hasRoomSnapshots ? "Room snapshot ok" : "Room snapshot gap"} · ${operation?.snapshotIntegrity?.hasTaxFeeSnapshots ? "Tax snapshot ok" : "Tax snapshot gap"}</div>
-				</td>
-				<td class="px-3 py-3 text-right">
-					<div class="mb-2 max-w-48 text-right text-xs leading-5 text-slate-500">${escapeHtml(rowView.nextAction)}</div>
-					<button type="button" data-review-key="${escapeHtml(itemKey(item))}" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Open review</button>
-				</td>`
+			tr.innerHTML = renderFinancialRowHtml({
+				item,
+				row: rowView,
+				operation,
+				handoff,
+				ownerMarkup,
+				deps: {
+					escapeHtml,
+					money,
+					label,
+					statusChip,
+					handoffStatusChip,
+					ownerChip,
+					itemKey,
+				},
+			})
 			rows.appendChild(tr)
 		}
 		rows.querySelectorAll("[data-review-key]").forEach((button) => {
@@ -498,6 +489,7 @@ import {
 
 	function openDrawer(item) {
 		selectedItem = item
+		workspaceState.selectedItem = item
 		const canReview = Boolean(item.persistedId) && !reviewTerminalStatuses.has(String(item.status))
 		const handoff = refundHandoffFor(item)
 		const refundEvidence = referencesFor(item).filter(
@@ -569,6 +561,7 @@ import {
 
 	function closeDrawer() {
 		selectedItem = null
+		workspaceState.selectedItem = null
 		drawer?.classList.add("translate-x-full")
 		drawerBackdrop?.classList.add("hidden")
 	}
@@ -576,16 +569,14 @@ import {
 	async function submitReviewAction(action) {
 		if (!selectedItem?.persistedId) return
 		const note = String(document.getElementById("financialResolutionNote")?.value || "").trim()
-		const endpoint = `/api/internal/financial/exceptions/${encodeURIComponent(selectedItem.persistedId)}/${action}`
-		const body = action === "acknowledge" ? {} : { resolutionNote: note }
 		if (action !== "acknowledge" && !note) {
 			alert("Resolution note is required.")
 			return
 		}
-		const response = await fetch(endpoint, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", "accept": "application/json" },
-			body: JSON.stringify(body),
+		const response = await submitFinancialReviewAction({
+			persistedId: selectedItem.persistedId,
+			action,
+			resolutionNote: note,
 		})
 		if (!response.ok) {
 			alert("Review action could not be saved.")
@@ -622,21 +613,15 @@ import {
 			alert("Amount must be numeric when provided.")
 			return
 		}
-		const response = await fetch("/api/internal/financial/references", {
-			method: "POST",
-			headers: { "Content-Type": "application/json", "accept": "application/json" },
-			body: JSON.stringify({
-				bookingId: selectedItem.bookingId,
-				type,
-				referenceValue,
-				externalSystem,
-				amount,
-				currency,
-				note,
-				linkedExceptionId: selectedItem.persistedId || null,
-				source: "operator_entry",
-				basis: "external_reference",
-			}),
+		const response = await submitFinancialReference({
+			bookingId: selectedItem.bookingId,
+			type,
+			referenceValue,
+			externalSystem,
+			amount,
+			currency,
+			note,
+			linkedExceptionId: selectedItem.persistedId || null,
 		})
 		if (!response.ok) {
 			alert("Reference could not be recorded.")
@@ -657,14 +642,11 @@ import {
 			alert("Refund handoff note is required.")
 			return
 		}
-		const response = await fetch(
-			`/api/internal/financial/refund-handoffs/${encodeURIComponent(handoff.id)}/${action}`,
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json", "accept": "application/json" },
-				body: JSON.stringify(action === "acknowledge" ? {} : { resolutionNote: note }),
-			}
-		)
+		const response = await submitRefundHandoffReview({
+			handoffId: handoff.id,
+			action,
+			resolutionNote: note,
+		})
 		if (!response.ok) {
 			alert("Refund handoff review could not be saved.")
 			return
@@ -680,13 +662,9 @@ import {
 		const reviewNote = String(
 			document.getElementById("reconciliationReviewNote")?.value || ""
 		).trim()
-		const response = await fetch("/api/internal/financial/reconciliation-matches/review", {
-			method: "POST",
-			headers: { "Content-Type": "application/json", "accept": "application/json" },
-			body: JSON.stringify({
-				bookingId: selectedItem.bookingId,
-				reviewNote: reviewNote || null,
-			}),
+		const response = await submitReconciliationReviewMarker({
+			bookingId: selectedItem.bookingId,
+			reviewNote: reviewNote || null,
 		})
 		if (!response.ok) {
 			alert("Reconciliation review marker could not be saved.")
@@ -706,7 +684,8 @@ import {
 		if (listSummary) {
 			const openCount = countQueue(combinedItems, "needs_review")
 			const shownCount = filteredItems.length
-			listSummary.textContent = `${openCount} open review item(s). Showing ${shownCount} queue item(s).`
+			const actor = String(actorFilter?.value || "all")
+			listSummary.textContent = `${openCount} open review item(s). Showing ${shownCount} queue item(s). ${actorNoiseHint(actor)}`
 		}
 	}
 
@@ -774,6 +753,17 @@ import {
 		providerFinanceItems = Array.isArray(providerFinancePayload?.items)
 			? providerFinancePayload.items
 			: []
+		Object.assign(workspaceState, {
+			operationsItems,
+			workflowItems,
+			reviewEvents,
+			persistedReferences,
+			persistedRefundHandoffs,
+			reconciliationItems,
+			providerFinanceItems,
+			duplicateExternalReferences,
+			unmatchedFinancialEvidence,
+		})
 		renderFinancialView()
 	}
 
@@ -791,12 +781,14 @@ import {
 			duplicateExternalReferences = []
 			unmatchedFinancialEvidence = { paymentTransactions: [], settlementRecords: [] }
 			combinedItems = []
+			resetFinancialWorkspaceState(workspaceState)
 			renderSummary([])
 			renderRows([])
 			if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
 		}
 	}
 
+	actorFilter?.addEventListener("change", renderFinancialView)
 	queueFilter?.addEventListener("change", renderFinancialView)
 	stateFilter?.addEventListener("change", renderFinancialView)
 	drawerClose?.addEventListener("click", closeDrawer)
