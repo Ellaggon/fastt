@@ -5,6 +5,7 @@ import {
 	reconciliationIssueLabel,
 	unmatchedEvidenceDescription,
 } from "./financial-reconciliation-copy"
+import { buildProviderFinanceRowViewModel } from "./financial-provider-finance-view-model"
 
 export type FinancialOperationalQueue =
 	| "needs_review"
@@ -56,6 +57,7 @@ function providerFinancePrimaryDetail(item: any): any | null {
 }
 
 function primaryBlocker(item: any, reconciliation: any): string {
+	if (item?.providerFinance) return buildProviderFinanceRowViewModel(item.providerFinance).blocker
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.reason) return financeDetail.reason
 	const reconciliationIssue = reconciliationIssueLabel(reconciliation)
@@ -70,6 +72,8 @@ function primaryBlocker(item: any, reconciliation: any): string {
 }
 
 function nextActionFor(item: any, reconciliation: any): string {
+	if (item?.providerFinance)
+		return buildProviderFinanceRowViewModel(item.providerFinance).nextAction
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.nextOperationalAction) return financeDetail.nextOperationalAction
 	if (reconciliation?.reviewState === "stale")
@@ -134,21 +138,30 @@ export function buildFinancialRowViewModel(params: {
 }): FinancialRowViewModel {
 	const { item, reconciliation, referenceCounts } = params
 	const evidenceIssue = item?.evidenceIssue
+	const financeView = item?.providerFinance
+		? buildProviderFinanceRowViewModel(item.providerFinance)
+		: null
 	const financeDetail = providerFinancePrimaryDetail(item)
 	const title = evidenceIssue
 		? evidenceIssue.title
-		: item?.code
-			? labelFrom(workItemLabels, item.code)
-			: "Operational review"
+		: financeView
+			? financeView.title
+			: item?.code
+				? labelFrom(workItemLabels, item.code)
+				: "Operational review"
 	const description = evidenceIssue
 		? evidenceIssue.description
-		: item?.providerFinance
-			? financeDetail?.reason || "Provider finance visibility needs operational review."
+		: financeView
+			? financeView.blocker
 			: reconciliation && reconciliation.status !== "matched"
 				? reconciliationIssueDescription(reconciliation)
 				: item?.reason || "Review the operational evidence for this booking."
 	const owner = String(
-		evidenceIssue?.owner || financeDetail?.owner || item?.nextOwner || "financial_operations"
+		evidenceIssue?.owner ||
+			financeView?.owner ||
+			financeDetail?.owner ||
+			item?.nextOwner ||
+			"financial_operations"
 	)
 	const queue = queueFor(item, reconciliation)
 	return {
@@ -162,16 +175,21 @@ export function buildFinancialRowViewModel(params: {
 		ownerLabel: labelFrom(ownerLabels, owner),
 		blocker: evidenceIssue?.blocker || primaryBlocker(item, reconciliation),
 		staleState: String(
-			item?.providerFinance?.snapshotLifecycle?.freshness ||
+			financeView?.freshness ||
+				item?.providerFinance?.snapshotLifecycle?.freshness ||
 				reconciliation?.reviewState ||
 				item?.operation?.evidenceAlignment?.state ||
 				"fresh"
 		),
 		evidenceSummary: evidenceSummaryFor(item, referenceCounts),
 		nextAction: evidenceIssue?.nextAction || nextActionFor(item, reconciliation),
-		severity: String(item?.severity || evidenceIssue?.severity || "review"),
+		severity: String(
+			financeView?.severity || item?.severity || evidenceIssue?.severity || "review"
+		),
 		ageLabel: params.ageLabel,
-		operationalState: String(item?.status || reconciliation?.status || "open"),
+		operationalState: String(
+			financeView?.operationalState || item?.status || reconciliation?.status || "open"
+		),
 		sourceKind: params.sourceKind,
 		item,
 	}

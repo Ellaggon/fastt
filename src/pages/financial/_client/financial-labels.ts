@@ -81,6 +81,12 @@ export const providerFinanceQueueLabels: Record<string, string> = {
 	provider_statement_pending: "Statement needs review",
 	payout_reference_missing: "External finance reference missing",
 	payout_blocked: "Payable visibility blocked",
+	payable_blocked: "Payable visibility blocked",
+	statement_stale: "Statement freshness needs review",
+	reconciliation_blocked: "Reconciliation blocks payable visibility",
+	commission_missing: "Commission basis missing",
+	reference_missing: "External finance reference missing",
+	provider_finance_review: "Provider finance review",
 }
 
 export const reconciliationStatusLabels: Record<string, string> = {
