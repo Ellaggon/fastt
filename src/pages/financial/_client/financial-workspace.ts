@@ -1,15 +1,14 @@
 // @ts-nocheck
 import {
 	handoffStatusLabels,
-	mismatchReasonLabels,
 	overlaySourceLabels,
 	ownerLabels,
-	providerFinanceQueueLabels,
 	reconciliationStatusLabels,
-	staleReasonLabels,
 	statusLabels,
 } from "./financial-labels"
 import { primarySummaryQueues } from "./financial-queues"
+import { buildFinancialDrawerViewModel } from "./financial-drawer-view-model"
+import { renderFinancialDrawerContent } from "./financial-drawer-sections"
 import {
 	buildDuplicateReferenceWorkItem,
 	buildFinancialRowViewModel,
@@ -497,272 +496,51 @@ import {
 		}
 	}
 
-	function reconciliationHtml(item) {
-		const match = reconciliationFor(item)
-		if (!match) {
-			return `<div class="rounded-xl border border-slate-200 bg-white p-3">
-					<div class="text-sm font-semibold text-slate-950">Reconciliation evidence</div>
-					<p class="mt-2 text-sm text-slate-500">No Stage 3 reconciliation comparison is visible for this booking yet.</p>
-				</div>`
-		}
-		const duplicateSignals = duplicateExternalReferences.filter((signal) =>
-			(signal.bookingIds || []).includes(item.bookingId)
-		)
-		const reasonLabels = (match.mismatchReasons || []).map((reason) =>
-			labelFrom(mismatchReasonLabels, reason)
-		)
-		return `<div class="rounded-xl border border-slate-200 bg-white p-3">
-				<div class="flex items-start justify-between gap-3">
-					<div>
-						<div class="text-sm font-semibold text-slate-950">Reconciliation evidence</div>
-						<p class="mt-1 text-xs text-slate-500">Snapshot vs payment transaction vs settlement evidence. Read-only comparison; no money movement.</p>
-					</div>
-					<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(labelFrom(reconciliationStatusLabels, match.status))}</span>
-				</div>
-				<div class="mt-3 overflow-x-auto">
-					<table class="min-w-full text-xs">
-						<thead class="text-left text-slate-500">
-							<tr><th class="py-1 pr-3">Evidence</th><th class="py-1 pr-3">Amount</th><th class="py-1 pr-3">Currency</th><th class="py-1 pr-3">Basis</th></tr>
-						</thead>
-						<tbody class="text-slate-800">
-							<tr><td class="py-1 pr-3">Contract snapshot</td><td class="py-1 pr-3">${escapeHtml(money(match.currency, match.contractAmount))}</td><td class="py-1 pr-3">${escapeHtml(match.currency)}</td><td class="py-1 pr-3">BookingRoomDetail snapshots</td></tr>
-							<tr><td class="py-1 pr-3">Payment transaction</td><td class="py-1 pr-3">${match.paymentAmount == null ? "-" : escapeHtml(money(match.payment?.currency || match.currency, match.paymentAmount))}</td><td class="py-1 pr-3">${escapeHtml(match.payment?.currency || "-")}</td><td class="py-1 pr-3">${Number(match.payment?.transactions?.length || 0)} transaction record(s)</td></tr>
-							<tr><td class="py-1 pr-3">Settlement evidence</td><td class="py-1 pr-3">${match.settlementAmount == null ? "-" : escapeHtml(money(match.settlement?.currency || match.currency, match.settlementAmount))}</td><td class="py-1 pr-3">${escapeHtml(match.settlement?.currency || "-")}</td><td class="py-1 pr-3">${Number(match.settlement?.records?.length || 0)} settlement record(s)</td></tr>
-						</tbody>
-					</table>
-					</div>
-						<div class="mt-3 text-xs text-slate-500">Difference visible: ${escapeHtml(money(match.currency, match.differenceAmount))} · Review queue: ${escapeHtml((match.queues || []).map(label).join(", ") || "none")}</div>
-						<div class="mt-1 text-xs text-slate-500">Review reason: ${escapeHtml(reasonLabels.join(", ") || "none")}</div>
-						<div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-							<span>Review state: ${escapeHtml(label(match.reviewStatus || "unreviewed"))}</span>
-							<span>Freshness: ${escapeHtml(label(match.reviewState || "fresh"))}</span>
-							${match.reviewedAt ? `<span>Reviewed: ${escapeHtml(formatDate(match.reviewedAt))}</span>` : ""}
-						</div>
-					<div class="mt-3">
-						<label class="block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Review note</label>
-						<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Optional note for this evidence comparison">${escapeHtml(match.reviewNote || "")}</textarea>
-						<p class="mt-2 text-xs text-slate-500">Marks this comparison as reviewed only; it does not reconcile funds or move money.</p>
-						<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Mark comparison reviewed</button>
-					</div>
-					${duplicateSignals.length ? `<div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">Duplicate external reference visible: ${escapeHtml(duplicateSignals.map((signal) => signal.externalReference).join(", "))}</div>` : ""}
-				</div>`
-	}
-
-	function providerFinanceHtml(item) {
-		const finance = item?.providerFinance
-		if (!finance) return ""
-		const blockingDetails = Array.isArray(finance.blockingDetails) ? finance.blockingDetails : []
-		const details = blockingDetails.length
-			? blockingDetails
-					.map(
-						(detail) => `<li class="rounded-lg border border-amber-200 bg-amber-50 p-3">
-							<div class="text-sm font-semibold text-amber-900">${escapeHtml(labelFrom(providerFinanceQueueLabels, detail.code))}</div>
-							<div class="mt-1 text-xs leading-5 text-amber-800">${escapeHtml(detail.reason)}</div>
-							<div class="mt-2 text-xs font-semibold text-amber-900">Next action: ${escapeHtml(detail.nextOperationalAction)}</div>
-						</li>`
-					)
-					.join("")
-			: '<li class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No blocking reason visible.</li>'
-		const staleReasons = Array.isArray(finance?.snapshotLifecycle?.staleReasons)
-			? finance.snapshotLifecycle.staleReasons
-			: []
-		const staleReasonText = staleReasons
-			.map((reason) => labelFrom(staleReasonLabels, reason))
-			.join(", ")
-		return `<div class="rounded-xl border border-slate-200 bg-white p-3">
-			<div class="flex items-start justify-between gap-3">
-				<div>
-					<div class="text-sm font-semibold text-slate-950">Provider finance</div>
-					<p class="mt-1 text-xs text-slate-500">Read-only payable visibility from snapshots, reconciliation evidence and provider finance records.</p>
-				</div>
-				<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">statement freshness: ${escapeHtml(label(finance?.statement?.state || "unknown"))}</span>
-			</div>
-			<div class="mt-3 grid gap-3 sm:grid-cols-4">
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Gross</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(money(finance.currency, finance.grossAmount))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Commission</div><div class="mt-1 text-sm text-slate-900">${finance.commissionAmount == null ? "snapshot missing" : escapeHtml(money(finance.currency, finance.commissionAmount))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Tax</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(money(finance.currency, finance.taxAmount))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Payable</div><div class="mt-1 text-sm text-slate-900">${finance.netPayable == null ? "snapshot missing" : escapeHtml(money(finance.currency, finance.netPayable))}</div></div>
-			</div>
-			<div class="mt-3 grid gap-3 sm:grid-cols-2">
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${ownerChip(finance.operationalOwner || "provider_finance")}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Snapshot freshness</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(label(finance?.snapshotLifecycle?.freshness || "unknown"))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reconciliation dependency</div><div class="mt-1 text-sm text-slate-900">${finance?.reconciliation?.readyForPayable ? "ready for payable visibility" : escapeHtml(labelFrom(reconciliationStatusLabels, finance?.reconciliation?.blockingStatus || "missing_reconciliation_match"))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Next operational action</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(finance.nextOperationalAction || "Monitor provider finance visibility.")}</div></div>
-			</div>
-			<ul class="mt-3 space-y-2">${details}</ul>
-			${staleReasonText ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Freshness note:</span> ${escapeHtml(staleReasonText)}</div>` : ""}
-			<p class="mt-3 text-xs text-slate-500">Visibility only: this does not initiate provider disbursement, create accounting entries, or move funds.</p>
-		</div>`
-	}
-
-	function evidenceHtml(item) {
-		const entries = [
-			...referencesFor(item).map((reference) => ({ ...reference, isPersisted: true })),
-			...shadowEvidenceEntries(item).map((reference) => ({ ...reference, isPersisted: false })),
-		]
-		if (!entries.length)
-			return '<p class="text-sm text-slate-500">No stable reference visible yet.</p>'
-		return `<ul class="space-y-2">${entries
-			.map(
-				(reference) => `<li class="rounded-lg border border-slate-200 bg-white p-3">
-					<div class="flex items-start justify-between gap-3">
-						<div>
-							<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${escapeHtml(reference.type)}</div>
-							<div class="mt-1 font-mono text-xs text-slate-800">${escapeHtml(reference.referenceValue)}</div>
-						</div>
-						<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "reference recorded" : "evidence visible"}</span>
-					</div>
-					<div class="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
-						<div>System: ${escapeHtml(reference.externalSystem || "-")}</div>
-						<div>Recorded: ${escapeHtml(formatDate(reference.recordedAt))}</div>
-						<div>Source: ${escapeHtml(label(reference.source || "shadow visibility"))}</div>
-						<div>Amount: ${reference.amount == null ? "-" : escapeHtml(money(reference.currency, reference.amount))}</div>
-					</div>
-				</li>`
-			)
-			.join("")}</ul>`
-	}
-
-	function timelineHtml(item) {
-		const events = eventsFor(item)
-		if (!events.length)
-			return '<p class="text-sm text-slate-500">No review events recorded yet.</p>'
-		return `<ol class="space-y-3">${events
-			.map(
-				(event) => `<li class="border-l border-slate-200 pl-3">
-					<div class="text-sm font-semibold text-slate-900">${escapeHtml(label(event.type))}</div>
-					<div class="text-xs text-slate-500">${escapeHtml(formatDate(event.createdAt))} · ${escapeHtml(label(event.actorType || "operator"))}</div>
-				</li>`
-			)
-			.join("")}</ol>`
-	}
-
-	function refundHandoffHtml(item) {
+	function openDrawer(item) {
+		selectedItem = item
+		const canReview = Boolean(item.persistedId) && !reviewTerminalStatuses.has(String(item.status))
 		const handoff = refundHandoffFor(item)
 		const refundEvidence = referencesFor(item).filter(
 			(reference) => reference.type === "refund_evidence"
 		)
-		const derivedState = item?.operation?.refund?.state || "not_applicable"
-		const canReviewHandoff = Boolean(handoff) && !handoffTerminal(handoff)
-		if (!handoff) {
-			return `<div class="rounded-xl border border-slate-200 bg-white p-3">
-				<div class="flex items-start justify-between gap-3">
-					<div>
-						<div class="text-sm font-semibold text-slate-950">Refund handoff</div>
-						<p class="mt-1 text-xs text-slate-500">Derived visibility: ${escapeHtml(label(derivedState))}</p>
-					</div>
-					<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">derived only</span>
-				</div>
-				<p class="mt-3 text-xs text-slate-500">No persisted refund handoff is open for this booking. GET views do not create handoffs automatically.</p>
-			</div>`
-		}
-		return `<div class="rounded-xl border border-slate-200 bg-white p-3">
-			<div class="flex items-start justify-between gap-3">
-				<div>
-					<div class="text-sm font-semibold text-slate-950">Refund handoff</div>
-					<p class="mt-1 text-xs text-slate-500">Operational handoff visibility only. Review closed does not mean refund execution.</p>
-				</div>
-				${handoffStatusChip(handoff.status)}
-			</div>
-			<div class="mt-3 grid gap-3 sm:grid-cols-2">
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${ownerChip(handoff.nextOwner)}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Age</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(refundHandoffAge(handoff))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Opened</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(formatDate(handoff.openedAt))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Expected amount</div><div class="mt-1 text-sm text-slate-900">${handoff.expectedAmount == null ? "-" : escapeHtml(money(handoff.currency, handoff.expectedAmount))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reason</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(label(handoff.reason))}</div></div>
-				<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund evidence</div><div class="mt-1 text-sm text-slate-900">${refundEvidence.length ? "Refund evidence visible" : "No refund evidence visible"}</div></div>
-			</div>
-			<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Refund handoff note</label>
-			<textarea id="refundHandoffNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for close or dismiss">${escapeHtml(handoff.notes || "")}</textarea>
-			<p class="mt-2 text-xs text-slate-500">Review closed means operational refund review closed, not refund execution.</p>
-			<div class="mt-3 flex flex-wrap gap-2">
-				<button type="button" data-refund-handoff-action="acknowledge" ${canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Acknowledge handoff</button>
-				<button type="button" data-refund-handoff-action="close" ${canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Close review</button>
-				<button type="button" data-refund-handoff-action="dismiss" ${canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss handoff</button>
-			</div>
-		</div>`
-	}
-
-	function openDrawer(item) {
-		selectedItem = item
-		const operation = item.operation || {}
-		const canReview = Boolean(item.persistedId) && !reviewTerminalStatuses.has(String(item.status))
+		const evidenceEntries = [
+			...referencesFor(item).map((reference) => ({ ...reference, isPersisted: true })),
+			...shadowEvidenceEntries(item).map((reference) => ({ ...reference, isPersisted: false })),
+		]
+		const match = reconciliationFor(item)
+		const duplicateSignals = duplicateExternalReferences.filter((signal) =>
+			(signal.bookingIds || []).includes(item.bookingId)
+		)
+		const rowView = rowViewFor(item)
+		const drawerView = buildFinancialDrawerViewModel({
+			row: rowView,
+			reconciliationMatch: match,
+			evidenceEntries,
+			duplicateSignals,
+		})
 		if (drawerBody) {
-			drawerBody.innerHTML = `
-				<div class="space-y-5">
-					<div>
-						<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Operational review</p>
-						<h2 class="mt-1 text-xl font-semibold text-slate-950">${escapeHtml(label(item.code))}</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">${escapeHtml(item.reason)}</p>
-						<div class="mt-3 flex flex-wrap gap-2">${statusChip(item.status)}${ownerChip(item.nextOwner)}<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${escapeHtml(sourceLabel(item))}</span></div>
-					</div>
-					<div class="grid gap-3 sm:grid-cols-2">
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Booking id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${escapeHtml(item.bookingId)}</div></div>
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Provider id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${escapeHtml(item.providerId)}</div></div>
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Basis</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(label(item.basis))}</div></div>
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Age</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(operationalAge(item))}</div></div>
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Opened</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(formatDate(item.openedAt))}</div></div>
-						<div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund handoff</div><div class="mt-1 text-sm text-slate-900">${escapeHtml(handoffStatusLabel(refundHandoffFor(item)?.status || operation?.refund?.state || "not_applicable"))}</div></div>
-					</div>
-						${refundHandoffHtml(item)}
-						${reconciliationHtml(item)}
-						${providerFinanceHtml(item)}
-						<div class="rounded-xl border border-slate-200 bg-white p-3">
-						<div class="text-sm font-semibold text-slate-950">Evidence references</div>
-						<div class="mt-3">${evidenceHtml(item)}</div>
-					</div>
-					<div class="rounded-xl border border-slate-200 bg-white p-3">
-						<div class="text-sm font-semibold text-slate-950">Record evidence</div>
-						<p class="mt-1 text-xs text-slate-500">Reference recorded here stays evidence visible for review; it does not close the review automatically.</p>
-						<div class="mt-3 grid gap-3 sm:grid-cols-2">
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>Type</span>
-								<select id="financialReferenceType" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
-									<option value="payment_evidence">Payment evidence</option>
-									<option value="refund_evidence">Refund evidence</option>
-									<option value="settlement_evidence">Settlement evidence</option>
-									<option value="invoice_reference">Invoice reference</option>
-								</select>
-							</label>
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>Reference value</span>
-								<input id="financialReferenceValue" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="External reference id" />
-							</label>
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>External system</span>
-								<input id="financialReferenceSystem" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" />
-							</label>
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>Amount</span>
-								<input id="financialReferenceAmount" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" />
-							</label>
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>Currency</span>
-								<input id="financialReferenceCurrency" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm uppercase text-slate-800" placeholder="USD" maxlength="8" />
-							</label>
-							<label class="space-y-1 text-xs font-semibold text-slate-600">
-								<span>Note</span>
-								<input id="financialReferenceNote" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional review note" />
-							</label>
-						</div>
-						<button type="button" data-reference-action="record" class="mt-3 rounded-lg border border-slate-300 bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Record evidence</button>
-					</div>
-					<div class="rounded-xl border border-slate-200 bg-white p-3">
-						<div class="text-sm font-semibold text-slate-950">Timeline</div>
-						<div class="mt-3">${timelineHtml(item)}</div>
-					</div>
-					<div class="rounded-xl border border-slate-200 bg-white p-3">
-						<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Resolution note</label>
-						<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for resolve or dismiss">${escapeHtml(item.resolutionNote || "")}</textarea>
-						<p class="mt-2 text-xs text-slate-500">Resolved means operational review closed, not financially matched.</p>
-						<div class="mt-3 flex flex-wrap gap-2">
-							<button type="button" data-review-action="acknowledge" ${canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Acknowledge</button>
-							<button type="button" data-review-action="resolve" ${canReview ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Resolve review</button>
-							<button type="button" data-review-action="dismiss" ${canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss</button>
-						</div>
-						${item.persistedId ? "" : '<p class="mt-3 text-xs text-slate-500">Derived-only item: persisted review actions become available after an operator opens a persisted record.</p>'}
-					</div>
-				</div>`
+			drawerBody.innerHTML = renderFinancialDrawerContent(
+				{
+					viewModel: drawerView,
+					refundHandoff: handoff,
+					refundEvidence,
+					events: eventsFor(item),
+					canReview,
+					canReviewHandoff: Boolean(handoff) && !handoffTerminal(handoff),
+				},
+				{
+					escapeHtml,
+					money,
+					label,
+					formatDate,
+					statusChip,
+					ownerChip,
+					handoffStatusChip,
+					handoffStatusLabel,
+					operationalAge,
+					refundHandoffAge,
+				}
+			)
 			drawerBody.querySelectorAll("[data-review-action]").forEach((button) => {
 				button.addEventListener(
 					"click",
