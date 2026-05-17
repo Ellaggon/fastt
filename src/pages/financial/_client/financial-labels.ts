@@ -1,4 +1,12 @@
 export const queueLabels: Record<string, string> = {
+	needs_review: "Needs review",
+	reconciliation_issues: "Reconciliation issues",
+	refund_handoffs: "Refund handoffs",
+	provider_finance: "Provider finance",
+	evidence_issues: "Evidence issues",
+	waiting_external: "Waiting external",
+	resolved_history: "Resolved / historical",
+	advanced_all: "Advanced: all records",
 	all_open: "Needs review",
 	refund_handoff_required: "Refund handoffs",
 	missing_references: "Missing evidence",
