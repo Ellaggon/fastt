@@ -15,20 +15,27 @@ if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 ---
 
-<WorkspaceLayout title="Pricing · Rules">
+<WorkspaceLayout title="Commercial Rules">
 	<div class="space-y-8">
 		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Pricing</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Rules</h1>
+			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+				Rooms & Rates · Commercial Automation
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Commercial Rules</h1>
 			<p class="text-sm text-slate-300">
-				Gestiona reglas de pricing por rate plan desde el hub operativo.
+				Gestiona pricing rules, promociones, markups y overrides comerciales por rate plan.
+				Restrictions vive en una superficie separada de sellability.
 			</p>
 		</header>
-		<Section title="Acciones" description="Flujos disponibles para gestión de reglas.">
+		<Section
+			title="Acciones"
+			description="Flujos disponibles para automatización comercial sin mezclar inventario, policies o restrictions."
+		>
 			<Card className="bg-white text-slate-800">
 				<div class="flex flex-wrap items-center gap-2">
-					<Button href={routes.ratePlansHub()} variant="primary">Abrir Rate Plans</Button>
+					<Button href={routes.ratePlansList()} variant="primary">Abrir Rate Plans</Button>
 					<Button href={routes.pricingBulk()} variant="secondary">Ir a Bulk Operations</Button>
+					<Button href={routes.rateRestrictions()} variant="secondary">Ver Restrictions</Button>
 				</div>
 			</Card>
 		</Section>

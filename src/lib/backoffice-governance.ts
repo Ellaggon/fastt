@@ -226,6 +226,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "RatePlan-first commercial pricing and policy surfaces.",
 	},
 	{
+		pattern: "/rates/restrictions",
+		status: "transitional",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Sellability restriction surface over existing restriction domain and search evaluation.",
+	},
+	{
 		pattern: "/pricing/bulk",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -237,7 +245,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Advanced pricing action hub; subordinate to rate plan pricing.",
+		rationale:
+			"Commercial rule and pricing automation surface; subordinate to pricing and separate from restrictions.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -269,11 +278,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Snapshot-safe financial operations and reconciliation visibility; not an accounting or PSP engine.",
 	},
 	{
+		pattern: "/provider/policies/audit",
+		status: "transitional",
+		context: "governance",
+		owner: "Administration & Governance",
+		rationale:
+			"Policy auditability is governance and traceability, not daily Rooms & Rates operation.",
+	},
+	{
 		pattern: "/provider/policies/**",
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Policy management belongs under commercial Rooms & Rates governance.",
+		rationale:
+			"Booking policy management belongs under Rooms & Rates as rate-plan booking conditions.",
 	},
 	{
 		pattern: "/provider/tax-fees",
@@ -751,6 +769,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Enterprise ARI hub for commercial and physical operating lanes.",
 			},
 			{
+				label: "Rate Plans",
+				href: routes.ratePlansList(),
+				status: "canonical",
+				summary: "Commercial products sold through variants: setup, readiness, and handoffs.",
+			},
+			{
 				label: "Bulk Pricing",
 				href: routes.pricingBulk(),
 				status: "canonical",
@@ -763,25 +787,24 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Physical inventory operations; variant-first ownership is intentional.",
 			},
 			{
-				label: "Rules / Overrides",
+				label: "Sellability Restrictions",
+				href: routes.rateRestrictions(),
+				status: "transitional",
+				summary: "Sellability controls for LOS, CTA/CTD, stop-sell, and booking windows.",
+			},
+			{
+				label: "Commercial Rules",
 				href: routes.pricingRules(),
 				status: "transitional",
 				level: 2,
-				summary: "Commercial rule management governed under explicit rate-plan ownership.",
+				summary: "Pricing rules, promotions, markups, and commercial overrides.",
 			},
 			{
-				label: "Cancellation Policies",
+				label: "Booking Policies",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
-				summary: "Policy library awaiting full Rooms & Rates surface consolidation.",
-			},
-			{
-				label: "Policy Audit",
-				href: routes.providerPoliciesAudit(),
-				status: "transitional",
-				level: 2,
-				summary: "Policy auditability surface for commercial governance.",
+				summary: "Cancellation, payment, no-show, and check-in/out conditions for rate plans.",
 			},
 		],
 		planned: ["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"],
@@ -916,6 +939,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				status: "transitional",
 				summary: "Provider verification workflow.",
 			},
+			{
+				label: "Policy Audit",
+				href: routes.providerPoliciesAudit(),
+				status: "transitional",
+				summary: "Policy traceability and resolution audit for governance workflows.",
+			},
 		],
 		planned: ["Administration RBAC", "Support Operations"],
 	},
@@ -937,6 +966,13 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Operational command surface for rate plans and ARI readiness.",
 			},
 			{
+				label: "Rate Plans",
+				href: routes.ratePlansList(),
+				status: "canonical",
+				owner: "Rooms & Rates",
+				description: "Explicit rate-plan maintenance surface for commercial products.",
+			},
+			{
 				label: "Bulk Pricing",
 				href: routes.pricingBulk(),
 				status: "canonical",
@@ -944,11 +980,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Bulk commercial coverage operations over explicit rate plans.",
 			},
 			{
-				label: "Rules / Overrides",
+				label: "Commercial Rules",
 				href: routes.pricingRules(),
 				status: "transitional",
 				owner: "Rooms & Rates",
-				description: "Advanced pricing rule surface governed under rate-plan ownership.",
+				description:
+					"Pricing automation, promotions, markups, and overrides under rate-plan ownership.",
 			},
 		],
 	},
@@ -976,25 +1013,27 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		],
 	},
 	{
-		title: "Commercial conditions",
+		title: "Sellability and booking conditions",
 		ownership: "commercial",
 		status: "transitional",
 		intent:
-			"Governed selling conditions that support rate-plan readiness without becoming pricing engines.",
+			"Sellability controls and booking conditions that support rate-plan readiness without becoming pricing engines.",
 		surfaces: [
 			{
-				label: "Cancellation Policies",
+				label: "Sellability Restrictions",
+				href: routes.rateRestrictions(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description:
+					"Current rate plans may expose restriction signals, but no dedicated ARI restriction runtime exists yet.",
+			},
+			{
+				label: "Booking Policies",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				owner: "Rooms & Rates",
-				description: "Policy library awaiting deeper Rooms & Rates consolidation.",
-			},
-			{
-				label: "Policy Audit",
-				href: routes.providerPoliciesAudit(),
-				status: "transitional",
-				owner: "Rooms & Rates",
-				description: "Policy auditability surface for commercial governance.",
+				description:
+					"Cancellation, payment, no-show, and check-in/out policy library for rate-plan booking conditions.",
 			},
 			{
 				label: "Taxes & Fees",
@@ -1013,17 +1052,16 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Roadmap markers only. These are not active workspaces until real ownership and routes exist.",
 		surfaces: [
 			{
-				label: "ARI Summary",
+				label: "Pricing Calendar",
 				status: "planned",
 				owner: "Rooms & Rates",
-				description: "Future cross-lane operating summary.",
+				description: "Future daily pricing calendar over rate-plan semantics.",
 			},
 			{
-				label: "Restrictions",
+				label: "Inventory Calendar",
 				status: "planned",
 				owner: "Rooms & Rates",
-				description:
-					"Future restriction workspace. Current rate plans may expose restriction signals, but no dedicated ARI restriction runtime exists yet.",
+				description: "Future physical availability calendar above bulk inventory actions.",
 			},
 			{
 				label: "Occupancy Pricing",
