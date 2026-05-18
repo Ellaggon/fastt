@@ -12,8 +12,8 @@ function operationFallbackForProviderFinance(financeItem: any): any {
 		currency: financeItem.currency,
 		contractTotal: financeItem.grossAmount,
 		contract: {
-			productName: "Provider finance",
-			variantName: "Payable visibility",
+			productName: "Provider payable check",
+			variantName: "Review-only amount",
 			version: "snapshot",
 		},
 		evidenceAlignment: { state: "snapshot_ready" },
@@ -114,7 +114,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 				(financeItem.blockingDetails || [])
 					.map((detail: any) => detail.reason)
 					.filter(Boolean)
-					.join(" ") || "Provider finance visibility needs operational review.",
+					.join(" ") || "Provider payable check needs an operator review.",
 			nextOwner: financeItem.operationalOwner || "provider_finance",
 			overlaySource: "visibility_only",
 			persistedId: null,

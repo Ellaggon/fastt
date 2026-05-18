@@ -12,6 +12,14 @@ export type FinancialStatementViewModel = {
 	nextAction: string
 }
 
+function humanFreshness(value: unknown): string {
+	const state = String(value || "").toLowerCase()
+	if (state === "fresh") return "Up to date"
+	if (state === "stale") return "Needs another look"
+	if (state === "unknown") return "Unclear"
+	return humanize(value)
+}
+
 export function buildFinancialStatementViewModel(finance: any): FinancialStatementViewModel {
 	const statement = finance?.statement || {}
 	const staleReasons = Array.isArray(statement?.staleReasons)
@@ -19,15 +27,17 @@ export function buildFinancialStatementViewModel(finance: any): FinancialStateme
 		: []
 	const dependencies = [
 		finance?.reconciliation?.readyForPayable
-			? "Reconciliation evidence reviewed"
-			: "Reconciliation review needed",
-		statement?.state === "fresh" ? "Statement draft fresh" : "Statement draft needs review",
+			? "Proof comparison reviewed"
+			: "Proof comparison still needs review",
+		statement?.state === "fresh"
+			? "Statement draft is up to date"
+			: "Statement draft needs another look",
 	].filter(Boolean)
 	return {
 		visible: Boolean(finance),
-		title: "Provider statement visibility",
+		title: "Provider statement draft",
 		state: humanize(statement?.state || "unknown"),
-		freshness: humanize(statement?.freshness || statement?.state || "unknown"),
+		freshness: humanFreshness(statement?.freshness || statement?.state || "unknown"),
 		includedBookings: Number(statement?.includedBookings || statement?.includedBookingCount || 0),
 		excludedBookings: Number(statement?.excludedBookings || statement?.excludedBookingCount || 0),
 		staleReasons,
@@ -35,6 +45,6 @@ export function buildFinancialStatementViewModel(finance: any): FinancialStateme
 		nextAction:
 			statement?.nextOperationalAction ||
 			finance?.nextOperationalAction ||
-			"Review statement freshness before provider finance continues.",
+			"Review whether the statement draft still matches the latest case information.",
 	}
 }

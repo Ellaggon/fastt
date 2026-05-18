@@ -32,13 +32,23 @@ function section(title: string, body: string, options: { muted?: boolean } = {})
 	</section>`
 }
 
+function humanFreshness(value: unknown): string {
+	const state = String(value || "").toLowerCase()
+	if (state === "fresh") return "Up to date"
+	if (state === "stale") return "Needs another look"
+	if (state === "waiting_external") return "Waiting on someone else"
+	if (state === "not_visible") return "Not visible yet"
+	if (state === "unknown") return "Unclear"
+	return state ? state.replaceAll("_", " ") : "Unclear"
+}
+
 function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	const { viewModel } = input
 	const { row } = viewModel
 	return `<section class="rounded-xl border border-amber-200 bg-amber-50 p-4">
 		<div class="flex items-start justify-between gap-3">
 			<div>
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Attention summary</p>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">What needs attention</p>
 				<h2 class="mt-1 text-lg font-semibold text-slate-950">${deps.escapeHtml(row.title)}</h2>
 				<p class="mt-2 text-sm leading-6 text-amber-900">${deps.escapeHtml(row.description)}</p>
 			</div>
@@ -47,16 +57,16 @@ function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 		<div class="mt-3 grid gap-2 sm:grid-cols-2">
 			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Owner:</span> ${deps.escapeHtml(row.ownerLabel)}</div>
 			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Aging:</span> ${deps.escapeHtml(row.ageLabel)}</div>
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Freshness:</span> ${deps.escapeHtml(deps.label(row.staleState))}</div>
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Next action:</span> ${deps.escapeHtml(row.nextAction)}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Current read:</span> ${deps.escapeHtml(humanFreshness(row.staleState))}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Do next:</span> ${deps.escapeHtml(row.nextAction)}</div>
 		</div>
-		<div class="mt-3 rounded-lg border border-amber-200 bg-white/70 p-2 text-xs text-amber-900"><span class="font-semibold">Primary blocker:</span> ${deps.escapeHtml(row.blocker)}</div>
+		<div class="mt-3 rounded-lg border border-amber-200 bg-white/70 p-2 text-xs text-amber-900"><span class="font-semibold">What is stopping it:</span> ${deps.escapeHtml(row.blocker)}</div>
 	</section>`
 }
 
 function renderWhy(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	return section(
-		"Why this needs review",
+		"Why this needs attention",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(input.viewModel.whyThisNeedsReview)}</p>`
 	)
 }
@@ -98,7 +108,7 @@ function renderEvidence(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 								<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${deps.escapeHtml(reference.type)}</div>
 								<div class="mt-1 font-mono text-xs text-slate-800">${deps.escapeHtml(reference.referenceValue)}</div>
 							</div>
-							<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "reference recorded" : "evidence visible"}</span>
+							<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "reference saved" : "proof visible"}</span>
 						</div>
 						<div class="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
 							<div>System: ${deps.escapeHtml(reference.externalSystem || "-")}</div>
@@ -109,32 +119,35 @@ function renderEvidence(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 					</li>`
 				)
 				.join("")}</ul>`
-		: '<p class="mt-3 text-sm text-slate-500">No stable reference visible yet.</p>'
-	return section("Evidence", `<ul class="space-y-2">${groupHtml}</ul>${referenceHtml}`)
+		: '<p class="mt-3 text-sm text-slate-500">No stable external reference is visible yet.</p>'
+	return section(
+		"Proof and external references",
+		`<ul class="space-y-2">${groupHtml}</ul>${referenceHtml}`
+	)
 }
 
 function renderReconciliation(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	const reconciliation = input.viewModel.reconciliation
 	if (!reconciliation.visible) {
 		return section(
-			"Reconciliation",
+			"Proof comparison",
 			`<p class="text-sm text-slate-500">${deps.escapeHtml(reconciliation.explanation)}</p>`
 		)
 	}
 	return section(
-		"Reconciliation",
+		"Proof comparison",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(reconciliation.explanation)}</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Contract amount</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.contractAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Payment evidence amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.paymentAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Settlement evidence amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.settlementAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Payment proof amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.paymentAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Settlement proof amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.settlementAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount))}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Visible difference</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.differenceAmount))}</div></div>
 		</div>
 		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">${deps.escapeHtml(reconciliation.providerFinanceBlocker)}</div>
-		<label class="mt-3 block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Review note</label>
-		<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Optional note for this evidence comparison">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
-		<p class="mt-2 text-xs text-slate-500">Marks this comparison as reviewed only; it does not reconcile funds or move money.</p>
-		<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Mark comparison reviewed</button>`
+		<label class="mt-3 block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Case note</label>
+		<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Optional note for this proof comparison">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
+		<p class="mt-2 text-xs text-slate-500">Marks this proof comparison as reviewed only; it does not reconcile funds or move money.</p>
+		<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Mark proof reviewed</button>`
 	)
 }
 
@@ -143,7 +156,7 @@ function renderRefund(input: DrawerRenderInput, deps: DrawerRenderDeps): string 
 	const derivedState = input.viewModel.operation?.refund?.state || "not_applicable"
 	if (!handoff) {
 		return section(
-			"Refund handoff",
+			"Refund follow-up",
 			`<div class="flex items-start justify-between gap-3">
 				<p class="text-sm text-slate-600">Derived visibility: ${deps.escapeHtml(deps.label(derivedState))}</p>
 				<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">derived only</span>
@@ -152,22 +165,22 @@ function renderRefund(input: DrawerRenderInput, deps: DrawerRenderDeps): string 
 		)
 	}
 	return section(
-		"Refund handoff",
+		"Refund follow-up",
 		`<div class="flex items-start justify-between gap-3">
-			<p class="text-sm text-slate-600">Operational handoff visibility only. Review closed does not mean refund execution.</p>
+			<p class="text-sm text-slate-600">Follow-up visibility only. Closing this case does not execute a refund.</p>
 			${deps.handoffStatusChip(handoff.status)}
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${deps.ownerChip(handoff.nextOwner)}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Age</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.refundHandoffAge(handoff))}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Expected amount</div><div class="mt-1 text-sm text-slate-900">${handoff.expectedAmount == null ? "-" : deps.escapeHtml(deps.money(handoff.currency, handoff.expectedAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund evidence</div><div class="mt-1 text-sm text-slate-900">${input.refundEvidence.length ? "Refund evidence visible" : "No refund evidence visible"}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund proof</div><div class="mt-1 text-sm text-slate-900">${input.refundEvidence.length ? "Refund proof visible" : "No refund proof visible"}</div></div>
 		</div>
-		<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Refund handoff note</label>
+		<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Refund follow-up note</label>
 		<textarea id="refundHandoffNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for close or dismiss">${deps.escapeHtml(handoff.notes || "")}</textarea>
 		<p class="mt-2 text-xs text-slate-500">Review closed means operational refund review closed, not refund execution.</p>
 		<div class="mt-3 flex flex-wrap gap-2">
-			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Acknowledge handoff</button>
+			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Start follow-up</button>
 			<button type="button" data-refund-handoff-action="close" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Close review</button>
 			<button type="button" data-refund-handoff-action="dismiss" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss handoff</button>
 		</div>`
@@ -185,28 +198,28 @@ function renderProviderFinance(input: DrawerRenderInput, deps: DrawerRenderDeps)
 					(detail: any) => `<li class="rounded-lg border border-amber-200 bg-amber-50 p-3">
 						<div class="text-sm font-semibold text-amber-900">${deps.escapeHtml(providerFinanceBlockerLabel(detail))}</div>
 						<div class="mt-1 text-xs leading-5 text-amber-800">${deps.escapeHtml(detail.reason)}</div>
-						<div class="mt-2 text-xs font-semibold text-amber-900">Next action: ${deps.escapeHtml(detail.nextOperationalAction)}</div>
+						<div class="mt-2 text-xs font-semibold text-amber-900">Do next: ${deps.escapeHtml(detail.nextOperationalAction)}</div>
 					</li>`
 				)
 				.join("")
 		: '<li class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No blocking reason visible.</li>'
 	return section(
-		"Provider finance",
+		"Provider payable check",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(copy.blocker)}</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Gross</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.grossAmount))}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Commission</div><div class="mt-1 text-sm text-slate-900">${finance.commissionAmount == null ? "snapshot missing" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount))}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Tax</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.taxAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Net payable visibility</div><div class="mt-1 text-sm text-slate-900">${finance.netPayable == null ? "snapshot missing" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Net payable for review</div><div class="mt-1 text-sm text-slate-900">${finance.netPayable == null ? "snapshot missing" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable))}</div></div>
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${deps.ownerChip(finance.operationalOwner || "provider_finance")}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reconciliation dependency</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.reconciliationDependency)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Statement freshness</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.statementFreshness)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Next operational action</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.nextAction)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Proof check</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.reconciliationDependency)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Statement draft</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.statementFreshness)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Do next</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.nextAction)}</div></div>
 		</div>
 		<ul class="mt-3 space-y-2">${detailHtml}</ul>
-		${copy.freshnessNote ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Freshness note:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
+		${copy.freshnessNote ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Why this needs another look:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
 		<p class="mt-3 text-xs text-slate-500">Visibility only: this does not initiate provider disbursement, create accounting entries, or move funds.</p>`
 	)
 }
@@ -219,21 +232,21 @@ function renderStatement(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 		.join("")
 	const staleHtml = statement.staleReasons.length
 		? statement.staleReasons.map((reason) => `<li>${deps.escapeHtml(reason)}</li>`).join("")
-		: "<li>No stale reason visible.</li>"
+		: "<li>No reason to review again is visible.</li>"
 	return section(
-		"Provider statement visibility",
+		"Provider statement draft",
 		`<p class="text-sm text-slate-700">Statement draft visibility is a read artifact for operational review. It is not a ledger, invoice, balance, or accounting statement.</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Statement draft</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.state)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Freshness</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.freshness)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Needs another look?</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.freshness)}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Included bookings</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.includedBookings)}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Excluded bookings</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.excludedBookings)}</div></div>
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Dependencies</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Stale reasons</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">What it depends on</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Why it needs another look</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
 		</div>
-		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span class="font-semibold">Next action:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
+		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span class="font-semibold">Do next:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
 	)
 }
 
@@ -262,9 +275,9 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 		"Actions",
 		`<div>
 			<div class="text-sm font-semibold text-slate-950">Record evidence</div>
-			<p class="mt-1 text-xs text-slate-500">Reference recorded here stays evidence visible for review; it does not close the review automatically.</p>
+			<p class="mt-1 text-xs text-slate-500">Reference recorded here stays visible as proof for review; it does not close the review automatically.</p>
 			<div class="mt-3 grid gap-3 sm:grid-cols-2">
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Type</span><select id="financialReferenceType" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"><option value="payment_evidence">Payment evidence</option><option value="refund_evidence">Refund evidence</option><option value="settlement_evidence">Settlement evidence</option><option value="invoice_reference">Invoice reference</option></select></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Type</span><select id="financialReferenceType" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"><option value="payment_evidence">Payment proof</option><option value="refund_evidence">Refund proof</option><option value="settlement_evidence">Settlement proof</option><option value="invoice_reference">Invoice reference</option></select></label>
 				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Reference value</span><input id="financialReferenceValue" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="External reference id" /></label>
 				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>External system</span><input id="financialReferenceSystem" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" /></label>
 				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Amount</span><input id="financialReferenceAmount" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" /></label>

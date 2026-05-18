@@ -24,39 +24,37 @@ export function buildEvidenceGroups(
 	return [
 		{
 			key: "payment",
-			label: "Payment evidence",
+			label: "Payment proof",
 			state: hasDuplicates ? "duplicate" : payment ? "visible" : "missing",
 			count: payment,
-			description: payment
-				? "Payment evidence is visible."
-				: "Payment evidence is not visible yet.",
+			description: payment ? "Payment proof is visible." : "Payment proof is not visible yet.",
 		},
 		{
 			key: "settlement",
-			label: "Settlement evidence",
+			label: "Settlement proof",
 			state: settlement ? "visible" : "missing",
 			count: settlement,
 			description: settlement
-				? "Settlement evidence is visible."
-				: "Settlement evidence is not visible yet.",
+				? "Settlement proof is visible."
+				: "Settlement proof is not visible yet.",
 		},
 		{
 			key: "refund",
-			label: "Refund evidence",
+			label: "Refund proof",
 			state: refund ? "visible" : "missing",
 			count: refund,
 			description: refund
-				? "Refund evidence is visible."
-				: "Refund evidence is not visible for this booking.",
+				? "Refund proof is visible."
+				: "Refund proof is not visible for this booking.",
 		},
 		{
 			key: "reference",
-			label: "References recorded",
+			label: "External references saved",
 			state: references ? "visible" : "missing",
 			count: references,
 			description: references
-				? `${references} reference record(s) visible for review.`
-				: "No stable reference is visible yet.",
+				? `${references} external reference(s) are available for review.`
+				: "No stable external reference is visible yet.",
 		},
 	]
 }

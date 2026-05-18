@@ -63,12 +63,12 @@ function primaryBlocker(item: any, reconciliation: any): string {
 	const reconciliationIssue = reconciliationIssueLabel(reconciliation)
 	if (reconciliationIssue) return reconciliationIssue
 	if (hasAnyCode(item, ["refund_handoff_required"])) return "Refund handoff needs review."
-	if (hasAnyCode(item, ["missing_payment_reference"])) return "Payment evidence is missing."
-	if (hasAnyCode(item, ["missing_settlement_reference"])) return "Settlement evidence is missing."
-	if (hasAnyCode(item, ["missing_refund_reference"])) return "Refund evidence is missing."
-	if (hasAnyCode(item, ["incomplete_contract_snapshot"])) return "Contract snapshot needs review."
-	if (item?.code === "clean_record") return "No open blocker visible."
-	return item?.reason || "Operational review needed."
+	if (hasAnyCode(item, ["missing_payment_reference"])) return "Payment proof is missing."
+	if (hasAnyCode(item, ["missing_settlement_reference"])) return "Settlement proof is missing."
+	if (hasAnyCode(item, ["missing_refund_reference"])) return "Refund proof is missing."
+	if (hasAnyCode(item, ["incomplete_contract_snapshot"])) return "Booking proof needs another look."
+	if (item?.code === "clean_record") return "Nothing is stopping this case."
+	return item?.reason || "This case needs an operator to review it."
 }
 
 function nextActionFor(item: any, reconciliation: any): string {
@@ -77,10 +77,10 @@ function nextActionFor(item: any, reconciliation: any): string {
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.nextOperationalAction) return financeDetail.nextOperationalAction
 	if (reconciliation?.reviewState === "stale")
-		return "Review updated evidence and mark comparison reviewed."
+		return "Look at the new evidence and mark this case reviewed."
 	if (reconciliation && reconciliation.status !== "matched")
-		return "Review evidence comparison before closing."
-	if (hasAnyCode(item, ["refund_handoff_required"])) return "Review refund handoff evidence."
+		return "Compare the visible evidence before closing the case."
+	if (hasAnyCode(item, ["refund_handoff_required"])) return "Review the refund follow-up evidence."
 	if (
 		hasAnyCode(item, [
 			"missing_payment_reference",
@@ -88,11 +88,11 @@ function nextActionFor(item: any, reconciliation: any): string {
 			"missing_refund_reference",
 		])
 	)
-		return "Record evidence when an external reference is available."
+		return "Add the external reference when it becomes available."
 	if (item?.persistedId && !["resolved", "dismissed"].includes(String(item.status || "open")))
-		return "Acknowledge, resolve, or dismiss the operational review."
+		return "Start, close, or dismiss this case."
 	if (item?.code === "clean_record") return "No action needed."
-	return "Open review details."
+	return "Open the case details."
 }
 
 function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
@@ -123,9 +123,9 @@ function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
 }
 
 function evidenceSummaryFor(item: any, referenceCounts: any): string {
-	if (item?.evidenceIssue?.kind === "duplicate_reference") return "Duplicate evidence visible"
-	if (item?.evidenceIssue?.kind === "unmatched_payment") return "Unmatched payment evidence"
-	if (item?.evidenceIssue?.kind === "unmatched_settlement") return "Unmatched settlement evidence"
+	if (item?.evidenceIssue?.kind === "duplicate_reference") return "Duplicate proof visible"
+	if (item?.evidenceIssue?.kind === "unmatched_payment") return "Unmatched payment proof"
+	if (item?.evidenceIssue?.kind === "unmatched_settlement") return "Unmatched settlement proof"
 	return `Payment: ${referenceCounts.payment} · Settlement: ${referenceCounts.settlement} · Refund: ${referenceCounts.refund} · Invoice: ${referenceCounts.invoice}`
 }
 
@@ -148,14 +148,14 @@ export function buildFinancialRowViewModel(params: {
 			? financeView.title
 			: item?.code
 				? labelFrom(workItemLabels, item.code)
-				: "Operational review"
+				: "Case needs review"
 	const description = evidenceIssue
 		? evidenceIssue.description
 		: financeView
 			? financeView.blocker
 			: reconciliation && reconciliation.status !== "matched"
 				? reconciliationIssueDescription(reconciliation)
-				: item?.reason || "Review the operational evidence for this booking."
+				: item?.reason || "Review the proof available for this booking."
 	const owner = String(
 		evidenceIssue?.owner ||
 			financeView?.owner ||
@@ -210,8 +210,8 @@ export function buildDuplicateReferenceWorkItem(signal: any): any {
 			kind: "duplicate_reference",
 			title: "Duplicate external reference",
 			description: duplicateReferenceDescription(signal),
-			blocker: "External reference is visible on multiple booking records.",
-			nextAction: "Confirm evidence ownership before closing the review.",
+			blocker: "The same external reference appears on more than one booking.",
+			nextAction: "Confirm which booking owns this reference before closing.",
 			owner: "reconciliation_ops",
 			severity: "review",
 		},
@@ -235,10 +235,10 @@ export function buildUnmatchedEvidenceWorkItem(kind: "payment" | "settlement", r
 		overlaySource: "visibility_only",
 		evidenceIssue: {
 			kind: kind === "payment" ? "unmatched_payment" : "unmatched_settlement",
-			title: kind === "payment" ? "Unmatched payment evidence" : "Unmatched settlement evidence",
+			title: kind === "payment" ? "Unmatched payment proof" : "Unmatched settlement proof",
 			description: unmatchedEvidenceDescription(kind, row),
-			blocker: "Evidence is visible but not matched to a booking.",
-			nextAction: "Review external reference ownership before using this evidence.",
+			blocker: "Proof is visible but not linked to a booking yet.",
+			nextAction: "Find the booking that owns this proof before closing.",
 			owner: "reconciliation_ops",
 			severity: "review",
 		},
