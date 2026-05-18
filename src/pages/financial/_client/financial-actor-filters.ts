@@ -12,8 +12,8 @@ export type FinancialActorFilter =
 export const actorFilterOptions: Array<{ value: FinancialActorFilter; label: string }> = [
 	{ value: "all", label: "All operators" },
 	{ value: "financial_operations", label: "Financial ops" },
-	{ value: "reconciliation_ops", label: "Reconciliation ops" },
-	{ value: "provider_finance", label: "Provider finance" },
+	{ value: "reconciliation_ops", label: "Proof comparison" },
+	{ value: "provider_finance", label: "Provider payable checks" },
 	{ value: "provider_followup", label: "Provider follow-up" },
 	{ value: "support", label: "Support" },
 	{ value: "admin", label: "Admin review" },
@@ -67,14 +67,13 @@ export function actorMatchesRow(actor: FinancialActorFilter, row: FinancialRowVi
 
 export function actorNoiseHint(actor: FinancialActorFilter): string {
 	const hints: Record<FinancialActorFilter, string> = {
-		all: "All visible operational work.",
-		financial_operations: "Review, evidence and waiting external items.",
-		reconciliation_ops: "Mismatches, duplicates, unmatched evidence and stale comparisons.",
-		provider_finance:
-			"Payable visibility blockers, statement freshness and provider finance dependencies.",
+		all: "All visible cases that may need attention.",
+		financial_operations: "Open cases, missing proof, and items waiting on someone else.",
+		reconciliation_ops: "Amounts that do not line up, duplicate references, and unmatched proof.",
+		provider_finance: "Provider payable checks, statement drafts, and evidence dependencies.",
 		provider_followup: "Provider or external finance follow-up work.",
-		support: "Refund handoffs, refund evidence and waiting external context.",
-		admin: "Degraded states and operational inconsistencies.",
+		support: "Refund follow-ups, refund proof, and cases waiting on someone else.",
+		admin: "System inconsistencies and records that need careful inspection.",
 	}
 	return hints[actor] || hints.all
 }

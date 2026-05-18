@@ -86,7 +86,7 @@ import {
 	function currentFilters() {
 		return {
 			actor: String(actorFilter?.value || "all") as any,
-			queue: String(queueFilter?.value || "needs_review"),
+			queue: String(queueFilter?.value || "needs_action_today"),
 			evidenceState: String(stateFilter?.value || "all"),
 		}
 	}
@@ -124,7 +124,7 @@ import {
 		summary.querySelectorAll("[data-queue]").forEach((button) => {
 			button.addEventListener("click", () => {
 				if (queueFilter) {
-					queueFilter.value = String(button.getAttribute("data-queue") || "needs_review")
+					queueFilter.value = String(button.getAttribute("data-queue") || "needs_action_today")
 				}
 				renderFinancialView()
 			})
@@ -136,7 +136,7 @@ import {
 		rows.innerHTML = ""
 		if (!Array.isArray(items) || !items.length) {
 			rows.innerHTML =
-				'<tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">No items match this queue. Change filters to inspect clean or historical records.</td></tr>'
+				'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No cases match this view. Try waiting, closed, or all records if you need more context.</td></tr>'
 			return
 		}
 		for (const item of items) {
@@ -304,7 +304,7 @@ import {
 			reviewNote: reviewNote || null,
 		})
 		if (!response.ok) {
-			alert("Reconciliation review marker could not be saved.")
+			alert("Evidence review could not be saved.")
 			return
 		}
 		await fetchWorkspace()
@@ -317,10 +317,10 @@ import {
 		renderSummary(workspaceState.combinedItems)
 		renderRows(filteredItems)
 		if (listSummary) {
-			const openCount = countQueue(workspaceState.combinedItems, "needs_review")
+			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
-			listSummary.textContent = `${openCount} open review item(s). Showing ${shownCount} queue item(s). ${actorNoiseHint(actor)}`
+			listSummary.textContent = `${openCount} case(s) need attention. Showing ${shownCount} case(s). ${actorNoiseHint(actor)}`
 		}
 	}
 

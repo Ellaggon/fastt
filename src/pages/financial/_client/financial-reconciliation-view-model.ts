@@ -21,7 +21,7 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 		return {
 			visible: false,
 			statusLabel: "Not visible",
-			explanation: "No reconciliation comparison is visible for this booking yet.",
+			explanation: "No proof comparison is visible for this booking yet.",
 			contractAmount: null,
 			paymentAmount: null,
 			settlementAmount: null,
@@ -31,7 +31,7 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 			reviewState: "unknown",
 			reviewStatus: "unreviewed",
 			providerFinanceBlocker:
-				"Provider finance may remain blocked until comparison evidence is visible.",
+				"Provider payable checks may stay stuck until comparison proof is visible.",
 		}
 	}
 	const reasons = Array.isArray(match.mismatchReasons)
@@ -51,7 +51,7 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 		reviewStatus: String(match.reviewStatus || "unreviewed"),
 		providerFinanceBlocker:
 			match.status === "matched" && match.reviewState !== "stale"
-				? "Provider finance can continue when payable visibility inputs are ready."
-				: "Provider finance visibility remains blocked until reconciliation review is completed.",
+				? "Provider payable checks can continue when the remaining inputs are ready."
+				: "Provider payable checks stay stuck until this proof comparison is reviewed.",
 	}
 }

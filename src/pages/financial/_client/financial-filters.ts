@@ -24,6 +24,56 @@ export function isCleanFinancialRecord(item: any): boolean {
 	return !item?.workflow && !item?.operation?.operationalException?.hasOpenException
 }
 
+function isWaitingExternalRow(item: any, row: FinancialRowViewModel): boolean {
+	return (
+		row.queue === "waiting_external" ||
+		String(item?.status || "") === "waiting_external" ||
+		String(row.operationalState || "") === "waiting_external" ||
+		String(row.staleState || "") === "waiting_external"
+	)
+}
+
+function isClosedRow(row: FinancialRowViewModel, isTerminalReview: boolean): boolean {
+	return isTerminalReview || row.queue === "resolved_history"
+}
+
+function isBlockedRow(row: FinancialRowViewModel): boolean {
+	if (row.queue === "provider_finance" && row.operationalState !== "provider_finance_review") {
+		return true
+	}
+	if (["reconciliation_issues", "evidence_issues", "refund_handoffs"].includes(row.queue)) {
+		return true
+	}
+	return (
+		String(row.severity || "") === "blocked" ||
+		(Boolean(row.blocker) &&
+			![
+				"no open blocker visible.",
+				"no provider finance blocker is visible.",
+				"nothing is stopping this case.",
+				"nothing is stopping the provider payable check.",
+			].includes(String(row.blocker).toLowerCase()))
+	)
+}
+
+function isReadyToCloseRow(
+	item: any,
+	row: FinancialRowViewModel,
+	isTerminalReview: boolean
+): boolean {
+	if (isClosedRow(row, isTerminalReview) || isWaitingExternalRow(item, row)) return false
+	if (!item?.persistedId) return false
+	const status = String(item?.status || "open")
+	const hasReviewAction = row.nextAction.toLowerCase().includes("resolve")
+	const noVisibleBlocker = [
+		"no open blocker visible.",
+		"no provider finance blocker is visible.",
+		"nothing is stopping this case.",
+		"nothing is stopping the provider payable check.",
+	].includes(String(row.blocker || "").toLowerCase())
+	return status === "acknowledged" || hasReviewAction || noVisibleBlocker
+}
+
 export function queueMatchesRow(params: {
 	item: any
 	row: FinancialRowViewModel
@@ -32,6 +82,20 @@ export function queueMatchesRow(params: {
 }): boolean {
 	const { item, row, queue, isTerminalReview } = params
 	if (queue === "advanced_all" || queue === "all") return true
+	if (queue === "needs_action_today") {
+		return (
+			!isClosedRow(row, isTerminalReview) &&
+			!isCleanFinancialRecord(item) &&
+			!isWaitingExternalRow(item, row)
+		)
+	}
+	if (queue === "blocked") {
+		return (
+			!isClosedRow(row, isTerminalReview) && !isWaitingExternalRow(item, row) && isBlockedRow(row)
+		)
+	}
+	if (queue === "ready_to_close") return isReadyToCloseRow(item, row, isTerminalReview)
+	if (queue === "recently_closed") return row.queue === "resolved_history"
 	if (queue === "needs_review" || queue === "all_open") {
 		return !isTerminalReview && !isCleanFinancialRecord(item)
 	}
