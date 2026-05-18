@@ -41,6 +41,7 @@ export const statusLabels: Record<string, string> = {
 
 export const ownerLabels: Record<string, string> = {
 	financial_operations: "Financial ops",
+	reconciliation_ops: "Proof comparison",
 	reservations: "Reservations",
 	provider_followup: "Provider follow-up",
 	external_finance: "External finance",

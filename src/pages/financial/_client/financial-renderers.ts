@@ -19,7 +19,7 @@ export function renderPriorityBadge(row: FinancialRowViewModel): string {
 			"Nothing is stopping the provider payable check.",
 		].includes(row.blocker)
 	) {
-		return "Provider payable check stuck"
+		return "Provider payable check is stuck"
 	}
 	if (row.queue === "reconciliation_issues") return "Proof does not line up"
 	if (row.queue === "evidence_issues") return "Proof needs attention"
@@ -48,6 +48,7 @@ function renderInboxState(row: FinancialRowViewModel, item: any): string {
 	if (["reconciliation_issues", "evidence_issues", "refund_handoffs"].includes(row.queue)) {
 		return "Needs attention"
 	}
+	if (String(item?.status || "") === "acknowledged") return "Can be closed"
 	if (row.nextAction.toLowerCase().includes("resolve")) return "Can be closed"
 	return "Needs attention"
 }
@@ -80,7 +81,7 @@ export function renderFinancialRowHtml(params: {
 		? buildProviderFinanceRowViewModel(item.providerFinance)
 		: null
 	const providerFinanceLine = financeView
-		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(deps.label(financeView.operationalState))} · Statement draft: ${deps.escapeHtml(renderHumanFreshness(financeView.statementState))}</div>`
+		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(financeView.title)} · Statement draft: ${deps.escapeHtml(renderHumanFreshness(financeView.statementState))}</div>`
 		: ""
 	const inboxState = renderInboxState(row, item)
 	const bookingContext = item.bookingId

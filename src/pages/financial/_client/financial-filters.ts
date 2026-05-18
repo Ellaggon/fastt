@@ -117,7 +117,7 @@ export function queueMatchesRow(params: {
 	}
 	if (queue === "reconciliation_issues") return row.queue === "reconciliation_issues"
 	if (queue === "evidence_issues") return row.queue === "evidence_issues"
-	if (queue === "waiting_external") return row.queue === "waiting_external"
+	if (queue === "waiting_external") return isWaitingExternalRow(item, row)
 	if (queue === "clean_records") return isCleanFinancialRecord(item)
 	if (queue === "missing_references") {
 		return hasAnyCode(item, [
