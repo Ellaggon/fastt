@@ -23,8 +23,8 @@ const url = new URL(Astro.request.url)
 const params = url.searchParams
 
 const destinationId = (params.get("destinationId") || "").trim()
-const checkIn = (params.get("checkIn") || "").trim()
-const checkOut = (params.get("checkOut") || "").trim()
+const checkIn = (params.get("checkIn") || params.get("checkin") || "").trim()
+const checkOut = (params.get("checkOut") || params.get("checkout") || "").trim()
 const rooms = (params.get("rooms") || "1").trim()
 const adults = (params.get("adults") || "2").trim()
 const children = (params.get("children") || "0").trim()
