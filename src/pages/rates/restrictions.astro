@@ -48,17 +48,17 @@ const restrictionTypes = [
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Rooms & Rates · Sellability Control
+					Rooms & Rates · Sellability
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Restrictions</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Superficie transicional para controles de vendibilidad. Pricing decide cuánto se cobra;
-					Restrictions decide cuándo una estadía puede venderse.
+					Dominio operacional de vendibilidad. Pricing decide cuánto se cobra; Inventory decide
+					cuántas unidades físicas existen; Restrictions decide cuándo una estadía puede venderse.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
+				<Button href={routes.ratePlansHub()} variant="secondary">ARI Hub</Button>
 				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
-				<Button href={routes.pricingBulk()} variant="primary">Bulk Pricing</Button>
 			</div>
 		</header>
 
@@ -75,14 +75,14 @@ const restrictionTypes = [
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Operational status</p>
-				<p class="mt-2 text-2xl font-semibold">Transition</p>
-				<p class="mt-1 text-xs text-slate-400">Surface visible; editor dedicado pendiente</p>
+				<p class="mt-2 text-2xl font-semibold">Domain active</p>
+				<p class="mt-1 text-xs text-slate-400">Señales activas; editor dedicado madura en Fase 3</p>
 			</Card>
 		</section>
 
 		<Section
 			title="Restriction ownership"
-			description="Esta página separa sellability de pricing automation y booking policies. La edición completa llegará en la siguiente fase."
+			description="Restrictions es sellability: no pricing automation, no inventario físico, no contrato de reserva."
 		>
 			<Card className="bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-2">
@@ -95,9 +95,9 @@ const restrictionTypes = [
 					<div>
 						<h2 class="text-base font-semibold text-slate-900">Boundary</h2>
 						<p class="mt-2 text-sm leading-6 text-slate-600">
-							Restrictions no reemplaza Commercial Rules, no administra inventario físico y no
-							define políticas contractuales. Su owner es vendibilidad por producto, variante, rate
-							plan y fecha.
+							Restrictions gobierna reglas de venta por producto, variante, rate plan y fecha.
+							Commercial Rules gobierna automatización de precio; Booking Policies gobierna
+							condiciones contractuales.
 						</p>
 					</div>
 				</div>
@@ -106,7 +106,7 @@ const restrictionTypes = [
 
 		<Section
 			title="Rate-plan restriction signals"
-			description="Lectura operacional mínima sobre la arquitectura existente. Los detalles completos viven aún en las superficies de rate plan y search evaluation."
+			description="Lectura operacional de señales existentes que ya participan en la vendibilidad y search evaluation."
 		>
 			{
 				rows.length === 0 ? (

@@ -30,6 +30,82 @@ const activeRatePlans = rows.filter((row) => row.isActive).length
 const defaultRatePlans = rows.filter((row) => row.isDefault).length
 const completePolicies = rows.filter((row) => row.policyCoverage?.isComplete).length
 const physicalVariants = new Set(rows.map((row) => String(row.variantId))).size
+const totalPricingRules = rows.reduce(
+	(sum, row) => sum + Number(row.summary?.priceRulesCount ?? 0),
+	0
+)
+const plansWithRestrictions = rows.filter(
+	(row) => Number(row.summary?.activeRestrictionsCount ?? 0) > 0
+).length
+const totalRestrictionSignals = rows.reduce(
+	(sum, row) => sum + Number(row.summary?.activeRestrictionsCount ?? 0),
+	0
+)
+const incompletePolicies = Math.max(0, rows.length - completePolicies)
+
+type AriDomainStatus = "operational" | "attention"
+
+const ariDomains: {
+	label: string
+	owner: string
+	status: AriDomainStatus
+	metric: string
+	signal: string
+	description: string
+	href: string
+	action: string
+}[] = [
+	{
+		label: "Rate Plans",
+		owner: "Commercial product",
+		status: rows.length > 0 ? "operational" : "attention",
+		metric: String(rows.length),
+		signal: `${activeRatePlans} activos · ${defaultRatePlans} principales`,
+		description: "Define qué producto comercial se vende sobre una variante física.",
+		href: routes.ratePlansList(),
+		action: "Abrir Rate Plans",
+	},
+	{
+		label: "Pricing",
+		owner: "Rate coverage",
+		status: rows.length > 0 ? "operational" : "attention",
+		metric: String(totalPricingRules),
+		signal: "Reglas de precio vinculadas a rate plans",
+		description: "Define cuánto se cobra: baseline, cobertura y ajustes comerciales.",
+		href: routes.pricingBulk(),
+		action: "Abrir Pricing",
+	},
+	{
+		label: "Inventory",
+		owner: "Physical capacity",
+		status: physicalVariants > 0 ? "operational" : "attention",
+		metric: String(physicalVariants),
+		signal: "Variantes físicas con contexto de inventario",
+		description: "Define cupos, disponibilidad física y capacidad vendible por variante.",
+		href: routes.inventoryBulk(),
+		action: "Abrir Inventory",
+	},
+	{
+		label: "Restrictions",
+		owner: "Sellability",
+		status: "operational",
+		metric: String(totalRestrictionSignals),
+		signal: `${plansWithRestrictions} rate plans con controles activos`,
+		description: "Define cuándo se puede vender: LOS, CTA/CTD, stop-sell y booking windows.",
+		href: routes.rateRestrictions(),
+		action: "Abrir Restrictions",
+	},
+	{
+		label: "Booking Policies",
+		owner: "Reservation contract",
+		status: incompletePolicies === 0 && rows.length > 0 ? "operational" : "attention",
+		metric: `${completePolicies}/${rows.length}`,
+		signal: incompletePolicies > 0 ? `${incompletePolicies} pendientes` : "Condiciones completas",
+		description: "Define cancelación, pago, no-show y condiciones de check-in/out.",
+		href: routes.providerPolicies(),
+		action: "Abrir Policies",
+	},
+]
 
 const ownershipLabel = {
 	commercial: "Commercial",
@@ -52,6 +128,11 @@ const statusBadgeVariant = {
 	"internal-only": "neutral",
 	"public": "neutral",
 }
+
+const domainBadgeVariant: Record<AriDomainStatus, "success" | "warning"> = {
+	operational: "success",
+	attention: "warning",
+}
 ---
 
 <WorkspaceLayout title="Rooms & Rates Hub">
@@ -63,11 +144,13 @@ const statusBadgeVariant = {
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Rooms & Rates Hub</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Núcleo operativo ARI: separa el ownership comercial de rate plans y pricing del ownership
-					físico de room types, variantes e inventario.
+					ARI Command Center: organiza qué se vende, cuánto cuesta, qué capacidad física existe, qué
+					restricciones afectan vendibilidad y qué contrato de reserva aplica.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
+				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
+				<Button href={routes.rateRestrictions()} variant="secondary">Restrictions</Button>
 				<Button href={routes.pricingBulk()} variant="primary">Bulk Pricing</Button>
 				<Button href={routes.inventoryBulk()} variant="secondary">Bulk Inventory</Button>
 			</div>
@@ -97,10 +180,43 @@ const statusBadgeVariant = {
 		</section>
 
 		<Section
-			title="Operational readiness lanes"
-			description="Rooms & Rates coordina readiness física y comercial sin mezclar ownership: inventory prepara unidades vendibles; rate plans preparan cobertura comercial."
+			title="ARI command domains"
+			description="Cada dominio responde una pregunta operacional distinta. El Hub coordina señales y handoffs sin mezclar ownership."
 		>
-			<div class="grid gap-4 lg:grid-cols-2">
+			<div class="grid gap-4 lg:grid-cols-5">
+				{
+					ariDomains.map((domain) => (
+						<Card className="border-slate-800 bg-slate-950 text-slate-100">
+							<div class="flex items-start justify-between gap-3">
+								<div>
+									<p class="text-xs font-semibold tracking-wide text-blue-300 uppercase">
+										{domain.owner}
+									</p>
+									<h2 class="mt-1 text-lg font-semibold">{domain.label}</h2>
+								</div>
+								<Badge variant={domainBadgeVariant[domain.status]}>
+									{domain.status === "operational" ? "Operational" : "Attention"}
+								</Badge>
+							</div>
+							<p class="mt-4 text-3xl font-semibold">{domain.metric}</p>
+							<p class="mt-1 text-xs leading-5 text-slate-400">{domain.signal}</p>
+							<p class="mt-3 min-h-16 text-sm leading-6 text-slate-300">{domain.description}</p>
+							<div class="mt-4">
+								<Button href={domain.href} variant="secondary" size="sm">
+									{domain.action}
+								</Button>
+							</div>
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Operational readiness lanes"
+			description="Rooms & Rates coordina readiness física, comercial, vendibilidad y contrato de reserva sin mezclar ownership."
+		>
+			<div class="grid gap-4 lg:grid-cols-3">
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
 					<p class="text-xs font-semibold uppercase tracking-wide text-blue-300">
 						Physical readiness
@@ -119,6 +235,16 @@ const statusBadgeVariant = {
 					<p class="mt-2 text-sm leading-6 text-slate-300">
 						La capa comercial define cobertura de venta por rate plan, condiciones, políticas y
 						dependencias financieras. Variant permanece como contexto físico relacionado.
+					</p>
+				</Card>
+				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+					<p class="text-xs font-semibold uppercase tracking-wide text-amber-300">
+						Sellability readiness
+					</p>
+					<h2 class="mt-2 text-xl font-semibold">Restrictions, blockers, booking windows</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-300">
+						La capa de vendibilidad responde si una estadía puede venderse: LOS, CTA/CTD, stop-sell
+						y ventanas de reserva. No cambia precios ni cupos físicos.
 					</p>
 				</Card>
 			</div>

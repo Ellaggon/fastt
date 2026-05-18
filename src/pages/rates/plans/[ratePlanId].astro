@@ -56,7 +56,8 @@ const hasCommercialBaseline = Number(String(loaded.initialBasePrice ?? 0)) > 0
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Rate Plan Commercial Hub</h1>
 				<p class="text-sm text-slate-300">
-					Subhub comercial rate-plan-first: cobertura, condiciones y contexto físico relacionado.
+					Subhub rate-plan-first: producto comercial, cobertura de precio, vendibilidad y contrato
+					de reserva con contexto físico relacionado.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
@@ -142,8 +143,8 @@ const hasCommercialBaseline = Number(String(loaded.initialBasePrice ?? 0)) > 0
 					>
 				</div>
 				<p class="mt-3 text-xs text-slate-500">
-					Las señales de restricción son visibilidad operativa del rate plan. La superficie
-					Restrictions ya separa sellability de pricing y seguirá madurando como editor dedicado.
+					Las señales de restricción pertenecen al dominio de vendibilidad: indican cuándo una
+					estadía puede venderse sin mezclar precio, inventario físico ni contrato de reserva.
 				</p>
 				<div class="mt-3">
 					<Button href={routes.rateRestrictions()} variant="secondary" size="sm">

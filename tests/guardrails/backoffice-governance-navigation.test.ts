@@ -268,12 +268,24 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("ARI operating core")
-		expect(roomsAndRates?.nextMaturity).toContain("rate plans own commercial pricing")
+		expect(roomsAndRates?.operationalIntent).toContain("ARI command center")
+		expect(roomsAndRates?.nextMaturity).toContain("restrictions own sellability")
 		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
-		expect(roomsAndRates?.planned).toEqual(
-			expect.arrayContaining(["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"])
+		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
+			expect.arrayContaining(["Restrictions", "Rate Plans", "Booking Policies"])
 		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Restrictions")?.status).toEqual(
+			"canonical"
+		)
+		expect(roomsAndRates?.planned).toEqual(
+			expect.arrayContaining([
+				"Pricing Calendar",
+				"Inventory Calendar",
+				"Occupancy Pricing",
+				"Audit History",
+			])
+		)
+		expect(roomsAndRates?.planned ?? []).not.toContain("Restrictions")
 	})
 
 	it("enforces physical vs commercial ownership separation inside Rooms & Rates", () => {

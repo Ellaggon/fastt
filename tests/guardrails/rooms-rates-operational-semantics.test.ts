@@ -98,20 +98,29 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	it("keeps the Rooms & Rates hub framed as operational coordination, not a link directory", () => {
 		const hub = read("src/pages/rates/plans/index.astro")
 
+		expect(hub).toContain("ARI Command Center")
+		expect(hub).toContain("ARI command domains")
 		expect(hub).toContain("Operational readiness lanes")
 		expect(hub).toContain("Physical readiness")
 		expect(hub).toContain("Commercial readiness")
+		expect(hub).toContain("Sellability readiness")
 		expect(hub).toContain("La capa física")
 		expect(hub).toContain("La capa comercial")
 		expect(hub).not.toContain("Default plans")
 		expect(hub).not.toContain("window.location.href = `/rates/plans?")
 	})
 
-	it("keeps planned ARI restrictions honest instead of exposing a fake workspace", () => {
+	it("keeps restrictions as the active sellability domain without pretending to have a full editor", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
+		const restrictions = read("src/pages/rates/restrictions.astro")
 
-		expect(governance).toContain("Current rate plans may expose restriction signals")
-		expect(governance).toContain("no dedicated ARI restriction runtime exists yet")
+		expect(governance).toContain("Official sellability domain")
+		expect(governance).toContain("Restrictions")
+		expect(governance).toContain('pattern: "/rates/restrictions",\n\t\tstatus: "canonical"')
+		expect(governance).not.toContain('planned: ["ARI Summary", "Restrictions"')
+		expect(restrictions).toContain("editor dedicado madura en Fase 3")
+		expect(restrictions).toContain("Domain active")
+		expect(restrictions).toContain("search evaluation")
 		expect(governance).not.toContain(
 			"Future restriction workspace; no runtime channel manager exists yet."
 		)
