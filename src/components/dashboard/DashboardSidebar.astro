@@ -10,8 +10,13 @@ interface Props {
 const { pathname = "" } = Astro.props
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+const activeHref =
+	enterpriseNavigation
+		.flatMap((section) => section.items.map((item) => item.href))
+		.filter((href) => isActive(href))
+		.sort((a, b) => b.length - a.length)[0] ?? ""
 const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) =>
-	items.some((item) => isActive(item.href))
+	items.some((item) => item.href === activeHref || isActive(item.href))
 ---
 
 <nav class="space-y-4" aria-label="Enterprise backoffice navigation">
@@ -38,7 +43,7 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 						label={item.label}
 						status={item.status}
 						summary={item.summary}
-						active={isActive(item.href)}
+						active={item.href === activeHref}
 						prefetch={true}
 						level={item.level ?? 1}
 					/>

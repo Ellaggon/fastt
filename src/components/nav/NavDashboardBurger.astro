@@ -48,7 +48,7 @@ const user = await getUserFromRequest(Astro.request)
 			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
 		>
 			<Scale />
-			<p>Políticas</p>
+			<p>Booking Policies</p>
 		</a>
 		<a
 			href="/provider/tax-fees"
@@ -61,7 +61,7 @@ const user = await getUserFromRequest(Astro.request)
 			user && (
 				<a
 					href="/api/auth/logout"
-					class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
+					class="flew-row bg-opacity-60 inline-flex w-full items-center justify-start gap-3 rounded-lg px-3 py-2.5 text-center font-medium text-white opacity-70 transition hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:ring-4 focus:ring-[#1da1f2]/50 focus:outline-none md:hidden"
 				>
 					<LogOut />
 					<p>Salir</p>

@@ -136,14 +136,14 @@ if (Astro.request.method === "POST") {
 }
 ---
 
-<WorkspaceLayout title="Policies">
+<WorkspaceLayout title="Create Booking Policy">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex items-center justify-between">
-				<h1 class="text-xl font-semibold">Crear política</h1>
+				<h1 class="text-xl font-semibold">Crear booking policy</h1>
 				<nav class="space-x-3">
 					<a href="/provider/policies" class="underline">Volver</a>
-					<a href="/dashboard" class="underline">Panel</a>
+					<a href="/rates/plans/manage" class="underline">Rate Plans</a>
 				</nav>
 			</header>
 
@@ -171,8 +171,8 @@ if (Astro.request.method === "POST") {
 					<label class="block">Categoría</label>
 					<select name="category" id="category" class="w-full border p-2">
 						<option value="">Seleccionar…</option>
-						<option value="Cancellation">Política de cancelación</option>
-						<option value="Payment">Política de pago</option>
+						<option value="Cancellation">Cancelación</option>
+						<option value="Payment">Pago</option>
 						<option value="CheckIn">Check-in / Check-out</option>
 						<option value="NoShow">No-show (el huésped no llega)</option>
 					</select>

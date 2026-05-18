@@ -1,0 +1,150 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { routes } from "@/lib/routes"
+import { resolvePolicyDateRange } from "@/modules/policies/public"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
+const rows = await loadRatePlansReadModel({
+	request: Astro.request,
+	checkIn,
+	checkOut,
+	channel: "web",
+})
+
+const totalRestrictions = rows.reduce(
+	(sum, row) => sum + Number(row.summary?.activeRestrictionsCount ?? 0),
+	0
+)
+const rowsWithRestrictions = rows.filter(
+	(row) => Number(row.summary?.activeRestrictionsCount ?? 0) > 0
+)
+const restrictionTypes = [
+	"Minimum stay",
+	"Maximum stay",
+	"CTA / CTD",
+	"Stop sell",
+	"Booking windows",
+	"Advance booking",
+	"Last-minute sellability",
+]
+---
+
+<WorkspaceLayout title="Restrictions">
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Rooms & Rates · Sellability Control
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Restrictions</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-300">
+					Superficie transicional para controles de vendibilidad. Pricing decide cuánto se cobra;
+					Restrictions decide cuándo una estadía puede venderse.
+				</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
+				<Button href={routes.pricingBulk()} variant="primary">Bulk Pricing</Button>
+			</div>
+		</header>
+
+		<section class="grid gap-4 md:grid-cols-3">
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Active restriction signals</p>
+				<p class="mt-2 text-2xl font-semibold">{totalRestrictions}</p>
+				<p class="mt-1 text-xs text-slate-400">Controles activos asociados a rate plans</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Rate plans impacted</p>
+				<p class="mt-2 text-2xl font-semibold">{rowsWithRestrictions.length}</p>
+				<p class="mt-1 text-xs text-slate-400">Planes con señales de vendibilidad</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Operational status</p>
+				<p class="mt-2 text-2xl font-semibold">Transition</p>
+				<p class="mt-1 text-xs text-slate-400">Surface visible; editor dedicado pendiente</p>
+			</Card>
+		</section>
+
+		<Section
+			title="Restriction ownership"
+			description="Esta página separa sellability de pricing automation y booking policies. La edición completa llegará en la siguiente fase."
+		>
+			<Card className="bg-white text-slate-800">
+				<div class="grid gap-4 md:grid-cols-2">
+					<div>
+						<h2 class="text-base font-semibold text-slate-900">Controls covered</h2>
+						<div class="mt-3 flex flex-wrap gap-2">
+							{restrictionTypes.map((label) => <Badge variant="neutral">{label}</Badge>)}
+						</div>
+					</div>
+					<div>
+						<h2 class="text-base font-semibold text-slate-900">Boundary</h2>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Restrictions no reemplaza Commercial Rules, no administra inventario físico y no
+							define políticas contractuales. Su owner es vendibilidad por producto, variante, rate
+							plan y fecha.
+						</p>
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Rate-plan restriction signals"
+			description="Lectura operacional mínima sobre la arquitectura existente. Los detalles completos viven aún en las superficies de rate plan y search evaluation."
+		>
+			{
+				rows.length === 0 ? (
+					<Card className="bg-white text-slate-700">
+						<p>No hay rate plans para revisar restricciones.</p>
+					</Card>
+				) : (
+					<div class="space-y-3">
+						{rows.map((row) => {
+							const activeRestrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
+							return (
+								<Card className="bg-white text-slate-800">
+									<div class="flex flex-wrap items-start justify-between gap-4">
+										<div class="space-y-1">
+											<p class="text-base font-semibold">{row.ratePlanName}</p>
+											<p class="text-sm text-slate-600">
+												{row.productName} · {row.variantName}
+											</p>
+										</div>
+										<div class="flex flex-wrap items-center gap-2">
+											<Badge variant={activeRestrictions > 0 ? "warning" : "neutral"}>
+												{activeRestrictions} active restrictions
+											</Badge>
+											<Button
+												href={routes.ratePlanDetail(String(row.ratePlanId))}
+												variant="secondary"
+												size="sm"
+											>
+												Ver rate plan
+											</Button>
+										</div>
+									</div>
+								</Card>
+							)
+						})}
+					</div>
+				)
+			}
+		</Section>
+	</div>
+</WorkspaceLayout>

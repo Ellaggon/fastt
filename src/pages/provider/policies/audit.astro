@@ -177,21 +177,26 @@ const eventTypes = Array.from(
 ).sort()
 ---
 
-<WorkspaceLayout title="Auditoría de políticas (avanzado)">
+<WorkspaceLayout title="Policy Audit">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
-				<h1 class="text-3xl font-semibold text-slate-100">Auditoría de políticas (avanzado)</h1>
-				<p class="text-sm text-slate-300">Observabilidad y trazabilidad de cambios en políticas.</p>
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Administration & Governance
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Policy Audit</h1>
+				<p class="text-sm text-slate-300">
+					Observabilidad y trazabilidad de cambios en booking policies.
+				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button href="/provider/policies" variant="secondary">Biblioteca de políticas</Button>
-				<Button href="/product" variant="primary">Volver a operación de tarifas</Button>
+				<Button href="/provider/policies" variant="secondary">Booking Policies</Button>
+				<Button href="/provider" variant="primary">Provider Settings</Button>
 			</div>
 		</header>
 
 		<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-			Esta sección es de control y trazabilidad, no de operación diaria.
+			Esta sección es de governance y trazabilidad, no de operación diaria ARI.
 		</div>
 
 		<Section
