@@ -46,8 +46,8 @@ export const GET: APIRoute = async ({ request }) => {
 
 		const parsed = schema.parse({
 			destinationId: url.searchParams.get("destinationId") ?? "",
-			checkIn: url.searchParams.get("checkIn") ?? "",
-			checkOut: url.searchParams.get("checkOut") ?? "",
+			checkIn: url.searchParams.get("checkIn") ?? url.searchParams.get("checkin") ?? "",
+			checkOut: url.searchParams.get("checkOut") ?? url.searchParams.get("checkout") ?? "",
 			currency: url.searchParams.get("currency") ?? undefined,
 			rooms: url.searchParams.get("rooms") ?? undefined,
 			adults: url.searchParams.get("adults") ?? undefined,
@@ -88,10 +88,8 @@ export const GET: APIRoute = async ({ request }) => {
 
 			if (!offers.length) continue
 
-			// Exclude variants that have no rate plans or missing/zero base price.
-			const validOffers = offers
-				.filter((o) => (o.ratePlans?.length ?? 0) > 0)
-				.filter((o) => Number(o.variant?.pricing?.basePrice ?? 0) > 0)
+			// Sellable pricing is carried by rate plans; legacy variant basePrice may be absent.
+			const validOffers = offers.filter((o) => (o.ratePlans?.length ?? 0) > 0)
 
 			if (!validOffers.length) continue
 
