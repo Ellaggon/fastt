@@ -787,7 +787,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Physical inventory operations; variant-first ownership is intentional.",
 			},
 			{
-				label: "Restrictions",
+				label: "Sellability Restrictions",
 				href: routes.rateRestrictions(),
 				status: "transitional",
 				summary: "Sellability controls for LOS, CTA/CTD, stop-sell, and booking windows.",
@@ -807,7 +807,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Cancellation, payment, no-show, and check-in/out conditions for rate plans.",
 			},
 		],
-		planned: ["Pricing Calendar", "Inventory Calendar", "Occupancy Pricing", "ARI Audit History"],
+		planned: ["ARI Summary", "Restrictions", "Occupancy Pricing", "Audit History"],
 	},
 	{
 		title: "Reservations",
@@ -1020,12 +1020,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Sellability controls and booking conditions that support rate-plan readiness without becoming pricing engines.",
 		surfaces: [
 			{
-				label: "Restrictions",
+				label: "Sellability Restrictions",
 				href: routes.rateRestrictions(),
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
-					"LOS, CTA/CTD, stop-sell, and booking-window controls surfaced from existing restriction ownership.",
+					"Current rate plans may expose restriction signals, but no dedicated ARI restriction runtime exists yet.",
 			},
 			{
 				label: "Booking Policies",

@@ -9,6 +9,7 @@ interface Props {
 
 const { pathname } = Astro.props
 const items = [
+	{ href: routes.ratePlansHub(), label: "Rate Plans Hub" },
 	{ href: routes.ratePlansList(), label: "Rate Plans" },
 	{ href: routes.pricingBulk(), label: "Bulk Pricing" },
 	{ href: routes.rateRestrictions(), label: "Restrictions" },
