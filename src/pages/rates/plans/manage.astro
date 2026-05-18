@@ -41,8 +41,8 @@ const plansWithRestrictions = rows.filter(
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Rate Plans</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Superficie explícita para mantener los productos comerciales que se venden sobre una
-					variante física: estado, pricing, condiciones de reserva y señales de vendibilidad.
+					Dominio de producto comercial. Un rate plan define qué oferta se vende sobre una variante
+					física; Pricing, Restrictions y Booking Policies completan su operación.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
@@ -65,13 +65,13 @@ const plansWithRestrictions = rows.filter(
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Restrictions</p>
 				<p class="mt-2 text-2xl font-semibold">{plansWithRestrictions}</p>
-				<p class="mt-1 text-xs text-slate-400">Rate plans con controles de vendibilidad activos</p>
+				<p class="mt-1 text-xs text-slate-400">Rate plans con reglas de venta activas</p>
 			</Card>
 		</section>
 
 		<Section
 			title="Commercial products"
-			description="Rate Plans responde qué producto comercial se vende; pricing, restrictions y booking policies son superficies relacionadas."
+			description="Rate Plans responde qué se vende. Pricing responde cuánto cuesta; Restrictions responde cuándo se puede vender; Booking Policies responde bajo qué contrato."
 		>
 			{
 				rows.length === 0 ? (
