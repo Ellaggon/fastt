@@ -72,7 +72,7 @@ const ariDomains: {
 		metric: String(totalPricingRules),
 		signal: "Reglas de precio vinculadas a rate plans",
 		description: "Define cuánto se cobra: baseline, cobertura y ajustes comerciales.",
-		href: routes.pricingBulk(),
+		href: routes.pricing(),
 		action: "Abrir Pricing",
 	},
 	{
@@ -82,7 +82,7 @@ const ariDomains: {
 		metric: String(physicalVariants),
 		signal: "Variantes físicas con contexto de inventario",
 		description: "Define cupos, disponibilidad física y capacidad vendible por variante.",
-		href: routes.inventoryBulk(),
+		href: routes.inventory(),
 		action: "Abrir Inventory",
 	},
 	{
@@ -150,9 +150,9 @@ const domainBadgeVariant: Record<AriDomainStatus, "success" | "warning"> = {
 			</div>
 			<div class="flex items-center gap-2">
 				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
+				<Button href={routes.pricing()} variant="primary">Pricing</Button>
+				<Button href={routes.inventory()} variant="secondary">Inventory</Button>
 				<Button href={routes.rateRestrictions()} variant="secondary">Restrictions</Button>
-				<Button href={routes.pricingBulk()} variant="primary">Bulk Pricing</Button>
-				<Button href={routes.inventoryBulk()} variant="secondary">Bulk Inventory</Button>
 			</div>
 		</header>
 

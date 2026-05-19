@@ -19,7 +19,9 @@ describe("ui/rateplan bulk pricing wizard", () => {
 
 	it("wizard integra preview y apply con endpoints bulk v2", () => {
 		const source = read("src/pages/pricing/bulk.astro")
-		expect(source).toContain("Edición masiva de pricing")
+		expect(source).toContain("Accion masiva de pricing")
+		expect(source).toContain("la operacion diaria vive en Pricing")
+		expect(source).toContain("Volver a Pricing")
 		expect(source).toContain('id="bulkOperationType"')
 		expect(source).toContain('id="bulkPreviewBtn"')
 		expect(source).toContain('id="bulkApplyBtn"')

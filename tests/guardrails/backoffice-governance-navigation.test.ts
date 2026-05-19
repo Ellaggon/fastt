@@ -273,19 +273,34 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining(["Restrictions", "Rate Plans", "Booking Policies"])
+			expect.arrayContaining([
+				"Pricing",
+				"Inventory",
+				"Restrictions",
+				"Rate Plans",
+				"Booking Policies",
+			])
+		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Pricing")?.status).toEqual(
+			"canonical"
+		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Inventory")?.status).toEqual(
+			"canonical"
+		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")?.status).toEqual(
+			"transitional"
+		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")?.status).toEqual(
+			"transitional"
 		)
 		expect(roomsAndRates?.items.find((item) => item.label === "Restrictions")?.status).toEqual(
 			"canonical"
 		)
 		expect(roomsAndRates?.planned).toEqual(
-			expect.arrayContaining([
-				"Pricing Calendar",
-				"Inventory Calendar",
-				"Occupancy Pricing",
-				"Audit History",
-			])
+			expect.arrayContaining(["Occupancy Pricing", "Audit History"])
 		)
+		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
+		expect(roomsAndRates?.planned ?? []).not.toContain("Inventory Calendar")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Restrictions")
 	})
 

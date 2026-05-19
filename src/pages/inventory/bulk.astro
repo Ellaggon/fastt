@@ -39,9 +39,9 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Inventory · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Operaciones masivas de inventario</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Accion masiva de inventario</h1>
 				<p class="text-sm text-slate-300">
-					Aplica cambios por rango sin mezclar visualización del calendario con ejecución operativa.
+					Herramienta secundaria para rangos; la operacion diaria de cupos vive en Inventory.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
@@ -54,8 +54,8 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 							Volver al calendario
 						</Button>
 					) : (
-						<Button href={routes.productList()} variant="secondary">
-							Volver a productos
+						<Button href={routes.inventory()} variant="secondary">
+							Volver a Inventory
 						</Button>
 					)
 				}
