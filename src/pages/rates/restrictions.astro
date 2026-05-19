@@ -6,6 +6,7 @@ import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { buildRestrictionOperationalCopyRegistry } from "@/lib/rates/restrictionOperationalCopy"
 import {
 	createRestrictionsSurfaceRule,
 	loadRestrictionsSurface,
@@ -78,6 +79,7 @@ const filters = {
 
 const surface = await loadRestrictionsSurface(auth.providerId, filters)
 const vocabulary = resolveVerticalVocabulary(surface.productTypes)
+const operationalCopyRegistry = buildRestrictionOperationalCopyRegistry(vocabulary)
 const plansWithSignals = ratePlanRows.filter(
 	(row) => Number(row.summary?.activeRestrictionsCount ?? 0) > 0
 ).length
@@ -336,7 +338,6 @@ function selected(value: string | undefined, expected: string): boolean {
 										<option
 											value={rule.type}
 											data-requires-value={rule.requiresValue ? "true" : "false"}
-											data-description={rule.description}
 											data-default-value={rule.defaultValue ?? ""}
 										>
 											{rule.label}
@@ -406,8 +407,20 @@ function selected(value: string | undefined, expected: string): boolean {
 							<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">
 								Impacto operativo
 							</p>
-							<p class="mt-2 text-sm leading-6" data-impact-preview>
+							<p class="mt-2 text-sm font-medium leading-5" data-impact-preview>
 								Esta regla afectara la venta del alcance y rango seleccionados.
+							</p>
+							<p class="mt-2 text-xs leading-5 text-blue-900/80">
+								<span class="font-semibold text-blue-950">Ejemplo:</span>{" "}
+								<span data-impact-example>Configura la regla para ver un caso practico.</span>
+							</p>
+							<p class="mt-1 text-xs leading-5 text-blue-900/70" data-impact-non-effect-row hidden>
+								<span class="font-semibold text-blue-950">No afecta:</span>{" "}
+								<span data-impact-non-effect></span>
+							</p>
+							<p class="mt-1 text-xs leading-5 text-blue-900/70" data-impact-range-row hidden>
+								<span class="font-semibold text-blue-950">Rango:</span>{" "}
+								<span data-impact-range></span>
 							</p>
 						</Card>
 					</div>
@@ -593,7 +606,6 @@ function selected(value: string | undefined, expected: string): boolean {
 															value={definition.type}
 															selected={definition.type === rule.type}
 															data-requires-value={definition.requiresValue ? "true" : "false"}
-															data-description={definition.description}
 															data-default-value={definition.defaultValue ?? ""}
 														>
 															{definition.label}
@@ -665,8 +677,30 @@ function selected(value: string | undefined, expected: string): boolean {
 												<p class="text-xs font-semibold tracking-wide text-blue-700 uppercase">
 													Impacto operativo
 												</p>
-												<p class="mt-2 text-sm leading-6" data-impact-preview>
+												<p class="mt-2 text-sm leading-5 font-medium" data-impact-preview>
 													{rule.impactLabel}
+												</p>
+												<p class="mt-2 text-xs leading-5 text-blue-900/80">
+													<span class="font-semibold text-blue-950">Ejemplo:</span>{" "}
+													<span data-impact-example>
+														Actualiza la regla para ver un caso practico.
+													</span>
+												</p>
+												<p
+													class="mt-1 text-xs leading-5 text-blue-900/70"
+													data-impact-non-effect-row
+													hidden
+												>
+													<span class="font-semibold text-blue-950">No afecta:</span>{" "}
+													<span data-impact-non-effect />
+												</p>
+												<p
+													class="mt-1 text-xs leading-5 text-blue-900/70"
+													data-impact-range-row
+													hidden
+												>
+													<span class="font-semibold text-blue-950">Rango:</span>{" "}
+													<span data-impact-range />
 												</p>
 											</Card>
 										</div>
@@ -710,16 +744,10 @@ function selected(value: string | undefined, expected: string): boolean {
 	</div>
 </WorkspaceLayout>
 
-<script>
+<script define:vars={{ operationalCopyRegistry }}>
 	// @ts-nocheck
-	const impactCopy = {
-		stop_sell: "Esta regla bloquea venta para el alcance y fechas seleccionadas.",
-		min_los: "Esta regla bloquea estadias menores al minimo configurado.",
-		max_los: "Esta regla bloquea estadias mayores al maximo configurado.",
-		cta: "Esta regla bloquea llegadas en las fechas aplicables.",
-		ctd: "Esta regla bloquea salidas en las fechas aplicables.",
-		min_lead_time: "Esta regla bloquea reservas hechas muy cerca de la llegada.",
-		max_lead_time: "Esta regla bloquea reservas hechas con demasiada anticipacion.",
+	function applyTemplate(template, context) {
+		return String(template || "").replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "")
 	}
 
 	function wireRestrictionForm(form) {
@@ -727,6 +755,11 @@ function selected(value: string | undefined, expected: string): boolean {
 		const typeSelect = form.querySelector("[data-rule-type]")
 		const valueInput = form.querySelector("[data-rule-value]")
 		const preview = form.querySelector("[data-impact-preview]")
+		const example = form.querySelector("[data-impact-example]")
+		const nonEffect = form.querySelector("[data-impact-non-effect]")
+		const nonEffectRow = form.querySelector("[data-impact-non-effect-row]")
+		const range = form.querySelector("[data-impact-range]")
+		const rangeRow = form.querySelector("[data-impact-range-row]")
 		const startInput = form.querySelector("[data-start-date]")
 		const endInput = form.querySelector("[data-end-date]")
 
@@ -750,9 +783,26 @@ function selected(value: string | undefined, expected: string): boolean {
 			}
 			const start = startInput?.value
 			const end = endInput?.value
-			const dateCopy = start && end ? ` Rango: ${start} a ${end}.` : ""
+			const ruleCopy = operationalCopyRegistry?.[type] || {}
+			const value = valueInput?.value || option?.dataset?.defaultValue || "N"
+			const context = { value, start, end }
 			if (preview) {
-				preview.textContent = `${impactCopy[type] || "Esta regla afecta vendibilidad."}${dateCopy}`
+				preview.textContent =
+					applyTemplate(ruleCopy.impact, context) || "Esta regla afecta vendibilidad."
+			}
+			if (example) {
+				example.textContent =
+					applyTemplate(ruleCopy.example, context) ||
+					"Configura la regla para ver un caso practico."
+			}
+			if (nonEffect && nonEffectRow) {
+				const text = applyTemplate(ruleCopy.nonEffect, context)
+				nonEffect.textContent = text
+				nonEffectRow.hidden = !text
+			}
+			if (range && rangeRow) {
+				range.textContent = start && end ? `${start} a ${end}` : ""
+				rangeRow.hidden = !(start && end)
 			}
 		}
 

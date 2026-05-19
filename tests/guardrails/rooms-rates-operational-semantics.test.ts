@@ -114,6 +114,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const restrictions = read("src/pages/rates/restrictions.astro")
 		const vocabulary = read("src/lib/verticalVocabulary.ts")
+		const operationalCopy = read("src/lib/rates/restrictionOperationalCopy.ts")
 		const ratePlanQueryRepository = read(
 			"src/modules/pricing/infrastructure/repositories/RatePlanQueryRepository.ts"
 		)
@@ -124,12 +125,17 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(governance).not.toContain('planned: ["ARI Summary", "Restrictions"')
 		expect(restrictions).toContain("Crear restriccion")
 		expect(restrictions).toContain("Impacto operativo")
+		expect(restrictions).toContain("data-impact-example")
+		expect(restrictions).toContain("data-impact-non-effect")
 		expect(restrictions).toContain("Reglas de restricciones")
 		expect(restrictions).toContain("Search evalua estas señales")
 		expect(restrictions).toContain("resolveVerticalVocabulary")
+		expect(restrictions).toContain("buildRestrictionOperationalCopyRegistry")
 		expect(vocabulary).toContain("habitacion")
 		expect(vocabulary).toContain("salida")
 		expect(vocabulary).toContain("plan tarifario")
+		expect(operationalCopy).toContain("No cambia cupos fisicos")
+		expect(operationalCopy).toContain("Una busqueda con check-in")
 		expect(restrictions).not.toContain("editor dedicado madura en Fase 3")
 		expect(restrictions).not.toContain("Rooms & Rates · Control de vendibilidad")
 		expect(governance).not.toContain(
