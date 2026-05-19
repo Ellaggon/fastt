@@ -756,11 +756,8 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "ARI ownership and sellability",
 		owner: "Commercial Operations",
 		context: "enterprise-operations",
-		operationalIntent:
-			"ARI command center separating commercial products, pricing, physical inventory, sellability restrictions, and booking contract conditions.",
+		operationalIntent: "Manage rate plans, pricing, inventory, restrictions, and booking policies.",
 		maturity: "operational",
-		nextMaturity:
-			"Rooms & Rates is the enterprise ARI hub: rate plans own commercial products, pricing owns rate coverage, inventory owns physical capacity, restrictions own sellability, and booking policies own reservation contract terms.",
 		items: [
 			{
 				label: "Rooms & Rates Hub",

@@ -81,6 +81,8 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 		if (!rows.length) return []
 
 		const ratePlanIds = rows.map((row) => String(row.ratePlanId))
+		const variantIds = [...new Set(rows.map((row) => String(row.variantId)))]
+		const productIds = [...new Set(rows.map((row) => String(row.productId)))]
 		const [priceRules, restrictions] = await Promise.all([
 			db
 				.select({ ratePlanId: PriceRule.ratePlanId })
@@ -88,9 +90,13 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 				.where(inArray(PriceRule.ratePlanId, ratePlanIds))
 				.all(),
 			db
-				.select({ scopeId: Restriction.scopeId, isActive: Restriction.isActive })
+				.select({
+					scope: Restriction.scope,
+					scopeId: Restriction.scopeId,
+					isActive: Restriction.isActive,
+				})
 				.from(Restriction)
-				.where(inArray(Restriction.scopeId, ratePlanIds))
+				.where(inArray(Restriction.scopeId, [...ratePlanIds, ...variantIds, ...productIds]))
 				.all(),
 		])
 
@@ -99,15 +105,22 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			acc[key] = (acc[key] ?? 0) + 1
 			return acc
 		}, {})
-		const activeRestrictionsCountByRatePlanId = restrictions.reduce<Record<string, number>>(
-			(acc, row) => {
-				if (!row.isActive) return acc
-				const key = String(row.scopeId)
-				acc[key] = (acc[key] ?? 0) + 1
-				return acc
-			},
-			{}
-		)
+		const activeRestrictionsCountByRatePlanId = rows.reduce<Record<string, number>>((acc, row) => {
+			const ratePlanId = String(row.ratePlanId)
+			const variantId = String(row.variantId)
+			const productId = String(row.productId)
+			acc[ratePlanId] = restrictions.filter((restriction) => {
+				if (!restriction.isActive) return false
+				const scope = String(restriction.scope)
+				const scopeId = String(restriction.scopeId)
+				return (
+					(scope === "rate_plan" && scopeId === ratePlanId) ||
+					(scope === "variant" && scopeId === variantId) ||
+					(scope === "product" && scopeId === productId)
+				)
+			}).length
+			return acc
+		}, {})
 
 		return rows
 			.map((row) => {
@@ -158,11 +171,22 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.where(eq(PriceRule.ratePlanId, ratePlan.id))
 			.all()
 
-		const restrictions = await db
-			.select()
-			.from(Restriction)
-			.where(eq(Restriction.scopeId, ratePlan.id))
-			.all()
+		const product = await db
+			.select({ productId: Variant.productId })
+			.from(Variant)
+			.where(eq(Variant.id, ratePlan.variantId))
+			.get()
+
+		const restrictionScopeIds = [ratePlan.id, ratePlan.variantId, product?.productId]
+			.map((value) => String(value ?? "").trim())
+			.filter(Boolean)
+		const restrictions = restrictionScopeIds.length
+			? await db
+					.select()
+					.from(Restriction)
+					.where(inArray(Restriction.scopeId, restrictionScopeIds))
+					.all()
+			: []
 
 		const baseRestriction = restrictions.find((r) => r.isActive) ?? null
 

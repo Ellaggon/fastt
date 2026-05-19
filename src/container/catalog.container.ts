@@ -5,7 +5,6 @@ import { ProviderRepository } from "../modules/catalog/infrastructure/repositori
 import { ProviderV2Repository } from "../modules/catalog/infrastructure/repositories/ProviderV2Repository"
 import { ProductRepository } from "../modules/catalog/infrastructure/repositories/ProductRepository"
 import { TaxFeeRepository } from "../modules/catalog/infrastructure/repositories/TaxFeeRepository"
-import { CatalogRestrictionRepository } from "../modules/catalog/infrastructure/repositories/CatalogRestrictionRepository"
 import { CancellationPolicyRepository } from "../modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
 import { ProductServiceRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceRepository"
 import { ProductImageRepository } from "../modules/catalog/infrastructure/repositories/ProductImageRepository"
@@ -44,7 +43,6 @@ export const providerRepository = new ProviderRepository()
 export const providerV2Repository = new ProviderV2Repository()
 export const productRepository = new ProductRepository(r2)
 export const taxFeeRepository = new TaxFeeRepository()
-export const catalogRestrictionRepository = new CatalogRestrictionRepository()
 export const cancellationPolicyRepository = new CancellationPolicyRepository()
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()

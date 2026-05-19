@@ -268,8 +268,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("ARI command center")
-		expect(roomsAndRates?.nextMaturity).toContain("restrictions own sellability")
+		expect(roomsAndRates?.operationalIntent).toContain("rate plans")
+		expect(roomsAndRates?.operationalIntent).toContain("restrictions")
+		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining(["Restrictions", "Rate Plans", "Booking Policies"])
@@ -358,7 +359,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 	})
 
-	it("keeps enterprise shell context-aware instead of a generic wrapper", () => {
+	it("keeps enterprise shell lean so page headers own identity", () => {
 		const workspaceSource = readFileSync(
 			join(process.cwd(), "src/layouts/WorkspaceLayout.astro"),
 			"utf8"
@@ -376,12 +377,15 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"utf8"
 		)
 
-		expect(workspaceSource).toContain("getBackofficeRouteClassification")
-		expect(workspaceSource).toContain("getEnterpriseNavigationSection")
-		expect(workspaceSource).toContain("data-workspace-context-panel")
-		expect(workspaceSource).toContain("Transitional scope")
-		expect(topbarSource).toContain("getOperationalContextMetadata")
+		expect(workspaceSource).not.toContain("getBackofficeRouteClassification")
+		expect(workspaceSource).not.toContain("getEnterpriseNavigationSection")
+		expect(workspaceSource).not.toContain("data-workspace-context-panel")
+		expect(workspaceSource).not.toContain("isTransitionalSurface")
+		expect(workspaceSource).not.toContain("activeSection?.nextMaturity")
+		expect(workspaceSource).not.toContain("activeSection?.operationalIntent")
+		expect(topbarSource).not.toContain("getOperationalContextMetadata")
 		expect(topbarSource).not.toContain("classification.context")
+		expect(topbarSource).not.toContain("{title}")
 		expect(sidebarSource).toContain("OTA Enterprise Workspace")
 		expect(sidebarSource).toContain("section.planned")
 		expect(sidebarSource).toContain("Roadmap markers")
