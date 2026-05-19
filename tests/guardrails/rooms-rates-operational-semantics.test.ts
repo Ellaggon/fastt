@@ -110,19 +110,46 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(hub).not.toContain("window.location.href = `/rates/plans?")
 	})
 
-	it("keeps restrictions as the active sellability domain without pretending to have a full editor", () => {
+	it("keeps restrictions as the active sellability surface with operational controls", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const restrictions = read("src/pages/rates/restrictions.astro")
+		const vocabulary = read("src/lib/verticalVocabulary.ts")
+		const ratePlanQueryRepository = read(
+			"src/modules/pricing/infrastructure/repositories/RatePlanQueryRepository.ts"
+		)
 
 		expect(governance).toContain("Official sellability domain")
 		expect(governance).toContain("Restrictions")
 		expect(governance).toContain('pattern: "/rates/restrictions",\n\t\tstatus: "canonical"')
 		expect(governance).not.toContain('planned: ["ARI Summary", "Restrictions"')
-		expect(restrictions).toContain("editor dedicado madura en Fase 3")
-		expect(restrictions).toContain("Domain active")
-		expect(restrictions).toContain("search evaluation")
+		expect(restrictions).toContain("Crear restriccion")
+		expect(restrictions).toContain("Impacto operativo")
+		expect(restrictions).toContain("Reglas de restricciones")
+		expect(restrictions).toContain("Search evalua estas señales")
+		expect(restrictions).toContain("resolveVerticalVocabulary")
+		expect(vocabulary).toContain("habitacion")
+		expect(vocabulary).toContain("salida")
+		expect(vocabulary).toContain("plan tarifario")
+		expect(restrictions).not.toContain("editor dedicado madura en Fase 3")
+		expect(restrictions).not.toContain("Rooms & Rates · Control de vendibilidad")
 		expect(governance).not.toContain(
 			"Future restriction workspace; no runtime channel manager exists yet."
 		)
+		expect(governance).not.toContain("Rooms & Rates is the enterprise ARI hub")
+		expect(ratePlanQueryRepository).toContain('scope === "rate_plan"')
+		expect(ratePlanQueryRepository).toContain('scope === "variant"')
+		expect(ratePlanQueryRepository).toContain('scope === "product"')
+	})
+
+	it("keeps legacy catalog restriction HTTP APIs removed from the product tree", () => {
+		const legacyRestrictionApiFiles = walkFiles(join(process.cwd(), "src/pages/api/products"), [
+			".ts",
+		]).filter((relativePath) => relativePath.includes("/restrictions/"))
+
+		expect(legacyRestrictionApiFiles).toEqual([])
+
+		const catalogPublicApi = read("src/modules/catalog/public.ts")
+		expect(catalogPublicApi).not.toContain("create-restriction")
+		expect(catalogPublicApi).not.toContain("CatalogRestrictionRepositoryPort")
 	})
 })
