@@ -147,6 +147,38 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(ratePlanQueryRepository).toContain('scope === "product"')
 	})
 
+	it("keeps Pricing and Inventory as calendar-first operational owners with Bulk as secondary action", () => {
+		const governance = read("src/lib/backoffice-governance.ts")
+		const routes = read("src/lib/routes.ts")
+		const pricing = read("src/pages/pricing/index.astro")
+		const inventory = read("src/pages/inventory/index.astro")
+		const surfaces = read("src/lib/rates/calendarSurfaces.ts")
+
+		expect(routes).toContain('pricing: () => "/pricing"')
+		expect(routes).toContain('inventory: () => "/inventory"')
+		expect(governance).toContain('label: "Pricing"')
+		expect(governance).toContain("href: routes.pricing()")
+		expect(governance).toContain('label: "Inventory"')
+		expect(governance).toContain("href: routes.inventory()")
+		expect(governance).toContain("Secondary mass pricing action")
+		expect(governance).toContain("Secondary mass inventory action")
+		expect(governance).not.toContain('"Pricing Calendar", "Inventory Calendar"')
+		expect(pricing).toContain("Calendario de precios")
+		expect(pricing).toContain("Bulk Pricing")
+		expect(pricing).toContain("Pricing responde cuanto cuesta")
+		expect(pricing).toContain("Restrictions responde cuando se puede vender")
+		expect(pricing).toContain("/api/pricing/rules/v2/create")
+		expect(inventory).toContain("Calendario de inventario")
+		expect(inventory).toContain("Bulk Inventory")
+		expect(inventory).toContain("Inventory responde cuantos cupos quedan")
+		expect(inventory).toContain("Restrictions responde si la venta")
+		expect(inventory).toContain("/api/inventory/update-day")
+		expect(surfaces).toContain("buildPricingCalendarSurface")
+		expect(surfaces).toContain("buildInventoryCalendarSurface")
+		expect(surfaces).toContain("EffectivePricingV2")
+		expect(surfaces).toContain("EffectiveAvailability")
+	})
+
 	it("keeps legacy catalog restriction HTTP APIs removed from the product tree", () => {
 		const legacyRestrictionApiFiles = walkFiles(join(process.cwd(), "src/pages/api/products"), [
 			".ts",

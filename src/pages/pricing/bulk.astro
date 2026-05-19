@@ -43,13 +43,13 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Pricing · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Edición masiva de pricing</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Accion masiva de pricing</h1>
 				<p class="text-sm text-slate-300">
-					Selecciona tarifas, simula impacto y aplica cambios de forma controlada.
+					Herramienta secundaria para cambios multi-tarifa; la operacion diaria vive en Pricing.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button href={routes.ratePlansHub()} variant="secondary">Volver a Rate Plans</Button>
+				<Button href={routes.pricing()} variant="secondary">Volver a Pricing</Button>
 			</div>
 		</header>
 

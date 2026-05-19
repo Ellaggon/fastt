@@ -33,12 +33,13 @@ const { ownerContext, displayContext, loaded } = loadedRatePlan
 			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 				Rooms & Rates · Commercial Pricing
 			</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Gestionar baseline comercial</h1>
+			<h1 class="text-3xl font-semibold text-slate-100">Baseline comercial</h1>
 			<p class="text-sm text-slate-400">
 				{displayContext.productName} · {displayContext.variantName} · {displayContext.ratePlanName}
 			</p>
 			<div class="flex flex-wrap items-center gap-2 pt-2">
 				<Button href={routes.ratePlansHub()} variant="secondary">Volver al hub</Button>
+				<Button href={routes.pricing()} variant="primary">Abrir Pricing</Button>
 				<Button href={routes.ratePlanDetail(ratePlanId)} variant="secondary"
 					>Volver al detalle</Button
 				>

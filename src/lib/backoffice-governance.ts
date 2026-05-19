@@ -235,10 +235,17 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/pricing/bulk",
+		status: "transitional",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale: "Secondary bulk pricing tool; daily pricing ownership lives in /pricing.",
+	},
+	{
+		pattern: "/pricing",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Operational bulk pricing surface over rate plans.",
+		rationale: "Calendar-first daily pricing operation over rate-plan ownership.",
 	},
 	{
 		pattern: "/pricing/rules",
@@ -257,10 +264,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/inventory/bulk",
+		status: "transitional",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Secondary bulk inventory tool; daily physical inventory ownership lives in /inventory.",
+	},
+	{
+		pattern: "/inventory",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Physical inventory operation; variant-first is legitimate here.",
+		rationale:
+			"Calendar-first physical inventory operation; variant-first ownership is legitimate here.",
 	},
 	{
 		pattern: "/booking/**",
@@ -772,16 +788,30 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Commercial products sold through variants: setup, readiness, and handoffs.",
 			},
 			{
+				label: "Pricing",
+				href: routes.pricing(),
+				status: "canonical",
+				summary: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
+			},
+			{
+				label: "Inventory",
+				href: routes.inventory(),
+				status: "canonical",
+				summary: "Calendar-first physical capacity, availability, and quick inventory edits.",
+			},
+			{
 				label: "Bulk Pricing",
 				href: routes.pricingBulk(),
-				status: "canonical",
-				summary: "Rate-plan-first bulk commercial coverage operations.",
+				status: "transitional",
+				level: 2,
+				summary: "Secondary mass pricing action for multi-rate-plan changes.",
 			},
 			{
 				label: "Bulk Inventory",
 				href: routes.inventoryBulk(),
-				status: "canonical",
-				summary: "Physical inventory operations; variant-first ownership is intentional.",
+				status: "transitional",
+				level: 2,
+				summary: "Secondary mass inventory action for date-range physical capacity changes.",
 			},
 			{
 				label: "Restrictions",
@@ -804,7 +834,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Cancellation, payment, no-show, and check-in/out conditions for rate plans.",
 			},
 		],
-		planned: ["Pricing Calendar", "Inventory Calendar", "Occupancy Pricing", "Audit History"],
+		planned: ["Occupancy Pricing", "Audit History"],
 	},
 	{
 		title: "Reservations",
@@ -970,11 +1000,18 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Explicit rate-plan maintenance surface for commercial products.",
 			},
 			{
-				label: "Bulk Pricing",
-				href: routes.pricingBulk(),
+				label: "Pricing",
+				href: routes.pricing(),
 				status: "canonical",
 				owner: "Rooms & Rates",
-				description: "Pricing owns rate coverage and bulk commercial price operations.",
+				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
+			},
+			{
+				label: "Bulk Pricing",
+				href: routes.pricingBulk(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description: "Secondary mass pricing action for multi-rate-plan changes.",
 			},
 			{
 				label: "Commercial Rules",
@@ -1001,11 +1038,18 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Catalog and room-type setup that provides physical context for inventory.",
 			},
 			{
-				label: "Bulk Inventory",
-				href: routes.inventoryBulk(),
+				label: "Inventory",
+				href: routes.inventory(),
 				status: "canonical",
 				owner: "Rooms & Rates",
-				description: "Inventory owns physical capacity, availability, and unit counts by variant.",
+				description: "Calendar-first physical capacity, availability, and unit counts by variant.",
+			},
+			{
+				label: "Bulk Inventory",
+				href: routes.inventoryBulk(),
+				status: "transitional",
+				owner: "Rooms & Rates",
+				description: "Secondary mass inventory action for date-range physical capacity changes.",
 			},
 		],
 	},
@@ -1048,18 +1092,6 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		intent:
 			"Roadmap markers only. These are not active workspaces until real ownership and routes exist.",
 		surfaces: [
-			{
-				label: "Pricing Calendar",
-				status: "planned",
-				owner: "Rooms & Rates",
-				description: "Future daily pricing calendar over rate-plan semantics.",
-			},
-			{
-				label: "Inventory Calendar",
-				status: "planned",
-				owner: "Rooms & Rates",
-				description: "Future physical availability calendar above bulk inventory actions.",
-			},
 			{
 				label: "Occupancy Pricing",
 				status: "planned",
