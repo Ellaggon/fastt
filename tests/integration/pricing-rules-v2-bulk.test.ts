@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { db, PriceRule } from "astro:db"
 
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
@@ -224,6 +225,57 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				expect(payload1?.results?.[0]?.preview?.breakdown?.daysWithoutCoverage).toBeTypeOf("number")
 				expect(payload1?.results?.[0]?.businessMetrics?.averageNightlyChange).toBeTypeOf("number")
 				expect(payload1?.results?.[0]?.preview?.days?.[0]?.dayOfWeekLabel).toBeTypeOf("string")
+			}
+		)
+	})
+
+	it("calendar-style fixed override wins over existing fixed price rules", async () => {
+		const fixture = await seedBulkFixture()
+		await db.insert(PriceRule).values({
+			id: `rule_existing_${crypto.randomUUID()}`,
+			ratePlanId: fixture.ratePlanAId,
+			name: "ctx:manual",
+			type: "fixed_override",
+			value: 15,
+			priority: 10,
+			dateRangeJson: { from: "2026-05-19", to: "2026-05-26" },
+			dayOfWeekJson: null,
+			isActive: true,
+			createdAt: new Date("2026-01-01T00:00:00.000Z"),
+		} as any)
+
+		await withSupabaseAuthStub(
+			{ [fixture.token]: { id: "u_pr_v2_bulk_calendar_override", email: fixture.email } },
+			async () => {
+				const response = await bulkPreviewPost({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/bulk-preview",
+						token: fixture.token,
+						body: {
+							ratePlanIds: [fixture.ratePlanAId],
+							operation: {
+								type: "fixed_override",
+								value: 20,
+								conditions: {
+									priority: 1000,
+									dateFrom: "2026-05-19",
+									dateTo: "2026-05-26",
+									previewFrom: "2026-05-19",
+									previewDays: 8,
+									effectiveFrom: "2026-05-19",
+									effectiveTo: "2026-05-27",
+									contextKey: "manual",
+								},
+							},
+						},
+					}),
+				} as any)
+				expect(response.status).toBe(200)
+				const payload = await readJson(response)
+				const first = payload?.results?.[0]
+				expect(first?.preview?.priceSummary?.before?.avg).toBe(15)
+				expect(first?.preview?.priceSummary?.after?.avg).toBe(20)
+				expect(first?.diff?.changedDays).toBe(8)
 			}
 		)
 	})

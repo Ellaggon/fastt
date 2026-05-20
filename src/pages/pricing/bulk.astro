@@ -43,17 +43,22 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Pricing · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Accion masiva de pricing</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Operacion avanzada de pricing</h1>
 				<p class="text-sm text-slate-300">
-					Herramienta secundaria para cambios multi-tarifa; la operacion diaria vive en Pricing.
+					Usa esta herramienta para cambios masivos multi-tarifa; el calendario de Pricing es la
+					operacion diaria principal.
 				</p>
+				{/* guardrail-copy: el calendario de Pricing es la operacion diaria principal */}
 			</div>
 			<div class="flex items-center gap-2">
 				<Button href={routes.pricing()} variant="secondary">Volver a Pricing</Button>
 			</div>
 		</header>
 
-		<Section title="Selección" description="Define el conjunto de rate plans a impactar.">
+		<Section
+			title="Selección avanzada"
+			description="Define el conjunto de tarifas a impactar cuando el calendario no alcanza."
+		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<label class="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -85,7 +90,10 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 			</Card>
 		</Section>
 
-		<Section title="Operación" description="Configura la regla a simular/aplicar.">
+		<Section
+			title="Operación masiva"
+			description="Configura una regla para varios planes y simula antes de aplicar."
+		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-3">
 					<label class="space-y-1 text-sm text-slate-700">

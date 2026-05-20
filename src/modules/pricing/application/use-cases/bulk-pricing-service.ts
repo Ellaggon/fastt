@@ -219,6 +219,7 @@ function buildGeneratePayload(ratePlanId: string, operation: BulkPricingOperatio
 		from: conditions.effectiveFrom ?? conditions.dateFrom,
 		to: conditions.effectiveTo ?? conditions.dateTo,
 		days: conditions.effectiveDays ?? 60,
+		occupancyKey: conditions.occupancyKey,
 	}
 }
 

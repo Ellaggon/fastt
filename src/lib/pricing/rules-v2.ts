@@ -31,6 +31,30 @@ export function normalizeOccupancyKey(raw?: string): string | undefined {
 	return /^a\d+_c\d+_i\d+$/.test(value) ? value : undefined
 }
 
+export type PricingCoverageOccupancy = {
+	adults: number
+	children: number
+	infants: number
+}
+
+export const DEFAULT_PRICING_COVERAGE_OCCUPANCY: PricingCoverageOccupancy = {
+	adults: 2,
+	children: 0,
+	infants: 0,
+}
+
+export function resolveCoverageOccupancy(raw?: string | null): PricingCoverageOccupancy {
+	const occupancyKey = normalizeOccupancyKey(raw ?? undefined)
+	if (!occupancyKey) return DEFAULT_PRICING_COVERAGE_OCCUPANCY
+	const match = /^a(\d+)_c(\d+)_i(\d+)$/.exec(occupancyKey)
+	if (!match) return DEFAULT_PRICING_COVERAGE_OCCUPANCY
+	return {
+		adults: Number(match[1]),
+		children: Number(match[2]),
+		infants: Number(match[3]),
+	}
+}
+
 export function parseNumber(
 	payload: Record<string, unknown>,
 	key: string,

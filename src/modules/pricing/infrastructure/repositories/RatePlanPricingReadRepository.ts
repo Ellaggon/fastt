@@ -62,7 +62,25 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
 			.get()
-		if (!policy) return null
+		const fallbackEffective = policy
+			? null
+			: await db
+					.select({
+						currency: EffectivePricingV2.currency,
+						basePrice: EffectivePricingV2.baseComponent,
+					})
+					.from(EffectivePricingV2)
+					.where(
+						and(
+							eq(EffectivePricingV2.ratePlanId, normalizedRatePlanId),
+							eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+						)
+					)
+					.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt))
+					.limit(1)
+					.get()
+		const baseSource = policy ?? fallbackEffective
+		if (!baseSource) return null
 
 		const effectivePricingDays = Number(
 			(
@@ -81,8 +99,8 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 
 		return {
 			ratePlanId: normalizedRatePlanId,
-			currency: String(policy.currency ?? "USD"),
-			basePrice: Number(policy.basePrice ?? 0),
+			currency: String(baseSource.currency ?? "USD"),
+			basePrice: Number(baseSource.basePrice ?? 0),
 			effectivePricingDays,
 			coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
 		}

@@ -45,6 +45,9 @@ vi.mock("astro:db", () => ({
 		ratePlanId: "ratePlanId",
 		date: "date",
 		occupancyKey: "occupancyKey",
+		baseComponent: "baseComponent",
+		currency: "currency",
+		computedAt: "computedAt",
 	},
 }))
 
@@ -53,7 +56,8 @@ import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 function wireSelectPipeline(result: any) {
 	allMock.mockResolvedValue(result == null ? [] : [result])
-	const limit = vi.fn(() => ({ all: allMock }))
+	const get = vi.fn(async () => null)
+	const limit = vi.fn(() => ({ all: allMock, get }))
 	const orderBy = vi.fn(() => ({ limit }))
 	const where = vi.fn(() => ({ orderBy }))
 	const from = vi.fn(() => ({ where }))
@@ -63,12 +67,28 @@ function wireSelectPipeline(result: any) {
 
 function wireSelectPipelineMany(results: any[]) {
 	allMock.mockResolvedValue(results)
-	const limit = vi.fn(() => ({ all: allMock }))
+	const get = vi.fn(async () => null)
+	const limit = vi.fn(() => ({ all: allMock, get }))
 	const orderBy = vi.fn(() => ({ limit }))
 	const where = vi.fn(() => ({ orderBy }))
 	const from = vi.fn(() => ({ where }))
 	selectMock.mockReturnValue({ from })
 	return { from, where, orderBy, limit }
+}
+
+function wirePolicyMissThenEffectiveFallback(result: any) {
+	const policyAll = vi.fn(async () => [])
+	const policyLimit = vi.fn(() => ({ all: policyAll }))
+	const policyOrderBy = vi.fn(() => ({ limit: policyLimit }))
+	const policyWhere = vi.fn(() => ({ orderBy: policyOrderBy }))
+	const policyFrom = vi.fn(() => ({ where: policyWhere }))
+	const effectiveGet = vi.fn(async () => result)
+	const effectiveLimit = vi.fn(() => ({ get: effectiveGet }))
+	const effectiveOrderBy = vi.fn(() => ({ limit: effectiveLimit }))
+	const effectiveWhere = vi.fn(() => ({ orderBy: effectiveOrderBy }))
+	const effectiveFrom = vi.fn(() => ({ where: effectiveWhere }))
+	selectMock.mockReturnValueOnce({ from: policyFrom }).mockReturnValueOnce({ from: effectiveFrom })
+	return { policyAll, effectiveGet }
 }
 
 describe("PricingV2Repository.getBaseFromPolicy", () => {
@@ -100,6 +120,20 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 		})
 
 		expect(result).toBeNull()
+	})
+
+	it("falls back to existing effective pricing base when a policy has not been bootstrapped yet", async () => {
+		wirePolicyMissThenEffectiveFallback({ baseAmount: 14.52, currency: "USD" })
+		const repo = new PricingV2Repository()
+
+		const result = await repo.getBaseFromPolicy({
+			ratePlanId: "rp_effective_only",
+			date: "2026-05-20",
+			occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+		})
+
+		expect(result).toEqual({ baseAmount: 14.52, currency: "USD" })
+		expect(eqMock).toHaveBeenCalledWith("occupancyKey", "a2_c0_i0")
 	})
 
 	it("is deterministic for same input", async () => {
