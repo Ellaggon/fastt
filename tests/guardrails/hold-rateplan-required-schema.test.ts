@@ -10,11 +10,12 @@ describe("Guardrail: hold ratePlanId required schema", () => {
 	it("requires ratePlanId in hold API and keeps Hold.ratePlanId mandatory in db schema", () => {
 		const holdApi = read("src/pages/api/inventory/hold.ts")
 		const dbConfig = read("db/config.ts")
+		const holdTable = dbConfig.match(/const Hold = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		expect(holdApi).toContain("ratePlanId: z.string().min(1)")
-		expect(dbConfig).toMatch(
+		expect(holdTable).toMatch(
 			/ratePlanId:\s*column\.text\(\{\s*references:\s*\(\)\s*=>\s*RatePlan\.columns\.id\s*\}\)/
 		)
-		expect(dbConfig).not.toMatch(
+		expect(holdTable).not.toMatch(
 			/ratePlanId:\s*column\.text\(\{\s*references:\s*\(\)\s*=>\s*RatePlan\.columns\.id,\s*optional:\s*true\s*\}\)/
 		)
 	})

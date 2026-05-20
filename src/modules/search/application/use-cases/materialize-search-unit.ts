@@ -9,6 +9,7 @@ import {
 import { buildOccupancyKey } from "../../domain/occupancy-key"
 import { normalizeOccupancy, type Occupancy } from "@/shared/domain/occupancy"
 import type { SearchUnitMaterializationRepositoryPort } from "../ports/SearchUnitMaterializationRepositoryPort"
+import { resolveSearchSellability } from "../services/LegacySellabilityCompatibility"
 export {
 	SEARCH_VIEW_REASON_CODES,
 	SEARCH_VIEW_SLA,
@@ -134,6 +135,9 @@ function hasMaterializationDrift(params: {
 		currency: string
 		primaryBlocker: string | null
 		minStay: number | null
+		maxStay: number | null
+		minLeadTime: number | null
+		maxLeadTime: number | null
 		cta: boolean
 		ctd: boolean
 		sourceVersion: string
@@ -158,6 +162,9 @@ function hasMaterializationDrift(params: {
 		current.currency !== next.currency ||
 		(current.primaryBlocker ?? null) !== (next.primaryBlocker ?? null) ||
 		(current.minStay ?? null) !== (next.minStay ?? null) ||
+		(current.maxStay ?? null) !== (next.maxStay ?? null) ||
+		(current.minLeadTime ?? null) !== (next.minLeadTime ?? null) ||
+		(current.maxLeadTime ?? null) !== (next.maxLeadTime ?? null) ||
 		current.cta !== next.cta ||
 		current.ctd !== next.ctd ||
 		current.sourceVersion !== next.sourceVersion
@@ -224,16 +231,29 @@ export async function materializeSearchUnit(
 	const hasPrice =
 		pricingRow?.finalBasePrice != null && Number.isFinite(Number(pricingRow.finalBasePrice))
 	const availableUnits = Math.max(0, Number(availabilityRow?.availableUnits ?? 0))
-	const stopSell = Boolean(
-		restrictionRow?.stopSell ?? (hasAvailability ? availabilityRow.stopSell : true)
-	)
-	const minStay =
-		restrictionRow?.minStay == null ? null : Math.max(1, Number(restrictionRow.minStay))
-	const cta = Boolean(restrictionRow?.cta ?? false)
-	const ctd = Boolean(restrictionRow?.ctd ?? false)
+	const sellability = resolveSearchSellability({
+		restrictionRow,
+		availabilityRow,
+	})
+	if (sellability.usedLegacyAvailabilityStopSell) {
+		logger.info("search.sellability_legacy_availability_fallback", {
+			variantId: parsed.variantId,
+			ratePlanId: parsed.ratePlanId,
+			date: normalizedDate,
+			compatibility: "EffectiveAvailability.stopSell",
+			nextOwner: "EffectiveRestriction",
+		})
+	}
+	const stopSell = sellability.stopSell
+	const minStay = sellability.minStay
+	const maxStay = sellability.maxStay
+	const minLeadTime = sellability.minLeadTime
+	const maxLeadTime = sellability.maxLeadTime
+	const cta = sellability.cta
+	const ctd = sellability.ctd
 
 	const isSellable = hasAvailability && hasPrice && !stopSell && availableUnits > 0
-	const isAvailable = hasAvailability && !stopSell && availableUnits > 0
+	const isAvailable = hasAvailability && availableUnits > 0
 
 	let policyBlocked = false
 	const policyBlockerEnabled = getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED")
@@ -296,6 +316,9 @@ export async function materializeSearchUnit(
 		currency: parsed.currency,
 		primaryBlocker: blocker,
 		minStay,
+		maxStay,
+		minLeadTime,
+		maxLeadTime,
 		cta,
 		ctd,
 		sourceVersion,

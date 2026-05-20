@@ -227,6 +227,9 @@ export async function resolveSearchOffers(
 						stopSell: Boolean(row.stopSell),
 						availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 						minStay: row.minStay == null ? null : Number(row.minStay),
+						maxStay: row.maxStay == null ? null : Number(row.maxStay),
+						minLeadTime: row.minLeadTime == null ? null : Number(row.minLeadTime),
+						maxLeadTime: row.maxLeadTime == null ? null : Number(row.maxLeadTime),
 						cta: Boolean(row.cta),
 						ctd: Boolean(row.ctd),
 						primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
@@ -352,6 +355,7 @@ export async function resolveSearchOffers(
 				requestedRooms,
 				rowsByDate: bucketByDate,
 				currency: params.currency,
+				requestDate: new Date(),
 			})
 			const ratePlanDecisionKey = `${unit.id}:${ratePlanId}`
 			sellabilityByRatePlan[ratePlanDecisionKey] = evaluation

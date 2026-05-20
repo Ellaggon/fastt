@@ -14,6 +14,9 @@ export type SearchUnitMaterializationStoredRow = {
 	currency: string
 	primaryBlocker: string | null
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	computedAt: string
@@ -38,6 +41,9 @@ export type SearchUnitMaterializationUpsertRow = {
 	currency: string
 	primaryBlocker: string | null
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	computedAt: Date
@@ -47,7 +53,6 @@ export type SearchUnitMaterializationUpsertRow = {
 export type SearchUnitMaterializationInputs = {
 	availabilityRow:
 		| {
-				isSellable?: boolean | null
 				stopSell?: boolean | null
 				availableUnits?: number | null
 		  }
@@ -63,8 +68,12 @@ export type SearchUnitMaterializationInputs = {
 		| {
 				stopSell?: boolean | null
 				minStay?: number | null
+				maxStay?: number | null
 				cta?: boolean | null
 				ctd?: boolean | null
+				minLeadTime?: number | null
+				maxLeadTime?: number | null
+				scope?: "variant" | "rate_plan" | null
 		  }
 		| null
 		| undefined

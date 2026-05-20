@@ -122,7 +122,6 @@ export async function recomputeEffectiveAvailabilityRange(
 					row.date,
 					{
 						totalUnits: Math.max(0, Number(row.totalInventory ?? 0)),
-						stopSell: Boolean(row.stopSell),
 					},
 				])
 			)
@@ -147,11 +146,9 @@ export async function recomputeEffectiveAvailabilityRange(
 			const rows: EffectiveAvailabilityUpsertRow[] = dates.map((date) => {
 				const daily = dailyByDate.get(date)
 				const totalUnits = daily?.totalUnits ?? 0
-				const stopSell = daily?.stopSell ?? true
 				const heldUnits = Math.max(0, Number(heldByDate.get(date) ?? 0))
 				const bookedUnits = Math.max(0, Number(bookedByDate.get(date) ?? 0))
 				const availableUnits = Math.max(0, totalUnits - heldUnits - bookedUnits)
-				const isSellable = availableUnits > 0 && stopSell === false
 
 				return {
 					id: buildStableRowId(parsed.variantId, date),
@@ -161,8 +158,10 @@ export async function recomputeEffectiveAvailabilityRange(
 					heldUnits,
 					bookedUnits,
 					availableUnits,
-					stopSell,
-					isSellable,
+					// Legacy compatibility mirrors the physical projection without owning
+					// sellability. Restrictions/EffectiveRestriction now own stop-sell.
+					stopSell: false,
+					isSellable: availableUnits > 0,
 					computedAt,
 				}
 			})

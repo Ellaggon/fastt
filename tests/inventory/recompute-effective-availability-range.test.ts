@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 
-type DailyRow = { date: string; totalInventory: number; stopSell: boolean }
+type DailyRow = { date: string; totalInventory: number; stopSell?: boolean }
 type LockRow = { date: string; quantity: number; expiresAt: Date; bookingId: string | null }
 
 function makeDeps(params: { dailyRows: DailyRow[]; lockRows: LockRow[]; now?: Date }) {
@@ -133,7 +133,7 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 
 		const row = store.get("var_4:2026-05-02")
 		expect(row.totalUnits).toBe(0)
-		expect(row.stopSell).toBe(true)
+		expect(row.stopSell).toBe(false)
 		expect(row.availableUnits).toBe(0)
 		expect(row.isSellable).toBe(false)
 	})

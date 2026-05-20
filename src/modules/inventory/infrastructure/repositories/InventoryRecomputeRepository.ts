@@ -27,7 +27,6 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 			.select({
 				date: DailyInventory.date,
 				totalInventory: DailyInventory.totalInventory,
-				stopSell: DailyInventory.stopSell,
 			})
 			.from(DailyInventory)
 			.where(
@@ -42,7 +41,6 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 		return rows.map((row) => ({
 			date: String(row.date),
 			totalInventory: Number(row.totalInventory ?? 0),
-			stopSell: Boolean(row.stopSell),
 		}))
 	}
 

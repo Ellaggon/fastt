@@ -206,7 +206,7 @@ describe("integration/inventory calendar API", () => {
 		})
 	})
 
-	it("stopSell blocks availability; reopen restores availability when stock exists", async () => {
+	it("legacy stopSell no longer changes physical availability", async () => {
 		const token = "t_inv_stop"
 		const email = "inv-stop@example.com"
 		const providerId = "prov_inv_stop"
@@ -250,8 +250,8 @@ describe("integration/inventory calendar API", () => {
 				}),
 			} as any)
 			const json1 = (await readJson(cal1)) as any[]
-			expect(json1[0].stopSell).toBe(true)
-			expect(json1[0].available).toBe(0)
+			expect(json1[0].stopSell).toBe(false)
+			expect(json1[0].available).toBe(2)
 
 			const reopen = new FormData()
 			reopen.set("variantId", variantId)

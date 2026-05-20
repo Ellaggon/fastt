@@ -288,8 +288,9 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 				await db
 					.insert(EffectiveRestriction)
 					.values({
-						id: `er_synth_${variantId}_${date}`,
+						id: `er_synth_${variantId}_${ratePlanId}_${date}`,
 						variantId,
+						ratePlanId,
 						date,
 						stopSell: false,
 						minStay: 1,
@@ -298,7 +299,11 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
-						target: [EffectiveRestriction.variantId, EffectiveRestriction.date],
+						target: [
+							EffectiveRestriction.variantId,
+							EffectiveRestriction.ratePlanId,
+							EffectiveRestriction.date,
+						],
 						set: {
 							stopSell: false,
 							minStay: 1,

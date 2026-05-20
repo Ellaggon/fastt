@@ -136,8 +136,9 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 			await db
 				.insert(EffectiveRestriction)
 				.values({
-					id: `er_${seed}_${date}`,
+					id: `er_${variantId}_${ratePlanId}_${date}`,
 					variantId,
+					ratePlanId,
 					date,
 					stopSell: false,
 					minStay: null,
@@ -148,7 +149,11 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 					computedAt: new Date("2026-11-09T12:00:00.000Z"),
 				} as any)
 				.onConflictDoUpdate({
-					target: [EffectiveRestriction.variantId, EffectiveRestriction.date],
+					target: [
+						EffectiveRestriction.variantId,
+						EffectiveRestriction.ratePlanId,
+						EffectiveRestriction.date,
+					],
 					set: {
 						stopSell: false,
 						minStay: null,
