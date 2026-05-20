@@ -36,7 +36,7 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 					variantId,
 					totalInventory: 0,
 					reservedCount: 0,
-					// Optional field consumed by the search pipeline.
+					// Deprecated ARI compatibility consumed by search fallback materialization.
 					stopSell: true,
 				})
 			}
@@ -48,7 +48,8 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 
 	/**
 	 * Inventory calendar writes MUST NOT overwrite reservedCount.
-	 * This method only updates operational fields (totalInventory/stopSell) and updatedAt.
+	 * Canonical writes update physical totalInventory. stopSell remains accepted only as
+	 * deprecated ARI compatibility for legacy bulk/update endpoints.
 	 */
 	async upsertOperational(row: {
 		variantId: string

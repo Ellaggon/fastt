@@ -6,6 +6,8 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { productRepository, variantManagementRepository } from "@/container"
 
+// Deprecated ARI compatibility: legacy Inventory Bulk payloads may still carry
+// open_sales/close_sales. Canonical sellability operations must go through Restrictions.
 const bulkApplyLegacySchema = z.object({
 	variantId: z.string().min(1),
 	dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -17,6 +19,8 @@ const bulkApplyLegacySchema = z.object({
 	}),
 })
 
+// Deprecated ARI compatibility: OPEN/CLOSE are accepted for old clients only.
+// Calendar and current Bulk UI send SET_INVENTORY for physical capacity.
 const bulkApplyV2Schema = z.object({
 	selection: z.object({
 		variantIds: z.array(z.string().min(1)).min(1),

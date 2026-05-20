@@ -14,6 +14,8 @@ const schema = z.object({
 	variantId: z.string().min(1),
 	date: z.string().min(1),
 	totalInventory: z.number().int().min(0).optional(),
+	// Deprecated ARI compatibility: canonical Inventory clients should only send
+	// totalInventory. Commercial stop-sell belongs to Restrictions.
 	stopSell: z.boolean().optional(),
 })
 

@@ -16,8 +16,9 @@ describe("ui/inventory bulk surface", () => {
 		expect(source).toContain('id="bulkApplyBtn"')
 		expect(source).toContain("/api/inventory/bulk-preview")
 		expect(source).toContain("/api/inventory/bulk-apply")
-		expect(source).toContain("Abrir ventas")
-		expect(source).toContain("Cerrar ventas")
+		expect(source).not.toContain("Abrir ventas")
+		expect(source).not.toContain("Cerrar ventas")
+		expect(source).toContain("Gestionar vendibilidad en Restrictions")
 		expect(source).toContain("Ajustar cupo")
 	})
 

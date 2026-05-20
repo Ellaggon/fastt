@@ -185,6 +185,18 @@ function selected(value: string | undefined, expected: string): boolean {
 			</Card>
 		</section>
 
+		<Card className="border-blue-200 bg-blue-50 text-blue-950">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold">Bloqueos comerciales viven en Restrictions.</p>
+					<p class="mt-1 text-sm text-blue-900">
+						Usa Stop Sell para cerrar venta; Inventory solo cambia cupos fisicos, booked y held.
+					</p>
+				</div>
+				<Button href={routes.inventory()} variant="secondary" size="sm">Ver cupos físicos</Button>
+			</div>
+		</Card>
+
 		<Section
 			title="Filtros"
 			description={`Encuentra reglas por ${vocabulary.product}, ${vocabulary.variant}, ${vocabulary.ratePlan}, tipo o estado.`}

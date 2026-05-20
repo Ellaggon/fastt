@@ -16,6 +16,7 @@ import {
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 import { and, DailyInventory, db, EffectiveAvailability, eq, gte, lt, sql } from "astro:db"
 
 function toISODateOnly(date: Date): string {
@@ -363,15 +364,12 @@ const taskQueue = [
 								</label>
 							</div>
 							<div class="flex flex-wrap gap-2">
-								<Button size="sm" data-capsule-action="close" variant="secondary"
-									>Cerrar ventas</Button
-								>
-								<Button size="sm" data-capsule-action="open" variant="secondary"
-									>Abrir ventas</Button
-								>
 								<Button size="sm" data-capsule-action="setUnits" variant="secondary"
 									>Actualizar cupo</Button
 								>
+								<Button size="sm" href={routes.rateRestrictions()} variant="secondary">
+									Gestionar Restrictions
+								</Button>
 								<div class="relative">
 									<Button size="sm" data-capsule-action="toggle-extra" variant="ghost"
 										>Más acciones</Button
@@ -518,9 +516,9 @@ const taskQueue = [
 		}
 
 		function dayStateLabel(stateKey) {
-			if (stateKey === "available") return "Disponible"
-			if (stateKey === "soldout") return "Agotado"
-			if (stateKey === "closed") return "Cerrado"
+			if (stateKey === "available") return "Con cupo"
+			if (stateKey === "soldout") return "Cupo 0"
+			if (stateKey === "closed") return "Bloqueo comercial"
 			return "Revisar"
 		}
 
@@ -539,8 +537,8 @@ const taskQueue = [
 					action: "Revisar reglas de estadía",
 				},
 				CLOSED: {
-					label: "Ventas cerradas",
-					action: "Abrir ventas",
+					label: "Bloqueo comercial activo",
+					action: "Gestionar Restrictions",
 				},
 				NO_CAPACITY: {
 					label: "Sin cupo disponible",
@@ -683,8 +681,7 @@ const taskQueue = [
 				targets.length >= 30 &&
 				((averageBefore >= 3 && averageAfter === 0) ||
 					(averageBefore > 0 && (averageBefore - averageAfter) / averageBefore >= 0.7))
-			const isHighRisk =
-				isExtremeUnitsDrop || (targets.length >= 90 && (action === "close" || action === "open"))
+			const isHighRisk = isExtremeUnitsDrop
 			return {
 				selectedCount: selected.length,
 				targetCount: targets.length,
@@ -711,7 +708,7 @@ const taskQueue = [
 			}
 			const impact = computeImpact(state.pendingAction)
 			capsuleImpactDays.textContent = `Días seleccionados: ${impact.selectedCount} · Días afectados: ${impact.targetCount}`
-			capsuleImpactStates.textContent = `Estado actual: ${impact.availableCount} disponibles · ${impact.soldoutCount} agotados · ${impact.closedCount} cerrados${impact.reviewCount ? ` · ${impact.reviewCount} revisar` : ""}`
+			capsuleImpactStates.textContent = `Estado actual: ${impact.availableCount} con cupo · ${impact.soldoutCount} cupo 0 · ${impact.closedCount} con bloqueo comercial${impact.reviewCount ? ` · ${impact.reviewCount} revisar` : ""}`
 			capsuleImpactUnits.textContent =
 				state.pendingAction === "setUnits"
 					? `Cupo promedio: ${impact.averageBefore.toFixed(1)} → ${impact.averageAfter.toFixed(1)}`
@@ -733,7 +730,7 @@ const taskQueue = [
 		}
 
 		function renderActionSelection() {
-			const primaryActions = ["close", "open", "setUnits", "copy"]
+			const primaryActions = ["setUnits", "copy"]
 			primaryActions.forEach((actionKey) => {
 				const button = document.querySelector(`[data-capsule-action="${actionKey}"]`)
 				if (!(button instanceof HTMLButtonElement)) return
@@ -856,7 +853,7 @@ const taskQueue = [
 					)
 				}
 			}
-			selectionSummary.textContent = `${selected.length} días seleccionados · ${availableCount} disponibles · ${closedCount} cerrados`
+			selectionSummary.textContent = `${selected.length} días seleccionados · ${availableCount} con cupo · ${closedCount} con bloqueo comercial`
 			const primaryReason =
 				[...reasonsCount.entries()].sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] ?? null
 			state.selectionPrimaryReason = primaryReason
@@ -864,7 +861,7 @@ const taskQueue = [
 				MISSING_AVAILABILITY: "Recalcular disponibilidad",
 				MISSING_PRICE: "Abrir Rate Plans para cobertura comercial",
 				MIN_STAY_NOT_MET: "Revisar reglas de estadía mínima",
-				CLOSED: "Abrir ventas",
+				CLOSED: "Gestionar Restrictions",
 				NO_CAPACITY: "Actualizar cupo",
 				OCCUPANCY_EXCEEDED: "Revisar capacidad de la habitación",
 			}
@@ -951,21 +948,12 @@ const taskQueue = [
 			if (action === "copy") {
 				if (capsuleUnitsRow) capsuleUnitsRow.classList.add("hidden")
 				if (capsuleConfirmRow) capsuleConfirmRow.classList.remove("hidden")
-				capsulePreview.textContent = `Preview: copiar configuración al rango (${selected.length} día(s)).`
+				capsulePreview.textContent = `Preview: copiar cupo físico al rango (${selected.length} día(s)).`
 				renderWeekdaySelection()
 				renderImpactPreview()
 				renderActionSelection()
 				return
 			}
-			if (capsuleUnitsRow) capsuleUnitsRow.classList.add("hidden")
-			if (capsuleConfirmRow) capsuleConfirmRow.classList.remove("hidden")
-			capsulePreview.textContent =
-				action === "close"
-					? `Preview: cerrar ventas en ${selected.length} día(s).`
-					: `Preview: abrir ventas en ${selected.length} día(s).`
-			renderWeekdaySelection()
-			renderImpactPreview()
-			renderActionSelection()
 		}
 
 		function collectRowsSnapshot(dates) {
@@ -981,14 +969,6 @@ const taskQueue = [
 			for (const date of dates) {
 				const row = state.rows.get(date)
 				if (!row) continue
-				if (action === "close") {
-					row.stopSell = true
-					row.isSellable = false
-				}
-				if (action === "open") {
-					row.stopSell = false
-					row.isSellable = Number(row.availableUnits || 0) > 0
-				}
 				if (action === "setUnits") {
 					const total = Number(payload.totalUnits)
 					row.totalUnits = total
@@ -1060,24 +1040,6 @@ const taskQueue = [
 			const snapshot = collectRowsSnapshot(targets)
 			state.busy = true
 			try {
-				if (action === "close") {
-					applyOptimistic("close", targets)
-					await postForm("/api/inventory/bulk-update", {
-						variantId,
-						startDate: from,
-						endDate: to,
-						stopSell: true,
-					})
-				}
-				if (action === "open") {
-					applyOptimistic("open", targets)
-					await postForm("/api/inventory/bulk-update", {
-						variantId,
-						startDate: from,
-						endDate: to,
-						stopSell: false,
-					})
-				}
 				if (action === "setUnits") {
 					const totalUnits = Number(state.pendingUnits)
 					if (!Number.isFinite(totalUnits) || totalUnits < 0) {
@@ -1096,13 +1058,11 @@ const taskQueue = [
 					const sourceRow = sourceDate ? state.rows.get(sourceDate) : null
 					if (!sourceRow) throw new Error("copy_source_missing")
 					applyOptimistic("setUnits", targets, { totalUnits: sourceRow.totalUnits })
-					applyOptimistic(sourceRow.stopSell ? "close" : "open", targets)
 					await postForm("/api/inventory/bulk-update", {
 						variantId,
 						startDate: from,
 						endDate: to,
 						totalInventory: sourceRow.totalUnits,
-						stopSell: sourceRow.stopSell,
 					})
 				}
 				state.lastUndo = { selected: targets, snapshot }
@@ -1281,7 +1241,7 @@ const taskQueue = [
 				capsuleExtraMenu?.classList.add("hidden")
 				return
 			}
-			if (action === "close" || action === "open" || action === "setUnits") {
+			if (action === "setUnits") {
 				setPendingAction(action)
 				return
 			}
