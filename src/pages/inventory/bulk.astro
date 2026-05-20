@@ -39,11 +39,14 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Inventory · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Operacion avanzada de inventario</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					Operacion avanzada de inventario fisico
+				</h1>
 				<p class="text-sm text-slate-300">
-					Usa esta herramienta para rangos grandes o acciones excepcionales; el calendario de
-					Inventory es la operacion diaria principal.
+					Usa esta herramienta para rangos grandes o acciones excepcionales de capacidad fisica; el
+					calendario de Inventory es la operacion diaria principal.
 				</p>
+				{/* guardrail-copy: Operacion avanzada de inventario */}
 				{/* guardrail-copy: el calendario de Inventory es la operacion diaria principal */}
 			</div>
 			<div class="flex items-center gap-2">
@@ -66,11 +69,22 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 
 		<Section
 			title="Contexto y operación avanzada"
-			description="Define unidad, rango y acción masiva."
+			description="Define unidad, rango y una acción avanzada de capacidad física."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+					<p class="font-medium text-slate-950">Inventory opera capacidad física.</p>
+					<p class="mt-1">
+						Stop Sell, CTA/CTD, LOS y Booking Window viven en Restrictions. Las acciones legacy de
+						abrir/cerrar ventas se mantienen solo por compatibilidad.
+					</p>
+					<p data-bulk-advanced-context class="mt-2 text-xs text-slate-600">
+						Este flujo complementa Inventory para rangos excepcionales; el calendario sigue siendo
+						la operacion diaria de cupo fisico.
+					</p>
+				</div>
 				<div class="grid gap-4 md:grid-cols-4">
-					<FormField label="Variant ID" required>
+					<FormField label="Unidad ID" required>
 						<Input id="bulkVariantId" value={variantId} placeholder="var_xxx" />
 					</FormField>
 					<FormField label="Desde" required>
@@ -84,12 +98,12 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 							id="bulkOperationType"
 							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
 						>
-							<option value="open_sales">Abrir ventas</option>
-							<option value="close_sales">Cerrar ventas</option>
-							<option value="set_inventory">Ajustar cupo</option>
+							<option value="set_inventory" selected>Ajustar cupo fisico</option>
+							<option value="open_sales">Abrir ventas (legacy)</option>
+							<option value="close_sales">Cerrar ventas (legacy)</option>
 						</select>
 					</FormField>
-					<FormField label="Cupo (solo ajustar cupo)">
+					<FormField label="Cupo físico">
 						<Input id="bulkOperationValue" type="number" min="0" step="1" value="0" />
 					</FormField>
 					<FormField label="Días de semana (0=Dom ... 6=Sáb)">
@@ -195,7 +209,12 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 		function renderPreview(payload) {
 			const s = payload?.summary ?? {}
 			if (summary) {
-				summary.textContent = `Días en rango: ${Number(s.totalDaysInRange ?? 0)} · Días objetivo: ${Number(s.targetDays ?? 0)} · Días con cambio: ${Number(s.changedDays ?? 0)} · Resultado abiertos/cerrados: ${Number(s.resultingOpenDays ?? 0)}/${Number(s.resultingClosedDays ?? 0)} · Variación total de cupo: ${Number(s.totalCapacityDelta ?? 0)}`
+				const type = String(payload?.operation?.type ?? "")
+				const legacyState =
+					type === "set_inventory"
+						? ""
+						: ` · Estado legacy abierto/cerrado: ${Number(s.resultingOpenDays ?? 0)}/${Number(s.resultingClosedDays ?? 0)}`
+				summary.textContent = `Días en rango: ${Number(s.totalDaysInRange ?? 0)} · Días objetivo: ${Number(s.targetDays ?? 0)} · Días con cambio: ${Number(s.changedDays ?? 0)} · Variación total de cupo: ${Number(s.totalCapacityDelta ?? 0)}${legacyState}`
 			}
 			if (rows) {
 				rows.innerHTML = ""

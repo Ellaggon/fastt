@@ -800,20 +800,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Calendar-first physical capacity, availability, and quick inventory edits.",
 			},
 			{
-				label: "Bulk Pricing",
-				href: routes.pricingBulk(),
-				status: "transitional",
-				level: 2,
-				summary: "Secondary mass pricing action for multi-rate-plan changes.",
-			},
-			{
-				label: "Bulk Inventory",
-				href: routes.inventoryBulk(),
-				status: "transitional",
-				level: 2,
-				summary: "Secondary mass inventory action for date-range physical capacity changes.",
-			},
-			{
 				label: "Restrictions",
 				href: routes.rateRestrictions(),
 				status: "canonical",
@@ -1011,7 +997,8 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				href: routes.pricingBulk(),
 				status: "transitional",
 				owner: "Rooms & Rates",
-				description: "Secondary mass pricing action for multi-rate-plan changes.",
+				description:
+					"Contextual advanced workflow for exceptional multi-plan pricing operations launched from Pricing.",
 			},
 			{
 				label: "Commercial Rules",
@@ -1049,7 +1036,8 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				href: routes.inventoryBulk(),
 				status: "transitional",
 				owner: "Rooms & Rates",
-				description: "Secondary mass inventory action for date-range physical capacity changes.",
+				description:
+					"Contextual advanced workflow for exceptional physical-capacity operations launched from Inventory.",
 			},
 		],
 	},
