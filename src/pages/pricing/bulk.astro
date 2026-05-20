@@ -43,11 +43,12 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Pricing · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Operacion avanzada de pricing</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Operacion avanzada multi-plan</h1>
 				<p class="text-sm text-slate-300">
-					Usa esta herramienta para cambios masivos multi-tarifa; el calendario de Pricing es la
-					operacion diaria principal.
+					Usa esta herramienta para cambios excepcionales sobre varios planes tarifarios; el
+					calendario de Pricing es la operacion diaria principal.
 				</p>
+				{/* guardrail-copy: Operacion avanzada de pricing */}
 				{/* guardrail-copy: el calendario de Pricing es la operacion diaria principal */}
 			</div>
 			<div class="flex items-center gap-2">
@@ -57,9 +58,19 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 
 		<Section
 			title="Selección avanzada"
-			description="Define el conjunto de tarifas a impactar cuando el calendario no alcanza."
+			description="Selecciona varios planes tarifarios solo cuando la operacion diaria del calendario no alcanza."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
+				<div
+					data-bulk-advanced-context
+					class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+				>
+					<p class="font-medium text-slate-950">Flujo avanzado contextual.</p>
+					<p class="mt-1">
+						Este flujo complementa Pricing; no reemplaza el calendario para edicion diaria,
+						seleccion por rango o regeneracion de cobertura.
+					</p>
+				</div>
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<label class="inline-flex items-center gap-2 text-sm text-slate-700">
 						<input id="bulkSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
@@ -91,8 +102,8 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 		</Section>
 
 		<Section
-			title="Operación masiva"
-			description="Configura una regla para varios planes y simula antes de aplicar."
+			title="Operación avanzada"
+			description="Configura una regla multi-plan, simula impacto y aplica con control."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-3">

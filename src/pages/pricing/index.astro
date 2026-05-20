@@ -47,6 +47,7 @@ const pricingRangeDays = surface.days.map((day) => ({
 }))
 const selectedRatePlanId = String(selected?.ratePlanId ?? "")
 const selectedRatePlanName = String(selected?.ratePlanName ?? "")
+const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponent(selectedRatePlanId)}`
 ---
 
 <WorkspaceLayout title="Pricing">
@@ -63,7 +64,6 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.pricingBulk()} variant="secondary">Bulk Pricing</Button>
 				<Button href={routes.pricingRules()} variant="secondary">Commercial Rules</Button>
 				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
 			</div>
@@ -165,13 +165,6 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 						>
 							Regenerar mes
 						</Button>
-						<Button
-							href={`${routes.pricingBulk()}?ratePlanIds=${encodeURIComponent(String(selected?.ratePlanId ?? ""))}`}
-							variant="secondary"
-							size="sm"
-						>
-							Accion masiva
-						</Button>
 					</div>
 				</div>
 
@@ -184,7 +177,7 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 						<>
 							<div
 								id="pricingRangePanel"
-								class="hidden rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"
+								class="sticky top-3 z-20 hidden rounded-lg border border-blue-200 bg-blue-50/95 p-4 text-sm text-blue-950 shadow-sm backdrop-blur"
 							>
 								<div class="flex flex-wrap items-start justify-between gap-4">
 									<div class="space-y-1">
@@ -194,39 +187,91 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 										</p>
 										<p id="pricingRangePreview" class="text-xs text-blue-800" />
 									</div>
-									<div class="grid w-full gap-2 sm:w-auto sm:grid-cols-[12rem_auto_auto_auto] sm:items-end">
-										<label class="space-y-1">
-											<span class="text-xs font-medium text-blue-950">Precio final</span>
-											<input
-												id="pricingRangeValue"
-												type="number"
-												min="0"
-												step="1"
-												placeholder="Precio"
-												class="w-full rounded border border-blue-200 px-3 py-2 text-slate-900"
-											/>
-										</label>
-										<button
-											id="pricingRangePreviewBtn"
-											type="button"
-											class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+									<div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+										<div class="flex flex-wrap items-center gap-1">
+											<button
+												type="button"
+												data-pricing-range-preset="visible_week"
+												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+											>
+												Semana visible
+											</button>
+											<button
+												type="button"
+												data-pricing-range-preset="visible_weekend"
+												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+											>
+												Fin de semana
+											</button>
+											<button
+												type="button"
+												data-pricing-range-preset="visible_month"
+												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+											>
+												Mes visible
+											</button>
+											<button
+												type="button"
+												data-pricing-range-preset="next_7"
+												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+											>
+												Prox. 7 dias
+											</button>
+											<button
+												type="button"
+												data-pricing-range-preset="next_30"
+												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+											>
+												Prox. 30 dias
+											</button>
+										</div>
+										<div class="grid w-full gap-2 sm:w-auto sm:grid-cols-[10rem_auto_auto_auto_auto] sm:items-end">
+											<label class="space-y-1">
+												<span class="text-xs font-medium text-blue-950">Precio final</span>
+												<input
+													id="pricingRangeValue"
+													type="number"
+													min="0"
+													step="1"
+													placeholder="Precio"
+													class="w-full rounded border border-blue-200 px-3 py-2 text-slate-900"
+												/>
+											</label>
+											<button
+												id="pricingRangePreviewBtn"
+												type="button"
+												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+											>
+												Preview
+											</button>
+											<button
+												id="pricingRangeApplyBtn"
+												type="button"
+												class="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+											>
+												Aplicar
+											</button>
+											<button
+												id="pricingRangeGenerateBtn"
+												type="button"
+												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+											>
+												Regenerar
+											</button>
+											<button
+												id="pricingRangeClearBtn"
+												type="button"
+												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+											>
+												Limpiar
+											</button>
+										</div>
+										<a
+											href={pricingBulkHref}
+											class="text-xs font-medium text-blue-800 underline-offset-2 hover:underline"
 										>
-											Preview
-										</button>
-										<button
-											id="pricingRangeApplyBtn"
-											type="button"
-											class="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
-										>
-											Aplicar
-										</button>
-										<button
-											id="pricingRangeGenerateBtn"
-											type="button"
-											class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
-										>
-											Regenerar
-										</button>
+											Multi-plan avanzado
+										</a>
 									</div>
 								</div>
 							</div>
@@ -272,6 +317,28 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 												? "sin materializar"
 												: money(day.baseComponent, day.currency)}
 										</p>
+										<div class="mt-2 flex flex-wrap gap-1">
+											{day.status === "missing" ? (
+												<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+													Pricing gap
+												</span>
+											) : null}
+											{day.baseComponent != null ? (
+												<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+													Baseline
+												</span>
+											) : null}
+											{day.hasPrice ? (
+												<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+													Efectivo
+												</span>
+											) : null}
+											{Number(day.ruleAdjustment ?? 0) !== 0 ? (
+												<span class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+													Override
+												</span>
+											) : null}
+										</div>
 										{Number(day.ruleAdjustment ?? 0) !== 0 ? (
 											<p class="mt-1 text-xs text-blue-700">
 												Ajuste {money(day.ruleAdjustment, day.currency)}
@@ -308,6 +375,24 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 						</>
 					)
 				}
+				<details
+					data-pricing-advanced-panel
+					class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+				>
+					<summary class="cursor-pointer font-semibold text-slate-900">
+						Operacion avanzada multi-plan
+					</summary>
+					<div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+						<p class="max-w-2xl leading-6">
+							El calendario es la operacion diaria. Usa este flujo solo para cambios excepcionales
+							sobre varios {vocabulary.ratePlanPlural} o rangos amplios que no convenga operar desde la
+							seleccion visible.
+						</p>
+						<Button href={pricingBulkHref} variant="secondary" size="sm">
+							Abrir flujo avanzado
+						</Button>
+					</div>
+				</details>
 				<p id="pricingCalendarFeedback" class="text-sm text-slate-600"></p>
 			</Card>
 		</Section>
@@ -330,7 +415,9 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 			countInclusiveDays,
 			formatRangeLabel,
 			normalizeCalendarRange,
+			selectCalendarRangePreset,
 			summarizeRangeDays,
+			updateCalendarRangeHighlight,
 		} from "@/lib/rates/calendarRangeOperations"
 
 		const feedback = document.getElementById("pricingCalendarFeedback")
@@ -342,7 +429,9 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 		const rangePreviewBtn = document.getElementById("pricingRangePreviewBtn")
 		const rangeApplyBtn = document.getElementById("pricingRangeApplyBtn")
 		const rangeGenerateBtn = document.getElementById("pricingRangeGenerateBtn")
+		const rangeClearBtn = document.getElementById("pricingRangeClearBtn")
 		const rangeButtons = Array.from(document.querySelectorAll("[data-pricing-range-date]"))
+		const rangePresetButtons = Array.from(document.querySelectorAll("[data-pricing-range-preset]"))
 		const rangeCards = Array.from(document.querySelectorAll("[data-pricing-day-card]"))
 		const rangeConfig = JSON.parse(document.getElementById("pricingRangeData")?.textContent || "{}")
 		const rangeDays = Array.isArray(rangeConfig.days) ? rangeConfig.days : []
@@ -399,13 +488,16 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 			}
 			rangePreviewPayload = null
 			setApplyNeedsConfirmation(false)
-			for (const card of rangeCards) {
-				const date = card.getAttribute("data-date")
-				const selected = date && date >= selectedRange.from && date <= selectedRange.to
-				card.classList.toggle("ring-2", Boolean(selected))
-				card.classList.toggle("ring-blue-500", Boolean(selected))
-				card.classList.toggle("ring-offset-2", Boolean(selected))
-			}
+			updateCalendarRangeHighlight({ cards: rangeCards, range: selectedRange })
+		}
+
+		function clearRangeSelection() {
+			selectedRange = null
+			rangeAnchor = null
+			rangePreviewPayload = null
+			rangePanel?.classList.add("hidden")
+			setApplyNeedsConfirmation(false)
+			updateCalendarRangeHighlight({ cards: rangeCards, range: null })
 		}
 
 		rangeButtons.forEach((button) => {
@@ -424,6 +516,22 @@ const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 				renderRangeSelection()
 			})
 		})
+
+		rangePresetButtons.forEach((button) => {
+			button.addEventListener("click", () => {
+				const preset = button.getAttribute("data-pricing-range-preset")
+				const nextRange = selectCalendarRangePreset(preset, rangeDays)
+				if (!nextRange) {
+					setFeedback("Ese preset no tiene fechas visibles en este mes.")
+					return
+				}
+				selectedRange = nextRange
+				rangeAnchor = null
+				renderRangeSelection()
+			})
+		})
+
+		rangeClearBtn?.addEventListener("click", clearRangeSelection)
 
 		rangePreviewBtn?.addEventListener("click", async () => {
 			const payload = buildPricingRangePayload()

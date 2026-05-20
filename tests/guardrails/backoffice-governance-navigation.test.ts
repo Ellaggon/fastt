@@ -287,12 +287,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items.find((item) => item.label === "Inventory")?.status).toEqual(
 			"canonical"
 		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")?.status).toEqual(
-			"transitional"
-		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")?.status).toEqual(
-			"transitional"
-		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
+		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Restrictions")?.status).toEqual(
 			"canonical"
 		)
