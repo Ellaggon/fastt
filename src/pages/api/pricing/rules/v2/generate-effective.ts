@@ -7,6 +7,7 @@ import {
 	parseNumber,
 	readRequestPayload,
 	requireText,
+	resolveCoverageOccupancy,
 	resolveOwnedRatePlanContext,
 } from "@/lib/pricing/rules-v2"
 
@@ -31,6 +32,7 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 	const from = optionalText(payload, "from")
 	const to = optionalText(payload, "to")
+	const occupancyKey = optionalText(payload, "occupancyKey")
 	const days = Math.max(Math.trunc(parseNumber(payload, "days", 60)), 1)
 
 	const dates =
@@ -77,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
 		from: fromDate,
 		to: toDateExclusive,
 		recomputeExisting: true,
+		occupancy: resolveCoverageOccupancy(occupancyKey),
 	})
 	const writes = v2Rematerialization.generatedDatesCount
 

@@ -71,17 +71,23 @@ export async function computeEffectivePricingV2(
 			`POLICY_BASE_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date} occupancyKey=${occupancyKey}`
 		)
 	}
-	if (!policy) {
-		throw new Error(
-			`ACTIVE_OCCUPANCY_POLICY_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date}`
-		)
-	}
+	const activePolicy =
+		policy ??
+		({
+			baseAdults: occupancy.adults,
+			baseChildren: occupancy.children,
+			extraAdultMode: "fixed",
+			extraAdultValue: 0,
+			childMode: "fixed",
+			childValue: 0,
+			currency: String(policyBase.currency),
+		} satisfies ActivePolicy)
 	const base = Math.max(0, Number(policyBase.baseAmount))
 
 	const occupancyAdjustment = computeOccupancyAdjustment({
 		base,
 		occupancy,
-		policy,
+		policy: activePolicy,
 	})
 
 	const preRulePrice = Math.max(0, round2(base + occupancyAdjustment))
@@ -113,7 +119,7 @@ export async function computeEffectivePricingV2(
 				ratePlanId: input.ratePlanId,
 				date: input.date,
 				occupancyKey,
-				policy,
+				policy: activePolicy,
 				base,
 				occupancyAdjustment,
 				rules: rules

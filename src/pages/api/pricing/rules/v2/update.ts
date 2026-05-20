@@ -12,6 +12,7 @@ import {
 	parseNumber,
 	readRequestPayload,
 	requireText,
+	resolveCoverageOccupancy,
 	resolveOwnedRatePlanContext,
 } from "@/lib/pricing/rules-v2"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
@@ -101,6 +102,7 @@ export const POST: APIRoute = async ({ request }) => {
 		from: rematerializationFrom,
 		to: rematerializationTo,
 		recomputeExisting: true,
+		occupancy: resolveCoverageOccupancy(occupancyKey),
 	})
 
 	return new Response(

@@ -39,9 +39,10 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Inventory · Bulk Operations
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Accion masiva de inventario</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Operacion avanzada de inventario</h1>
 				<p class="text-sm text-slate-300">
-					Herramienta secundaria para rangos; la operacion diaria de cupos vive en Inventory.
+					Usa esta herramienta para rangos grandes o acciones excepcionales; el calendario de
+					Inventory es la operacion diaria principal.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
@@ -62,7 +63,10 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 			</div>
 		</header>
 
-		<Section title="Contexto y operación" description="Define variante, rango y acción.">
+		<Section
+			title="Contexto y operación avanzada"
+			description="Define unidad, rango y acción masiva."
+		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-4">
 					<FormField label="Variant ID" required>

@@ -61,7 +61,9 @@ export class PricingV2Repository {
 			.limit(2)
 			.all()
 		const row = rows[0]
-		if (!row) return null
+		if (!row) {
+			return this.getBaseFromExistingEffectivePricing(params)
+		}
 		if (rows.length > 1) {
 			logger.warn("pricing_v2_policy_overlap_detected", {
 				ratePlanId: params.ratePlanId,
@@ -71,6 +73,40 @@ export class PricingV2Repository {
 				candidatePolicyIds: rows.map((candidate) => String(candidate.id)),
 			})
 		}
+		return {
+			baseAmount: Number((row as any).baseAmount ?? 0),
+			currency: String((row as any).currency ?? "USD"),
+		}
+	}
+
+	private async getBaseFromExistingEffectivePricing(params: {
+		ratePlanId: string
+		date: string
+		occupancyKey: string
+	}): Promise<{
+		baseAmount: number
+		currency: string
+	} | null> {
+		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).baseComponent) {
+			return null
+		}
+		const row = await db
+			.select({
+				baseAmount: EffectivePricingV2.baseComponent,
+				currency: EffectivePricingV2.currency,
+			})
+			.from(EffectivePricingV2)
+			.where(
+				and(
+					eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
+					eq(EffectivePricingV2.date, params.date),
+					eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+				)
+			)
+			.orderBy(desc(EffectivePricingV2.computedAt), desc(EffectivePricingV2.id))
+			.limit(1)
+			.get()
+		if (!row) return null
 		return {
 			baseAmount: Number((row as any).baseAmount ?? 0),
 			currency: String((row as any).currency ?? "USD"),

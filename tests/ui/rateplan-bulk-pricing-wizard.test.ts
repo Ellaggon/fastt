@@ -19,8 +19,8 @@ describe("ui/rateplan bulk pricing wizard", () => {
 
 	it("wizard integra preview y apply con endpoints bulk v2", () => {
 		const source = read("src/pages/pricing/bulk.astro")
-		expect(source).toContain("Accion masiva de pricing")
-		expect(source).toContain("la operacion diaria vive en Pricing")
+		expect(source).toContain("Operacion avanzada de pricing")
+		expect(source).toContain("el calendario de Pricing es la operacion diaria principal")
 		expect(source).toContain("Volver a Pricing")
 		expect(source).toContain('id="bulkOperationType"')
 		expect(source).toContain('id="bulkPreviewBtn"')
@@ -41,5 +41,18 @@ describe("ui/rateplan bulk pricing wizard", () => {
 		expect(source).toContain('id="bulkApplyConfirmation"')
 		expect(source).toContain('id="bulkPreviewFailures"')
 		expect(source).toContain('id="bulkResultFailures"')
+	})
+
+	it("pricing calendar exposes compact range operations without replacing daily edit", () => {
+		const source = read("src/pages/pricing/index.astro")
+		expect(source).toContain("Aplicar precio al rango")
+		expect(source).toContain("noches seleccionadas")
+		expect(source).toContain("data-pricing-range-date")
+		expect(source).toContain("data-pricing-day-form")
+		expect(source).toContain("/api/pricing/rules/v2/bulk-preview")
+		expect(source).toContain("/api/pricing/rules/v2/bulk-apply")
+		expect(source).toContain("setApplyNeedsConfirmation")
+		expect(source).toContain("priority: 1000")
+		expect(source).toContain('contextKey: "manual"')
 	})
 })

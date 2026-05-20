@@ -35,10 +35,6 @@ type EvaluateResult = {
 	}>
 }
 
-function toDateOnly(value: Date): string {
-	return value.toISOString().slice(0, 10)
-}
-
 function parseDateOnly(value: string): Date {
 	return new Date(`${value}T00:00:00.000Z`)
 }
@@ -89,7 +85,7 @@ function normalizeRulePriority(rule: CanonicalPriceRule): number {
 
 function normalizeRuleCreatedAt(rule: CanonicalPriceRule): string {
 	if (!rule.createdAt) return ""
-	if (rule.createdAt instanceof Date) return toDateOnly(rule.createdAt)
+	if (rule.createdAt instanceof Date) return rule.createdAt.toISOString()
 	return String(rule.createdAt)
 }
 
