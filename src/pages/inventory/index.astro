@@ -58,8 +58,8 @@ const inventoryBulkHref = selected
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Inventory</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Opera capacidad fisica por {vocabulary.variant}. Inventory responde cuantos cupos quedan;
-					Restrictions responde si la venta esta condicionada o bloqueada.
+					Opera capacidad fisica por {vocabulary.variant}. Inventory responde cuantos cupos existen;
+					Restrictions controla si esos cupos pueden venderse.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
@@ -70,12 +70,12 @@ const inventoryBulkHref = selected
 
 		<section class="grid gap-4 md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Disponibilidad</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Cupo saludable</p>
 				<p class="mt-2 text-2xl font-semibold">{surface.summary.coveragePercent}%</p>
 				<p class="mt-1 text-xs text-slate-400">Dias futuros con cupo saludable</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Dias disponibles</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Dias con cupo</p>
 				<p class="mt-2 text-2xl font-semibold">{availableDays}</p>
 				<p class="mt-1 text-xs text-slate-400">{lowDays} con baja disponibilidad</p>
 			</Card>
@@ -93,7 +93,7 @@ const inventoryBulkHref = selected
 
 		<Section
 			title="Calendario de inventario"
-			description={`Selecciona ${vocabulary.variant}, revisa cupos fisicos y edita disponibilidad diaria sin tocar restricciones comerciales.`}
+			description={`Selecciona ${vocabulary.variant}, revisa cupos fisicos y edita capacidad diaria sin tocar restricciones comerciales.`}
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
 				<form method="get" class="grid gap-3 lg:grid-cols-[1.6fr_0.8fr_auto] lg:items-end">
@@ -277,11 +277,11 @@ const inventoryBulkHref = selected
 												}
 											>
 												{day.status === "available"
-													? "Disponible"
+													? "Con cupo"
 													: day.status === "low"
 														? "Bajo"
 														: day.status === "sold_out"
-															? "Agotado"
+															? "Cupo 0"
 															: day.status === "missing"
 																? "Sin dato"
 																: "Pasado"}
@@ -378,15 +378,13 @@ const inventoryBulkHref = selected
 
 		<Section
 			title="Ownership"
-			description="Inventory opera capacidad fisica. Cierres comerciales, CTA/CTD, LOS y booking windows viven en Restrictions."
+			description="Inventory opera capacidad fisica. Bloqueos comerciales, CTA/CTD, LOS y booking windows viven en Restrictions."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				<Card className="bg-slate-50 text-slate-800">
 					<h2 class="text-base font-semibold text-slate-950">Inventory</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Edita cupos fisicos, disponibilidad materializada, reservas y holds por {
-							vocabulary.variant
-						}.
+						Edita cupos fisicos, capacidad materializada, reservas y holds por {vocabulary.variant}.
 					</p>
 				</Card>
 				<Card className="bg-slate-50 text-slate-800">

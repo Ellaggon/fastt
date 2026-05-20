@@ -50,6 +50,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				{/* guardrail-copy: el calendario de Inventory es la operacion diaria principal */}
 			</div>
 			<div class="flex items-center gap-2">
+				<Button href={routes.rateRestrictions()} variant="secondary">Restrictions</Button>
 				{
 					productId && variantId ? (
 						<Button
@@ -75,13 +76,18 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<div class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
 					<p class="font-medium text-slate-950">Inventory opera capacidad física.</p>
 					<p class="mt-1">
-						Stop Sell, CTA/CTD, LOS y Booking Window viven en Restrictions. Las acciones legacy de
-						abrir/cerrar ventas se mantienen solo por compatibilidad.
+						Aquí ajustas cupos físicos. Si necesitas bloquear venta, llegadas, salidas o estadías,
+						usa Restrictions.
 					</p>
 					<p data-bulk-advanced-context class="mt-2 text-xs text-slate-600">
 						Este flujo complementa Inventory para rangos excepcionales; el calendario sigue siendo
 						la operacion diaria de cupo fisico.
 					</p>
+					<div class="mt-3">
+						<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
+							Gestionar vendibilidad en Restrictions
+						</Button>
+					</div>
 				</div>
 				<div class="grid gap-4 md:grid-cols-4">
 					<FormField label="Unidad ID" required>
@@ -99,8 +105,6 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
 						>
 							<option value="set_inventory" selected>Ajustar cupo fisico</option>
-							<option value="open_sales">Abrir ventas (legacy)</option>
-							<option value="close_sales">Cerrar ventas (legacy)</option>
 						</select>
 					</FormField>
 					<FormField label="Cupo físico">
@@ -138,7 +142,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 			</Card>
 		</Section>
 
-		<Section title="Preview" description="Resumen básico de impacto por rango.">
+		<Section title="Preview" description="Resumen de impacto físico por rango.">
 			<Card className="space-y-3 bg-white text-slate-800">
 				<div id="bulkPreviewSummary" class="text-sm text-slate-700">Sin preview todavía.</div>
 				<div class="overflow-x-auto rounded border border-slate-200">
@@ -209,12 +213,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 		function renderPreview(payload) {
 			const s = payload?.summary ?? {}
 			if (summary) {
-				const type = String(payload?.operation?.type ?? "")
-				const legacyState =
-					type === "set_inventory"
-						? ""
-						: ` · Estado legacy abierto/cerrado: ${Number(s.resultingOpenDays ?? 0)}/${Number(s.resultingClosedDays ?? 0)}`
-				summary.textContent = `Días en rango: ${Number(s.totalDaysInRange ?? 0)} · Días objetivo: ${Number(s.targetDays ?? 0)} · Días con cambio: ${Number(s.changedDays ?? 0)} · Variación total de cupo: ${Number(s.totalCapacityDelta ?? 0)}${legacyState}`
+				summary.textContent = `Días en rango: ${Number(s.totalDaysInRange ?? 0)} · Días objetivo: ${Number(s.targetDays ?? 0)} · Días con cambio: ${Number(s.changedDays ?? 0)} · Variación total de cupo: ${Number(s.totalCapacityDelta ?? 0)}`
 			}
 			if (rows) {
 				rows.innerHTML = ""
@@ -223,8 +222,8 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 					tr.className = "border-t border-slate-200 text-slate-700"
 					tr.innerHTML = `
 						<td class="px-3 py-2">${String(day?.date ?? "—")}</td>
-						<td class="px-3 py-2">${String(day?.before?.state ?? "—")} · cupo ${Number(day?.before?.totalUnits ?? 0)}</td>
-						<td class="px-3 py-2">${String(day?.after?.state ?? "—")} · cupo ${Number(day?.after?.totalUnits ?? 0)}</td>
+						<td class="px-3 py-2">cupo ${Number(day?.before?.totalUnits ?? 0)}</td>
+						<td class="px-3 py-2">cupo ${Number(day?.after?.totalUnits ?? 0)}</td>
 						<td class="px-3 py-2">${Boolean(day?.changed) ? "Sí" : "No"}</td>
 					`
 					rows.appendChild(tr)

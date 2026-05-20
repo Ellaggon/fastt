@@ -231,7 +231,6 @@ export async function materializeSearchUnit(
 		restrictionRow?.minStay == null ? null : Math.max(1, Number(restrictionRow.minStay))
 	const cta = Boolean(restrictionRow?.cta ?? false)
 	const ctd = Boolean(restrictionRow?.ctd ?? false)
-	const hasRestriction = restrictionRow != null
 
 	const isSellable = hasAvailability && hasPrice && !stopSell && availableUnits > 0
 	const isAvailable = hasAvailability && !stopSell && availableUnits > 0

@@ -433,7 +433,9 @@ const DailyInventory = defineTable({
 		date: column.text(), // YYYY-MM-DD
 		totalInventory: column.number(), // Ej: 10 habitaciones físicas
 		reservedCount: column.number({ default: 0 }),
-		// CAPA 5 (Inventory Calendar): operational stop-sell flag. Search treats stopSell=true as unavailable.
+		// @deprecated ARI compatibility: historical inventory-owned stop-sell fallback.
+		// Canonical sellability belongs to Restriction/EffectiveRestriction. Keep until
+		// search/materialization no longer needs availability fallback semantics.
 		stopSell: column.boolean({ default: false }),
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
@@ -449,6 +451,8 @@ const EffectiveAvailability = defineTable({
 		heldUnits: column.number({ default: 0 }),
 		bookedUnits: column.number({ default: 0 }),
 		availableUnits: column.number({ default: 0 }),
+		// @deprecated ARI compatibility: materialized fallback signal consumed by search
+		// while Restrictions finishes owning sellability end to end.
 		stopSell: column.boolean({ default: true }),
 		isSellable: column.boolean({ default: false }),
 		computedAt: column.date(),
@@ -472,6 +476,8 @@ const SearchUnitView = defineTable({
 		isSellable: column.boolean({ default: false }),
 		isAvailable: column.boolean({ default: false }),
 		availableUnits: column.number({ default: 0 }),
+		// Search-facing sellability flag. Restrictions should be the canonical source;
+		// EffectiveAvailability remains a compatibility fallback for older materializations.
 		stopSell: column.boolean({ default: true }),
 		pricePerNight: column.number({ optional: true }),
 		currency: column.text({ default: "USD" }),
