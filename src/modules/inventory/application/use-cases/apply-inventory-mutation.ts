@@ -109,7 +109,6 @@ export async function applyInventoryMutation<T>(params: {
 				const held = Number(row.heldUnits ?? 0)
 				const booked = Number(row.bookedUnits ?? 0)
 				const available = Number(row.availableUnits ?? 0)
-				const isSellable = Boolean(row.isSellable)
 
 				const invalid =
 					held < 0 ||
@@ -117,8 +116,7 @@ export async function applyInventoryMutation<T>(params: {
 					total < 0 ||
 					available < 0 ||
 					held + booked > total ||
-					available !== Math.max(0, total - held - booked) ||
-					isSellable !== available > 0
+					available !== Math.max(0, total - held - booked)
 
 				if (invalid) {
 					throw new Error(

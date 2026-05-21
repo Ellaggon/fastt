@@ -30,8 +30,6 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 		heldUnits: number
 		bookedUnits: number
 		availableUnits: number
-		stopSell: boolean
-		isSellable: boolean
 	}>
 > {
 	const rows = await db
@@ -58,7 +56,5 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 		heldUnits: Number(row.heldUnits ?? 0),
 		bookedUnits: Number(row.bookedUnits ?? 0),
 		availableUnits: Number(row.availableUnits ?? 0),
-		stopSell: false,
-		isSellable: Number(row.availableUnits ?? 0) > 0,
 	}))
 }

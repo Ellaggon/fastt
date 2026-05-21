@@ -158,7 +158,6 @@ describe("integration/hold policy snapshot", () => {
 				date,
 				totalInventory: 5,
 				reservedCount: 0,
-				stopSell: false,
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)
@@ -333,7 +332,6 @@ describe("integration/hold policy snapshot", () => {
 					date,
 					totalInventory: 5,
 					reservedCount: 0,
-					stopSell: false,
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				} as any)
@@ -478,7 +476,6 @@ describe("integration/hold policy snapshot", () => {
 				date,
 				totalInventory: 3,
 				reservedCount: 0,
-				stopSell: false,
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)

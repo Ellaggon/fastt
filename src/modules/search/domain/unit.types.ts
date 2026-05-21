@@ -43,8 +43,6 @@ export type SearchUnit = SellableUnit & {
 export type InventorySnapshot = {
 	date: string | Date
 	availableUnits: number
-	isSellable: boolean
-	stopSell?: boolean
 }
 
 export type RatePlanSnapshot = {

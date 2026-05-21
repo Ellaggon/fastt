@@ -34,7 +34,7 @@ describe("sourceVersion integrity (occupancy-aware)", () => {
 		configureSearchUnitMaterializationRepository(repoMock as any)
 		repoMock.resolveProductId.mockResolvedValue("prod-1")
 		repoMock.loadMaterializationInputs.mockResolvedValue({
-			availabilityRow: { stopSell: false, availableUnits: 2 },
+			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
 			restrictionRow: { stopSell: false, minStay: 1, cta: false, ctd: false },
 		})

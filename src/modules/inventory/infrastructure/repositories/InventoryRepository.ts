@@ -24,11 +24,6 @@ export class InventoryRepository implements InventoryRepositoryPort {
 		return rows.map((row) => ({
 			date: String(row.date),
 			availableUnits: Number(row.availableUnits ?? 0),
-			// Deprecated compatibility shape for the legacy SearchPipeline adapter.
-			// EffectiveAvailability is physical-only; commercial blockers are loaded
-			// through Restrictions/EffectiveRestriction.
-			isSellable: Number(row.availableUnits ?? 0) > 0,
-			stopSell: false,
 		}))
 	}
 }

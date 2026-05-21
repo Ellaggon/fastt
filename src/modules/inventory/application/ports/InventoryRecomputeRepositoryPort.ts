@@ -18,10 +18,6 @@ export type EffectiveAvailabilityUpsertRow = {
 	heldUnits: number
 	bookedUnits: number
 	availableUnits: number
-	// Deprecated ARI compatibility columns. EffectiveAvailability writes physical
-	// availability only; sellability belongs to EffectiveRestriction/Search.
-	stopSell: boolean
-	isSellable: boolean
 	computedAt: Date
 }
 

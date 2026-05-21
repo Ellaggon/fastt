@@ -87,8 +87,6 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 					heldUnits: sql`excluded.heldUnits`,
 					bookedUnits: sql`excluded.bookedUnits`,
 					availableUnits: sql`excluded.availableUnits`,
-					stopSell: sql`excluded.stopSell`,
-					isSellable: sql`excluded.isSellable`,
 					computedAt: sql`excluded.computedAt`,
 				},
 			})

@@ -134,8 +134,6 @@ describe("integration/pricing preview vs search parity", () => {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 5,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
@@ -145,8 +143,6 @@ describe("integration/pricing preview vs search parity", () => {
 						heldUnits: 0,
 						bookedUnits: 0,
 						availableUnits: 5,
-						stopSell: false,
-						isSellable: true,
 						computedAt: new Date(),
 					},
 				})

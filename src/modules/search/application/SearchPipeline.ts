@@ -74,8 +74,6 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 				.map((day) => ({
 					date: typeof day.date === "string" ? day.date : toISODate(day.date),
 					availableUnits: Number(day.availableUnits ?? 0),
-					isSellable: Boolean(day.isSellable),
-					stopSell: Boolean(day.stopSell),
 				}))
 				.map((day) => [day.date, day] as const)
 		)
@@ -94,7 +92,6 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 		const isAnyUnsellableDay = stayDates.some((date) => {
 			const day = availabilityByDate.get(date)
 			if (!day) return true
-			if (!day.isSellable || day.stopSell) return true
 			return day.availableUnits < requestedQuantity
 		})
 		if (isAnyUnsellableDay) return []

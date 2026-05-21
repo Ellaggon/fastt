@@ -123,9 +123,18 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 0,
-			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
+		} as any)
+		await db.insert(EffectiveAvailability).values({
+			id: `ea_${crypto.randomUUID()}`,
+			variantId,
+			date: "2026-03-10",
+			totalUnits: 2,
+			heldUnits: 0,
+			bookedUnits: 0,
+			availableUnits: 2,
+			computedAt: new Date(),
 		} as any)
 
 		await withSupabaseAuthStub({ [token]: { id: "u1", email } }, async () => {
@@ -143,16 +152,17 @@ describe("integration/inventory calendar API", () => {
 			expect(json.length).toBe(2)
 
 			expect(json[0].date).toBe("2026-03-10")
-			expect(json[0].totalInventory).toBe(0)
-			expect(json[0].available).toBe(0)
-			expect(json[0].stopSell).toBe(false)
-			expect(json[0].hasEffective).toBe(false)
-			expect(json[0].unsellableReason).toBe("MISSING_AVAILABILITY")
+			expect(json[0].totalInventory).toBe(2)
+			expect(json[0].available).toBe(2)
+			expect("stopSell" in json[0]).toBe(false)
+			expect("isSellable" in json[0]).toBe(false)
+			expect(json[0].hasEffective).toBe(true)
+			expect(json[0].unsellableReason).toBe("MISSING_PRICE")
 
 			expect(json[1].date).toBe("2026-03-11")
 			expect(json[1].totalInventory).toBe(0)
 			expect(json[1].available).toBe(0)
-			expect(json[1].stopSell).toBe(false)
+			expect("stopSell" in json[1]).toBe(false)
 		})
 	})
 
@@ -172,7 +182,6 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 1,
-			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		} as any)
@@ -183,7 +192,6 @@ describe("integration/inventory calendar API", () => {
 			fd.set("startDate", "2026-03-10")
 			fd.set("endDate", "2026-03-12")
 			fd.set("totalInventory", "5")
-			fd.set("stopSell", "false")
 
 			const res = await bulkPost({
 				request: makeAuthedRequest({
@@ -202,11 +210,11 @@ describe("integration/inventory calendar API", () => {
 				.get()
 			expect(Number((row as any)?.reservedCount)).toBe(1) // unchanged
 			expect(Number((row as any)?.totalInventory)).toBe(5)
-			expect(Boolean((row as any)?.stopSell ?? false)).toBe(false)
+			expect("stopSell" in (row as any)).toBe(false)
 		})
 	})
 
-	it("legacy stopSell no longer changes physical availability", async () => {
+	it("legacy stopSell-only payloads are rejected and do not change physical availability", async () => {
 		const token = "t_inv_stop"
 		const email = "inv-stop@example.com"
 		const providerId = "prov_inv_stop"
@@ -221,9 +229,18 @@ describe("integration/inventory calendar API", () => {
 			date: "2026-03-10",
 			totalInventory: 2,
 			reservedCount: 0,
-			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
+		} as any)
+		await db.insert(EffectiveAvailability).values({
+			id: `ea_${crypto.randomUUID()}`,
+			variantId,
+			date: "2026-03-10",
+			totalUnits: 2,
+			heldUnits: 0,
+			bookedUnits: 0,
+			availableUnits: 2,
+			computedAt: new Date(),
 		} as any)
 
 		await withSupabaseAuthStub({ [token]: { id: "u3", email } }, async () => {
@@ -240,7 +257,7 @@ describe("integration/inventory calendar API", () => {
 					body: fd,
 				}),
 			} as any)
-			expect(closeRes.status).toBe(200)
+			expect(closeRes.status).toBe(400)
 
 			const cal1 = await calendarGet({
 				request: makeAuthedRequest({
@@ -250,7 +267,7 @@ describe("integration/inventory calendar API", () => {
 				}),
 			} as any)
 			const json1 = (await readJson(cal1)) as any[]
-			expect(json1[0].stopSell).toBe(false)
+			expect("stopSell" in json1[0]).toBe(false)
 			expect(json1[0].available).toBe(2)
 
 			const reopen = new FormData()
@@ -266,7 +283,7 @@ describe("integration/inventory calendar API", () => {
 					body: reopen,
 				}),
 			} as any)
-			expect(openRes.status).toBe(200)
+			expect(openRes.status).toBe(400)
 
 			const cal2 = await calendarGet({
 				request: makeAuthedRequest({
@@ -276,7 +293,7 @@ describe("integration/inventory calendar API", () => {
 				}),
 			} as any)
 			const json2 = (await readJson(cal2)) as any[]
-			expect(json2[0].stopSell).toBe(false)
+			expect("stopSell" in json2[0]).toBe(false)
 			expect(json2[0].available).toBe(2)
 		})
 	})
@@ -297,7 +314,6 @@ describe("integration/inventory calendar API", () => {
 			date: targetDate,
 			totalInventory: 3,
 			reservedCount: 0,
-			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		} as any)
@@ -331,8 +347,8 @@ describe("integration/inventory calendar API", () => {
 			expect(row1).toBeTruthy()
 			expect(Number((row1 as any)?.totalUnits)).toBe(5)
 			expect(Number((row1 as any)?.availableUnits)).toBe(5)
-			expect(Boolean((row1 as any)?.isSellable)).toBe(true)
-			expect(Boolean((row1 as any)?.stopSell)).toBe(false)
+			expect("isSellable" in (row1 as any)).toBe(false)
+			expect("stopSell" in (row1 as any)).toBe(false)
 
 			// Rerun same payload: should update same row (no duplicates, no drift).
 			const res2 = await dayPost({

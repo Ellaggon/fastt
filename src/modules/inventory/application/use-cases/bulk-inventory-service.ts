@@ -45,14 +45,12 @@ export type BulkInventoryDay = {
 	variantId?: string
 	date: string
 	before: {
-		stopSell: boolean
 		totalUnits: number
-		state: "open" | "closed"
+		state: "available" | "sold_out"
 	}
 	after: {
-		stopSell: boolean
 		totalUnits: number
-		state: "open" | "closed"
+		state: "available" | "sold_out"
 	}
 	changed: boolean
 }
@@ -61,8 +59,8 @@ export type BulkInventorySummary = {
 	totalDaysInRange: number
 	targetDays: number
 	changedDays: number
-	resultingOpenDays: number
-	resultingClosedDays: number
+	resultingAvailableDays: number
+	resultingSoldOutDays: number
 	totalCapacityDelta: number
 }
 
@@ -270,10 +268,8 @@ function mapOperationToProjectedDay(
 	operation: BulkInventoryInput["operation"],
 	targeted: boolean
 ): BulkInventoryDay {
-	const beforeStopSell = Boolean(day?.stopSell ?? true)
 	const beforeTotalUnits = Number(day?.totalUnits ?? day?.totalInventory ?? 0)
 
-	let afterStopSell = beforeStopSell
 	let afterTotalUnits = beforeTotalUnits
 
 	if (targeted) {
@@ -282,19 +278,17 @@ function mapOperationToProjectedDay(
 		}
 	}
 
-	const beforeState = beforeStopSell ? "closed" : "open"
-	const afterState = afterStopSell ? "closed" : "open"
-	const changed = beforeStopSell !== afterStopSell || beforeTotalUnits !== afterTotalUnits
+	const beforeState = beforeTotalUnits > 0 ? "available" : "sold_out"
+	const afterState = afterTotalUnits > 0 ? "available" : "sold_out"
+	const changed = beforeTotalUnits !== afterTotalUnits
 
 	return {
 		date: String(day?.date ?? ""),
 		before: {
-			stopSell: beforeStopSell,
 			totalUnits: beforeTotalUnits,
 			state: beforeState,
 		},
 		after: {
-			stopSell: afterStopSell,
 			totalUnits: afterTotalUnits,
 			state: afterState,
 		},
@@ -305,8 +299,8 @@ function mapOperationToProjectedDay(
 function summarize(projected: BulkInventoryDay[], totalDaysInRange: number): BulkInventorySummary {
 	const targetDays = projected.length
 	const changedDays = projected.filter((day) => day.changed).length
-	const resultingOpenDays = projected.filter((day) => day.after.state === "open").length
-	const resultingClosedDays = projected.filter((day) => day.after.state === "closed").length
+	const resultingAvailableDays = projected.filter((day) => day.after.state === "available").length
+	const resultingSoldOutDays = projected.filter((day) => day.after.state === "sold_out").length
 	const totalCapacityDelta = projected.reduce(
 		(acc, day) => acc + (Number(day.after.totalUnits) - Number(day.before.totalUnits)),
 		0
@@ -315,8 +309,8 @@ function summarize(projected: BulkInventoryDay[], totalDaysInRange: number): Bul
 		totalDaysInRange,
 		targetDays,
 		changedDays,
-		resultingOpenDays,
-		resultingClosedDays,
+		resultingAvailableDays,
+		resultingSoldOutDays,
 		totalCapacityDelta,
 	}
 }
@@ -428,16 +422,16 @@ function aggregatePreviewResults(results: BulkInventoryPreviewResult[]): {
 		totalDaysInRange: 0,
 		targetDays: 0,
 		changedDays: 0,
-		resultingOpenDays: 0,
-		resultingClosedDays: 0,
+		resultingAvailableDays: 0,
+		resultingSoldOutDays: 0,
 		totalCapacityDelta: 0,
 	}
 	for (const result of results) {
 		base.totalDaysInRange += Number(result.summary.totalDaysInRange ?? 0)
 		base.targetDays += Number(result.summary.targetDays ?? 0)
 		base.changedDays += Number(result.summary.changedDays ?? 0)
-		base.resultingOpenDays += Number(result.summary.resultingOpenDays ?? 0)
-		base.resultingClosedDays += Number(result.summary.resultingClosedDays ?? 0)
+		base.resultingAvailableDays += Number(result.summary.resultingAvailableDays ?? 0)
+		base.resultingSoldOutDays += Number(result.summary.resultingSoldOutDays ?? 0)
 		base.totalCapacityDelta += Number(result.summary.totalCapacityDelta ?? 0)
 	}
 	const days = results.flatMap((result) =>
@@ -561,8 +555,8 @@ function aggregateApplyResults(results: BulkInventoryApplyResult[]) {
 		totalDaysInRange: 0,
 		targetDays: 0,
 		changedDays: 0,
-		resultingOpenDays: 0,
-		resultingClosedDays: 0,
+		resultingAvailableDays: 0,
+		resultingSoldOutDays: 0,
 		totalCapacityDelta: 0,
 		successfulDays: 0,
 		failedDays: 0,
@@ -571,8 +565,8 @@ function aggregateApplyResults(results: BulkInventoryApplyResult[]) {
 		summary.totalDaysInRange += Number(result.summary.totalDaysInRange ?? 0)
 		summary.targetDays += Number(result.summary.targetDays ?? 0)
 		summary.changedDays += Number(result.summary.changedDays ?? 0)
-		summary.resultingOpenDays += Number(result.summary.resultingOpenDays ?? 0)
-		summary.resultingClosedDays += Number(result.summary.resultingClosedDays ?? 0)
+		summary.resultingAvailableDays += Number(result.summary.resultingAvailableDays ?? 0)
+		summary.resultingSoldOutDays += Number(result.summary.resultingSoldOutDays ?? 0)
 		summary.totalCapacityDelta += Number(result.summary.totalCapacityDelta ?? 0)
 		summary.successfulDays += Number(result.summary.successfulDays ?? 0)
 		summary.failedDays += Number(result.summary.failedDays ?? 0)
@@ -659,8 +653,8 @@ export async function applyBulkInventoryOperation(params: {
 			totalDaysInRange: aggregated.summary.totalDaysInRange,
 			targetDays: aggregated.summary.targetDays,
 			changedDays: aggregated.summary.changedDays,
-			resultingOpenDays: aggregated.summary.resultingOpenDays,
-			resultingClosedDays: aggregated.summary.resultingClosedDays,
+			resultingAvailableDays: aggregated.summary.resultingAvailableDays,
+			resultingSoldOutDays: aggregated.summary.resultingSoldOutDays,
 			totalCapacityDelta: aggregated.summary.totalCapacityDelta,
 			successfulDays: aggregated.summary.successfulDays,
 			failedDays: aggregated.summary.failedDays,

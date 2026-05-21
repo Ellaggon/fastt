@@ -39,8 +39,6 @@ describe("integration/search-unit-view-shadow", () => {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 5,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
@@ -50,8 +48,6 @@ describe("integration/search-unit-view-shadow", () => {
 						heldUnits: 0,
 						bookedUnits: 0,
 						availableUnits: 5,
-						stopSell: false,
-						isSellable: true,
 						computedAt: new Date(),
 					},
 				})

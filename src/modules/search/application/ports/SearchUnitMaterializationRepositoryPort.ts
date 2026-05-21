@@ -31,10 +31,8 @@ export type SearchUnitMaterializationUpsertRow = {
 	totalGuests: number
 	hasAvailability: boolean
 	hasPrice: boolean
-	isSellable: boolean
 	isAvailable: boolean
 	availableUnits: number
-	stopSell: boolean
 	pricePerNight: number | null
 	currency: string
 	primaryBlocker: string | null

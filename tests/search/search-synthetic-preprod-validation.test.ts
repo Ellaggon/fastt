@@ -268,8 +268,6 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 						heldUnits: 0,
 						bookedUnits: profile === "no_inventory" ? 4 : 0,
 						availableUnits,
-						stopSell: false,
-						isSellable: availableUnits > 0,
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
@@ -279,8 +277,6 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 							heldUnits: 0,
 							bookedUnits: profile === "no_inventory" ? 4 : 0,
 							availableUnits,
-							stopSell: false,
-							isSellable: availableUnits > 0,
 							computedAt: new Date(),
 						},
 					})
@@ -292,7 +288,6 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 						variantId,
 						ratePlanId,
 						date,
-						stopSell: false,
 						minStay: 1,
 						cta: profile === "cta_restriction",
 						ctd: profile === "ctd_restriction",
@@ -305,7 +300,6 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 							EffectiveRestriction.date,
 						],
 						set: {
-							stopSell: false,
 							minStay: 1,
 							cta: profile === "cta_restriction",
 							ctd: profile === "ctd_restriction",

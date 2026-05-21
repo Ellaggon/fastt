@@ -127,10 +127,8 @@ function hasMaterializationDrift(params: {
 		totalGuests: number
 		hasAvailability: boolean
 		hasPrice: boolean
-		isSellable: boolean
 		isAvailable: boolean
 		availableUnits: number
-		stopSell: boolean
 		pricePerNight: number | null
 		currency: string
 		primaryBlocker: string | null
@@ -306,10 +304,8 @@ export async function materializeSearchUnit(
 		totalGuests: occupancy.adults + occupancy.children,
 		hasAvailability,
 		hasPrice,
-		isSellable: isSellable && !policyBlocked,
 		isAvailable,
 		availableUnits,
-		stopSell,
 		pricePerNight: hasPrice ? Number(pricingRow?.finalBasePrice ?? 0) : null,
 		currency: parsed.currency,
 		primaryBlocker: blocker,
@@ -330,7 +326,7 @@ export async function materializeSearchUnit(
 	if (!hasMaterializationDrift({ existing: existingRow, candidate: candidateRow })) {
 		return {
 			updated: false,
-			isSellable: candidateRow.isSellable,
+			isSellable: isSellable && !policyBlocked,
 			blocker,
 		}
 	}
@@ -348,7 +344,7 @@ export async function materializeSearchUnit(
 
 	return {
 		updated: true,
-		isSellable: candidateRow.isSellable,
+		isSellable: isSellable && !policyBlocked,
 		blocker,
 	}
 }

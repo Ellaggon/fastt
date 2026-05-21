@@ -117,12 +117,7 @@ async function seedVariantOwnedByProvider(params: {
 	})
 }
 
-async function upsertDailyRow(params: {
-	variantId: string
-	date: string
-	totalInventory: number
-	stopSell: boolean
-}) {
+async function upsertDailyRow(params: { variantId: string; date: string; totalInventory: number }) {
 	await db
 		.insert(DailyInventory)
 		.values({
@@ -131,7 +126,6 @@ async function upsertDailyRow(params: {
 			date: params.date,
 			totalInventory: params.totalInventory,
 			reservedCount: 0,
-			stopSell: params.stopSell,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		} as any)
@@ -139,7 +133,6 @@ async function upsertDailyRow(params: {
 			target: [DailyInventory.variantId, DailyInventory.date],
 			set: {
 				totalInventory: params.totalInventory,
-				stopSell: params.stopSell,
 				updatedAt: new Date(),
 			},
 		})
@@ -166,13 +159,11 @@ describe("integration/inventory bulk operations", () => {
 			variantId,
 			date: "2026-03-10",
 			totalInventory: 2,
-			stopSell: false,
 		})
 		await upsertDailyRow({
 			variantId,
 			date: "2026-03-11",
 			totalInventory: 2,
-			stopSell: false,
 		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_inv_bulk_preview", email } }, async () => {
@@ -211,7 +202,6 @@ describe("integration/inventory bulk operations", () => {
 				variantId,
 				date,
 				totalInventory: 3,
-				stopSell: false,
 			})
 		}
 
@@ -255,13 +245,11 @@ describe("integration/inventory bulk operations", () => {
 			variantId,
 			date: "2026-03-10",
 			totalInventory: 2,
-			stopSell: false,
 		})
 		await upsertDailyRow({
 			variantId,
 			date: "2026-03-11",
 			totalInventory: 1,
-			stopSell: false,
 		})
 		await withSupabaseAuthStub({ [token]: { id: "u_inv_bulk_partial", email } }, async () => {
 			const response = await bulkApplyPost({
@@ -318,7 +306,6 @@ describe("integration/inventory bulk operations", () => {
 					variantId,
 					date,
 					totalInventory: 2,
-					stopSell: false,
 				})
 			}
 		}
@@ -356,7 +343,6 @@ describe("integration/inventory bulk operations", () => {
 			variantId,
 			date: "2026-03-10",
 			totalInventory: 4,
-			stopSell: false,
 		})
 
 		await withSupabaseAuthStub({ [token]: { id: "u_inv_bulk_v2_dryrun", email } }, async () => {

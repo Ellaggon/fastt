@@ -36,9 +36,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 					variantId,
 					totalInventory: 0,
 					reservedCount: 0,
-					// Deprecated ARI compatibility only. Missing physical inventory is
-					// represented by totalInventory=0; sellability belongs to Restrictions.
-					stopSell: false,
 				})
 			}
 			cursor.setDate(cursor.getDate() + 1)
@@ -49,15 +46,12 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 
 	/**
 	 * Inventory calendar writes MUST NOT overwrite reservedCount.
-	 * Canonical writes update physical totalInventory. stopSell remains accepted
-	 * in the input shape only as deprecated payload compatibility and is not
-	 * persisted as commercial state.
+	 * Canonical writes update physical totalInventory only.
 	 */
 	async upsertOperational(row: {
 		variantId: string
 		date: string
 		totalInventory?: number
-		stopSell?: boolean
 	}): Promise<void> {
 		const date = typeof row.date === "string" ? row.date : toISODate(row.date as any)
 
@@ -74,7 +68,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 				date,
 				totalInventory: insertTotal,
 				reservedCount: 0,
-				stopSell: false,
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)
@@ -89,7 +82,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 		startDate: Date
 		endDate: Date
 		totalInventory?: number
-		stopSell?: boolean
 	}): Promise<void> {
 		const end = toISODate(params.endDate)
 		const cursor = new Date(params.startDate)
@@ -98,7 +90,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 				variantId: params.variantId,
 				date: toISODate(cursor),
 				totalInventory: params.totalInventory,
-				stopSell: params.stopSell,
 			})
 			cursor.setDate(cursor.getDate() + 1)
 		}

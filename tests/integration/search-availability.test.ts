@@ -153,8 +153,6 @@ async function seedSearchableVariant(params: {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: params.totalInventory,
-				stopSell: false,
-				isSellable: params.totalInventory > 0,
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
@@ -164,8 +162,6 @@ async function seedSearchableVariant(params: {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: params.totalInventory,
-					stopSell: false,
-					isSellable: params.totalInventory > 0,
 					computedAt: new Date(),
 				},
 			})
@@ -497,8 +493,6 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 				heldUnits: 0,
 				bookedUnits: 1,
 				availableUnits: 0,
-				stopSell: false,
-				isSellable: false,
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
@@ -508,8 +502,6 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 					heldUnits: 0,
 					bookedUnits: 1,
 					availableUnits: 0,
-					stopSell: false,
-					isSellable: false,
 					computedAt: new Date(),
 				},
 			})
