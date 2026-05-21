@@ -8,6 +8,8 @@ export type CalendarRangeDay = {
 	status?: string
 	ruleAdjustment?: number | null
 	availableUnits?: number
+	restrictionCount?: number
+	commercialBlocker?: boolean
 }
 
 export function normalizeCalendarRange(first: string, second: string): CalendarRange {
@@ -37,6 +39,8 @@ export function summarizeRangeDays(days: CalendarRangeDay[], range: CalendarRang
 		days: selected.length,
 		missing: selected.filter((day) => day.status === "missing").length,
 		adjusted: selected.filter((day) => Number(day.ruleAdjustment ?? 0) !== 0).length,
+		restricted: selected.filter((day) => Number(day.restrictionCount ?? 0) > 0).length,
+		commercialBlockers: selected.filter((day) => Boolean(day.commercialBlocker)).length,
 		soldOut: selected.filter((day) => day.status === "sold_out").length,
 		low: selected.filter((day) => day.status === "low").length,
 		totalAvailableUnits: selected.reduce(

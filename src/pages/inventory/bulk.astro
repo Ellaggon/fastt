@@ -32,12 +32,12 @@ const productId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const variant = variantId ? await variantManagementRepository.getVariantById(variantId) : null
 ---
 
-<WorkspaceLayout title="Inventory · Bulk Operations">
+<WorkspaceLayout title="Inventory · Operaciones avanzadas">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Inventory · Bulk Operations
+					Inventory · Operaciones avanzadas
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">
 					Operacion avanzada de inventario fisico
@@ -142,9 +142,11 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 			</Card>
 		</Section>
 
-		<Section title="Preview" description="Resumen de impacto físico por rango.">
+		<Section title="Previsualización" description="Resumen de impacto físico por rango.">
 			<Card className="space-y-3 bg-white text-slate-800">
-				<div id="bulkPreviewSummary" class="text-sm text-slate-700">Sin preview todavía.</div>
+				<div id="bulkPreviewSummary" class="text-sm text-slate-700">
+					Sin previsualización todavía.
+				</div>
 				<div class="overflow-x-auto rounded border border-slate-200">
 					<table class="min-w-full bg-white text-sm">
 						<thead class="bg-slate-50 text-left text-slate-600">
@@ -237,7 +239,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				if (feedback) feedback.textContent = "Completa variantId, rango y operación."
 				return
 			}
-			if (feedback) feedback.textContent = "Generando preview..."
+			if (feedback) feedback.textContent = "Generando previsualización..."
 			try {
 				const response = await fetch("/api/inventory/bulk-preview", {
 					method: "POST",
@@ -253,7 +255,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				lastPayload = payload
 				renderPreview(body)
 				if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = false
-				if (feedback) feedback.textContent = "Preview listo. Puedes aplicar cambios."
+				if (feedback) feedback.textContent = "Previsualización lista. Puedes aplicar cambios."
 			} catch (error) {
 				if (feedback) feedback.textContent = `Error de red: ${String(error)}`
 			}

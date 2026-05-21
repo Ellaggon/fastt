@@ -5,15 +5,22 @@ import {
 	desc,
 	EffectiveAvailability,
 	EffectivePricingV2,
+	EffectiveRestriction,
 	eq,
 	gte,
 	inArray,
 	lt,
 	Product,
 	RatePlanOccupancyPolicy,
+	SearchUnitView,
 } from "astro:db"
 
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
+import {
+	evaluateMaterializationFreshness,
+	summarizeMaterializationFreshness,
+	type MaterializationFreshness,
+} from "@/lib/rates/materializationFreshness"
 import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
@@ -28,6 +35,20 @@ export type CalendarDay = {
 	isPast: boolean
 }
 
+export type CalendarRestrictionSignals = {
+	count: number
+	ratePlanCount: number
+	stopSell: boolean
+	cta: boolean
+	ctd: boolean
+	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
+	summary: string | null
+	hasCommercialBlocker: boolean
+}
+
 export type PricingCalendarDay = CalendarDay & {
 	hasPrice: boolean
 	finalPrice: number | null
@@ -35,6 +56,9 @@ export type PricingCalendarDay = CalendarDay & {
 	baseComponent: number | null
 	ruleAdjustment: number | null
 	status: "priced" | "missing" | "past"
+	priceSignal: "gap" | "manual_override" | "baseline" | "effective" | "past"
+	priceSignalLabel: string
+	restrictionSignals: CalendarRestrictionSignals
 }
 
 export type InventoryCalendarDay = CalendarDay & {
@@ -44,6 +68,10 @@ export type InventoryCalendarDay = CalendarDay & {
 	heldUnits: number
 	availableUnits: number
 	status: "available" | "low" | "sold_out" | "missing" | "past"
+	capacitySignal: "healthy" | "low" | "sold_out" | "missing" | "past"
+	capacitySignalLabel: string
+	utilizationPercent: number | null
+	restrictionSignals: CalendarRestrictionSignals
 }
 
 export type CalendarSummary = {
@@ -69,6 +97,12 @@ export type PricingCalendarSurface = {
 	}
 	days: PricingCalendarDay[]
 	summary: CalendarSummary
+	freshness: {
+		overall: MaterializationFreshness
+		pricing: MaterializationFreshness
+		restrictions: MaterializationFreshness
+		search: MaterializationFreshness
+	}
 }
 
 export type InventoryCalendarSurface = {
@@ -95,6 +129,12 @@ export type InventoryCalendarSurface = {
 	vocabulary: ReturnType<typeof resolveVerticalVocabulary>
 	days: InventoryCalendarDay[]
 	summary: CalendarSummary
+	freshness: {
+		overall: MaterializationFreshness
+		availability: MaterializationFreshness
+		restrictions: MaterializationFreshness
+		search: MaterializationFreshness
+	}
 }
 
 function toDateOnly(date: Date): string {
@@ -166,6 +206,286 @@ function summarize(
 	}
 }
 
+type RestrictionSignalRow = {
+	date: string
+	ratePlanId: string | null
+	stopSell: boolean
+	cta: boolean
+	ctd: boolean
+	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
+	computedAt: Date | string | null
+}
+
+function emptyRestrictionSignals(): CalendarRestrictionSignals {
+	return {
+		count: 0,
+		ratePlanCount: 0,
+		stopSell: false,
+		cta: false,
+		ctd: false,
+		minStay: null,
+		maxStay: null,
+		minLeadTime: null,
+		maxLeadTime: null,
+		summary: null,
+		hasCommercialBlocker: false,
+	}
+}
+
+function buildRestrictionSummary(
+	signals: Omit<CalendarRestrictionSignals, "summary">
+): string | null {
+	const labels: string[] = []
+	if (signals.stopSell) labels.push("Stop Sell")
+	if (signals.cta) labels.push("CTA")
+	if (signals.ctd) labels.push("CTD")
+	if (signals.minStay != null || signals.maxStay != null) labels.push("LOS")
+	if (signals.minLeadTime != null || signals.maxLeadTime != null) labels.push("Booking Window")
+	return labels.length ? labels.join(" · ") : null
+}
+
+function groupRestrictionSignals(
+	rows: RestrictionSignalRow[]
+): Map<string, CalendarRestrictionSignals> {
+	const byDate = new Map<
+		string,
+		Omit<CalendarRestrictionSignals, "summary"> & { ratePlanIds: Set<string> }
+	>()
+	for (const row of rows) {
+		const date = String(row.date)
+		const current =
+			byDate.get(date) ??
+			({
+				...emptyRestrictionSignals(),
+				ratePlanIds: new Set<string>(),
+			} as Omit<CalendarRestrictionSignals, "summary"> & { ratePlanIds: Set<string> })
+		const rowSignals = [
+			Boolean(row.stopSell),
+			Boolean(row.cta),
+			Boolean(row.ctd),
+			row.minStay != null,
+			row.maxStay != null,
+			row.minLeadTime != null,
+			row.maxLeadTime != null,
+		].filter(Boolean).length
+		current.count += rowSignals
+		if (row.ratePlanId) current.ratePlanIds.add(String(row.ratePlanId))
+		current.stopSell = current.stopSell || Boolean(row.stopSell)
+		current.cta = current.cta || Boolean(row.cta)
+		current.ctd = current.ctd || Boolean(row.ctd)
+		current.minStay = maxNullable(current.minStay, row.minStay)
+		current.maxStay = minNullable(current.maxStay, row.maxStay)
+		current.minLeadTime = maxNullable(current.minLeadTime, row.minLeadTime)
+		current.maxLeadTime = minNullable(current.maxLeadTime, row.maxLeadTime)
+		current.hasCommercialBlocker =
+			current.hasCommercialBlocker || Boolean(row.stopSell || row.cta || row.ctd)
+		byDate.set(date, current)
+	}
+
+	return new Map(
+		[...byDate.entries()].map(([date, signals]) => {
+			const { ratePlanIds, ...rest } = signals
+			const normalized = {
+				...rest,
+				ratePlanCount: ratePlanIds.size,
+				summary: buildRestrictionSummary(rest),
+			}
+			return [date, normalized]
+		})
+	)
+}
+
+function maxNullable(current: number | null, next: number | null): number | null {
+	if (next == null) return current
+	if (current == null) return Number(next)
+	return Math.max(Number(current), Number(next))
+}
+
+function minNullable(current: number | null, next: number | null): number | null {
+	if (next == null) return current
+	if (current == null) return Number(next)
+	return Math.min(Number(current), Number(next))
+}
+
+function resolvePricingSignal(params: {
+	hasPrice: boolean
+	isPast: boolean
+	ruleAdjustment: number | null
+	baseComponent: number | null
+}): Pick<PricingCalendarDay, "priceSignal" | "priceSignalLabel"> {
+	if (params.isPast) return { priceSignal: "past", priceSignalLabel: "Pasado" }
+	if (!params.hasPrice) return { priceSignal: "gap", priceSignalLabel: "Gap" }
+	if (Number(params.ruleAdjustment ?? 0) !== 0) {
+		return { priceSignal: "manual_override", priceSignalLabel: "Ajuste" }
+	}
+	if (params.baseComponent != null) return { priceSignal: "baseline", priceSignalLabel: "Heredado" }
+	return { priceSignal: "effective", priceSignalLabel: "Efectivo" }
+}
+
+function resolveCapacitySignal(
+	status: InventoryCalendarDay["status"]
+): Pick<InventoryCalendarDay, "capacitySignal" | "capacitySignalLabel"> {
+	if (status === "past") return { capacitySignal: "past", capacitySignalLabel: "Pasado" }
+	if (status === "missing") return { capacitySignal: "missing", capacitySignalLabel: "Sin dato" }
+	if (status === "sold_out") return { capacitySignal: "sold_out", capacitySignalLabel: "Agotado" }
+	if (status === "low") return { capacitySignal: "low", capacitySignalLabel: "Bajo" }
+	return { capacitySignal: "healthy", capacitySignalLabel: "Saludable" }
+}
+
+function toRestrictionSignalRow(row: {
+	date: string
+	ratePlanId?: string | null
+	stopSell?: boolean | null
+	cta?: boolean | null
+	ctd?: boolean | null
+	minStay?: number | null
+	maxStay?: number | null
+	minLeadTime?: number | null
+	maxLeadTime?: number | null
+	computedAt?: Date | string | null
+}): RestrictionSignalRow {
+	return {
+		date: String(row.date),
+		ratePlanId: row.ratePlanId == null ? null : String(row.ratePlanId),
+		stopSell: Boolean(row.stopSell),
+		cta: Boolean(row.cta),
+		ctd: Boolean(row.ctd),
+		minStay: row.minStay == null ? null : Number(row.minStay),
+		maxStay: row.maxStay == null ? null : Number(row.maxStay),
+		minLeadTime: row.minLeadTime == null ? null : Number(row.minLeadTime),
+		maxLeadTime: row.maxLeadTime == null ? null : Number(row.maxLeadTime),
+		computedAt: row.computedAt ?? null,
+	}
+}
+
+async function loadRestrictionSignalRows(input: {
+	variantId: string
+	ratePlanId?: string | null
+	startDate: string
+	endDate: string
+}): Promise<RestrictionSignalRow[]> {
+	const selectCanonical = {
+		date: EffectiveRestriction.date,
+		ratePlanId: EffectiveRestriction.ratePlanId,
+		stopSell: EffectiveRestriction.stopSell,
+		cta: EffectiveRestriction.cta,
+		ctd: EffectiveRestriction.ctd,
+		minStay: EffectiveRestriction.minStay,
+		maxStay: EffectiveRestriction.maxStay,
+		minLeadTime: EffectiveRestriction.minLeadTime,
+		maxLeadTime: EffectiveRestriction.maxLeadTime,
+		computedAt: EffectiveRestriction.computedAt,
+	}
+	const selectLegacy = {
+		date: EffectiveRestriction.date,
+		stopSell: EffectiveRestriction.stopSell,
+		cta: EffectiveRestriction.cta,
+		ctd: EffectiveRestriction.ctd,
+		minStay: EffectiveRestriction.minStay,
+		computedAt: EffectiveRestriction.computedAt,
+	}
+
+	if (input.ratePlanId) {
+		try {
+			const rows = await db
+				.select(selectCanonical)
+				.from(EffectiveRestriction)
+				.where(
+					and(
+						eq(EffectiveRestriction.ratePlanId, String(input.ratePlanId)),
+						gte(EffectiveRestriction.date, input.startDate),
+						lt(EffectiveRestriction.date, input.endDate)
+					)
+				)
+				.orderBy(asc(EffectiveRestriction.date))
+				.all()
+			return rows.map(toRestrictionSignalRow)
+		} catch (error) {
+			if (!isMissingEffectiveRestrictionColumn(error)) throw error
+		}
+	}
+
+	try {
+		const rows = await db
+			.select(selectCanonical)
+			.from(EffectiveRestriction)
+			.where(
+				and(
+					eq(EffectiveRestriction.variantId, input.variantId),
+					gte(EffectiveRestriction.date, input.startDate),
+					lt(EffectiveRestriction.date, input.endDate)
+				)
+			)
+			.orderBy(asc(EffectiveRestriction.date))
+			.all()
+		return rows.map(toRestrictionSignalRow)
+	} catch (error) {
+		if (!isMissingEffectiveRestrictionColumn(error)) throw error
+	}
+
+	const rows = await db
+		.select(selectLegacy)
+		.from(EffectiveRestriction)
+		.where(
+			and(
+				eq(EffectiveRestriction.variantId, input.variantId),
+				gte(EffectiveRestriction.date, input.startDate),
+				lt(EffectiveRestriction.date, input.endDate)
+			)
+		)
+		.orderBy(asc(EffectiveRestriction.date))
+		.all()
+	return rows.map(toRestrictionSignalRow)
+}
+
+function isMissingEffectiveRestrictionColumn(error: unknown): boolean {
+	return /no such column: (ratePlanId|maxStay|minLeadTime|maxLeadTime)/i.test(
+		String(error instanceof Error ? error.message : error)
+	)
+}
+
+async function loadSearchMaterializationRows(input: {
+	variantId: string
+	ratePlanId?: string | null
+	startDate: string
+	endDate: string
+}): Promise<Array<{ date: string; computedAt: Date | string | null }>> {
+	const filters = [
+		eq(SearchUnitView.variantId, input.variantId),
+		eq(SearchUnitView.occupancyKey, DEFAULT_OCCUPANCY_KEY),
+		gte(SearchUnitView.date, input.startDate),
+		lt(SearchUnitView.date, input.endDate),
+	]
+	if (input.ratePlanId) filters.push(eq(SearchUnitView.ratePlanId, String(input.ratePlanId)))
+	const rows = await db
+		.select({
+			date: SearchUnitView.date,
+			computedAt: SearchUnitView.computedAt,
+		})
+		.from(SearchUnitView)
+		.where(and(...filters))
+		.orderBy(asc(SearchUnitView.date))
+		.all()
+	const byDate = new Map<string, { date: string; computedAt: Date | string | null }>()
+	for (const row of rows) {
+		const date = String(row.date)
+		if (!byDate.has(date)) {
+			byDate.set(date, {
+				date,
+				computedAt: row.computedAt ?? null,
+			})
+		}
+	}
+	return [...byDate.values()]
+}
+
+function activeDayCount(days: CalendarDay[]): number {
+	return days.filter((day) => !day.isPast).length
+}
+
 async function resolveVocabulary(rows: RatePlanListItem[]) {
 	const productIds = [...new Set(rows.map((row) => String(row.productId)).filter(Boolean))]
 	if (!productIds.length) return resolveVerticalVocabulary([])
@@ -224,6 +544,7 @@ export async function buildPricingCalendarSurface(input: {
 					currency: EffectivePricingV2.currency,
 					baseComponent: EffectivePricingV2.baseComponent,
 					ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+					computedAt: EffectivePricingV2.computedAt,
 				})
 				.from(EffectivePricingV2)
 				.where(
@@ -237,20 +558,75 @@ export async function buildPricingCalendarSurface(input: {
 				.orderBy(asc(EffectivePricingV2.date))
 				.all()
 		: []
+	const restrictionRows = selectedRatePlan
+		? await loadRestrictionSignalRows({
+				variantId: String(selectedRatePlan.variantId),
+				ratePlanId: String(selectedRatePlan.ratePlanId),
+				startDate,
+				endDate,
+			})
+		: []
+	const searchRows = selectedRatePlan
+		? await loadSearchMaterializationRows({
+				variantId: String(selectedRatePlan.variantId),
+				ratePlanId: String(selectedRatePlan.ratePlanId),
+				startDate,
+				endDate,
+			})
+		: []
 	const byDate = new Map(pricingRows.map((row) => [String(row.date), row]))
+	const restrictionSignalsByDate = groupRestrictionSignals(restrictionRows)
 	const days: PricingCalendarDay[] = baseDays.map((day) => {
 		const row = byDate.get(day.date)
 		const hasPrice = row?.finalPrice != null
+		const ruleAdjustment = row?.ruleAdjustment == null ? null : Number(row.ruleAdjustment)
+		const baseComponent = row?.baseComponent == null ? null : Number(row.baseComponent)
 		return {
 			...day,
 			hasPrice,
 			finalPrice: hasPrice ? Number(row?.finalPrice ?? 0) : null,
 			currency: String(row?.currency ?? baseline.currency),
-			baseComponent: row?.baseComponent == null ? null : Number(row.baseComponent),
-			ruleAdjustment: row?.ruleAdjustment == null ? null : Number(row.ruleAdjustment),
+			baseComponent,
+			ruleAdjustment,
 			status: day.isPast ? "past" : hasPrice ? "priced" : "missing",
+			...resolvePricingSignal({
+				hasPrice,
+				isPast: day.isPast,
+				ruleAdjustment,
+				baseComponent,
+			}),
+			restrictionSignals: restrictionSignalsByDate.get(day.date) ?? emptyRestrictionSignals(),
 		}
 	})
+
+	const expectedRows = activeDayCount(baseDays)
+	const pricingFreshness = evaluateMaterializationFreshness({
+		label: "Precios",
+		expectedRows,
+		timestamps: pricingRows.map((row) => row.computedAt),
+	})
+	const restrictionFreshness = evaluateMaterializationFreshness({
+		label: "Restricciones",
+		expectedRows,
+		timestamps: restrictionRows.map((row) => row.computedAt),
+	})
+	const searchFreshness = evaluateMaterializationFreshness({
+		label: "Busqueda",
+		expectedRows,
+		timestamps: searchRows.map((row) => row.computedAt),
+		delayedAfterMinutes: 45,
+		staleAfterMinutes: 240,
+	})
+	const freshness = {
+		pricing: pricingFreshness,
+		restrictions: restrictionFreshness,
+		search: searchFreshness,
+		overall: summarizeMaterializationFreshness([
+			pricingFreshness,
+			restrictionFreshness,
+			searchFreshness,
+		]),
+	}
 
 	return {
 		rows,
@@ -264,6 +640,7 @@ export async function buildPricingCalendarSurface(input: {
 		baseline,
 		days,
 		summary: summarize(days, "priced"),
+		freshness,
 	}
 }
 
@@ -307,6 +684,7 @@ export async function buildInventoryCalendarSurface(input: {
 					bookedUnits: EffectiveAvailability.bookedUnits,
 					heldUnits: EffectiveAvailability.heldUnits,
 					availableUnits: EffectiveAvailability.availableUnits,
+					computedAt: EffectiveAvailability.computedAt,
 				})
 				.from(EffectiveAvailability)
 				.where(
@@ -319,7 +697,28 @@ export async function buildInventoryCalendarSurface(input: {
 				.orderBy(asc(EffectiveAvailability.date))
 				.all()
 		: []
+	const selectedVariantRatePlanIds = selectedVariant
+		? rows
+				.filter((row) => String(row.variantId) === selectedVariant.variantId)
+				.map((row) => String(row.ratePlanId))
+		: []
+	const restrictionRows =
+		selectedVariant && selectedVariantRatePlanIds.length > 0
+			? await loadRestrictionSignalRows({
+					variantId: selectedVariant.variantId,
+					startDate,
+					endDate,
+				})
+			: []
+	const searchRows = selectedVariant
+		? await loadSearchMaterializationRows({
+				variantId: selectedVariant.variantId,
+				startDate,
+				endDate,
+			})
+		: []
 	const byDate = new Map(inventoryRows.map((row) => [String(row.date), row]))
+	const restrictionSignalsByDate = groupRestrictionSignals(restrictionRows)
 	const days: InventoryCalendarDay[] = baseDays.map((day) => {
 		const row = byDate.get(day.date)
 		const hasInventory = Boolean(row)
@@ -334,6 +733,10 @@ export async function buildInventoryCalendarSurface(input: {
 					: availableUnits <= Math.max(1, Math.floor(totalUnits * 0.25))
 						? "low"
 						: "available"
+		const utilizationPercent =
+			hasInventory && totalUnits > 0
+				? Math.round(((totalUnits - Math.max(0, availableUnits)) / totalUnits) * 100)
+				: null
 		return {
 			...day,
 			hasInventory,
@@ -342,8 +745,40 @@ export async function buildInventoryCalendarSurface(input: {
 			heldUnits: Number(row?.heldUnits ?? 0),
 			availableUnits,
 			status,
+			...resolveCapacitySignal(status),
+			utilizationPercent,
+			restrictionSignals: restrictionSignalsByDate.get(day.date) ?? emptyRestrictionSignals(),
 		}
 	})
+
+	const expectedRows = activeDayCount(baseDays)
+	const availabilityFreshness = evaluateMaterializationFreshness({
+		label: "Inventario",
+		expectedRows,
+		timestamps: inventoryRows.map((row) => row.computedAt),
+	})
+	const restrictionFreshness = evaluateMaterializationFreshness({
+		label: "Restricciones",
+		expectedRows,
+		timestamps: restrictionRows.map((row) => row.computedAt),
+	})
+	const searchFreshness = evaluateMaterializationFreshness({
+		label: "Busqueda",
+		expectedRows,
+		timestamps: searchRows.map((row) => row.computedAt),
+		delayedAfterMinutes: 45,
+		staleAfterMinutes: 240,
+	})
+	const freshness = {
+		availability: availabilityFreshness,
+		restrictions: restrictionFreshness,
+		search: searchFreshness,
+		overall: summarizeMaterializationFreshness([
+			availabilityFreshness,
+			restrictionFreshness,
+			searchFreshness,
+		]),
+	}
 
 	return {
 		rows,
@@ -357,5 +792,6 @@ export async function buildInventoryCalendarSurface(input: {
 		vocabulary,
 		days,
 		summary: summarize(days, "available"),
+		freshness,
 	}
 }

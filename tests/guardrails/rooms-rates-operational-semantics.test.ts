@@ -223,7 +223,11 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(pricing).toContain("pricingRangeClearBtn")
 		expect(pricing).toContain("Multi-plan avanzado")
 		expect(pricing).toContain("Pricing gap")
-		expect(pricing).toContain("Override")
+		expect(pricing).toContain("data-pricing-intelligence-strip")
+		expect(pricing).toContain("MaterializationFreshnessStrip")
+		expect(pricing).toContain("Actualizacion operacional")
+		expect(pricing).toContain("Ajuste manual")
+		expect(pricing).toContain("con restricciones")
 		expect(pricing).toContain("/api/pricing/rules/v2/bulk-preview")
 		expect(pricing).toContain("/api/pricing/rules/v2/bulk-apply")
 		expect(pricing).toContain("Regenerar")
@@ -237,8 +241,12 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(inventory).toContain("Ajustar cupo fisico del rango")
 		expect(inventory).toContain("data-inventory-range-preset")
 		expect(inventory).toContain("inventoryRangeClearBtn")
-		expect(inventory).toContain("Low inventory")
-		expect(inventory).toContain("Sold out fisico")
+		expect(inventory).toContain("data-inventory-intelligence-strip")
+		expect(inventory).toContain("MaterializationFreshnessStrip")
+		expect(inventory).toContain("Actualizacion operacional")
+		expect(inventory).toContain("Cupo bajo")
+		expect(inventory).toContain("Agotado fisico")
+		expect(inventory).toContain("vendibilidad se opera en Restrictions")
 		expect(inventory).toContain("/api/inventory/bulk-preview")
 		expect(inventory).toContain("/api/inventory/bulk-apply")
 		expect(inventory).toContain('type: "set_inventory"')
@@ -255,7 +263,22 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(surfaces).toContain("buildInventoryCalendarSurface")
 		expect(surfaces).toContain("EffectivePricingV2")
 		expect(surfaces).toContain("EffectiveAvailability")
+		expect(surfaces).toContain("EffectiveRestriction")
+		expect(surfaces).toContain("restrictionSignals")
+		expect(surfaces).toContain("evaluateMaterializationFreshness")
+		expect(surfaces).toContain("SearchUnitView")
+		expect(read("src/pages/api/internal/materialization-health.ts")).toContain(
+			"buildPricingCalendarSurface"
+		)
+		expect(read("src/pages/api/internal/materialization-health.ts")).toContain(
+			"buildInventoryCalendarSurface"
+		)
+		expect(read("src/pages/api/internal/materialization-health.ts")).toContain(
+			"evaluateMaterializationReadiness"
+		)
+		expect(read("src/pages/api/internal/materialization-health.ts")).toContain("diagnostics")
 		expect(read("src/lib/rates/calendarRangeOperations.ts")).toContain("selectCalendarRangePreset")
+		expect(read("src/lib/rates/calendarRangeOperations.ts")).toContain("commercialBlockers")
 	})
 
 	it("keeps legacy catalog restriction HTTP APIs removed from the product tree", () => {
