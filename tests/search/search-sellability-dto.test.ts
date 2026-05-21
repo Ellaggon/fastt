@@ -10,11 +10,9 @@ import {
 function makeRow(overrides: Partial<SearchUnitViewStayRow> = {}): SearchUnitViewStayRow {
 	return {
 		date: "2026-05-10",
-		isSellable: true,
 		isAvailable: true,
 		hasAvailability: true,
 		hasPrice: true,
-		stopSell: false,
 		availableUnits: 1,
 		minStay: null,
 		maxStay: null,
@@ -155,7 +153,6 @@ describe("search sellability DTO", () => {
 					date: "2026-05-10",
 					hasPrice: false,
 					pricePerNight: null,
-					isSellable: false,
 					primaryBlocker: "MISSING_PRICE",
 				}),
 			],
@@ -175,7 +172,6 @@ describe("search sellability DTO", () => {
 				"2026-05-10",
 				makeRow({
 					date: "2026-05-10",
-					isSellable: false,
 					primaryBlocker: "POLICY_BLOCKED",
 				}),
 			],

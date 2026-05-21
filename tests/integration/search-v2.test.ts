@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
-import { db, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricingV2, EffectiveRestriction } from "astro:db"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
@@ -76,9 +76,9 @@ async function seedHotelVariant(params: {
 			totalUnits: params.totalInventory,
 			heldUnits: 0,
 			bookedUnits: 0,
-			availableUnits: params.stopSell ? 0 : params.totalInventory,
-			stopSell: params.stopSell ?? false,
-			isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+			availableUnits: params.totalInventory,
+			stopSell: false,
+			isSellable: params.totalInventory > 0,
 			computedAt: new Date(),
 		} as any)
 		.onConflictDoUpdate({
@@ -87,9 +87,9 @@ async function seedHotelVariant(params: {
 				totalUnits: params.totalInventory,
 				heldUnits: 0,
 				bookedUnits: 0,
-				availableUnits: params.stopSell ? 0 : params.totalInventory,
-				stopSell: params.stopSell ?? false,
-				isSellable: !Boolean(params.stopSell ?? false) && params.totalInventory > 0,
+				availableUnits: params.totalInventory,
+				stopSell: false,
+				isSellable: params.totalInventory > 0,
 				computedAt: new Date(),
 			},
 		})
@@ -158,6 +158,23 @@ async function seedHotelVariant(params: {
 			occupancy: { adults, children: 0, infants: 0 },
 		})
 	}
+	if (params.stopSell) {
+		await db.insert(EffectiveRestriction).values({
+			id: `er_${params.variantId}_${params.ratePlanId}_${params.date}`,
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			date: params.date,
+			minStay: null,
+			maxStay: null,
+			minLeadTime: null,
+			maxLeadTime: null,
+			cta: false,
+			ctd: false,
+			stopSell: true,
+			priority: 100,
+			computedAt: new Date(),
+		} as any)
+	}
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
@@ -203,7 +220,7 @@ describe("integration/search-v2 marketplace search", () => {
 			ratePlanId: "rp_a2",
 		})
 
-		// Product B: stopSell => excluded.
+		// Product B: canonical restriction stop_sell => excluded.
 		await seedHotelVariant({
 			email,
 			providerId,

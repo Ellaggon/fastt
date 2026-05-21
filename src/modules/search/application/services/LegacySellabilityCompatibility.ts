@@ -14,7 +14,6 @@ export type CanonicalRestrictionRead = {
 }
 
 export type AvailabilityStopSellCompatibilityRead = {
-	stopSell?: boolean | null
 	availableUnits?: number | null
 }
 
@@ -26,8 +25,8 @@ export type ResolvedSearchSellability = {
 	ctd: boolean
 	minLeadTime: number | null
 	maxLeadTime: number | null
-	source: "effective_restriction" | "availability_stop_sell_compatibility"
-	usedLegacyAvailabilityStopSell: boolean
+	source: "effective_restriction" | "missing_effective_restriction_compatibility"
+	usedMissingEffectiveRestrictionCompatibility: boolean
 }
 
 function normalizeOptionalPositiveInteger(value: unknown): number | null {
@@ -52,19 +51,23 @@ export function resolveSearchSellability(params: {
 			minLeadTime: normalizeOptionalPositiveInteger(restriction.minLeadTime),
 			maxLeadTime: normalizeOptionalPositiveInteger(restriction.maxLeadTime),
 			source: "effective_restriction",
-			usedLegacyAvailabilityStopSell: false,
+			usedMissingEffectiveRestrictionCompatibility: false,
 		}
 	}
 
 	return {
-		stopSell: Boolean(params.availabilityRow?.stopSell ?? true),
+		// Absence of an EffectiveRestriction row means no commercial restriction
+		// has been materialized for this rate plan/date. Availability remains a
+		// physical capacity signal only; do not resurrect legacy inventory-owned
+		// stop-sell as a runtime blocker.
+		stopSell: false,
 		minStay: null,
 		maxStay: null,
 		cta: false,
 		ctd: false,
 		minLeadTime: null,
 		maxLeadTime: null,
-		source: "availability_stop_sell_compatibility",
-		usedLegacyAvailabilityStopSell: true,
+		source: "missing_effective_restriction_compatibility",
+		usedMissingEffectiveRestrictionCompatibility: true,
 	}
 }

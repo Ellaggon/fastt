@@ -41,8 +41,6 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 			heldUnits: EffectiveAvailability.heldUnits,
 			bookedUnits: EffectiveAvailability.bookedUnits,
 			availableUnits: EffectiveAvailability.availableUnits,
-			stopSell: EffectiveAvailability.stopSell,
-			isSellable: EffectiveAvailability.isSellable,
 		})
 		.from(EffectiveAvailability)
 		.where(
@@ -60,7 +58,7 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 		heldUnits: Number(row.heldUnits ?? 0),
 		bookedUnits: Number(row.bookedUnits ?? 0),
 		availableUnits: Number(row.availableUnits ?? 0),
-		stopSell: Boolean(row.stopSell),
-		isSellable: Boolean(row.isSellable),
+		stopSell: false,
+		isSellable: Number(row.availableUnits ?? 0) > 0,
 	}))
 }

@@ -103,7 +103,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 				.select({
 					date: DailyInventory.date,
 					totalInventory: DailyInventory.totalInventory,
-					stopSell: DailyInventory.stopSell,
 				})
 				.from(DailyInventory)
 				.where(
@@ -121,8 +120,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					heldUnits: EffectiveAvailability.heldUnits,
 					bookedUnits: EffectiveAvailability.bookedUnits,
 					availableUnits: EffectiveAvailability.availableUnits,
-					stopSell: EffectiveAvailability.stopSell,
-					isSellable: EffectiveAvailability.isSellable,
 					computedAt: EffectiveAvailability.computedAt,
 				})
 				.from(EffectiveAvailability)
@@ -155,10 +152,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		const now = new Date()
 		const dailyByDate = new Map(
-			dailyRows.map((row) => [
-				String(row.date),
-				{ total: Number(row.totalInventory ?? 0), stopSell: Boolean(row.stopSell) },
-			])
+			dailyRows.map((row) => [String(row.date), { total: Number(row.totalInventory ?? 0) }])
 		)
 		const effectiveByDate = new Map(
 			effectiveRows.map((row) => [
@@ -168,8 +162,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					heldUnits: Number(row.heldUnits ?? 0),
 					bookedUnits: Number(row.bookedUnits ?? 0),
 					availableUnits: Number(row.availableUnits ?? 0),
-					stopSell: Boolean(row.stopSell),
-					isSellable: Boolean(row.isSellable),
 					computedAt: row.computedAt ? String(row.computedAt) : null,
 				},
 			])
@@ -191,11 +183,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 
 		const days = enumerateDates(parsed.from, parsed.to).map((date) => {
-			const daily = dailyByDate.get(date) ?? { total: 0, stopSell: true }
+			const daily = dailyByDate.get(date) ?? { total: 0 }
 			const heldUnits = Number(heldByDate.get(date) ?? 0)
 			const bookedUnits = Number(bookedByDate.get(date) ?? 0)
 			const canonicalAvailable = Math.max(0, daily.total - heldUnits - bookedUnits)
-			const canonicalSellable = canonicalAvailable > 0 && !daily.stopSell
 
 			const effective = effectiveByDate.get(date) ?? null
 			const mismatch =
@@ -204,15 +195,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 					: effective.totalUnits !== daily.total ||
 						effective.heldUnits !== heldUnits ||
 						effective.bookedUnits !== bookedUnits ||
-						effective.availableUnits !== canonicalAvailable ||
-						effective.stopSell !== daily.stopSell ||
-						effective.isSellable !== canonicalSellable
+						effective.availableUnits !== canonicalAvailable
 
 			return {
 				date,
 				dailyInventory: {
 					totalUnits: daily.total,
-					stopSell: daily.stopSell,
 				},
 				locks: {
 					heldUnits,
@@ -220,7 +208,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				},
 				canonicalDerived: {
 					availableUnits: canonicalAvailable,
-					isSellable: canonicalSellable,
+					isSellable: canonicalAvailable > 0,
 				},
 				effectiveAvailability: effective,
 				mismatch,

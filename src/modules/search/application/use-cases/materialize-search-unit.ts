@@ -154,10 +154,8 @@ function hasMaterializationDrift(params: {
 		current.totalGuests !== next.totalGuests ||
 		current.hasAvailability !== next.hasAvailability ||
 		current.hasPrice !== next.hasPrice ||
-		current.isSellable !== next.isSellable ||
 		current.isAvailable !== next.isAvailable ||
 		current.availableUnits !== next.availableUnits ||
-		current.stopSell !== next.stopSell ||
 		(current.pricePerNight ?? null) !== (next.pricePerNight ?? null) ||
 		current.currency !== next.currency ||
 		(current.primaryBlocker ?? null) !== (next.primaryBlocker ?? null) ||
@@ -235,12 +233,12 @@ export async function materializeSearchUnit(
 		restrictionRow,
 		availabilityRow,
 	})
-	if (sellability.usedLegacyAvailabilityStopSell) {
-		logger.info("search.sellability_legacy_availability_fallback", {
+	if (sellability.usedMissingEffectiveRestrictionCompatibility) {
+		logger.info("search.sellability_missing_effective_restriction_compatibility", {
 			variantId: parsed.variantId,
 			ratePlanId: parsed.ratePlanId,
 			date: normalizedDate,
-			compatibility: "EffectiveAvailability.stopSell",
+			compatibility: "EffectiveRestriction missing row treated as no commercial restriction",
 			nextOwner: "EffectiveRestriction",
 		})
 	}

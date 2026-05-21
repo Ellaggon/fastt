@@ -10,8 +10,6 @@ export class InventoryRepository implements InventoryRepositoryPort {
 			.select({
 				date: EffectiveAvailability.date,
 				availableUnits: EffectiveAvailability.availableUnits,
-				isSellable: EffectiveAvailability.isSellable,
-				stopSell: EffectiveAvailability.stopSell,
 			})
 			.from(EffectiveAvailability)
 			.where(
@@ -26,8 +24,11 @@ export class InventoryRepository implements InventoryRepositoryPort {
 		return rows.map((row) => ({
 			date: String(row.date),
 			availableUnits: Number(row.availableUnits ?? 0),
-			isSellable: Boolean(row.isSellable),
-			stopSell: Boolean(row.stopSell),
+			// Deprecated compatibility shape for the legacy SearchPipeline adapter.
+			// EffectiveAvailability is physical-only; commercial blockers are loaded
+			// through Restrictions/EffectiveRestriction.
+			isSellable: Number(row.availableUnits ?? 0) > 0,
+			stopSell: false,
 		}))
 	}
 }

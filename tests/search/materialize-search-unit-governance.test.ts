@@ -133,7 +133,7 @@ describe("materialize search unit governance hardening", () => {
 		expect(persisted.primaryBlocker).toBe(null)
 	})
 
-	it("keeps availability stopSell as explicit compatibility only when EffectiveRestriction is missing", async () => {
+	it("does not resurrect availability stopSell when EffectiveRestriction is missing", async () => {
 		repoMock.loadMaterializationInputs.mockResolvedValue({
 			availabilityRow: { stopSell: true, availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
@@ -149,9 +149,9 @@ describe("materialize search unit governance hardening", () => {
 		})
 
 		const persisted = repoMock.upsertSearchUnitViewRow.mock.calls[0][0]
-		expect(result.isSellable).toBe(false)
-		expect(persisted.stopSell).toBe(true)
-		expect(persisted.primaryBlocker).toBe("STOP_SELL")
+		expect(result.isSellable).toBe(true)
+		expect(persisted.stopSell).toBe(false)
+		expect(persisted.primaryBlocker).toBe(null)
 	})
 
 	it("normalizes and deduplicates range materialization deterministically", async () => {

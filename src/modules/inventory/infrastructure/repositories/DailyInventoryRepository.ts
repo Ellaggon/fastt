@@ -36,8 +36,9 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 					variantId,
 					totalInventory: 0,
 					reservedCount: 0,
-					// Deprecated ARI compatibility consumed by search fallback materialization.
-					stopSell: true,
+					// Deprecated ARI compatibility only. Missing physical inventory is
+					// represented by totalInventory=0; sellability belongs to Restrictions.
+					stopSell: false,
 				})
 			}
 			cursor.setDate(cursor.getDate() + 1)
@@ -48,8 +49,9 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 
 	/**
 	 * Inventory calendar writes MUST NOT overwrite reservedCount.
-	 * Canonical writes update physical totalInventory. stopSell remains accepted only as
-	 * deprecated ARI compatibility for legacy bulk/update endpoints.
+	 * Canonical writes update physical totalInventory. stopSell remains accepted
+	 * in the input shape only as deprecated payload compatibility and is not
+	 * persisted as commercial state.
 	 */
 	async upsertOperational(row: {
 		variantId: string
@@ -60,11 +62,9 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 		const date = typeof row.date === "string" ? row.date : toISODate(row.date as any)
 
 		const insertTotal = Number.isFinite(row.totalInventory as any) ? Number(row.totalInventory) : 0
-		const insertStopSell = row.stopSell ?? false
 
 		const set: Record<string, any> = { updatedAt: new Date() }
 		if (row.totalInventory !== undefined) set.totalInventory = insertTotal
-		if (row.stopSell !== undefined) set.stopSell = insertStopSell
 
 		await db
 			.insert(DailyInventory)
@@ -74,7 +74,7 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 				date,
 				totalInventory: insertTotal,
 				reservedCount: 0,
-				stopSell: insertStopSell,
+				stopSell: false,
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)

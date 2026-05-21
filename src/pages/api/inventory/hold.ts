@@ -133,11 +133,9 @@ async function resolveHoldabilityFromView(params: {
 		.select({
 			ratePlanId: SearchUnitView.ratePlanId,
 			date: SearchUnitView.date,
-			isSellable: SearchUnitView.isSellable,
 			isAvailable: SearchUnitView.isAvailable,
 			hasAvailability: SearchUnitView.hasAvailability,
 			hasPrice: SearchUnitView.hasPrice,
-			stopSell: SearchUnitView.stopSell,
 			availableUnits: SearchUnitView.availableUnits,
 			pricePerNight: SearchUnitView.pricePerNight,
 			minStay: SearchUnitView.minStay,
@@ -250,11 +248,9 @@ async function resolveHoldabilityFromView(params: {
 				String(row.date),
 				{
 					date: String(row.date),
-					isSellable: Boolean(row.isSellable),
 					isAvailable: Boolean(row.isAvailable),
 					hasAvailability: Boolean(row.hasAvailability),
 					hasPrice: Boolean(row.hasPrice),
-					stopSell: Boolean(row.stopSell),
 					availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 					minStay: row.minStay == null ? null : Number(row.minStay),
 					maxStay: row.maxStay == null ? null : Number(row.maxStay),

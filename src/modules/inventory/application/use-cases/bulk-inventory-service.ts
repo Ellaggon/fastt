@@ -6,16 +6,8 @@ import { applyInventoryMutation } from "./apply-inventory-mutation"
 const dailyInventoryRepository = new DailyInventoryRepository()
 
 export const CANONICAL_INVENTORY_OPERATION = "set_inventory" as const
-// Deprecated ARI compatibility: legacy payloads used Inventory Bulk to open/close sales.
-// Canonical sellability writes belong to Restrictions; keep this path only for old clients
-// and replayed/internal payloads until search/materialization fallback is retired.
-export const LEGACY_SELLABILITY_INVENTORY_OPERATIONS = ["open_sales", "close_sales"] as const
 export type CanonicalBulkInventoryOperationType = typeof CANONICAL_INVENTORY_OPERATION
-export type LegacySellabilityInventoryOperationType =
-	(typeof LEGACY_SELLABILITY_INVENTORY_OPERATIONS)[number]
-export type BulkInventoryOperationType =
-	| CanonicalBulkInventoryOperationType
-	| LegacySellabilityInventoryOperationType
+export type BulkInventoryOperationType = CanonicalBulkInventoryOperationType
 
 export type BulkInventoryInput = {
 	variantId: string
@@ -40,7 +32,7 @@ export type BulkInventoryOperationInputV2 = {
 		daysOfWeek?: string[]
 	}
 	operation: {
-		type: "OPEN" | "CLOSE" | "SET_INVENTORY"
+		type: "SET_INVENTORY"
 		value?: number
 	}
 	context?: {
@@ -219,12 +211,7 @@ function normalizeDaysOfWeek(value?: number[]): Set<number> {
 	return new Set(days)
 }
 
-function normalizeOperationType(
-	type: BulkInventoryOperationInputV2["operation"]["type"]
-): BulkInventoryOperationType {
-	// Deprecated ARI compatibility: OPEN/CLOSE are accepted for old integrations only.
-	if (type === "OPEN") return "open_sales"
-	if (type === "CLOSE") return "close_sales"
+function normalizeOperationType(): BulkInventoryOperationType {
 	return "set_inventory"
 }
 
@@ -272,7 +259,7 @@ function mapV2ToBulkInventoryInput(input: BulkInventoryOperationInputV2): BulkIn
 		dateTo: String(input.dateRange?.to ?? "").trim(),
 		daysOfWeek: mappedDays.length > 0 ? mappedDays : undefined,
 		operation: {
-			type: normalizeOperationType(input.operation.type),
+			type: normalizeOperationType(),
 			value: input.operation.value,
 		},
 	}))
@@ -290,10 +277,6 @@ function mapOperationToProjectedDay(
 	let afterTotalUnits = beforeTotalUnits
 
 	if (targeted) {
-		if (isLegacySellabilityOperation(operation.type)) {
-			// Compatibility projection only. New Inventory UX must not initiate this path.
-			afterStopSell = operation.type === "close_sales"
-		}
 		if (operation.type === "set_inventory" && Number.isFinite(operation.value)) {
 			afterTotalUnits = Math.max(0, Number(operation.value))
 		}
@@ -317,10 +300,6 @@ function mapOperationToProjectedDay(
 		},
 		changed,
 	}
-}
-
-function isLegacySellabilityOperation(type: BulkInventoryOperationType): boolean {
-	return LEGACY_SELLABILITY_INVENTORY_OPERATIONS.includes(type as any)
 }
 
 function summarize(projected: BulkInventoryDay[], totalDaysInRange: number): BulkInventorySummary {
@@ -518,11 +497,6 @@ async function applySingle(params: {
 			continue
 		}
 		try {
-			const legacyStopSell =
-				// Deprecated ARI compatibility: preserve old open/close payload behavior.
-				isLegacySellabilityOperation(params.input.operation.type)
-					? Boolean(day.after.stopSell)
-					: undefined
 			await applyInventoryMutation({
 				mutate: async () => {
 					await dailyInventoryRepository.upsertOperational({
@@ -532,7 +506,6 @@ async function applySingle(params: {
 							params.input.operation.type === "set_inventory"
 								? Number(day.after.totalUnits)
 								: undefined,
-						stopSell: legacyStopSell,
 					})
 				},
 				recompute: {

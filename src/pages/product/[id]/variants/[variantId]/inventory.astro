@@ -74,11 +74,9 @@ const [rawRows, auditStats] = await Promise.all([
 		.select({
 			date: DailyInventory.date,
 			totalUnits: DailyInventory.totalInventory,
-			stopSell: DailyInventory.stopSell,
 			heldUnits: EffectiveAvailability.heldUnits,
 			bookedUnits: EffectiveAvailability.bookedUnits,
 			availableUnits: EffectiveAvailability.availableUnits,
-			isSellable: EffectiveAvailability.isSellable,
 			computedAt: EffectiveAvailability.computedAt,
 			effectiveId: EffectiveAvailability.id,
 		})
@@ -109,7 +107,7 @@ const [rawRows, auditStats] = await Promise.all([
 		db
 			.select({
 				effectiveDays: sql<number>`count(*)`,
-				sellableDays: sql<number>`sum(case when ${EffectiveAvailability.isSellable} = 1 then 1 else 0 end)`,
+				sellableDays: sql<number>`sum(case when ${EffectiveAvailability.availableUnits} > 0 then 1 else 0 end)`,
 				lastRecomputeAt: sql<string | null>`max(${EffectiveAvailability.computedAt})`,
 				consistencyIssues: sql<number>`sum(case when (${EffectiveAvailability.availableUnits} + ${EffectiveAvailability.heldUnits} + ${EffectiveAvailability.bookedUnits}) <> ${EffectiveAvailability.totalUnits} then 1 else 0 end)`,
 			})
@@ -143,19 +141,17 @@ const rowByDate = new Map(
 			heldUnits: Number(row.heldUnits ?? 0),
 			bookedUnits: Number(row.bookedUnits ?? 0),
 			availableUnits: Number(row.availableUnits ?? 0),
-			stopSell: Boolean(row.stopSell ?? true),
-			isSellable: Boolean(row.isSellable ?? false),
+			stopSell: false,
+			isSellable: Number(row.availableUnits ?? 0) > 0,
 			hasEffective: Boolean(row.effectiveId),
 			hasPrice: hasCommercialCoverage,
 			unsellableReason: !Boolean(row.effectiveId)
 				? "MISSING_AVAILABILITY"
-				: Boolean(row.stopSell ?? true)
-					? "CLOSED"
-					: Number(row.availableUnits ?? 0) <= 0
-						? "NO_CAPACITY"
-						: !hasCommercialCoverage
-							? "MISSING_PRICE"
-							: null,
+				: Number(row.availableUnits ?? 0) <= 0
+					? "NO_CAPACITY"
+					: !hasCommercialCoverage
+						? "MISSING_PRICE"
+						: null,
 			computedAt: row.computedAt ? String(row.computedAt) : null,
 		},
 	])
@@ -170,7 +166,7 @@ const initialRows = enumerateDates(initialFrom, initialTo).map((date) => {
 		heldUnits: 0,
 		bookedUnits: 0,
 		availableUnits: 0,
-		stopSell: true,
+		stopSell: false,
 		isSellable: false,
 		hasEffective: false,
 		hasPrice: false,
@@ -510,7 +506,6 @@ const taskQueue = [
 
 		function dayState(row) {
 			if (rowHasReviewIssue(row)) return "review"
-			if (row.stopSell) return "closed"
 			if (Number(row.availableUnits || 0) <= 0) return "soldout"
 			return "available"
 		}
@@ -518,7 +513,6 @@ const taskQueue = [
 		function dayStateLabel(stateKey) {
 			if (stateKey === "available") return "Con cupo"
 			if (stateKey === "soldout") return "Cupo 0"
-			if (stateKey === "closed") return "Bloqueo comercial"
 			return "Revisar"
 		}
 
@@ -536,10 +530,6 @@ const taskQueue = [
 					label: "Estadía mínima no cumplida",
 					action: "Revisar reglas de estadía",
 				},
-				CLOSED: {
-					label: "Bloqueo comercial activo",
-					action: "Gestionar Restrictions",
-				},
 				NO_CAPACITY: {
 					label: "Sin cupo disponible",
 					action: "Actualizar cupo",
@@ -556,7 +546,6 @@ const taskQueue = [
 		}
 
 		function dayStateIcon(stateKey) {
-			if (stateKey === "closed") return "🔒"
 			if (stateKey === "review") return "⚠"
 			if (stateKey === "soldout") return "○"
 			return "●"
@@ -656,7 +645,6 @@ const taskQueue = [
 			const targets = getTargetDates()
 			let availableCount = 0
 			let soldoutCount = 0
-			let closedCount = 0
 			let reviewCount = 0
 			let unitsBefore = 0
 			let unitsAfter = 0
@@ -666,7 +654,6 @@ const taskQueue = [
 				const beforeState = dayState(row)
 				if (beforeState === "available") availableCount += 1
 				if (beforeState === "soldout") soldoutCount += 1
-				if (beforeState === "closed") closedCount += 1
 				if (beforeState === "review") reviewCount += 1
 				unitsBefore += Number(row.totalUnits || 0)
 				unitsAfter +=
@@ -687,7 +674,6 @@ const taskQueue = [
 				targetCount: targets.length,
 				availableCount,
 				soldoutCount,
-				closedCount,
 				reviewCount,
 				averageBefore,
 				averageAfter,
@@ -708,7 +694,7 @@ const taskQueue = [
 			}
 			const impact = computeImpact(state.pendingAction)
 			capsuleImpactDays.textContent = `Días seleccionados: ${impact.selectedCount} · Días afectados: ${impact.targetCount}`
-			capsuleImpactStates.textContent = `Estado actual: ${impact.availableCount} con cupo · ${impact.soldoutCount} cupo 0 · ${impact.closedCount} con bloqueo comercial${impact.reviewCount ? ` · ${impact.reviewCount} revisar` : ""}`
+			capsuleImpactStates.textContent = `Estado actual: ${impact.availableCount} con cupo físico · ${impact.soldoutCount} cupo 0${impact.reviewCount ? ` · ${impact.reviewCount} revisar` : ""}`
 			capsuleImpactUnits.textContent =
 				state.pendingAction === "setUnits"
 					? `Cupo promedio: ${impact.averageBefore.toFixed(1)} → ${impact.averageAfter.toFixed(1)}`
@@ -789,7 +775,7 @@ const taskQueue = [
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 0,
-					stopSell: true,
+					stopSell: false,
 					isSellable: false,
 					hasEffective: false,
 					hasPrice: false,
@@ -836,7 +822,6 @@ const taskQueue = [
 			const first = selected[0]
 			const last = selected[selected.length - 1]
 			let availableCount = 0
-			let closedCount = 0
 			let reviewCount = 0
 			const reasonsCount = new Map()
 			for (const date of selected) {
@@ -844,7 +829,6 @@ const taskQueue = [
 				if (!row) continue
 				const stateKey = dayState(row)
 				if (stateKey === "available") availableCount += 1
-				if (stateKey === "closed") closedCount += 1
 				if (stateKey === "review") reviewCount += 1
 				if (row.unsellableReason) {
 					reasonsCount.set(
@@ -853,7 +837,7 @@ const taskQueue = [
 					)
 				}
 			}
-			selectionSummary.textContent = `${selected.length} días seleccionados · ${availableCount} con cupo · ${closedCount} con bloqueo comercial`
+			selectionSummary.textContent = `${selected.length} días seleccionados · ${availableCount} con cupo físico`
 			const primaryReason =
 				[...reasonsCount.entries()].sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] ?? null
 			state.selectionPrimaryReason = primaryReason
@@ -861,7 +845,6 @@ const taskQueue = [
 				MISSING_AVAILABILITY: "Recalcular disponibilidad",
 				MISSING_PRICE: "Abrir Rate Plans para cobertura comercial",
 				MIN_STAY_NOT_MET: "Revisar reglas de estadía mínima",
-				CLOSED: "Gestionar Restrictions",
 				NO_CAPACITY: "Actualizar cupo",
 				OCCUPANCY_EXCEEDED: "Revisar capacidad de la habitación",
 			}
@@ -976,7 +959,7 @@ const taskQueue = [
 						0,
 						total - Number(row.heldUnits || 0) - Number(row.bookedUnits || 0)
 					)
-					row.isSellable = row.availableUnits > 0 && !row.stopSell
+					row.isSellable = row.availableUnits > 0
 				}
 				updateCell(date)
 			}
@@ -1160,7 +1143,7 @@ const taskQueue = [
 							heldUnits: Number(row.heldUnits ?? 0),
 							bookedUnits: Number(row.bookedUnits ?? 0),
 							availableUnits: Number(row.availableUnits ?? row.available ?? 0),
-							stopSell: Boolean(row.stopSell ?? true),
+							stopSell: false,
 							isSellable: Boolean(row.isSellable ?? false),
 							hasEffective: Boolean(row.hasEffective ?? true),
 							hasPrice: Boolean(row.hasPrice ?? true),

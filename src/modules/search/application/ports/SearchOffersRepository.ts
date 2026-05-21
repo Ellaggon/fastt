@@ -4,11 +4,9 @@ export type SearchUnitViewRow = {
 	variantId: string
 	ratePlanId: string
 	date: string
-	isSellable: boolean
 	isAvailable: boolean
 	hasAvailability: boolean
 	hasPrice: boolean
-	stopSell: boolean
 	availableUnits: number
 	pricePerNight: number | null
 	minStay: number | null

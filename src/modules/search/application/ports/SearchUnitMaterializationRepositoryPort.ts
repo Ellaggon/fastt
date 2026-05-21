@@ -6,10 +6,8 @@ export type SearchUnitMaterializationStoredRow = {
 	totalGuests: number
 	hasAvailability: boolean
 	hasPrice: boolean
-	isSellable: boolean
 	isAvailable: boolean
 	availableUnits: number
-	stopSell: boolean
 	pricePerNight: number | null
 	currency: string
 	primaryBlocker: string | null
@@ -53,7 +51,6 @@ export type SearchUnitMaterializationUpsertRow = {
 export type SearchUnitMaterializationInputs = {
 	availabilityRow:
 		| {
-				stopSell?: boolean | null
 				availableUnits?: number | null
 		  }
 		| null

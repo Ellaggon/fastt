@@ -145,14 +145,14 @@ describe("integration/inventory calendar API", () => {
 			expect(json[0].date).toBe("2026-03-10")
 			expect(json[0].totalInventory).toBe(0)
 			expect(json[0].available).toBe(0)
-			expect(json[0].stopSell).toBe(true)
+			expect(json[0].stopSell).toBe(false)
 			expect(json[0].hasEffective).toBe(false)
 			expect(json[0].unsellableReason).toBe("MISSING_AVAILABILITY")
 
 			expect(json[1].date).toBe("2026-03-11")
 			expect(json[1].totalInventory).toBe(0)
 			expect(json[1].available).toBe(0)
-			expect(json[1].stopSell).toBe(true)
+			expect(json[1].stopSell).toBe(false)
 		})
 	})
 

@@ -2,11 +2,9 @@ import { ReasonCode, type SearchSellabilityDTO } from "../dto/SearchSellabilityD
 
 export type SearchUnitViewStayRow = {
 	date: string
-	isSellable: boolean
 	isAvailable: boolean
 	hasAvailability: boolean
 	hasPrice: boolean
-	stopSell: boolean
 	availableUnits: number
 	minStay: number | null
 	maxStay: number | null
@@ -32,8 +30,8 @@ function mapPrimaryBlockerToReasonCode(primaryBlocker: string | null | undefined
 	if (value === "MIN_LEAD_TIME_NOT_MET") return ReasonCode.MIN_LEAD_TIME_NOT_MET
 	if (value === "MAX_LEAD_TIME_EXCEEDED") return ReasonCode.MAX_LEAD_TIME_EXCEEDED
 	if (value === "MISSING_PRICE" || value === "NO_PRICE") return ReasonCode.PRICE_NOT_AVAILABLE
-	if (value === "NO_INVENTORY" || value === "NO_CAPACITY" || value === "CLOSED")
-		return ReasonCode.NO_INVENTORY
+	if (value === "NO_INVENTORY" || value === "NO_CAPACITY") return ReasonCode.NO_INVENTORY
+	if (value === "STOP_SELL") return ReasonCode.STOP_SELL
 	if (value === "STALE_VIEW") return ReasonCode.STALE_VIEW
 	if (value === "MISSING_COVERAGE" || value === "PARTIAL_COVERAGE" || value === "FRESH_VIEW")
 		return ReasonCode.MISSING_COVERAGE
@@ -72,6 +70,14 @@ function calculateLeadTimeDays(params: {
 	const checkInDate = toDateOnlyUtc(params.checkInDate)
 	const diffMs = checkInDate.getTime() - requestDate.getTime()
 	return Math.floor(diffMs / 86_400_000)
+}
+
+function isStopSellBlocked(day: SearchUnitViewStayRow): boolean {
+	return (
+		String(day.primaryBlocker ?? "")
+			.trim()
+			.toUpperCase() === "STOP_SELL"
+	)
 }
 
 export function evaluateStaySellabilityFromView(params: {
@@ -243,7 +249,7 @@ export function evaluateStaySellabilityFromView(params: {
 		(day) =>
 			Boolean(day.cta) ||
 			Boolean(day.ctd) ||
-			Boolean(day.stopSell) ||
+			isStopSellBlocked(day) ||
 			day.minStay != null ||
 			day.maxStay != null ||
 			day.minLeadTime != null ||
@@ -252,11 +258,10 @@ export function evaluateStaySellabilityFromView(params: {
 
 	for (const day of stayDays) {
 		const daySellable =
-			Boolean(day.isSellable) &&
 			Boolean(day.isAvailable) &&
 			Boolean(day.hasAvailability) &&
 			Boolean(day.hasPrice) &&
-			!Boolean(day.stopSell) &&
+			!String(day.primaryBlocker ?? "").trim() &&
 			Math.max(0, Number(day.availableUnits ?? 0)) >= requestedRooms
 		if (!daySellable) {
 			const reason = mapPrimaryBlockerToReasonCode(day.primaryBlocker)

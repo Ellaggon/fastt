@@ -69,11 +69,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.select({
 				ratePlanId: SearchUnitView.ratePlanId,
 				date: SearchUnitView.date,
-				isSellable: SearchUnitView.isSellable,
 				isAvailable: SearchUnitView.isAvailable,
 				hasAvailability: SearchUnitView.hasAvailability,
 				hasPrice: SearchUnitView.hasPrice,
-				stopSell: SearchUnitView.stopSell,
 				availableUnits: SearchUnitView.availableUnits,
 				pricePerNight: SearchUnitView.pricePerNight,
 				minStay: SearchUnitView.minStay,
@@ -147,11 +145,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 					String(row.date),
 					{
 						date: String(row.date),
-						isSellable: Boolean(row.isSellable),
 						isAvailable: Boolean(row.isAvailable),
 						hasAvailability: Boolean(row.hasAvailability),
 						hasPrice: Boolean(row.hasPrice),
-						stopSell: Boolean(row.stopSell),
 						availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 						minStay: row.minStay == null ? null : Number(row.minStay),
 						maxStay: row.maxStay == null ? null : Number(row.maxStay),
@@ -176,7 +172,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const days = stayDates.map((date) => {
 				const row = byDate.get(date)
 				const capacity = Math.max(0, Number(row?.availableUnits ?? 0))
-				const closed = Boolean(row?.stopSell ?? false)
+				const closed =
+					String(row?.primaryBlocker ?? "")
+						.trim()
+						.toUpperCase() === "STOP_SELL"
 				const price = row?.pricePerNight ?? null
 				let unsellableReason: string | null = null
 				if (!row) unsellableReason = "UNKNOWN"
@@ -184,7 +183,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				else if (!row.hasAvailability) unsellableReason = "MISSING_AVAILABILITY"
 				else if (capacity < occupancyInt) unsellableReason = "NO_CAPACITY"
 				else if (!row.hasPrice || price == null) unsellableReason = "MISSING_PRICE"
-				else if (!row.isSellable || !row.isAvailable)
+				else if (!row.isAvailable || String(row.primaryBlocker ?? "").trim())
 					unsellableReason = String(row.primaryBlocker ?? "UNKNOWN")
 				return {
 					date,
@@ -193,7 +192,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 					price: price == null ? null : roundMoney(price),
 					minStay: row?.minStay ?? null,
 					closed,
-					sellable: Boolean(row?.isSellable ?? false),
+					sellable: Boolean(
+						row &&
+						row.isAvailable &&
+						row.hasAvailability &&
+						row.hasPrice &&
+						!String(row.primaryBlocker ?? "").trim() &&
+						capacity >= occupancyInt
+					),
 					unsellableReason,
 				}
 			})

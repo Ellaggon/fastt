@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ request }) => {
 				.select({
 					variantId: EffectiveAvailability.variantId,
 					effectiveDays: sql<number>`count(*)`,
-					sellableDays: sql<number>`sum(case when ${EffectiveAvailability.isSellable} = 1 then 1 else 0 end)`,
+					sellableDays: sql<number>`sum(case when ${EffectiveAvailability.availableUnits} > 0 then 1 else 0 end)`,
 					lastRecomputeAt: sql<string | null>`max(${EffectiveAvailability.computedAt})`,
 				})
 				.from(EffectiveAvailability)

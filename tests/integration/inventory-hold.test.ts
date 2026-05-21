@@ -5,6 +5,7 @@ import {
 	DailyInventory,
 	EffectiveAvailability,
 	EffectivePricingV2,
+	EffectiveRestriction,
 	InventoryLock,
 	RatePlan,
 	RatePlanTemplate,
@@ -377,7 +378,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 		})
 	})
 
-	it("hold fails when stopSell is active on any day in range", async () => {
+	it("hold fails when EffectiveRestriction stop sell is active on any day in range", async () => {
 		const token = "t_hold_closed"
 		const email = "hold-closed@example.com"
 		const variantId = `var_hold_closed_${crypto.randomUUID()}`
@@ -398,11 +399,21 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			to: "2026-03-23",
 		})
 
-		await db
-			.update(DailyInventory)
-			.set({ stopSell: true } as any)
-			.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-21")))
-			.run()
+		await db.insert(EffectiveRestriction).values({
+			id: `er_hold_stop_${crypto.randomUUID()}`,
+			variantId,
+			ratePlanId,
+			date: "2026-03-21",
+			minStay: null,
+			maxStay: null,
+			minLeadTime: null,
+			maxLeadTime: null,
+			cta: false,
+			ctd: false,
+			stopSell: true,
+			priority: 100,
+			computedAt: new Date(),
+		} as any)
 		await refreshSearchView({
 			variantId,
 			ratePlanId,

@@ -125,7 +125,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.select({
 								totalInventory: DailyInventory.totalInventory,
 								reservedCount: DailyInventory.reservedCount,
-								stopSell: DailyInventory.stopSell,
 							})
 							.from(DailyInventory)
 							.where(
@@ -134,7 +133,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.get()
 
 						if (!daily) throw new NotAvailableError()
-						if (Boolean((daily as any).stopSell)) throw new NotAvailableError()
 						const totalInventory = Number(daily.totalInventory ?? 0)
 						const reservedCount = Number(daily.reservedCount ?? 0)
 						if (!Number.isFinite(totalInventory) || !Number.isFinite(reservedCount)) {
