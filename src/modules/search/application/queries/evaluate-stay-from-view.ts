@@ -9,6 +9,9 @@ export type SearchUnitViewStayRow = {
 	stopSell: boolean
 	availableUnits: number
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	primaryBlocker: string | null
@@ -25,6 +28,9 @@ function mapPrimaryBlockerToReasonCode(primaryBlocker: string | null | undefined
 	if (value === "CTA") return ReasonCode.CTA_RESTRICTION
 	if (value === "CTD") return ReasonCode.CTD_RESTRICTION
 	if (value === "MIN_STAY_NOT_MET") return ReasonCode.MIN_STAY_NOT_MET
+	if (value === "MAX_STAY_EXCEEDED") return ReasonCode.MAX_STAY_EXCEEDED
+	if (value === "MIN_LEAD_TIME_NOT_MET") return ReasonCode.MIN_LEAD_TIME_NOT_MET
+	if (value === "MAX_LEAD_TIME_EXCEEDED") return ReasonCode.MAX_LEAD_TIME_EXCEEDED
 	if (value === "MISSING_PRICE" || value === "NO_PRICE") return ReasonCode.PRICE_NOT_AVAILABLE
 	if (value === "NO_INVENTORY" || value === "NO_CAPACITY" || value === "CLOSED")
 		return ReasonCode.NO_INVENTORY
@@ -49,12 +55,32 @@ function withReason(
 	}
 }
 
+function toDateOnlyUtc(value: string | Date | undefined): Date {
+	if (value instanceof Date) {
+		return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
+	}
+	const raw = String(value ?? new Date().toISOString().slice(0, 10)).slice(0, 10)
+	const [year, month, day] = raw.split("-").map((part) => Number(part))
+	return new Date(Date.UTC(year, month - 1, day))
+}
+
+function calculateLeadTimeDays(params: {
+	requestDate?: string | Date
+	checkInDate: string
+}): number {
+	const requestDate = toDateOnlyUtc(params.requestDate)
+	const checkInDate = toDateOnlyUtc(params.checkInDate)
+	const diffMs = checkInDate.getTime() - requestDate.getTime()
+	return Math.floor(diffMs / 86_400_000)
+}
+
 export function evaluateStaySellabilityFromView(params: {
 	stayDates: string[]
 	checkInDate: string
 	requestedRooms: number
 	rowsByDate: Map<string, SearchUnitViewStayRow>
 	currency?: string
+	requestDate?: string | Date
 }): StaySellabilityEvaluation {
 	const requestedRooms = Math.max(1, Number(params.requestedRooms ?? 1))
 	const currency =
@@ -158,6 +184,52 @@ export function evaluateStaySellabilityFromView(params: {
 			ReasonCode.MIN_STAY_NOT_MET
 		)
 	}
+	const maxStay = checkInDay.maxStay == null ? null : Math.max(1, Number(checkInDay.maxStay))
+	if (maxStay != null && params.stayDates.length > maxStay) {
+		return withReason(
+			{
+				...base,
+				availability: {
+					hasInventory: true,
+					hasRestrictions: true,
+				},
+			},
+			ReasonCode.MAX_STAY_EXCEEDED
+		)
+	}
+
+	const leadTimeDays = calculateLeadTimeDays({
+		requestDate: params.requestDate,
+		checkInDate: params.checkInDate,
+	})
+	const minLeadTime =
+		checkInDay.minLeadTime == null ? null : Math.max(0, Number(checkInDay.minLeadTime))
+	if (minLeadTime != null && leadTimeDays < minLeadTime) {
+		return withReason(
+			{
+				...base,
+				availability: {
+					hasInventory: true,
+					hasRestrictions: true,
+				},
+			},
+			ReasonCode.MIN_LEAD_TIME_NOT_MET
+		)
+	}
+	const maxLeadTime =
+		checkInDay.maxLeadTime == null ? null : Math.max(0, Number(checkInDay.maxLeadTime))
+	if (maxLeadTime != null && leadTimeDays > maxLeadTime) {
+		return withReason(
+			{
+				...base,
+				availability: {
+					hasInventory: true,
+					hasRestrictions: true,
+				},
+			},
+			ReasonCode.MAX_LEAD_TIME_EXCEEDED
+		)
+	}
 
 	const totalPrice = stayDays.reduce((sum, day) => sum + Number(day.pricePerNight ?? 0), 0)
 	const hasCompletePricing = stayDays.every(
@@ -165,12 +237,17 @@ export function evaluateStaySellabilityFromView(params: {
 	)
 	const hasInventory = stayDays.every(
 		(day) =>
-			Boolean(day.hasAvailability) &&
-			Math.max(0, Number(day.availableUnits ?? 0)) >= requestedRooms &&
-			!Boolean(day.stopSell)
+			Boolean(day.hasAvailability) && Math.max(0, Number(day.availableUnits ?? 0)) >= requestedRooms
 	)
 	const hasRestrictions = stayDays.some(
-		(day) => Boolean(day.cta) || Boolean(day.ctd) || Boolean(day.stopSell)
+		(day) =>
+			Boolean(day.cta) ||
+			Boolean(day.ctd) ||
+			Boolean(day.stopSell) ||
+			day.minStay != null ||
+			day.maxStay != null ||
+			day.minLeadTime != null ||
+			day.maxLeadTime != null
 	)
 
 	for (const day of stayDays) {

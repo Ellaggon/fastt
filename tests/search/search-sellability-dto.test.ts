@@ -17,6 +17,9 @@ function makeRow(overrides: Partial<SearchUnitViewStayRow> = {}): SearchUnitView
 		stopSell: false,
 		availableUnits: 1,
 		minStay: null,
+		maxStay: null,
+		minLeadTime: null,
+		maxLeadTime: null,
 		cta: false,
 		ctd: false,
 		primaryBlocker: null,
@@ -105,6 +108,43 @@ describe("search sellability DTO", () => {
 			rowsByDate: rows,
 		})
 		expect(out.reasonCodes).toEqual([ReasonCode.MIN_STAY_NOT_MET])
+	})
+
+	it("maps max stay to canonical reason code", () => {
+		const rows = new Map<string, SearchUnitViewStayRow>([
+			["2026-05-10", makeRow({ date: "2026-05-10", maxStay: 1 })],
+			["2026-05-11", makeRow({ date: "2026-05-11", maxStay: 1 })],
+		])
+		const out = evaluateStaySellabilityFromView({
+			stayDates: ["2026-05-10", "2026-05-11"],
+			checkInDate: "2026-05-10",
+			requestedRooms: 1,
+			rowsByDate: rows,
+		})
+		expect(out.reasonCodes).toEqual([ReasonCode.MAX_STAY_EXCEEDED])
+	})
+
+	it("maps booking window lead-time rules to canonical reason codes", () => {
+		const rows = new Map<string, SearchUnitViewStayRow>([
+			["2026-05-10", makeRow({ date: "2026-05-10", minLeadTime: 3, maxLeadTime: 10 })],
+		])
+		const tooSoon = evaluateStaySellabilityFromView({
+			stayDates: ["2026-05-10"],
+			checkInDate: "2026-05-10",
+			requestedRooms: 1,
+			rowsByDate: rows,
+			requestDate: "2026-05-09",
+		})
+		expect(tooSoon.reasonCodes).toEqual([ReasonCode.MIN_LEAD_TIME_NOT_MET])
+
+		const tooEarly = evaluateStaySellabilityFromView({
+			stayDates: ["2026-05-10"],
+			checkInDate: "2026-05-10",
+			requestedRooms: 1,
+			rowsByDate: rows,
+			requestDate: "2026-04-20",
+		})
+		expect(tooEarly.reasonCodes).toEqual([ReasonCode.MAX_LEAD_TIME_EXCEEDED])
 	})
 
 	it("maps missing price to canonical reason code", () => {

@@ -12,6 +12,9 @@ export type SearchUnitViewRow = {
 	availableUnits: number
 	pricePerNight: number | null
 	minStay: number | null
+	maxStay?: number | null
+	minLeadTime?: number | null
+	maxLeadTime?: number | null
 	cta: boolean
 	ctd: boolean
 	primaryBlocker: string | null

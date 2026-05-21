@@ -732,8 +732,9 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			await db
 				.insert(EffectiveRestriction)
 				.values({
-					id: `er_${variantId}_${date}`,
+					id: `er_${variantId}_${ratePlanId}_${date}`,
 					variantId,
+					ratePlanId,
 					date,
 					stopSell: true,
 					minStay: null,
@@ -742,7 +743,11 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
-					target: [EffectiveRestriction.variantId, EffectiveRestriction.date],
+					target: [
+						EffectiveRestriction.variantId,
+						EffectiveRestriction.ratePlanId,
+						EffectiveRestriction.date,
+					],
 					set: {
 						stopSell: true,
 						minStay: null,

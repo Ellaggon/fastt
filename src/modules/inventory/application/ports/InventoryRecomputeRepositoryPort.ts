@@ -1,9 +1,6 @@
 export type DailyInventoryRow = {
 	date: string
 	totalInventory: number
-	// Deprecated ARI compatibility: historical inventory stop-sell fallback.
-	// Restrictions/EffectiveRestriction are the canonical sellability source.
-	stopSell: boolean
 }
 
 export type InventoryLockRow = {
@@ -21,7 +18,8 @@ export type EffectiveAvailabilityUpsertRow = {
 	heldUnits: number
 	bookedUnits: number
 	availableUnits: number
-	// Deprecated ARI compatibility: kept for search read-model fallback.
+	// Deprecated ARI compatibility columns. EffectiveAvailability writes physical
+	// availability only; sellability belongs to EffectiveRestriction/Search.
 	stopSell: boolean
 	isSellable: boolean
 	computedAt: Date

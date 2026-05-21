@@ -7,7 +7,9 @@ import {
 	EffectiveRestriction,
 	gte,
 	inArray,
+	isNull,
 	lt,
+	or,
 	RatePlan,
 	SearchUnitView,
 	sql,
@@ -28,6 +30,9 @@ export type SearchUnitViewReadRow = {
 	availableUnits: number
 	pricePerNight: number | null
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	primaryBlocker: string | null
@@ -62,6 +67,9 @@ export type SearchUnitViewUpsertRow = {
 	currency: string
 	primaryBlocker: string | null
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	computedAt: Date
@@ -84,6 +92,9 @@ export type SearchUnitViewStoredRow = {
 	currency: string
 	primaryBlocker: string | null
 	minStay: number | null
+	maxStay: number | null
+	minLeadTime: number | null
+	maxLeadTime: number | null
 	cta: boolean
 	ctd: boolean
 	computedAt: string
@@ -200,6 +211,9 @@ export const searchReadModelRepository = {
 				availableUnits: SearchUnitView.availableUnits,
 				pricePerNight: SearchUnitView.pricePerNight,
 				minStay: SearchUnitView.minStay,
+				maxStay: SearchUnitView.maxStay,
+				minLeadTime: SearchUnitView.minLeadTime,
+				maxLeadTime: SearchUnitView.maxLeadTime,
 				cta: SearchUnitView.cta,
 				ctd: SearchUnitView.ctd,
 				primaryBlocker: SearchUnitView.primaryBlocker,
@@ -227,6 +241,9 @@ export const searchReadModelRepository = {
 			availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 			pricePerNight: row.pricePerNight == null ? null : Number(row.pricePerNight),
 			minStay: row.minStay == null ? null : Number(row.minStay),
+			maxStay: row.maxStay == null ? null : Number(row.maxStay),
+			minLeadTime: row.minLeadTime == null ? null : Number(row.minLeadTime),
+			maxLeadTime: row.maxLeadTime == null ? null : Number(row.maxLeadTime),
 			cta: Boolean(row.cta),
 			ctd: Boolean(row.ctd),
 			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
@@ -364,7 +381,6 @@ export const searchReadModelRepository = {
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
 			db
 				.select({
-					isSellable: EffectiveAvailability.isSellable,
 					stopSell: EffectiveAvailability.stopSell,
 					availableUnits: EffectiveAvailability.availableUnits,
 				})
@@ -389,20 +405,44 @@ export const searchReadModelRepository = {
 				.select({
 					stopSell: EffectiveRestriction.stopSell,
 					minStay: EffectiveRestriction.minStay,
+					maxStay: EffectiveRestriction.maxStay,
+					minLeadTime: EffectiveRestriction.minLeadTime,
+					maxLeadTime: EffectiveRestriction.maxLeadTime,
 					cta: EffectiveRestriction.cta,
 					ctd: EffectiveRestriction.ctd,
+					ratePlanId: EffectiveRestriction.ratePlanId,
 				})
 				.from(EffectiveRestriction)
 				.where(
 					and(
 						eq(EffectiveRestriction.variantId, params.variantId),
-						eq(EffectiveRestriction.date, params.date)
+						eq(EffectiveRestriction.date, params.date),
+						or(
+							eq(EffectiveRestriction.ratePlanId, params.ratePlanId),
+							isNull(EffectiveRestriction.ratePlanId)
+						)
 					)
 				)
+				.orderBy(sql`${EffectiveRestriction.ratePlanId} IS NULL`)
 				.get(),
 		])
 
-		return { availabilityRow, pricingRow, restrictionRow }
+		return {
+			availabilityRow,
+			pricingRow,
+			restrictionRow: restrictionRow
+				? {
+						stopSell: restrictionRow.stopSell,
+						minStay: restrictionRow.minStay,
+						maxStay: restrictionRow.maxStay,
+						minLeadTime: restrictionRow.minLeadTime,
+						maxLeadTime: restrictionRow.maxLeadTime,
+						cta: restrictionRow.cta,
+						ctd: restrictionRow.ctd,
+						scope: restrictionRow.ratePlanId ? ("rate_plan" as const) : ("variant" as const),
+					}
+				: null,
+		}
 	},
 
 	async resolveSourceVersion(params: {
@@ -439,14 +479,22 @@ export const searchReadModelRepository = {
 				.get(),
 			pricingVersionPromise,
 			db
-				.select({ computedAt: EffectiveRestriction.computedAt })
+				.select({
+					computedAt: EffectiveRestriction.computedAt,
+					ratePlanId: EffectiveRestriction.ratePlanId,
+				})
 				.from(EffectiveRestriction)
 				.where(
 					and(
 						eq(EffectiveRestriction.variantId, params.variantId),
-						eq(EffectiveRestriction.date, params.date)
+						eq(EffectiveRestriction.date, params.date),
+						or(
+							eq(EffectiveRestriction.ratePlanId, params.ratePlanId),
+							isNull(EffectiveRestriction.ratePlanId)
+						)
 					)
 				)
+				.orderBy(sql`${EffectiveRestriction.ratePlanId} IS NULL`)
 				.get(),
 		])
 		const a = availabilityRow?.computedAt
@@ -494,6 +542,9 @@ export const searchReadModelRepository = {
 					currency: sql`excluded.currency`,
 					primaryBlocker: sql`excluded.primaryBlocker`,
 					minStay: sql`excluded.minStay`,
+					maxStay: sql`excluded.maxStay`,
+					minLeadTime: sql`excluded.minLeadTime`,
+					maxLeadTime: sql`excluded.maxLeadTime`,
 					cta: sql`excluded.cta`,
 					ctd: sql`excluded.ctd`,
 					computedAt: sql`excluded.computedAt`,
@@ -526,6 +577,9 @@ export const searchReadModelRepository = {
 				currency: SearchUnitView.currency,
 				primaryBlocker: SearchUnitView.primaryBlocker,
 				minStay: SearchUnitView.minStay,
+				maxStay: SearchUnitView.maxStay,
+				minLeadTime: SearchUnitView.minLeadTime,
+				maxLeadTime: SearchUnitView.maxLeadTime,
 				cta: SearchUnitView.cta,
 				ctd: SearchUnitView.ctd,
 				computedAt: SearchUnitView.computedAt,
@@ -558,6 +612,9 @@ export const searchReadModelRepository = {
 			currency: String(row.currency ?? "USD"),
 			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),
 			minStay: row.minStay == null ? null : Number(row.minStay),
+			maxStay: row.maxStay == null ? null : Number(row.maxStay),
+			minLeadTime: row.minLeadTime == null ? null : Number(row.minLeadTime),
+			maxLeadTime: row.maxLeadTime == null ? null : Number(row.maxLeadTime),
 			cta: Boolean(row.cta),
 			ctd: Boolean(row.ctd),
 			computedAt: new Date(row.computedAt).toISOString(),

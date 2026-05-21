@@ -113,6 +113,25 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	it("keeps restrictions as the active sellability surface with operational controls", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const restrictions = read("src/pages/rates/restrictions.astro")
+		const restrictionsSurface = read("src/lib/rates/restrictionsSurface.ts")
+		const effectiveRestrictionMaterializer = read(
+			"src/modules/policies/infrastructure/materializers/recompute-effective-restrictions.db.ts"
+		)
+		const effectiveRestrictionUseCase = read(
+			"src/modules/policies/application/use-cases/recompute-effective-restrictions.ts"
+		)
+		const searchMaterialization = read(
+			"src/modules/search/application/use-cases/materialize-search-unit.ts"
+		)
+		const sellabilityCompatibility = read(
+			"src/modules/search/application/services/LegacySellabilityCompatibility.ts"
+		)
+		const effectiveAvailabilityRecompute = read(
+			"src/modules/inventory/application/use-cases/recompute-effective-availability-range.ts"
+		)
+		const searchStayEvaluation = read(
+			"src/modules/search/application/queries/evaluate-stay-from-view.ts"
+		)
 		const vocabulary = read("src/lib/verticalVocabulary.ts")
 		const operationalCopy = read("src/lib/rates/restrictionOperationalCopy.ts")
 		const ratePlanQueryRepository = read(
@@ -133,6 +152,31 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(restrictions).toContain("Search evalua estas señales")
 		expect(restrictions).toContain("resolveVerticalVocabulary")
 		expect(restrictions).toContain("buildRestrictionOperationalCopyRegistry")
+		expect(restrictionsSurface).toContain("recomputeEffectiveRestrictionsForScope")
+		expect(restrictionsSurface).toContain("materializeSearchUnitRange")
+		expect(effectiveRestrictionUseCase).toContain("configureEffectiveRestrictionsMaterializer")
+		expect(effectiveRestrictionMaterializer).toContain("EffectiveRestriction")
+		expect(effectiveRestrictionMaterializer).toContain("ratePlanId")
+		expect(effectiveRestrictionMaterializer).toContain("stop_sell")
+		expect(effectiveRestrictionMaterializer).toContain("cta")
+		expect(effectiveRestrictionMaterializer).toContain("ctd")
+		expect(effectiveRestrictionMaterializer).toContain("min_los")
+		expect(effectiveRestrictionMaterializer).toContain("max_los")
+		expect(effectiveRestrictionMaterializer).toContain("min_lead_time")
+		expect(effectiveRestrictionMaterializer).toContain("max_lead_time")
+		expect(searchMaterialization).toContain("resolveSearchSellability")
+		expect(searchMaterialization).not.toContain("restrictionRow?.stopSell ??")
+		expect(searchMaterialization).toContain(
+			"const isAvailable = hasAvailability && availableUnits > 0"
+		)
+		expect(sellabilityCompatibility).toContain("availability_stop_sell_compatibility")
+		expect(sellabilityCompatibility).toContain("usedLegacyAvailabilityStopSell")
+		expect(effectiveAvailabilityRecompute).toContain("stopSell: false")
+		expect(effectiveAvailabilityRecompute).toContain("isSellable: availableUnits > 0")
+		expect(effectiveAvailabilityRecompute).not.toContain("daily?.stopSell")
+		expect(searchStayEvaluation).toContain("MAX_STAY_EXCEEDED")
+		expect(searchStayEvaluation).toContain("MIN_LEAD_TIME_NOT_MET")
+		expect(searchStayEvaluation).toContain("MAX_LEAD_TIME_EXCEEDED")
 		expect(vocabulary).toContain("habitacion")
 		expect(vocabulary).toContain("salida")
 		expect(vocabulary).toContain("plan tarifario")

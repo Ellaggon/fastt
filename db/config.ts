@@ -451,9 +451,11 @@ const EffectiveAvailability = defineTable({
 		heldUnits: column.number({ default: 0 }),
 		bookedUnits: column.number({ default: 0 }),
 		availableUnits: column.number({ default: 0 }),
-		// @deprecated ARI compatibility: materialized fallback signal consumed by search
-		// while Restrictions finishes owning sellability end to end.
+		// @deprecated ARI compatibility: legacy column retained for older rows only.
+		// New recomputes write physical availability and never derive sellability here.
 		stopSell: column.boolean({ default: true }),
+		// @deprecated ARI compatibility: historical sellability mirror. Treat as physical
+		// availability compatibility until SearchUnitView fully drops this column.
 		isSellable: column.boolean({ default: false }),
 		computedAt: column.date(),
 	},
@@ -483,6 +485,9 @@ const SearchUnitView = defineTable({
 		currency: column.text({ default: "USD" }),
 		primaryBlocker: column.text({ optional: true }),
 		minStay: column.number({ optional: true }),
+		maxStay: column.number({ optional: true }),
+		minLeadTime: column.number({ optional: true }),
+		maxLeadTime: column.number({ optional: true }),
 		cta: column.boolean({ default: false }),
 		ctd: column.boolean({ default: false }),
 		computedAt: column.date({ default: NOW }),
@@ -597,17 +602,26 @@ const Restriction = defineTable({
 const EffectiveRestriction = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
+		// Canonical sellability projection for Search. Current canonical shape is
+		// variant/ratePlan/date; null ratePlanId exists only for legacy variant/date rows.
 		variantId: column.text({ references: () => Variant.columns.id }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id, optional: true }),
 		date: column.text(),
 		minStay: column.number({ optional: true }),
 		maxStay: column.number({ optional: true }),
+		minLeadTime: column.number({ optional: true }),
+		maxLeadTime: column.number({ optional: true }),
 		cta: column.boolean({ default: false }),
 		ctd: column.boolean({ default: false }),
 		stopSell: column.boolean({ default: false }),
 		priority: column.number({ default: 0 }),
 		computedAt: column.date(),
 	},
-	indexes: [{ on: ["variantId", "date"], unique: true }],
+	indexes: [
+		{ on: ["variantId", "ratePlanId", "date"], unique: true },
+		{ on: ["variantId", "date"] },
+		{ on: ["ratePlanId", "date"] },
+	],
 })
 const EffectivePricingV2 = defineTable({
 	columns: {

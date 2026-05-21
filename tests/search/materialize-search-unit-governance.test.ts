@@ -80,6 +80,9 @@ describe("materialize search unit governance hardening", () => {
 			currency: persisted.currency,
 			primaryBlocker: persisted.primaryBlocker,
 			minStay: persisted.minStay,
+			maxStay: persisted.maxStay,
+			minLeadTime: persisted.minLeadTime,
+			maxLeadTime: persisted.maxLeadTime,
 			cta: persisted.cta,
 			ctd: persisted.ctd,
 			computedAt: new Date().toISOString(),
@@ -107,6 +110,48 @@ describe("materialize search unit governance hardening", () => {
 		})
 
 		expect(result.blocker).toBe("MISSING_COVERAGE")
+	})
+
+	it("lets EffectiveRestriction override legacy availability stopSell fallback", async () => {
+		repoMock.loadMaterializationInputs.mockResolvedValue({
+			availabilityRow: { stopSell: true, availableUnits: 2 },
+			pricingRow: { finalBasePrice: 120 },
+			restrictionRow: { stopSell: false, minStay: 1, cta: false, ctd: false },
+		})
+
+		const result = await materializeSearchUnit({
+			variantId: "var-canonical",
+			ratePlanId: "rp-canonical",
+			date: "2026-10-10",
+			occupancy: { adults: 1, children: 0, infants: 0 },
+			currency: "USD",
+		})
+
+		const persisted = repoMock.upsertSearchUnitViewRow.mock.calls[0][0]
+		expect(result.isSellable).toBe(true)
+		expect(persisted.stopSell).toBe(false)
+		expect(persisted.primaryBlocker).toBe(null)
+	})
+
+	it("keeps availability stopSell as explicit compatibility only when EffectiveRestriction is missing", async () => {
+		repoMock.loadMaterializationInputs.mockResolvedValue({
+			availabilityRow: { stopSell: true, availableUnits: 2 },
+			pricingRow: { finalBasePrice: 120 },
+			restrictionRow: null,
+		})
+
+		const result = await materializeSearchUnit({
+			variantId: "var-legacy",
+			ratePlanId: "rp-legacy",
+			date: "2026-10-10",
+			occupancy: { adults: 1, children: 0, infants: 0 },
+			currency: "USD",
+		})
+
+		const persisted = repoMock.upsertSearchUnitViewRow.mock.calls[0][0]
+		expect(result.isSellable).toBe(false)
+		expect(persisted.stopSell).toBe(true)
+		expect(persisted.primaryBlocker).toBe("STOP_SELL")
 	})
 
 	it("normalizes and deduplicates range materialization deterministically", async () => {

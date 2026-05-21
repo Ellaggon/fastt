@@ -14,7 +14,13 @@ import {
 } from "astro:db"
 import { randomUUID } from "node:crypto"
 
-import { computeRestrictionPriority } from "@/modules/policies/public"
+import { logger } from "@/lib/observability/logger"
+import {
+	computeRestrictionPriority,
+	type RecomputeEffectiveRestrictionsResult,
+	recomputeEffectiveRestrictionsForScope,
+	toExclusiveRestrictionDate,
+} from "@/modules/policies/public"
 
 export type RestrictionScope = "product" | "variant" | "rate_plan"
 export type SellabilityRuleType =
@@ -450,10 +456,56 @@ async function ensureNoOverlap(params: {
 	}
 }
 
-async function assertProviderRuleAccess(providerId: string, ruleId: string): Promise<void> {
+async function loadProviderRuleOrThrow(
+	providerId: string,
+	ruleId: string
+): Promise<RestrictionSurfaceRule> {
 	const model = await loadRestrictionsSurface(providerId, { status: "all" })
-	if (!model.rules.some((rule) => rule.id === ruleId)) {
-		throw new Error("Restriction rule not found for this provider")
+	const rule = model.rules.find((entry) => entry.id === ruleId)
+	if (!rule) throw new Error("Restriction rule not found for this provider")
+	return rule
+}
+
+async function recomputeRuleProjection(params: {
+	scope: RestrictionScope
+	scopeId: string
+	startDate: string
+	endDate: string
+	reason: string
+}) {
+	const result = await recomputeEffectiveRestrictionsForScope({
+		scope: params.scope,
+		scopeId: params.scopeId,
+		from: params.startDate,
+		to: toExclusiveRestrictionDate(params.endDate),
+		reason: params.reason,
+	})
+	await rematerializeSearchUnitViewForRestrictions(result, params.reason)
+}
+
+async function rematerializeSearchUnitViewForRestrictions(
+	result: RecomputeEffectiveRestrictionsResult,
+	reason: string
+): Promise<void> {
+	if (!result.variantIds.length || result.rows === 0) return
+	for (const variantId of result.variantIds) {
+		try {
+			const { materializeSearchUnitRange } = await import("@/modules/search/public")
+			await materializeSearchUnitRange({
+				variantId,
+				from: result.from,
+				to: result.to,
+				currency: "USD",
+			})
+		} catch (error) {
+			logger.warn("restrictions.search_unit_materialization_failed", {
+				variantId,
+				from: result.from,
+				to: result.to,
+				reason,
+				message: error instanceof Error ? error.message : String(error),
+			})
+		}
 	}
 }
 
@@ -602,6 +654,13 @@ export async function createRestrictionsSurfaceRule(
 		isActive: true,
 		priority: computeRestrictionPriority(scope, type),
 	})
+	await recomputeRuleProjection({
+		scope,
+		scopeId,
+		startDate,
+		endDate,
+		reason: "restriction_create",
+	})
 }
 
 export async function updateRestrictionsSurfaceRule(
@@ -610,7 +669,7 @@ export async function updateRestrictionsSurfaceRule(
 ): Promise<void> {
 	const ruleId = asString(form.get("ruleId"))
 	if (!ruleId) throw new Error("Missing rule id")
-	await assertProviderRuleAccess(providerId, ruleId)
+	const previous = await loadProviderRuleOrThrow(providerId, ruleId)
 	const scope = parseScope(form.get("scope"))
 	const scopeId = asString(form.get(`${scope}ScopeId`) || form.get("scopeId"))
 	const type = parseRuleType(form.get("type"))
@@ -640,6 +699,20 @@ export async function updateRestrictionsSurfaceRule(
 			priority: computeRestrictionPriority(scope, type),
 		})
 		.where(eq(Restriction.id, ruleId))
+	await recomputeRuleProjection({
+		scope: previous.scope,
+		scopeId: previous.scopeId,
+		startDate: previous.startDate,
+		endDate: previous.endDate,
+		reason: "restriction_update_previous",
+	})
+	await recomputeRuleProjection({
+		scope,
+		scopeId,
+		startDate,
+		endDate,
+		reason: "restriction_update_next",
+	})
 }
 
 export async function setRestrictionsSurfaceRuleActive(
@@ -647,6 +720,13 @@ export async function setRestrictionsSurfaceRuleActive(
 	ruleId: string,
 	isActive: boolean
 ): Promise<void> {
-	await assertProviderRuleAccess(providerId, ruleId)
+	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
 	await db.update(Restriction).set({ isActive }).where(eq(Restriction.id, ruleId))
+	await recomputeRuleProjection({
+		scope: rule.scope,
+		scopeId: rule.scopeId,
+		startDate: rule.startDate,
+		endDate: rule.endDate,
+		reason: isActive ? "restriction_activate" : "restriction_deactivate",
+	})
 }

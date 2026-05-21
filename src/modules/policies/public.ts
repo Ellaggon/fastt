@@ -2,6 +2,8 @@
 // External consumers MUST import from "@/modules/policies/public".
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
+import "./infrastructure/wiring/configure-effective-restrictions-materializer"
+
 // Domain
 export * from "./domain/policy.priority"
 export * from "./domain/policy.scope"
@@ -44,6 +46,7 @@ export * from "./application/use-cases/capa6/create-policy-version"
 export * from "./application/use-cases/capa6/assign-policy"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-snapshot"
+export * from "./application/use-cases/recompute-effective-restrictions"
 export * from "./application/use-cases/rate-plan-policies-surface"
 export type { ResolveEffectivePoliciesResult } from "./application/use-cases/resolve-effective-policies"
 
@@ -68,9 +71,8 @@ export async function resolveEffectivePolicies(params: {
 	| import("./application/dto/PolicyResolutionDTO").PolicyResolutionDTO
 	| import("./application/adapters/policyResolutionAdapter").LegacyPolicyResolutionResult
 > {
-	const { resolveEffectivePoliciesUseCase } = await import(
-		"@/container/policies-resolution.container"
-	)
+	const { resolveEffectivePoliciesUseCase } =
+		await import("@/container/policies-resolution.container")
 	return resolveEffectivePoliciesUseCase(params)
 }
 
@@ -98,8 +100,7 @@ export async function assignPolicyCapa6(
 export async function replacePolicyAssignmentCapa6(
 	params: import("./application/use-cases/capa6/replace-policy-assignment").ReplacePolicyAssignmentInput
 ) {
-	const { replacePolicyAssignmentCapa6UseCase } = await import(
-		"@/container/policies-write.container"
-	)
+	const { replacePolicyAssignmentCapa6UseCase } =
+		await import("@/container/policies-write.container")
 	return replacePolicyAssignmentCapa6UseCase(params)
 }
