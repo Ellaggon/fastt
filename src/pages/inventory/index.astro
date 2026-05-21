@@ -2,6 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import MaterializationFreshnessStrip from "@/components/rates/MaterializationFreshnessStrip.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -36,11 +37,16 @@ const vocabulary = surface.vocabulary
 const availableDays = surface.days.filter((day) => day.status === "available").length
 const lowDays = surface.days.filter((day) => day.status === "low").length
 const soldOutDays = surface.days.filter((day) => day.status === "sold_out").length
+const heldDays = surface.days.filter((day) => day.heldUnits > 0).length
+const bookedDays = surface.days.filter((day) => day.bookedUnits > 0).length
+const commercialSignalDays = surface.days.filter((day) => day.restrictionSignals.count > 0).length
 const totalAvailableUnits = surface.days.reduce((sum, day) => sum + day.availableUnits, 0)
 const inventoryRangeDays = surface.days.map((day) => ({
 	date: day.date,
 	status: day.status,
 	availableUnits: day.availableUnits,
+	restrictionCount: day.restrictionSignals.count,
+	commercialBlocker: day.restrictionSignals.hasCommercialBlocker,
 }))
 const selectedVariantId = String(selected?.variantId ?? "")
 const selectedVariantName = String(selected?.variantName ?? "")
@@ -152,6 +158,38 @@ const inventoryBulkHref = selected
 					</div>
 				</div>
 
+				<div
+					data-inventory-intelligence-strip
+					class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-4"
+				>
+					<div>
+						<p class="font-semibold text-slate-900">{soldOutDays} agotados</p>
+						<p>Capacidad fisica disponible en cero.</p>
+					</div>
+					<div>
+						<p class="font-semibold text-slate-900">{lowDays} bajos</p>
+						<p>Cupo fisico por debajo del umbral operativo.</p>
+					</div>
+					<div>
+						<p class="font-semibold text-slate-900">{heldDays + bookedDays} con demanda</p>
+						<p>{bookedDays} reservados · {heldDays} retenidos.</p>
+					</div>
+					<div>
+						<p class="font-semibold text-slate-900">{commercialSignalDays} con restricciones</p>
+						<p>Solo lectura: la vendibilidad se opera en Restrictions.</p>
+					</div>
+				</div>
+
+				<MaterializationFreshnessStrip
+					title="Actualizacion operacional"
+					description="Lectura ligera de capacidad, restricciones y search para este calendario."
+					items={[
+						surface.freshness.availability,
+						surface.freshness.restrictions,
+						surface.freshness.search,
+					]}
+				/>
+
 				{
 					!selected ? (
 						<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
@@ -219,7 +257,7 @@ const inventoryBulkHref = selected
 												type="button"
 												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
 											>
-												Preview
+												Previsualizar
 											</button>
 											<button
 												id="inventoryRangeApplyBtn"
@@ -276,53 +314,68 @@ const inventoryBulkHref = selected
 																: "neutral"
 												}
 											>
-												{day.status === "available"
-													? "Con cupo"
-													: day.status === "low"
-														? "Bajo"
-														: day.status === "sold_out"
-															? "Cupo 0"
-															: day.status === "missing"
-																? "Sin dato"
-																: "Pasado"}
+												{day.capacitySignalLabel}
 											</Badge>
 										</div>
 										<p class="mt-3 text-base font-semibold text-slate-950">
 											{day.availableUnits} disponibles
+										</p>
+										<p class="mt-1 text-xs text-slate-600">
+											{day.utilizationPercent == null
+												? "Sin lectura de ocupacion fisica"
+												: `${day.utilizationPercent}% comprometido fisicamente`}
 										</p>
 										<div class="mt-2 grid grid-cols-3 gap-1 text-[11px] text-slate-600">
 											<span class="rounded bg-white/70 px-1.5 py-1">
 												Total <strong class="text-slate-900">{day.totalUnits}</strong>
 											</span>
 											<span class="rounded bg-white/70 px-1.5 py-1">
-												Booked <strong class="text-slate-900">{day.bookedUnits}</strong>
+												Reservado <strong class="text-slate-900">{day.bookedUnits}</strong>
 											</span>
 											<span class="rounded bg-white/70 px-1.5 py-1">
-												Held <strong class="text-slate-900">{day.heldUnits}</strong>
+												Retenido <strong class="text-slate-900">{day.heldUnits}</strong>
 											</span>
 										</div>
 										<div class="mt-2 flex flex-wrap gap-1">
 											{day.status === "low" ? (
 												<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-													Low inventory
+													Cupo bajo
 												</span>
 											) : null}
 											{day.status === "sold_out" ? (
 												<span class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
-													Sold out fisico
+													Agotado fisico
 												</span>
 											) : null}
 											{day.heldUnits > 0 ? (
 												<span class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800">
-													Held
+													Retenido
 												</span>
 											) : null}
 											{day.bookedUnits > 0 ? (
 												<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-													Booked
+													Reservado
 												</span>
 											) : null}
+											{day.restrictionSignals.count > 0 ? (
+												<a
+													href={routes.rateRestrictions()}
+													class:list={[
+														"rounded-full px-2 py-0.5 text-[11px] font-medium underline-offset-2 hover:underline",
+														day.restrictionSignals.hasCommercialBlocker
+															? "bg-red-100 text-red-800"
+															: "bg-blue-100 text-blue-800",
+													]}
+												>
+													{day.restrictionSignals.summary ?? "Restrictions"}
+												</a>
+											) : null}
 										</div>
+										{day.restrictionSignals.count > 0 ? (
+											<p class="mt-1 text-xs text-slate-600">
+												Vendibilidad aparte: no cambia este cupo fisico.
+											</p>
+										) : null}
 										<button
 											type="button"
 											data-inventory-range-date={day.date}
@@ -397,15 +450,16 @@ const inventoryBulkHref = selected
 		</Section>
 	</div>
 
-	<script
-		type="application/json"
+	<div
+		hidden
 		id="inventoryRangeData"
-		set:html={JSON.stringify({
+		data-range={JSON.stringify({
 			days: inventoryRangeDays,
 			variantId: selectedVariantId,
 			variantName: selectedVariantName,
 		})}
-	/>
+	>
+	</div>
 
 	<script>
 		// @ts-nocheck
@@ -433,7 +487,7 @@ const inventoryBulkHref = selected
 		)
 		const rangeCards = Array.from(document.querySelectorAll("[data-inventory-day-card]"))
 		const rangeConfig = JSON.parse(
-			document.getElementById("inventoryRangeData")?.textContent || "{}"
+			document.getElementById("inventoryRangeData")?.dataset?.range || "{}"
 		)
 		const rangeDays = Array.isArray(rangeConfig.days) ? rangeConfig.days : []
 		const selectedVariantId = String(rangeConfig.variantId || "")
@@ -470,7 +524,7 @@ const inventoryBulkHref = selected
 				rangeSummary.textContent = `${formatRangeLabel(selectedRange)} · Ajustara ${days} noches en ${selectedVariantName || "la unidad seleccionada"}.`
 			}
 			if (rangePreview) {
-				rangePreview.textContent = `${summary.soldOut} dias agotados · ${summary.low} con baja disponibilidad · ${summary.totalAvailableUnits} cupos disponibles actuales.`
+				rangePreview.textContent = `${summary.soldOut} dias agotados · ${summary.low} bajos · ${summary.totalAvailableUnits} cupos actuales · ${summary.restricted} con restricciones solo lectura.`
 			}
 			if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = true
 			rangePreviewPayload = null
@@ -536,16 +590,16 @@ const inventoryBulkHref = selected
 			}
 			const summary = body?.summary ?? {}
 			if (rangePreview) {
-				rangePreview.textContent = `Preview listo: ${Number(summary.changedDays ?? 0)} dias cambiaran · variacion total de cupo ${Number(summary.totalCapacityDelta ?? 0)}.`
+				rangePreview.textContent = `Previsualizacion lista: ${Number(summary.changedDays ?? 0)} dias cambiaran · variacion total de cupo ${Number(summary.totalCapacityDelta ?? 0)}.`
 			}
 			rangePreviewPayload = payload
 			if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = false
-			setFeedback("Preview listo. Confirma para aplicar al rango.")
+			setFeedback("Previsualizacion lista. Confirma para aplicar al rango.")
 		})
 
 		rangeApplyBtn?.addEventListener("click", async () => {
 			if (!rangePreviewPayload) {
-				setFeedback("Primero genera el preview del rango.")
+				setFeedback("Primero genera la previsualizacion del rango.")
 				return
 			}
 			setFeedback("Aplicando cupo fisico al rango...")
