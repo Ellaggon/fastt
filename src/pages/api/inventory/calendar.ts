@@ -113,8 +113,6 @@ export const GET: APIRoute = async ({ request }) => {
 				heldUnits: EffectiveAvailability.heldUnits,
 				bookedUnits: EffectiveAvailability.bookedUnits,
 				availableUnits: EffectiveAvailability.availableUnits,
-				stopSell: EffectiveAvailability.stopSell,
-				isSellable: EffectiveAvailability.isSellable,
 			})
 			.from(EffectiveAvailability)
 			.where(
@@ -165,8 +163,6 @@ export const GET: APIRoute = async ({ request }) => {
 					heldUnits: Number(r.heldUnits ?? 0),
 					bookedUnits: Number(r.bookedUnits ?? 0),
 					availableUnits: Number(r.availableUnits ?? 0),
-					stopSell: Boolean(r.stopSell ?? true),
-					isSellable: Boolean(r.isSellable ?? false),
 				},
 			])
 		)
@@ -177,8 +173,6 @@ export const GET: APIRoute = async ({ request }) => {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: 0,
-				stopSell: true,
-				isSellable: false,
 			}
 			return {
 				date,
@@ -187,20 +181,20 @@ export const GET: APIRoute = async ({ request }) => {
 				heldUnits: row.heldUnits,
 				bookedUnits: row.bookedUnits,
 				availableUnits: row.availableUnits,
-				available: row.stopSell ? 0 : row.availableUnits,
-				stopSell: row.stopSell,
-				isSellable: row.isSellable,
+				available: row.availableUnits,
+				// Deprecated compatibility fields kept stable for old clients. Inventory
+				// calendar is physical-only; commercial stop-sell lives in Restrictions.
+				stopSell: false,
+				isSellable: row.availableUnits > 0,
 				hasEffective: byDate.has(date),
 				hasPrice: hasPriceByDate.has(date),
 				unsellableReason: !byDate.has(date)
 					? "MISSING_AVAILABILITY"
-					: row.stopSell
-						? "CLOSED"
-						: row.availableUnits <= 0
-							? "NO_CAPACITY"
-							: !hasPriceByDate.has(date)
-								? "MISSING_PRICE"
-								: null,
+					: row.availableUnits <= 0
+						? "NO_CAPACITY"
+						: !hasPriceByDate.has(date)
+							? "MISSING_PRICE"
+							: null,
 			}
 		})
 

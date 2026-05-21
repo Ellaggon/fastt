@@ -22,11 +22,9 @@ export type SearchUnitViewReadRow = {
 	variantId: string
 	ratePlanId: string
 	date: string
-	isSellable: boolean
 	isAvailable: boolean
 	hasAvailability: boolean
 	hasPrice: boolean
-	stopSell: boolean
 	availableUnits: number
 	pricePerNight: number | null
 	minStay: number | null
@@ -59,10 +57,8 @@ export type SearchUnitViewUpsertRow = {
 	totalGuests: number
 	hasAvailability: boolean
 	hasPrice: boolean
-	isSellable: boolean
 	isAvailable: boolean
 	availableUnits: number
-	stopSell: boolean
 	pricePerNight: number | null
 	currency: string
 	primaryBlocker: string | null
@@ -84,10 +80,8 @@ export type SearchUnitViewStoredRow = {
 	totalGuests: number
 	hasAvailability: boolean
 	hasPrice: boolean
-	isSellable: boolean
 	isAvailable: boolean
 	availableUnits: number
-	stopSell: boolean
 	pricePerNight: number | null
 	currency: string
 	primaryBlocker: string | null
@@ -203,11 +197,9 @@ export const searchReadModelRepository = {
 				variantId: SearchUnitView.variantId,
 				ratePlanId: SearchUnitView.ratePlanId,
 				date: SearchUnitView.date,
-				isSellable: SearchUnitView.isSellable,
 				isAvailable: SearchUnitView.isAvailable,
 				hasAvailability: SearchUnitView.hasAvailability,
 				hasPrice: SearchUnitView.hasPrice,
-				stopSell: SearchUnitView.stopSell,
 				availableUnits: SearchUnitView.availableUnits,
 				pricePerNight: SearchUnitView.pricePerNight,
 				minStay: SearchUnitView.minStay,
@@ -233,11 +225,9 @@ export const searchReadModelRepository = {
 			variantId: String(row.variantId),
 			ratePlanId: String(row.ratePlanId),
 			date: String(row.date),
-			isSellable: Boolean(row.isSellable),
 			isAvailable: Boolean(row.isAvailable),
 			hasAvailability: Boolean(row.hasAvailability),
 			hasPrice: Boolean(row.hasPrice),
-			stopSell: Boolean(row.stopSell),
 			availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 			pricePerNight: row.pricePerNight == null ? null : Number(row.pricePerNight),
 			minStay: row.minStay == null ? null : Number(row.minStay),
@@ -381,7 +371,6 @@ export const searchReadModelRepository = {
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
 			db
 				.select({
-					stopSell: EffectiveAvailability.stopSell,
 					availableUnits: EffectiveAvailability.availableUnits,
 				})
 				.from(EffectiveAvailability)
@@ -569,10 +558,8 @@ export const searchReadModelRepository = {
 				totalGuests: SearchUnitView.totalGuests,
 				hasAvailability: SearchUnitView.hasAvailability,
 				hasPrice: SearchUnitView.hasPrice,
-				isSellable: SearchUnitView.isSellable,
 				isAvailable: SearchUnitView.isAvailable,
 				availableUnits: SearchUnitView.availableUnits,
-				stopSell: SearchUnitView.stopSell,
 				pricePerNight: SearchUnitView.pricePerNight,
 				currency: SearchUnitView.currency,
 				primaryBlocker: SearchUnitView.primaryBlocker,
@@ -604,10 +591,8 @@ export const searchReadModelRepository = {
 			totalGuests: Number(row.totalGuests ?? 0),
 			hasAvailability: Boolean(row.hasAvailability),
 			hasPrice: Boolean(row.hasPrice),
-			isSellable: Boolean(row.isSellable),
 			isAvailable: Boolean(row.isAvailable),
 			availableUnits: Number(row.availableUnits ?? 0),
-			stopSell: Boolean(row.stopSell),
 			pricePerNight: row.pricePerNight == null ? null : Number(row.pricePerNight),
 			currency: String(row.currency ?? "USD"),
 			primaryBlocker: row.primaryBlocker == null ? null : String(row.primaryBlocker),

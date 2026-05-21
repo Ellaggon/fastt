@@ -95,9 +95,8 @@ export async function applyInventoryMutation<T>(params: {
 	}
 
 	const validateInstructions = async (instructions: RecomputeInstruction[]) => {
-		const { loadEffectiveAvailabilityForValidation } = await import(
-			"@/container/inventory.container"
-		)
+		const { loadEffectiveAvailabilityForValidation } =
+			await import("@/container/inventory.container")
 		for (const instruction of instructions) {
 			const rows = await loadEffectiveAvailabilityForValidation({
 				variantId: instruction.variantId,
@@ -110,7 +109,6 @@ export async function applyInventoryMutation<T>(params: {
 				const held = Number(row.heldUnits ?? 0)
 				const booked = Number(row.bookedUnits ?? 0)
 				const available = Number(row.availableUnits ?? 0)
-				const stopSell = Boolean(row.stopSell)
 				const isSellable = Boolean(row.isSellable)
 
 				const invalid =
@@ -120,7 +118,7 @@ export async function applyInventoryMutation<T>(params: {
 					available < 0 ||
 					held + booked > total ||
 					available !== Math.max(0, total - held - booked) ||
-					isSellable !== (available > 0 && stopSell === false)
+					isSellable !== available > 0
 
 				if (invalid) {
 					throw new Error(

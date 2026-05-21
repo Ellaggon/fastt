@@ -202,7 +202,6 @@ describe("integration/search policy blocker", () => {
 
 			const suv = await db
 				.select({
-					isSellable: SearchUnitView.isSellable,
 					primaryBlocker: SearchUnitView.primaryBlocker,
 				})
 				.from(SearchUnitView)
@@ -214,7 +213,6 @@ describe("integration/search policy blocker", () => {
 					)
 				)
 				.get()
-			expect(Boolean(suv?.isSellable)).toBe(false)
 			expect(String(suv?.primaryBlocker ?? "")).toBe("POLICY_BLOCKED")
 
 			const offers = await searchOffers({

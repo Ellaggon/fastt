@@ -6,21 +6,17 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { productRepository, variantManagementRepository } from "@/container"
 
-// Deprecated ARI compatibility: legacy Inventory Bulk payloads may still carry
-// open_sales/close_sales. Canonical sellability operations must go through Restrictions.
 const bulkPreviewLegacySchema = z.object({
 	variantId: z.string().min(1),
 	dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 	dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 	daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
 	operation: z.object({
-		type: z.enum(["open_sales", "close_sales", "set_inventory"]),
+		type: z.literal("set_inventory"),
 		value: z.number().int().min(0).optional(),
 	}),
 })
 
-// Deprecated ARI compatibility: OPEN/CLOSE are accepted for old clients only.
-// Calendar and current Bulk UI send SET_INVENTORY for physical capacity.
 const bulkPreviewV2Schema = z.object({
 	selection: z.object({
 		variantIds: z.array(z.string().min(1)).min(1),
@@ -35,7 +31,7 @@ const bulkPreviewV2Schema = z.object({
 		})
 		.optional(),
 	operation: z.object({
-		type: z.enum(["OPEN", "CLOSE", "SET_INVENTORY"]),
+		type: z.literal("SET_INVENTORY"),
 		value: z.number().int().min(0).optional(),
 	}),
 	context: z

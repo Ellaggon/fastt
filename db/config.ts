@@ -433,9 +433,9 @@ const DailyInventory = defineTable({
 		date: column.text(), // YYYY-MM-DD
 		totalInventory: column.number(), // Ej: 10 habitaciones físicas
 		reservedCount: column.number({ default: 0 }),
-		// @deprecated ARI compatibility: historical inventory-owned stop-sell fallback.
-		// Canonical sellability belongs to Restriction/EffectiveRestriction. Keep until
-		// search/materialization no longer needs availability fallback semantics.
+		// @deprecated ARI compatibility: historical inventory-owned stop-sell flag.
+		// Canonical sellability belongs to Restriction/EffectiveRestriction; runtime
+		// inventory and search code must not consume this field.
 		stopSell: column.boolean({ default: false }),
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
@@ -453,7 +453,7 @@ const EffectiveAvailability = defineTable({
 		availableUnits: column.number({ default: 0 }),
 		// @deprecated ARI compatibility: legacy column retained for older rows only.
 		// New recomputes write physical availability and never derive sellability here.
-		stopSell: column.boolean({ default: true }),
+		stopSell: column.boolean({ default: false }),
 		// @deprecated ARI compatibility: historical sellability mirror. Treat as physical
 		// availability compatibility until SearchUnitView fully drops this column.
 		isSellable: column.boolean({ default: false }),
@@ -478,9 +478,9 @@ const SearchUnitView = defineTable({
 		isSellable: column.boolean({ default: false }),
 		isAvailable: column.boolean({ default: false }),
 		availableUnits: column.number({ default: 0 }),
-		// Search-facing sellability flag. Restrictions should be the canonical source;
-		// EffectiveAvailability remains a compatibility fallback for older materializations.
-		stopSell: column.boolean({ default: true }),
+		// Search-facing sellability flag. Restrictions/EffectiveRestriction are the
+		// canonical source; keep this column until SearchUnitView DTOs drop it.
+		stopSell: column.boolean({ default: false }),
 		pricePerNight: column.number({ optional: true }),
 		currency: column.text({ default: "USD" }),
 		primaryBlocker: column.text({ optional: true }),

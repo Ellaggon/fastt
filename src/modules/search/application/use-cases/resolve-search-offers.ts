@@ -172,7 +172,6 @@ export async function resolveSearchOffers(
 			variantId: String(row.variantId),
 			ratePlanId: String(row.ratePlanId),
 			date: String(row.date),
-			isSellable: Boolean(row.isSellable),
 			isAvailable: Boolean(row.isAvailable),
 			availableUnits: Number(row.availableUnits ?? 0),
 			hasPrice: Boolean(row.hasPrice),
@@ -220,11 +219,9 @@ export async function resolveSearchOffers(
 					String(row.date),
 					{
 						date: String(row.date),
-						isSellable: Boolean(row.isSellable),
 						isAvailable: Boolean(row.isAvailable),
 						hasAvailability: Boolean(row.hasAvailability),
 						hasPrice: Boolean(row.hasPrice),
-						stopSell: Boolean(row.stopSell),
 						availableUnits: Math.max(0, Number(row.availableUnits ?? 0)),
 						minStay: row.minStay == null ? null : Number(row.minStay),
 						maxStay: row.maxStay == null ? null : Number(row.maxStay),
@@ -344,7 +341,13 @@ export async function resolveSearchOffers(
 			}
 
 			for (const day of stayDayRows) {
-				if (Boolean(day.isSellable) && String(day.primaryBlocker ?? "").trim().length > 0) {
+				if (
+					Boolean(day.isAvailable) &&
+					Boolean(day.hasAvailability) &&
+					Boolean(day.hasPrice) &&
+					Math.max(0, Number(day.availableUnits ?? 0)) >= requestedRooms &&
+					String(day.primaryBlocker ?? "").trim().length > 0
+				) {
 					sawInconsistentViewData = true
 				}
 			}

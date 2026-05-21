@@ -14,14 +14,13 @@ describe("LegacySellabilityCompatibility", () => {
 				scope: "variant",
 			},
 			availabilityRow: {
-				stopSell: true,
 				availableUnits: 2,
 			},
 		})
 
 		expect(result).toMatchObject({
 			source: "effective_restriction",
-			usedLegacyAvailabilityStopSell: false,
+			usedMissingEffectiveRestrictionCompatibility: false,
 			stopSell: false,
 			minStay: 3,
 			maxStay: 9,
@@ -30,19 +29,18 @@ describe("LegacySellabilityCompatibility", () => {
 		})
 	})
 
-	it("encapsulates availability stopSell as explicit legacy compatibility only", () => {
+	it("treats missing EffectiveRestriction as no commercial restriction without consuming availability stopSell", () => {
 		const result = resolveSearchSellability({
 			restrictionRow: null,
 			availabilityRow: {
-				stopSell: true,
 				availableUnits: 4,
 			},
 		})
 
 		expect(result).toMatchObject({
-			source: "availability_stop_sell_compatibility",
-			usedLegacyAvailabilityStopSell: true,
-			stopSell: true,
+			source: "missing_effective_restriction_compatibility",
+			usedMissingEffectiveRestrictionCompatibility: true,
+			stopSell: false,
 			minStay: null,
 			cta: false,
 			ctd: false,
