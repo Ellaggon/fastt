@@ -45,8 +45,6 @@ describe("integration/inventory flow", () => {
 
 		expect(range).toHaveLength(2)
 		expect(range[0]?.availableUnits).toBe(5)
-		expect(range[0]?.isSellable).toBe(true)
 		expect(range[1]?.availableUnits).toBe(5)
-		expect(range[1]?.isSellable).toBe(true)
 	})
 })

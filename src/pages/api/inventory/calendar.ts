@@ -7,6 +7,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { productRepository, variantManagementRepository } from "@/container"
 import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
 
+// Inventory calendar is physical-only: commercial sellability belongs to Restrictions.
 const schema = z.object({
 	variantId: z.string().min(1),
 	startDate: z.string().min(1),
@@ -182,10 +183,6 @@ export const GET: APIRoute = async ({ request }) => {
 				bookedUnits: row.bookedUnits,
 				availableUnits: row.availableUnits,
 				available: row.availableUnits,
-				// Deprecated compatibility fields kept stable for old clients. Inventory
-				// calendar is physical-only; commercial stop-sell lives in Restrictions.
-				stopSell: false,
-				isSellable: row.availableUnits > 0,
 				hasEffective: byDate.has(date),
 				hasPrice: hasPriceByDate.has(date),
 				unsellableReason: !byDate.has(date)

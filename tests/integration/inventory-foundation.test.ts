@@ -202,8 +202,8 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		expect(byDate.get("2026-03-10")?.totalUnits).toBe(5)
 		expect(byDate.get("2026-03-11")?.totalUnits).toBe(0)
 		expect(byDate.get("2026-03-12")?.totalUnits).toBe(0)
-		expect(byDate.get("2026-03-11")?.stopSell).toBe(false)
-		expect(byDate.get("2026-03-11")?.isSellable).toBe(false)
+		expect("stopSell" in (byDate.get("2026-03-11") as any)).toBe(false)
+		expect("isSellable" in (byDate.get("2026-03-11") as any)).toBe(false)
 	})
 
 	it("inventory/set-default creates config + inventory for variants missing DailyInventory", async () => {

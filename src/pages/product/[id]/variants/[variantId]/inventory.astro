@@ -141,8 +141,6 @@ const rowByDate = new Map(
 			heldUnits: Number(row.heldUnits ?? 0),
 			bookedUnits: Number(row.bookedUnits ?? 0),
 			availableUnits: Number(row.availableUnits ?? 0),
-			stopSell: false,
-			isSellable: Number(row.availableUnits ?? 0) > 0,
 			hasEffective: Boolean(row.effectiveId),
 			hasPrice: hasCommercialCoverage,
 			unsellableReason: !Boolean(row.effectiveId)
@@ -166,8 +164,6 @@ const initialRows = enumerateDates(initialFrom, initialTo).map((date) => {
 		heldUnits: 0,
 		bookedUnits: 0,
 		availableUnits: 0,
-		stopSell: false,
-		isSellable: false,
 		hasEffective: false,
 		hasPrice: false,
 		unsellableReason: "MISSING_AVAILABILITY",
@@ -775,8 +771,6 @@ const taskQueue = [
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 0,
-					stopSell: false,
-					isSellable: false,
 					hasEffective: false,
 					hasPrice: false,
 					unsellableReason: "MISSING_AVAILABILITY",
@@ -959,7 +953,6 @@ const taskQueue = [
 						0,
 						total - Number(row.heldUnits || 0) - Number(row.bookedUnits || 0)
 					)
-					row.isSellable = row.availableUnits > 0
 				}
 				updateCell(date)
 			}
@@ -1072,7 +1065,6 @@ const taskQueue = [
 							variantId,
 							date,
 							totalInventory: prev.totalUnits,
-							stopSell: prev.stopSell,
 						})
 					})
 				)
@@ -1143,8 +1135,6 @@ const taskQueue = [
 							heldUnits: Number(row.heldUnits ?? 0),
 							bookedUnits: Number(row.bookedUnits ?? 0),
 							availableUnits: Number(row.availableUnits ?? row.available ?? 0),
-							stopSell: false,
-							isSellable: Boolean(row.isSellable ?? false),
 							hasEffective: Boolean(row.hasEffective ?? true),
 							hasPrice: Boolean(row.hasPrice ?? true),
 							unsellableReason: row.unsellableReason ?? null,

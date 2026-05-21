@@ -140,8 +140,6 @@ describe("integration/search policy blocker", () => {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 2,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
@@ -151,8 +149,6 @@ describe("integration/search policy blocker", () => {
 						heldUnits: 0,
 						bookedUnits: 0,
 						availableUnits: 2,
-						stopSell: false,
-						isSellable: true,
 						computedAt: new Date(),
 					},
 				})

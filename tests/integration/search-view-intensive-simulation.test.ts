@@ -1,15 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-	and,
-	db,
-	eq,
-	gte,
-	lt,
-	EffectiveAvailability,
-	EffectivePricingV2,
-	SearchUnitView,
-	sql,
-} from "astro:db"
+import { and, db, eq, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
 
 import { searchOffers } from "@/container"
 import { GET as getCoverage } from "@/pages/api/internal/search/coverage"
@@ -159,13 +149,10 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 				const date = dates[d]
 				const basePrice = 80 + (variantIndex % 20) + (d % 7) * 2
 				let availableUnits = 0
-				let isSellable = false
 				if (profile === "high") {
 					availableUnits = 8 + (d % 3)
-					isSellable = true
 				} else if (profile === "low") {
 					availableUnits = d % 2 === 0 ? 1 : 2
-					isSellable = true
 				}
 
 				await db
@@ -178,8 +165,6 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 						heldUnits: 0,
 						bookedUnits: Math.max(0, Math.max(availableUnits, 1) - availableUnits),
 						availableUnits,
-						stopSell: false,
-						isSellable: isSellable && availableUnits > 0,
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
@@ -189,8 +174,6 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 							heldUnits: 0,
 							bookedUnits: Math.max(0, Math.max(availableUnits, 1) - availableUnits),
 							availableUnits,
-							stopSell: false,
-							isSellable: isSellable && availableUnits > 0,
 							computedAt: new Date(),
 						},
 					})
@@ -434,8 +417,6 @@ async function validateAutoBackfill() {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: 5,
-				stopSell: false,
-				isSellable: true,
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
@@ -445,8 +426,6 @@ async function validateAutoBackfill() {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 5,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date(),
 				},
 			})
@@ -592,8 +571,6 @@ async function validateMutations() {
 			heldUnits: 0,
 			bookedUnits: 0,
 			availableUnits: 5,
-			stopSell: false,
-			isSellable: true,
 			computedAt: new Date(),
 		} as any)
 		.onConflictDoUpdate({
@@ -603,8 +580,6 @@ async function validateMutations() {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: 5,
-				stopSell: false,
-				isSellable: true,
 				computedAt: new Date(),
 			},
 		})
@@ -678,7 +653,6 @@ async function validateMutations() {
 			totalUnits: 1,
 			heldUnits: 0,
 			bookedUnits: 1,
-			isSellable: false,
 			computedAt: new Date(),
 		} as any)
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))
@@ -726,7 +700,6 @@ async function validateMutations() {
 			totalUnits: 3,
 			heldUnits: 0,
 			bookedUnits: 0,
-			isSellable: true,
 			computedAt: new Date(),
 		} as any)
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))

@@ -77,8 +77,6 @@ async function seedHotelVariant(params: {
 			heldUnits: 0,
 			bookedUnits: 0,
 			availableUnits: params.totalInventory,
-			stopSell: false,
-			isSellable: params.totalInventory > 0,
 			computedAt: new Date(),
 		} as any)
 		.onConflictDoUpdate({
@@ -88,8 +86,6 @@ async function seedHotelVariant(params: {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: params.totalInventory,
-				stopSell: false,
-				isSellable: params.totalInventory > 0,
 				computedAt: new Date(),
 			},
 		})

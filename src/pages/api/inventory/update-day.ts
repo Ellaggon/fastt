@@ -14,9 +14,6 @@ const schema = z.object({
 	variantId: z.string().min(1),
 	date: z.string().min(1),
 	totalInventory: z.number().int().min(0).optional(),
-	// Deprecated ARI compatibility: canonical Inventory clients should only send
-	// totalInventory. Commercial stop-sell belongs to Restrictions.
-	stopSell: z.boolean().optional(),
 })
 
 function toExclusiveDate(isoDate: string): string {
@@ -29,13 +26,12 @@ function buildIdempotencyKey(input: {
 	variantId: string
 	date: string
 	totalInventory?: number
-	stopSell?: boolean
 	requestId?: string
 }): string {
 	const requestId = String(input.requestId ?? "").trim()
 	if (requestId.length > 0) return `inventory_update_day:${requestId}`
 
-	return `inventory_update_day:${input.variantId}:${input.date}:${input.totalInventory ?? "na"}:${input.stopSell ?? "na"}`
+	return `inventory_update_day:${input.variantId}:${input.date}:${input.totalInventory ?? "na"}`
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -57,7 +53,6 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
-		const stopSellRaw = form.get("stopSell")
 		const totalInvRaw = form.get("totalInventory")
 
 		const parsed = schema.parse({
@@ -65,13 +60,9 @@ export const POST: APIRoute = async ({ request }) => {
 			date: String(form.get("date") ?? "").trim(),
 			totalInventory:
 				totalInvRaw == null || String(totalInvRaw).trim() === "" ? undefined : Number(totalInvRaw),
-			stopSell:
-				stopSellRaw == null || String(stopSellRaw).trim() === ""
-					? undefined
-					: String(stopSellRaw).trim() === "true",
 		})
 
-		if (parsed.totalInventory === undefined && parsed.stopSell === undefined) {
+		if (parsed.totalInventory === undefined) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
@@ -115,8 +106,7 @@ export const POST: APIRoute = async ({ request }) => {
 					variantId: parsed.variantId,
 					date: parsed.date,
 					totalInventory: parsed.totalInventory,
-					stopSell: parsed.stopSell,
-				} as any)
+				})
 			},
 			recompute: {
 				variantId: parsed.variantId,
@@ -127,7 +117,6 @@ export const POST: APIRoute = async ({ request }) => {
 					variantId: parsed.variantId,
 					date: parsed.date,
 					totalInventory: parsed.totalInventory,
-					stopSell: parsed.stopSell,
 					requestId:
 						request.headers.get("x-request-id") ?? request.headers.get("x-idempotency-key") ?? "",
 				}),

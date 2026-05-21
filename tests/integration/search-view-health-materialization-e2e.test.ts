@@ -140,7 +140,6 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 					variantId,
 					ratePlanId,
 					date,
-					stopSell: false,
 					minStay: null,
 					maxStay: null,
 					cta: false,
@@ -155,7 +154,6 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 						EffectiveRestriction.date,
 					],
 					set: {
-						stopSell: false,
 						minStay: null,
 						maxStay: null,
 						cta: false,
@@ -178,8 +176,6 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 4,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date("2026-11-09T12:00:00.000Z"),
 				} as any)
 				.onConflictDoUpdate({
@@ -189,8 +185,6 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 						heldUnits: 0,
 						bookedUnits: 0,
 						availableUnits: 4,
-						stopSell: false,
-						isSellable: true,
 						computedAt: new Date("2026-11-09T12:00:00.000Z"),
 					},
 				})

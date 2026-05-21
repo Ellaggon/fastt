@@ -158,10 +158,6 @@ export async function recomputeEffectiveAvailabilityRange(
 					heldUnits,
 					bookedUnits,
 					availableUnits,
-					// Legacy compatibility mirrors the physical projection without owning
-					// sellability. Restrictions/EffectiveRestriction now own stop-sell.
-					stopSell: false,
-					isSellable: availableUnits > 0,
 					computedAt,
 				}
 			})

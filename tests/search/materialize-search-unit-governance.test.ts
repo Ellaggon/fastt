@@ -38,7 +38,7 @@ describe("materialize search unit governance hardening", () => {
 		configureSearchUnitMaterializationRepository(repoMock)
 		repoMock.resolveProductId.mockResolvedValue("prod-1")
 		repoMock.loadMaterializationInputs.mockResolvedValue({
-			availabilityRow: { stopSell: false, availableUnits: 2 },
+			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
 			restrictionRow: { stopSell: false, minStay: 1, cta: false, ctd: false },
 		})
@@ -72,10 +72,8 @@ describe("materialize search unit governance hardening", () => {
 			totalGuests: persisted.totalGuests,
 			hasAvailability: persisted.hasAvailability,
 			hasPrice: persisted.hasPrice,
-			isSellable: persisted.isSellable,
 			isAvailable: persisted.isAvailable,
 			availableUnits: persisted.availableUnits,
-			stopSell: persisted.stopSell,
 			pricePerNight: persisted.pricePerNight,
 			currency: persisted.currency,
 			primaryBlocker: persisted.primaryBlocker,
@@ -112,9 +110,9 @@ describe("materialize search unit governance hardening", () => {
 		expect(result.blocker).toBe("MISSING_COVERAGE")
 	})
 
-	it("lets EffectiveRestriction override legacy availability stopSell fallback", async () => {
+	it("uses EffectiveRestriction as the persisted commercial blocker source", async () => {
 		repoMock.loadMaterializationInputs.mockResolvedValue({
-			availabilityRow: { stopSell: true, availableUnits: 2 },
+			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
 			restrictionRow: { stopSell: false, minStay: 1, cta: false, ctd: false },
 		})
@@ -129,13 +127,14 @@ describe("materialize search unit governance hardening", () => {
 
 		const persisted = repoMock.upsertSearchUnitViewRow.mock.calls[0][0]
 		expect(result.isSellable).toBe(true)
-		expect(persisted.stopSell).toBe(false)
+		expect("stopSell" in persisted).toBe(false)
+		expect("isSellable" in persisted).toBe(false)
 		expect(persisted.primaryBlocker).toBe(null)
 	})
 
 	it("does not resurrect availability stopSell when EffectiveRestriction is missing", async () => {
 		repoMock.loadMaterializationInputs.mockResolvedValue({
-			availabilityRow: { stopSell: true, availableUnits: 2 },
+			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
 			restrictionRow: null,
 		})
@@ -150,7 +149,8 @@ describe("materialize search unit governance hardening", () => {
 
 		const persisted = repoMock.upsertSearchUnitViewRow.mock.calls[0][0]
 		expect(result.isSellable).toBe(true)
-		expect(persisted.stopSell).toBe(false)
+		expect("stopSell" in persisted).toBe(false)
+		expect("isSellable" in persisted).toBe(false)
 		expect(persisted.primaryBlocker).toBe(null)
 	})
 

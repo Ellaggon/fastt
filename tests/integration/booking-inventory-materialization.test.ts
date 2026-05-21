@@ -176,7 +176,6 @@ async function seedBookingReadyVariant(params: {
 			date,
 			totalInventory: params.totalUnits,
 			reservedCount: 0,
-			stopSell: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		} as any)

@@ -15,9 +15,6 @@ const schema = z.object({
 	startDate: z.string().min(1),
 	endDate: z.string().min(1),
 	totalInventory: z.number().int().min(0).optional(),
-	// Deprecated ARI compatibility: canonical Inventory clients should only send
-	// totalInventory. Commercial stop-sell belongs to Restrictions.
-	stopSell: z.boolean().optional(),
 })
 
 function parseISODate(s: string): Date | null {
@@ -45,7 +42,6 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 
-		const stopSellRaw = form.get("stopSell")
 		const totalInvRaw = form.get("totalInventory")
 
 		const parsed = schema.parse({
@@ -54,13 +50,9 @@ export const POST: APIRoute = async ({ request }) => {
 			endDate: String(form.get("endDate") ?? "").trim(),
 			totalInventory:
 				totalInvRaw == null || String(totalInvRaw).trim() === "" ? undefined : Number(totalInvRaw),
-			stopSell:
-				stopSellRaw == null || String(stopSellRaw).trim() === ""
-					? undefined
-					: String(stopSellRaw).trim() === "true",
 		})
 
-		if (parsed.totalInventory === undefined && parsed.stopSell === undefined) {
+		if (parsed.totalInventory === undefined) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
@@ -105,15 +97,14 @@ export const POST: APIRoute = async ({ request }) => {
 					startDate: start,
 					endDate: end,
 					totalInventory: parsed.totalInventory,
-					stopSell: parsed.stopSell,
-				} as any)
+				})
 			},
 			recompute: {
 				variantId: parsed.variantId,
 				from: parsed.startDate,
 				to: parsed.endDate,
 				reason: "inventory_bulk_update",
-				idempotencyKey: `inventory_bulk_update:${parsed.variantId}:${parsed.startDate}:${parsed.endDate}:${parsed.totalInventory ?? "na"}:${parsed.stopSell ?? "na"}`,
+				idempotencyKey: `inventory_bulk_update:${parsed.variantId}:${parsed.startDate}:${parsed.endDate}:${parsed.totalInventory ?? "na"}`,
 			},
 			logContext: {
 				action: "inventory_bulk_update",

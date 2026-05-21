@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 
-type DailyRow = { date: string; totalInventory: number; stopSell?: boolean }
+type DailyRow = { date: string; totalInventory: number }
 type LockRow = { date: string; quantity: number; expiresAt: Date; bookingId: string | null }
 
 function makeDeps(params: { dailyRows: DailyRow[]; lockRows: LockRow[]; now?: Date }) {
@@ -30,7 +30,7 @@ function makeDeps(params: { dailyRows: DailyRow[]; lockRows: LockRow[]; now?: Da
 describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 	it("fecha con inventory y sin locks", async () => {
 		const { deps, store } = makeDeps({
-			dailyRows: [{ date: "2026-05-02", totalInventory: 5, stopSell: false }],
+			dailyRows: [{ date: "2026-05-02", totalInventory: 5 }],
 			lockRows: [],
 		})
 
@@ -50,13 +50,11 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 		expect(row.heldUnits).toBe(0)
 		expect(row.bookedUnits).toBe(0)
 		expect(row.availableUnits).toBe(5)
-		expect(row.stopSell).toBe(false)
-		expect(row.isSellable).toBe(true)
 	})
 
 	it("fecha con heldUnits (lock activo sin bookingId)", async () => {
 		const { deps, store } = makeDeps({
-			dailyRows: [{ date: "2026-05-02", totalInventory: 5, stopSell: false }],
+			dailyRows: [{ date: "2026-05-02", totalInventory: 5 }],
 			lockRows: [
 				{
 					date: "2026-05-02",
@@ -82,12 +80,11 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 		expect(row.heldUnits).toBe(2)
 		expect(row.bookedUnits).toBe(0)
 		expect(row.availableUnits).toBe(3)
-		expect(row.isSellable).toBe(true)
 	})
 
 	it("fecha con bookedUnits (lock con bookingId)", async () => {
 		const { deps, store } = makeDeps({
-			dailyRows: [{ date: "2026-05-02", totalInventory: 5, stopSell: false }],
+			dailyRows: [{ date: "2026-05-02", totalInventory: 5 }],
 			lockRows: [
 				{
 					date: "2026-05-02",
@@ -112,7 +109,6 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 		expect(row.heldUnits).toBe(0)
 		expect(row.bookedUnits).toBe(3)
 		expect(row.availableUnits).toBe(2)
-		expect(row.isSellable).toBe(true)
 	})
 
 	it("fecha sin DailyInventory aplica fallback seguro", async () => {
@@ -133,14 +129,12 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 
 		const row = store.get("var_4:2026-05-02")
 		expect(row.totalUnits).toBe(0)
-		expect(row.stopSell).toBe(false)
 		expect(row.availableUnits).toBe(0)
-		expect(row.isSellable).toBe(false)
 	})
 
 	it("rerun sobre mismo rango es idempotente en valores de negocio", async () => {
 		const { deps, store } = makeDeps({
-			dailyRows: [{ date: "2026-05-02", totalInventory: 4, stopSell: false }],
+			dailyRows: [{ date: "2026-05-02", totalInventory: 4 }],
 			lockRows: [
 				{
 					date: "2026-05-02",
@@ -184,7 +178,5 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 		expect(second.heldUnits).toBe(first.heldUnits)
 		expect(second.bookedUnits).toBe(first.bookedUnits)
 		expect(second.availableUnits).toBe(first.availableUnits)
-		expect(second.stopSell).toBe(first.stopSell)
-		expect(second.isSellable).toBe(first.isSellable)
 	})
 })

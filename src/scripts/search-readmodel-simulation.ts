@@ -158,13 +158,10 @@ async function seedDataset(): Promise<{
 				const date = dates[d]
 				const basePrice = 80 + (variantIndex % 20) + (d % 7) * 2
 				let availableUnits = 0
-				let isSellable = false
 				if (profile === "high") {
 					availableUnits = 8 + (d % 3)
-					isSellable = true
 				} else if (profile === "low") {
 					availableUnits = d % 2 === 0 ? 1 : 2
-					isSellable = true
 				}
 				await db
 					.insert(EffectiveAvailability)
@@ -176,8 +173,6 @@ async function seedDataset(): Promise<{
 						heldUnits: 0,
 						bookedUnits: Math.max(0, Math.max(availableUnits, 1) - availableUnits),
 						availableUnits,
-						stopSell: false,
-						isSellable: isSellable && availableUnits > 0,
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
@@ -187,8 +182,6 @@ async function seedDataset(): Promise<{
 							heldUnits: 0,
 							bookedUnits: Math.max(0, Math.max(availableUnits, 1) - availableUnits),
 							availableUnits,
-							stopSell: false,
-							isSellable: isSellable && availableUnits > 0,
 							computedAt: new Date(),
 						},
 					})
@@ -391,8 +384,6 @@ async function validateAutoBackfill() {
 				heldUnits: 0,
 				bookedUnits: 0,
 				availableUnits: 5,
-				stopSell: false,
-				isSellable: true,
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
@@ -402,8 +393,6 @@ async function validateAutoBackfill() {
 					heldUnits: 0,
 					bookedUnits: 0,
 					availableUnits: 5,
-					stopSell: false,
-					isSellable: true,
 					computedAt: new Date(),
 				},
 			})
