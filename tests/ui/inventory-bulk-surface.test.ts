@@ -26,5 +26,7 @@ describe("ui/inventory bulk surface", () => {
 		const source = read("src/pages/inventory/index.astro")
 		expect(source).toContain("routes.inventoryBulk()")
 		expect(source).toContain("Ajustar cupo fisico del rango")
+		expect(source).toContain("mobile-calendar-action-sheet")
+		expect(source).toContain("mobile-calendar-grid")
 	})
 })
