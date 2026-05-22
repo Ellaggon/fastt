@@ -3,6 +3,7 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import MaterializationFreshnessStrip from "@/components/rates/MaterializationFreshnessStrip.astro"
+import MobileCalendarSheetStyles from "@/components/rates/MobileCalendarSheetStyles.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -74,7 +75,33 @@ const inventoryBulkHref = selected
 			</div>
 		</header>
 
-		<section class="grid gap-4 md:grid-cols-4">
+		<section
+			data-mobile-calendar-summary
+			class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs sm:hidden"
+		>
+			<span
+				class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 font-semibold text-slate-100"
+			>
+				{surface.summary.coveragePercent}% saludable
+			</span>
+			<span
+				class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300"
+			>
+				{availableDays} con cupo
+			</span>
+			<span
+				class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300"
+			>
+				{lowDays} bajos
+			</span>
+			<span
+				class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300"
+			>
+				{soldOutDays} agotados
+			</span>
+		</section>
+
+		<section class="hidden gap-4 sm:grid md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Cupo saludable</p>
 				<p class="mt-2 text-2xl font-semibold">{surface.summary.coveragePercent}%</p>
@@ -157,10 +184,40 @@ const inventoryBulkHref = selected
 						</Badge>
 					</div>
 				</div>
+				<p class="text-xs text-slate-500 sm:hidden">
+					Toca una fecha para editarla; toca otra fecha para crear un rango.
+				</p>
+
+				<details
+					data-mobile-operational-summary
+					class="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600 sm:hidden"
+				>
+					<summary
+						class="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold text-slate-900"
+					>
+						<span>Estado operativo</span>
+						<span class="text-[11px] font-medium text-slate-500">
+							{lowDays} bajos · {soldOutDays} agotados
+						</span>
+					</summary>
+					<div class="mt-3 grid gap-2">
+						<div class="flex flex-wrap gap-1">
+							<span class="rounded-full bg-white px-2 py-1"
+								>{heldDays + bookedDays} con demanda</span
+							>
+							<span class="rounded-full bg-white px-2 py-1">
+								{commercialSignalDays} restricciones
+							</span>
+							<span class="rounded-full bg-white px-2 py-1">
+								{surface.freshness.overall.label}: {surface.freshness.overall.state}
+							</span>
+						</div>
+					</div>
+				</details>
 
 				<div
 					data-inventory-intelligence-strip
-					class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-4"
+					class="hidden gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 sm:grid md:grid-cols-4"
 				>
 					<div>
 						<p class="font-semibold text-slate-900">{soldOutDays} agotados</p>
@@ -180,15 +237,17 @@ const inventoryBulkHref = selected
 					</div>
 				</div>
 
-				<MaterializationFreshnessStrip
-					title="Actualizacion operacional"
-					description="Lectura ligera de capacidad, restricciones y search para este calendario."
-					items={[
-						surface.freshness.availability,
-						surface.freshness.restrictions,
-						surface.freshness.search,
-					]}
-				/>
+				<div class="hidden sm:block">
+					<MaterializationFreshnessStrip
+						title="Actualizacion operacional"
+						description="Lectura ligera de capacidad, restricciones y search para este calendario."
+						items={[
+							surface.freshness.availability,
+							surface.freshness.restrictions,
+							surface.freshness.search,
+						]}
+					/>
+				</div>
 
 				{
 					!selected ? (
@@ -198,49 +257,80 @@ const inventoryBulkHref = selected
 					) : (
 						<>
 							<div
+								id="inventorySheetBackdrop"
+								class="mobile-calendar-sheet-backdrop hidden"
+								aria-hidden="true"
+							/>
+							<div
 								id="inventoryRangePanel"
-								class="sticky top-3 z-20 hidden rounded-lg border border-blue-200 bg-blue-50/95 p-4 text-sm text-blue-950 shadow-sm backdrop-blur"
+								data-mobile-calendar-action-sheet
+								data-sheet-state="compact"
+								class="mobile-calendar-action-sheet sticky top-3 z-20 hidden rounded-lg border border-blue-200 bg-blue-50/95 p-4 text-sm text-blue-950 shadow-sm backdrop-blur"
 							>
-								<div class="flex flex-wrap items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="font-semibold">Ajustar cupo fisico del rango</p>
-										<p id="inventoryRangeSummary" class="text-blue-900">
-											Selecciona fecha inicio y fecha fin.
+								<div
+									data-mobile-sheet-handle
+									class="mobile-sheet-handle mx-auto mb-3 hidden h-1 w-12 rounded-full bg-blue-200"
+								/>
+								<div class="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_auto] md:items-start">
+									<div class="min-w-0 space-y-1.5">
+										<div class="flex items-start justify-between gap-2">
+											<p class="text-sm leading-5 font-semibold sm:text-base">
+												Ajustar cupo fisico del rango
+											</p>
+											<div class="flex items-center gap-1 md:hidden">
+												<button
+													id="inventorySheetExpandBtn"
+													type="button"
+													class="rounded border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-900"
+												>
+													Expandir
+												</button>
+												<button
+													id="inventorySheetCloseBtn"
+													type="button"
+													class="rounded border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-900"
+												>
+													Cerrar
+												</button>
+											</div>
+										</div>
+										<p id="inventoryRangeSummary" class="text-xs text-blue-900 sm:text-sm">
+											Toca una fecha para editarla o toca otra para completar el rango.
 										</p>
-										<p id="inventoryRangePreview" class="text-xs text-blue-800" />
+										<p id="inventoryRangePreview" class="hidden text-xs text-blue-800 sm:block" />
 									</div>
-									<div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
-										<div class="flex flex-wrap items-center gap-1">
+									<div class="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+										<div class="hidden w-full gap-1 overflow-x-auto pb-1 sm:flex sm:flex-wrap sm:overflow-visible sm:pb-0">
 											<button
 												type="button"
 												data-inventory-range-preset="visible_week"
-												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+												class="shrink-0 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
 											>
 												Semana visible
 											</button>
 											<button
 												type="button"
 												data-inventory-range-preset="visible_month"
-												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+												class="shrink-0 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
 											>
 												Mes visible
 											</button>
 											<button
 												type="button"
 												data-inventory-range-preset="next_7"
-												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+												class="shrink-0 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
 											>
 												Prox. 7 dias
 											</button>
 											<button
 												type="button"
 												data-inventory-range-preset="next_30"
-												class="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
+												class="shrink-0 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-950 hover:bg-blue-100"
 											>
 												Prox. 30 dias
 											</button>
 										</div>
-										<div class="grid w-full gap-2 sm:w-auto sm:grid-cols-[10rem_auto_auto_auto] sm:items-end">
+										<div class="grid w-full grid-cols-[1fr_auto_auto] gap-2 sm:w-auto sm:grid-cols-[10rem_auto_auto_auto] sm:items-end">
 											<label class="space-y-1">
 												<span class="text-xs font-medium text-blue-950">Nuevo cupo</span>
 												<input
@@ -277,20 +367,72 @@ const inventoryBulkHref = selected
 										</div>
 										<a
 											href={inventoryBulkHref}
-											class="text-xs font-medium text-blue-800 underline-offset-2 hover:underline"
+											class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
 										>
 											Multi-unidad avanzado
 										</a>
 									</div>
 								</div>
+								<div
+									id="inventoryDayEditor"
+									class="mt-3 rounded-md border border-blue-200 bg-white/80 p-2.5 sm:mt-4 sm:p-3"
+								>
+									<div class="grid grid-cols-[1fr_auto] items-end gap-2 sm:flex sm:flex-wrap">
+										<label class="min-w-0 flex-1 space-y-1 sm:max-w-xs">
+											<span class="text-xs font-medium text-blue-950">
+												Editar fecha seleccionada
+											</span>
+											<input
+												id="inventoryDayValue"
+												type="number"
+												min="0"
+												step="1"
+												placeholder="Cupo diario"
+												class="w-full rounded border border-blue-200 px-3 py-2 text-slate-900"
+											/>
+										</label>
+										<div class="flex gap-1 sm:contents">
+											<button
+												type="button"
+												data-inventory-quick-delta="-1"
+												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+											>
+												-1
+											</button>
+											<button
+												type="button"
+												data-inventory-quick-delta="1"
+												class="rounded border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+											>
+												+1
+											</button>
+										</div>
+										<button
+											id="inventoryDaySaveBtn"
+											type="button"
+											class="col-span-2 rounded bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 sm:col-span-1"
+										>
+											Guardar fecha
+										</button>
+									</div>
+									<p id="inventoryDayHint" class="mt-2 hidden text-xs text-blue-800 sm:block">
+										Usa este editor para una noche; usa el rango para varias.
+									</p>
+								</div>
 							</div>
-							<div class="grid gap-2 md:grid-cols-7">
+							<div class="mobile-calendar-grid grid grid-cols-7 gap-1 md:gap-2">
 								{surface.days.map((day) => (
 									<div
 										data-inventory-day-card
 										data-date={day.date}
+										data-current-inventory={String(day.totalUnits)}
+										role={day.isPast ? undefined : "button"}
+										tabindex={day.isPast ? undefined : "0"}
+										aria-label={`Seleccionar ${day.date} para editar cupo o rango`}
 										class:list={[
-											"min-h-36 rounded-lg border p-3",
+											"mobile-calendar-cell min-h-[4.75rem] rounded-lg border p-1.5 transition hover:-translate-y-0.5 hover:shadow-sm md:min-h-32 md:p-3",
+											!day.isPast &&
+												"cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500",
 											day.status === "available" && "border-emerald-200 bg-emerald-50",
 											day.status === "low" && "border-amber-200 bg-amber-50",
 											day.status === "sold_out" && "border-red-200 bg-red-50",
@@ -298,34 +440,53 @@ const inventoryBulkHref = selected
 											day.status === "past" && "border-slate-200 bg-slate-50 text-slate-500",
 										]}
 									>
-										<div class="flex items-start justify-between gap-2">
+										<div class="flex items-start justify-between gap-1">
 											<div>
-												<p class="text-xs text-slate-500">{day.weekday}</p>
-												<p class="text-lg font-semibold text-slate-950">{day.day}</p>
+												<p class="text-[10px] text-slate-500 md:text-xs">{day.weekday}</p>
+												<p class="text-sm font-semibold text-slate-950 md:text-lg">{day.day}</p>
 											</div>
-											<Badge
-												variant={
-													day.status === "available"
-														? "success"
-														: day.status === "low" || day.status === "missing"
-															? "warning"
-															: day.status === "sold_out"
-																? "error"
-																: "neutral"
-												}
-											>
-												{day.capacitySignalLabel}
-											</Badge>
+											<span
+												aria-hidden="true"
+												class:list={[
+													"mt-1 h-2 w-2 rounded-full md:hidden",
+													day.status === "available" && "bg-emerald-500",
+													day.status === "low" && "bg-amber-500",
+													day.status === "sold_out" && "bg-red-500",
+													day.status === "missing" && "bg-slate-400",
+													day.status === "past" && "bg-slate-300",
+												]}
+											/>
+											<span class="hidden md:inline-flex">
+												<Badge
+													variant={
+														day.status === "available"
+															? "success"
+															: day.status === "low" || day.status === "missing"
+																? "warning"
+																: day.status === "sold_out"
+																	? "error"
+																	: "neutral"
+													}
+												>
+													{day.capacitySignalLabel}
+												</Badge>
+											</span>
 										</div>
-										<p class="mt-3 text-base font-semibold text-slate-950">
-											{day.availableUnits} disponibles
+										<p class="mobile-priority-signal mt-1 truncate text-[11px] font-semibold text-slate-950 md:mt-3 md:text-base">
+											<span class="md:hidden" data-inventory-output>
+												{day.availableUnits} disp.
+											</span>
+											<span class="hidden md:inline">{day.availableUnits} disponibles</span>
 										</p>
-										<p class="mt-1 text-xs text-slate-600">
+										<p class="mt-1 hidden text-xs text-slate-600 sm:block">
 											{day.utilizationPercent == null
 												? "Sin lectura de ocupacion fisica"
 												: `${day.utilizationPercent}% comprometido fisicamente`}
 										</p>
-										<div class="mt-2 grid grid-cols-3 gap-1 text-[11px] text-slate-600">
+										<p class="mt-1 truncate text-[10px] text-slate-600 sm:hidden">
+											Total {day.totalUnits} · Res {day.bookedUnits} · Ret {day.heldUnits}
+										</p>
+										<div class="mt-2 hidden grid-cols-3 gap-1 text-[11px] text-slate-600 sm:grid">
 											<span class="rounded bg-white/70 px-1.5 py-1">
 												Total <strong class="text-slate-900">{day.totalUnits}</strong>
 											</span>
@@ -336,24 +497,26 @@ const inventoryBulkHref = selected
 												Retenido <strong class="text-slate-900">{day.heldUnits}</strong>
 											</span>
 										</div>
-										<div class="mt-2 flex flex-wrap gap-1">
+										<div class="mt-1 flex flex-wrap gap-1 md:mt-2">
 											{day.status === "low" ? (
-												<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-													Cupo bajo
+												<span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 md:px-2 md:text-[11px]">
+													<span class="md:hidden">Bajo</span>
+													<span class="hidden md:inline">Cupo bajo</span>
 												</span>
 											) : null}
 											{day.status === "sold_out" ? (
-												<span class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
-													Agotado fisico
+												<span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 md:px-2 md:text-[11px]">
+													<span class="md:hidden">Agotado</span>
+													<span class="hidden md:inline">Agotado fisico</span>
 												</span>
 											) : null}
 											{day.heldUnits > 0 ? (
-												<span class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+												<span class="hidden rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800 sm:inline-flex">
 													Retenido
 												</span>
 											) : null}
 											{day.bookedUnits > 0 ? (
-												<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+												<span class="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 sm:inline-flex">
 													Reservado
 												</span>
 											) : null}
@@ -361,46 +524,24 @@ const inventoryBulkHref = selected
 												<a
 													href={routes.rateRestrictions()}
 													class:list={[
-														"rounded-full px-2 py-0.5 text-[11px] font-medium underline-offset-2 hover:underline",
+														"rounded-full px-1.5 py-0.5 text-[10px] font-medium underline-offset-2 hover:underline md:px-2 md:text-[11px]",
 														day.restrictionSignals.hasCommercialBlocker
 															? "bg-red-100 text-red-800"
 															: "bg-blue-100 text-blue-800",
 													]}
 												>
-													{day.restrictionSignals.summary ?? "Restrictions"}
+													<span class="md:hidden">Restr.</span>
+													<span class="hidden md:inline">
+														{day.restrictionSignals.summary ?? "Restrictions"}
+													</span>
 												</a>
 											) : null}
 										</div>
 										{day.restrictionSignals.count > 0 ? (
-											<p class="mt-1 text-xs text-slate-600">
+											<p class="mt-1 hidden text-xs text-slate-600 sm:block">
 												Vendibilidad aparte: no cambia este cupo fisico.
 											</p>
 										) : null}
-										<button
-											type="button"
-											data-inventory-range-date={day.date}
-											class="mt-3 w-full rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-white"
-										>
-											Seleccionar rango
-										</button>
-										<form class="mt-3 flex gap-2" data-inventory-day-form>
-											<input type="hidden" name="variantId" value={selected.variantId} />
-											<input type="hidden" name="date" value={day.date} />
-											<input
-												name="totalInventory"
-												type="number"
-												min="0"
-												step="1"
-												placeholder="Cupo"
-												class="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm"
-											/>
-											<button
-												type="submit"
-												class="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700"
-											>
-												Guardar
-											</button>
-										</form>
 									</div>
 								))}
 							</div>
@@ -472,16 +613,29 @@ const inventoryBulkHref = selected
 			summarizeRangeDays,
 			updateCalendarRangeHighlight,
 		} from "@/lib/rates/calendarRangeOperations"
+		import {
+			createMobileActionSheet,
+			findNextSelectableDate,
+			flashAppliedRange,
+		} from "@/lib/rates/mobileCalendarInteraction"
 
 		const feedback = document.getElementById("inventoryCalendarFeedback")
 		const rangePanel = document.getElementById("inventoryRangePanel")
 		const rangeSummary = document.getElementById("inventoryRangeSummary")
 		const rangePreview = document.getElementById("inventoryRangePreview")
 		const rangeValue = document.getElementById("inventoryRangeValue")
+		const sheetBackdrop = document.getElementById("inventorySheetBackdrop")
+		const sheetCloseBtn = document.getElementById("inventorySheetCloseBtn")
+		const sheetExpandBtn = document.getElementById("inventorySheetExpandBtn")
+		const sheetHandle = document.querySelector("[data-mobile-sheet-handle]")
+		const dayEditor = document.getElementById("inventoryDayEditor")
+		const dayValue = document.getElementById("inventoryDayValue")
+		const daySaveBtn = document.getElementById("inventoryDaySaveBtn")
+		const dayHint = document.getElementById("inventoryDayHint")
+		const quickDeltaButtons = Array.from(document.querySelectorAll("[data-inventory-quick-delta]"))
 		const rangePreviewBtn = document.getElementById("inventoryRangePreviewBtn")
 		const rangeApplyBtn = document.getElementById("inventoryRangeApplyBtn")
 		const rangeClearBtn = document.getElementById("inventoryRangeClearBtn")
-		const rangeButtons = Array.from(document.querySelectorAll("[data-inventory-range-date]"))
 		const rangePresetButtons = Array.from(
 			document.querySelectorAll("[data-inventory-range-preset]")
 		)
@@ -498,6 +652,55 @@ const inventoryBulkHref = selected
 
 		function setFeedback(message) {
 			if (feedback) feedback.textContent = message
+		}
+
+		function updateSelectedInventoryCells(value) {
+			if (!selectedRange) return
+			rangeCards.forEach((card) => {
+				const date = card.getAttribute("data-date")
+				if (!date || date < selectedRange.from || date > selectedRange.to) return
+				const output = card.querySelector("[data-inventory-output]")
+				card.setAttribute("data-current-inventory", String(value))
+				if (output) output.textContent = `${value} disp.`
+			})
+			flashAppliedRange({ cards: rangeCards, range: selectedRange })
+		}
+
+		const mobileSheet = createMobileActionSheet({
+			panel: rangePanel,
+			backdrop: sheetBackdrop,
+			handle: sheetHandle,
+			expandButton: sheetExpandBtn,
+			closeButton: sheetCloseBtn,
+			onClose: clearRangeSelection,
+		})
+
+		function setSheetExpanded(isExpanded) {
+			mobileSheet.setState(isExpanded ? "expanded" : "compact")
+		}
+
+		function getSelectedRangeDays() {
+			if (!selectedRange) return 0
+			return countInclusiveDays(selectedRange)
+		}
+
+		function nightsLabel(days) {
+			return `${days} ${days === 1 ? "noche" : "noches"}`
+		}
+
+		function syncDayEditor(date) {
+			if (!dayEditor || !date) return
+			const days = getSelectedRangeDays()
+			const card = rangeCards.find((item) => item.getAttribute("data-date") === date)
+			const current = card?.getAttribute("data-current-inventory") || ""
+			if (dayValue instanceof HTMLInputElement) dayValue.value = current
+			dayEditor.classList.toggle("hidden", days !== 1)
+			if (dayHint) {
+				dayHint.textContent =
+					days === 1
+						? "Toca Guardar fecha para ajustar solo esta noche, o toca otra fecha para crear un rango."
+						: "Edita el cupo del rango desde la accion principal."
+			}
 		}
 
 		function buildInventoryRangePayload() {
@@ -517,11 +720,11 @@ const inventoryBulkHref = selected
 
 		function renderRangeSelection() {
 			if (!selectedRange) return
-			rangePanel?.classList.remove("hidden")
+			mobileSheet.setOpen(true)
 			const days = countInclusiveDays(selectedRange)
 			const summary = summarizeRangeDays(rangeDays, selectedRange)
 			if (rangeSummary) {
-				rangeSummary.textContent = `${formatRangeLabel(selectedRange)} · Ajustara ${days} noches en ${selectedVariantName || "la unidad seleccionada"}.`
+				rangeSummary.textContent = `${formatRangeLabel(selectedRange)} · Ajustara ${nightsLabel(days)} en ${selectedVariantName || "la unidad seleccionada"}.`
 			}
 			if (rangePreview) {
 				rangePreview.textContent = `${summary.soldOut} dias agotados · ${summary.low} bajos · ${summary.totalAvailableUnits} cupos actuales · ${summary.restricted} con restricciones solo lectura.`
@@ -529,29 +732,42 @@ const inventoryBulkHref = selected
 			if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = true
 			rangePreviewPayload = null
 			updateCalendarRangeHighlight({ cards: rangeCards, range: selectedRange })
+			syncDayEditor(selectedRange.from)
 		}
 
 		function clearRangeSelection() {
 			selectedRange = null
 			rangeAnchor = null
 			rangePreviewPayload = null
-			rangePanel?.classList.add("hidden")
+			mobileSheet.setOpen(false)
+			setSheetExpanded(false)
 			if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = true
 			updateCalendarRangeHighlight({ cards: rangeCards, range: null })
+			mobileSheet.setState("compact")
 		}
 
-		rangeButtons.forEach((button) => {
-			button.addEventListener("click", () => {
-				const date = button.getAttribute("data-inventory-range-date")
-				if (!date) return
-				if (!rangeAnchor || selectedRange?.from !== selectedRange?.to) {
-					rangeAnchor = date
-					selectedRange = { from: date, to: date }
-				} else {
-					selectedRange = normalizeCalendarRange(rangeAnchor, date)
-					rangeAnchor = null
-				}
-				renderRangeSelection()
+		function selectInventoryDate(date) {
+			if (!date) return
+			if (!rangeAnchor || selectedRange?.from !== selectedRange?.to) {
+				rangeAnchor = date
+				selectedRange = { from: date, to: date }
+			} else {
+				selectedRange = normalizeCalendarRange(rangeAnchor, date)
+				rangeAnchor = null
+			}
+			renderRangeSelection()
+		}
+
+		rangeCards.forEach((card) => {
+			card.addEventListener("click", (event) => {
+				if (card.getAttribute("tabindex") !== "0") return
+				if (event.target?.closest?.("a,button,input,select,textarea")) return
+				selectInventoryDate(card.getAttribute("data-date"))
+			})
+			card.addEventListener("keydown", (event) => {
+				if (event.key !== "Enter" && event.key !== " ") return
+				event.preventDefault()
+				selectInventoryDate(card.getAttribute("data-date"))
 			})
 		})
 
@@ -570,6 +786,70 @@ const inventoryBulkHref = selected
 		})
 
 		rangeClearBtn?.addEventListener("click", clearRangeSelection)
+		document.addEventListener("keydown", (event) => {
+			if (event.key === "Escape" && selectedRange) clearRangeSelection()
+		})
+
+		quickDeltaButtons.forEach((button) => {
+			button.addEventListener("click", () => {
+				const delta = Number(button.getAttribute("data-inventory-quick-delta") ?? 0)
+				const current = Number(dayValue?.value || rangeValue?.value || 0)
+				const next = Math.max(0, current + delta)
+				if (getSelectedRangeDays() === 1 && dayValue instanceof HTMLInputElement) {
+					dayValue.value = String(next)
+					dayValue.focus()
+					return
+				}
+				if (rangeValue instanceof HTMLInputElement) {
+					rangeValue.value = String(next)
+					rangeValue.focus()
+				}
+			})
+		})
+
+		daySaveBtn?.addEventListener("click", async () => {
+			if (!selectedRange || selectedRange.from !== selectedRange.to || !selectedVariantId) {
+				setFeedback("Selecciona una sola fecha para guardar cupo diario.")
+				return
+			}
+			const totalInventory = Number(dayValue?.value)
+			if (!Number.isInteger(totalInventory) || totalInventory < 0) {
+				setFeedback("Completa un cupo fisico valido.")
+				return
+			}
+			setFeedback(`Guardando cupo para ${selectedRange.from}...`)
+			if (daySaveBtn instanceof HTMLButtonElement) daySaveBtn.disabled = true
+			const payload = new FormData()
+			payload.set("variantId", selectedVariantId)
+			payload.set("date", selectedRange.from)
+			payload.set("totalInventory", String(totalInventory))
+			const response = await fetch("/api/inventory/update-day", {
+				method: "POST",
+				body: payload,
+			})
+			if (!response.ok) {
+				const body = await response.json().catch(() => ({}))
+				setFeedback(`No se pudo guardar: ${String(body?.error ?? response.status)}`)
+				if (daySaveBtn instanceof HTMLButtonElement) daySaveBtn.disabled = false
+				return
+			}
+			updateSelectedInventoryCells(totalInventory)
+			const nextDate = findNextSelectableDate(rangeCards, selectedRange.from)
+			if (nextDate) {
+				rangeAnchor = nextDate
+				selectedRange = { from: nextDate, to: nextDate }
+				renderRangeSelection()
+				mobileSheet.setState("expanded")
+				if (dayValue instanceof HTMLInputElement) {
+					dayValue.focus()
+					dayValue.select()
+				}
+				setFeedback(`Cupo actualizado. Seguimos con ${nextDate}.`)
+			} else {
+				setFeedback("Cupo actualizado. Puedes tocar otra fecha para seguir.")
+			}
+			if (daySaveBtn instanceof HTMLButtonElement) daySaveBtn.disabled = false
+		})
 
 		rangePreviewBtn?.addEventListener("click", async () => {
 			const payload = buildInventoryRangePayload()
@@ -612,43 +892,16 @@ const inventoryBulkHref = selected
 			const body = await response.json().catch(() => ({}))
 			if (!response.ok) {
 				setFeedback(`No se pudo aplicar: ${String(body?.error ?? response.status)}`)
+				if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = false
 				return
 			}
 			setFeedback(
-				`Cupo aplicado. Dias exitosos: ${Number(body?.summary?.successfulDays ?? 0)}. Actualizando calendario...`
+				`Cupo aplicado. Dias exitosos: ${Number(body?.summary?.successfulDays ?? 0)}. Puedes seguir operando.`
 			)
-			window.location.reload()
-		})
-
-		document.querySelectorAll("[data-inventory-day-form]").forEach((form) => {
-			form.addEventListener("submit", async (event) => {
-				event.preventDefault()
-				if (!(form instanceof HTMLFormElement)) return
-				const data = new FormData(form)
-				const variantId = String(data.get("variantId") ?? "")
-				const date = String(data.get("date") ?? "")
-				const totalInventory = Number(data.get("totalInventory"))
-				if (!variantId || !date || !Number.isInteger(totalInventory) || totalInventory < 0) {
-					setFeedback("Completa un cupo fisico valido.")
-					return
-				}
-				setFeedback(`Guardando cupo para ${date}...`)
-				const payload = new FormData()
-				payload.set("variantId", variantId)
-				payload.set("date", date)
-				payload.set("totalInventory", String(totalInventory))
-				const response = await fetch("/api/inventory/update-day", {
-					method: "POST",
-					body: payload,
-				})
-				if (!response.ok) {
-					const body = await response.json().catch(() => ({}))
-					setFeedback(`No se pudo guardar: ${String(body?.error ?? response.status)}`)
-					return
-				}
-				setFeedback("Cupo actualizado. Refrescando calendario...")
-				window.location.reload()
-			})
+			updateSelectedInventoryCells(rangePreviewPayload.operation.value)
+			rangePreviewPayload = null
+			if (rangeApplyBtn instanceof HTMLButtonElement) rangeApplyBtn.disabled = true
 		})
 	</script>
+	<MobileCalendarSheetStyles />
 </WorkspaceLayout>

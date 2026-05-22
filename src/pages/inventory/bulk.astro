@@ -39,9 +39,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Inventory · Operaciones avanzadas
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">
-					Operacion avanzada de inventario fisico
-				</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Flujo avanzado de inventario fisico</h1>
 				<p class="text-sm text-slate-300">
 					Usa esta herramienta para rangos grandes o acciones excepcionales de capacidad fisica; el
 					calendario de Inventory es la operacion diaria principal.
@@ -90,8 +88,8 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 					</div>
 				</div>
 				<div class="grid gap-4 md:grid-cols-4">
-					<FormField label="Unidad ID" required>
-						<Input id="bulkVariantId" value={variantId} placeholder="var_xxx" />
+					<FormField label="Unidad" required>
+						<Input id="bulkVariantId" value={variantId} placeholder="Precargada desde Inventory" />
 					</FormField>
 					<FormField label="Desde" required>
 						<Input id="bulkDateFrom" type="date" value={dateFrom} />
@@ -236,7 +234,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 		previewBtn?.addEventListener("click", async () => {
 			const payload = buildPayload()
 			if (!payload.variantId || !payload.dateFrom || !payload.dateTo || !payload.operation.type) {
-				if (feedback) feedback.textContent = "Completa variantId, rango y operación."
+				if (feedback) feedback.textContent = "Completa unidad, rango y operacion."
 				return
 			}
 			if (feedback) feedback.textContent = "Generando previsualización..."
