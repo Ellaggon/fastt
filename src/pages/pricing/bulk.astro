@@ -34,6 +34,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 	.split(",")
 	.map((id) => id.trim())
 	.filter(Boolean)
+const launchedFromPricingContext = initialRatePlanIds.length > 0
 ---
 
 <WorkspaceLayout title="Pricing · Operaciones avanzadas">
@@ -43,10 +44,10 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Pricing · Operaciones avanzadas
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Flujo avanzado multi-plan</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Multi-plan avanzado</h1>
 				<p class="text-sm text-slate-300">
-					Usa esta herramienta para cambios excepcionales sobre varios planes tarifarios; el
-					calendario de Pricing es la operacion diaria principal.
+					Usa este flujo solo cuando un cambio de precio deba afectar varios planes tarifarios. Para
+					una fecha o rango visible, vuelve al calendario.
 				</p>
 				{/* guardrail-copy: Operacion avanzada de pricing */}
 				{/* guardrail-copy: el calendario de Pricing es la operacion diaria principal */}
@@ -57,26 +58,41 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 		</header>
 
 		<Section
-			title="Selección avanzada"
-			description="Selecciona varios planes tarifarios solo cuando la operacion diaria del calendario no alcanza."
+			title="Planes incluidos"
+			description="Parte desde el contexto del calendario y suma otros planes solo si el cambio debe ser multi-plan."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div
 					data-bulk-advanced-context
-					class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+					class:list={[
+						"rounded border p-3 text-sm",
+						launchedFromPricingContext
+							? "border-blue-100 bg-blue-50 text-blue-950"
+							: "border-slate-200 bg-slate-50 text-slate-700",
+					]}
 				>
-					<p class="font-medium text-slate-950">Flujo avanzado contextual.</p>
+					<p class="font-medium">
+						{launchedFromPricingContext ? "Abierto desde Pricing." : "Flujo avanzado contextual."}
+					</p>
 					<p class="mt-1">
-						Este flujo complementa Pricing; no reemplaza el calendario para edicion diaria,
-						seleccion por rango o regeneracion de cobertura.
+						{
+							launchedFromPricingContext
+								? `${initialRatePlanIds.length} plan tarifario viene preseleccionado. Agrega otros solo si el mismo cambio aplica fuera del calendario actual.`
+								: "Este flujo complementa Pricing; no reemplaza el calendario para edicion diaria, seleccion por rango o regeneracion de cobertura."
+						}
 					</p>
 				</div>
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<label class="inline-flex items-center gap-2 text-sm text-slate-700">
-						<input id="bulkSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
-						Seleccionar todos
-					</label>
+				<div
+					class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3"
+				>
 					<span id="bulkSelectionCount" class="text-sm text-slate-600">0 seleccionados</span>
+					<details class="text-sm text-slate-600">
+						<summary class="cursor-pointer font-medium text-slate-700"> Selección masiva </summary>
+						<label class="mt-2 inline-flex items-center gap-2">
+							<input id="bulkSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+							Seleccionar todos los planes visibles
+						</label>
+					</details>
 				</div>
 				<div class="grid gap-2 md:grid-cols-2">
 					{
@@ -102,8 +118,8 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 		</Section>
 
 		<Section
-			title="Operación avanzada"
-			description="Configura una regla multi-plan, simula impacto y aplica con control."
+			title="Cambio a aplicar"
+			description="Define una sola operación y revisa el resultado antes de confirmar."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-3">
@@ -153,7 +169,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 						/>
 					</label>
 					<label class="space-y-1 text-sm text-slate-700">
-						<span class="font-medium text-slate-900">Días para regenerar pricing efectivo</span>
+						<span class="font-medium text-slate-900">Días a actualizar después de aplicar</span>
 						<input
 							id="bulkEffectiveDays"
 							type="number"
@@ -177,12 +193,12 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 		</Section>
 
 		<Section
-			title="Simulación"
-			description="Revisa fechas, precios e impacto por tarifa antes de aplicar."
+			title="Revisión antes de aplicar"
+			description="La simulación muestra qué cambiaría por plan tarifario. El detalle diario queda bajo demanda."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div id="bulkExecutiveSummary" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-					<p class="text-sm font-semibold text-slate-900">Resumen ejecutivo</p>
+					<p class="text-sm font-semibold text-slate-900">Resumen de simulación</p>
 					<div class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-5">
 						<p>
 							<span class="font-medium text-slate-900">Tarifas seleccionadas:</span>
@@ -197,7 +213,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 							<span id="bulkExecutiveDays">0</span>
 						</p>
 						<p>
-							<span class="font-medium text-slate-900">Impacto estimado:</span>
+							<span class="font-medium text-slate-900">Diferencia estimada:</span>
 							<span id="bulkExecutiveImpact">—</span>
 						</p>
 						<p>
@@ -221,7 +237,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 								id="bulkPreviewSort"
 								class="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
 							>
-								<option value="impact_desc">Mayor impacto</option>
+								<option value="impact_desc">Mayor diferencia</option>
 								<option value="risk_desc">Mayor riesgo</option>
 								<option value="coverage_asc">Menor cobertura</option>
 							</select>
@@ -230,7 +246,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 							id="bulkApplyBtn"
 							type="button"
 							class="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-							disabled>Aplicar cambios a tarifas seleccionadas</button
+							disabled>Aplicar multi-plan</button
 						>
 					</div>
 				</div>
@@ -243,7 +259,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 								<th class="px-3 py-2">Precio actual (avg)</th>
 								<th class="px-3 py-2">Precio nuevo (avg)</th>
 								<th class="px-3 py-2">Cambio promedio / noche</th>
-								<th class="px-3 py-2">Impacto ingresos estimado</th>
+								<th class="px-3 py-2">Diferencia estimada</th>
 								<th class="px-3 py-2">Cobertura efectiva</th>
 								<th class="px-3 py-2">Estado</th>
 							</tr>
@@ -264,7 +280,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 			</Card>
 		</Section>
 
-		<Section title="Resultado de aplicación" description="Detalle de ejecución y fallos parciales.">
+		<Section title="Resultado" description="Qué se aplicó y qué necesita revisión manual.">
 			<Card className="space-y-4 bg-white text-slate-800">
 				<p id="bulkResultSummary" class="text-sm text-slate-700">Sin ejecución aún.</p>
 				<div class="overflow-x-auto rounded-lg border border-slate-200">
@@ -483,7 +499,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 			}
 			if (applyConfirmation) {
 				applyConfirmation.classList.remove("hidden")
-				applyConfirmation.textContent = `Vas a aplicar cambios en ${affected.length} tarifas, ${changedDays} días impactados, impacto estimado total ${formatMoney(totalImpact, results[0]?.preview?.currency ?? "USD")}.`
+				applyConfirmation.textContent = `Vas a aplicar cambios en ${affected.length} tarifas, ${changedDays} días impactados, diferencia estimada total ${formatMoney(totalImpact, results[0]?.preview?.currency ?? "USD")}.`
 			}
 			return { coveragePct, totalImpact, affected: affected.length, changedDays }
 		}
@@ -498,7 +514,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 			}
 			if (executive.totalImpact < RISK_THRESHOLDS.negativeImpact) {
 				messages.push(
-					`Impacto global negativo significativo (${executive.totalImpact.toFixed(2)}).`
+					`Diferencia global negativa significativa (${executive.totalImpact.toFixed(2)}).`
 				)
 			}
 			if (riskyRows.length > 0) {
@@ -603,8 +619,8 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 								</div>
 								<div>
 									<p class="font-medium text-slate-900">Contexto temporal</p>
-									<p>Weekdays: ${Number(weekdays?.days ?? 0)} (${Number(weekdays?.changedDays ?? 0)} cambios)</p>
-									<p>Weekends: ${Number(weekends?.days ?? 0)} (${Number(weekends?.changedDays ?? 0)} cambios)</p>
+									<p>Días de semana: ${Number(weekdays?.days ?? 0)} (${Number(weekdays?.changedDays ?? 0)} cambios)</p>
+									<p>Fines de semana: ${Number(weekends?.days ?? 0)} (${Number(weekends?.changedDays ?? 0)} cambios)</p>
 									<p>Sin cobertura: ${Number(breakdown?.daysWithoutCoverage ?? 0)}</p>
 								</div>
 							</div>
@@ -784,7 +800,7 @@ const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "
 				renderApplyResult(payload)
 			} finally {
 				applyBtn.disabled = false
-				applyBtn.textContent = "Aplicar cambios a tarifas seleccionadas"
+				applyBtn.textContent = "Aplicar multi-plan"
 			}
 		})
 

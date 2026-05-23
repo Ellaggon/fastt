@@ -3,16 +3,21 @@ import { evaluatePricingRules } from "@/modules/pricing/public"
 import { ratePlanPricingReadRepository } from "@/container"
 
 import {
+	buildDateRangeJson,
 	listRulesByRatePlan,
 	normalizeRuleType,
 	normalizeOccupancyKey,
 	optionalText,
 	parseDayOfWeek,
+	parsePricingRuleEligibility,
 	parseNumber,
 	readRequestPayload,
+	readPricingRuleEligibility,
 	requireText,
 	resolveOwnedRatePlanContext,
+	validatePricingRuleEligibility,
 } from "@/lib/pricing/rules-v2"
+import { evaluatePricingRuleEligibility } from "@/modules/pricing/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const payload = await readRequestPayload(request)
@@ -47,9 +52,31 @@ export const POST: APIRoute = async ({ request }) => {
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const previewFrom = optionalText(payload, "previewFrom") ?? new Date().toISOString().slice(0, 10)
 	const previewDaysRaw = parseNumber(payload, "previewDays", 30)
-	const occupancyKey = normalizeOccupancyKey(
-		optionalText(payload, "occupancyKey") ?? optionalText(payload, "contextKey")
-	)
+	const contextKey = optionalText(payload, "contextKey")
+	const occupancyKey = normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey)
+	const eligibility = parsePricingRuleEligibility(payload)
+	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
+	if (eligibilityError) {
+		return new Response(JSON.stringify({ error: eligibilityError }), {
+			status: 400,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
+	const requestDate = optionalText(payload, "requestDate") ?? new Date().toISOString().slice(0, 10)
+	const checkIn = optionalText(payload, "checkIn") ?? previewFrom
+	const checkOut =
+		optionalText(payload, "checkOut") ??
+		(() => {
+			const parsed = new Date(`${checkIn}T00:00:00.000Z`)
+			parsed.setUTCDate(parsed.getUTCDate() + Math.max(1, parseNumber(payload, "nights", 1)))
+			return parsed.toISOString().slice(0, 10)
+		})()
+	const stayContext = {
+		requestDate,
+		checkIn,
+		checkOut,
+		nights: parseNumber(payload, "nights", Number.NaN),
+	}
 	const previewDays = Math.min(Math.max(Math.trunc(previewDaysRaw), 1), 120)
 	const start = new Date(`${previewFrom}T00:00:00.000Z`)
 	const end = new Date(start)
@@ -66,6 +93,8 @@ export const POST: APIRoute = async ({ request }) => {
 				: null,
 		dayOfWeek: rule.dayOfWeek,
 		occupancyKey: rule.occupancyKey,
+		eligibility: rule.eligibility,
+		contextKey: rule.contextKey,
 		createdAt: new Date(rule.createdAt),
 		isActive: true,
 	}))
@@ -74,18 +103,26 @@ export const POST: APIRoute = async ({ request }) => {
 		type,
 		value,
 		priority,
-		dateRange: dateFrom || dateTo ? { from: dateFrom ?? undefined, to: dateTo ?? undefined } : null,
+		dateRange: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
 		dayOfWeek: dayOfWeek ?? null,
 		occupancyKey: occupancyKey ?? null,
+		eligibility,
+		contextKey,
 		createdAt: new Date(),
 		isActive: true,
 	}
+	const candidateEligibility = evaluatePricingRuleEligibility({
+		eligibility: readPricingRuleEligibility(candidateRule.dateRange),
+		stayContext,
+		ruleLabel: contextKey ?? type,
+	})
 	const days: Array<{
 		date: string
 		before: number
 		after: number
 		delta: number
 		appliedRuleIds: string[]
+		eligibilityTrace?: unknown[]
 	}> = []
 	const cursor = new Date(start)
 	while (cursor < end) {
@@ -96,6 +133,8 @@ export const POST: APIRoute = async ({ request }) => {
 			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
 			rules,
+			stayContext,
+			includeEligibilityTrace: true,
 		})
 		const afterEval = evaluatePricingRules({
 			basePrice: Number(pricingSummary.basePrice),
@@ -103,6 +142,8 @@ export const POST: APIRoute = async ({ request }) => {
 			occupancyKey: occupancyKey ?? null,
 			ratePlanId,
 			rules: [...rules, candidateRule],
+			stayContext,
+			includeEligibilityTrace: true,
 		})
 		days.push({
 			date,
@@ -110,6 +151,7 @@ export const POST: APIRoute = async ({ request }) => {
 			after: Number(afterEval.price),
 			delta: Number((afterEval.price - beforeEval.price).toFixed(2)),
 			appliedRuleIds: afterEval.appliedRuleIds,
+			eligibilityTrace: afterEval.eligibilityTrace,
 		})
 		cursor.setUTCDate(cursor.getUTCDate() + 1)
 	}
@@ -120,6 +162,8 @@ export const POST: APIRoute = async ({ request }) => {
 			currency: String(pricingSummary.currency),
 			ratePlanId,
 			occupancyKey: occupancyKey ?? null,
+			stayContext,
+			candidateEligibility,
 			days,
 		}),
 		{

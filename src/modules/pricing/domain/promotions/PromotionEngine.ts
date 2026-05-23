@@ -9,6 +9,7 @@ export class PromotionEngine {
 		ctx: {
 			checkIn: Date
 			checkOut: Date
+			requestDate?: Date | null
 		}
 	) {
 		const nights = Math.ceil(
@@ -19,7 +20,9 @@ export class PromotionEngine {
 		let appliedNonCombinable = false
 
 		for (const promo of promotions) {
-			if (!canApplyPromotion(promo, { checkIn: ctx.checkIn, nights })) {
+			if (
+				!canApplyPromotion(promo, { checkIn: ctx.checkIn, nights, requestDate: ctx.requestDate })
+			) {
 				continue
 			}
 

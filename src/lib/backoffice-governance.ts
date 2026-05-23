@@ -249,11 +249,11 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/pricing/rules",
-		status: "transitional",
+		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Commercial rule and pricing automation surface; subordinate to pricing and separate from restrictions.",
+			"Legacy deep link redirected into /pricing#pricing-automation; do not expose as primary navigation.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -806,18 +806,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Official sellability domain for LOS, CTA/CTD, stop-sell, and booking windows.",
 			},
 			{
-				label: "Commercial Rules",
-				href: routes.pricingRules(),
-				status: "transitional",
-				level: 2,
-				summary: "Pricing rules, promotions, markups, and commercial overrides.",
-			},
-			{
 				label: "Booking Policies",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
-				summary: "Cancellation, payment, no-show, and check-in/out conditions for rate plans.",
+				summary:
+					"Booking contract library: cancellation, payment, no-show, and check-in/out terms.",
 			},
 		],
 		planned: ["Occupancy Pricing", "Audit History"],
@@ -993,20 +987,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
 			},
 			{
-				label: "Bulk Pricing",
+				label: "Multi-plan avanzado",
 				href: routes.pricingBulk(),
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
 					"Contextual advanced workflow for exceptional multi-plan pricing operations launched from Pricing.",
-			},
-			{
-				label: "Commercial Rules",
-				href: routes.pricingRules(),
-				status: "transitional",
-				owner: "Rooms & Rates",
-				description:
-					"Pricing automation, promotions, markups, and overrides under rate-plan ownership.",
 			},
 		],
 	},
@@ -1062,7 +1048,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
-					"Cancellation, payment, no-show, and check-in/out policy library for rate-plan booking conditions.",
+					"Booking contract library for cancellation, payment, no-show, and check-in/out terms.",
 			},
 			{
 				label: "Taxes & Fees",
