@@ -135,20 +135,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
-	it("keeps pricing automation inside Pricing and House Rules discoverable in Property Content", () => {
+	it("keeps pricing automation inside Pricing instead of standalone navigation", () => {
 		const hrefs = flattenNavigationHrefs()
 		const labels = enterpriseNavigation.flatMap((section) =>
 			section.items.map((item) => item.label)
 		)
-		const propertyContent = enterpriseNavigation.find(
-			(section) => section.title === "Property Content"
-		)
 
 		expect(hrefs).toContain("/pricing")
-		expect(hrefs).toContain("/provider/house-rules")
 		expect(hrefs).not.toContain("/pricing/rules")
+		expect(labels).not.toContain("Commercial Rules")
 		expect(labels).not.toContain("Pricing Rules & Promotions")
-		expect(propertyContent?.items.map((item) => item.label)).toContain("House Rules")
 	})
 
 	it("keeps navigation organized by enterprise ownership instead of generic buckets", () => {
