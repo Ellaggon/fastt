@@ -4,16 +4,19 @@ import { db, PriceRule } from "astro:db"
 
 import {
 	isValidDateOnly,
+	buildDateRangeJson,
 	listRulesByRatePlan,
 	normalizeRuleType,
 	normalizeOccupancyKey,
 	optionalText,
 	parseDayOfWeek,
+	parsePricingRuleEligibility,
 	parseNumber,
 	readRequestPayload,
 	requireText,
 	resolveCoverageOccupancy,
 	resolveOwnedRatePlanContext,
+	validatePricingRuleEligibility,
 } from "@/lib/pricing/rules-v2"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 
@@ -44,6 +47,14 @@ export const POST: APIRoute = async ({ request }) => {
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const contextKey = optionalText(payload, "contextKey")
 	const occupancyKey = normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey)
+	const eligibility = parsePricingRuleEligibility(payload)
+	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
+	if (eligibilityError) {
+		return new Response(JSON.stringify({ error: eligibilityError }), {
+			status: 400,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
 	if (dateFrom && !isValidDateOnly(dateFrom)) {
 		return new Response(JSON.stringify({ error: "invalid_date_from" }), {
 			status: 400,
@@ -72,7 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
 		type,
 		value,
 		priority,
-		dateRangeJson: dateFrom || dateTo ? { from: dateFrom ?? null, to: dateTo ?? null } : null,
+		dateRangeJson: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
 		dayOfWeekJson: dayOfWeek ?? null,
 		isActive: true,
 		createdAt,

@@ -125,13 +125,26 @@ describe("Guardrail: backoffice governance navigation", () => {
 	it("keeps provider sidebar free of internal-only and legacy pricing destinations", () => {
 		const hrefs = flattenNavigationHrefs()
 		const violations = hrefs.filter(
-			(href) => href.startsWith("/api/") || href === "/pricing/calendar"
+			(href) =>
+				href.startsWith("/api/") || href === "/pricing/calendar" || href === "/pricing/rules"
 		)
 
 		expect(
 			violations,
-			`Enterprise navigation must not expose internal APIs or legacy pricing routes:\n${violations.join("\n")}`
+			`Enterprise navigation must not expose internal APIs, standalone pricing rules, or legacy pricing routes:\n${violations.join("\n")}`
 		).toEqual([])
+	})
+
+	it("keeps pricing automation inside Pricing instead of standalone navigation", () => {
+		const hrefs = flattenNavigationHrefs()
+		const labels = enterpriseNavigation.flatMap((section) =>
+			section.items.map((item) => item.label)
+		)
+
+		expect(hrefs).toContain("/pricing")
+		expect(hrefs).not.toContain("/pricing/rules")
+		expect(labels).not.toContain("Commercial Rules")
+		expect(labels).not.toContain("Pricing Rules & Promotions")
 	})
 
 	it("keeps navigation organized by enterprise ownership instead of generic buckets", () => {

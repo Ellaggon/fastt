@@ -3,7 +3,11 @@ import { and, db, eq, PriceRule } from "astro:db"
 import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import {
+	formatPricingRuleEligibilityLabel,
+	type PricingRuleEligibility,
+	resolveRatePlanOwnerContext,
+} from "@/modules/pricing/public"
 
 export async function readRequestPayload(request: Request): Promise<Record<string, unknown>> {
 	const contentType = String(request.headers.get("content-type") ?? "")
@@ -65,6 +69,82 @@ export function parseNumber(
 	const parsed = Number(raw)
 	return Number.isFinite(parsed) ? parsed : fallback
 }
+
+function parsePositiveInteger(payload: Record<string, unknown>, key: string): number | undefined {
+	const raw = String(payload[key] ?? "").trim()
+	if (!raw) return undefined
+	const parsed = Number(raw)
+	if (!Number.isFinite(parsed)) return undefined
+	const value = Math.trunc(parsed)
+	return value > 0 ? value : undefined
+}
+
+export function parsePricingRuleEligibility(
+	payload: Record<string, unknown>
+): PricingRuleEligibility | null {
+	const eligibility: PricingRuleEligibility = {
+		minLeadDays: parsePositiveInteger(payload, "minLeadDays"),
+		maxLeadDays: parsePositiveInteger(payload, "maxLeadDays"),
+		minNights: parsePositiveInteger(payload, "minNights"),
+	}
+	return eligibility.minLeadDays || eligibility.maxLeadDays || eligibility.minNights
+		? eligibility
+		: null
+}
+
+export function readPricingRuleEligibility(value: unknown): PricingRuleEligibility | null {
+	if (!value || typeof value !== "object") return null
+	const raw = (value as { eligibility?: unknown }).eligibility
+	if (!raw || typeof raw !== "object") return null
+	const eligibility = raw as Record<string, unknown>
+	const normalized: PricingRuleEligibility = {
+		minLeadDays: Number.isFinite(Number(eligibility.minLeadDays))
+			? Math.trunc(Number(eligibility.minLeadDays))
+			: undefined,
+		maxLeadDays: Number.isFinite(Number(eligibility.maxLeadDays))
+			? Math.trunc(Number(eligibility.maxLeadDays))
+			: undefined,
+		minNights: Number.isFinite(Number(eligibility.minNights))
+			? Math.trunc(Number(eligibility.minNights))
+			: undefined,
+	}
+	return normalized.minLeadDays || normalized.maxLeadDays || normalized.minNights
+		? normalized
+		: null
+}
+
+export function buildDateRangeJson(params: {
+	dateFrom?: string | null
+	dateTo?: string | null
+	eligibility?: PricingRuleEligibility | null
+}): Record<string, unknown> | null {
+	const hasRange = Boolean(params.dateFrom || params.dateTo)
+	const hasEligibility = Boolean(
+		params.eligibility?.minLeadDays ||
+		params.eligibility?.maxLeadDays ||
+		params.eligibility?.minNights
+	)
+	if (!hasRange && !hasEligibility) return null
+	return {
+		from: params.dateFrom ?? null,
+		to: params.dateTo ?? null,
+		...(hasEligibility ? { eligibility: params.eligibility } : {}),
+	}
+}
+
+export function validatePricingRuleEligibility(params: {
+	contextKey?: string | null
+	eligibility?: PricingRuleEligibility | null
+}): string | null {
+	const contextKey = String(params.contextKey ?? "").trim()
+	const eligibility = params.eligibility ?? null
+	if (contextKey === "early_bird" && !eligibility?.minLeadDays) return "min_lead_days_required"
+	if (contextKey === "last_minute" && !eligibility?.maxLeadDays) return "max_lead_days_required"
+	if (contextKey === "los_discount" && !eligibility?.minNights) return "min_nights_required"
+	return null
+}
+
+export { formatPricingRuleEligibilityLabel }
 
 export function normalizeRuleType(value: string): string {
 	if (value === "percentage") return "percentage_markup"
@@ -196,6 +276,10 @@ export async function listRulesByRatePlan(ratePlanId: string) {
 				row.dateRangeJson && typeof row.dateRangeJson === "object"
 					? String((row.dateRangeJson as any).to ?? "").trim() || null
 					: null,
+			eligibility: readPricingRuleEligibility(row.dateRangeJson),
+			eligibilityLabel: formatPricingRuleEligibilityLabel(
+				readPricingRuleEligibility(row.dateRangeJson)
+			),
 			dayOfWeek: Array.isArray(row.dayOfWeekJson)
 				? (row.dayOfWeekJson as unknown[])
 						.map((item) => Number(item))

@@ -7,10 +7,15 @@ import MobileCalendarSheetStyles from "@/components/rates/MobileCalendarSheetSty
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	loadPricingAutomationSurface,
+	type PricingAutomationTemplate,
+} from "@/lib/pricing/pricingAutomationSurface"
 import { buildPricingCalendarSurface } from "@/lib/rates/calendarSurfaces"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
+import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -19,6 +24,99 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+let actionError: string | null = null
+
+const mapTemplatePayload = (template: PricingAutomationTemplate, rawValue: number) => {
+	const value =
+		template.kind === "fixed_discount" ? -Math.abs(rawValue) : Math.max(0, Number(rawValue))
+	return {
+		type: template.internalType,
+		value,
+		contextKey: template.contextKey,
+	}
+}
+
+const eligibilityForForm = (kind: string, form: FormData): Record<string, number> => {
+	if (kind === "early_bird") {
+		const minLeadDays = Number(form.get("minLeadDays") ?? 30)
+		if (!Number.isFinite(minLeadDays) || minLeadDays < 1) {
+			throw new Error("Reserva anticipada necesita al menos 1 día de anticipación")
+		}
+		return { minLeadDays: Math.trunc(minLeadDays) }
+	}
+	if (kind === "last_minute") {
+		const maxLeadDays = Number(form.get("maxLeadDays") ?? 3)
+		if (!Number.isFinite(maxLeadDays) || maxLeadDays < 1) {
+			throw new Error("Último minuto necesita una ventana de llegada de al menos 1 día")
+		}
+		return { maxLeadDays: Math.trunc(maxLeadDays) }
+	}
+	if (kind === "los_discount") {
+		const minNights = Number(form.get("minNights") ?? 5)
+		if (!Number.isFinite(minNights) || minNights < 1) {
+			throw new Error("El descuento por estadía necesita al menos 1 noche")
+		}
+		return { minNights: Math.trunc(minNights) }
+	}
+	return {}
+}
+
+if (Astro.request.method === "POST") {
+	const form = await Astro.request.formData()
+	const action = String(form.get("action") ?? "").trim()
+	if (action === "create-pricing-automation") {
+		try {
+			const automation = await loadPricingAutomationSurface(auth.providerId)
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			const kind = String(form.get("kind") ?? "").trim()
+			const template = automation.templates.find((item) => item.kind === kind)
+			if (!template) throw new Error("Tipo de automatización no soportado")
+			if (!automation.ratePlanOptions.some((item) => item.id === ratePlanId)) {
+				throw new Error("El plan tarifario no está disponible para este proveedor")
+			}
+			const value = Number(form.get("value") ?? Number.NaN)
+			if (!Number.isFinite(value) || value < 0)
+				throw new Error("El valor de automatización debe ser cero o mayor")
+			const priority = Number(form.get("priority") ?? 20)
+			if (!Number.isFinite(priority) || priority < 0 || priority > 1000) {
+				throw new Error("La prioridad debe estar entre 0 y 1000")
+			}
+			const dateFrom = String(form.get("dateFrom") ?? "").trim()
+			const dateTo = String(form.get("dateTo") ?? "").trim()
+			const mapped = mapTemplatePayload(template, value)
+			const body: Record<string, unknown> = {
+				ratePlanId,
+				type: mapped.type,
+				value: mapped.value,
+				priority,
+				contextKey: mapped.contextKey,
+			}
+			if (dateFrom) body.dateFrom = dateFrom
+			if (dateTo) body.dateTo = dateTo
+			Object.assign(body, eligibilityForForm(kind, form))
+
+			const headers = new Headers({ "Content-Type": "application/json" })
+			const cookie = Astro.request.headers.get("cookie")
+			if (cookie) headers.set("cookie", cookie)
+			const response = await createPricingRulePost({
+				request: new Request(new URL("/api/pricing/rules/v2/create", Astro.url), {
+					method: "POST",
+					headers,
+					body: JSON.stringify(body),
+				}),
+				url: new URL("/api/pricing/rules/v2/create", Astro.url),
+			} as any)
+			if (!response.ok) {
+				const payload = await response.json().catch(() => null)
+				throw new Error(String(payload?.error ?? "No se pudo crear la automatización"))
+			}
+			return Astro.redirect(`${routes.pricing()}?success=automation-created#pricing-automation`)
+		} catch (error) {
+			actionError = error instanceof Error ? error.message : "Falló la automatización de precios"
+		}
+	}
+}
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const rows = await loadRatePlansReadModel({
@@ -43,8 +141,8 @@ function money(amount: number | null, currency: string): string {
 const pricedDays = surface.days.filter((day) => day.status === "priced").length
 const adjustedDays = surface.days.filter((day) => Number(day.ruleAdjustment ?? 0) !== 0).length
 const basePriceDays = surface.days.filter((day) => day.priceSignal === "baseline").length
-const commercialSignalDays = surface.days.filter((day) => day.restrictionSignals.count > 0).length
-const commercialBlockerDays = surface.days.filter(
+const restrictionSignalDays = surface.days.filter((day) => day.restrictionSignals.count > 0).length
+const restrictionBlockerDays = surface.days.filter(
 	(day) => day.restrictionSignals.hasCommercialBlocker
 ).length
 const pricingRangeDays = surface.days.map((day) => ({
@@ -52,11 +150,20 @@ const pricingRangeDays = surface.days.map((day) => ({
 	status: day.status,
 	ruleAdjustment: day.ruleAdjustment,
 	restrictionCount: day.restrictionSignals.count,
-	commercialBlocker: day.restrictionSignals.hasCommercialBlocker,
+	restrictionBlocker: day.restrictionSignals.hasCommercialBlocker,
 }))
 const selectedRatePlanId = String(selected?.ratePlanId ?? "")
 const selectedRatePlanName = String(selected?.ratePlanName ?? "")
 const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponent(selectedRatePlanId)}`
+const automationSurface = await loadPricingAutomationSurface(auth.providerId)
+const automationDefaultRatePlanId = automationSurface.ratePlanOptions[0]?.id ?? ""
+const automationDefaultTemplate = automationSurface.templates[1]
+const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+const statusVariant = {
+	active: "success",
+	inactive: "neutral",
+} as const
+const shouldOpenAutomation = Boolean(actionError || success === "automation-created")
 ---
 
 <WorkspaceLayout title="Pricing">
@@ -79,6 +186,25 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
 			</div>
 		</header>
+
+		{
+			actionError && (
+				<Card className="border-red-200 bg-red-50 text-red-900">
+					<p class="text-sm font-semibold">No se pudo crear la automatización de pricing</p>
+					<p class="mt-1 text-sm">{actionError}</p>
+				</Card>
+			)
+		}
+		{
+			success === "automation-created" && (
+				<Card className="border-green-200 bg-green-50 text-green-900">
+					<p class="text-sm font-semibold">Automatización de pricing creada.</p>
+					<p class="mt-1 text-sm">
+						La regla quedó dentro de Pricing y puede impactar precio efectivo según elegibilidad.
+					</p>
+				</Card>
+			)
+		}
 
 		<section
 			data-mobile-calendar-summary
@@ -118,7 +244,7 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 				<p class="mt-1 text-xs text-slate-400">{surface.summary.missingDays} faltantes futuros</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Base comercial</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Base de precio</p>
 				<p class="mt-2 text-2xl font-semibold">
 					{money(surface.baseline.basePrice, surface.baseline.currency)}
 				</p>
@@ -133,7 +259,7 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 
 		<Section
 			title="Calendario de precios"
-			description={`Selecciona ${vocabulary.ratePlan}, revisa cobertura diaria y edita precios puntuales sin entrar a Bulk.`}
+			description={`Operación diaria: selecciona ${vocabulary.ratePlan}, toca fechas, corrige gaps y ajusta precios visibles sin salir del calendario.`}
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
 				<form method="get" class="grid gap-3 lg:grid-cols-[1.6fr_0.8fr_auto] lg:items-end">
@@ -224,7 +350,7 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 						<div class="flex flex-wrap gap-1">
 							<span class="rounded-full bg-white px-2 py-1">{basePriceDays} heredados</span>
 							<span class="rounded-full bg-white px-2 py-1">
-								{commercialSignalDays} restricciones
+								{restrictionSignalDays} restricciones
 							</span>
 							<span class="rounded-full bg-white px-2 py-1">
 								{surface.freshness.overall.label}: {surface.freshness.overall.state}
@@ -250,12 +376,12 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 						<p>Noches heredadas del {vocabulary.ratePlan}.</p>
 					</div>
 					<div>
-						<p class="font-semibold text-slate-900">{commercialSignalDays} con restricciones</p>
+						<p class="font-semibold text-slate-900">{restrictionSignalDays} con restricciones</p>
 						<p>
 							{
-								commercialBlockerDays > 0
-									? `${commercialBlockerDays} pueden bloquear venta.`
-									: "Senales comerciales viven en Restrictions."
+								restrictionBlockerDays > 0
+									? `${restrictionBlockerDays} pueden bloquear venta.`
+									: "Señales de vendibilidad viven en Restrictions."
 							}
 						</p>
 					</div>
@@ -406,7 +532,7 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 											href={pricingBulkHref}
 											class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
 										>
-											Multi-plan avanzado
+											Aplicar a otros planes
 										</a>
 									</div>
 								</div>
@@ -569,23 +695,247 @@ const pricingBulkHref = `${routes.pricingBulk()}?ratePlanIds=${encodeURIComponen
 				}
 				<details
 					data-pricing-advanced-panel
-					class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+					class="rounded-lg border border-dashed border-slate-300 bg-slate-50/80 p-3 text-sm text-slate-700"
 				>
 					<summary class="cursor-pointer font-semibold text-slate-900">
-						Operacion avanzada multi-plan
+						Flujo avanzado multi-plan
 					</summary>
 					<div class="mt-2 flex flex-wrap items-center justify-between gap-3">
 						<p class="max-w-2xl leading-6">
-							El calendario es la operacion diaria. Usa este flujo solo para cambios excepcionales
-							sobre varios {vocabulary.ratePlanPlural} o rangos amplios que no convenga operar desde la
-							seleccion visible.
+							El calendario es el lugar natural para operar precios. Abre este flujo solo si
+							necesitas aplicar un mismo cambio sobre varios {vocabulary.ratePlanPlural} y revisar fallos
+							parciales antes de confirmar.
 						</p>
-						<Button href={pricingBulkHref} variant="secondary" size="sm">
-							Abrir flujo avanzado
-						</Button>
+						<Button href={pricingBulkHref} variant="secondary" size="sm"> Abrir multi-plan </Button>
 					</div>
 				</details>
 				<p id="pricingCalendarFeedback" class="text-sm text-slate-600"></p>
+			</Card>
+		</Section>
+
+		<Section
+			title="Capas avanzadas de pricing"
+			description="Automatización y multi-plan quedan como soporte progresivo. El calendario sigue siendo la operación diaria."
+		>
+			<Card id="pricing-automation" className="space-y-4 bg-white text-slate-800">
+				<details
+					open={shouldOpenAutomation}
+					class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+					data-pricing-automation-panel
+				>
+					<summary class="cursor-pointer list-none">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div class="space-y-1">
+								<p class="text-sm font-semibold text-slate-950">Automatización de precios</p>
+								<p class="max-w-3xl text-sm leading-6 text-slate-600">
+									Usa esta capa para descuentos, precios fijos o elegibilidad recurrente. Para
+									cambiar una fecha o rango visible, usa primero el calendario.
+								</p>
+							</div>
+							<div class="flex flex-wrap gap-1 text-xs">
+								<span class="rounded-full bg-white px-2 py-1 text-slate-700">
+									{automationSurface.stats.totalRules} reglas
+								</span>
+								<span class="rounded-full bg-white px-2 py-1 text-slate-700">
+									{automationSurface.stats.activeRules} activas
+								</span>
+								<span class="rounded-full bg-white px-2 py-1 text-slate-700">
+									{automationSurface.stats.ratePlansWithRules} planes
+								</span>
+							</div>
+						</div>
+					</summary>
+
+					<div class="mt-4 space-y-5">
+						<div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950">
+							<p class="font-semibold">Ownership claro</p>
+							<p class="mt-1">
+								Automatización cambia dinero. Restrictions gobierna vendibilidad. Booking Policies
+								gobierna el contrato de reserva. House Rules gobierna comportamiento del huésped.
+							</p>
+						</div>
+
+						{
+							!automationSurface.ratePlanOptions.length ? (
+								<p class="text-sm text-slate-600">
+									No hay planes tarifarios activos disponibles para automatización de precios.
+								</p>
+							) : (
+								<form
+									method="POST"
+									class="grid gap-4 rounded-lg border border-slate-200 p-4 lg:grid-cols-6"
+									data-pricing-automation-form
+								>
+									<input type="hidden" name="action" value="create-pricing-automation" />
+									<label class="space-y-1 text-sm lg:col-span-3">
+										<span class="font-medium text-slate-700">Plan tarifario</span>
+										<select
+											name="ratePlanId"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										>
+											{automationSurface.ratePlanOptions.map((option) => (
+												<option
+													value={option.id}
+													selected={option.id === automationDefaultRatePlanId}
+												>
+													{option.label}
+												</option>
+											))}
+										</select>
+									</label>
+									<label class="space-y-1 text-sm lg:col-span-3">
+										<span class="font-medium text-slate-700">Tipo de automatización</span>
+										<select
+											name="kind"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+											data-pricing-automation-kind
+										>
+											{automationSurface.templates.map((template) => (
+												<option
+													value={template.kind}
+													selected={template.kind === automationDefaultTemplate?.kind}
+													data-default-value={String(template.defaultValue)}
+													data-value-suffix={template.valueSuffix}
+												>
+													{template.label}
+												</option>
+											))}
+										</select>
+									</label>
+									<label class="space-y-1 text-sm lg:col-span-2">
+										<span class="font-medium text-slate-700">Valor</span>
+										<input
+											name="value"
+											type="number"
+											min="0"
+											step="0.01"
+											value={String(automationDefaultTemplate?.defaultValue ?? 10)}
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+											data-pricing-automation-value
+										/>
+										<p class="text-xs text-slate-500" data-pricing-automation-value-help>
+											{automationDefaultTemplate?.valueSuffix ?? "% de descuento"}
+										</p>
+									</label>
+									<label class="space-y-1 text-sm lg:col-span-2">
+										<span class="font-medium text-slate-700">Válida desde</span>
+										<input
+											name="dateFrom"
+											type="date"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<label class="space-y-1 text-sm lg:col-span-2">
+										<span class="font-medium text-slate-700">Válida hasta</span>
+										<input
+											name="dateTo"
+											type="date"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<label class="space-y-1 text-sm lg:col-span-2">
+										<span class="font-medium text-slate-700">Prioridad</span>
+										<input
+											name="priority"
+											type="number"
+											min="0"
+											max="1000"
+											value="20"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<label class="space-y-1 text-sm" data-pricing-eligibility="early_bird">
+										<span class="font-medium text-slate-700">Anticipación mínima</span>
+										<input
+											name="minLeadDays"
+											type="number"
+											min="1"
+											value="30"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<label class="space-y-1 text-sm" data-pricing-eligibility="last_minute">
+										<span class="font-medium text-slate-700">Anticipación máxima</span>
+										<input
+											name="maxLeadDays"
+											type="number"
+											min="1"
+											value="3"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<label class="space-y-1 text-sm" data-pricing-eligibility="los_discount">
+										<span class="font-medium text-slate-700">Noches mínimas</span>
+										<input
+											name="minNights"
+											type="number"
+											min="1"
+											value="5"
+											class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										/>
+									</label>
+									<div class="flex items-end lg:col-span-6">
+										<Button type="submit" variant="primary">
+											Crear automatización
+										</Button>
+									</div>
+								</form>
+							)
+						}
+
+						<div class="space-y-3">
+							<div class="flex flex-wrap items-center justify-between gap-3">
+								<p class="text-sm font-semibold text-slate-900">Automatizaciones existentes</p>
+								<Button href={routes.pricingBulk()} variant="secondary" size="sm">
+									Multi-plan avanzado
+								</Button>
+							</div>
+							{
+								automationSurface.rules.length ? (
+									<div class="grid gap-3">
+										{automationSurface.rules.slice(0, 12).map((rule) => (
+											<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+												<div class="flex flex-wrap items-start justify-between gap-3">
+													<div>
+														<div class="flex flex-wrap items-center gap-2">
+															<Badge variant="info">{rule.kindLabel}</Badge>
+															<Badge variant={statusVariant[rule.status]}>{rule.statusLabel}</Badge>
+															<Badge variant="neutral">Prioridad {rule.priority}</Badge>
+														</div>
+														<p class="mt-2 text-sm font-semibold text-slate-900">
+															{rule.productName} · {rule.variantName} · {rule.ratePlanName}
+														</p>
+														<p class="mt-1 text-sm text-slate-700">{rule.summary}</p>
+														<p class="mt-1 text-xs text-slate-500">
+															Vigencia: {rule.validityLabel} · Elegibilidad: {rule.eligibilityLabel}
+														</p>
+													</div>
+													<div class="flex flex-wrap gap-2">
+														<Button href={rule.quickLinks.ratePlan} variant="secondary" size="sm">
+															Plan tarifario
+														</Button>
+														<Button
+															href={rule.quickLinks.advancedPricing}
+															variant="secondary"
+															size="sm"
+														>
+															Multi-plan
+														</Button>
+													</div>
+												</div>
+											</div>
+										))}
+									</div>
+								) : (
+									<div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+										Todavía no hay automatizaciones. Crea descuentos, precios fijos o reglas por
+										estadía solo cuando necesites lógica monetaria recurrente.
+									</div>
+								)
+							}
+						</div>
+					</div>
+				</details>
 			</Card>
 		</Section>
 	</div>

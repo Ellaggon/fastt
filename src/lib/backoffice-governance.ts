@@ -216,7 +216,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Catalog content, media, location, metadata, and editorial readiness.",
+		rationale:
+			"Catalog content, media, location, metadata, House Rules, and guest-facing pre-publish review.",
 	},
 	{
 		pattern: "/rates/plans/**",
@@ -249,11 +250,11 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/pricing/rules",
-		status: "transitional",
+		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Commercial rule and pricing automation surface; subordinate to pricing and separate from restrictions.",
+			"Legacy deep link redirected into /pricing#pricing-automation; do not expose as primary navigation.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -814,18 +815,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Official sellability domain for LOS, CTA/CTD, stop-sell, and booking windows.",
 			},
 			{
-				label: "Pricing Automation",
-				href: routes.pricing(),
-				status: "canonical",
-				level: 2,
-				summary: "Advanced pricing automation embedded in the Pricing calendar.",
-			},
-			{
 				label: "Booking Policies",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
-				summary: "Cancellation, payment, no-show, and check-in/out conditions for rate plans.",
+				summary:
+					"Booking contract library: cancellation, payment, no-show, and check-in/out terms.",
 			},
 		],
 		planned: ["Occupancy Pricing", "Audit History"],
@@ -862,7 +857,14 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.productList(),
 				status: "canonical",
 				summary:
-					"Editorial content, media, location, metadata, and product presentation readiness.",
+					"Editorial content, media, location, metadata, House Rules handoff, and guest-facing publish review.",
+			},
+			{
+				label: "House Rules",
+				href: routes.providerHouseRules(),
+				status: "canonical",
+				summary:
+					"Guest behavior, property-use expectations, arrival guidance, pets, smoking, quiet hours, parking, and listing confidence.",
 			},
 		],
 		planned: ["Media Quality Review", "SEO Metadata", "Content Quality Workflow"],
@@ -1001,19 +1003,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
 			},
 			{
-				label: "Bulk Pricing",
+				label: "Multi-plan avanzado",
 				href: routes.pricingBulk(),
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
 					"Contextual advanced workflow for exceptional multi-plan pricing operations launched from Pricing.",
-			},
-			{
-				label: "Pricing Automation",
-				href: routes.pricing(),
-				status: "canonical",
-				owner: "Rooms & Rates",
-				description: "Advanced pricing automation under rate-plan ownership, embedded in Pricing.",
 			},
 		],
 	},
@@ -1069,7 +1064,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
-					"Cancellation, payment, no-show, and check-in/out policy library for rate-plan booking conditions.",
+					"Booking contract library for cancellation, payment, no-show, and check-in/out terms.",
 			},
 			{
 				label: "Taxes & Fees",
