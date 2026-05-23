@@ -1,0 +1,444 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { productRepository } from "@/container"
+import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
+import { getProductFullAggregate } from "@/modules/catalog/public"
+import { buildHouseRuleGuestSummary, listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect(routes.productList())
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect(routes.productList())
+
+const aggregate = await getProductFullAggregate(productId, providerId)
+if (!aggregate) return Astro.redirect(routes.productList())
+
+type PreviewGroup = {
+	label: string
+	description: string
+	types: string[]
+}
+
+const houseRuleLabels: Record<string, string> = {
+	Pets: "Pets",
+	Children: "Children",
+	Smoking: "Smoking",
+	Parties: "Parties & events",
+	QuietHours: "Quiet hours",
+	Parking: "Parking",
+	CheckIn: "Check-in",
+	Checkout: "Checkout",
+	Safety: "Safety & access",
+	ExtraBeds: "Extra beds",
+	Access: "Access",
+	Other: "Additional rules",
+}
+
+const houseRuleGroups: PreviewGroup[] = [
+	{
+		label: "Before you book",
+		description: "Expectations guests should understand before they reserve.",
+		types: ["Pets", "Children", "Smoking", "Parties", "QuietHours"],
+	},
+	{
+		label: "Arrival",
+		description: "What guests should know before reaching the property.",
+		types: ["CheckIn", "Access", "Parking"],
+	},
+	{
+		label: "During your stay",
+		description: "Property-use, shared-space and safety expectations.",
+		types: ["Safety", "ExtraBeds", "Other"],
+	},
+	{
+		label: "Checkout",
+		description: "Simple departure expectations.",
+		types: ["Checkout"],
+	},
+]
+
+const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+const essentialHouseRules = ["Pets", "Smoking", "Parties", "QuietHours", "CheckIn", "Checkout"]
+const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
+const description = String(aggregate.content.description ?? "").trim()
+const primaryImage = aggregate.images[0]?.url ?? ""
+const imagePreviews = aggregate.images.slice(0, 6)
+
+const houseRules = await listHouseRulesByProduct(productId)
+const houseRuleTypeSet = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
+const missingHouseRules = essentialHouseRules.filter((type) => !houseRuleTypeSet.has(type))
+const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: any) => {
+	const type = String(rule.type ?? "Other")
+	if (!acc[type]) acc[type] = []
+	acc[type].push(rule)
+	return acc
+}, {})
+
+let mappedPolicies: any[] = []
+let policyResolutionError: string | null = null
+try {
+	const resolvedPolicies = await resolveEffectivePolicies({
+		productId,
+		channel: "web",
+		requiredCategories: requiredPolicyCategories,
+		onMissingCategory: "return_null",
+		featureContext: {
+			request: Astro.request,
+			query: Astro.url.searchParams,
+		},
+	})
+	mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
+} catch (error) {
+	policyResolutionError = error instanceof Error ? error.message : "Could not resolve policies"
+}
+
+const policyCategorySet = new Set(
+	mappedPolicies.map((policy: any) => String(policy.category ?? ""))
+)
+const missingPolicies = requiredPolicyCategories.filter(
+	(category) => !policyCategorySet.has(category)
+)
+
+const checks = [
+	{
+		key: "content",
+		label: "Guest-facing content",
+		complete: Boolean(description && highlights.length),
+		href: `/product/${encodeURIComponent(productId)}/content`,
+		cta: "Edit content",
+		detail:
+			description && highlights.length
+				? "Description and highlights are ready."
+				: "Add a description and at least one highlight.",
+	},
+	{
+		key: "photos",
+		label: "Photos",
+		complete: aggregate.images.length > 0,
+		href: `/product/${encodeURIComponent(productId)}/images`,
+		cta: "Manage photos",
+		detail: aggregate.images.length
+			? `${aggregate.images.length} photos available.`
+			: "Add at least one listing photo.",
+	},
+	{
+		key: "location",
+		label: "Location",
+		complete: aggregate.location.lat !== null && aggregate.location.lng !== null,
+		href: `/product/${encodeURIComponent(productId)}/location`,
+		cta: "Edit location",
+		detail:
+			aggregate.location.lat !== null && aggregate.location.lng !== null
+				? "Map coordinates are configured."
+				: "Add map coordinates before publishing.",
+	},
+	{
+		key: "house-rules",
+		label: "House Rules",
+		complete: missingHouseRules.length === 0,
+		href: routes.providerHouseRules(),
+		cta: "Review House Rules",
+		detail: missingHouseRules.length
+			? `Missing: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
+			: "Core stay expectations are ready.",
+	},
+	{
+		key: "booking-policies",
+		label: "Booking Policies",
+		complete: missingPolicies.length === 0 && !policyResolutionError,
+		href: routes.providerPolicies(),
+		cta: "Review policies",
+		detail: policyResolutionError
+			? "Policies could not be resolved."
+			: missingPolicies.length
+				? `Missing: ${missingPolicies.map((category) => POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ?? category).join(", ")}.`
+				: "Core booking contract terms are visible.",
+	},
+]
+
+const completedChecks = checks.filter((check) => check.complete).length
+const readyToPublish = completedChecks === checks.length
+const readinessPercent = Math.round((completedChecks / checks.length) * 100)
+---
+
+<WorkspaceLayout title="Review Listing · Guest Preview">
+	<section class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Property Content · Review before publishing
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Review your listing</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-300">
+					Confirm what guests will understand before booking: photos, editorial content, booking
+					policies and House Rules. This review does not change pricing, inventory or sellability.
+				</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-2">
+				<Button href={routes.productDetail(productId)} variant="secondary">Back to readiness</Button
+				>
+				<Button href={`/hotels/${encodeURIComponent(productId)}`} variant="secondary"
+					>Open public page</Button
+				>
+			</div>
+		</header>
+
+		<section class="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+			<Card className="space-y-4 border-slate-800 bg-slate-950 text-slate-100">
+				<div class="flex items-start justify-between gap-3">
+					<div>
+						<p class="text-sm font-semibold">Publish confidence</p>
+						<p class="mt-1 text-sm text-slate-400">
+							{completedChecks} of {checks.length} required guest-facing blocks ready.
+						</p>
+					</div>
+					<Badge variant={readyToPublish ? "success" : "warning"}>
+						{readyToPublish ? "Ready to publish" : `${readinessPercent}% ready`}
+					</Badge>
+				</div>
+				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
+					<div class="h-full bg-blue-600" style={`width: ${readinessPercent}%`}></div>
+				</div>
+				<p class="text-sm text-slate-300">
+					{
+						readyToPublish
+							? "Guests can see a coherent listing, contract summary and stay expectations."
+							: "Review the missing blocks before treating this listing as publish-ready."
+					}
+				</p>
+			</Card>
+
+			<Card className="space-y-3 bg-white text-slate-800">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p class="text-sm font-semibold text-slate-900">Required before publish</p>
+						<p class="mt-1 text-sm text-slate-600">
+							A practical OTA checklist for provider confidence and guest clarity.
+						</p>
+					</div>
+					<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+						House Rules
+					</Button>
+				</div>
+				<div class="grid gap-3 md:grid-cols-2">
+					{
+						checks.map((check) => (
+							<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+								<div class="flex items-start justify-between gap-3">
+									<div>
+										<p class="text-sm font-semibold text-slate-900">{check.label}</p>
+										<p class="mt-1 text-xs leading-5 text-slate-600">{check.detail}</p>
+									</div>
+									<Badge variant={check.complete ? "success" : "warning"}>
+										{check.complete ? "Ready" : "Review"}
+									</Badge>
+								</div>
+								<div class="mt-3">
+									<Button href={check.href} variant="secondary" size="sm">
+										{check.cta}
+									</Button>
+								</div>
+							</div>
+						))
+					}
+				</div>
+			</Card>
+		</section>
+
+		<Section
+			title="Guest-facing preview"
+			description="A consolidated preview of the listing story, visual confidence, booking terms and stay expectations."
+		>
+			<Card className="overflow-hidden bg-white p-0 text-slate-800">
+				{
+					primaryImage ? (
+						<img src={primaryImage} alt={aggregate.displayName} class="h-72 w-full object-cover" />
+					) : (
+						<div class="flex h-72 items-center justify-center bg-slate-100 text-sm text-slate-500">
+							Add photos to create a guest-facing first impression.
+						</div>
+					)
+				}
+				<div class="space-y-6 p-5">
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								{aggregate.productType}
+							</p>
+							<h2 class="mt-1 text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
+							<p class="mt-1 text-sm text-slate-500">
+								{aggregate.location.address || "Location details not ready yet"}
+							</p>
+						</div>
+						<Badge variant={readyToPublish ? "success" : "warning"}>
+							{readyToPublish ? "Guest-ready" : "Draft preview"}
+						</Badge>
+					</div>
+
+					{
+						imagePreviews.length > 1 ? (
+							<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
+								{imagePreviews.map((image) => (
+									<img src={image.url} alt="Listing preview" class="h-20 rounded-md object-cover" />
+								))}
+							</div>
+						) : null
+					}
+
+					<div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+						<div class="space-y-4">
+							<div>
+								<p class="text-sm font-semibold text-slate-900">About this stay</p>
+								<p class="mt-2 text-sm leading-6 text-slate-700">
+									{description || "Add a clear description so guests understand the stay."}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Highlights</p>
+								{
+									highlights.length ? (
+										<ul class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+											{highlights.map((item) => (
+												<li class="rounded-md bg-slate-50 px-3 py-2">{String(item)}</li>
+											))}
+										</ul>
+									) : (
+										<p class="mt-2 text-sm text-slate-500">
+											Add at least one guest-facing highlight.
+										</p>
+									)
+								}
+							</div>
+						</div>
+
+						<div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+							<p class="text-sm font-semibold text-slate-900">Booking confidence</p>
+							<p class="text-sm leading-6 text-slate-600">
+								Guests should be able to understand cancellation, payment, no-show and check-in
+								terms before reserving.
+							</p>
+							<div class="flex flex-wrap gap-2">
+								{
+									requiredPolicyCategories.map((category) => (
+										<Badge variant={policyCategorySet.has(category) ? "success" : "neutral"}>
+											{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+												category}
+										</Badge>
+									))
+								}
+							</div>
+						</div>
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title="Booking terms guests will see"
+			description="Contract terms stay in Booking Policies. This preview only verifies visibility."
+		>
+			<div class="grid gap-4 md:grid-cols-2">
+				{
+					policyResolutionError ? (
+						<Card className="border-red-200 bg-red-50 text-red-900">
+							<p class="font-semibold">Policies could not be resolved.</p>
+							<p class="mt-1 text-sm">{policyResolutionError}</p>
+						</Card>
+					) : mappedPolicies.length ? (
+						mappedPolicies.map((policy: any) => {
+							const category = String(policy.category ?? "")
+							return (
+								<Card className="bg-white text-slate-800">
+									<div class="flex items-start justify-between gap-3">
+										<div>
+											<p class="text-sm font-semibold text-slate-900">
+												{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+													category}
+											</p>
+											<p class="mt-1 text-sm leading-6 text-slate-600">
+												{String(policy.description ?? "No policy detail available.")}
+											</p>
+										</div>
+										<Badge variant="info">v{Number(policy.version ?? 0)}</Badge>
+									</div>
+								</Card>
+							)
+						})
+					) : (
+						<Card className="bg-white text-slate-700">
+							<p class="font-semibold text-slate-900">No booking policies visible yet.</p>
+							<p class="mt-1 text-sm">
+								Create booking policies before treating the listing as ready.
+							</p>
+						</Card>
+					)
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Stay expectations guests will see"
+			description="House Rules explain behavior and stay operations. They are not pricing, restrictions or cancellation penalties."
+		>
+			<Card className="space-y-5 bg-white text-slate-800">
+				{
+					houseRules.length ? (
+						<div class="grid gap-4 lg:grid-cols-2">
+							{houseRuleGroups.map((group) => {
+								const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
+								if (!items.length) return null
+								return (
+									<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+										<p class="text-sm font-semibold text-slate-900">{group.label}</p>
+										<p class="mt-1 text-xs text-slate-500">{group.description}</p>
+										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+											{items.map((rule: any) => {
+												const type = String(rule.type ?? "Other")
+												const summary = buildHouseRuleGuestSummary(
+													type as any,
+													rule.payloadJson,
+													String(rule.description ?? "")
+												)
+												return (
+													<li>
+														<span class="font-medium text-slate-900">
+															{houseRuleLabels[type] ?? "Additional rule"}:
+														</span>{" "}
+														{summary}
+													</li>
+												)
+											})}
+										</ul>
+									</div>
+								)
+							})}
+						</div>
+					) : (
+						<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+							<p class="text-sm font-semibold text-slate-900">No House Rules yet.</p>
+							<p class="mt-1 text-sm text-slate-600">
+								Add stay expectations so guests understand behavior, arrival and checkout before
+								booking.
+							</p>
+						</div>
+					)
+				}
+			</Card>
+		</Section>
+	</section>
+</WorkspaceLayout>

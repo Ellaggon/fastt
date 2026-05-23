@@ -69,6 +69,84 @@ export const HOUSE_RULE_PRESETS = {
 		},
 	],
 
+	Parties: [
+		{
+			key: "no_parties",
+			name: "No parties or events",
+			description: "Parties, events and large gatherings are not allowed at the property.",
+		},
+		{
+			key: "events_on_request",
+			name: "Events by prior approval",
+			description: "Events require written approval from the property before arrival.",
+		},
+	],
+
+	QuietHours: [
+		{
+			key: "quiet_hours_22_08",
+			name: "Quiet hours from 22:00 to 08:00",
+			description: "Guests must keep noise low between 22:00 and 08:00.",
+		},
+		{
+			key: "respect_neighbors",
+			name: "Respect neighbors",
+			description: "Guests must avoid disruptive noise and respect neighboring units or homes.",
+		},
+	],
+
+	Parking: [
+		{
+			key: "assigned_parking",
+			name: "Assigned parking only",
+			description: "Guests may park only in the assigned parking space or approved area.",
+		},
+		{
+			key: "street_parking",
+			name: "Street parking guidance",
+			description: "Street parking is subject to local signs, hours and neighborhood rules.",
+		},
+	],
+
+	CheckIn: [
+		{
+			key: "id_required",
+			name: "ID required at check-in",
+			description: "Guests must present a valid ID at check-in when requested by the property.",
+		},
+		{
+			key: "arrival_instructions",
+			name: "Arrival instructions required",
+			description: "Guests must follow the arrival instructions shared before check-in.",
+		},
+	],
+
+	Checkout: [
+		{
+			key: "return_keys",
+			name: "Return keys or access devices",
+			description: "Guests must return keys, cards or access devices before departure.",
+		},
+		{
+			key: "basic_checkout",
+			name: "Basic checkout expectations",
+			description: "Guests should lock doors and leave the property in reasonable condition.",
+		},
+	],
+
+	Safety: [
+		{
+			key: "shared_spaces",
+			name: "Shared spaces guidance",
+			description: "Guests must respect shared spaces and follow posted safety instructions.",
+		},
+		{
+			key: "restricted_areas",
+			name: "Restricted areas",
+			description: "Guests must not enter staff-only, private or restricted areas.",
+		},
+	],
+
 	ExtraBeds: [
 		{
 			key: "extra_bed_available",

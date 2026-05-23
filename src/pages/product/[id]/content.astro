@@ -7,6 +7,7 @@ import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 import { getProductAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -39,7 +40,8 @@ const rulesValue = aggregate.content.rules ?? ""
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Editorial Content</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define la narrativa visible del producto: descripción, destacados y reglas editoriales.
+					Define la narrativa visible del producto: descripción y destacados. Las reglas de
+					comportamiento e instrucciones operativas viven en House Rules.
 				</p>
 			</header>
 
@@ -83,15 +85,19 @@ const rulesValue = aggregate.content.rules ?? ""
 							/>
 						</FormField>
 
-						<FormField label="Reglas (opcional)" htmlFor="rules">
-							<Textarea
-								id="rules"
-								name="rules"
-								value={rulesValue}
-								rows="4"
-								placeholder="No fumar"
-							/>
-						</FormField>
+						<Input type="hidden" name="rules" value={rulesValue} />
+						<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950">
+							<p class="text-sm font-semibold">House Rules moved out of editorial content</p>
+							<p class="mt-1 text-sm">
+								Use House Rules for pets, smoking, quiet hours, parking, check-in, checkout and
+								guest behavior. This keeps property copy separate from stay expectations.
+							</p>
+							<div class="mt-3">
+								<Button href={routes.providerHouseRules()} variant="secondary">
+									Open House Rules
+								</Button>
+							</div>
+						</div>
 					</div>
 
 					<div class="space-y-1">

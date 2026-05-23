@@ -1,0 +1,1212 @@
+---
+import { db, eq, Product } from "astro:db"
+
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+import {
+	buildHouseRuleGuestSummary,
+	createHouseRule,
+	deleteHouseRule,
+	listHouseRulesByProduct,
+	type HouseRule,
+	type HouseRulePayload,
+	type HouseRuleType,
+} from "@/modules/house-rules/public"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+type ProductOption = {
+	id: string
+	name: string
+	productType: string
+}
+
+type HouseRuleGroup = {
+	key: string
+	label: string
+	description: string
+	types: HouseRuleType[]
+}
+
+const houseRuleTypes: HouseRuleType[] = [
+	"Pets",
+	"Children",
+	"Smoking",
+	"Parties",
+	"QuietHours",
+	"Parking",
+	"CheckIn",
+	"Checkout",
+	"Safety",
+	"ExtraBeds",
+	"Access",
+	"Other",
+]
+
+const essentialRuleTypes: HouseRuleType[] = [
+	"Pets",
+	"Smoking",
+	"Parties",
+	"QuietHours",
+	"CheckIn",
+	"Checkout",
+]
+
+const houseRuleGroups: HouseRuleGroup[] = [
+	{
+		key: "before-booking",
+		label: "Before booking",
+		description: "Rules guests should understand before they reserve.",
+		types: ["Pets", "Children", "Smoking", "Parties", "QuietHours"],
+	},
+	{
+		key: "arrival",
+		label: "Arrival & access",
+		description: "Instructions that reduce check-in friction and operational surprises.",
+		types: ["CheckIn", "Access", "Parking"],
+	},
+	{
+		key: "during-stay",
+		label: "During the stay",
+		description: "Property-use expectations, safety notes and shared-space guidance.",
+		types: ["Safety", "ExtraBeds", "Other"],
+	},
+	{
+		key: "departure",
+		label: "Departure",
+		description: "Checkout timing and simple leaving expectations.",
+		types: ["Checkout"],
+	},
+]
+
+const quickSetupPresets: Array<{
+	key: string
+	title: string
+	description: string
+	rules: Array<{ type: HouseRuleType; payload: HouseRulePayload }>
+}> = [
+	{
+		key: "hotel-baseline",
+		title: "Hotel baseline",
+		description: "Front-desk arrival, no smoking, quiet hours and simple checkout.",
+		rules: [
+			{ type: "Children", payload: { kind: "Children", allowed: true } },
+			{
+				type: "Smoking",
+				payload: { kind: "Smoking", allowed: false, area: "not_allowed" },
+			},
+			{ type: "Parties", payload: { kind: "Parties", allowed: false } },
+			{ type: "QuietHours", payload: { kind: "QuietHours", start: "22:00", end: "08:00" } },
+			{
+				type: "CheckIn",
+				payload: { kind: "CheckIn", method: "front_desk", idRequired: true },
+			},
+			{
+				type: "Checkout",
+				payload: {
+					kind: "Checkout",
+					time: "11:00",
+					tasks: ["return keys or access devices"],
+				},
+			},
+		],
+	},
+	{
+		key: "self-service-stay",
+		title: "Self-service stay",
+		description: "Self check-in, quiet-hours clarity and lightweight departure tasks.",
+		rules: [
+			{
+				type: "Pets",
+				payload: { kind: "Pets", allowed: false },
+			},
+			{
+				type: "Smoking",
+				payload: { kind: "Smoking", allowed: false, area: "not_allowed" },
+			},
+			{ type: "Parties", payload: { kind: "Parties", allowed: false } },
+			{ type: "QuietHours", payload: { kind: "QuietHours", start: "22:00", end: "08:00" } },
+			{
+				type: "CheckIn",
+				payload: {
+					kind: "CheckIn",
+					method: "self",
+					instructions: "Arrival instructions are shared before check-in.",
+				},
+			},
+			{
+				type: "Checkout",
+				payload: {
+					kind: "Checkout",
+					time: "11:00",
+					tasks: ["lock doors and windows", "turn off lights and appliances"],
+				},
+			},
+		],
+	},
+]
+
+const categoryCopy: Record<HouseRuleType, { label: string; intent: string; guestFacing: string }> =
+	{
+		Children: {
+			label: "Children",
+			intent: "Child acceptance, child-age expectations and family stay guidance.",
+			guestFacing: "Can children stay here and under what expectations?",
+		},
+		Pets: {
+			label: "Pets",
+			intent: "Pet permission, service-animal clarity and pet behavior expectations.",
+			guestFacing: "Can guests bring pets, and what should they know?",
+		},
+		Smoking: {
+			label: "Smoking",
+			intent: "Smoking, vaping and designated-area behavior.",
+			guestFacing: "Where, if anywhere, can guests smoke or vape?",
+		},
+		Parties: {
+			label: "Parties & events",
+			intent: "Parties, events, gatherings and property-use expectations.",
+			guestFacing: "Are parties, events or gatherings allowed?",
+		},
+		QuietHours: {
+			label: "Quiet hours",
+			intent: "Noise, neighbor respect and quiet-hour expectations.",
+			guestFacing: "When should guests keep noise especially low?",
+		},
+		Parking: {
+			label: "Parking",
+			intent: "Parking usage, assigned spaces and local parking instructions.",
+			guestFacing: "Where can guests park and what rules apply?",
+		},
+		CheckIn: {
+			label: "Check-in instructions",
+			intent: "Arrival behavior, ID requirements and access instructions.",
+			guestFacing: "What must guests do when they arrive?",
+		},
+		Checkout: {
+			label: "Checkout expectations",
+			intent: "Departure behavior, access-device return and property handoff.",
+			guestFacing: "What should guests do before leaving?",
+		},
+		Safety: {
+			label: "Safety & shared spaces",
+			intent: "Shared areas, restricted spaces and operational safety notes.",
+			guestFacing: "How should guests use the property safely?",
+		},
+		ExtraBeds: {
+			label: "Extra beds",
+			intent: "Operational guidance for cribs, extra beds and sleeping arrangements.",
+			guestFacing: "Can guests request extra beds or cribs?",
+		},
+		Access: {
+			label: "Access",
+			intent: "Self check-in, keys, locks and access method guidance.",
+			guestFacing: "How do guests enter and use access devices?",
+		},
+		Other: {
+			label: "Additional rule",
+			intent:
+				"Any property-use rule that does not belong to pricing, restrictions or contract terms.",
+			guestFacing: "What else should guests know before staying?",
+		},
+	}
+
+async function loadProviderProducts(providerId: string): Promise<ProductOption[]> {
+	const rows = await db
+		.select({
+			id: Product.id,
+			name: Product.name,
+			productType: Product.productType,
+		})
+		.from(Product)
+		.where(eq(Product.providerId, providerId))
+		.all()
+	return rows.map((row) => ({
+		id: String(row.id),
+		name: String(row.name),
+		productType: String(row.productType ?? "Property"),
+	}))
+}
+
+async function loadRulesByProduct(products: ProductOption[]) {
+	const pairs = await Promise.all(
+		products.map(async (product) => ({
+			productId: product.id,
+			rules: (await listHouseRulesByProduct(product.id)) as HouseRule[],
+		}))
+	)
+	return new Map(pairs.map((pair) => [pair.productId, pair.rules]))
+}
+
+function boolFromForm(form: FormData, key: string): boolean | undefined {
+	const raw = String(form.get(key) ?? "").trim()
+	if (raw === "true") return true
+	if (raw === "false") return false
+	return undefined
+}
+
+function listFromForm(form: FormData, key: string): string[] {
+	return form
+		.getAll(key)
+		.map((item) => String(item ?? "").trim())
+		.filter(Boolean)
+}
+
+function payloadFromForm(type: HouseRuleType, form: FormData): HouseRulePayload {
+	const note = String(form.get("note") ?? "").trim()
+	const base: HouseRulePayload = { kind: type }
+	if (note) base.note = note
+
+	switch (type) {
+		case "Pets":
+			return {
+				...base,
+				allowed: boolFromForm(form, "allowed"),
+				feeNote: String(form.get("feeNote") ?? "").trim() || undefined,
+			}
+		case "Children":
+			return {
+				...base,
+				allowed: boolFromForm(form, "allowed"),
+				conditions: String(form.get("conditions") ?? "").trim() || undefined,
+			}
+		case "Smoking":
+			return {
+				...base,
+				allowed: boolFromForm(form, "allowed"),
+				area: (String(form.get("smokingArea") ?? "").trim() || undefined) as any,
+			}
+		case "Parties":
+			return { ...base, allowed: boolFromForm(form, "allowed") }
+		case "QuietHours":
+			return {
+				...base,
+				start: String(form.get("quietStart") ?? "").trim() || undefined,
+				end: String(form.get("quietEnd") ?? "").trim() || undefined,
+			}
+		case "Parking":
+			return {
+				...base,
+				available: boolFromForm(form, "available"),
+				parkingType: (String(form.get("parkingType") ?? "").trim() || undefined) as any,
+			}
+		case "CheckIn":
+		case "Access":
+			return {
+				...base,
+				method: (String(form.get("checkInMethod") ?? "").trim() || undefined) as any,
+				instructions: String(form.get("instructions") ?? "").trim() || undefined,
+				idRequired: form.get("idRequired") === "on",
+				cardRequired: form.get("cardRequired") === "on",
+			}
+		case "Checkout":
+			return {
+				...base,
+				time: String(form.get("checkoutTime") ?? "").trim() || undefined,
+				tasks: listFromForm(form, "checkoutTasks"),
+				instructions: String(form.get("instructions") ?? "").trim() || undefined,
+			}
+		default:
+			return {
+				...base,
+				instructions: String(form.get("instructions") ?? "").trim() || undefined,
+			}
+	}
+}
+
+let actionError: string | null = null
+
+if (Astro.request.method === "POST") {
+	const form = await Astro.request.formData()
+	const action = String(form.get("action") ?? "").trim()
+	try {
+		const products = await loadProviderProducts(auth.providerId)
+		const ownedProductIds = new Set(products.map((product) => product.id))
+		if (action === "create-house-rule") {
+			const productId = String(form.get("productId") ?? "").trim()
+			const type = String(form.get("type") ?? "").trim() as HouseRuleType
+			const description = String(form.get("description") ?? "").trim()
+			const payload = payloadFromForm(type, form)
+			if (!ownedProductIds.has(productId)) throw new Error("Property is not available")
+			if (!houseRuleTypes.includes(type)) throw new Error("Unsupported house rule category")
+			await createHouseRule({ productId, type, description, payload })
+			return Astro.redirect(`${routes.providerHouseRules()}?success=created`)
+		}
+		if (action === "apply-quick-setup") {
+			const productId = String(form.get("productId") ?? "").trim()
+			const presetKey = String(form.get("presetKey") ?? "").trim()
+			const preset = quickSetupPresets.find((item) => item.key === presetKey)
+			if (!ownedProductIds.has(productId)) throw new Error("Property is not available")
+			if (!preset) throw new Error("Quick setup preset is not available")
+
+			const rulesByProduct = await loadRulesByProduct(products)
+			const existingTypes = new Set(
+				(rulesByProduct.get(productId) ?? []).map((rule) => String(rule.type ?? "Other"))
+			)
+			for (const item of preset.rules) {
+				if (existingTypes.has(item.type)) continue
+				await createHouseRule({ productId, type: item.type, payload: item.payload })
+				existingTypes.add(item.type)
+			}
+			return Astro.redirect(`${routes.providerHouseRules()}?success=preset-applied`)
+		}
+		if (action === "delete-house-rule") {
+			const ruleId = String(form.get("ruleId") ?? "").trim()
+			const rulesByProduct = await loadRulesByProduct(products)
+			const ownedRule = Array.from(rulesByProduct.values())
+				.flat()
+				.find((rule) => String(rule.id) === ruleId)
+			if (!ownedRule) throw new Error("House rule is not available")
+			await deleteHouseRule(ruleId)
+			return Astro.redirect(`${routes.providerHouseRules()}?success=deleted`)
+		}
+	} catch (error) {
+		actionError = error instanceof Error ? error.message : "House rule action failed"
+	}
+}
+
+const products = await loadProviderProducts(auth.providerId)
+const rulesByProduct = await loadRulesByProduct(products)
+const allRules = Array.from(rulesByProduct.values()).flat()
+const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+const defaultProductId = products[0]?.id ?? ""
+const rulesByType = new Map<HouseRuleType, number>()
+for (const type of houseRuleTypes) rulesByType.set(type, 0)
+for (const rule of allRules) {
+	const type = String(rule.type ?? "Other") as HouseRuleType
+	rulesByType.set(type, (rulesByType.get(type) ?? 0) + 1)
+}
+const readinessByProduct = products.map((product) => {
+	const rules = rulesByProduct.get(product.id) ?? []
+	const typeSet = new Set(rules.map((rule) => String(rule.type ?? "Other") as HouseRuleType))
+	const completedEssentials = essentialRuleTypes.filter((type) => typeSet.has(type))
+	const missingEssentials = essentialRuleTypes.filter((type) => !typeSet.has(type))
+	const progress = essentialRuleTypes.length
+		? Math.round((completedEssentials.length / essentialRuleTypes.length) * 100)
+		: 0
+	return {
+		product,
+		rules,
+		typeSet,
+		completedEssentials,
+		missingEssentials,
+		progress,
+		ready: missingEssentials.length === 0,
+	}
+})
+const readyProducts = readinessByProduct.filter((item) => item.ready).length
+const averageReadiness = readinessByProduct.length
+	? Math.round(
+			readinessByProduct.reduce((sum, item) => sum + item.progress, 0) / readinessByProduct.length
+		)
+	: 0
+const selectedPreview =
+	readinessByProduct.find((item) => item.rules.length) ?? readinessByProduct[0]
+const previewRules = selectedPreview?.rules ?? []
+const previewRulesByGroup = houseRuleGroups.map((group) => ({
+	...group,
+	rules: previewRules.filter((rule) =>
+		group.types.includes(String(rule.type ?? "Other") as HouseRuleType)
+	),
+}))
+---
+
+<WorkspaceLayout title="House Rules">
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Property Content · Guest Expectations
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">House Rules</h1>
+				<p class="max-w-4xl text-sm leading-6 text-slate-300">
+					Define how guests should behave and how the property operates during a stay. House Rules
+					do not set prices, discounts, refund penalties, inventory, or sellability blocks.
+				</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-2">
+				<Button href={routes.productList()} variant="secondary">Catalog Readiness</Button>
+				<Button href={routes.providerPolicies()} variant="secondary">Booking Policies</Button>
+				<Button href={routes.pricing()} variant="secondary">Pricing</Button>
+			</div>
+		</header>
+
+		{
+			actionError && (
+				<Card className="border-red-200 bg-red-50 text-red-900">
+					<p class="text-sm font-semibold">Could not update house rules</p>
+					<p class="mt-1 text-sm">{actionError}</p>
+				</Card>
+			)
+		}
+		{
+			success === "created" && (
+				<Card className="border-green-200 bg-green-50 text-green-900">
+					<p class="text-sm font-semibold">House rule created.</p>
+					<p class="mt-1 text-sm">
+						The rule is now part of property content and guest expectations.
+					</p>
+				</Card>
+			)
+		}
+		{
+			success === "preset-applied" && (
+				<Card className="border-green-200 bg-green-50 text-green-900">
+					<p class="text-sm font-semibold">Quick setup applied.</p>
+					<p class="mt-1 text-sm">
+						Missing stay expectations were added without duplicating existing house rules.
+					</p>
+				</Card>
+			)
+		}
+		{
+			success === "deleted" && (
+				<Card className="border-green-200 bg-green-50 text-green-900">
+					<p class="text-sm font-semibold">House rule removed.</p>
+				</Card>
+			)
+		}
+
+		<section class="grid gap-4 md:grid-cols-4">
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Properties</p>
+				<p class="mt-2 text-2xl font-semibold">{products.length}</p>
+				<p class="mt-1 text-xs text-slate-400">With house-rule ownership available</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">House rules</p>
+				<p class="mt-2 text-2xl font-semibold">{allRules.length}</p>
+				<p class="mt-1 text-xs text-slate-400">Guest-facing behavior rules</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Stay readiness</p>
+				<p class="mt-2 text-2xl font-semibold">{averageReadiness}%</p>
+				<p class="mt-1 text-xs text-slate-400">Average essential expectations coverage</p>
+			</Card>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<p class="text-xs uppercase tracking-wide text-slate-500">Ready listings</p>
+				<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
+				<p class="mt-1 text-xs text-slate-400">Have core stay expectations</p>
+			</Card>
+		</section>
+
+		<section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+			<Card className="space-y-5 border-blue-200 bg-blue-50 text-blue-950">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p class="text-sm font-semibold">Stay expectations readiness</p>
+						<p class="mt-1 max-w-2xl text-sm text-blue-900">
+							Core house rules help guests self-select before booking and reduce avoidable arrival
+							friction. They stay operational: not pricing, not restrictions, not booking-contract
+							penalties.
+						</p>
+					</div>
+					<Badge variant={averageReadiness >= 80 ? "success" : "warning"}>
+						{averageReadiness}% coverage
+					</Badge>
+				</div>
+				<div class="grid gap-3 md:grid-cols-3">
+					<div class="rounded-lg border border-blue-100 bg-white/70 p-3">
+						<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Guests decide</p>
+						<p class="mt-1 text-sm text-blue-950">Pets, smoking, parties and quiet hours.</p>
+					</div>
+					<div class="rounded-lg border border-blue-100 bg-white/70 p-3">
+						<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Guests arrive</p>
+						<p class="mt-1 text-sm text-blue-950">Check-in, access, ID and parking guidance.</p>
+					</div>
+					<div class="rounded-lg border border-blue-100 bg-white/70 p-3">
+						<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Guests leave</p>
+						<p class="mt-1 text-sm text-blue-950">Checkout time and lightweight departure tasks.</p>
+					</div>
+				</div>
+			</Card>
+
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<div>
+						<p class="text-sm font-semibold text-slate-900">Quick setup</p>
+						<p class="mt-1 text-sm text-slate-600">
+							Apply OTA-style defaults to the selected property, only filling missing categories.
+						</p>
+					</div>
+				</div>
+				{
+					products.length ? (
+						<div class="grid gap-3">
+							{quickSetupPresets.map((preset) => (
+								<form method="POST" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+									<input type="hidden" name="action" value="apply-quick-setup" />
+									<input type="hidden" name="presetKey" value={preset.key} />
+									<label class="block space-y-1 text-sm">
+										<span class="font-medium text-slate-700">{preset.title}</span>
+										<select
+											name="productId"
+											class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
+										>
+											{products.map((product) => (
+												<option value={product.id} selected={product.id === defaultProductId}>
+													{product.name}
+												</option>
+											))}
+										</select>
+									</label>
+									<p class="mt-2 text-sm text-slate-600">{preset.description}</p>
+									<div class="mt-3 flex justify-end">
+										<Button type="submit" variant="secondary" size="sm">
+											Apply missing rules
+										</Button>
+									</div>
+								</form>
+							))}
+						</div>
+					) : (
+						<p class="text-sm text-slate-600">Create a property before using quick setup.</p>
+					)
+				}
+			</Card>
+		</section>
+
+		<Section
+			title="Listing readiness by property"
+			description="House Rules now participates in listing confidence as stay expectations readiness. It is visible here before publishing, but it does not change price, sellability or contract terms."
+		>
+			<div class="grid gap-4 lg:grid-cols-2">
+				{
+					readinessByProduct.length ? (
+						readinessByProduct.map((item) => (
+							<Card className="space-y-4 bg-white text-slate-800">
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div>
+										<p class="text-base font-semibold text-slate-900">{item.product.name}</p>
+										<p class="text-sm text-slate-500">{item.product.productType}</p>
+									</div>
+									<Badge variant={item.ready ? "success" : "warning"}>
+										{item.ready ? "Ready for guests" : `${item.missingEssentials.length} missing`}
+									</Badge>
+								</div>
+								<div>
+									<div class="h-2 overflow-hidden rounded-full bg-slate-200">
+										<div
+											class="h-full bg-blue-700"
+											style={`width: ${Math.max(0, Math.min(100, item.progress))}%`}
+										/>
+									</div>
+									<p class="mt-2 text-xs text-slate-500">
+										{item.completedEssentials.length} of {essentialRuleTypes.length} essential
+										expectation categories complete.
+									</p>
+								</div>
+								<div class="flex flex-wrap gap-2">
+									{essentialRuleTypes.map((type) => (
+										<Badge variant={item.typeSet.has(type) ? "success" : "neutral"}>
+											{categoryCopy[type].label}
+										</Badge>
+									))}
+								</div>
+								{item.missingEssentials.length ? (
+									<p class="text-sm text-slate-600">
+										Add next:{" "}
+										{item.missingEssentials.map((type) => categoryCopy[type].label).join(", ")}.
+									</p>
+								) : (
+									<p class="text-sm text-slate-600">
+										Core guest expectations are clear for this property.
+									</p>
+								)}
+								<div class="flex flex-wrap justify-end gap-2">
+									<Button
+										href={routes.productPreview(item.product.id)}
+										variant="secondary"
+										size="sm"
+									>
+										Review listing
+									</Button>
+									<Button
+										href={routes.productDetail(item.product.id)}
+										variant="secondary"
+										size="sm"
+									>
+										Readiness
+									</Button>
+								</div>
+							</Card>
+						))
+					) : (
+						<Card className="bg-white text-slate-700">
+							<p class="font-medium text-slate-900">No properties yet.</p>
+							<p class="mt-1 text-sm">Create a property to define guest expectations.</p>
+						</Card>
+					)
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Add stay expectation"
+			description="Start with the guest-facing category, then add only the operational details guests need before booking, arrival or checkout."
+		>
+			<Card className="bg-white text-slate-800">
+				{
+					!products.length ? (
+						<div class="flex flex-wrap items-center justify-between gap-4">
+							<p class="text-sm text-slate-600">Create a property before adding house rules.</p>
+							<Button href="/product/create" variant="primary">
+								Create property
+							</Button>
+						</div>
+					) : (
+						<form method="POST" class="grid gap-5 lg:grid-cols-6" data-house-rule-form>
+							<input type="hidden" name="action" value="create-house-rule" />
+							<label class="space-y-1 text-sm lg:col-span-2">
+								<span class="font-medium text-slate-700">Property</span>
+								<select
+									name="productId"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								>
+									{products.map((product) => (
+										<option value={product.id} selected={product.id === defaultProductId}>
+											{product.name} · {product.productType}
+										</option>
+									))}
+								</select>
+							</label>
+							<label class="space-y-1 text-sm lg:col-span-2">
+								<span class="font-medium text-slate-700">Category</span>
+								<select
+									name="type"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									data-rule-type
+								>
+									{houseRuleTypes.map((type) => (
+										<option value={type}>{categoryCopy[type].label}</option>
+									))}
+								</select>
+							</label>
+							<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 lg:col-span-2">
+								<p class="font-semibold text-slate-900">Ownership guardrail</p>
+								<p class="mt-1">
+									Use House Rules for property-use expectations. Use Pricing for promotions and
+									discounts, Booking Policies for refund/payment terms, and Restrictions for
+									sellability.
+								</p>
+							</div>
+							<div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950 lg:col-span-6">
+								<p class="font-semibold">Guest-facing meaning</p>
+								<p class="mt-1" data-category-help>
+									{categoryCopy.Pets.guestFacing}
+								</p>
+							</div>
+
+							<div class="grid gap-4 lg:col-span-6 lg:grid-cols-2" data-rule-panel="Pets">
+								<fieldset class="rounded-lg border border-slate-200 p-4">
+									<legend class="px-1 text-sm font-semibold text-slate-900">Pets</legend>
+									<div class="mt-3 flex flex-wrap gap-4 text-sm">
+										<label>
+											<input type="radio" name="allowed" value="true" /> Allowed
+										</label>
+										<label>
+											<input type="radio" name="allowed" value="false" checked /> Not allowed
+										</label>
+									</div>
+									<label class="mt-3 block text-sm">
+										<span class="font-medium text-slate-700">Pet fee or approval note</span>
+										<input
+											name="feeNote"
+											class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+											placeholder="Example: Pet fee applies after approval."
+										/>
+									</label>
+								</fieldset>
+							</div>
+
+							<div
+								class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2"
+								data-rule-panel="Children"
+							>
+								<fieldset class="rounded-lg border border-slate-200 p-4">
+									<legend class="px-1 text-sm font-semibold text-slate-900">Children</legend>
+									<div class="mt-3 flex flex-wrap gap-4 text-sm">
+										<label>
+											<input type="radio" name="allowed" value="true" checked /> Allowed
+										</label>
+										<label>
+											<input type="radio" name="allowed" value="false" /> Not allowed
+										</label>
+									</div>
+									<label class="mt-3 block text-sm">
+										<span class="font-medium text-slate-700">Conditions</span>
+										<input
+											name="conditions"
+											class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+											placeholder="Example: Children must be supervised near the pool."
+										/>
+									</label>
+								</fieldset>
+							</div>
+
+							<div class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2" data-rule-panel="Smoking">
+								<fieldset class="rounded-lg border border-slate-200 p-4">
+									<legend class="px-1 text-sm font-semibold text-slate-900">Smoking</legend>
+									<div class="mt-3 flex flex-wrap gap-4 text-sm">
+										<label>
+											<input type="radio" name="allowed" value="true" /> Allowed with limits
+										</label>
+										<label>
+											<input type="radio" name="allowed" value="false" checked /> Prohibited
+										</label>
+									</div>
+									<label class="mt-3 block text-sm">
+										<span class="font-medium text-slate-700">Area semantics</span>
+										<select
+											name="smokingArea"
+											class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+										>
+											<option value="not_allowed">Not allowed</option>
+											<option value="designated_areas">Designated areas</option>
+											<option value="outdoors">Outdoors only</option>
+											<option value="rooms">Smoking-designated rooms</option>
+											<option value="other">Other property guidance</option>
+										</select>
+									</label>
+								</fieldset>
+							</div>
+
+							<div class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2" data-rule-panel="Parties">
+								<fieldset class="rounded-lg border border-slate-200 p-4">
+									<legend class="px-1 text-sm font-semibold text-slate-900">
+										Parties & events
+									</legend>
+									<div class="mt-3 flex flex-wrap gap-4 text-sm">
+										<label>
+											<input type="radio" name="allowed" value="true" /> Allowed with guidance
+										</label>
+										<label>
+											<input type="radio" name="allowed" value="false" checked /> Not allowed
+										</label>
+									</div>
+								</fieldset>
+							</div>
+
+							<div
+								class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2"
+								data-rule-panel="QuietHours"
+							>
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Quiet hours start</span>
+									<input
+										type="time"
+										name="quietStart"
+										value="22:00"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Quiet hours end</span>
+									<input
+										type="time"
+										name="quietEnd"
+										value="08:00"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									/>
+								</label>
+							</div>
+
+							<div class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2" data-rule-panel="Parking">
+								<fieldset class="rounded-lg border border-slate-200 p-4">
+									<legend class="px-1 text-sm font-semibold text-slate-900">Parking</legend>
+									<div class="mt-3 flex flex-wrap gap-4 text-sm">
+										<label>
+											<input type="radio" name="available" value="true" checked /> Available
+										</label>
+										<label>
+											<input type="radio" name="available" value="false" /> Not available
+										</label>
+									</div>
+									<label class="mt-3 block text-sm">
+										<span class="font-medium text-slate-700">Parking type</span>
+										<select
+											name="parkingType"
+											class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+										>
+											<option value="free">Free</option>
+											<option value="paid">Paid</option>
+											<option value="street">Street</option>
+											<option value="assigned">Assigned space</option>
+											<option value="nearby">Nearby</option>
+											<option value="none">No parking</option>
+										</select>
+									</label>
+								</fieldset>
+							</div>
+
+							<div
+								class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2"
+								data-rule-panel="CheckIn Access"
+							>
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Check-in method</span>
+									<select
+										name="checkInMethod"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									>
+										<option value="self">Self check-in</option>
+										<option value="host">Host-assisted</option>
+										<option value="front_desk">Front desk</option>
+										<option value="lockbox">Lockbox</option>
+										<option value="smart_lock">Smart lock or code</option>
+										<option value="manual">Manual handoff</option>
+									</select>
+								</label>
+								<div class="space-y-2 rounded-lg border border-slate-200 p-4 text-sm">
+									<p class="font-medium text-slate-700">Arrival expectations</p>
+									<label class="block">
+										<input type="checkbox" name="idRequired" /> Valid ID may be required
+									</label>
+									<label class="block">
+										<input type="checkbox" name="cardRequired" /> Payment card may be required
+									</label>
+								</div>
+							</div>
+
+							<div
+								class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2"
+								data-rule-panel="Checkout"
+							>
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Checkout time</span>
+									<input
+										type="time"
+										name="checkoutTime"
+										value="11:00"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									/>
+								</label>
+								<div class="space-y-2 rounded-lg border border-slate-200 p-4 text-sm">
+									<p class="font-medium text-slate-700">Checkout tasks</p>
+									<label class="block">
+										<input
+											type="checkbox"
+											name="checkoutTasks"
+											value="return keys or access devices"
+										/>{" "}
+										Return keys/access devices
+									</label>
+									<label class="block">
+										<input type="checkbox" name="checkoutTasks" value="lock doors and windows" />{" "}
+										Lock doors and windows
+									</label>
+									<label class="block">
+										<input
+											type="checkbox"
+											name="checkoutTasks"
+											value="dispose of trash in the approved area"
+										/>{" "}
+										Dispose trash in approved area
+									</label>
+									<label class="block">
+										<input
+											type="checkbox"
+											name="checkoutTasks"
+											value="turn off lights and appliances"
+										/>{" "}
+										Turn off lights/appliances
+									</label>
+								</div>
+							</div>
+
+							<div
+								class="grid hidden gap-4 lg:col-span-6 lg:grid-cols-2"
+								data-rule-panel="Safety ExtraBeds Other"
+							>
+								<label class="space-y-1 text-sm lg:col-span-2">
+									<span class="font-medium text-slate-700">Operational instructions</span>
+									<textarea
+										name="instructions"
+										rows="3"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+										placeholder="Example: Guests must not enter staff-only areas."
+									/>
+								</label>
+							</div>
+
+							<label class="space-y-1 text-sm lg:col-span-6">
+								<span class="font-medium text-slate-700">Additional guest-facing note</span>
+								<textarea
+									name="note"
+									rows="3"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									placeholder="Optional: add property-specific nuance without duplicating pricing, restrictions, or booking contract terms."
+								/>
+							</label>
+							<label class="space-y-1 text-sm lg:col-span-6">
+								<span class="font-medium text-slate-700">Custom guest summary</span>
+								<textarea
+									name="description"
+									rows="2"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									placeholder="Optional. Leave empty and the system will generate a clear OTA-style summary."
+								/>
+							</label>
+							<div class="lg:col-span-6">
+								<Button type="submit" variant="primary">
+									Add house rule
+								</Button>
+							</div>
+						</form>
+					)
+				}
+			</Card>
+		</Section>
+
+		<Section
+			title="Rule categories"
+			description="A provider-friendly taxonomy aligned to how OTAs expose guest expectations."
+		>
+			<div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+				{
+					houseRuleTypes.map((type) => (
+						<Card className="bg-white text-slate-800">
+							<div class="flex items-start justify-between gap-3">
+								<div>
+									<p class="text-base font-semibold text-slate-900">{categoryCopy[type].label}</p>
+									<p class="mt-1 text-sm leading-6 text-slate-600">{categoryCopy[type].intent}</p>
+								</div>
+								<Badge variant={rulesByType.get(type) ? "success" : "neutral"}>
+									{rulesByType.get(type) ?? 0}
+								</Badge>
+							</div>
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Guest preview"
+			description="Preview how stay expectations read to guests. This keeps provider setup connected to the booking-page mental model."
+		>
+			<Card className="space-y-5 bg-white text-slate-800">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p class="text-base font-semibold text-slate-900">
+							{selectedPreview?.product.name ?? "No property selected"}
+						</p>
+						<p class="mt-1 text-sm text-slate-600">
+							Grouped the way a guest scans before booking, before arrival and before checkout.
+						</p>
+					</div>
+					<Badge variant={previewRules.length ? "success" : "warning"}>
+						{previewRules.length ? `${previewRules.length} visible expectations` : "No preview yet"}
+					</Badge>
+				</div>
+				{
+					selectedPreview ? (
+						<div class="rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-950">
+							<div class="flex flex-wrap items-center justify-between gap-3">
+								<div>
+									<p class="text-sm font-semibold">Part of publish readiness</p>
+									<p class="mt-1 text-sm">
+										Open the consolidated guest preview to review content, photos, booking terms and
+										House Rules together before publishing.
+									</p>
+								</div>
+								<Button
+									href={routes.productPreview(selectedPreview.product.id)}
+									variant="secondary"
+								>
+									Review full listing
+								</Button>
+							</div>
+						</div>
+					) : null
+				}
+				{
+					previewRules.length ? (
+						<div class="grid gap-4 lg:grid-cols-2">
+							{previewRulesByGroup.map((group) => (
+								<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+									<div class="flex items-start justify-between gap-3">
+										<div>
+											<p class="text-sm font-semibold text-slate-900">{group.label}</p>
+											<p class="mt-1 text-xs text-slate-500">{group.description}</p>
+										</div>
+										<Badge variant={group.rules.length ? "info" : "neutral"}>
+											{group.rules.length}
+										</Badge>
+									</div>
+									{group.rules.length ? (
+										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+											{group.rules.map((rule) => {
+												const type = String(rule.type ?? "Other") as HouseRuleType
+												const summary = buildHouseRuleGuestSummary(
+													type,
+													rule.payloadJson,
+													rule.description
+												)
+												return (
+													<li>
+														<span class="font-medium text-slate-900">
+															{categoryCopy[type]?.label ?? "Additional rule"}:
+														</span>{" "}
+														{summary}
+													</li>
+												)
+											})}
+										</ul>
+									) : (
+										<p class="mt-3 text-sm text-slate-500">
+											No guest-facing items in this group yet.
+										</p>
+									)}
+								</div>
+							))}
+						</div>
+					) : (
+						<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+							<p class="text-sm font-semibold text-slate-900">No guest preview yet.</p>
+							<p class="mt-1 text-sm text-slate-600">
+								Start with a quick setup preset or add the first house rule for pets, smoking, quiet
+								hours, arrival or checkout.
+							</p>
+						</div>
+					)
+				}
+			</Card>
+		</Section>
+
+		<Section
+			title="Existing house rules"
+			description="Operational property rules shown by product. These rules are not pricing or cancellation logic."
+		>
+			{
+				products.length === 0 ? (
+					<Card className="bg-white text-slate-700">
+						<p class="font-medium text-slate-900">No properties yet.</p>
+					</Card>
+				) : (
+					<div class="space-y-4">
+						{products.map((product) => {
+							const rules = rulesByProduct.get(product.id) ?? []
+							return (
+								<Card className="bg-white text-slate-800">
+									<div class="flex flex-wrap items-start justify-between gap-4">
+										<div>
+											<p class="text-base font-semibold text-slate-900">{product.name}</p>
+											<p class="text-sm text-slate-500">{product.productType}</p>
+										</div>
+										<Badge variant={rules.length ? "success" : "warning"}>
+											{rules.length ? `${rules.length} rules` : "No rules"}
+										</Badge>
+									</div>
+									{rules.length ? (
+										<div class="mt-4 space-y-3">
+											{rules.map((rule) => {
+												const type = String(rule.type ?? "Other") as HouseRuleType
+												const payload = rule.payloadJson
+												const summary = buildHouseRuleGuestSummary(type, payload, rule.description)
+												return (
+													<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+														<div class="flex flex-wrap items-start justify-between gap-3">
+															<div>
+																<div class="flex flex-wrap items-center gap-2">
+																	<Badge variant="info">
+																		{categoryCopy[type]?.label ?? "Additional rule"}
+																	</Badge>
+																	<Badge variant={payload ? "success" : "neutral"}>
+																		{payload ? "Structured" : "Free text"}
+																	</Badge>
+																</div>
+																<p class="mt-2 text-sm leading-6 text-slate-700">{summary}</p>
+																{payload?.tasks?.length ? (
+																	<p class="mt-1 text-xs text-slate-500">
+																		Checkout tasks: {payload.tasks.join(", ")}
+																	</p>
+																) : null}
+																{payload?.start && payload?.end ? (
+																	<p class="mt-1 text-xs text-slate-500">
+																		Structured time window: {payload.start} to {payload.end}
+																	</p>
+																) : null}
+															</div>
+															<form method="POST">
+																<input type="hidden" name="action" value="delete-house-rule" />
+																<input type="hidden" name="ruleId" value={rule.id} />
+																<Button type="submit" variant="secondary" size="sm">
+																	Remove
+																</Button>
+															</form>
+														</div>
+													</div>
+												)
+											})}
+										</div>
+									) : (
+										<p class="mt-4 text-sm text-slate-500">
+											Add rules for pets, smoking, parties, quiet hours, parking or arrival
+											instructions.
+										</p>
+									)}
+								</Card>
+							)
+						})}
+					</div>
+				)
+			}
+		</Section>
+	</div>
+</WorkspaceLayout>
+
+<script>
+	const form = document.querySelector("[data-house-rule-form]") as HTMLFormElement | null
+	if (form) {
+		const categoryCopy: Record<string, string> = {
+			Pets: "Can guests bring pets, and what should they know?",
+			Children: "Can children stay here and under what expectations?",
+			Smoking: "Where, if anywhere, can guests smoke or vape?",
+			Parties: "Are parties, events or gatherings allowed?",
+			QuietHours: "When should guests keep noise especially low?",
+			Parking: "Where can guests park and what rules apply?",
+			CheckIn: "What must guests do when they arrive?",
+			Checkout: "What should guests do before leaving?",
+			Safety: "How should guests use the property safely?",
+			ExtraBeds: "Can guests request extra beds or cribs?",
+			Access: "How do guests enter and use access devices?",
+			Other: "What else should guests know before staying?",
+		}
+		const typeSelect = form.querySelector("[data-rule-type]") as HTMLSelectElement | null
+		const help = form.querySelector("[data-category-help]") as HTMLElement | null
+		const panels = Array.from(form.querySelectorAll("[data-rule-panel]")) as HTMLElement[]
+
+		const syncHelp = () => {
+			const type = String(typeSelect?.value ?? "Children")
+			if (help) help.textContent = categoryCopy[type] ?? categoryCopy.Other
+			for (const panel of panels) {
+				const types = String(panel.dataset.rulePanel ?? "").split(/\s+/)
+				const active = types.includes(type)
+				panel.classList.toggle("hidden", !active)
+				for (const input of Array.from(
+					panel.querySelectorAll("input, select, textarea")
+				) as HTMLInputElement[]) {
+					input.disabled = !active
+				}
+			}
+		}
+
+		typeSelect?.addEventListener("change", () => {
+			syncHelp()
+		})
+
+		typeSelect?.dispatchEvent(new Event("change"))
+	}
+</script>

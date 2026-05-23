@@ -180,7 +180,9 @@ const shouldOpenAutomation = Boolean(actionError || success === "automation-crea
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href="#pricing-automation" variant="secondary">Automatización avanzada</Button>
+				<Button href={routes.pricingAutomation()} variant="secondary">
+					Automatización avanzada
+				</Button>
 				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
 			</div>
 		</header>

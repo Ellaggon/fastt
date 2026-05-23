@@ -7,6 +7,7 @@ import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 import { db, eq, ProductStatus } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
@@ -51,9 +52,29 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						Cargando resumen del producto...
 					</p>
 				</div>
-				<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
+				<div class="flex flex-wrap items-center gap-2">
+					<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
+					<Button href={routes.productPreview(productId)} data-astro-prefetch variant="secondary">
+						Review listing
+					</Button>
+				</div>
 			</div>
 		</header>
+
+		<Card class="border-blue-900/40 bg-blue-950/40 text-blue-50">
+			<div class="flex flex-wrap items-center justify-between gap-4">
+				<div class="space-y-1">
+					<p class="text-sm font-semibold">Before publishing</p>
+					<p class="max-w-3xl text-sm leading-6 text-blue-100">
+						Review the exact guest-facing story: content, photos, booking terms and House Rules in
+						one place. This is the confidence step between setup and publication.
+					</p>
+				</div>
+				<Button href={routes.productPreview(productId)} data-astro-prefetch variant="secondary">
+					Open guest preview
+				</Button>
+			</div>
+		</Card>
 
 		<Section
 			title="Catalog readiness"
@@ -72,7 +93,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Editorial content</p>
 									<p class="text-sm text-slate-600">
-										Descripción, destacados y reglas visibles para huéspedes.
+										Descripción y destacados visibles para huéspedes.
 									</p>
 								</div>
 								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
@@ -84,6 +105,34 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 										data-astro-prefetch
 										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
 										>Editar contenido</Button
+									>
+								</div>
+							</div>
+						</Card>
+
+						<Card class="min-h-[118px] bg-slate-100">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-900">Stay expectations</p>
+									<p class="text-sm text-slate-600">
+										House Rules for pets, smoking, quiet hours, arrival and checkout.
+									</p>
+								</div>
+								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
+									<Badge id="blockBadge-houseRules" variant="warning" class="whitespace-nowrap">
+										Cargando...
+									</Badge>
+									<Button
+										href="/provider/house-rules"
+										data-astro-prefetch
+										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
+										>Configurar reglas</Button
+									>
+									<Button
+										href={routes.productPreview(productId)}
+										data-astro-prefetch
+										variant="secondary"
+										className="text-xs lg:text-base">Preview</Button
 									>
 								</div>
 							</div>
@@ -155,7 +204,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 							</div>
 						</Card>
 
-						<Card class="min-h-[118px] bg-slate-100 md:col-span-2">
+						<Card class="min-h-[118px] bg-slate-100">
 							<div class="flex items-start justify-between gap-4">
 								<div class="space-y-1">
 									<p class="text-sm font-semibold text-slate-900">Physical context</p>
@@ -307,7 +356,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					if (missingStepsText) {
 						missingStepsText.textContent =
 							missing === 0
-								? "Catalog readiness completo. Puedes revisar contexto comercial y físico."
+								? "Catalog readiness completo. Revisa la vista huésped antes de publicar."
 								: `Te faltan ${missing} pasos para completar este producto`
 					}
 					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
@@ -315,6 +364,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						progressText.textContent = `${completed} de ${total} bloques completados.`
 
 					setBadgeState("content", Boolean(payload?.checks?.hasContent))
+					setBadgeState("houseRules", Boolean(payload?.checks?.hasHouseRules))
 					setBadgeState("location", Boolean(payload?.checks?.hasLocation))
 					setBadgeState("images", Boolean(payload?.checks?.hasImages))
 					setBadgeState("subtype", Boolean(payload?.checks?.hasSubtype))
@@ -370,7 +420,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const progressText = document.getElementById("productProgressText")
 					if (progressText)
 						progressText.textContent = "No se pudo cargar el progreso en este momento."
-					;["content", "location", "images", "subtype", "variants"].forEach((key) =>
+					;["content", "houseRules", "location", "images", "subtype", "variants"].forEach((key) =>
 						setBadgeState(key, false)
 					)
 				})

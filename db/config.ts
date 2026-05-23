@@ -161,8 +161,9 @@ const HouseRule = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		productId: column.text({ references: () => Product.columns.id }),
-		type: column.text(), // Children | Pets | Smoking | ExtraBeds | Access | Other
+		type: column.text(), // Children | Pets | Smoking | Parties | QuietHours | Parking | CheckIn | Checkout | Safety | ExtraBeds | Access | Other
 		description: column.text(),
+		payloadJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["productId", "type"] }],

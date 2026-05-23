@@ -33,35 +33,64 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 <WorkspaceLayout title="Edit Booking Policy">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
-			<header class="flex items-center justify-between">
-				<h1 class="text-xl font-semibold">Editar booking policy (crea nueva versión)</h1>
-				<nav class="space-x-3">
-					<a href="/provider/policies" class="underline">Volver</a>
-					<a href="/rates/plans/manage" class="underline">Rate Plans</a>
+			<header class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+						Rooms & Rates · Booking Contract
+					</p>
+					<h1 class="text-3xl font-semibold text-slate-100">Editar Booking Policy</h1>
+					<p class="max-w-4xl text-sm leading-6 text-slate-300">
+						Editar una policy crea una nueva versión contractual. Las reservas existentes se
+						mantienen protegidas porque consumen snapshots inmutables.
+					</p>
+				</div>
+				<nav class="flex items-center gap-2">
+					<a
+						href="/provider/policies"
+						class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200"
+					>
+						Policy Library
+					</a>
+					<a
+						href="/rates/plans/manage"
+						class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
+					>
+						Rate Plans
+					</a>
 				</nav>
 			</header>
 
-			<p class="border p-3 text-sm">
-				Editar <strong>creará una nueva versión</strong> dentro del mismo grupo. Las reservas existentes
-				se mantienen seguras porque leen snapshots.
-			</p>
+			<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+				<p class="font-semibold">Policy ownership</p>
+				<p class="mt-1">
+					Booking Policies definen contrato huésped-proveedor: cancelación, pago, no-show y
+					check-in/out. Las promociones o descuentos pertenecen a Pricing; las reglas de
+					comportamiento pertenecen a House Rules.
+				</p>
+			</div>
 
 			<form id="editForm" class="space-y-4" novalidate>
 				<input type="hidden" name="previousPolicyId" value={policyId} />
 
 				<div class="space-y-1">
-					<label class="block">Categoría</label>
+					<label class="block">Categoría contractual</label>
 					<input class="w-full border p-2" value={category} readonly />
+					<p class="text-sm text-slate-400">
+						La categoría no cambia entre versiones del mismo grupo.
+					</p>
 				</div>
 
 				<div class="space-y-1">
-					<label class="block">Nombre</label>
+					<label class="block">Nombre operativo</label>
 					<input
 						name="description"
 						minlength="2"
 						class="w-full border p-2"
 						value={policy.description ?? ""}
 					/>
+					<p class="text-sm text-slate-400">
+						Nombre visible para proveedores; el significado huésped se deriva de los términos.
+					</p>
 					<p class="text-sm" id="err-description"></p>
 				</div>
 
@@ -69,7 +98,10 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 					class:list={["space-y-2", category === "Cancellation" ? "" : "hidden"]}
 					id="cancellationFields"
 				>
-					<h2 class="font-semibold">Tramos de cancelación</h2>
+					<h2 class="font-semibold">Cancellation</h2>
+					<p class="text-sm text-slate-400">
+						Define ventanas de penalidad antes de llegada. Esto no debe usarse como descuento.
+					</p>
 					<div id="tiers" class="space-y-2">
 						{
 							(policy.cancellationTiers ?? []).length ? (
@@ -180,6 +212,9 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 					id="checkinFields"
 				>
 					<h2 class="font-semibold">Check-in / Check-out</h2>
+					<p class="text-sm text-slate-400">
+						Define el compromiso operativo comunicado al huésped antes de reservar.
+					</p>
 					<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
 						<div class="space-y-1">
 							<label class="block text-sm">Check-in from</label>
@@ -219,6 +254,9 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 					id="noshowFields"
 				>
 					<h2 class="font-semibold">No-show</h2>
+					<p class="text-sm text-slate-400">
+						Define qué ocurre si el huésped no llega; no reemplaza cancelación voluntaria.
+					</p>
 					<div class="space-y-1">
 						<label class="block text-sm">Penalty type</label>
 						<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">

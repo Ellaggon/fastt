@@ -216,7 +216,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Catalog content, media, location, metadata, and editorial readiness.",
+		rationale:
+			"Catalog content, media, location, metadata, House Rules, and guest-facing pre-publish review.",
 	},
 	{
 		pattern: "/rates/plans/**",
@@ -300,6 +301,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		owner: "Administration & Governance",
 		rationale:
 			"Policy auditability is governance and traceability, not daily Rooms & Rates operation.",
+	},
+	{
+		pattern: "/provider/house-rules",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Guest behavior and property-use expectations; not pricing, restrictions, or booking contract terms.",
 	},
 	{
 		pattern: "/provider/policies/**",
@@ -848,7 +857,14 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.productList(),
 				status: "canonical",
 				summary:
-					"Editorial content, media, location, metadata, and product presentation readiness.",
+					"Editorial content, media, location, metadata, House Rules handoff, and guest-facing publish review.",
+			},
+			{
+				label: "House Rules",
+				href: routes.providerHouseRules(),
+				status: "canonical",
+				summary:
+					"Guest behavior, property-use expectations, arrival guidance, pets, smoking, quiet hours, parking, and listing confidence.",
 			},
 		],
 		planned: ["Media Quality Review", "SEO Metadata", "Content Quality Workflow"],

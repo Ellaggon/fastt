@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductFullAggregate } from "@/modules/catalog/public"
+import { listHouseRulesByProduct } from "@/modules/house-rules/public"
 
 function toLowerTrim(value: string | null | undefined): string {
 	return String(value ?? "")
@@ -67,9 +68,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const hasImages = imagesCount > 0
 	const hasSubtype = Boolean(aggregate.subtype)
 	const hasVariants = false
+	const houseRules = await listHouseRulesByProduct(productId)
+	const houseRuleTypes = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
+	const essentialHouseRuleTypes = [
+		"Pets",
+		"Smoking",
+		"Parties",
+		"QuietHours",
+		"CheckIn",
+		"Checkout",
+	]
+	const completedHouseRuleTypes = essentialHouseRuleTypes.filter((type) => houseRuleTypes.has(type))
+	const hasHouseRules = completedHouseRuleTypes.length >= 4
 
 	const steps = [
 		{ key: "content", complete: hasContent },
+		{ key: "houseRules", complete: hasHouseRules },
 		{ key: "location", complete: hasLocation },
 		{ key: "images", complete: hasImages },
 		{ key: "subtype", complete: hasSubtype },
@@ -112,6 +126,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 				hasImages,
 				hasSubtype,
 				hasVariants,
+				hasHouseRules,
+			},
+			houseRules: {
+				count: houseRules.length,
+				completedEssentials: completedHouseRuleTypes.length,
+				totalEssentials: essentialHouseRuleTypes.length,
+				missingEssentials: essentialHouseRuleTypes.filter((type) => !houseRuleTypes.has(type)),
 			},
 			content: {
 				descriptionPreview,

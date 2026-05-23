@@ -4,6 +4,7 @@ export const routes = {
 	provider: () => "/provider",
 	providerPolicies: () => "/provider/policies",
 	providerPoliciesAudit: () => "/provider/policies/audit",
+	providerHouseRules: () => "/provider/house-rules",
 	providerTaxFees: () => "/provider/tax-fees",
 	providerVerification: () => "/provider/verification",
 	productList: () => "/product",
@@ -16,7 +17,7 @@ export const routes = {
 	ratePlanPricing: (id: string) => `/rates/plans/${encodeURIComponent(String(id))}/pricing`,
 	ratePlanDetail: (id: string) => `/rates/plans/${encodeURIComponent(String(id))}`,
 	pricing: () => "/pricing",
-	pricingRules: () => "/pricing/rules",
+	pricingAutomation: () => "/pricing#pricing-automation",
 	pricingBulk: () => "/pricing/bulk",
 	inventory: () => "/inventory",
 	inventoryBulk: () => "/inventory/bulk",
@@ -25,6 +26,8 @@ export const routes = {
 	analyticsOccupancy: () => "/analytics/occupancy",
 	systemIntegrations: () => "/system/integrations",
 	productDetail: (productId: string) => `/product/${encodeURIComponent(String(productId))}`,
+	productPreview: (productId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/preview`,
 	productVariants: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/variants`,
 	variantDetail: (productId: string, variantId: string) =>
