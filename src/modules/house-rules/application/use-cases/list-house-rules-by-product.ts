@@ -1,10 +1,23 @@
 import type { HouseRuleRepositoryPort } from "../ports/HouseRuleRepositoryPort"
+import {
+	buildHouseRuleGuestSummary,
+	normalizeHouseRulePayload,
+	type HouseRulePayload,
+	type HouseRuleType,
+} from "../../domain/houseRule"
 
 export async function listHouseRulesByProduct(
 	deps: { repo: HouseRuleRepositoryPort },
 	productId: string
 ): Promise<
-	Array<{ id: string; productId: string; type: string; description: string; createdAt: string }>
+	Array<{
+		id: string
+		productId: string
+		type: string
+		description: string
+		payloadJson: HouseRulePayload | null
+		createdAt: string
+	}>
 > {
 	const pid = String(productId ?? "").trim()
 	if (!pid) return []
@@ -17,11 +30,16 @@ export async function listHouseRulesByProduct(
 		return String(a.id).localeCompare(String(b.id))
 	})
 
-	return rows.map((r) => ({
-		id: String(r.id),
-		productId: String(r.productId),
-		type: String(r.type),
-		description: String(r.description ?? ""),
-		createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-	}))
+	return rows.map((r) => {
+		const type = String(r.type ?? "Other") as HouseRuleType
+		const payload = normalizeHouseRulePayload(type, r.payloadJson)
+		return {
+			id: String(r.id),
+			productId: String(r.productId),
+			type,
+			description: buildHouseRuleGuestSummary(type, payload, String(r.description ?? "")),
+			payloadJson: payload,
+			createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+		}
+	})
 }

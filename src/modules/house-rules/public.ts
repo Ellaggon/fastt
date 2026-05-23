@@ -6,7 +6,8 @@ export * from "./domain/houseRule"
 export async function createHouseRule(params: {
 	productId: string
 	type: string
-	description: string
+	description?: string
+	payload?: Record<string, unknown> | null
 }) {
 	const { createHouseRuleUseCase } = await import("@/container/house-rules.container")
 	return createHouseRuleUseCase(params as any)

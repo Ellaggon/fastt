@@ -1,4 +1,4 @@
-import type { HouseRuleType } from "../../domain/houseRule"
+import type { HouseRulePayload, HouseRuleType } from "../../domain/houseRule"
 
 export interface HouseRuleRepositoryPort {
 	create(rule: {
@@ -6,16 +6,16 @@ export interface HouseRuleRepositoryPort {
 		productId: string
 		type: HouseRuleType
 		description: string
+		payloadJson?: HouseRulePayload | null
 		createdAt: Date
 	}): Promise<void>
-	listByProduct(
-		productId: string
-	): Promise<
+	listByProduct(productId: string): Promise<
 		Array<{
 			id: string
 			productId: string
 			type: HouseRuleType
 			description: string
+			payloadJson?: HouseRulePayload | null
 			createdAt: Date
 		}>
 	>

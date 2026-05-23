@@ -1,6 +1,6 @@
 import { db, eq, HouseRule as HouseRuleTable } from "astro:db"
 
-import type { HouseRuleType } from "../../domain/houseRule"
+import type { HouseRulePayload, HouseRuleType } from "../../domain/houseRule"
 import type { HouseRuleRepositoryPort } from "../../application/ports/HouseRuleRepositoryPort"
 
 export class HouseRuleRepository implements HouseRuleRepositoryPort {
@@ -9,6 +9,7 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 		productId: string
 		type: HouseRuleType
 		description: string
+		payloadJson?: HouseRulePayload | null
 		createdAt: Date
 	}) {
 		await db.insert(HouseRuleTable).values({
@@ -16,8 +17,9 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 			productId: rule.productId,
 			type: rule.type,
 			description: rule.description,
+			payloadJson: rule.payloadJson ?? null,
 			createdAt: rule.createdAt,
-		})
+		} as any)
 	}
 
 	async listByProduct(productId: string) {

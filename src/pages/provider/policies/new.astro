@@ -1,6 +1,11 @@
 ---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { POLICY_PRESETS } from "@/data/policy/policy-presets"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
 import { createPolicyCapa6, PolicyValidationError } from "@/modules/policies/public"
 import { z } from "zod"
 
@@ -15,22 +20,38 @@ try {
 let error: string | null = null
 let fieldErrors: Record<string, string> = {}
 
+function requireField(value: unknown, field: string, message = "Required") {
+	const normalized = String(value ?? "").trim()
+	if (!normalized) {
+		fieldErrors[field] = message
+		throw new Error("ui_validation_error")
+	}
+	return normalized
+}
+
+function parseOptionalNumber(value: unknown): number | null {
+	const raw = String(value ?? "").trim()
+	if (!raw) return null
+	const parsed = Number(raw)
+	return Number.isFinite(parsed) ? parsed : null
+}
+
+function assertTimeOrder(start: string, end: string, field: string) {
+	if (start && end && start !== "00:00" && end !== "00:00" && end < start) {
+		fieldErrors[field] = "Must be later than check-in start"
+		throw new Error("ui_validation_error")
+	}
+}
+
 if (Astro.request.method === "POST") {
 	try {
 		const form = await Astro.request.formData()
-		const name = String(form.get("name") ?? "").trim()
-		const category = String(form.get("category") ?? "").trim()
-
-		if (!category) {
-			error = "Category is required"
-			fieldErrors["category"] = "Required"
-			throw new Error("ui_validation_error")
-		}
+		const name = requireField(form.get("name"), "description", "Policy name is required")
+		const category = requireField(form.get("category"), "category", "Choose a policy category")
 
 		if (category === "Cancellation") {
 			const days = form.getAll("daysBeforeArrival").map((v) => String(v).trim())
 			const penalties = form.getAll("penaltyPercent").map((v) => String(v).trim())
-
 			const tiers = days
 				.map((d, i) => ({
 					daysBeforeArrival: d === "" ? NaN : Number(d),
@@ -39,49 +60,52 @@ if (Astro.request.method === "POST") {
 				}))
 				.filter((t) => !Number.isNaN(t.daysBeforeArrival) && !Number.isNaN(t.penaltyAmount))
 
+			if (!tiers.length) {
+				fieldErrors["cancellationTiers"] = "Add at least one cancellation tier"
+				throw new Error("ui_validation_error")
+			}
+			if (tiers.some((tier) => tier.penaltyAmount < 0 || tier.penaltyAmount > 100)) {
+				fieldErrors["cancellationTiers"] = "Cancellation percentages must be between 0 and 100"
+				throw new Error("ui_validation_error")
+			}
+
 			await createPolicyCapa6({
 				category: "Cancellation",
 				description: name,
 				cancellationTiers: tiers,
 			})
 		} else if (category === "Payment") {
-			const paymentType = String(form.get("paymentType") ?? "").trim()
-			const prepaymentPercentageStr = String(form.get("prepaymentPercentage") ?? "").trim()
-			const prepaymentDaysBeforeArrivalStr = String(
-				form.get("prepaymentDaysBeforeArrival") ?? ""
-			).trim()
+			const paymentType = requireField(form.get("paymentType"), "paymentType")
+			const prepaymentPercentage = parseOptionalNumber(form.get("prepaymentPercentage"))
+			const prepaymentDaysBeforeArrival = parseOptionalNumber(
+				form.get("prepaymentDaysBeforeArrival")
+			)
 
-			if (!paymentType) {
-				fieldErrors["paymentType"] = "Required"
-				error = "Validation error"
+			if (!["pay_at_property", "prepayment"].includes(paymentType)) {
+				fieldErrors["paymentType"] = "Choose pay at property or prepayment"
 				throw new Error("ui_validation_error")
 			}
 
 			const rules: Record<string, unknown> = { paymentType }
 			if (paymentType === "prepayment") {
-				rules.prepaymentPercentage =
-					prepaymentPercentageStr === "" ? null : Number(prepaymentPercentageStr)
-				rules.prepaymentDaysBeforeArrival =
-					prepaymentDaysBeforeArrivalStr === "" ? null : Number(prepaymentDaysBeforeArrivalStr)
+				if (
+					prepaymentPercentage == null ||
+					prepaymentPercentage <= 0 ||
+					prepaymentPercentage > 100
+				) {
+					fieldErrors["prepaymentPercentage"] = "Prepayment must be between 1 and 100"
+					throw new Error("ui_validation_error")
+				}
+				rules.prepaymentPercentage = prepaymentPercentage
+				rules.prepaymentDaysBeforeArrival = prepaymentDaysBeforeArrival
 			}
 
-			await createPolicyCapa6({
-				category: "Payment" as any,
-				description: name,
-				rules,
-			})
+			await createPolicyCapa6({ category: "Payment" as any, description: name, rules })
 		} else if (category === "CheckIn") {
-			const checkInFrom = String(form.get("checkInFrom") ?? "").trim()
-			const checkInUntil = String(form.get("checkInUntil") ?? "").trim()
-			const checkOutUntil = String(form.get("checkOutUntil") ?? "").trim()
-
-			if (!checkInFrom) fieldErrors["checkInFrom"] = "Required"
-			if (!checkInUntil) fieldErrors["checkInUntil"] = "Required"
-			if (!checkOutUntil) fieldErrors["checkOutUntil"] = "Required"
-			if (Object.keys(fieldErrors).length) {
-				error = "Validation error"
-				throw new Error("ui_validation_error")
-			}
+			const checkInFrom = requireField(form.get("checkInFrom"), "checkInFrom")
+			const checkInUntil = requireField(form.get("checkInUntil"), "checkInUntil")
+			const checkOutUntil = requireField(form.get("checkOutUntil"), "checkOutUntil")
+			assertTimeOrder(checkInFrom, checkInUntil, "checkInUntil")
 
 			await createPolicyCapa6({
 				category: "CheckIn" as any,
@@ -89,34 +113,31 @@ if (Astro.request.method === "POST") {
 				rules: { checkInFrom, checkInUntil, checkOutUntil },
 			})
 		} else if (category === "NoShow") {
-			const penaltyType = String(form.get("noShowPenaltyType") ?? "").trim()
-			const penaltyAmountStr = String(form.get("noShowPenaltyAmount") ?? "").trim()
-
-			if (!penaltyType) fieldErrors["noShowPenaltyType"] = "Required"
-			if (penaltyType === "percentage" && penaltyAmountStr === "")
-				fieldErrors["noShowPenaltyAmount"] = "Required"
-			if (Object.keys(fieldErrors).length) {
-				error = "Validation error"
+			const penaltyType = requireField(form.get("noShowPenaltyType"), "noShowPenaltyType")
+			const penaltyAmount = parseOptionalNumber(form.get("noShowPenaltyAmount"))
+			if (!["first_night", "full", "percentage"].includes(penaltyType)) {
+				fieldErrors["noShowPenaltyType"] = "Choose a no-show penalty"
 				throw new Error("ui_validation_error")
 			}
-
 			const rules: Record<string, unknown> = { penaltyType }
-			if (penaltyType === "percentage") rules.penaltyAmount = Number(penaltyAmountStr)
+			if (penaltyType === "percentage") {
+				if (penaltyAmount == null || penaltyAmount < 0 || penaltyAmount > 100) {
+					fieldErrors["noShowPenaltyAmount"] = "Percentage must be between 0 and 100"
+					throw new Error("ui_validation_error")
+				}
+				rules.penaltyAmount = penaltyAmount
+			}
 
-			await createPolicyCapa6({
-				category: "NoShow" as any,
-				description: name,
-				rules,
-			})
+			await createPolicyCapa6({ category: "NoShow" as any, description: name, rules })
 		} else {
 			error = `Unsupported category: ${category}`
 			throw new Error("ui_validation_error")
 		}
 
-		return Astro.redirect("/provider/policies?success=created")
+		return Astro.redirect(`${routes.providerPolicies()}?success=created`)
 	} catch (e: any) {
 		if (String(e?.message || e) === "ui_validation_error") {
-			// error + fieldErrors already set
+			if (!error) error = "Please fix the highlighted fields."
 		} else if (e instanceof z.ZodError) {
 			error = "Validation error"
 			for (const issue of e.issues) {
@@ -137,192 +158,338 @@ if (Astro.request.method === "POST") {
 ---
 
 <WorkspaceLayout title="Create Booking Policy">
-	<main class="min-h-screen text-slate-200">
-		<div class="mx-auto max-w-7xl space-y-8 px-6">
-			<header class="flex items-center justify-between">
-				<h1 class="text-xl font-semibold">Crear booking policy</h1>
-				<nav class="space-x-3">
-					<a href="/provider/policies" class="underline">Volver</a>
-					<a href="/rates/plans/manage" class="underline">Rate Plans</a>
-				</nav>
-			</header>
+	<div class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					Rooms & Rates · Booking Contract
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Crear Booking Policy</h1>
+				<p class="max-w-4xl text-sm leading-6 text-slate-300">
+					Define condiciones contractuales de reserva: cancelación, pago, no-show y check-in/out.
+					Las promociones viven en Pricing; las policies explican obligaciones contractuales.
+				</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<Button href={routes.providerPolicies()} variant="secondary">Policy Library</Button>
+				<Button href={routes.ratePlansList()} variant="primary">Rate Plans</Button>
+			</div>
+		</header>
 
-			{
-				error && (
-					<div class="border p-3">
-						<strong>Error:</strong> {error}
-					</div>
-				)
-			}
+		{
+			error && (
+				<Card className="border-red-200 bg-red-50 text-red-900">
+					<p class="text-sm font-semibold">No se pudo crear la política</p>
+					<p class="mt-1 text-sm">{error}</p>
+				</Card>
+			)
+		}
 
-			<form method="POST" class="space-y-4" id="policyCreateForm" novalidate>
-				<div id="clientErrorBox" class="hidden border p-3">
-					<strong>Error:</strong>
-					<span id="clientErrorText"></span>
-				</div>
-				<div class="space-y-1">
-					<label class="block">Nombre</label>
-					<input name="name" minlength="2" class="w-full border p-2" />
-					<p class="text-sm" id="err-name"></p>
-					{fieldErrors["description"] && <p class="text-sm">{fieldErrors["description"]}</p>}
-				</div>
-
-				<div class="space-y-1">
-					<label class="block">Categoría</label>
-					<select name="category" id="category" class="w-full border p-2">
-						<option value="">Seleccionar…</option>
-						<option value="Cancellation">Cancelación</option>
-						<option value="Payment">Pago</option>
-						<option value="CheckIn">Check-in / Check-out</option>
-						<option value="NoShow">No-show (el huésped no llega)</option>
-					</select>
-					<p class="text-sm" id="err-category"></p>
-					{fieldErrors["category"] && <p class="text-sm">{fieldErrors["category"]}</p>}
-				</div>
-
-				<section class="space-y-2" id="cancellationFields">
-					<h2 class="font-semibold">Tramos de cancelación</h2>
-					<p class="text-sm">Defina penalidades según los días antes de la llegada.</p>
-
-					<div id="tiers" class="space-y-2">
-						<div class="tier-row flex items-end gap-2">
-							<div class="flex-1 space-y-1">
-								<label class="block text-sm">Días antes de la llegada</label>
-								<input name="daysBeforeArrival" type="number" min="0" class="w-full border p-2" />
+		<Section
+			title="Templates de contrato"
+			description="Usa una plantilla para cargar una semántica profesional. Puedes ajustar los campos antes de guardar."
+		>
+			<div class="grid gap-3 lg:grid-cols-2">
+				{
+					Object.entries(POLICY_PRESETS).map(([category, templates]) => (
+						<Card className="bg-white text-slate-800">
+							<p class="text-sm font-semibold tracking-wide text-slate-500 uppercase">{category}</p>
+							<div class="mt-3 space-y-3">
+								{templates.map((template) => (
+									<button
+										type="button"
+										class="block w-full rounded-lg border border-slate-200 p-3 text-left hover:border-blue-300 hover:bg-blue-50"
+										data-policy-template={JSON.stringify({ category, template })}
+									>
+										<span class="block font-semibold text-slate-900">{template.name}</span>
+										<span class="mt-1 block text-sm text-slate-600">{template.description}</span>
+										<span class="mt-2 block text-xs text-slate-500">
+											Guest: {template.guestFacing}
+										</span>
+									</button>
+								))}
 							</div>
-							<div class="flex-1 space-y-1">
-								<label class="block text-sm">Penalidad (%)</label>
+						</Card>
+					))
+				}
+			</div>
+		</Section>
+
+		<Section
+			title="Crear política"
+			description="Guarda una policy versionada. Asignarla a un rate plan ocurre desde Rate Plans o el wizard de condiciones."
+		>
+			<Card className="bg-white text-slate-800">
+				<form method="POST" class="space-y-6" id="policyCreateForm" novalidate>
+					<div
+						id="clientErrorBox"
+						class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-red-900"
+					>
+						<strong>Error:</strong>
+						<span id="clientErrorText"></span>
+					</div>
+
+					<div class="grid gap-4 lg:grid-cols-2">
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Nombre operativo</span>
+							<input
+								name="name"
+								minlength="2"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								placeholder="Flexible 24h · Web"
+							/>
+							<p class="text-xs text-slate-500">
+								Visible para proveedores; el copy huésped se deriva desde la categoría y reglas.
+							</p>
+							<p class="text-sm text-red-700" id="err-name">{fieldErrors["description"]}</p>
+						</label>
+
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Categoría contractual</span>
+							<select
+								name="category"
+								id="category"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="">Seleccionar...</option>
+								<option value="Cancellation">Cancellation</option>
+								<option value="Payment">Payment</option>
+								<option value="CheckIn">Check-in / Check-out</option>
+								<option value="NoShow">No-show</option>
+							</select>
+							<p class="text-xs text-slate-500">
+								Policies no modifican descuentos ni precios: definen obligaciones de reserva.
+							</p>
+							<p class="text-sm text-red-700" id="err-category">{fieldErrors["category"]}</p>
+						</label>
+					</div>
+
+					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+						<p class="font-semibold" id="categoryMeaningTitle">Selecciona una categoría</p>
+						<p class="mt-1" id="categoryMeaningGuest">Guest-facing: pendiente.</p>
+						<p class="mt-1" id="categoryMeaningOps">Operational meaning: pendiente.</p>
+					</div>
+
+					<section class="space-y-3" id="cancellationFields">
+						<h2 class="font-semibold text-slate-900">Cancellation</h2>
+						<p class="text-sm text-slate-600">
+							Define penalidades por ventana antes de llegada. Esto es contrato, no promoción.
+						</p>
+						<div id="tiers" class="space-y-2">
+							<div class="tier-row grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+								<label class="space-y-1 text-sm">
+									<span>Días antes de llegada</span>
+									<input
+										name="daysBeforeArrival"
+										type="number"
+										min="0"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm">
+									<span>Penalidad (%)</span>
+									<input
+										name="penaltyPercent"
+										type="number"
+										min="0"
+										max="100"
+										class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									/>
+								</label>
+								<button
+									type="button"
+									class="self-end rounded-lg border border-slate-300 px-3 py-2 text-sm"
+									data-remove-tier
+								>
+									Quitar
+								</button>
+							</div>
+						</div>
+						<button
+							type="button"
+							class="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+							id="addTier"
+						>
+							Agregar tramo
+						</button>
+						<p class="text-sm text-red-700" id="err-cancellationTiers">
+							{fieldErrors["cancellationTiers"]}
+						</p>
+					</section>
+
+					<section class="hidden space-y-3" id="paymentFields">
+						<h2 class="font-semibold text-slate-900">Payment</h2>
+						<p class="text-sm text-slate-600">
+							Define cuándo y cómo se espera el pago. Los depósitos dedicados llegarán en una fase
+							posterior.
+						</p>
+						<label class="space-y-1 text-sm">
+							<span>Tipo de pago</span>
+							<select
+								name="paymentType"
+								id="paymentType"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="">Seleccionar...</option>
+								<option value="pay_at_property">Pay at property</option>
+								<option value="prepayment">Prepayment</option>
+							</select>
+							<p class="text-sm text-red-700" id="err-paymentType">{fieldErrors["paymentType"]}</p>
+						</label>
+						<div class="grid gap-2 md:grid-cols-2" id="prepaymentFields">
+							<label class="space-y-1 text-sm">
+								<span>Prepayment percentage</span>
 								<input
-									name="penaltyPercent"
+									name="prepaymentPercentage"
+									type="number"
+									min="1"
+									max="100"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+								<p class="text-sm text-red-700" id="err-prepaymentPercentage">
+									{fieldErrors["prepaymentPercentage"]}
+								</p>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Días antes de llegada</span>
+								<input
+									name="prepaymentDaysBeforeArrival"
 									type="number"
 									min="0"
-									max="1000"
-									class="w-full border p-2"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
 								/>
-							</div>
-							<button type="button" class="border px-3 py-2" data-remove-tier>Quitar</button>
+							</label>
 						</div>
-					</div>
+					</section>
 
-					<button type="button" class="border px-3 py-2" id="addTier">Agregar tramo</button>
-					<p class="text-sm" id="err-cancellationTiers"></p>
-					{
-						fieldErrors["cancellationTiers"] && (
-							<p class="text-sm">{fieldErrors["cancellationTiers"]}</p>
-						)
-					}
-				</section>
-
-				<section class="hidden space-y-2" id="paymentFields">
-					<h2 class="font-semibold">Pago</h2>
-					<div class="space-y-1">
-						<label class="block text-sm">Tipo de pago</label>
-						<select name="paymentType" id="paymentType" class="w-full border p-2">
-							<option value="">Seleccionar…</option>
-							<option value="pay_at_property">Pago en la propiedad</option>
-							<option value="prepayment">Prepago</option>
-						</select>
-						<p class="text-sm" id="err-paymentType"></p>
-						{fieldErrors["paymentType"] && <p class="text-sm">{fieldErrors["paymentType"]}</p>}
-					</div>
-					<div class="space-y-1" id="prepaymentFields">
-						<label class="block text-sm">Porcentaje de prepago</label>
-						<input
-							name="prepaymentPercentage"
-							type="number"
-							min="0"
-							max="100"
-							class="w-full border p-2"
-						/>
-						<p class="text-sm" id="err-prepaymentPercentage"></p>
-						<label class="block text-sm">Días antes de la llegada (opcional)</label>
-						<input
-							name="prepaymentDaysBeforeArrival"
-							type="number"
-							min="0"
-							class="w-full border p-2"
-						/>
-					</div>
-				</section>
-
-				<section class="hidden space-y-2" id="checkinFields">
-					<h2 class="font-semibold">Check-in / Check-out</h2>
-					<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-						<div class="space-y-1">
-							<label class="block text-sm">Check-in desde</label>
-							<input name="checkInFrom" type="time" class="w-full border p-2" />
-							<p class="text-sm" id="err-checkInFrom"></p>
-							{fieldErrors["checkInFrom"] && <p class="text-sm">{fieldErrors["checkInFrom"]}</p>}
+					<section class="hidden space-y-3" id="checkinFields">
+						<h2 class="font-semibold text-slate-900">Check-in / Check-out</h2>
+						<p class="text-sm text-slate-600">
+							Define ventanas operativas que se comunican al huésped antes de reservar.
+						</p>
+						<div class="grid gap-2 md:grid-cols-3">
+							<label class="space-y-1 text-sm">
+								<span>Check-in desde</span>
+								<input
+									name="checkInFrom"
+									type="time"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+								<p class="text-sm text-red-700" id="err-checkInFrom">
+									{fieldErrors["checkInFrom"]}
+								</p>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Check-in hasta</span>
+								<input
+									name="checkInUntil"
+									type="time"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+								<p class="text-sm text-red-700" id="err-checkInUntil">
+									{fieldErrors["checkInUntil"]}
+								</p>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Check-out hasta</span>
+								<input
+									name="checkOutUntil"
+									type="time"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+								<p class="text-sm text-red-700" id="err-checkOutUntil">
+									{fieldErrors["checkOutUntil"]}
+								</p>
+							</label>
 						</div>
-						<div class="space-y-1">
-							<label class="block text-sm">Check-in hasta</label>
-							<input name="checkInUntil" type="time" class="w-full border p-2" />
-							<p class="text-sm" id="err-checkInUntil"></p>
-							{fieldErrors["checkInUntil"] && <p class="text-sm">{fieldErrors["checkInUntil"]}</p>}
-						</div>
-						<div class="space-y-1">
-							<label class="block text-sm">Check-out hasta</label>
-							<input name="checkOutUntil" type="time" class="w-full border p-2" />
-							<p class="text-sm" id="err-checkOutUntil"></p>
-							{
-								fieldErrors["checkOutUntil"] && (
-									<p class="text-sm">{fieldErrors["checkOutUntil"]}</p>
-								)
-							}
-						</div>
-					</div>
-				</section>
+					</section>
 
-				<section class="hidden space-y-2" id="noshowFields">
-					<h2 class="font-semibold">No-show</h2>
-					<div class="space-y-1">
-						<label class="block text-sm">Penalty type</label>
-						<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
-							<option value="">Select…</option>
-							<option value="first_night">First night</option>
-							<option value="full">Full stay</option>
-							<option value="percentage">Percentage</option>
-						</select>
-						<p class="text-sm" id="err-noShowPenaltyType"></p>
-						{
-							fieldErrors["noShowPenaltyType"] && (
-								<p class="text-sm">{fieldErrors["noShowPenaltyType"]}</p>
-							)
-						}
-					</div>
-					<div class="space-y-1" id="noshowAmountRow">
-						<label class="block text-sm">Penalty amount (%)</label>
-						<input
-							name="noShowPenaltyAmount"
-							type="number"
-							min="0"
-							max="100"
-							class="w-full border p-2"
-						/>
-						<p class="text-sm" id="err-noShowPenaltyAmount"></p>
-						{
-							fieldErrors["noShowPenaltyAmount"] && (
-								<p class="text-sm">{fieldErrors["noShowPenaltyAmount"]}</p>
-							)
-						}
-					</div>
-				</section>
+					<section class="hidden space-y-3" id="noshowFields">
+						<h2 class="font-semibold text-slate-900">No-show</h2>
+						<p class="text-sm text-slate-600">
+							Define la penalidad si el huésped no llega. No reemplaza la política de cancelación.
+						</p>
+						<label class="space-y-1 text-sm">
+							<span>Penalty type</span>
+							<select
+								name="noShowPenaltyType"
+								id="noShowPenaltyType"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="">Seleccionar...</option>
+								<option value="first_night">First night</option>
+								<option value="full">Full stay</option>
+								<option value="percentage">Percentage</option>
+							</select>
+							<p class="text-sm text-red-700" id="err-noShowPenaltyType">
+								{fieldErrors["noShowPenaltyType"]}
+							</p>
+						</label>
+						<label class="space-y-1 text-sm" id="noshowAmountRow">
+							<span>Penalty amount (%)</span>
+							<input
+								name="noShowPenaltyAmount"
+								type="number"
+								min="0"
+								max="100"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							/>
+							<p class="text-sm text-red-700" id="err-noShowPenaltyAmount">
+								{fieldErrors["noShowPenaltyAmount"]}
+							</p>
+						</label>
+					</section>
 
-				<button type="submit" class="border px-4 py-2">Create</button>
-			</form>
-		</div>
-	</main>
+					<div class="flex flex-wrap items-center gap-2">
+						<Button type="submit" variant="primary">Crear policy</Button>
+						<Button href={routes.providerPolicies()} variant="secondary">Cancelar</Button>
+					</div>
+				</form>
+			</Card>
+		</Section>
+	</div>
 </WorkspaceLayout>
 
-<script>
-	// @ts-nocheck
+<script define:vars={{ policyPresets: POLICY_PRESETS }}>
+	const form = document.getElementById("policyCreateForm")
 	const categorySel = document.getElementById("category")
 	const paymentTypeSel = document.getElementById("paymentType")
 	const noShowPenaltyTypeSel = document.getElementById("noShowPenaltyType")
-	const form = document.getElementById("policyCreateForm")
-
 	const clientErrorBox = document.getElementById("clientErrorBox")
 	const clientErrorText = document.getElementById("clientErrorText")
+	const sections = {
+		Cancellation: document.getElementById("cancellationFields"),
+		Payment: document.getElementById("paymentFields"),
+		CheckIn: document.getElementById("checkinFields"),
+		NoShow: document.getElementById("noshowFields"),
+	}
+	const meanings = {
+		Cancellation: {
+			title: "Cancellation contract",
+			guest: "Guest-facing: explains refund windows and penalties before booking.",
+			ops: "Operational meaning: determines cancellation handling and booking snapshots.",
+		},
+		Payment: {
+			title: "Payment terms",
+			guest: "Guest-facing: explains whether payment happens at the property or before arrival.",
+			ops: "Operational meaning: tells finance and provider teams what collection expectation exists.",
+		},
+		CheckIn: {
+			title: "Arrival and departure terms",
+			guest: "Guest-facing: sets arrival and departure expectations.",
+			ops: "Operational meaning: aligns front-desk or self-check-in readiness.",
+		},
+		NoShow: {
+			title: "No-show handling",
+			guest: "Guest-facing: explains the consequence of not arriving.",
+			ops: "Operational meaning: separates no-show treatment from voluntary cancellation.",
+		},
+	}
+
+	function setText(id, value) {
+		const el = document.getElementById(id)
+		if (el) el.textContent = value || ""
+	}
 
 	function setClientError(msg) {
 		if (!clientErrorBox || !clientErrorText) return
@@ -335,211 +502,130 @@ if (Astro.request.method === "POST") {
 		clientErrorBox.classList.remove("hidden")
 	}
 
-	function setFieldError(id, msg) {
-		const el = document.getElementById(id)
-		if (!el) return
-		el.textContent = msg || ""
-	}
-
-	function clearErrors() {
-		setClientError("")
-		;[
-			"err-name",
-			"err-category",
-			"err-cancellationTiers",
-			"err-paymentType",
-			"err-prepaymentPercentage",
-			"err-checkInFrom",
-			"err-checkInUntil",
-			"err-checkOutUntil",
-			"err-noShowPenaltyType",
-			"err-noShowPenaltyAmount",
-		].forEach((id) => setFieldError(id, ""))
-	}
-
-	function setVisible(id, visible) {
-		const el = document.getElementById(id)
-		if (!el) return
-		el.classList.toggle("hidden", !visible)
-	}
-
 	function updateCategoryUI() {
-		const cat = categorySel?.value || ""
-		setVisible("cancellationFields", cat === "Cancellation")
-		setVisible("paymentFields", cat === "Payment")
-		setVisible("checkinFields", cat === "CheckIn")
-		setVisible("noshowFields", cat === "NoShow")
+		const category = categorySel?.value || ""
+		for (const [key, section] of Object.entries(sections)) {
+			section?.classList.toggle("hidden", key !== category)
+		}
+		const meaning = meanings[category] || {
+			title: "Selecciona una categoría",
+			guest: "Guest-facing: pendiente.",
+			ops: "Operational meaning: pendiente.",
+		}
+		setText("categoryMeaningTitle", meaning.title)
+		setText("categoryMeaningGuest", meaning.guest)
+		setText("categoryMeaningOps", meaning.ops)
 	}
 
 	function updatePaymentUI() {
-		const v = paymentTypeSel?.value || ""
 		const pre = document.getElementById("prepaymentFields")
-		if (!pre) return
-		pre.classList.toggle("hidden", v !== "prepayment")
+		pre?.classList.toggle("hidden", paymentTypeSel?.value !== "prepayment")
 	}
 
 	function updateNoShowUI() {
-		const v = noShowPenaltyTypeSel?.value || ""
 		const row = document.getElementById("noshowAmountRow")
-		if (!row) return
-		row.classList.toggle("hidden", v !== "percentage")
+		row?.classList.toggle("hidden", noShowPenaltyTypeSel?.value !== "percentage")
 	}
 
-	categorySel?.addEventListener("change", () => {
-		updateCategoryUI()
-		updatePaymentUI()
-		updateNoShowUI()
+	function setInput(name, value) {
+		const input = form?.querySelector(`[name="${name}"]`)
+		if (input) input.value = value == null ? "" : String(value)
+	}
+
+	function resetTiers(tiers) {
+		const container = document.getElementById("tiers")
+		if (!container) return
+		container.innerHTML = ""
+		for (const tier of tiers || []) {
+			const row = document.createElement("div")
+			row.className = "tier-row grid gap-2 md:grid-cols-[1fr_1fr_auto]"
+			row.innerHTML = `
+				<label class="space-y-1 text-sm">
+					<span>Días antes de llegada</span>
+					<input name="daysBeforeArrival" type="number" min="0" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${tier.daysBeforeArrival ?? ""}" />
+				</label>
+				<label class="space-y-1 text-sm">
+					<span>Penalidad (%)</span>
+					<input name="penaltyPercent" type="number" min="0" max="100" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${tier.penaltyAmount ?? ""}" />
+				</label>
+				<button type="button" class="self-end rounded-lg border border-slate-300 px-3 py-2 text-sm" data-remove-tier>Quitar</button>`
+			container.appendChild(row)
+		}
+	}
+
+	document.querySelectorAll("[data-policy-template]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const data = JSON.parse(button.getAttribute("data-policy-template") || "{}")
+			const category = String(data.category || "")
+			const template = data.template || {}
+			setInput("name", template.name || "")
+			setInput("category", category)
+			if (category === "Cancellation") resetTiers(template.cancellationTiers || [])
+			if (category === "Payment") {
+				setInput("paymentType", template.rules?.paymentType || "")
+				setInput("prepaymentPercentage", template.rules?.prepaymentPercentage || "")
+				setInput("prepaymentDaysBeforeArrival", template.rules?.prepaymentDaysBeforeArrival ?? "")
+			}
+			if (category === "CheckIn") {
+				setInput("checkInFrom", template.rules?.checkInFrom || "")
+				setInput("checkInUntil", template.rules?.checkInUntil || "")
+				setInput("checkOutUntil", template.rules?.checkOutUntil || "")
+			}
+			if (category === "NoShow") {
+				setInput("noShowPenaltyType", template.rules?.penaltyType || "")
+				setInput("noShowPenaltyAmount", template.rules?.penaltyAmount || "")
+			}
+			updateCategoryUI()
+			updatePaymentUI()
+			updateNoShowUI()
+		})
 	})
-	paymentTypeSel?.addEventListener("change", updatePaymentUI)
-	noShowPenaltyTypeSel?.addEventListener("change", updateNoShowUI)
 
-	updateCategoryUI()
-	updatePaymentUI()
-	updateNoShowUI()
+	document.getElementById("addTier")?.addEventListener("click", () => {
+		const container = document.getElementById("tiers")
+		const first = container?.querySelector(".tier-row")
+		if (!container || !first) return
+		const clone = first.cloneNode(true)
+		clone.querySelectorAll("input").forEach((input) => {
+			input.value = ""
+		})
+		container.appendChild(clone)
+	})
 
-	function readNumber(input) {
-		if (!input) return null
-		const raw = String(input.value ?? "").trim()
-		if (raw === "") return null
-		const n = Number(raw)
-		return Number.isFinite(n) ? n : null
-	}
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		if (!target.matches("[data-remove-tier]")) return
+		const rows = document.querySelectorAll("#tiers .tier-row")
+		if (rows.length <= 1) return
+		target.closest(".tier-row")?.remove()
+	})
 
-	function validateForm() {
-		clearErrors()
-
-		const name = String(form?.querySelector("input[name='name']")?.value || "").trim()
-		const category = String(categorySel?.value || "").trim()
-
+	function validate() {
+		setClientError("")
 		let ok = true
-
-		if (!name || name.length < 2) {
-			setFieldError("err-name", "Required (min 2 chars)")
-			ok = false
-		}
-		if (!category) {
-			setFieldError("err-category", "Required")
-			ok = false
-		}
-
-		if (category === "Cancellation") {
-			const rows = Array.from(document.querySelectorAll("#tiers .tier-row"))
-			if (rows.length === 0) {
-				setFieldError("err-cancellationTiers", "At least 1 tier is required")
-				ok = false
-			} else {
-				for (const row of rows) {
-					const daysEl = row.querySelector("input[name='daysBeforeArrival']")
-					const pctEl = row.querySelector("input[name='penaltyPercent']")
-					const days = readNumber(daysEl)
-					const pct = readNumber(pctEl)
-					if (days == null || days < 0) ok = false
-					if (pct == null || pct < 0) ok = false
-				}
-				if (!ok)
-					setFieldError("err-cancellationTiers", "All tiers must have valid non-negative numbers")
-			}
-		}
-
-		if (category === "Payment") {
-			const paymentType = String(paymentTypeSel?.value || "").trim()
-			if (!paymentType) {
-				setFieldError("err-paymentType", "Required")
-				ok = false
-			}
-			if (paymentType === "prepayment") {
-				const pctEl = form?.querySelector("input[name='prepaymentPercentage']")
-				const pct = readNumber(pctEl)
-				if (pct == null || pct < 0 || pct > 100) {
-					setFieldError("err-prepaymentPercentage", "Required (0-100)")
-					ok = false
-				}
-			}
-		}
-
+		const category = categorySel?.value || ""
+		const name = form?.querySelector('[name="name"]')?.value?.trim() || ""
+		if (name.length < 2) ok = false
+		if (!category) ok = false
+		if (category === "Payment" && !paymentTypeSel?.value) ok = false
 		if (category === "CheckIn") {
-			const cinFrom = String(form?.querySelector("input[name='checkInFrom']")?.value || "").trim()
-			const cinUntil = String(form?.querySelector("input[name='checkInUntil']")?.value || "").trim()
-			const coutUntil = String(
-				form?.querySelector("input[name='checkOutUntil']")?.value || ""
-			).trim()
-			if (!cinFrom) {
-				setFieldError("err-checkInFrom", "Required")
-				ok = false
-			}
-			if (!cinUntil) {
-				setFieldError("err-checkInUntil", "Required")
-				ok = false
-			}
-			if (!coutUntil) {
-				setFieldError("err-checkOutUntil", "Required")
-				ok = false
+			for (const key of ["checkInFrom", "checkInUntil", "checkOutUntil"]) {
+				if (!form?.querySelector(`[name="${key}"]`)?.value) ok = false
 			}
 		}
-
-		if (category === "NoShow") {
-			const t = String(noShowPenaltyTypeSel?.value || "").trim()
-			if (!t) {
-				setFieldError("err-noShowPenaltyType", "Required")
-				ok = false
-			}
-			if (t === "percentage") {
-				const amtEl = form?.querySelector("input[name='noShowPenaltyAmount']")
-				const amt = readNumber(amtEl)
-				if (amt == null || amt < 0 || amt > 100) {
-					setFieldError("err-noShowPenaltyAmount", "Required (0-100)")
-					ok = false
-				}
-			}
-		}
-
-		if (!ok) setClientError("Please fix the highlighted fields.")
+		if (category === "NoShow" && !noShowPenaltyTypeSel?.value) ok = false
+		if (!ok) setClientError("Completa los campos requeridos para esta categoría.")
 		return ok
 	}
 
-	form?.addEventListener("submit", (e) => {
-		if (!validateForm()) e.preventDefault()
+	categorySel?.addEventListener("change", updateCategoryUI)
+	paymentTypeSel?.addEventListener("change", updatePaymentUI)
+	noShowPenaltyTypeSel?.addEventListener("change", updateNoShowUI)
+	form?.addEventListener("submit", (event) => {
+		if (!validate()) event.preventDefault()
 	})
-
-	/** @type {HTMLElement|null} */
-	const tiers = document.getElementById("tiers")
-	/** @type {HTMLElement|null} */
-	const add = document.getElementById("addTier")
-
-	if (!tiers || !add) {
-		console.error("[policies] missing tiers/addTier elements")
-	} else {
-		function wireRemove(/** @type {HTMLButtonElement} */ btn) {
-			if (!tiers) return
-			btn.addEventListener("click", () => {
-				const row = btn.closest(".tier-row")
-				if (!row) return
-				// Keep at least one row.
-				if (tiers.querySelectorAll(".tier-row").length <= 1) return
-				row.remove()
-			})
-		}
-
-		tiers
-			.querySelectorAll("[data-remove-tier]")
-			.forEach((el) => wireRemove(/** @type {any} */ (el)))
-
-		add.addEventListener("click", () => {
-			const row = document.createElement("div")
-			row.className = "tier-row flex gap-2 items-end"
-			row.innerHTML = `
-			<div class="flex-1 space-y-1">
-				<label class="block text-sm">Days before arrival</label>
-				<input name="daysBeforeArrival" type="number" min="0" class="border p-2 w-full" required />
-			</div>
-			<div class="flex-1 space-y-1">
-				<label class="block text-sm">Penalty (%)</label>
-				<input name="penaltyPercent" type="number" min="0" max="1000" class="border p-2 w-full" required />
-			</div>
-			<button type="button" class="border px-3 py-2" data-remove-tier>Remove</button>
-		`
-			tiers.appendChild(row)
-			wireRemove(/** @type {any} */ (row.querySelector("[data-remove-tier]")))
-		})
-	}
+	updateCategoryUI()
+	updatePaymentUI()
+	updateNoShowUI()
 </script>

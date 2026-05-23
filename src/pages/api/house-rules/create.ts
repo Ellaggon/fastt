@@ -18,6 +18,18 @@ export const POST: APIRoute = async ({ request }) => {
 	const productId = String(form.get("productId") ?? "").trim()
 	const type = String(form.get("type") ?? "").trim()
 	const description = String(form.get("description") ?? "").trim()
+	const payloadRaw = String(form.get("payloadJson") ?? "").trim()
+	let payload: Record<string, unknown> | null = null
+	if (payloadRaw) {
+		try {
+			payload = JSON.parse(payloadRaw) as Record<string, unknown>
+		} catch {
+			return new Response(JSON.stringify({ error: "validation_error:payload_invalid" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+	}
 
 	if (!productId)
 		return new Response(JSON.stringify({ error: "validation_error" }), { status: 400 })
@@ -28,7 +40,7 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response("Not found", { status: 404 })
 
 	try {
-		const created = await createHouseRule({ productId, type, description })
+		const created = await createHouseRule({ productId, type, description, payload })
 		return new Response(JSON.stringify(created), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },

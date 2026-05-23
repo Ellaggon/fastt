@@ -12,6 +12,7 @@ const editorialSurfaces = [
 	"src/pages/product/index.astro",
 	"src/pages/product/create.astro",
 	"src/pages/product/[id]/index.astro",
+	"src/pages/product/[id]/preview.astro",
 	"src/pages/product/[id]/content.astro",
 	"src/pages/product/[id]/images.astro",
 	"src/pages/product/[id]/location.astro",
@@ -25,8 +26,16 @@ describe("Guardrail: Property Content operational semantics", () => {
 			"src/pages/product/create.astro": ["Create catalog item", "identidad editorial mínima"],
 			"src/pages/product/[id]/index.astro": [
 				"Catalog readiness",
+				"Before publishing",
 				"Physical context",
 				"Editorial summary",
+			],
+			"src/pages/product/[id]/preview.astro": [
+				"Review your listing",
+				"Required before publish",
+				"Guest-facing preview",
+				"Booking terms guests will see",
+				"Stay expectations guests will see",
 			],
 			"src/pages/product/[id]/content.astro": [
 				"Editorial Content",
@@ -163,5 +172,28 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(governance).toContain("Content Quality Workflow")
 		expect(governance).toContain("Commercial and inventory readiness remain contextual signals")
 		expect(governance).not.toContain("Property Content NO")
+	})
+
+	it("integrates House Rules into the provider publish confidence loop", () => {
+		const worklist = read("src/pages/product/index.astro")
+		const readiness = read("src/pages/product/[id]/index.astro")
+		const preview = read("src/pages/product/[id]/preview.astro")
+		const houseRules = read("src/pages/provider/house-rules.astro")
+		const routes = read("src/lib/routes.ts")
+
+		expect(routes).toContain("productPreview")
+		expect(worklist).toContain("routes.productPreview(product.id)")
+		expect(readiness).toContain("routes.productPreview(productId)")
+		expect(houseRules).toContain("routes.productPreview(item.product.id)")
+		expect(houseRules).toContain("Review full listing")
+
+		expect(preview).toContain("Required before publish")
+		expect(preview).toContain("Guest-facing preview")
+		expect(preview).toContain("Booking terms guests will see")
+		expect(preview).toContain("Stay expectations guests will see")
+		expect(preview).toContain("routes.providerHouseRules()")
+		expect(preview).toContain("routes.providerPolicies()")
+		expect(preview).not.toContain("/api/pricing/")
+		expect(preview).not.toContain("/api/inventory/")
 	})
 })

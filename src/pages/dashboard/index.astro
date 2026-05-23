@@ -56,7 +56,7 @@ if (!providerId) return Astro.redirect("/provider")
 		</Section>
 
 		<Section title="Acciones rápidas" description="Accesos directos a los flujos principales.">
-			<div class="grid gap-4 md:grid-cols-2">
+			<div class="grid gap-4 md:grid-cols-3">
 				<Card class="space-y-4 bg-slate-100">
 					<div class="space-y-1">
 						<p class="text-lg font-semibold text-slate-900">Proveedor</p>
@@ -78,6 +78,18 @@ if (!providerId) return Astro.redirect("/provider")
 						<Button href="/product/create" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
 							Crear producto
 						</Button>
+					</div>
+				</Card>
+
+				<Card class="space-y-4 bg-slate-100">
+					<div class="space-y-1">
+						<p class="text-lg font-semibold text-slate-900">House Rules</p>
+						<p class="text-sm text-slate-600">
+							Define expectativas de estancia antes de publicar el alojamiento.
+						</p>
+					</div>
+					<div class="flex justify-end">
+						<Button href="/provider/house-rules" variant="secondary"> Configurar reglas </Button>
 					</div>
 				</Card>
 			</div>

@@ -302,6 +302,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Policy auditability is governance and traceability, not daily Rooms & Rates operation.",
 	},
 	{
+		pattern: "/provider/house-rules",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Guest behavior and property-use expectations; not pricing, restrictions, or booking contract terms.",
+	},
+	{
 		pattern: "/provider/policies/**",
 		status: "transitional",
 		context: "enterprise-operations",
@@ -806,11 +814,11 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Official sellability domain for LOS, CTA/CTD, stop-sell, and booking windows.",
 			},
 			{
-				label: "Commercial Rules",
-				href: routes.pricingRules(),
-				status: "transitional",
+				label: "Pricing Automation",
+				href: routes.pricing(),
+				status: "canonical",
 				level: 2,
-				summary: "Pricing rules, promotions, markups, and commercial overrides.",
+				summary: "Advanced pricing automation embedded in the Pricing calendar.",
 			},
 			{
 				label: "Booking Policies",
@@ -1001,12 +1009,11 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 					"Contextual advanced workflow for exceptional multi-plan pricing operations launched from Pricing.",
 			},
 			{
-				label: "Commercial Rules",
-				href: routes.pricingRules(),
-				status: "transitional",
+				label: "Pricing Automation",
+				href: routes.pricing(),
+				status: "canonical",
 				owner: "Rooms & Rates",
-				description:
-					"Pricing automation, promotions, markups, and overrides under rate-plan ownership.",
+				description: "Advanced pricing automation under rate-plan ownership, embedded in Pricing.",
 			},
 		],
 	},

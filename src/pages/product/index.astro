@@ -6,6 +6,7 @@ import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 import { db, eq, inArray, Product, ProductStatus } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
@@ -62,8 +63,8 @@ const getStatusMeta = (rawState: string | undefined) => {
 		<header class="space-y-2">
 			<h1 class="text-3xl font-semibold text-slate-100">Catalog worklist</h1>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">
-				Revisa contenido, media, ubicación y metadata de cada producto. Las señales comerciales y
-				físicas se mantienen como contexto, no como ownership editorial.
+				Revisa contenido, fotos, House Rules, Booking Policies y la vista huésped antes de publicar.
+				Las señales comerciales y físicas se mantienen como contexto, no como ownership editorial.
 			</p>
 		</header>
 
@@ -125,11 +126,22 @@ const getStatusMeta = (rawState: string | undefined) => {
 											<p class="text-sm text-slate-600">
 												Tipo: {String(product.productType ?? "No definido")}
 											</p>
+											<p class="text-sm text-slate-500">
+												Review combines content, photos, booking terms and House Rules into one
+												guest-facing pre-publish check.
+											</p>
 										</div>
-										<div class="flex items-center gap-3">
+										<div class="flex flex-wrap items-center justify-end gap-3">
 											<Badge variant={status.variant}>{status.label}</Badge>
 											<Button
-												href={`/product/${encodeURIComponent(product.id)}`}
+												href={routes.productPreview(product.id)}
+												data-astro-prefetch
+												variant="secondary"
+											>
+												Review listing
+											</Button>
+											<Button
+												href={routes.productDetail(product.id)}
 												data-astro-prefetch
 												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 											>
@@ -147,19 +159,25 @@ const getStatusMeta = (rawState: string | undefined) => {
 
 		<Section
 			title="Editorial workflow"
-			description="El alta crea identidad de catálogo; pricing, inventario y reservas se gobiernan en sus dominios operacionales."
+			description="El alta crea identidad de catálogo; House Rules prepara expectativas de estancia, mientras pricing, inventario y reservas se gobiernan en sus dominios operacionales."
 		>
 			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
 				<p class="text-sm text-slate-600">
-					Property Content prepara la presentación vendible: contenido, media, ubicación y metadata.
+					Property Content prepara la presentación vendible: contenido, House Rules, media,
+					ubicación, metadata y revisión guest-facing antes de publicar.
 				</p>
-				<Button
-					href="/product/create"
-					data-astro-prefetch
-					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-				>
-					Crear producto
-				</Button>
+				<div class="flex flex-wrap gap-2">
+					<Button href="/provider/house-rules" data-astro-prefetch variant="secondary">
+						Configurar House Rules
+					</Button>
+					<Button
+						href="/product/create"
+						data-astro-prefetch
+						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+					>
+						Crear producto
+					</Button>
+				</div>
 			</Card>
 		</Section>
 	</section>
