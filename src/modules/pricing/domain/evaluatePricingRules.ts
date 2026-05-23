@@ -1,4 +1,10 @@
 import { roundMoney } from "./pricing.utils"
+import {
+	evaluatePricingRuleEligibility,
+	hasPricingRuleEligibility,
+	type PricingRuleEligibility,
+	type PricingRuleStayContext,
+} from "./pricing-rule-eligibility"
 
 export type CanonicalPriceRule = {
 	id: string
@@ -10,6 +16,8 @@ export type CanonicalPriceRule = {
 	isActive?: boolean | null
 	dateRange?: { from?: string | null; to?: string | null } | null
 	dayOfWeek?: number[] | null
+	eligibility?: PricingRuleEligibility | null
+	contextKey?: string | null
 }
 
 type EvaluateParams = {
@@ -19,6 +27,8 @@ type EvaluateParams = {
 	ratePlanId?: string
 	rules: CanonicalPriceRule[]
 	includeBreakdown?: boolean
+	stayContext?: PricingRuleStayContext | null
+	includeEligibilityTrace?: boolean
 }
 
 type EvaluateResult = {
@@ -32,6 +42,16 @@ type EvaluateResult = {
 		before: number
 		after: number
 		delta: number
+	}>
+	eligibilityTrace?: Array<{
+		ruleId: string
+		type: string
+		applies: boolean
+		explanation: string
+		reasons: string[]
+		leadTimeDays: number | null
+		nights: number | null
+		missingContext: boolean
 	}>
 }
 
@@ -139,8 +159,31 @@ export function evaluatePricingRules(params: EvaluateParams): EvaluateResult {
 	if (!Number.isFinite(current)) current = 0
 	const appliedRuleIds: string[] = []
 	const breakdown: NonNullable<EvaluateResult["breakdown"]> = []
+	const eligibilityTrace: NonNullable<EvaluateResult["eligibilityTrace"]> = []
 
 	for (const rule of applicable) {
+		const shouldEvaluateEligibility = hasPricingRuleEligibility(rule.eligibility)
+		const eligibilityResult = shouldEvaluateEligibility
+			? evaluatePricingRuleEligibility({
+					eligibility: rule.eligibility,
+					stayContext: params.stayContext ?? null,
+					ruleLabel: rule.contextKey ?? rule.type,
+				})
+			: null
+		if (params.includeEligibilityTrace && eligibilityResult) {
+			eligibilityTrace.push({
+				ruleId: String(rule.id),
+				type: String(rule.type),
+				applies: eligibilityResult.applies,
+				explanation: eligibilityResult.explanation,
+				reasons: eligibilityResult.reasons,
+				leadTimeDays: eligibilityResult.leadTimeDays,
+				nights: eligibilityResult.nights,
+				missingContext: eligibilityResult.missingContext,
+			})
+		}
+		if (eligibilityResult && !eligibilityResult.applies) continue
+
 		const before = roundMoney(current)
 		current = applyRule(current, rule)
 		current = Math.max(0, current)
@@ -164,5 +207,6 @@ export function evaluatePricingRules(params: EvaluateParams): EvaluateResult {
 		price: roundMoney(Math.max(0, current)),
 		appliedRuleIds,
 		breakdown: params.includeBreakdown ? breakdown : undefined,
+		eligibilityTrace: params.includeEligibilityTrace ? eligibilityTrace : undefined,
 	}
 }
