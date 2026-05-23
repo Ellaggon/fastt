@@ -28,7 +28,7 @@ describe("ui/rateplan bulk pricing wizard", () => {
 		expect(source).toContain('id="bulkApplyBtn"')
 		expect(source).toContain('id="bulkExecutiveSummary"')
 		expect(source).toContain('id="bulkPreviewSort"')
-		expect(source).toContain("Aplicar cambios a tarifas seleccionadas")
+		expect(source).toContain("Aplicar multi-plan")
 		expect(source).toContain('fetch("/api/pricing/rules/v2/bulk-preview"')
 		expect(source).toContain('fetch("/api/pricing/rules/v2/bulk-apply"')
 	})
