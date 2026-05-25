@@ -84,10 +84,9 @@ export type PricingAutomationSurface = {
 export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 	{
 		kind: "manual_override",
-		label: "Precio fijo manual",
-		shortLabel: "Manual",
-		description:
-			"Define un precio fijo para fechas específicas sin cambiar la base del plan tarifario.",
+		label: "Precio fijo programado",
+		shortLabel: "Fijo programado",
+		description: "Ayuda recurrente que fija un precio cuando el rango o la elegibilidad coinciden.",
 		internalType: "fixed_override",
 		defaultValue: 100,
 		valueSuffix: "precio fijo",
@@ -95,9 +94,10 @@ export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 	},
 	{
 		kind: "percentage_discount",
-		label: "Descuento porcentual",
-		shortLabel: "Descuento %",
-		description: "Aplica un descuento porcentual para un rango o ventana táctica de precio.",
+		label: "Promoción simple",
+		shortLabel: "Promoción simple",
+		description:
+			"Baja un porcentaje durante un rango definido, como temporada baja o campaña corta.",
 		internalType: "percentage_discount",
 		defaultValue: 10,
 		valueSuffix: "% de descuento",
@@ -107,7 +107,7 @@ export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 		kind: "fixed_discount",
 		label: "Descuento fijo",
 		shortLabel: "Descuento fijo",
-		description: "Resta un monto fijo al precio para fechas específicas.",
+		description: "Resta un monto fijo durante fechas recurrentes o una ventana comercial clara.",
 		internalType: "fixed_adjustment",
 		defaultValue: 10,
 		valueSuffix: "de descuento",
@@ -116,8 +116,8 @@ export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 	{
 		kind: "early_bird",
 		label: "Reserva anticipada",
-		shortLabel: "Early bird",
-		description: "Descuento para huéspedes que reservan con anticipación suficiente.",
+		shortLabel: "Anticipada",
+		description: "Ayuda a premiar reservas hechas con suficiente anticipación.",
 		internalType: "percentage_discount",
 		defaultValue: 10,
 		valueSuffix: "% de descuento",
@@ -129,7 +129,7 @@ export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 		kind: "last_minute",
 		label: "Último minuto",
 		shortLabel: "Último minuto",
-		description: "Descuento para reservas cercanas a la fecha de llegada.",
+		description: "Ayuda a mover noches cercanas cuando todavía hay demanda pendiente.",
 		internalType: "percentage_discount",
 		defaultValue: 10,
 		valueSuffix: "% de descuento",
@@ -140,8 +140,8 @@ export const PRICING_AUTOMATION_TEMPLATES: PricingAutomationTemplate[] = [
 	{
 		kind: "los_discount",
 		label: "Descuento por estadía",
-		shortLabel: "Estadía",
-		description: "Descuento para estadías que cumplen una cantidad mínima de noches.",
+		shortLabel: "Estadía larga",
+		description: "Incentiva reservas que cumplen una cantidad mínima de noches.",
 		internalType: "percentage_discount",
 		defaultValue: 12,
 		valueSuffix: "% de descuento",
@@ -185,9 +185,9 @@ export function resolvePricingAutomationKind(rule: {
 export function pricingAutomationKindLabel(kind: PricingAutomationKind): string {
 	switch (kind) {
 		case "manual_override":
-			return "Precio fijo manual"
+			return "Precio fijo programado"
 		case "percentage_discount":
-			return "Descuento porcentual"
+			return "Promoción simple"
 		case "fixed_discount":
 			return "Descuento fijo"
 		case "early_bird":
@@ -199,13 +199,13 @@ export function pricingAutomationKindLabel(kind: PricingAutomationKind): string 
 		case "markup":
 			return "Incremento"
 		default:
-			return "Automatización de precio"
+			return "Regla automática"
 	}
 }
 
 function formatValue(rule: { type: string; value: number }, kind: PricingAutomationKind): string {
 	const value = Number(rule.value)
-	if (kind === "manual_override") return `precio fijo ${formatNumber(value)}`
+	if (kind === "manual_override") return `fija precio ${formatNumber(value)}`
 	if (kind === "fixed_discount") return `${formatNumber(Math.abs(value))} de descuento`
 	if (String(rule.type).includes("percentage"))
 		return `${formatNumber(Math.abs(value))}% de descuento`
@@ -248,7 +248,7 @@ function buildSummary(
 	const eligibilityLabel = formatPricingRuleEligibilityLabel(rule.eligibility)
 	const eligibility =
 		eligibilityLabel === "Sin elegibilidad adicional" ? "" : ` · elegibilidad: ${eligibilityLabel}`
-	return `${pricingAutomationKindLabel(kind)} aplica ${formatValue(rule, kind)} · ${formatValidity(rule).toLowerCase()}${dayLabel}${eligibility}.`
+	return `${pricingAutomationKindLabel(kind)} actúa después: ${formatValue(rule, kind)} · ${formatValidity(rule).toLowerCase()}${dayLabel}${eligibility}.`
 }
 
 function readEligibility(value: unknown): PricingRuleEligibility | null {
@@ -348,7 +348,7 @@ export async function loadPricingAutomationSurface(
 				createdAt: rule.createdAt,
 				quickLinks: {
 					ratePlan: `/rates/plans/${encodeURIComponent(String(rule.ratePlanId))}`,
-					advancedPricing: `/pricing/bulk?ratePlanIds=${encodeURIComponent(String(rule.ratePlanId))}`,
+					advancedPricing: `/pricing/bulk?source=calendar&ratePlanIds=${encodeURIComponent(String(rule.ratePlanId))}`,
 				},
 			} satisfies PricingAutomationSurfaceRule
 		})

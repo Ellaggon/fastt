@@ -1003,12 +1003,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
 			},
 			{
-				label: "Multi-plan avanzado",
+				label: "Extender cambio",
 				href: routes.pricingBulk(),
 				status: "transitional",
 				owner: "Rooms & Rates",
 				description:
-					"Contextual advanced workflow for exceptional multi-plan pricing operations launched from Pricing.",
+					"Contextual workflow for extending a pricing-calendar change to additional rate plans.",
 			},
 		],
 	},
