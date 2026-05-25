@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { buildRangeContextLabel, pricingOperationCopy } from "@/lib/pricing/pricingOperationCopy"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
@@ -30,24 +31,65 @@ const ratePlanCatalog = rows.map((row) => ({
 	productName: String(row.productName),
 	variantName: String(row.variantName),
 }))
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+const addOneDay = (value: string) => {
+	const date = new Date(`${value}T00:00:00.000Z`)
+	if (Number.isNaN(date.getTime())) return ""
+	date.setUTCDate(date.getUTCDate() + 1)
+	return date.toISOString().slice(0, 10)
+}
+const countDaysInclusive = (from: string, to: string) => {
+	const start = new Date(`${from}T00:00:00.000Z`)
+	const end = new Date(`${to}T00:00:00.000Z`)
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0
+	return Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1
+}
 const initialRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "")
 	.split(",")
 	.map((id) => id.trim())
 	.filter(Boolean)
-const launchedFromPricingContext = initialRatePlanIds.length > 0
+const sourceContext = String(Astro.url.searchParams.get("source") ?? "").trim()
+const contextFromRaw = String(Astro.url.searchParams.get("from") ?? "").trim()
+const contextToRaw = String(Astro.url.searchParams.get("to") ?? "").trim()
+const contextFrom = isDateOnly(contextFromRaw) ? contextFromRaw : ""
+const contextTo =
+	isDateOnly(contextToRaw) && (!contextFrom || contextToRaw >= contextFrom) ? contextToRaw : ""
+const contextDays = contextFrom && contextTo ? countDaysInclusive(contextFrom, contextTo) : 0
+const contextEffectiveTo = contextTo ? addOneDay(contextTo) : ""
+const originRatePlan = ratePlanCatalog.find((item) => initialRatePlanIds.includes(item.ratePlanId))
+const launchedFromPricingContext =
+	sourceContext === "calendar" || initialRatePlanIds.length > 0 || contextDays > 0
+const bulkContext = {
+	source: sourceContext || "direct",
+	from: contextFrom,
+	to: contextTo,
+	days: contextDays,
+	effectiveTo: contextEffectiveTo,
+	originRatePlanName: originRatePlan?.ratePlanName ?? "",
+}
+const contextLabel =
+	contextDays > 0
+		? buildRangeContextLabel({
+				from: contextFrom,
+				to: contextTo,
+				nights: contextDays,
+				ratePlanName: originRatePlan?.ratePlanName ?? "",
+			})
+		: ""
 ---
 
-<WorkspaceLayout title="Pricing · Operaciones avanzadas">
-	<div class="space-y-8">
+<WorkspaceLayout title="Pricing · Modo avanzado">
+	<div class="space-y-6">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Pricing · Operaciones avanzadas
+					Pricing · soporte avanzado
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Multi-plan avanzado</h1>
-				<p class="text-sm text-slate-300">
-					Usa este flujo solo cuando un cambio de precio deba afectar varios planes tarifarios. Para
-					una fecha o rango visible, vuelve al calendario.
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{pricingOperationCopy.extension.advancedModeTitle}
+				</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-300">
+					{pricingOperationCopy.extension.advancedModeDescription}
 				</p>
 				{/* guardrail-copy: Operacion avanzada de pricing */}
 				{/* guardrail-copy: el calendario de Pricing es la operacion diaria principal */}
@@ -58,30 +100,51 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 		</header>
 
 		<Section
-			title="Planes incluidos"
-			description="Parte desde el contexto del calendario y suma otros planes solo si el cambio debe ser multi-plan."
+			title="Contexto del calendario"
+			description="Este modo existe como soporte y diagnóstico. Para la operación diaria, vuelve al calendario."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div
 					data-bulk-advanced-context
 					class:list={[
-						"rounded border p-3 text-sm",
+						"rounded-lg border p-3 text-sm",
 						launchedFromPricingContext
 							? "border-blue-100 bg-blue-50 text-blue-950"
 							: "border-slate-200 bg-slate-50 text-slate-700",
 					]}
 				>
-					<p class="font-medium">
-						{launchedFromPricingContext ? "Abierto desde Pricing." : "Flujo avanzado contextual."}
-					</p>
-					<p class="mt-1">
-						{
-							launchedFromPricingContext
-								? `${initialRatePlanIds.length} plan tarifario viene preseleccionado. Agrega otros solo si el mismo cambio aplica fuera del calendario actual.`
-								: "Este flujo complementa Pricing; no reemplaza el calendario para edicion diaria, seleccion por rango o regeneracion de cobertura."
-						}
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<p class="font-semibold">
+								{
+									launchedFromPricingContext
+										? pricingOperationCopy.extension.contextTitle
+										: "Modo avanzado sin contexto"
+								}
+							</p>
+							<p class="mt-1">
+								{contextDays > 0 ? contextLabel : pricingOperationCopy.extension.contextFallback}
+							</p>
+						</div>
+						<a
+							href={routes.pricing()}
+							class="rounded border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+						>
+							Volver al calendario
+						</a>
+					</div>
+					<p class="mt-2 text-xs opacity-80">
+						{pricingOperationCopy.extension.intentSummary}
 					</p>
 				</div>
+			</Card>
+		</Section>
+
+		<details class="rounded-lg border border-slate-700 bg-slate-900/70 p-1">
+			<summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-100">
+				{pricingOperationCopy.extension.targetsTitle}
+			</summary>
+			<Card className="mt-1 space-y-4 bg-white text-slate-800">
 				<div
 					class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3"
 				>
@@ -115,24 +178,42 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 					}
 				</div>
 			</Card>
-		</Section>
+		</details>
 
 		<Section
-			title="Cambio a aplicar"
-			description="Define una sola operación y revisa el resultado antes de confirmar."
+			title={pricingOperationCopy.extension.changeTitle}
+			description="Manténlo simple: replica el cambio puntual; lo técnico queda bajo detalle avanzado."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="grid gap-4 md:grid-cols-3">
 					<label class="space-y-1 text-sm text-slate-700">
-						<span class="font-medium text-slate-900">Tipo de operación</span>
+						<span class="font-medium text-slate-900">Desde</span>
+						<input
+							id="bulkContextFrom"
+							type="date"
+							value={contextFrom}
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Hasta</span>
+						<input
+							id="bulkContextTo"
+							type="date"
+							value={contextTo}
+							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+						/>
+					</label>
+					<label class="space-y-1 text-sm text-slate-700">
+						<span class="font-medium text-slate-900">Cómo replicar el cambio</span>
 						<select
 							id="bulkOperationType"
 							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
 						>
-							<option value="percentage_markup">Incremento %</option>
-							<option value="percentage_discount">Descuento %</option>
-							<option value="fixed_adjustment">Ajuste fijo</option>
-							<option value="fixed_override">Precio fijo manual</option>
+							<option value="percentage_markup">Subir %</option>
+							<option value="percentage_discount">Bajar %</option>
+							<option value="fixed_adjustment">Sumar/restar monto</option>
+							<option value="fixed_override">Fijar precio final</option>
 						</select>
 					</label>
 					<label class="space-y-1 text-sm text-slate-700">
@@ -145,83 +226,91 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
 						/>
 					</label>
-					<label class="space-y-1 text-sm text-slate-700">
-						<span class="font-medium text-slate-900">Prioridad</span>
-						<select
-							id="bulkOperationPriority"
-							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
-						>
-							<option value="0">Muy alta</option>
-							<option value="5">Alta</option>
-							<option value="10" selected>Media</option>
-							<option value="25">Baja</option>
-						</select>
-					</label>
-					<label class="space-y-1 text-sm text-slate-700">
-						<span class="font-medium text-slate-900">Días para simular</span>
-						<input
-							id="bulkPreviewDays"
-							type="number"
-							min="1"
-							max="120"
-							value="30"
-							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
-						/>
-					</label>
-					<label class="space-y-1 text-sm text-slate-700">
-						<span class="font-medium text-slate-900">Días a actualizar después de aplicar</span>
-						<input
-							id="bulkEffectiveDays"
-							type="number"
-							min="1"
-							max="365"
-							value="60"
-							class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
-						/>
-					</label>
 				</div>
+				<details class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+					<summary class="cursor-pointer font-medium text-slate-800">
+						{pricingOperationCopy.extension.advancedDetailTitle}
+					</summary>
+					<div class="mt-3 grid gap-4 md:grid-cols-2">
+						<label class="space-y-1">
+							<span class="font-medium text-slate-900">Prioridad avanzada</span>
+							<select
+								id="bulkOperationPriority"
+								class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+							>
+								<option value="0">Muy alta</option>
+								<option value="5">Alta</option>
+								<option value="10" selected>Media</option>
+								<option value="25">Baja</option>
+							</select>
+						</label>
+						<label class="space-y-1">
+							<span class="font-medium text-slate-900">Noches para revisar</span>
+							<input
+								id="bulkPreviewDays"
+								type="number"
+								min="1"
+								max="120"
+								value={contextDays > 0 ? contextDays : 30}
+								class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+							/>
+						</label>
+						<label class="space-y-1">
+							<span class="font-medium text-slate-900">Noches a refrescar después de guardar</span>
+							<input
+								id="bulkEffectiveDays"
+								type="number"
+								min="1"
+								max="365"
+								value={contextDays > 0 ? contextDays : 60}
+								class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900"
+							/>
+						</label>
+					</div>
+				</details>
 				<div class="flex items-center justify-between gap-2">
 					<p id="bulkConfigFeedback" class="text-sm text-slate-700"></p>
 					<button
 						id="bulkPreviewBtn"
 						type="button"
 						class="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
-						>Simular impacto</button
+						>{pricingOperationCopy.reviewAction}</button
 					>
 				</div>
 			</Card>
 		</Section>
 
 		<Section
-			title="Revisión antes de aplicar"
-			description="La simulación muestra qué cambiaría por plan tarifario. El detalle diario queda bajo demanda."
+			title={pricingOperationCopy.extension.reviewTitle}
+			description="Confirma que el cambio manual se replica correctamente antes de guardarlo en otros planes."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div id="bulkExecutiveSummary" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-					<p class="text-sm font-semibold text-slate-900">Resumen de simulación</p>
-					<div class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-5">
+					<p class="text-sm font-semibold text-slate-900">
+						{pricingOperationCopy.extension.reviewTitle}
+					</p>
+					<div class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-4">
 						<p>
-							<span class="font-medium text-slate-900">Tarifas seleccionadas:</span>
+							<span class="font-medium text-slate-900">Elegidos:</span>
 							<span id="bulkExecutiveSelected">0</span>
 						</p>
 						<p>
-							<span class="font-medium text-slate-900">Tarifas afectadas:</span>
+							<span class="font-medium text-slate-900">Aplicables:</span>
 							<span id="bulkExecutiveAffected">0</span>
 						</p>
 						<p>
-							<span class="font-medium text-slate-900">Días impactados:</span>
+							<span class="font-medium text-slate-900">Noches:</span>
 							<span id="bulkExecutiveDays">0</span>
 						</p>
 						<p>
-							<span class="font-medium text-slate-900">Diferencia estimada:</span>
+							<span class="font-medium text-slate-900">Impacto:</span>
 							<span id="bulkExecutiveImpact">—</span>
 						</p>
-						<p>
-							<span class="font-medium text-slate-900">Cobertura efectiva:</span>
-							<span id="bulkExecutiveCoverage">0%</span>
-						</p>
 					</div>
-					<p id="bulkExecutiveRange" class="mt-2 text-xs text-slate-600">Rango evaluado: —</p>
+					<p id="bulkExecutiveRange" class="mt-2 text-xs text-slate-600">
+						Rango que viene del calendario: —
+					</p>
+					<p id="bulkExecutiveCoverage" class="mt-1 text-xs text-slate-500">Alcance listo: 0%</p>
 				</div>
 				<div
 					id="bulkGlobalAlerts"
@@ -229,44 +318,51 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				>
 				</div>
 				<div class="flex items-center justify-between gap-2">
-					<p id="bulkPreviewSummary" class="text-sm text-slate-700">Sin simulación aún.</p>
+					<p id="bulkPreviewSummary" class="text-sm text-slate-700">Sin revisión aún.</p>
 					<div class="flex items-center gap-2">
-						<label class="inline-flex items-center gap-2 text-xs text-slate-600">
+						<label class="hidden items-center gap-2 text-xs text-slate-600 sm:inline-flex">
 							<span>Ordenar por</span>
 							<select
 								id="bulkPreviewSort"
 								class="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900"
 							>
-								<option value="impact_desc">Mayor diferencia</option>
+								<option value="impact_desc">Mayor impacto</option>
 								<option value="risk_desc">Mayor riesgo</option>
-								<option value="coverage_asc">Menor cobertura</option>
+								<option value="coverage_asc">Menor alcance</option>
 							</select>
 						</label>
 						<button
 							id="bulkApplyBtn"
 							type="button"
 							class="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-							disabled>Aplicar multi-plan</button
+							disabled>{pricingOperationCopy.bulkApplyAction}</button
 						>
 					</div>
 				</div>
-				<div class="overflow-x-auto rounded-lg border border-slate-200">
-					<table class="min-w-full bg-white text-sm">
-						<thead class="bg-slate-50 text-left text-slate-600">
-							<tr>
-								<th class="px-3 py-2">Plan tarifario</th>
-								<th class="px-3 py-2">Rango</th>
-								<th class="px-3 py-2">Precio actual (avg)</th>
-								<th class="px-3 py-2">Precio nuevo (avg)</th>
-								<th class="px-3 py-2">Cambio promedio / noche</th>
-								<th class="px-3 py-2">Diferencia estimada</th>
-								<th class="px-3 py-2">Cobertura efectiva</th>
-								<th class="px-3 py-2">Estado</th>
-							</tr>
-						</thead>
-						<tbody id="bulkPreviewRows"></tbody>
-					</table>
+				<div id="bulkPreviewCards" data-bulk-preview-result-cards class="grid gap-3 md:grid-cols-2">
 				</div>
+				<details class="rounded-lg border border-slate-200 bg-slate-50/70">
+					<summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-800">
+						{pricingOperationCopy.extension.technicalTableTitle}
+					</summary>
+					<div class="overflow-x-auto border-t border-slate-200">
+						<table class="min-w-full bg-white text-sm">
+							<thead class="bg-slate-50 text-left text-slate-600">
+								<tr>
+									<th class="px-3 py-2">Plan tarifario</th>
+									<th class="px-3 py-2">Rango</th>
+									<th class="px-3 py-2">Antes</th>
+									<th class="px-3 py-2">Después</th>
+									<th class="px-3 py-2">Cambio/noche</th>
+									<th class="px-3 py-2">Impacto estimado</th>
+									<th class="px-3 py-2">Alcance</th>
+									<th class="px-3 py-2">Estado</th>
+								</tr>
+							</thead>
+							<tbody id="bulkPreviewRows"></tbody>
+						</table>
+					</div>
+				</details>
 				<div
 					id="bulkApplyConfirmation"
 					class="hidden rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
@@ -280,22 +376,32 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			</Card>
 		</Section>
 
-		<Section title="Resultado" description="Qué se aplicó y qué necesita revisión manual.">
+		<Section
+			title={pricingOperationCopy.resultTitle}
+			description="Qué se replicó y qué necesita revisión."
+		>
 			<Card className="space-y-4 bg-white text-slate-800">
-				<p id="bulkResultSummary" class="text-sm text-slate-700">Sin ejecución aún.</p>
-				<div class="overflow-x-auto rounded-lg border border-slate-200">
-					<table class="min-w-full bg-white text-sm">
-						<thead class="bg-slate-50 text-left text-slate-600">
-							<tr>
-								<th class="px-3 py-2">Plan tarifario</th>
-								<th class="px-3 py-2">Regla</th>
-								<th class="px-3 py-2">Días regenerados</th>
-								<th class="px-3 py-2">Estado</th>
-							</tr>
-						</thead>
-						<tbody id="bulkResultRows"></tbody>
-					</table>
+				<p id="bulkResultSummary" class="text-sm text-slate-700">Sin aplicación aún.</p>
+				<div id="bulkResultCards" data-bulk-apply-result-cards class="grid gap-3 md:grid-cols-2">
 				</div>
+				<details class="rounded-lg border border-slate-200 bg-slate-50/70">
+					<summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-800">
+						{pricingOperationCopy.extension.technicalTableTitle}
+					</summary>
+					<div class="overflow-x-auto border-t border-slate-200">
+						<table class="min-w-full bg-white text-sm">
+							<thead class="bg-slate-50 text-left text-slate-600">
+								<tr>
+									<th class="px-3 py-2">Plan tarifario</th>
+									<th class="px-3 py-2">Aplicación</th>
+									<th class="px-3 py-2">Noches actualizadas</th>
+									<th class="px-3 py-2">Estado</th>
+								</tr>
+							</thead>
+							<tbody id="bulkResultRows"></tbody>
+						</table>
+					</div>
+				</details>
 				<div
 					id="bulkResultFailures"
 					class="hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
@@ -305,10 +411,20 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 		</Section>
 	</div>
 
-	<script type="module" define:vars={{ ratePlanCatalog, initialRatePlanIds }}>
+	<script
+		type="module"
+		define:vars={{
+			ratePlanCatalog,
+			initialRatePlanIds,
+			bulkContext,
+			operationCopy: pricingOperationCopy,
+		}}
+	>
 		const STORAGE_KEY = "bulkPricing.selection"
 		const catalog = Array.isArray(ratePlanCatalog) ? ratePlanCatalog : []
 		const catalogMap = new Map(catalog.map((item) => [String(item.ratePlanId), item]))
+		const context = bulkContext && typeof bulkContext === "object" ? bulkContext : {}
+		const copy = operationCopy && typeof operationCopy === "object" ? operationCopy : {}
 		const selectedRatePlanIds = new Set()
 		let lastBulkOperation = null
 		let previewPayload = null
@@ -321,6 +437,8 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 		const operationType = document.getElementById("bulkOperationType")
 		const operationValue = document.getElementById("bulkOperationValue")
 		const operationPriority = document.getElementById("bulkOperationPriority")
+		const contextFrom = document.getElementById("bulkContextFrom")
+		const contextTo = document.getElementById("bulkContextTo")
 		const previewDays = document.getElementById("bulkPreviewDays")
 		const effectiveDays = document.getElementById("bulkEffectiveDays")
 
@@ -328,6 +446,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 		const applyBtn = document.getElementById("bulkApplyBtn")
 		const previewSummary = document.getElementById("bulkPreviewSummary")
 		const previewSort = document.getElementById("bulkPreviewSort")
+		const previewCards = document.getElementById("bulkPreviewCards")
 		const previewRows = document.getElementById("bulkPreviewRows")
 		const previewFailures = document.getElementById("bulkPreviewFailures")
 		const globalAlerts = document.getElementById("bulkGlobalAlerts")
@@ -339,6 +458,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 		const executiveRange = document.getElementById("bulkExecutiveRange")
 		const applyConfirmation = document.getElementById("bulkApplyConfirmation")
 		const resultSummary = document.getElementById("bulkResultSummary")
+		const resultCards = document.getElementById("bulkResultCards")
 		const resultRows = document.getElementById("bulkResultRows")
 		const resultFailures = document.getElementById("bulkResultFailures")
 
@@ -375,14 +495,59 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			persistSelection()
 		}
 
+		function isDateOnly(value) {
+			return /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ""))
+		}
+
+		function addOneDay(value) {
+			const date = new Date(`${value}T00:00:00.000Z`)
+			if (Number.isNaN(date.getTime())) return ""
+			date.setUTCDate(date.getUTCDate() + 1)
+			return date.toISOString().slice(0, 10)
+		}
+
+		function countContextDays(from, to) {
+			if (!isDateOnly(from) || !isDateOnly(to) || to < from) return 0
+			const start = new Date(`${from}T00:00:00.000Z`)
+			const end = new Date(`${to}T00:00:00.000Z`)
+			return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
+		}
+
+		function getContextRange() {
+			const from = String(contextFrom?.value ?? "").trim()
+			const to = String(contextTo?.value ?? "").trim()
+			const days = countContextDays(from, to)
+			return days > 0 ? { from, to, days, effectiveTo: addOneDay(to) } : null
+		}
+
+		function syncContextRangeFields() {
+			const range = getContextRange()
+			if (!range) {
+				if (configFeedback) {
+					configFeedback.textContent =
+						"Puedes revisar por horizonte o definir un rango para mantener continuidad con el calendario."
+				}
+				return
+			}
+			if (previewDays instanceof HTMLInputElement) previewDays.value = String(range.days)
+			if (effectiveDays instanceof HTMLInputElement) effectiveDays.value = String(range.days)
+			if (executiveRange) {
+				executiveRange.textContent = `Rango que viene del calendario: ${range.from} → ${range.to}`
+			}
+			if (configFeedback) {
+				configFeedback.textContent = `Rango contextual listo: ${range.days} ${range.days === 1 ? "noche" : "noches"}.`
+			}
+		}
+
 		function getBulkOperation() {
 			const type = String(operationType?.value ?? "").trim()
 			const value = Number(operationValue?.value)
 			const priority = Number(operationPriority?.value)
 			const previewDaysValue = Number(previewDays?.value)
 			const effectiveDaysValue = Number(effectiveDays?.value)
+			const range = getContextRange()
 			if (!selectedRatePlanIds.size) return { error: "Debes seleccionar al menos un rate plan." }
-			if (!type) return { error: "Debes seleccionar tipo de operación." }
+			if (!type) return { error: "Debes seleccionar cómo replicar el cambio." }
 			if (!Number.isFinite(value)) return { error: "Debes definir un valor numérico válido." }
 			return {
 				operation: {
@@ -390,6 +555,15 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 					value,
 					conditions: {
 						priority: Number.isFinite(priority) ? priority : 10,
+						...(range
+							? {
+									dateFrom: range.from,
+									dateTo: range.to,
+									previewFrom: range.from,
+									effectiveFrom: range.from,
+									effectiveTo: range.effectiveTo,
+								}
+							: {}),
 						previewDays: Number.isFinite(previewDaysValue) ? previewDaysValue : 30,
 						effectiveDays: Number.isFinite(effectiveDaysValue) ? effectiveDaysValue : 60,
 					},
@@ -405,6 +579,71 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				currency: safeCurrency,
 				maximumFractionDigits: 2,
 			}).format(Number.isFinite(numeric) ? numeric : 0)
+		}
+
+		function escapeHtml(value) {
+			return String(value ?? "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#39;")
+		}
+
+		function buildRecoveryGuidance(error, stage = "") {
+			const recovery = copy.recovery || {}
+			const text = `${stage} ${error}`.toLowerCase()
+			if (text.includes("valid") || text.includes("required") || text.includes("missing")) {
+				return recovery.validation || recovery.unknown
+			}
+			if (text.includes("coverage") || text.includes("material") || text.includes("recompute")) {
+				return recovery.coverage || recovery.unknown
+			}
+			if (text.includes("network") || text.includes("timeout") || text.includes("fetch")) {
+				return recovery.network || recovery.unknown
+			}
+			if (text.includes("apply") || text.includes("rule") || text.includes("insert")) {
+				return recovery.apply || recovery.unknown
+			}
+			return (
+				recovery.unknown || {
+					title: "Necesita revisión",
+					summary: "Este plan no pudo completarse automáticamente.",
+					action: "Abre el detalle técnico y vuelve a intentar.",
+				}
+			)
+		}
+
+		function renderFailureCard(item) {
+			const ratePlanId = String(item?.ratePlanId ?? "")
+			const info = catalogMap.get(ratePlanId)
+			const error = String(item?.error ?? "Error no especificado")
+			const stage = String(item?.stage ?? "desconocida")
+			const guidance = buildRecoveryGuidance(error, stage)
+			return `
+				<div class="rounded-lg border border-amber-200 bg-white/75 p-3">
+					<div class="flex items-start justify-between gap-3">
+						<div>
+							<p class="font-semibold">${escapeHtml(info?.ratePlanName ?? (ratePlanId || "Plan por revisar"))}</p>
+							<p class="text-xs opacity-75">${escapeHtml(info?.variantName ?? "")}</p>
+						</div>
+						<span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">Revisar</span>
+					</div>
+					<p class="mt-2 font-medium">${escapeHtml(guidance.title)}</p>
+					<p class="mt-1 text-xs">${escapeHtml(guidance.summary)}</p>
+					<p class="mt-2 text-xs"><span class="font-semibold">${escapeHtml(copy.nextStepLabel || "Qué hacer ahora")}:</span> ${escapeHtml(guidance.action)}</p>
+					<details class="mt-2 rounded border border-amber-100 bg-amber-50/70 p-2 text-xs">
+						<summary class="cursor-pointer font-semibold">${escapeHtml(copy.technicalDetail || "Detalle técnico")}</summary>
+						<p class="mt-1">${escapeHtml(error)}</p>
+						<p class="mt-1 opacity-75">Etapa: ${escapeHtml(stage)}</p>
+					</details>
+				</div>
+			`
+		}
+
+		function formatNights(count) {
+			const safeCount = Number.isFinite(Number(count)) ? Number(count) : 0
+			return `${safeCount} ${safeCount === 1 ? "noche" : "noches"}`
 		}
 
 		function formatDateWithDay(value, fallbackDayLabel = "") {
@@ -428,7 +667,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				alerts.push(`Cambio alto (${changePct.toFixed(1)}%)`)
 			}
 			if (coveragePct < RISK_THRESHOLDS.coveragePct) {
-				alerts.push(`Cobertura baja (${coveragePct.toFixed(1)}%)`)
+				alerts.push(`Alcance parcial (${coveragePct.toFixed(1)}%)`)
 			}
 			if (estimatedImpact < RISK_THRESHOLDS.negativeImpact) {
 				alerts.push(`Impacto negativo (${estimatedImpact.toFixed(2)})`)
@@ -483,7 +722,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 					totalImpact,
 					results[0]?.preview?.currency ?? "USD"
 				)
-			if (executiveCoverage) executiveCoverage.textContent = `${coveragePct}%`
+			if (executiveCoverage) executiveCoverage.textContent = `Alcance listo: ${coveragePct}%`
 			const from = results
 				.map((row) => String(row?.preview?.dateRange?.from ?? ""))
 				.filter(Boolean)
@@ -495,11 +734,13 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				.slice(-1)[0]
 			if (executiveRange) {
 				executiveRange.textContent =
-					from && to ? `Rango evaluado: ${from} → ${to}` : "Rango evaluado: —"
+					from && to
+						? `Rango que viene del calendario: ${from} → ${to}`
+						: "Rango que viene del calendario: —"
 			}
 			if (applyConfirmation) {
 				applyConfirmation.classList.remove("hidden")
-				applyConfirmation.textContent = `Vas a aplicar cambios en ${affected.length} tarifas, ${changedDays} días impactados, diferencia estimada total ${formatMoney(totalImpact, results[0]?.preview?.currency ?? "USD")}.`
+				applyConfirmation.textContent = `Vas a extender este cambio manual a ${affected.length} planes, ${formatNights(changedDays)} con cambio, impacto estimado total ${formatMoney(totalImpact, results[0]?.preview?.currency ?? "USD")}.`
 			}
 			return { coveragePct, totalImpact, affected: affected.length, changedDays }
 		}
@@ -510,15 +751,19 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			const riskyRows = results.filter((row) => calculateRiskSignals(row).alerts.length > 0)
 			const messages = []
 			if (executive.coveragePct < RISK_THRESHOLDS.coveragePct) {
-				messages.push(`Cobertura global baja (${executive.coveragePct.toFixed(1)}%).`)
+				messages.push(
+					`El alcance aplicable es parcial (${executive.coveragePct.toFixed(1)}%). Revisa si el rango tiene noches pendientes antes de aplicar.`
+				)
 			}
 			if (executive.totalImpact < RISK_THRESHOLDS.negativeImpact) {
 				messages.push(
-					`Diferencia global negativa significativa (${executive.totalImpact.toFixed(2)}).`
+					`Impacto negativo relevante (${executive.totalImpact.toFixed(2)}). Confirma que esta reducción es intencional.`
 				)
 			}
 			if (riskyRows.length > 0) {
-				messages.push(`${riskyRows.length} tarifas presentan alertas de riesgo.`)
+				messages.push(
+					`${riskyRows.length} planes necesitan revisión. Puedes aplicar si el impacto es esperado o abrir el detalle avanzado.`
+				)
 			}
 			if (!messages.length) {
 				globalAlerts.classList.add("hidden")
@@ -526,30 +771,103 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				return
 			}
 			globalAlerts.classList.remove("hidden")
-			globalAlerts.innerHTML = `<p class="font-medium">Alertas de riesgo</p><ul class="mt-2 list-disc pl-5">${messages
+			globalAlerts.innerHTML = `<p class="font-medium">Revisar antes de aplicar</p><ul class="mt-2 list-disc pl-5">${messages
 				.map((msg) => `<li>${msg}</li>`)
 				.join("")}</ul>`
+		}
+
+		function renderPreviewCards(rows) {
+			if (!previewCards) return
+			previewCards.innerHTML = ""
+			for (const row of rows) {
+				const info = catalogMap.get(String(row.ratePlanId))
+				const currency = String(row?.preview?.currency ?? "USD")
+				const before = row?.preview?.priceSummary?.before ?? {}
+				const after = row?.preview?.priceSummary?.after ?? {}
+				const risk = calculateRiskSignals(row)
+				const changedDays = Number(row?.diff?.changedDays ?? 0)
+				const card = document.createElement("article")
+				card.className = [
+					"rounded-lg border p-3 text-sm",
+					risk.alerts.length > 0
+						? "border-amber-200 bg-amber-50 text-amber-950"
+						: "border-emerald-200 bg-emerald-50 text-emerald-950",
+				].join(" ")
+				card.innerHTML = `
+					<div class="flex items-start justify-between gap-3">
+						<div>
+							<p class="font-semibold">${escapeHtml(info?.ratePlanName ?? row.ratePlanId)}</p>
+							<p class="text-xs opacity-75">${escapeHtml(info?.variantName ?? "")}</p>
+						</div>
+						<span class="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+							${risk.alerts.length > 0 ? "Revisar" : "OK"}
+						</span>
+					</div>
+					<div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+						<p><span class="block opacity-70">Antes</span><strong>${formatMoney(before?.avg, currency)}</strong></p>
+						<p><span class="block opacity-70">Después</span><strong>${formatMoney(after?.avg, currency)}</strong></p>
+						<p><span class="block opacity-70">Noches con cambio</span><strong>${formatNights(changedDays)}</strong></p>
+						<p><span class="block opacity-70">Impacto</span><strong>${formatMoney(row?.businessMetrics?.estimatedRevenueImpact ?? row?.diff?.totalDelta, currency)}</strong></p>
+					</div>
+					${
+						risk.alerts.length > 0
+							? `<div class="mt-3 flex flex-wrap gap-1.5">${risk.alerts
+									.map(
+										(alert) =>
+											`<span class="rounded-full bg-white/75 px-2 py-1 text-xs font-medium">${escapeHtml(alert)}</span>`
+									)
+									.join("")}</div>`
+							: ""
+					}
+				`
+				previewCards.appendChild(card)
+			}
+		}
+
+		function renderResultCards(payload) {
+			if (!resultCards) return
+			resultCards.innerHTML = ""
+			for (const row of payload?.results ?? []) {
+				const info = catalogMap.get(String(row.ratePlanId))
+				const card = document.createElement("article")
+				card.className =
+					"rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"
+				card.innerHTML = `
+					<div class="flex items-start justify-between gap-3">
+						<div>
+							<p class="font-semibold">${escapeHtml(info?.ratePlanName ?? row.ratePlanId)}</p>
+							<p class="text-xs opacity-75">${escapeHtml(info?.variantName ?? "")}</p>
+						</div>
+						<span class="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">Aplicado</span>
+					</div>
+					<div class="mt-3 flex flex-wrap gap-1.5">
+						<span class="rounded-full bg-white/75 px-2 py-1 text-xs font-medium">${formatNights(Number(row?.daysGenerated ?? 0))} actualizadas</span>
+						<span class="rounded-full bg-white/75 px-2 py-1 text-xs font-medium">Aplicación ${escapeHtml(row?.ruleId ?? "guardada")}</span>
+					</div>
+				`
+				resultCards.appendChild(card)
+			}
 		}
 
 		function renderPreview(payload) {
 			if (previewSummary) {
 				const allResults = Array.isArray(payload?.results) ? payload.results : []
-				const allDays = allResults.reduce(
-					(acc, row) => acc + Number(row?.preview?.dateRange?.totalDays ?? 0),
-					0
-				)
 				const changedDays = allResults.reduce(
 					(acc, row) => acc + Number(row?.diff?.changedDays ?? 0),
 					0
 				)
-				previewSummary.textContent = `Tarifas: ${payload?.summary?.total ?? 0} · Éxitos: ${payload?.summary?.success ?? 0} · Fallos: ${payload?.summary?.failed ?? 0} · Días evaluados: ${allDays} · Días con cambios: ${changedDays}`
+				previewSummary.textContent = `${copy.reviewReady || "Revisión lista"} · ${payload?.summary?.success ?? 0} aplicables · ${payload?.summary?.failed ?? 0} por revisar · ${formatNights(changedDays)} con cambio`
 			}
 			const executive = renderExecutiveSummary(payload)
 			renderGlobalAlerts(payload, executive)
+			const sortedRows = getSortedPreviewRows(
+				payload?.results ?? [],
+				String(previewSort?.value ?? "impact_desc")
+			)
+			renderPreviewCards(sortedRows)
 			if (previewRows) {
 				previewRows.innerHTML = ""
-				const sortMode = String(previewSort?.value ?? "impact_desc")
-				for (const row of getSortedPreviewRows(payload?.results ?? [], sortMode)) {
+				for (const row of sortedRows) {
 					const info = catalogMap.get(String(row.ratePlanId))
 					const currency = String(row?.preview?.currency ?? "USD")
 					const rangeFrom = String(row?.preview?.dateRange?.from ?? "")
@@ -610,18 +928,18 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 						<td colspan="8" class="px-3 py-3">
 							<div class="mb-3 grid gap-2 rounded border border-slate-200 bg-white p-2 text-xs text-slate-700 md:grid-cols-3">
 								<div>
-									<p class="font-medium text-slate-900">Precio actual</p>
+									<p class="font-medium text-slate-900">Antes</p>
 									<p>avg ${formatMoney(before?.avg, currency)} · min ${formatMoney(before?.min, currency)} · max ${formatMoney(before?.max, currency)}</p>
 								</div>
 								<div>
-									<p class="font-medium text-slate-900">Precio nuevo</p>
+									<p class="font-medium text-slate-900">Después</p>
 									<p>avg ${formatMoney(after?.avg, currency)} · min ${formatMoney(after?.min, currency)} · max ${formatMoney(after?.max, currency)}</p>
 								</div>
 								<div>
-									<p class="font-medium text-slate-900">Contexto temporal</p>
-									<p>Días de semana: ${Number(weekdays?.days ?? 0)} (${Number(weekdays?.changedDays ?? 0)} cambios)</p>
-									<p>Fines de semana: ${Number(weekends?.days ?? 0)} (${Number(weekends?.changedDays ?? 0)} cambios)</p>
-									<p>Sin cobertura: ${Number(breakdown?.daysWithoutCoverage ?? 0)}</p>
+									<p class="font-medium text-slate-900">Detalle de noches</p>
+									<p>Semana: ${Number(weekdays?.days ?? 0)} (${Number(weekdays?.changedDays ?? 0)} cambios)</p>
+									<p>Fin de semana: ${Number(weekends?.days ?? 0)} (${Number(weekends?.changedDays ?? 0)} cambios)</p>
+									<p>Sin datos: ${Number(breakdown?.daysWithoutCoverage ?? 0)}</p>
 								</div>
 							</div>
 							<div class="overflow-x-auto rounded border border-slate-200">
@@ -632,7 +950,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 											<th class="px-2 py-1 text-left">Precio antes</th>
 											<th class="px-2 py-1 text-left">Precio después</th>
 											<th class="px-2 py-1 text-left">Cambio</th>
-											<th class="px-2 py-1 text-left">Cobertura</th>
+											<th class="px-2 py-1 text-left">Alcance</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -644,7 +962,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 														<td class="px-2 py-1">${formatMoney(day?.before, currency)}</td>
 														<td class="px-2 py-1">${formatMoney(day?.after, currency)}</td>
 														<td class="px-2 py-1">${formatMoney(day?.delta, currency)}</td>
-														<td class="px-2 py-1">${day?.hasCoverage ? "Aplicada" : "Sin cobertura"}</td>
+														<td class="px-2 py-1">${day?.hasCoverage ? "Listo" : "Sin datos"}</td>
 													</tr>
 												`
 											)
@@ -672,17 +990,18 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 					previewFailures.textContent = ""
 				} else {
 					previewFailures.classList.remove("hidden")
-					previewFailures.innerHTML = `<p class="font-medium">Fallos parciales detectados (${failures.length})</p><ul class="mt-2 list-disc pl-5">${failures
-						.map((item) => `<li>${item.ratePlanId}: ${item.error} (stage=${item.stage})</li>`)
-						.join("")}</ul>`
+					previewFailures.innerHTML = `<p class="font-medium">${copy.partialFailureTitle || "Planes que necesitan revisión"} (${failures.length})</p><p class="mt-1 text-xs">El resto de la revisión sigue disponible. Estos planes necesitan una corrección antes de aplicar.</p><div class="mt-2 grid gap-2">${failures
+						.map((item) => renderFailureCard(item))
+						.join("")}</div>`
 				}
 			}
 		}
 
 		function renderApplyResult(payload) {
 			if (resultSummary) {
-				resultSummary.textContent = `Aplicación completada · Total: ${payload?.summary?.total ?? 0} · Éxitos: ${payload?.summary?.success ?? 0} · Fallos: ${payload?.summary?.failed ?? 0}`
+				resultSummary.textContent = `${copy.resultTitle || "Resultado de aplicación"} · Planes: ${payload?.summary?.total ?? 0} · Aplicados: ${payload?.summary?.success ?? 0} · Revisar: ${payload?.summary?.failed ?? 0}`
 			}
+			renderResultCards(payload)
 			if (resultRows) {
 				resultRows.innerHTML = ""
 				for (const row of payload?.results ?? []) {
@@ -705,9 +1024,9 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 					resultFailures.textContent = ""
 				} else {
 					resultFailures.classList.remove("hidden")
-					resultFailures.innerHTML = `<p class="font-medium">Fallos parciales al aplicar (${failures.length})</p><ul class="mt-2 list-disc pl-5">${failures
-						.map((item) => `<li>${item.ratePlanId}: ${item.error} (stage=${item.stage})</li>`)
-						.join("")}</ul>`
+					resultFailures.innerHTML = `<p class="font-medium">Planes no aplicados (${failures.length})</p><p class="mt-1 text-xs">Los planes aplicados quedan guardados. Revisa estos casos y vuelve a intentar solo el alcance pendiente.</p><div class="mt-2 grid gap-2">${failures
+						.map((item) => renderFailureCard(item))
+						.join("")}</div>`
 				}
 			}
 		}
@@ -739,6 +1058,9 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			updateSelectionUI()
 		})
 
+		contextFrom?.addEventListener("change", syncContextRangeFields)
+		contextTo?.addEventListener("change", syncContextRangeFields)
+
 		previewBtn?.addEventListener("click", async () => {
 			const operation = getBulkOperation()
 			if (operation.error) {
@@ -747,8 +1069,9 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			}
 			if (!(previewBtn instanceof HTMLButtonElement)) return
 			previewBtn.disabled = true
-			previewBtn.textContent = "Simulando..."
-			if (configFeedback) configFeedback.textContent = "Simulando impacto..."
+			previewBtn.textContent = copy.reviewingAction || "Revisando impacto..."
+			if (configFeedback)
+				configFeedback.textContent = copy.reviewingAction || "Revisando impacto..."
 			const body = {
 				ratePlanIds: Array.from(selectedRatePlanIds),
 				operation: operation.operation,
@@ -763,20 +1086,22 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				})
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok) {
-					if (configFeedback)
-						configFeedback.textContent = `No se pudo simular: ${String(payload?.error ?? response.status)}`
+					const error = String(payload?.error ?? response.status)
+					const guidance = buildRecoveryGuidance(error, "preview")
+					if (configFeedback) configFeedback.textContent = `${guidance.title}: ${guidance.action}`
 					return
 				}
 				previewPayload = payload
 				renderPreview(payload)
 				if (configFeedback)
-					configFeedback.textContent = "Simulación completada. Revisa resultados abajo."
+					configFeedback.textContent = "Revisión lista. Confirma cuando el impacto sea correcto."
 				if (applyBtn instanceof HTMLButtonElement) applyBtn.disabled = false
 			} catch (error) {
-				if (configFeedback) configFeedback.textContent = `Error de red: ${String(error)}`
+				const guidance = buildRecoveryGuidance(String(error), "network")
+				if (configFeedback) configFeedback.textContent = `${guidance.title}: ${guidance.action}`
 			} finally {
 				previewBtn.disabled = false
-				previewBtn.textContent = "Simular impacto"
+				previewBtn.textContent = copy.reviewAction || "Revisar impacto"
 			}
 		})
 
@@ -784,7 +1109,7 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			if (!lastBulkOperation) return
 			if (!(applyBtn instanceof HTMLButtonElement)) return
 			applyBtn.disabled = true
-			applyBtn.textContent = "Aplicando..."
+			applyBtn.textContent = copy.applyingAction || "Aplicando cambio..."
 			try {
 				const response = await fetch("/api/pricing/rules/v2/bulk-apply", {
 					method: "POST",
@@ -793,14 +1118,20 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 				})
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok) {
+					const error = String(payload?.error ?? response.status)
+					const guidance = buildRecoveryGuidance(error, "apply")
 					if (resultSummary)
-						resultSummary.textContent = `No se pudo aplicar: ${String(payload?.error ?? response.status)}`
+						resultSummary.textContent = `${guidance.title}. ${guidance.summary} ${guidance.action}`
 					return
 				}
 				renderApplyResult(payload)
+			} catch (error) {
+				const guidance = buildRecoveryGuidance(String(error), "network")
+				if (resultSummary)
+					resultSummary.textContent = `${guidance.title}. ${guidance.summary} ${guidance.action}`
 			} finally {
 				applyBtn.disabled = false
-				applyBtn.textContent = "Aplicar multi-plan"
+				applyBtn.textContent = copy.bulkApplyAction || "Extender cambio a planes"
 			}
 		})
 
@@ -808,6 +1139,10 @@ const launchedFromPricingContext = initialRatePlanIds.length > 0
 			if (previewPayload) renderPreview(previewPayload)
 		})
 
+		if (context?.from && contextFrom instanceof HTMLInputElement)
+			contextFrom.value = String(context.from)
+		if (context?.to && contextTo instanceof HTMLInputElement) contextTo.value = String(context.to)
 		updateSelectionUI()
+		syncContextRangeFields()
 	</script>
 </WorkspaceLayout>
