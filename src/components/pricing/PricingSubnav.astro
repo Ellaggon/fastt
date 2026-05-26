@@ -9,10 +9,10 @@ interface Props {
 
 const { pathname } = Astro.props
 const items = [
-	{ href: routes.ratePlansHub(), label: "Rate Plans Hub" },
-	{ href: routes.ratePlansList(), label: "Rate Plans" },
-	{ href: routes.pricing(), label: "Pricing Calendar" },
-	{ href: routes.rateRestrictions(), label: "Restrictions" },
+	{ href: routes.ratePlansHub(), label: "Centro de planes tarifarios" },
+	{ href: routes.ratePlansList(), label: "Planes tarifarios" },
+	{ href: routes.pricing(), label: "Calendario de precios" },
+	{ href: routes.rateRestrictions(), label: "Restricciones" },
 ]
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)

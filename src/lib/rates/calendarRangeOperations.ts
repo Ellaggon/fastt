@@ -30,7 +30,30 @@ export function countInclusiveDays(range: CalendarRange): number {
 }
 
 export function formatRangeLabel(range: CalendarRange): string {
-	return range.from === range.to ? range.from : `${range.from} a ${range.to}`
+	return range.from === range.to
+		? formatHumanDateLabel(range.from)
+		: `${formatHumanDateLabel(range.from)} a ${formatHumanDateLabel(range.to)}`
+}
+
+export function formatHumanDateLabel(value: string): string {
+	const date = parseDateOnly(value)
+	if (!date) return value
+	const day = String(date.getUTCDate()).padStart(2, "0")
+	const month = [
+		"ENE",
+		"FEB",
+		"MAR",
+		"ABR",
+		"MAY",
+		"JUN",
+		"JUL",
+		"AGO",
+		"SEP",
+		"OCT",
+		"NOV",
+		"DIC",
+	][date.getUTCMonth()]
+	return `${day}-${month}-${date.getUTCFullYear()}`
 }
 
 export function summarizeRangeDays(days: CalendarRangeDay[], range: CalendarRange) {
@@ -67,10 +90,14 @@ function todayIso(): string {
 	return new Date().toISOString().slice(0, 10)
 }
 
+function isFutureSelectableDate(date: string): boolean {
+	return date >= todayIso()
+}
+
 function clampRangeToVisible(range: CalendarRange, days: CalendarRangeDay[]): CalendarRange | null {
 	const visibleDates = days
 		.map((day) => day.date)
-		.filter(Boolean)
+		.filter((date) => Boolean(date) && isFutureSelectableDate(date))
 		.sort()
 	const first = visibleDates[0]
 	const last = visibleDates[visibleDates.length - 1]
@@ -86,7 +113,7 @@ export function selectCalendarRangePreset(
 ): CalendarRange | null {
 	const visibleDates = days
 		.map((day) => day.date)
-		.filter(Boolean)
+		.filter((date) => Boolean(date) && isFutureSelectableDate(date))
 		.sort()
 	const first = visibleDates[0]
 	const last = visibleDates[visibleDates.length - 1]
@@ -106,10 +133,9 @@ export function selectCalendarRangePreset(
 			return day === 0 || day === 6
 		})
 		const firstWeekend = weekend[0]
-		if (!firstWeekend) return null
-		const parsed = parseDateOnly(firstWeekend)
-		const to = parsed?.getUTCDay() === 6 ? addDays(firstWeekend, 1) : firstWeekend
-		return clampRangeToVisible({ from: firstWeekend, to }, days)
+		const lastWeekend = weekend[weekend.length - 1]
+		if (!firstWeekend || !lastWeekend) return null
+		return clampRangeToVisible({ from: firstWeekend, to: lastWeekend }, days)
 	}
 
 	const start = todayIso()
@@ -120,6 +146,7 @@ export function selectCalendarRangePreset(
 export function updateCalendarRangeHighlight(params: {
 	cards: Element[]
 	range: CalendarRange | null
+	isSelectedDate?: (date: string) => boolean
 	selectedClassNames?: string[]
 }): void {
 	const selectedClassNames = params.selectedClassNames ?? [
@@ -133,7 +160,8 @@ export function updateCalendarRangeHighlight(params: {
 			Boolean(params.range) &&
 			Boolean(date) &&
 			date! >= params.range!.from &&
-			date! <= params.range!.to
+			date! <= params.range!.to &&
+			(params.isSelectedDate ? params.isSelectedDate(date!) : true)
 		for (const className of selectedClassNames) {
 			card.classList.toggle(className, selected)
 		}

@@ -178,6 +178,13 @@ function enumerateMonthDays(monthStart: Date): CalendarDay[] {
 	return days
 }
 
+function enumerateConsecutiveMonthDays(monthStart: Date, monthCount: number): CalendarDay[] {
+	const safeMonthCount = Math.max(1, Math.min(3, Math.trunc(Number(monthCount) || 1)))
+	return Array.from({ length: safeMonthCount }, (_, index) =>
+		enumerateMonthDays(addMonths(monthStart, index))
+	).flat()
+}
+
 function exclusiveEnd(days: CalendarDay[]): string {
 	const last = days[days.length - 1]
 	if (!last) return toDateOnly(new Date())
@@ -519,6 +526,7 @@ export async function buildPricingCalendarSurface(input: {
 	rows: RatePlanListItem[]
 	ratePlanId?: string | null
 	month?: string | null
+	visibleMonths?: number
 }): Promise<PricingCalendarSurface> {
 	const rows = input.rows
 	const selectedRatePlan =
@@ -528,7 +536,7 @@ export async function buildPricingCalendarSurface(input: {
 		rows[0] ??
 		null
 	const monthStart = parseMonth(input.month ?? null)
-	const baseDays = enumerateMonthDays(monthStart)
+	const baseDays = enumerateConsecutiveMonthDays(monthStart, input.visibleMonths ?? 1)
 	const startDate = baseDays[0]?.date ?? toDateOnly(monthStart)
 	const endDate = exclusiveEnd(baseDays)
 	const vocabulary = await resolveVocabulary(rows)

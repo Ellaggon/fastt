@@ -235,13 +235,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Operational sellability domain over existing restriction rules and search evaluation.",
 	},
 	{
-		pattern: "/pricing/bulk",
-		status: "transitional",
-		context: "enterprise-operations",
-		owner: "Rooms & Rates",
-		rationale: "Secondary bulk pricing tool; daily pricing ownership lives in /pricing.",
-	},
-	{
 		pattern: "/pricing",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -791,13 +784,13 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "ARI command center for pricing, inventory, restrictions, and policy readiness.",
 			},
 			{
-				label: "Rate Plans",
+				label: "Planes tarifarios",
 				href: routes.ratePlansList(),
 				status: "canonical",
 				summary: "Commercial products sold through variants: setup, readiness, and handoffs.",
 			},
 			{
-				label: "Pricing",
+				label: "Precios",
 				href: routes.pricing(),
 				status: "canonical",
 				summary: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
@@ -809,7 +802,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Calendar-first physical capacity, availability, and quick inventory edits.",
 			},
 			{
-				label: "Restrictions",
+				label: "Restricciones",
 				href: routes.rateRestrictions(),
 				status: "canonical",
 				summary: "Official sellability domain for LOS, CTA/CTD, stop-sell, and booking windows.",
@@ -989,26 +982,18 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "ARI command surface for domain health, blockers, and operating handoffs.",
 			},
 			{
-				label: "Rate Plans",
+				label: "Planes tarifarios",
 				href: routes.ratePlansList(),
 				status: "canonical",
 				owner: "Rooms & Rates",
 				description: "Explicit rate-plan maintenance surface for commercial products.",
 			},
 			{
-				label: "Pricing",
+				label: "Precios",
 				href: routes.pricing(),
 				status: "canonical",
 				owner: "Rooms & Rates",
 				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
-			},
-			{
-				label: "Extender cambio",
-				href: routes.pricingBulk(),
-				status: "transitional",
-				owner: "Rooms & Rates",
-				description:
-					"Contextual workflow for extending a pricing-calendar change to additional rate plans.",
 			},
 		],
 	},
@@ -1051,7 +1036,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Restrictions own sellability while booking policies own reservation contract terms; neither is a pricing engine.",
 		surfaces: [
 			{
-				label: "Restrictions",
+				label: "Restricciones",
 				href: routes.rateRestrictions(),
 				status: "canonical",
 				owner: "Rooms & Rates",

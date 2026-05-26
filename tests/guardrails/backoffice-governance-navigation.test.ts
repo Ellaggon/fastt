@@ -287,14 +287,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining([
-				"Pricing",
+				"Precios",
 				"Inventory",
-				"Restrictions",
-				"Rate Plans",
+				"Restricciones",
+				"Planes tarifarios",
 				"Booking Policies",
 			])
 		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Pricing")?.status).toEqual(
+		expect(roomsAndRates?.items.find((item) => item.label === "Precios")?.status).toEqual(
 			"canonical"
 		)
 		expect(roomsAndRates?.items.find((item) => item.label === "Inventory")?.status).toEqual(
@@ -302,7 +302,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Restrictions")?.status).toEqual(
+		expect(roomsAndRates?.items.find((item) => item.label === "Restricciones")?.status).toEqual(
 			"canonical"
 		)
 		expect(roomsAndRates?.planned).toEqual(
@@ -367,7 +367,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(source).toContain("roomsAndRatesOperationalMap")
 		expect(source).toContain("ARI ownership map")
 		expect(source).toContain("Contexto físico")
-		expect(source).toContain("window.location.href = `/pricing/bulk?")
+		expect(source).not.toContain("window.location.href = `/pricing/bulk?")
 		expect(source).not.toContain("NEW_DASHBOARD_ARCH")
 		expect(source).not.toContain("window.location.href = `/rates/plans?")
 	})

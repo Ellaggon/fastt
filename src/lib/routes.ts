@@ -18,7 +18,6 @@ export const routes = {
 	ratePlanDetail: (id: string) => `/rates/plans/${encodeURIComponent(String(id))}`,
 	pricing: () => "/pricing",
 	pricingAutomation: () => "/pricing#pricing-automation",
-	pricingBulk: () => "/pricing/bulk",
 	inventory: () => "/inventory",
 	inventoryBulk: () => "/inventory/bulk",
 	analyticsPerformance: () => "/analytics/performance",
