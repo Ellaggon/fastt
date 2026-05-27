@@ -17,35 +17,39 @@ const editorialSurfaces = [
 	"src/pages/product/[id]/images.astro",
 	"src/pages/product/[id]/location.astro",
 	"src/pages/product/[id]/subtype.astro",
+	"src/pages/product/[id]/rooms.astro",
 ]
 
 describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content framed as catalog readiness instead of generic CRUD", () => {
 		const requiredSignals: Record<string, string[]> = {
-			"src/pages/product/index.astro": ["Catalog worklist", "Catalog items", "Editorial workflow"],
-			"src/pages/product/create.astro": ["Create catalog item", "identidad editorial mínima"],
+			"src/pages/product/index.astro": [
+				"Alojamientos",
+				"Lista de alojamientos",
+				"Flujo de publicación",
+			],
+			"src/pages/product/create.astro": ["Crear alojamiento", "identidad mínima del alojamiento"],
 			"src/pages/product/[id]/index.astro": [
-				"Catalog readiness",
-				"Before publishing",
-				"Physical context",
-				"Editorial summary",
+				"Alojamiento",
+				"Antes de publicar",
+				"Habitaciones",
+				"Resumen del alojamiento",
 			],
 			"src/pages/product/[id]/preview.astro": [
-				"Review your listing",
+				"Vista previa",
 				"Required before publish",
 				"Guest-facing preview",
 				"Booking terms guests will see",
 				"Stay expectations guests will see",
 			],
-			"src/pages/product/[id]/content.astro": [
-				"Editorial Content",
-				"Contenido editorial principal",
-			],
-			"src/pages/product/[id]/images.astro": ["Media Readiness", "Galería editorial"],
-			"src/pages/product/[id]/location.astro": ["Location Readiness", "Metadata geográfica"],
-			"src/pages/product/[id]/subtype.astro": [
-				"Metadata Readiness",
-				"Metadata específica del producto",
+			"src/pages/product/[id]/content.astro": ["Contenido", "Contenido principal"],
+			"src/pages/product/[id]/images.astro": ["Fotos", "Galería del alojamiento"],
+			"src/pages/product/[id]/location.astro": ["Ubicación", "Metadata geográfica"],
+			"src/pages/product/[id]/subtype.astro": ["Detalles del alojamiento", "Detalles específicos"],
+			"src/pages/product/[id]/rooms.astro": [
+				"Habitaciones de",
+				"Nueva habitación",
+				"Editar habitación",
 			],
 		}
 
@@ -145,6 +149,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(backofficeRouteClassifications).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
+					pattern: "/product/:id/rooms",
+					status: "canonical",
+					owner: "Property Content",
+				}),
+				expect.objectContaining({
 					pattern: "/product/:id/variants/**",
 					status: "transitional",
 					owner: "Physical Inventory Context",
@@ -166,11 +175,13 @@ describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content navigation honest about planned maturity", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 
-		expect(governance).toContain("Catalog Readiness")
-		expect(governance).toContain("Media Quality Review")
-		expect(governance).toContain("SEO Metadata")
-		expect(governance).toContain("Content Quality Workflow")
-		expect(governance).toContain("Commercial and inventory readiness remain contextual signals")
+		expect(governance).toContain("Alojamientos")
+		expect(governance).toContain("Habitaciones")
+		expect(governance).toContain("Reglas de la casa")
+		expect(governance).toContain("Revisión de fotos")
+		expect(governance).toContain("Metadata SEO")
+		expect(governance).toContain("Flujo de calidad de contenido")
+		expect(governance).toContain("Gestiona alojamientos")
 		expect(governance).not.toContain("Property Content NO")
 	})
 

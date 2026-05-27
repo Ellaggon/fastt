@@ -17,7 +17,14 @@ export const DELETE: APIRoute = async ({ request, params }) => {
 	const id = String(params.id ?? "").trim()
 	if (!id) return new Response("Not found", { status: 404 })
 
-	const rule = await db.select().from(HouseRuleTable).where(eq(HouseRuleTable.id, id)).get()
+	const rule = await db
+		.select({
+			id: HouseRuleTable.id,
+			productId: HouseRuleTable.productId,
+		})
+		.from(HouseRuleTable)
+		.where(eq(HouseRuleTable.id, id))
+		.get()
 	if (!rule) return new Response("Not found", { status: 404 })
 
 	const productId = String((rule as any).productId ?? "").trim()

@@ -22,11 +22,11 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 <nav class="space-y-4" aria-label="Enterprise backoffice navigation">
 	<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
 		<p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-300">
-			OTA Enterprise Workspace
+			Panel del proveedor
 		</p>
 		<p class="mt-1 text-xs leading-5 text-slate-400">
-			Ownership-driven operations. Planned modules are visible as roadmap markers, not active
-			workspaces.
+			Gestiona alojamiento, habitaciones, tarifas, inventario, reservas y finanzas desde sus
+			secciones principales.
 		</p>
 	</div>
 	{
@@ -35,7 +35,7 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 				title={section.title}
 				owner={section.owner}
 				active={isSectionActive(section.items)}
-				subtitle={isSectionActive(section.items) ? "Active workspace" : section.subtitle}
+				subtitle={isSectionActive(section.items) ? "Sección activa" : section.subtitle}
 			>
 				{section.items.map((item) => (
 					<DashboardSidebarItem
@@ -51,7 +51,7 @@ const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) 
 				{section.planned?.length ? (
 					<details class="border-t border-slate-800/80 px-3 pt-2">
 						<summary class="cursor-pointer text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase hover:text-slate-400">
-							Roadmap markers ({section.planned.length})
+							Próximamente ({section.planned.length})
 						</summary>
 						<div class="mt-2 flex flex-wrap gap-1.5">
 							{section.planned.map((label) => (

@@ -175,17 +175,17 @@ const previousHref =
 
 const submitLabel = currentStep === "inventory" ? "Guardar y finalizar" : "Guardar y continuar"
 const pageSubtitle =
-	"Completa el contexto físico de la variante. El paso comercial es un handoff transicional hacia Rooms & Rates."
+	"Completa la habitación. Tarifas, precios y restricciones se gestionan en Habitaciones y tarifas."
 ---
 
-<WorkspaceLayout title="Physical Context · Create Variant">
+<WorkspaceLayout title="Contenido del alojamiento · Nueva habitación">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
-					<h1 class="text-3xl font-semibold text-slate-100">Nueva variante física</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Nueva habitación</h1>
 					<p class="text-sm text-slate-400">{pageSubtitle}</p>
-					<p class="text-sm text-slate-300">Producto: {product.displayName}</p>
+					<p class="text-sm text-slate-300">Alojamiento: {product.displayName}</p>
 				</div>
 				<Badge variant="info">Paso {currentIndex + 1} de {steps.length}</Badge>
 			</div>
@@ -233,7 +233,7 @@ const pageSubtitle =
 
 					{
 						currentStep === "identity" && (
-							<FormSection title="Datos base de la variante" class="text-neutral-800">
+							<FormSection title="Datos base de la habitación" class="text-neutral-800">
 								<FormField label="Nombre" htmlFor="name" required>
 									<Input id="name" name="name" value={initialVariantName} required minlength="1" />
 								</FormField>
@@ -307,7 +307,7 @@ const pageSubtitle =
 
 					{
 						currentStep === "subtype" && (
-							<FormSection title="Subtipo de la variante" class="text-neutral-800">
+							<FormSection title="Tipo de habitación" class="text-neutral-800">
 								<FormField label="Tipo de habitación" htmlFor="roomTypeId">
 									<Select id="roomTypeId" name="roomTypeId" value={initialRoomTypeId}>
 										<option value="">Selecciona una opción</option>
@@ -331,27 +331,26 @@ const pageSubtitle =
 
 					{
 						currentStep === "pricing" && (
-							<FormSection title="Handoff comercial inicial" class="text-neutral-800">
+							<FormSection title="Precio base inicial" class="text-neutral-800">
 								<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-									<p class="font-medium">Paso transicional: crea cobertura mínima vendible.</p>
+									<p class="font-medium">Crea una tarifa mínima para vender esta habitación.</p>
 									<p>
-										La gestión comercial completa vive en Rooms & Rates; este asistente solo evita
-										que la variante física quede sin handoff comercial inicial.
+										La gestión completa vive en Habitaciones y tarifas; este paso solo evita que la
+										habitación quede sin precio base inicial.
 									</p>
 									<p>
-										La variante aporta contexto físico; el rate plan mantiene el ownership
-										comercial.
+										La habitación aporta contexto físico; la tarifa mantiene el precio comercial.
 									</p>
 								</div>
 								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
 									{effectivePricingDays > 0
-										? `Estado actual: cobertura comercial disponible (${effectivePricingDays} día(s)).`
-										: "Estado actual: sin cobertura comercial materializada. Completa el handoff o continúa en Rooms & Rates."}
+										? `Estado actual: precio base disponible (${effectivePricingDays} día(s)).`
+										: "Estado actual: sin precio base disponible. Completa este paso o continúa en Tarifas."}
 									{variant?.id && (
 										<>
 											{" "}
 											<a class="font-medium underline" href="/rates/plans/manage">
-												Configurar tarifas y cobertura comercial.
+												Configurar tarifas.
 											</a>
 										</>
 									)}
@@ -362,7 +361,7 @@ const pageSubtitle =
 										<option value="BOB">BOB</option>
 									</Select>
 								</FormField>
-								<FormField label="Baseline de handoff comercial" htmlFor="basePrice" required>
+								<FormField label="Precio base" htmlFor="basePrice" required>
 									<Input
 										id="basePrice"
 										name="basePrice"
@@ -507,7 +506,7 @@ const pageSubtitle =
 					const existingVariantId = String(fd.get("variantId") || variantIdFromServer || "").trim()
 					if (!existingVariantId) {
 						submitBtn.disabled = false
-						setState("error", "No se encontró la variante para continuar.")
+						setState("error", "No se encontró la habitación para continuar.")
 						window.location.href = toIdentityUrl
 						return
 					}
@@ -544,7 +543,7 @@ const pageSubtitle =
 					variantId = String(payload?.variantId || "").trim()
 					if (!variantId) {
 						submitBtn.disabled = false
-						setState("error", "No recibimos el identificador de la variante.")
+						setState("error", "No recibimos el identificador de la habitación.")
 						return
 					}
 				}

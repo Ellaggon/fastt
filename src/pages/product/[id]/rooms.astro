@@ -1,0 +1,167 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
+import { db, eq, Variant, VariantCapacity } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "").trim()
+if (!productId) return Astro.redirect(routes.productList())
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect(routes.productList())
+
+const rows = await db
+	.select({
+		id: Variant.id,
+		name: Variant.name,
+		description: Variant.description,
+		kind: Variant.kind,
+		status: Variant.status,
+		isActive: Variant.isActive,
+		minOccupancy: VariantCapacity.minOccupancy,
+		maxOccupancy: VariantCapacity.maxOccupancy,
+	})
+	.from(Variant)
+	.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+	.where(eq(Variant.productId, productId))
+
+const rooms = rows.map((row) => {
+	const status = String(row.status ?? (row.isActive ? "draft" : "archived")).toLowerCase()
+	const active = Boolean(row.isActive ?? true) && status !== "archived"
+	const hasCapacity = row.minOccupancy !== null && row.maxOccupancy !== null
+	return {
+		id: String(row.id),
+		name: String(row.name ?? "Habitación"),
+		description: String(row.description ?? "").trim(),
+		kind: String(row.kind ?? "hotel_room"),
+		active,
+		hasCapacity,
+		statusLabel: active ? (hasCapacity ? "Lista" : "Incompleta") : "Inactiva",
+		statusVariant: active ? (hasCapacity ? "success" : "warning") : "neutral",
+		capacityLabel: hasCapacity
+			? `${Number(row.minOccupancy)}-${Number(row.maxOccupancy)} huéspedes`
+			: "Capacidad pendiente",
+	}
+})
+
+const activeRooms = rooms.filter((room) => room.active).length
+const completeRooms = rooms.filter((room) => room.active && room.hasCapacity).length
+---
+
+<WorkspaceLayout title={`Habitaciones · ${owned.name}`}>
+	<section class="space-y-8">
+		<header class="flex flex-wrap items-start justify-between gap-4">
+			<div class="space-y-2">
+				<p class="text-sm font-medium text-slate-400">Alojamiento</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Habitaciones de {owned.name}</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Configura las habitaciones que el huésped puede reservar. Precios, inventario diario y
+					restricciones se gestionan después en Habitaciones y tarifas.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href={routes.productDetail(productId)} data-astro-prefetch variant="secondary">
+					Editar alojamiento
+				</Button>
+				<Button
+					href={`${routes.productVariants(productId)}/new`}
+					data-astro-prefetch
+					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+				>
+					Nueva habitación
+				</Button>
+			</div>
+		</header>
+
+		<div class="flex flex-wrap gap-2 text-sm text-slate-300">
+			<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1">
+				{rooms.length} habitaciones
+			</span>
+			<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1">
+				{activeRooms} activas
+			</span>
+			<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1">
+				{completeRooms} completas
+			</span>
+		</div>
+
+		<Section
+			title="Habitaciones"
+			description="Mantén nombre, capacidad y configuración física claros antes de trabajar tarifas."
+		>
+			{
+				rooms.length === 0 ? (
+					<Card class="space-y-4 bg-slate-100">
+						<div class="space-y-1">
+							<h2 class="text-xl font-semibold text-slate-900">Aún no hay habitaciones</h2>
+							<p class="text-sm text-slate-600">
+								Crea la primera habitación para definir capacidad y contexto físico.
+							</p>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href={`${routes.productVariants(productId)}/new`}
+								data-astro-prefetch
+								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							>
+								Nueva habitación
+							</Button>
+						</div>
+					</Card>
+				) : (
+					<div class="grid gap-4 lg:grid-cols-2">
+						{rooms.map((room) => (
+							<Card class="space-y-4 bg-slate-100">
+								<div class="flex items-start justify-between gap-4">
+									<div class="min-w-0 space-y-1">
+										<p class="text-lg font-semibold text-slate-900">{room.name}</p>
+										<p class="text-sm text-slate-600">{room.capacityLabel}</p>
+										{room.description ? (
+											<p class="line-clamp-2 text-sm text-slate-500">{room.description}</p>
+										) : null}
+									</div>
+									<Badge variant={room.statusVariant}>{room.statusLabel}</Badge>
+								</div>
+								<div class="flex flex-wrap gap-2">
+									<Button
+										href={routes.variantDetail(productId, room.id)}
+										data-astro-prefetch
+										className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+									>
+										Editar habitación
+									</Button>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(room.id)}/capacity`}
+										data-astro-prefetch
+										variant="secondary"
+									>
+										Capacidad
+									</Button>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(room.id)}/subtype`}
+										data-astro-prefetch
+										variant="secondary"
+									>
+										Tipo
+									</Button>
+								</div>
+							</Card>
+						))}
+					</div>
+				)
+			}
+		</Section>
+	</section>
+</WorkspaceLayout>

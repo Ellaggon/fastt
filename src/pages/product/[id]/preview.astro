@@ -149,10 +149,10 @@ const checks = [
 	},
 	{
 		key: "house-rules",
-		label: "House Rules",
+		label: "Reglas de la casa",
 		complete: missingHouseRules.length === 0,
 		href: routes.providerHouseRules(),
-		cta: "Review House Rules",
+		cta: "Revisar reglas",
 		detail: missingHouseRules.length
 			? `Missing: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
 			: "Core stay expectations are ready.",
@@ -176,24 +176,25 @@ const readyToPublish = completedChecks === checks.length
 const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 ---
 
-<WorkspaceLayout title="Review Listing · Guest Preview">
+<WorkspaceLayout title="Contenido del alojamiento · Vista previa">
 	<section class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Property Content · Review before publishing
+					Contenido del alojamiento · Revisión antes de publicar
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Review your listing</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Vista previa</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Confirm what guests will understand before booking: photos, editorial content, booking
-					policies and House Rules. This review does not change pricing, inventory or sellability.
+					Confirma qué entenderán los huéspedes antes de reservar: fotos, contenido, condiciones y
+					reglas de la casa. Esta revisión no cambia precios, inventario ni venta.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.productDetail(productId)} variant="secondary">Back to readiness</Button
+				<Button href={routes.productDetail(productId)} variant="secondary"
+					>Volver a alojamiento</Button
 				>
 				<Button href={`/hotels/${encodeURIComponent(productId)}`} variant="secondary"
-					>Open public page</Button
+					>Abrir página pública</Button
 				>
 			</div>
 		</header>
@@ -232,7 +233,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						</p>
 					</div>
 					<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-						House Rules
+						Reglas de la casa
 					</Button>
 				</div>
 				<div class="grid gap-3 md:grid-cols-2">
@@ -393,7 +394,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 
 		<Section
 			title="Stay expectations guests will see"
-			description="House Rules explain behavior and stay operations. They are not pricing, restrictions or cancellation penalties."
+			description="Las reglas de la casa explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
 				{
@@ -430,7 +431,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						</div>
 					) : (
 						<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-							<p class="text-sm font-semibold text-slate-900">No House Rules yet.</p>
+							<p class="text-sm font-semibold text-slate-900">Aún no hay reglas de la casa.</p>
 							<p class="mt-1 text-sm text-slate-600">
 								Add stay expectations so guests understand behavior, arrival and checkout before
 								booking.

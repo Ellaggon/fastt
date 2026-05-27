@@ -34,14 +34,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 const rulesValue = aggregate.content.rules ?? ""
 ---
 
-<WorkspaceLayout title="Property Content · Editorial Content">
+<WorkspaceLayout title="Contenido del alojamiento · Contenido">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Editorial Content</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Contenido</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define la narrativa visible del producto: descripción y destacados. Las reglas de
-					comportamiento e instrucciones operativas viven en House Rules.
+					Define la narrativa visible del alojamiento: descripción y destacados. Las reglas de
+					comportamiento e instrucciones operativas viven en Reglas de la casa.
 				</p>
 			</header>
 
@@ -56,7 +56,7 @@ const rulesValue = aggregate.content.rules ?? ""
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Contenido editorial principal</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
 							<p class="text-sm text-slate-600">
 								Este bloque define la información visible del producto.
 							</p>
@@ -87,14 +87,15 @@ const rulesValue = aggregate.content.rules ?? ""
 
 						<Input type="hidden" name="rules" value={rulesValue} />
 						<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950">
-							<p class="text-sm font-semibold">House Rules moved out of editorial content</p>
+							<p class="text-sm font-semibold">Reglas de la casa vive fuera del contenido</p>
 							<p class="mt-1 text-sm">
-								Use House Rules for pets, smoking, quiet hours, parking, check-in, checkout and
-								guest behavior. This keeps property copy separate from stay expectations.
+								Usa Reglas de la casa para mascotas, fumar, horarios de silencio, parking, check-in,
+								checkout y comportamiento de huéspedes. Así el contenido del alojamiento queda
+								separado de las expectativas de estadía.
 							</p>
 							<div class="mt-3">
 								<Button href={routes.providerHouseRules()} variant="secondary">
-									Open House Rules
+									Abrir reglas de la casa
 								</Button>
 							</div>
 						</div>
