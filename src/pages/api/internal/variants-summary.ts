@@ -1,5 +1,16 @@
 import type { APIRoute } from "astro"
-import { and, DailyInventory, EffectivePricingV2, eq, inArray, RatePlan, db } from "astro:db"
+import {
+	and,
+	asc,
+	DailyInventory,
+	EffectivePricingV2,
+	eq,
+	Image,
+	inArray,
+	RatePlan,
+	RatePlanTemplate,
+	db,
+} from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
@@ -68,7 +79,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const variantIds = aggregate.variants.map((variant) => String(variant.id)).filter(Boolean)
-	const [effectiveRows, inventoryRows] = variantIds.length
+	const [effectiveRows, inventoryRows, imageRows, tariffRows] = variantIds.length
 		? await Promise.all([
 				db
 					.select({
@@ -91,14 +102,74 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(DailyInventory)
 					.where(inArray(DailyInventory.variantId, variantIds))
 					.all(),
+				db
+					.select({
+						id: Image.id,
+						entityId: Image.entityId,
+						url: Image.url,
+						order: Image.order,
+						isPrimary: Image.isPrimary,
+					})
+					.from(Image)
+					.where(
+						and(
+							inArray(Image.entityType, ["variant", "Variant"]),
+							inArray(Image.entityId, variantIds)
+						)
+					)
+					.orderBy(asc(Image.order), asc(Image.id))
+					.all(),
+				db
+					.select({
+						id: RatePlan.id,
+						variantId: RatePlan.variantId,
+						isDefault: RatePlan.isDefault,
+						isActive: RatePlan.isActive,
+						name: RatePlanTemplate.name,
+					})
+					.from(RatePlan)
+					.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
+					.where(inArray(RatePlan.variantId, variantIds))
+					.orderBy(asc(RatePlanTemplate.name), asc(RatePlan.id))
+					.all(),
 			])
-		: [[], []]
+		: [[], [], [], []]
 
 	const effectiveVariantSet = new Set(effectiveRows.map((row) => String(row.variantId)))
 	const inventoryCountByVariant = new Map<string, number>()
 	for (const row of inventoryRows) {
 		const id = String(row.variantId)
 		inventoryCountByVariant.set(id, Number(inventoryCountByVariant.get(id) ?? 0) + 1)
+	}
+	const imagesByVariant = new Map<
+		string,
+		Array<{ id: string; url: string; order: number; isPrimary: boolean }>
+	>()
+	for (const row of imageRows) {
+		const id = String(row.entityId)
+		const images = imagesByVariant.get(id) ?? []
+		images.push({
+			id: String(row.id),
+			url: String(row.url ?? ""),
+			order: Number(row.order ?? 0),
+			isPrimary: Boolean(row.isPrimary),
+		})
+		imagesByVariant.set(id, images)
+	}
+	const tariffsByVariant = new Map<
+		string,
+		Array<{ id: string; name: string; isDefault: boolean; isActive: boolean }>
+	>()
+	for (const row of tariffRows) {
+		const id = String(row.variantId)
+		const tariffs = tariffsByVariant.get(id) ?? []
+		tariffs.push({
+			id: String(row.id),
+			name: String(row.name ?? "Tarifa"),
+			isDefault: Boolean(row.isDefault),
+			isActive: Boolean(row.isActive ?? true),
+		})
+		tariffsByVariant.set(id, tariffs)
 	}
 
 	const variants = aggregate.variants.map((variant) => {
@@ -111,6 +182,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 		)
 		const inventoryDays = Number(inventoryCountByVariant.get(String(variant.id)) ?? 0)
 		const inventoryComplete = inventoryDays >= readinessInventoryMinDays
+		const images = imagesByVariant.get(String(variant.id)) ?? []
+		const coverImage = images.find((image) => image.isPrimary) ?? images[0] ?? null
+		const tariffs = tariffsByVariant.get(String(variant.id)) ?? []
+		const activeTariffs = tariffs.filter((tariff) => tariff.isActive)
+		const defaultTariff =
+			activeTariffs.find((tariff) => tariff.isDefault) ?? activeTariffs[0] ?? null
+		const capacityLabel = variant.capacity
+			? variant.capacity.minOccupancy === variant.capacity.maxOccupancy
+				? `${variant.capacity.maxOccupancy} huésped${variant.capacity.maxOccupancy === 1 ? "" : "es"}`
+				: `${variant.capacity.minOccupancy}-${variant.capacity.maxOccupancy} huéspedes`
+			: "Capacidad pendiente"
+		const typeLabel = String(variant.subtype?.name ?? kindLabel(variant.kind))
+		const inventoryLabel =
+			inventoryDays > 0
+				? `${inventoryDays} noches con inventario base`
+				: "Inventario base pendiente"
 		const completedBlocks = [
 			capacityComplete,
 			subtypeComplete,
@@ -122,16 +209,49 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return {
 			id: variant.id,
 			name: variant.name,
+			status: String(variant.status ?? "draft")
+				.trim()
+				.toLowerCase(),
 			kindLabel: kindLabel(variant.kind),
+			type: {
+				label: typeLabel,
+				roomTypeId: variant.subtype?.roomTypeId ?? null,
+			},
+			capacity: {
+				label: capacityLabel,
+				minGuests: variant.capacity?.minOccupancy ?? null,
+				maxGuests: variant.capacity?.maxOccupancy ?? null,
+				maxAdults: variant.capacity?.maxAdults ?? null,
+				maxChildren: variant.capacity?.maxChildren ?? null,
+			},
+			photos: {
+				count: images.length,
+				coverUrl: coverImage?.url ?? null,
+			},
+			inventory: {
+				days: inventoryDays,
+				label: inventoryLabel,
+				minimumDays: readinessInventoryMinDays,
+			},
+			tariffs: {
+				count: activeTariffs.length,
+				names: activeTariffs.map((tariff) => tariff.name),
+				defaultName: defaultTariff?.name ?? null,
+			},
 			states: {
 				capacityComplete,
 				subtypeComplete,
 				pricingComplete,
 				inventoryComplete,
+				photosComplete: images.length > 0,
+				tariffsComplete: activeTariffs.length > 0,
 				isComplete,
 			},
 			actions: {
 				detailHref: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}`,
+				capacityHref: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}/capacity`,
+				typeHref: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}/subtype`,
+				inventoryHref: `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variant.id)}/inventory`,
 			},
 		}
 	})

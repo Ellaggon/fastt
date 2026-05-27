@@ -36,240 +36,69 @@ const statusBadgeVariant =
 const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Ficha">
-	<section class="space-y-8">
-		<header class="space-y-4">
-			<div class="flex flex-wrap items-start justify-between gap-4">
-				<div class="space-y-2">
-					<h1 class="text-3xl font-semibold uppercase tracking-wide text-slate-100">
-						{owned.name}
-					</h1>
-					<p class="max-w-3xl text-sm leading-6 text-slate-400">
-						Completa la presentación del alojamiento y revisa sus habitaciones antes de publicar.
-					</p>
-					<p id="productMissingStepsText" class="text-sm text-slate-300">
-						Cargando resumen del alojamiento...
-					</p>
+<WorkspaceLayout title="Ficha del alojamiento">
+	<section class="space-y-6">
+		<header class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-sm">
+			<div class="grid gap-0 lg:grid-cols-[280px_1fr]">
+				<div
+					id="productHeroMedia"
+					class="flex min-h-[220px] items-center justify-center bg-slate-900 text-sm font-semibold text-slate-500 lg:min-h-full"
+				>
+					Fotos del alojamiento
 				</div>
-				<div class="flex flex-wrap items-center gap-2">
-					<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
-					<Button href={routes.productPreview(productId)} data-astro-prefetch variant="secondary">
-						Vista previa
-					</Button>
+				<div class="space-y-5 p-5 sm:p-6">
+					<div class="flex flex-wrap items-center gap-2">
+						<Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
+						<span
+							id="productReadyChip"
+							class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200"
+						>
+							Cargando estado...
+						</span>
+					</div>
+					<div class="space-y-2">
+						<h1 class="text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
+							{owned.name}
+						</h1>
+						<p id="productHeaderMeta" class="text-sm text-slate-300">
+							Cargando ubicación y tipo de alojamiento...
+						</p>
+						<p id="productHeaderSummary" class="max-w-3xl text-sm leading-6 text-slate-400">
+							Prepara fotos, descripción, ubicación, habitaciones y reglas antes de publicar.
+						</p>
+					</div>
+					<div class="flex flex-wrap gap-2">
+						<Button href={routes.productPreview(productId)} data-astro-prefetch>Vista previa</Button
+						>
+						<Button
+							href={`/product/${encodeURIComponent(productId)}/subtype`}
+							data-astro-prefetch
+							variant="secondary"
+						>
+							Editar detalles
+						</Button>
+					</div>
 				</div>
 			</div>
 		</header>
 
-		<Card class="border-blue-900/40 bg-blue-950/40 text-blue-50">
-			<div class="flex flex-wrap items-center justify-between gap-4">
-				<div class="space-y-1">
-					<p class="text-sm font-semibold">Antes de publicar</p>
-					<p class="max-w-3xl text-sm leading-6 text-blue-100">
-						Revisa cómo verá el huésped el alojamiento: contenido, fotos, condiciones y reglas de la
-						casa en un solo lugar.
-					</p>
-				</div>
-				<Button href={routes.productPreview(productId)} data-astro-prefetch variant="secondary">
-					Abrir vista previa
-				</Button>
-			</div>
-		</Card>
-
 		<Section
-			title="Alojamiento"
-			description="Contenido, ubicación, fotos y detalles que determinan si el alojamiento está listo para presentarse."
+			title="Ficha del alojamiento"
+			description="Edita los bloques que verá el huésped antes de reservar."
 			className="space-y-4"
 		>
-			<Card class="border-slate-700 bg-slate-900 text-white">
-				<div class="space-y-4">
-					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-						<div id="productProgressBar" class="h-full bg-[#1E3A8A]" style="width: 0%"></div>
-					</div>
-					<p id="productProgressText" class="text-sm text-slate-200">Cargando progreso...</p>
-					<div class="grid gap-4 md:grid-cols-2">
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Contenido</p>
-									<p class="text-sm text-slate-600">
-										Descripción y destacados visibles para huéspedes.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge id="blockBadge-content" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href={`/product/${encodeURIComponent(productId)}/content`}
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Editar contenido</Button
-									>
-								</div>
+			<div class="grid gap-4 lg:grid-cols-2">
+				<Card class="bg-white">
+					<div class="space-y-4">
+						<div class="flex items-start justify-between gap-4">
+							<div class="space-y-1">
+								<p class="text-sm font-semibold text-slate-950">Fotos</p>
+								<p id="summaryImagesCount" class="text-sm text-slate-600">Cargando fotos...</p>
 							</div>
-						</Card>
-
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Reglas de la casa</p>
-									<p class="text-sm text-slate-600">
-										Mascotas, fumar, horarios de silencio, llegada y salida.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge id="blockBadge-houseRules" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href="/provider/house-rules"
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Configurar reglas</Button
-									>
-									<Button
-										href={routes.productPreview(productId)}
-										data-astro-prefetch
-										variant="secondary"
-										className="text-xs lg:text-base">Vista previa</Button
-									>
-								</div>
-							</div>
-						</Card>
-
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Ubicación</p>
-									<p class="text-sm text-slate-600">
-										Dirección, coordenadas y discoverability geográfica.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge id="blockBadge-location" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href={`/product/${encodeURIComponent(productId)}/location`}
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Editar ubicación</Button
-									>
-								</div>
-							</div>
-						</Card>
-
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Fotos</p>
-									<p class="text-sm text-slate-600">
-										Galería de presentación y cobertura visual mínima.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge id="blockBadge-images" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href={`/product/${encodeURIComponent(productId)}/images`}
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Gestionar imágenes</Button
-									>
-								</div>
-							</div>
-						</Card>
-
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Detalles del alojamiento</p>
-									<p class="text-sm text-slate-600">
-										Categoría, subtipo y atributos de descubrimiento.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 lg:flex-row">
-									<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href={`/product/${encodeURIComponent(productId)}/subtype`}
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Configurar detalles</Button
-									>
-								</div>
-							</div>
-						</Card>
-
-						<Card class="min-h-[118px] bg-slate-100">
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-semibold text-slate-900">Habitaciones</p>
-									<p class="text-sm text-slate-600">
-										Habitaciones, capacidad e inventario base que sostienen la venta diaria.
-									</p>
-								</div>
-								<div class="flex shrink-0 flex-col items-center gap-3 text-xs lg:flex-row">
-									<Badge id="blockBadge-variants" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-									<Button
-										href={routes.productRoomsForProduct(productId)}
-										data-astro-prefetch
-										className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-										>Abrir habitaciones</Button
-									>
-								</div>
-							</div>
-						</Card>
-					</div>
-				</div>
-			</Card>
-		</Section>
-
-		<Section
-			title="Resumen del alojamiento"
-			description="Vista rápida del estado actual de cada bloque visible para huéspedes."
-		>
-			<div class="grid gap-4 md:grid-cols-2">
-				<Card class="min-h-[210px] bg-slate-100">
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Contenido</p>
-						<p id="summaryDescription" class="text-sm text-slate-600">Cargando contenido...</p>
-						<p id="summaryHighlights" class="text-sm text-slate-600">Destacados: —</p>
-						<div class="flex justify-end">
-							<Button
-								href={`/product/${encodeURIComponent(productId)}/content`}
-								data-astro-prefetch
-								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-								>Editar contenido</Button
-							>
+							<Badge id="blockBadge-images" variant="warning" class="whitespace-nowrap">
+								Cargando...
+							</Badge>
 						</div>
-					</div>
-				</Card>
-
-				<Card class="min-h-[210px] bg-slate-100">
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Ubicación</p>
-						<p id="summaryAddress" class="text-sm text-slate-600">Cargando dirección...</p>
-						<p id="summaryCoordinates" class="text-sm text-slate-600">Cargando coordenadas...</p>
-						<div class="flex justify-end">
-							<Button
-								href={`/product/${encodeURIComponent(productId)}/location`}
-								data-astro-prefetch
-								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-								>Editar ubicación</Button
-							>
-						</div>
-					</div>
-				</Card>
-
-				<Card class="min-h-[210px] bg-slate-100">
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Fotos</p>
-						<p id="summaryImagesCount" class="text-sm text-slate-600">Total de imágenes: —</p>
 						<div id="summaryImageGrid" class="grid min-h-[74px] grid-cols-3 gap-2">
 							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
 							<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
@@ -279,30 +108,207 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/images`}
 								data-astro-prefetch
-								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-								>Gestionar imágenes</Button
+								variant="secondary"
 							>
+								Gestionar fotos
+							</Button>
 						</div>
 					</div>
 				</Card>
 
-				<Card class="min-h-[210px] bg-slate-100">
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Detalles del alojamiento</p>
-						<p id="summaryProductType" class="text-sm text-slate-600">Tipo: cargando...</p>
-						<p id="summarySubtype" class="text-sm text-slate-600">Cargando subtipo...</p>
+				<Card class="bg-white">
+					<div class="flex h-full flex-col justify-between gap-4">
+						<div class="space-y-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-950">Descripción</p>
+									<p id="summaryDescription" class="text-sm leading-6 text-slate-600">
+										Cargando descripción...
+									</p>
+								</div>
+								<Badge id="blockBadge-content" variant="warning" class="whitespace-nowrap">
+									Cargando...
+								</Badge>
+							</div>
+							<p id="summaryHighlights" class="text-sm text-slate-500">Destacados: —</p>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/content`}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Editar descripción
+							</Button>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-white">
+					<div class="flex h-full flex-col justify-between gap-4">
+						<div class="space-y-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-950">Ubicación</p>
+									<p id="summaryAddress" class="text-sm leading-6 text-slate-600">
+										Cargando dirección...
+									</p>
+								</div>
+								<Badge id="blockBadge-location" variant="warning" class="whitespace-nowrap">
+									Cargando...
+								</Badge>
+							</div>
+							<p id="summaryCoordinates" class="text-sm text-slate-500">Coordenadas: —</p>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/location`}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Editar ubicación
+							</Button>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-white">
+					<div class="flex h-full flex-col justify-between gap-4">
+						<div class="space-y-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-950">Habitaciones</p>
+									<p id="summaryRooms" class="text-sm leading-6 text-slate-600">
+										Cargando habitaciones...
+									</p>
+								</div>
+								<Badge id="blockBadge-variants" variant="warning" class="whitespace-nowrap">
+									Cargando...
+								</Badge>
+							</div>
+							<p class="text-sm text-slate-500">
+								Define capacidad y habitaciones vendibles para este alojamiento.
+							</p>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								href={routes.productRoomsForProduct(productId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Abrir habitaciones
+							</Button>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-white">
+					<div class="flex h-full flex-col justify-between gap-4">
+						<div class="space-y-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-950">Reglas de la casa</p>
+									<p id="summaryHouseRules" class="text-sm leading-6 text-slate-600">
+										Cargando reglas...
+									</p>
+								</div>
+								<Badge id="blockBadge-houseRules" variant="warning" class="whitespace-nowrap">
+									Cargando...
+								</Badge>
+							</div>
+							<p class="text-sm text-slate-500">
+								Estas reglas pertenecen a este alojamiento y aparecerán en la vista previa.
+							</p>
+						</div>
+						<div class="flex flex-wrap justify-end gap-2">
+							<Button
+								href={`${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Editar reglas
+							</Button>
+							<Button
+								href={routes.productPreview(productId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Vista previa
+							</Button>
+						</div>
+					</div>
+				</Card>
+
+				<Card class="bg-white">
+					<div class="flex h-full flex-col justify-between gap-4">
+						<div class="space-y-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-1">
+									<p class="text-sm font-semibold text-slate-950">Tipo y características</p>
+									<p id="summaryProductType" class="text-sm leading-6 text-slate-600">
+										Cargando tipo...
+									</p>
+								</div>
+								<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
+									Cargando...
+								</Badge>
+							</div>
+							<p id="summarySubtype" class="text-sm text-slate-500">Características: —</p>
+						</div>
 						<div class="flex justify-end">
 							<Button
 								href={`/product/${encodeURIComponent(productId)}/subtype`}
 								data-astro-prefetch
-								className="bg-[#1E3A8A] text-xs text-white hover:bg-[#1e40af] lg:text-base"
-								>Configurar detalles</Button
+								variant="secondary"
 							>
+								Editar características
+							</Button>
 						</div>
+					</div>
+				</Card>
+
+				<Card class="border-blue-100 bg-blue-50 lg:col-span-2">
+					<div class="flex flex-wrap items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-blue-950">Vista previa</p>
+							<p class="max-w-2xl text-sm leading-6 text-blue-900">
+								Revisa fotos, descripción, habitaciones y reglas como las verá el huésped.
+							</p>
+						</div>
+						<Button href={routes.productPreview(productId)} data-astro-prefetch>
+							Abrir vista previa
+						</Button>
 					</div>
 				</Card>
 			</div>
 		</Section>
+
+		<details class="rounded-xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+			<summary class="cursor-pointer text-sm font-semibold text-slate-100">Detalle interno</summary>
+			<div class="mt-4 space-y-4">
+				<div class="space-y-2">
+					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+						<div id="productProgressBar" class="h-full bg-[#1E3A8A]" style="width: 0%"></div>
+					</div>
+					<p id="productProgressText" class="text-sm text-slate-300">Cargando estado interno...</p>
+					<p id="productMissingStepsText" class="text-sm text-slate-400">
+						Cargando señales internas...
+					</p>
+				</div>
+				<div
+					id="internalChecks"
+					class="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3"
+				>
+					<span>Descripción: cargando</span>
+					<span>Fotos: cargando</span>
+					<span>Ubicación: cargando</span>
+					<span>Habitaciones: cargando</span>
+					<span>Reglas: cargando</span>
+					<span>Características: cargando</span>
+				</div>
+				<p class="text-xs text-slate-500">ID interno: {productId}</p>
+			</div>
+		</details>
 	</section>
 	<script is:inline define:vars={{ productId }}>
 		;(function () {
@@ -322,7 +328,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 			const setBadgeState = (key, complete) => {
 				const badge = document.getElementById(`blockBadge-${key}`)
 				if (!badge) return
-				badge.textContent = complete ? "✅ Completo" : "⚠️ Incompleto"
+				badge.textContent = complete ? "Listo" : "Falta"
 				badge.classList.remove("bg-amber-100", "text-amber-800", "bg-green-100", "text-green-800")
 				if (complete) {
 					badge.classList.add("bg-green-100", "text-green-800")
@@ -330,6 +336,13 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					badge.classList.add("bg-amber-100", "text-amber-800")
 				}
 			}
+
+			const setText = (id, value) => {
+				const element = document.getElementById(id)
+				if (element) element.textContent = value
+			}
+
+			const yesNo = (value) => (value ? "listo" : "pendiente")
 
 			if (!productId) return
 
@@ -345,28 +358,49 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const missingStepsText = document.getElementById("productMissingStepsText")
 					const progressBar = document.getElementById("productProgressBar")
 					const progressText = document.getElementById("productProgressText")
+					const readyChip = document.getElementById("productReadyChip")
+					const headerMeta = document.getElementById("productHeaderMeta")
+					const headerSummary = document.getElementById("productHeaderSummary")
 
 					const missing = Number(payload?.progress?.missingSteps ?? 0)
 					const completed = Number(payload?.progress?.completedSteps ?? 0)
 					const total = Number(payload?.progress?.totalSteps ?? 0)
 					const percent = Number(payload?.progress?.progressPercent ?? 0)
+					const address = String(payload?.location?.address || "Ubicación pendiente")
+					const productType = String(payload?.productType || "Tipo por definir")
+					const subtypeSummary = String(payload?.subtype?.summary || "Características pendientes")
+					const hasVariants = Boolean(payload?.checks?.hasVariants)
+					const hasHouseRules = Boolean(payload?.checks?.hasHouseRules)
 
 					if (missingStepsText) {
 						missingStepsText.textContent =
 							missing === 0
-								? "Catalog readiness completo. Revisa la vista huésped antes de publicar."
-								: `Te faltan ${missing} pasos para completar este producto`
+								? "La ficha está lista para revisión final."
+								: `Faltan ${missing} puntos para completar la ficha.`
 					}
 					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
 					if (progressText)
-						progressText.textContent = `${completed} de ${total} bloques completados.`
+						progressText.textContent = `${completed} de ${total} puntos internos listos.`
+					if (readyChip) {
+						readyChip.textContent =
+							missing === 0 ? "Listo para publicar" : `Faltan ${missing} pasos`
+						readyChip.classList.toggle("border-green-700", missing === 0)
+						readyChip.classList.toggle("text-green-200", missing === 0)
+					}
+					if (headerMeta) headerMeta.textContent = `${address} · ${productType}`
+					if (headerSummary) {
+						headerSummary.textContent =
+							missing === 0
+								? "La ficha tiene la información principal lista. Revisa la vista previa antes de publicar."
+								: "Completa los bloques pendientes para que el alojamiento se entienda bien antes de reservar."
+					}
 
 					setBadgeState("content", Boolean(payload?.checks?.hasContent))
-					setBadgeState("houseRules", Boolean(payload?.checks?.hasHouseRules))
+					setBadgeState("houseRules", hasHouseRules)
 					setBadgeState("location", Boolean(payload?.checks?.hasLocation))
 					setBadgeState("images", Boolean(payload?.checks?.hasImages))
 					setBadgeState("subtype", Boolean(payload?.checks?.hasSubtype))
-					setBadgeState("variants", Boolean(payload?.checks?.hasVariants))
+					setBadgeState("variants", hasVariants)
 
 					const summaryDescription = document.getElementById("summaryDescription")
 					const summaryHighlights = document.getElementById("summaryHighlights")
@@ -376,19 +410,35 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const summaryProductType = document.getElementById("summaryProductType")
 					const summarySubtype = document.getElementById("summarySubtype")
 					const summaryImageGrid = document.getElementById("summaryImageGrid")
+					const productHeroMedia = document.getElementById("productHeroMedia")
 
 					if (summaryDescription)
 						summaryDescription.textContent = String(payload?.content?.descriptionPreview ?? "")
 					if (summaryHighlights)
 						summaryHighlights.textContent = `Destacados: ${Number(payload?.content?.highlightsCount ?? 0)}`
-					if (summaryAddress) summaryAddress.textContent = String(payload?.location?.address ?? "")
+					if (summaryAddress) summaryAddress.textContent = address
 					if (summaryCoordinates)
 						summaryCoordinates.textContent = String(payload?.location?.coordinates ?? "")
 					if (summaryImagesCount)
-						summaryImagesCount.textContent = `Total de imágenes: ${Number(payload?.images?.count ?? 0)}`
-					if (summaryProductType)
-						summaryProductType.textContent = `Tipo: ${String(payload?.productType || "no definido")}`
-					if (summarySubtype) summarySubtype.textContent = String(payload?.subtype?.summary ?? "")
+						summaryImagesCount.textContent = `${Number(payload?.images?.count ?? 0)} fotos cargadas`
+					if (summaryProductType) summaryProductType.textContent = productType
+					if (summarySubtype) summarySubtype.textContent = subtypeSummary
+					setText(
+						"summaryRooms",
+						hasVariants
+							? `${Number(payload?.variants?.count ?? 0)} habitaciones configuradas${
+									Array.isArray(payload?.variants?.names) && payload.variants.names.length > 0
+										? `: ${payload.variants.names.join(", ")}`
+										: "."
+								}`
+							: "Agrega habitaciones para que este alojamiento pueda venderse correctamente."
+					)
+					setText(
+						"summaryHouseRules",
+						hasHouseRules
+							? "Reglas principales listas para este alojamiento."
+							: "Agrega las reglas principales para que el huésped sepa qué esperar."
+					)
 
 					if (summaryImageGrid) {
 						summaryImageGrid.innerHTML = ""
@@ -406,6 +456,36 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 								img.className = "h-16 w-full rounded-md border border-slate-200 object-cover"
 								summaryImageGrid.appendChild(img)
 							}
+						}
+					}
+
+					if (productHeroMedia) {
+						const coverImage = payload?.images?.cover?.url ? String(payload.images.cover.url) : ""
+						if (coverImage) {
+							productHeroMedia.textContent = ""
+							const heroImage = document.createElement("img")
+							heroImage.src = coverImage
+							heroImage.alt = "Foto principal del alojamiento"
+							heroImage.className = "h-full min-h-[220px] w-full object-cover"
+							productHeroMedia.appendChild(heroImage)
+						}
+					}
+
+					const checks = [
+						["Descripción", Boolean(payload?.checks?.hasContent)],
+						["Fotos", Boolean(payload?.checks?.hasImages)],
+						["Ubicación", Boolean(payload?.checks?.hasLocation)],
+						["Habitaciones", hasVariants],
+						["Reglas", hasHouseRules],
+						["Características", Boolean(payload?.checks?.hasSubtype)],
+					]
+					const internalChecks = document.getElementById("internalChecks")
+					if (internalChecks) {
+						internalChecks.innerHTML = ""
+						for (const [label, value] of checks) {
+							const item = document.createElement("span")
+							item.textContent = `${label}: ${yesNo(value)}`
+							internalChecks.appendChild(item)
 						}
 					}
 

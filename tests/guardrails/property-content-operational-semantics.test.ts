@@ -30,10 +30,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 			],
 			"src/pages/product/create.astro": ["Crear alojamiento", "identidad mínima del alojamiento"],
 			"src/pages/product/[id]/index.astro": [
-				"Alojamiento",
-				"Antes de publicar",
+				"Ficha del alojamiento",
+				"Descripción",
 				"Habitaciones",
-				"Resumen del alojamiento",
+				"Tipo y características",
+				"Detalle interno",
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",
@@ -50,6 +51,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Habitaciones de",
 				"Nueva habitación",
 				"Editar habitación",
+				"Inventario base",
+				"Tarifas vinculadas",
+				"Detalle interno",
 			],
 		}
 
@@ -195,8 +199,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(routes).toContain("productPreview")
 		expect(worklist).toContain("routes.productPreview(product.id)")
 		expect(readiness).toContain("routes.productPreview(productId)")
+		expect(readiness).toContain("routes.providerHouseRules()}?productId=")
 		expect(houseRules).toContain("routes.productPreview(item.product.id)")
-		expect(houseRules).toContain("Review full listing")
+		expect(houseRules).toContain("requestedProductId")
+		expect(houseRules).toContain("visibleProducts")
+		expect(houseRules).toContain("Ver ficha completa")
 
 		expect(preview).toContain("Required before publish")
 		expect(preview).toContain("Guest-facing preview")
@@ -206,5 +213,37 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(preview).toContain("routes.providerPolicies()")
 		expect(preview).not.toContain("/api/pricing/")
 		expect(preview).not.toContain("/api/inventory/")
+	})
+
+	it("feeds the product surface with real rooms and an explicit cover image", () => {
+		const summaryEndpoint = read("src/pages/api/internal/product-summary.ts")
+		const productSurface = read("src/pages/product/[id]/index.astro")
+
+		expect(summaryEndpoint).toContain("getProductVariantsAggregate")
+		expect(summaryEndpoint).not.toContain("const hasVariants = false")
+		expect(summaryEndpoint).toContain("activeVariants.length > 0")
+		expect(summaryEndpoint).toContain("coverImage")
+		expect(summaryEndpoint).toContain("variants:")
+
+		expect(productSurface).toContain("payload?.variants?.count")
+		expect(productSurface).toContain("payload?.images?.cover?.url")
+	})
+
+	it("keeps the room ficha guest-facing while reading operational context through summaries", () => {
+		const roomsSurface = read("src/pages/product/[id]/rooms.astro")
+		const variantsSummary = read("src/pages/api/internal/variants-summary.ts")
+
+		expect(roomsSurface).toContain("Ficha de habitaciones")
+		expect(roomsSurface).toContain("Tarifas vinculadas")
+		expect(roomsSurface).toContain("Inventario base")
+		expect(roomsSurface).toContain("Detalle interno")
+		expect(roomsSurface).toContain("/api/internal/variants-summary")
+		expect(roomsSurface).not.toContain("RatePlan")
+		expect(roomsSurface).not.toContain("DailyInventory")
+
+		expect(variantsSummary).toContain("photos:")
+		expect(variantsSummary).toContain("tariffs:")
+		expect(variantsSummary).toContain("inventory:")
+		expect(variantsSummary).toContain("RatePlanTemplate")
 	})
 })

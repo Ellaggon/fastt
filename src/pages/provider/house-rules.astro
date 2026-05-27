@@ -326,6 +326,14 @@ function payloadFromForm(type: HouseRuleType, form: FormData): HouseRulePayload 
 }
 
 let actionError: string | null = null
+const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+
+const redirectToHouseRules = (success: string, productId?: string) => {
+	const params = new URLSearchParams({ success })
+	const contextualProductId = String(productId ?? "").trim()
+	if (contextualProductId) params.set("productId", contextualProductId)
+	return Astro.redirect(`${routes.providerHouseRules()}?${params.toString()}`)
+}
 
 if (Astro.request.method === "POST") {
 	const form = await Astro.request.formData()
@@ -341,7 +349,7 @@ if (Astro.request.method === "POST") {
 			if (!ownedProductIds.has(productId)) throw new Error("Property is not available")
 			if (!houseRuleTypes.includes(type)) throw new Error("Unsupported house rule category")
 			await createHouseRule({ productId, type, description, payload })
-			return Astro.redirect(`${routes.providerHouseRules()}?success=created`)
+			return redirectToHouseRules("created", productId)
 		}
 		if (action === "apply-quick-setup") {
 			const productId = String(form.get("productId") ?? "").trim()
@@ -359,7 +367,7 @@ if (Astro.request.method === "POST") {
 				await createHouseRule({ productId, type: item.type, payload: item.payload })
 				existingTypes.add(item.type)
 			}
-			return Astro.redirect(`${routes.providerHouseRules()}?success=preset-applied`)
+			return redirectToHouseRules("preset-applied", productId)
 		}
 		if (action === "delete-house-rule") {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
@@ -369,7 +377,7 @@ if (Astro.request.method === "POST") {
 				.find((rule) => String(rule.id) === ruleId)
 			if (!ownedRule) throw new Error("House rule is not available")
 			await deleteHouseRule(ruleId)
-			return Astro.redirect(`${routes.providerHouseRules()}?success=deleted`)
+			return redirectToHouseRules("deleted", ownedRule.productId)
 		}
 	} catch (error) {
 		actionError = error instanceof Error ? error.message : "House rule action failed"
@@ -380,7 +388,11 @@ const products = await loadProviderProducts(auth.providerId)
 const rulesByProduct = await loadRulesByProduct(products)
 const allRules = Array.from(rulesByProduct.values()).flat()
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
-const defaultProductId = products[0]?.id ?? ""
+const selectedProduct =
+	products.find((product) => product.id === requestedProductId) ?? products[0] ?? null
+const selectedProductId = selectedProduct?.id ?? ""
+const hasProductContext = Boolean(requestedProductId && selectedProduct)
+const visibleProducts = hasProductContext && selectedProduct ? [selectedProduct] : products
 const rulesByType = new Map<HouseRuleType, number>()
 for (const type of houseRuleTypes) rulesByType.set(type, 0)
 for (const rule of allRules) {
@@ -412,7 +424,9 @@ const averageReadiness = readinessByProduct.length
 		)
 	: 0
 const selectedPreview =
-	readinessByProduct.find((item) => item.rules.length) ?? readinessByProduct[0]
+	(hasProductContext
+		? readinessByProduct.find((item) => item.product.id === selectedProductId)
+		: readinessByProduct.find((item) => item.rules.length)) ?? readinessByProduct[0]
 const previewRules = selectedPreview?.rules ?? []
 const previewRulesByGroup = houseRuleGroups.map((group) => ({
 	...group,
@@ -429,16 +443,41 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Contenido del alojamiento · Reglas para huéspedes
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Reglas de la casa</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{
+						hasProductContext && selectedProduct
+							? `Reglas de ${selectedProduct.name}`
+							: "Reglas de la casa"
+					}
+				</h1>
 				<p class="max-w-4xl text-sm leading-6 text-slate-300">
-					Define cómo deben comportarse los huéspedes y cómo funciona el alojamiento durante la
-					estadía. Estas reglas no cambian precios, descuentos, penalidades, inventario ni venta.
+					{
+						hasProductContext && selectedProduct
+							? "Edita las expectativas de estadía de este alojamiento. Se verán junto a su ficha y vista previa."
+							: "Define cómo deben comportarse los huéspedes y cómo funciona cada alojamiento durante la estadía."
+					}
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.productList()} variant="secondary">Alojamientos</Button>
+				{
+					hasProductContext && selectedProduct ? (
+						<Button href={routes.productDetail(selectedProduct.id)} variant="secondary">
+							Volver a la ficha
+						</Button>
+					) : (
+						<Button href={routes.productList()} variant="secondary">
+							Alojamientos
+						</Button>
+					)
+				}
 				<Button href={routes.providerPolicies()} variant="secondary">Condiciones</Button>
-				<Button href={routes.pricing()} variant="secondary">Calendario de precios</Button>
+				{
+					hasProductContext && selectedProduct ? (
+						<Button href={routes.productPreview(selectedProduct.id)} variant="secondary">
+							Vista previa
+						</Button>
+					) : null
+				}
 			</div>
 		</header>
 
@@ -478,28 +517,49 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 			)
 		}
 
-		<section class="grid gap-4 md:grid-cols-4">
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Properties</p>
-				<p class="mt-2 text-2xl font-semibold">{products.length}</p>
-				<p class="mt-1 text-xs text-slate-400">With house-rule ownership available</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">House rules</p>
-				<p class="mt-2 text-2xl font-semibold">{allRules.length}</p>
-				<p class="mt-1 text-xs text-slate-400">Guest-facing behavior rules</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Stay readiness</p>
-				<p class="mt-2 text-2xl font-semibold">{averageReadiness}%</p>
-				<p class="mt-1 text-xs text-slate-400">Average essential expectations coverage</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Ready listings</p>
-				<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Have core stay expectations</p>
-			</Card>
-		</section>
+		{
+			hasProductContext && selectedPreview ? (
+				<Card className="border-blue-100 bg-blue-50 text-blue-950">
+					<div class="flex flex-wrap items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-sm font-semibold">Parte de la ficha del alojamiento</p>
+							<p class="max-w-3xl text-sm leading-6 text-blue-900">
+								Estas reglas pertenecen a {selectedPreview.product.name}. Completa mascotas, fumar,
+								fiestas, silencio, llegada y salida para que el huésped entienda la estadía.
+							</p>
+						</div>
+						<Badge variant={selectedPreview.ready ? "success" : "warning"}>
+							{selectedPreview.ready
+								? "Listo para huéspedes"
+								: `${selectedPreview.missingEssentials.length} pendientes`}
+						</Badge>
+					</div>
+				</Card>
+			) : (
+				<section class="grid gap-4 md:grid-cols-4">
+					<Card className="border-slate-800 bg-slate-950 text-slate-100">
+						<p class="text-xs tracking-wide text-slate-500 uppercase">Alojamientos</p>
+						<p class="mt-2 text-2xl font-semibold">{products.length}</p>
+						<p class="mt-1 text-xs text-slate-400">Con reglas configurables</p>
+					</Card>
+					<Card className="border-slate-800 bg-slate-950 text-slate-100">
+						<p class="text-xs tracking-wide text-slate-500 uppercase">Reglas</p>
+						<p class="mt-2 text-2xl font-semibold">{allRules.length}</p>
+						<p class="mt-1 text-xs text-slate-400">Expectativas visibles para huéspedes</p>
+					</Card>
+					<Card className="border-slate-800 bg-slate-950 text-slate-100">
+						<p class="text-xs tracking-wide text-slate-500 uppercase">Preparación</p>
+						<p class="mt-2 text-2xl font-semibold">{averageReadiness}%</p>
+						<p class="mt-1 text-xs text-slate-400">Promedio de reglas esenciales</p>
+					</Card>
+					<Card className="border-slate-800 bg-slate-950 text-slate-100">
+						<p class="text-xs tracking-wide text-slate-500 uppercase">Listos</p>
+						<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
+						<p class="mt-1 text-xs text-slate-400">Con reglas esenciales completas</p>
+					</Card>
+				</section>
+			)
+		}
 
 		<section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
 			<Card className="space-y-5 border-blue-200 bg-blue-50 text-blue-950">
@@ -535,9 +595,10 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<div>
-						<p class="text-sm font-semibold text-slate-900">Quick setup</p>
+						<p class="text-sm font-semibold text-slate-900">Configuración rápida</p>
 						<p class="mt-1 text-sm text-slate-600">
-							Apply OTA-style defaults to the selected property, only filling missing categories.
+							Agrega reglas habituales al alojamiento seleccionado sin duplicar categorías
+							existentes.
 						</p>
 					</div>
 				</div>
@@ -554,8 +615,8 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 											name="productId"
 											class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
 										>
-											{products.map((product) => (
-												<option value={product.id} selected={product.id === defaultProductId}>
+											{visibleProducts.map((product) => (
+												<option value={product.id} selected={product.id === selectedProductId}>
 													{product.name}
 												</option>
 											))}
@@ -564,7 +625,7 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 									<p class="mt-2 text-sm text-slate-600">{preset.description}</p>
 									<div class="mt-3 flex justify-end">
 										<Button type="submit" variant="secondary" size="sm">
-											Apply missing rules
+											Completar reglas faltantes
 										</Button>
 									</div>
 								</form>
@@ -580,70 +641,76 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 		</section>
 
 		<Section
-			title="Preparación por alojamiento"
-			description="Reglas de la casa participa en la confianza de publicación como expectativas de estadía. No cambia precio, venta ni condiciones contractuales."
+			title={hasProductContext ? "Preparación de este alojamiento" : "Preparación por alojamiento"}
+			description={hasProductContext
+				? "Estas reglas pertenecen a la ficha seleccionada. No cambian precio, venta ni condiciones contractuales."
+				: "Reglas de la casa participa en la confianza de publicación como expectativas de estadía. No cambia precio, venta ni condiciones contractuales."}
 		>
 			<div class="grid gap-4 lg:grid-cols-2">
 				{
 					readinessByProduct.length ? (
-						readinessByProduct.map((item) => (
-							<Card className="space-y-4 bg-white text-slate-800">
-								<div class="flex flex-wrap items-start justify-between gap-3">
-									<div>
-										<p class="text-base font-semibold text-slate-900">{item.product.name}</p>
-										<p class="text-sm text-slate-500">{item.product.productType}</p>
-									</div>
-									<Badge variant={item.ready ? "success" : "warning"}>
-										{item.ready ? "Ready for guests" : `${item.missingEssentials.length} missing`}
-									</Badge>
-								</div>
-								<div>
-									<div class="h-2 overflow-hidden rounded-full bg-slate-200">
-										<div
-											class="h-full bg-blue-700"
-											style={`width: ${Math.max(0, Math.min(100, item.progress))}%`}
-										/>
-									</div>
-									<p class="mt-2 text-xs text-slate-500">
-										{item.completedEssentials.length} of {essentialRuleTypes.length} essential
-										expectation categories complete.
-									</p>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									{essentialRuleTypes.map((type) => (
-										<Badge variant={item.typeSet.has(type) ? "success" : "neutral"}>
-											{categoryCopy[type].label}
+						readinessByProduct
+							.filter((item) => !hasProductContext || item.product.id === selectedProductId)
+							.map((item) => (
+								<Card className="space-y-4 bg-white text-slate-800">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div>
+											<p class="text-base font-semibold text-slate-900">{item.product.name}</p>
+											<p class="text-sm text-slate-500">{item.product.productType}</p>
+										</div>
+										<Badge variant={item.ready ? "success" : "warning"}>
+											{item.ready
+												? "Listo para huéspedes"
+												: `${item.missingEssentials.length} pendientes`}
 										</Badge>
-									))}
-								</div>
-								{item.missingEssentials.length ? (
-									<p class="text-sm text-slate-600">
-										Add next:{" "}
-										{item.missingEssentials.map((type) => categoryCopy[type].label).join(", ")}.
-									</p>
-								) : (
-									<p class="text-sm text-slate-600">
-										Core guest expectations are clear for this property.
-									</p>
-								)}
-								<div class="flex flex-wrap justify-end gap-2">
-									<Button
-										href={routes.productPreview(item.product.id)}
-										variant="secondary"
-										size="sm"
-									>
-										Vista previa
-									</Button>
-									<Button
-										href={routes.productDetail(item.product.id)}
-										variant="secondary"
-										size="sm"
-									>
-										Alojamiento
-									</Button>
-								</div>
-							</Card>
-						))
+									</div>
+									<div>
+										<div class="h-2 overflow-hidden rounded-full bg-slate-200">
+											<div
+												class="h-full bg-blue-700"
+												style={`width: ${Math.max(0, Math.min(100, item.progress))}%`}
+											/>
+										</div>
+										<p class="mt-2 text-xs text-slate-500">
+											{item.completedEssentials.length} de {essentialRuleTypes.length} categorías
+											esenciales listas.
+										</p>
+									</div>
+									<div class="flex flex-wrap gap-2">
+										{essentialRuleTypes.map((type) => (
+											<Badge variant={item.typeSet.has(type) ? "success" : "neutral"}>
+												{categoryCopy[type].label}
+											</Badge>
+										))}
+									</div>
+									{item.missingEssentials.length ? (
+										<p class="text-sm text-slate-600">
+											Siguiente:{" "}
+											{item.missingEssentials.map((type) => categoryCopy[type].label).join(", ")}.
+										</p>
+									) : (
+										<p class="text-sm text-slate-600">
+											Las expectativas principales ya están claras para este alojamiento.
+										</p>
+									)}
+									<div class="flex flex-wrap justify-end gap-2">
+										<Button
+											href={routes.productPreview(item.product.id)}
+											variant="secondary"
+											size="sm"
+										>
+											Vista previa
+										</Button>
+										<Button
+											href={routes.productDetail(item.product.id)}
+											variant="secondary"
+											size="sm"
+										>
+											Alojamiento
+										</Button>
+									</div>
+								</Card>
+							))
 					) : (
 						<Card className="bg-white text-slate-700">
 							<p class="font-medium text-slate-900">No properties yet.</p>
@@ -655,8 +722,10 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 		</Section>
 
 		<Section
-			title="Add stay expectation"
-			description="Start with the guest-facing category, then add only the operational details guests need before booking, arrival or checkout."
+			title="Agregar regla de la casa"
+			description={hasProductContext && selectedProduct
+				? `La nueva regla se agregará a ${selectedProduct.name}.`
+				: "Elige el alojamiento y luego la expectativa que verá el huésped."}
 		>
 			<Card className="bg-white text-slate-800">
 				{
@@ -671,20 +740,20 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 						<form method="POST" class="grid gap-5 lg:grid-cols-6" data-house-rule-form>
 							<input type="hidden" name="action" value="create-house-rule" />
 							<label class="space-y-1 text-sm lg:col-span-2">
-								<span class="font-medium text-slate-700">Property</span>
+								<span class="font-medium text-slate-700">Alojamiento</span>
 								<select
 									name="productId"
 									class="w-full rounded-lg border border-slate-300 px-3 py-2"
 								>
-									{products.map((product) => (
-										<option value={product.id} selected={product.id === defaultProductId}>
+									{visibleProducts.map((product) => (
+										<option value={product.id} selected={product.id === selectedProductId}>
 											{product.name} · {product.productType}
 										</option>
 									))}
 								</select>
 							</label>
 							<label class="space-y-1 text-sm lg:col-span-2">
-								<span class="font-medium text-slate-700">Category</span>
+								<span class="font-medium text-slate-700">Tipo de regla</span>
 								<select
 									name="type"
 									class="w-full rounded-lg border border-slate-300 px-3 py-2"
@@ -995,7 +1064,9 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 		</Section>
 
 		<Section
-			title="Guest preview"
+			title={hasProductContext
+				? "Vista de reglas del alojamiento"
+				: "Vista de reglas para huéspedes"}
 			description="Preview how stay expectations read to guests. This keeps provider setup connected to the booking-page mental model."
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
@@ -1027,7 +1098,7 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 									href={routes.productPreview(selectedPreview.product.id)}
 									variant="secondary"
 								>
-									Review full listing
+									Ver ficha completa
 								</Button>
 							</div>
 						</div>
@@ -1088,8 +1159,10 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 		</Section>
 
 		<Section
-			title="Existing house rules"
-			description="Operational property rules shown by product. These rules are not pricing or cancellation logic."
+			title={hasProductContext ? "Reglas de este alojamiento" : "Reglas existentes"}
+			description={hasProductContext
+				? "Lista compacta de reglas que pertenecen a la ficha seleccionada."
+				: "Reglas por alojamiento. No son precios, restricciones ni condiciones de cancelación."}
 		>
 			{
 				products.length === 0 ? (
@@ -1098,7 +1171,7 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 					</Card>
 				) : (
 					<div class="space-y-4">
-						{products.map((product) => {
+						{visibleProducts.map((product) => {
 							const rules = rulesByProduct.get(product.id) ?? []
 							return (
 								<Card className="bg-white text-slate-800">

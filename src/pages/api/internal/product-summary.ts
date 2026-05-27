@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductFullAggregate } from "@/modules/catalog/public"
+import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { listHouseRulesByProduct } from "@/modules/house-rules/public"
 
 function toLowerTrim(value: string | null | undefined): string {
@@ -48,7 +48,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 	}
 
-	const aggregate = await getProductFullAggregate(productId, providerId)
+	const [aggregate, variantsAggregate] = await Promise.all([
+		getProductFullAggregate(productId, providerId),
+		getProductVariantsAggregate(productId, providerId),
+	])
 	if (!aggregate) {
 		logEndpoint()
 		return new Response(JSON.stringify({ error: "Not found" }), {
@@ -63,11 +66,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 		id: image.id,
 		url: image.url,
 	}))
+	const coverImage =
+		aggregate.images.find((image) => image.isPrimary) ?? aggregate.images[0] ?? null
+	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
+	const activeVariants = variants.filter((variant) => {
+		const status = toLowerTrim(variant.status)
+		return status !== "archived"
+	})
 	const hasContent = Boolean(aggregate.content.description?.trim())
 	const hasLocation = Boolean(aggregate.location.lat !== null && aggregate.location.lng !== null)
 	const hasImages = imagesCount > 0
 	const hasSubtype = Boolean(aggregate.subtype)
-	const hasVariants = false
+	const hasVariants = activeVariants.length > 0
+	const roomNames = activeVariants
+		.map((variant) => String(variant.name ?? "").trim())
+		.filter(Boolean)
+		.slice(0, 3)
 	const houseRules = await listHouseRulesByProduct(productId)
 	const houseRuleTypes = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
 	const essentialHouseRuleTypes = [
@@ -148,6 +162,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 			images: {
 				count: imagesCount,
 				previews: imagePreviews,
+				cover: coverImage
+					? {
+							id: coverImage.id,
+							url: coverImage.url,
+						}
+					: null,
+			},
+			variants: {
+				count: activeVariants.length,
+				names: roomNames,
+				hasActiveRooms: hasVariants,
 			},
 			subtype: {
 				summary: subtypeSummary,
