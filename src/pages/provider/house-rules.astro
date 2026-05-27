@@ -422,23 +422,23 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 }))
 ---
 
-<WorkspaceLayout title="House Rules">
+<WorkspaceLayout title="Reglas de la casa">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Property Content · Guest Expectations
+					Contenido del alojamiento · Reglas para huéspedes
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">House Rules</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Reglas de la casa</h1>
 				<p class="max-w-4xl text-sm leading-6 text-slate-300">
-					Define how guests should behave and how the property operates during a stay. House Rules
-					do not set prices, discounts, refund penalties, inventory, or sellability blocks.
+					Define cómo deben comportarse los huéspedes y cómo funciona el alojamiento durante la
+					estadía. Estas reglas no cambian precios, descuentos, penalidades, inventario ni venta.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.productList()} variant="secondary">Catalog Readiness</Button>
-				<Button href={routes.providerPolicies()} variant="secondary">Booking Policies</Button>
-				<Button href={routes.pricing()} variant="secondary">Pricing</Button>
+				<Button href={routes.productList()} variant="secondary">Alojamientos</Button>
+				<Button href={routes.providerPolicies()} variant="secondary">Condiciones</Button>
+				<Button href={routes.pricing()} variant="secondary">Calendario de precios</Button>
 			</div>
 		</header>
 
@@ -571,15 +571,17 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 							))}
 						</div>
 					) : (
-						<p class="text-sm text-slate-600">Create a property before using quick setup.</p>
+						<p class="text-sm text-slate-600">
+							Crea un alojamiento antes de usar la configuración rápida.
+						</p>
 					)
 				}
 			</Card>
 		</section>
 
 		<Section
-			title="Listing readiness by property"
-			description="House Rules now participates in listing confidence as stay expectations readiness. It is visible here before publishing, but it does not change price, sellability or contract terms."
+			title="Preparación por alojamiento"
+			description="Reglas de la casa participa en la confianza de publicación como expectativas de estadía. No cambia precio, venta ni condiciones contractuales."
 		>
 			<div class="grid gap-4 lg:grid-cols-2">
 				{
@@ -630,14 +632,14 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 										variant="secondary"
 										size="sm"
 									>
-										Review listing
+										Vista previa
 									</Button>
 									<Button
 										href={routes.productDetail(item.product.id)}
 										variant="secondary"
 										size="sm"
 									>
-										Readiness
+										Alojamiento
 									</Button>
 								</div>
 							</Card>
@@ -694,11 +696,11 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 								</select>
 							</label>
 							<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 lg:col-span-2">
-								<p class="font-semibold text-slate-900">Ownership guardrail</p>
+								<p class="font-semibold text-slate-900">Separación operativa</p>
 								<p class="mt-1">
-									Use House Rules for property-use expectations. Use Pricing for promotions and
-									discounts, Booking Policies for refund/payment terms, and Restrictions for
-									sellability.
+									Usa Reglas de la casa para expectativas de uso del alojamiento. Usa Calendario de
+									precios para precios, Condiciones para pagos/cancelación y Restricciones para
+									vendibilidad.
 								</p>
 							</div>
 							<div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950 lg:col-span-6">
@@ -1015,10 +1017,10 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 						<div class="rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-950">
 							<div class="flex flex-wrap items-center justify-between gap-3">
 								<div>
-									<p class="text-sm font-semibold">Part of publish readiness</p>
+									<p class="text-sm font-semibold">Parte de la preparación para publicar</p>
 									<p class="mt-1 text-sm">
-										Open the consolidated guest preview to review content, photos, booking terms and
-										House Rules together before publishing.
+										Abre la vista previa para revisar contenido, fotos, condiciones y reglas de la
+										casa antes de publicar.
 									</p>
 								</div>
 								<Button

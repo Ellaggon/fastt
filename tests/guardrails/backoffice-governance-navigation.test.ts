@@ -149,9 +149,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 	it("keeps navigation organized by enterprise ownership instead of generic buckets", () => {
 		const sectionTitles = enterpriseNavigation.map((section) => section.title)
-		expect(sectionTitles).toContain("Rooms & Rates")
-		expect(sectionTitles).toContain("Administration & Governance")
-		expect(sectionTitles).toContain("Connectivity")
+		expect(sectionTitles).toContain("Habitaciones y tarifas")
+		expect(sectionTitles).toContain("Administración")
+		expect(sectionTitles).toContain("Conectividad")
 		expect(sectionTitles).not.toContain("System")
 		expect(sectionTitles).not.toContain("Financial Control")
 
@@ -232,6 +232,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("keeps enterprise navigation targets compatible with route classifications", () => {
+		const sectionOwnerAliases: Record<string, string[]> = {
+			"Inicio": ["Command Center"],
+			"Habitaciones y tarifas": ["Rooms & Rates"],
+			"Reservas": ["Reservations"],
+			"Contenido del alojamiento": ["Property Content"],
+			"Pagos y finanzas": ["Payments & Finance"],
+			"Analítica": ["Analytics & Performance"],
+			"Conectividad": ["Connectivity"],
+			"Administración": ["Administration & Governance"],
+		}
 		const violations = enterpriseNavigation.flatMap((section) =>
 			section.items.flatMap((item) => {
 				const classification = matchingClassification(item.href)
@@ -242,7 +252,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 						`${section.title}/${item.label}: nav=${item.status}, route=${classification.status}`
 					)
 				}
-				if (classification.owner !== section.title) {
+				if (
+					!(sectionOwnerAliases[section.title] ?? [section.title]).includes(classification.owner)
+				) {
 					mismatches.push(
 						`${section.title}/${item.label}: section does not match owner ${classification.owner}`
 					)
@@ -278,11 +290,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("keeps Rooms & Rates as an enterprise ARI hub with explicit ownership lanes", () => {
-		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
+		const roomsAndRates = enterpriseNavigation.find(
+			(section) => section.title === "Habitaciones y tarifas"
+		)
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("tariffs")
-		expect(roomsAndRates?.operationalIntent).toContain("sale restrictions")
+		expect(roomsAndRates?.operationalIntent).toContain("tarifas")
+		expect(roomsAndRates?.operationalIntent).toContain("restricciones de venta")
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
@@ -307,7 +321,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			roomsAndRates?.items.find((item) => item.label === "Restricciones de venta")?.status
 		).toEqual("canonical")
 		expect(roomsAndRates?.planned).toEqual(
-			expect.arrayContaining(["Occupancy Pricing", "Audit History"])
+			expect.arrayContaining(["Pricing por ocupación", "Historial de auditoría"])
 		)
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Inventory Calendar")
@@ -412,9 +426,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(topbarSource).not.toContain("getOperationalContextMetadata")
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
-		expect(sidebarSource).toContain("OTA Enterprise Workspace")
+		expect(sidebarSource).toContain("Panel del proveedor")
 		expect(sidebarSource).toContain("section.planned")
-		expect(sidebarSource).toContain("Roadmap markers")
+		expect(sidebarSource).toContain("Próximamente")
 		expect(sidebarSource).not.toContain(
 			'<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">\n\t\t\t\t\t\t\tPlanned'
 		)

@@ -58,42 +58,42 @@ const getStatusMeta = (rawState: string | undefined) => {
 }
 ---
 
-<WorkspaceLayout title="Property Content · Catalog Readiness">
+<WorkspaceLayout title="Contenido del alojamiento · Alojamientos">
 	<section class="space-y-8">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Catalog worklist</h1>
+			<h1 class="text-3xl font-semibold text-slate-100">Alojamientos</h1>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">
-				Revisa contenido, fotos, House Rules, Booking Policies y la vista huésped antes de publicar.
-				Las señales comerciales y físicas se mantienen como contexto, no como ownership editorial.
+				Revisa contenido, fotos, reglas de la casa, condiciones y vista previa antes de publicar.
+				Las tarifas, inventario y restricciones viven en Habitaciones y tarifas.
 			</p>
 		</header>
 
 		<section class="grid gap-4 md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Catalog items</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Alojamientos</p>
 				<p class="mt-2 text-2xl font-semibold">{totalProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Productos bajo ownership editorial</p>
+				<p class="mt-1 text-xs text-slate-400">Alojamientos bajo edición de contenido</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Published</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Publicados</p>
 				<p class="mt-2 text-2xl font-semibold">{publishedProducts}</p>
 				<p class="mt-1 text-xs text-slate-400">Presentación pública activa</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Ready</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Listos</p>
 				<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
 				<p class="mt-1 text-xs text-slate-400">Contenido preparado para operación</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Draft</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Borradores</p>
 				<p class="mt-2 text-2xl font-semibold">{draftProducts}</p>
 				<p class="mt-1 text-xs text-slate-400">Requiere readiness editorial</p>
 			</Card>
 		</section>
 
 		<Section
-			title="Catalog worklist"
-			description="Accede a cada producto para revisar su contenido, media, ubicación, metadata y contexto de sellability."
+			title="Lista de alojamientos"
+			description="Accede a cada alojamiento para revisar contenido, fotos, ubicación, detalles y vista previa."
 		>
 			{
 				products.length === 0 ? (
@@ -101,7 +101,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes productos</h2>
 							<p class="text-sm text-slate-600">
-								Crea tu primer producto para iniciar readiness editorial y presentación comercial.
+								Crea tu primer alojamiento para preparar contenido, habitaciones y publicación.
 							</p>
 						</div>
 						<div class="flex justify-end">
@@ -110,7 +110,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 								data-astro-prefetch
 								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 							>
-								Crear producto
+								Crear alojamiento
 							</Button>
 						</div>
 					</Card>
@@ -127,8 +127,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 												Tipo: {String(product.productType ?? "No definido")}
 											</p>
 											<p class="text-sm text-slate-500">
-												Review combines content, photos, booking terms and House Rules into one
-												guest-facing pre-publish check.
+												Contenido, fotos, reglas y condiciones se revisan antes de publicar.
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center justify-end gap-3">
@@ -138,14 +137,14 @@ const getStatusMeta = (rawState: string | undefined) => {
 												data-astro-prefetch
 												variant="secondary"
 											>
-												Review listing
+												Vista previa
 											</Button>
 											<Button
 												href={routes.productDetail(product.id)}
 												data-astro-prefetch
 												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 											>
-												Abrir readiness
+												Editar alojamiento
 											</Button>
 										</div>
 									</div>
@@ -158,24 +157,24 @@ const getStatusMeta = (rawState: string | undefined) => {
 		</Section>
 
 		<Section
-			title="Editorial workflow"
-			description="El alta crea identidad de catálogo; House Rules prepara expectativas de estancia, mientras pricing, inventario y reservas se gobiernan en sus dominios operacionales."
+			title="Flujo de publicación"
+			description="El alojamiento concentra presentación, reglas y vista previa; habitaciones, tarifas e inventario se gestionan en sus secciones."
 		>
 			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
 				<p class="text-sm text-slate-600">
-					Property Content prepara la presentación vendible: contenido, House Rules, media,
-					ubicación, metadata y revisión guest-facing antes de publicar.
+					Contenido del alojamiento prepara la presentación vendible: contenido, reglas de la casa,
+					fotos, ubicación, detalles y vista previa antes de publicar.
 				</p>
 				<div class="flex flex-wrap gap-2">
 					<Button href="/provider/house-rules" data-astro-prefetch variant="secondary">
-						Configurar House Rules
+						Configurar reglas
 					</Button>
 					<Button
 						href="/product/create"
 						data-astro-prefetch
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
-						Crear producto
+						Crear alojamiento
 					</Button>
 				</div>
 			</Card>

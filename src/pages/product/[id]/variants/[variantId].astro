@@ -24,17 +24,17 @@ const owned = await productRepository.ensureProductOwnedByProvider(productId, pr
 if (!owned) return Astro.redirect("/product/create")
 ---
 
-<WorkspaceLayout title="Physical Context · Variant Detail">
+<WorkspaceLayout title="Contenido del alojamiento · Habitación">
 	<section class="space-y-8">
 		<header class="space-y-4">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
 					<h1 id="variantTitle" class="text-3xl font-semibold text-slate-100">
-						Cargando variante...
+						Cargando habitación...
 					</h1>
 					<p class="text-sm text-slate-400">
-						Gestiona capacidad, subtipo e inventario físico. La cobertura comercial se resuelve en
-						Rooms & Rates.
+						Gestiona capacidad, tipo de habitación, fotos e inventario base. Tarifas y precios se
+						resuelven en Habitaciones y tarifas.
 					</p>
 				</div>
 				<div class="flex items-center gap-3">
@@ -58,8 +58,8 @@ if (!owned) return Astro.redirect("/product/create")
 		</header>
 
 		<Section
-			title="Physical readiness"
-			description="Estado operativo de los bloques físicos y handoff comercial relacionado."
+			title="Estado de la habitación"
+			description="Estado operativo de capacidad, tipo, inventario base y handoff comercial relacionado."
 		>
 			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
 				<div class="space-y-4">
@@ -86,7 +86,7 @@ if (!owned) return Astro.redirect("/product/create")
 
 		<Section
 			title="Bloques de configuración"
-			description="Completa los bloques físicos; abre Rooms & Rates solo para cobertura comercial."
+			description="Completa los bloques físicos; abre Habitaciones y tarifas solo para cobertura comercial."
 		>
 			<div id="variantBlocks" class="grid gap-4 md:grid-cols-2">
 				{
@@ -429,7 +429,7 @@ if (!owned) return Astro.redirect("/product/create")
 				const blockingList = document.getElementById("blockingErrorsList")
 				const nonBlockingList = document.getElementById("nonBlockingErrorsList")
 
-				if (variantTitle) variantTitle.textContent = String(payload?.variant?.name ?? "Variante")
+				if (variantTitle) variantTitle.textContent = String(payload?.variant?.name ?? "Habitación")
 				if (variantStatusBadge) {
 					variantStatusBadge.textContent = String(payload?.variant?.statusLabel ?? "Borrador")
 					variantStatusBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
