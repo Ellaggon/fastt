@@ -3,10 +3,12 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
+import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
 import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
+import { guessRatePlanIntentId, ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
 
@@ -20,7 +22,7 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 void auth
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
-if (!ratePlanId) return Astro.redirect(routes.ratePlansHub())
+if (!ratePlanId) return Astro.redirect(routes.ratePlansList())
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const row = await loadRatePlanReadModelById({
@@ -32,7 +34,7 @@ const row = await loadRatePlanReadModelById({
 })
 
 if (!row) {
-	return new Response("Rate plan no encontrado", { status: 404 })
+	return new Response("Tarifa no encontrada", { status: 404 })
 }
 
 const loadedRatePlan = await loadRatePlanPricingData({
@@ -45,113 +47,325 @@ const { loaded } = loadedRatePlan
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
 const policyReady = Boolean(row.policyCoverage?.isComplete)
 const hasCommercialBaseline = Number(String(loaded.initialBasePrice ?? 0)) > 0
+const restrictionCount = Number(row.summary?.activeRestrictionsCount ?? 0)
+const guessedIntentId = guessRatePlanIntentId(row.ratePlanName)
+const saleStatusLabel = row.isActive
+	? policyReady && hasCommercialBaseline
+		? "Lista para vender"
+		: "Necesita revisión"
+	: "Inactiva"
+const saleStatusVariant =
+	row.isActive && policyReady && hasCommercialBaseline ? "success" : "warning"
 ---
 
-<WorkspaceLayout title="Rate Plan · Detalle">
+<WorkspaceLayout title="Tarifa · Detalle">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Rooms & Rates · Commercial Layer
+					Habitaciones y tarifas · Tarifa
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Rate Plan Commercial Hub</h1>
-				<p class="text-sm text-slate-300">
-					Subhub rate-plan-first: producto comercial, cobertura de precio, vendibilidad y contrato
-					de reserva con contexto físico relacionado.
-				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
+				<p class="text-sm text-slate-300">{row.productName} · {row.variantName}</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button href={routes.ratePlansHub()} variant="secondary">Volver al hub</Button>
-				<Button href={routes.ratePlanPricing(String(row.ratePlanId))} variant="secondary"
-					>Gestionar cobertura comercial</Button
-				>
+				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
+				<Button href={routes.pricing()} variant="primary">Calendario de precios</Button>
 				<Button href={routes.ratePlanPolicies(String(row.ratePlanId))} variant="secondary"
-					>Gestionar condiciones</Button
+					>Condiciones</Button
 				>
 			</div>
 		</header>
 
 		<Section
-			title="Readiness comercial"
-			description="Estado operativo de venta del rate plan. El producto y la variante son contexto físico; el rate plan mantiene el ownership comercial."
+			title="Ficha de tarifa"
+			description="Resumen operativo de la oferta que el huésped puede comprar."
 		>
-			<div class="grid gap-4 md:grid-cols-2">
-				<Card className="bg-white text-slate-800">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Condiciones de reserva</p>
-					<p class="mt-2 text-base font-semibold text-slate-900">
-						{policyReady ? "Listas para vender" : "Faltan condiciones por completar"}
-					</p>
-					<p class="mt-1 text-sm text-slate-600">Cobertura: {policyCoverageDone}/4 categorías</p>
-					<div class="mt-3">
-						<Badge variant={policyReady ? "success" : "warning"}>
-							{policyReady ? "Condiciones completas" : "Configuración incompleta"}
-						</Badge>
+			<Card className="space-y-6 bg-white text-slate-800">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div class="space-y-2">
+						<div class="flex flex-wrap items-center gap-2">
+							<Badge variant={saleStatusVariant}>{saleStatusLabel}</Badge>
+							<Badge variant={row.isActive ? "success" : "warning"}>
+								{row.isActive ? "Activa" : "Inactiva"}
+							</Badge>
+							{row.isDefault && <Badge variant="info">Principal</Badge>}
+						</div>
+						<div>
+							<p class="text-xs uppercase tracking-wide text-slate-500">Tarifa</p>
+							<p class="mt-1 text-xl font-semibold text-slate-950">{row.ratePlanName}</p>
+							<p class="mt-1 text-sm text-slate-600">
+								{row.productName} · {row.variantName}
+							</p>
+						</div>
 					</div>
-				</Card>
-				<Card className="bg-white text-slate-800">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Baseline comercial</p>
-					<p class="mt-2 text-base font-semibold text-slate-900">
-						{loaded.initialCurrency}
-						{loaded.initialBasePrice || "No configurada"}
-					</p>
-					<p class="mt-1 text-sm text-slate-600">
-						{
-							hasCommercialBaseline
-								? "Baseline comercial operativo"
-								: "Baseline comercial pendiente"
-						}
-					</p>
-					<div class="mt-3">
-						<Badge variant={hasCommercialBaseline ? "success" : "warning"}>
-							{hasCommercialBaseline ? "Cobertura lista" : "Cobertura pendiente"}
-						</Badge>
+					<div class="flex flex-wrap items-center gap-2">
+						<Button href={routes.pricing()} variant="primary" size="sm">
+							Calendario de precios
+						</Button>
+						<Button
+							href={routes.ratePlanPolicies(String(row.ratePlanId))}
+							variant="secondary"
+							size="sm"
+						>
+							Condiciones
+						</Button>
+						<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
+							Restricciones de venta
+						</Button>
 					</div>
-				</Card>
-			</div>
-		</Section>
+				</div>
 
-		<Section
-			title="Datos de la tarifa"
-			description="Información comercial relevante para identificar la tarifa."
-		>
-			<Card className="bg-white text-slate-800">
-				<div class="grid gap-4 md:grid-cols-2">
-					<div>
-						<p class="text-xs uppercase tracking-wide text-slate-500">Rate Plan</p>
-						<p class="mt-1 text-lg font-semibold">{row.ratePlanName}</p>
-						<p class="text-sm text-slate-600">
-							{row.policySummary ?? "Sin resumen de condiciones"}
+				<div class="grid gap-3 md:grid-cols-4">
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs uppercase tracking-wide text-slate-500">Precio base</p>
+						<p class="mt-1 text-lg font-semibold text-slate-950">
+							{loaded.initialCurrency}
+							{loaded.initialBasePrice || "Sin configurar"}
+						</p>
+						<p class="mt-1 text-xs text-slate-500">Punto de partida de esta tarifa.</p>
+					</div>
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs uppercase tracking-wide text-slate-500">Condiciones</p>
+						<p class="mt-1 text-lg font-semibold text-slate-950">
+							{policyCoverageDone}/4
+						</p>
+						<p class="mt-1 text-xs text-slate-500">
+							{policyReady ? "Listas para vender." : "Falta completar condiciones."}
 						</p>
 					</div>
-					<div class="space-y-1">
-						<p class="text-sm text-slate-700">
-							Producto: <span class="font-medium">{row.productName}</span>
-						</p>
-						<p class="text-sm text-slate-700">
-							Contexto físico relacionado: <span class="font-medium">{row.variantName}</span>
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs uppercase tracking-wide text-slate-500">Restricciones de venta</p>
+						<p class="mt-1 text-lg font-semibold text-slate-950">{restrictionCount}</p>
+						<p class="mt-1 text-xs text-slate-500">
+							{restrictionCount > 0 ? "Hay controles activos." : "Sin controles activos."}
 						</p>
 					</div>
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs uppercase tracking-wide text-slate-500">Ayudas recurrentes</p>
+						<p class="mt-1 text-lg font-semibold text-slate-950">
+							{row.summary?.priceRulesCount ?? 0}
+						</p>
+						<p class="mt-1 text-xs text-slate-500">Actúan después sobre el calendario.</p>
+					</div>
 				</div>
-				<div class="mt-4 flex flex-wrap items-center gap-2">
-					<Badge variant={row.isActive ? "success" : "warning"}
-						>{row.isActive ? "Activo" : "Inactivo"}</Badge
-					>
-					{row.isDefault && <Badge variant="info">Plan comercial principal</Badge>}
-					<Badge variant="neutral">Reglas de precio: {row.summary?.priceRulesCount ?? 0}</Badge>
-					<Badge variant="neutral"
-						>Señales de restricción: {row.summary?.activeRestrictionsCount ?? 0}</Badge
-					>
-				</div>
-				<p class="mt-3 text-xs text-slate-500">
-					Las señales de restricción pertenecen al dominio de vendibilidad: indican cuándo una
-					estadía puede venderse sin mezclar precio, inventario físico ni contrato de reserva.
+
+				<p class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+					{row.policySummary ?? "Sin resumen de condiciones todavía."}
 				</p>
-				<div class="mt-3">
-					<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
-						Ver Restrictions
-					</Button>
-				</div>
+
+				<details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+					<summary class="cursor-pointer text-sm font-semibold text-slate-800">
+						Editar precio base
+					</summary>
+					<div class="mt-4">
+						<RatePlanPricingSurface
+							ratePlanId={String(row.ratePlanId)}
+							initialCurrency={loaded.initialCurrency}
+							initialBasePrice={loaded.initialBasePrice}
+							backHref={routes.ratePlansList()}
+						/>
+					</div>
+				</details>
+
+				<details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+					<summary class="cursor-pointer text-sm font-semibold text-slate-800">
+						Editar intención de tarifa
+					</summary>
+					<form
+						class="mt-4 space-y-4"
+						data-rate-plan-intent-edit-form
+						data-rate-plan-id={String(row.ratePlanId)}
+					>
+						<p class="text-sm leading-6 text-slate-600">
+							Usa esto cuando la oferta cambia de propósito: flexible, no reembolsable, estadía
+							larga o anticipada. El precio base se edita aparte.
+						</p>
+						<div class="grid gap-3 md:grid-cols-4">
+							{
+								ratePlanIntentPresets.map((preset) => {
+									const active = preset.id === guessedIntentId
+									return (
+										<button
+											type="button"
+											class={`rounded-2xl border p-3 text-left text-sm transition hover:border-slate-400 ${
+												active
+													? "border-slate-950 bg-slate-950 text-white"
+													: "border-slate-200 bg-white text-slate-800"
+											}`}
+											data-rate-plan-intent-edit-card
+											data-intent-id={preset.id}
+											data-name={preset.name}
+											data-description={preset.description}
+											data-payment-type={preset.paymentType}
+											data-refundable={String(preset.refundable)}
+											data-type={preset.type}
+											data-value={String(preset.value)}
+											data-min-nights={String(preset.minNights ?? "")}
+											data-min-advance-days={String(preset.minAdvanceDays ?? "")}
+										>
+											<span class="block font-semibold">{preset.name}</span>
+											<span class="mt-1 block text-xs leading-5 opacity-80">{preset.summary}</span>
+										</button>
+									)
+								})
+							}
+						</div>
+						<div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Nombre visible</span>
+								<input
+									name="name"
+									class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+									value={row.ratePlanName}
+									required
+								/>
+							</label>
+							<button
+								type="submit"
+								class="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+							>
+								Guardar intención
+							</button>
+						</div>
+						<label class="flex items-center gap-2 text-sm text-slate-700">
+							<input name="isActive" type="checkbox" class="h-4 w-4" checked={row.isActive} />
+							Tarifa activa
+						</label>
+						<input
+							type="hidden"
+							name="description"
+							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
+								?.description ?? ratePlanIntentPresets[0].description}
+						/>
+						<input
+							type="hidden"
+							name="paymentType"
+							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
+								?.paymentType ?? ratePlanIntentPresets[0].paymentType}
+						/>
+						<input
+							type="hidden"
+							name="refundable"
+							value={String(
+								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.refundable ??
+									ratePlanIntentPresets[0].refundable
+							)}
+						/>
+						<input
+							type="hidden"
+							name="type"
+							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.type ??
+								ratePlanIntentPresets[0].type}
+						/>
+						<input
+							type="hidden"
+							name="value"
+							value={String(
+								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.value ??
+									ratePlanIntentPresets[0].value
+							)}
+						/>
+						<input
+							type="hidden"
+							name="minNights"
+							value={String(
+								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.minNights ??
+									""
+							)}
+						/>
+						<input
+							type="hidden"
+							name="minAdvanceDays"
+							value={String(
+								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
+									?.minAdvanceDays ?? ""
+							)}
+						/>
+						<p class="text-sm text-slate-500" data-rate-plan-intent-edit-feedback>
+							La intención cambia cómo se presenta y qué reglas simples acompañan la tarifa.
+						</p>
+					</form>
+				</details>
 			</Card>
 		</Section>
 	</div>
 </WorkspaceLayout>
+
+<script>
+	function setEditHiddenValue(
+		form: Element | null | undefined,
+		name: string,
+		value: string | undefined
+	) {
+		const input = form?.querySelector<HTMLInputElement>(`[name="${name}"]`)
+		if (input) input.value = value ?? ""
+	}
+
+	function applyEditIntentPreset(card: HTMLElement) {
+		const form = card.closest("[data-rate-plan-intent-edit-form]")
+		if (!form) return
+		form.querySelectorAll("[data-rate-plan-intent-edit-card]").forEach((item) => {
+			const active = item === card
+			item.classList.toggle("border-slate-950", active)
+			item.classList.toggle("bg-slate-950", active)
+			item.classList.toggle("text-white", active)
+			item.classList.toggle("border-slate-200", !active)
+			item.classList.toggle("bg-white", !active)
+			item.classList.toggle("text-slate-800", !active)
+		})
+		setEditHiddenValue(form, "name", card.dataset.name)
+		setEditHiddenValue(form, "description", card.dataset.description)
+		setEditHiddenValue(form, "paymentType", card.dataset.paymentType)
+		setEditHiddenValue(form, "refundable", card.dataset.refundable)
+		setEditHiddenValue(form, "type", card.dataset.type)
+		setEditHiddenValue(form, "value", card.dataset.value)
+		setEditHiddenValue(form, "minNights", card.dataset.minNights)
+		setEditHiddenValue(form, "minAdvanceDays", card.dataset.minAdvanceDays)
+	}
+
+	document.querySelectorAll<HTMLElement>("[data-rate-plan-intent-edit-card]").forEach((card) => {
+		card.addEventListener("click", () => applyEditIntentPreset(card))
+	})
+
+	document
+		.querySelectorAll<HTMLFormElement>("[data-rate-plan-intent-edit-form]")
+		.forEach((form) => {
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				const feedback = form.querySelector("[data-rate-plan-intent-edit-feedback]")
+				const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+				const formData = new FormData(form)
+				const payload = {
+					id: form.dataset.ratePlanId,
+					name: String(formData.get("name") || ""),
+					description: String(formData.get("description") || ""),
+					paymentType: String(formData.get("paymentType") || ""),
+					refundable: String(formData.get("refundable") || "") === "true",
+					type: String(formData.get("type") || "package"),
+					value: Number(formData.get("value") || 0),
+					minNights: Number(formData.get("minNights") || 0) || undefined,
+					minAdvanceDays: Number(formData.get("minAdvanceDays") || 0) || undefined,
+					isActive: Boolean(formData.get("isActive")),
+				}
+				if (feedback) feedback.textContent = "Guardando intención..."
+				submit?.setAttribute("disabled", "true")
+				try {
+					const response = await fetch("/api/rateplans/update", {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+					})
+					const result = await response.json().catch(() => null)
+					if (!response.ok) throw new Error(result?.error || "No se pudo guardar la intención")
+					window.location.reload()
+				} catch (error) {
+					if (feedback) {
+						feedback.textContent =
+							error instanceof Error ? error.message : "No se pudo guardar la intención"
+					}
+					submit?.removeAttribute("disabled")
+				}
+			})
+		})
+</script>

@@ -774,41 +774,36 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		subtitle: "ARI ownership and sellability",
 		owner: "Commercial Operations",
 		context: "enterprise-operations",
-		operationalIntent: "Manage rate plans, pricing, inventory, restrictions, and booking policies.",
+		operationalIntent:
+			"Manage tariffs, pricing calendar, inventory, sale restrictions, and conditions.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Rooms & Rates Hub",
-				href: routes.ratePlansHub(),
-				status: "canonical",
-				summary: "ARI command center for pricing, inventory, restrictions, and policy readiness.",
-			},
-			{
-				label: "Planes tarifarios",
+				label: "Tarifas",
 				href: routes.ratePlansList(),
 				status: "canonical",
 				summary: "Commercial products sold through variants: setup, readiness, and handoffs.",
 			},
 			{
-				label: "Precios",
+				label: "Calendario de precios",
 				href: routes.pricing(),
 				status: "canonical",
 				summary: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
 			},
 			{
-				label: "Inventory",
+				label: "Inventario",
 				href: routes.inventory(),
 				status: "canonical",
 				summary: "Calendar-first physical capacity, availability, and quick inventory edits.",
 			},
 			{
-				label: "Restricciones",
+				label: "Restricciones de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
 				summary: "Official sellability domain for LOS, CTA/CTD, stop-sell, and booking windows.",
 			},
 			{
-				label: "Booking Policies",
+				label: "Condiciones",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
@@ -975,21 +970,14 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"RatePlan-first ownership for commercial products, price coverage, pricing automation, and commercial handoffs.",
 		surfaces: [
 			{
-				label: "Rooms & Rates Hub",
-				href: routes.ratePlansHub(),
-				status: "canonical",
-				owner: "Rooms & Rates",
-				description: "ARI command surface for domain health, blockers, and operating handoffs.",
-			},
-			{
-				label: "Planes tarifarios",
+				label: "Tarifas",
 				href: routes.ratePlansList(),
 				status: "canonical",
 				owner: "Rooms & Rates",
 				description: "Explicit rate-plan maintenance surface for commercial products.",
 			},
 			{
-				label: "Precios",
+				label: "Calendario de precios",
 				href: routes.pricing(),
 				status: "canonical",
 				owner: "Rooms & Rates",
@@ -1012,7 +1000,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				description: "Catalog and room-type setup that provides physical context for inventory.",
 			},
 			{
-				label: "Inventory",
+				label: "Inventario",
 				href: routes.inventory(),
 				status: "canonical",
 				owner: "Rooms & Rates",
@@ -1036,7 +1024,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Restrictions own sellability while booking policies own reservation contract terms; neither is a pricing engine.",
 		surfaces: [
 			{
-				label: "Restricciones",
+				label: "Restricciones de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
 				owner: "Rooms & Rates",
@@ -1044,7 +1032,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 					"Official sellability domain for LOS, CTA/CTD, stop-sell, and booking-window controls.",
 			},
 			{
-				label: "Booking Policies",
+				label: "Condiciones",
 				href: routes.providerPolicies(),
 				status: "transitional",
 				owner: "Rooms & Rates",

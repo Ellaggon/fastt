@@ -7,11 +7,33 @@ function read(path: string) {
 }
 
 describe("ui/rateplan-first modern surfaces", () => {
-	it("pricing page moderna pasa solo ratePlanId al surface", () => {
-		const source = read("src/pages/rates/plans/[ratePlanId]/pricing.astro")
-		expect(source).toContain("<RatePlanPricingSurface")
-		expect(source).toContain("ratePlanId={ownerContext.ratePlanId}")
-		expect(source).not.toContain("variantId={ownerContext.variantId}")
+	it("precio base vive en la ficha de tarifa, no en una pagina paralela de pricing", () => {
+		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		expect(
+			existsSync(resolve(process.cwd(), "src/pages/rates/plans/[ratePlanId]/pricing.astro"))
+		).toBe(false)
+		expect(detail).toContain("<RatePlanPricingSurface")
+		expect(detail).toContain("Editar precio base")
+		expect(detail).toContain("ratePlanId={String(row.ratePlanId)}")
+		expect(detail).not.toContain("routes.ratePlanPricing")
+	})
+
+	it("crear y editar tarifas empieza por intención humana", () => {
+		const manage = read("src/pages/rates/plans/manage.astro")
+		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		const presets = read("src/lib/rates/ratePlanIntentPresets.ts")
+
+		expect(presets).toContain("Tarifa flexible")
+		expect(presets).toContain("No reembolsable")
+		expect(presets).toContain("Estadía larga")
+		expect(presets).toContain("Anticipada")
+		expect(manage).toContain("Elige una intención comercial")
+		expect(manage).toContain("data-rate-plan-intent-form")
+		expect(manage).toContain("data-rate-plan-intent-card")
+		expect(manage).not.toContain("Nombre del plan")
+		expect(detail).toContain("Editar intención de tarifa")
+		expect(detail).toContain("data-rate-plan-intent-edit-form")
+		expect(detail).toContain("El precio base se edita aparte")
 	})
 
 	it("pricing surface moderna envía solo ratePlanId", () => {

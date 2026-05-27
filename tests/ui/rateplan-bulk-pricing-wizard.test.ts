@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
@@ -8,14 +8,10 @@ function read(path: string) {
 
 describe("ui/pricing contextual extension", () => {
 	it("rate plans no longer expose a separate pricing bulk surface", () => {
-		const hub = read("src/pages/rates/plans/index.astro")
 		const manage = read("src/pages/rates/plans/manage.astro")
 		const routes = read("src/lib/routes.ts")
 
-		expect(hub).not.toContain("bulkEditOpenBtn")
-		expect(hub).not.toContain("bulkSelectAll")
-		expect(hub).not.toContain("data-rateplan-checkbox")
-		expect(hub).not.toContain("/pricing/bulk")
+		expect(existsSync(resolve(process.cwd(), "src/pages/rates/plans/index.astro"))).toBe(false)
 		expect(manage).not.toContain("pricingBulk")
 		expect(routes).not.toContain("pricingBulk")
 		expect(routes).not.toContain("/pricing/bulk")

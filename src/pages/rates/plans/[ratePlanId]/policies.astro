@@ -38,7 +38,7 @@ logFeatureFlagEvaluation({
 })
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
-if (!ratePlanId) return Astro.redirect(routes.ratePlansHub())
+if (!ratePlanId) return Astro.redirect(routes.ratePlansList())
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const loadedPolicies = await loadRatePlanPoliciesData({
 	request: Astro.request,
@@ -59,16 +59,16 @@ if (Astro.request.method === "POST") {
 }
 ---
 
-<WorkspaceLayout title="Rate Plan · Condiciones">
+<WorkspaceLayout title="Tarifa · Condiciones">
 	<section class="space-y-8 text-neutral-100">
 		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Rate Plans Hub</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Condiciones del rate plan</h1>
+			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarifas</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Condiciones de la tarifa</h1>
 			<p class="text-sm text-slate-400">
 				{context.productName} · {context.variantName} · {context.ratePlanName}
 			</p>
 			<div class="flex flex-wrap items-center gap-2 pt-2">
-				<Button href={routes.ratePlansHub()} variant="secondary">Volver al hub</Button>
+				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
 				<Button href={routes.ratePlanDetail(ratePlanId)} variant="secondary"
 					>Volver al detalle</Button
 				>

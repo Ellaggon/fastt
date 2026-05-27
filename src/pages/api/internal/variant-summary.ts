@@ -214,7 +214,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const pricingSummary = aggregate.baseRate
 		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · rate plan comercial activo" : " · falta rate plan comercial"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con pricing efectivo` : " · pricing efectivo pendiente"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
-		: "Sin baseline comercial"
+		: "Sin precio base"
 
 	logEndpoint()
 	return new Response(

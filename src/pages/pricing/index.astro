@@ -631,7 +631,7 @@ const statusVariant = {
 													</p>
 													<p class="mt-1 truncate text-[10px] font-light text-slate-600 md:text-xs">
 														<span data-pricing-selected-label class="hidden">
-															Base{" "}
+															Precio base{" "}
 														</span>
 														<span data-pricing-base-output>
 															{day.baseComponent == null
@@ -1500,11 +1500,11 @@ const statusVariant = {
 			const text = `${stage} ${error}`.toLowerCase()
 			if (text.includes("pricing_missing")) {
 				return {
-					title: "Ese plan necesita base comercial",
+					title: "Ese plan necesita precio base",
 					summary:
-						"El cambio no se puede replicar porque el plan destino todavía no tiene una base comercial lista.",
+						"El cambio no se puede replicar porque el plan destino todavía no tiene un precio base listo.",
 					action:
-						"Configura o regenera la base comercial de ese plan y vuelve a revisar la extensión.",
+						"Configura o regenera el precio base de ese plan y vuelve a revisar la extensión.",
 				}
 			}
 			if (text.includes("valid") || text.includes("required") || text.includes("missing")) {
@@ -1547,10 +1547,9 @@ const statusVariant = {
 		function automationValueHelpFor(template) {
 			if (!template) return ""
 			if (template.kind === "manual_override") return "Precio final que quedará activo."
-			if (template.kind === "fixed_discount") return "Monto que se restará a la base comercial."
-			if (template.kind === "fixed_markup") return "Monto que se sumará a la base comercial."
-			if (template.kind === "percentage_markup")
-				return "Porcentaje que se sumará a la base comercial."
+			if (template.kind === "fixed_discount") return "Monto que se restará al precio base."
+			if (template.kind === "fixed_markup") return "Monto que se sumará al precio base."
+			if (template.kind === "percentage_markup") return "Porcentaje que se sumará al precio base."
 			return template.valueSuffix || "% de descuento"
 		}
 
@@ -1953,7 +1952,7 @@ const statusVariant = {
 				extensionTargetHint.textContent =
 					availableTargetCount > 0
 						? `Hay ${availableTargetCount} ${availableTargetCount === 1 ? "plan listo" : "planes listos"} para extender este cambio.`
-						: "No hay otros planes con base comercial lista para recibir este cambio."
+						: "No hay otros planes con precio base listo para recibir este cambio."
 			}
 			const selectedTargets = getSelectedExtensionTargets().length
 			setExtensionFeedback(
@@ -1961,7 +1960,7 @@ const statusVariant = {
 					? `${selectedTargets} ${selectedTargets === 1 ? "plan seleccionado" : "planes seleccionados"}. Revisa el impacto antes de extender.`
 					: availableTargetCount > 0
 						? "Selecciona planes y revisa antes de guardar."
-						: "Primero configura una base comercial en otro plan para poder extender este cambio."
+						: "Primero configura un precio base en otro plan para poder extender este cambio."
 			)
 			resetExtensionReview()
 		}
@@ -2145,7 +2144,7 @@ const statusVariant = {
 				summary: canApply
 					? `El cambio se extenderá a ${summary.changedPlans} planes y ${nightsLabel(summary.changedDays)} con impacto.`
 					: operationCopy.extension?.noApplicableSummary ||
-						"No encontramos planes con base comercial lista para recibir este cambio. Revisa el detalle del plan destino.",
+						"No encontramos planes con precio base listo para recibir este cambio. Revisa el detalle del plan destino.",
 				chips: [
 					formatRangeLabel(selectedRange),
 					`${getSelectedExtensionTargets().length} planes elegidos`,

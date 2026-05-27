@@ -55,8 +55,9 @@ const physicalContextFiles = [
 describe("Guardrail: Rooms & Rates operational semantics", () => {
 	it("blocks legacy pricing language from active Rooms & Rates surfaces", () => {
 		const bannedCopy = [
-			/Precio base/i,
 			/Tarifa base/i,
+			/Baseline comercial/i,
+			/Base comercial/i,
 			/Rate plan por defecto/i,
 			/plan por defecto/i,
 			/Nueva arquitectura\s*\(fase 1\)/i,
@@ -95,19 +96,27 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		).toEqual([])
 	})
 
-	it("keeps the Rooms & Rates hub framed as operational coordination, not a link directory", () => {
-		const hub = read("src/pages/rates/plans/index.astro")
+	it("keeps Tarifas as the visible client-first surface without a duplicate hub", () => {
+		const manage = read("src/pages/rates/plans/manage.astro")
+		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		const intents = read("src/lib/rates/ratePlanIntentPresets.ts")
+		const routes = read("src/lib/routes.ts")
+		const subnav = read("src/components/pricing/PricingSubnav.astro")
 
-		expect(hub).toContain("ARI Command Center")
-		expect(hub).toContain("ARI command domains")
-		expect(hub).toContain("Operational readiness lanes")
-		expect(hub).toContain("Physical readiness")
-		expect(hub).toContain("Commercial readiness")
-		expect(hub).toContain("Sellability readiness")
-		expect(hub).toContain("La capa física")
-		expect(hub).toContain("La capa comercial")
-		expect(hub).not.toContain("Default plans")
-		expect(hub).not.toContain("window.location.href = `/rates/plans?")
+		expect(existsSync(join(process.cwd(), "src/pages/rates/plans/index.astro"))).toBe(false)
+		expect(routes).not.toContain("ratePlansHub")
+		expect(subnav).not.toContain("Hub de tarifas")
+		expect(manage).toContain("Tarifas")
+		expect(manage).toContain("Crear tarifa")
+		expect(manage).toContain("Elige una intención comercial")
+		expect(intents).toContain("Tarifa flexible")
+		expect(intents).toContain("No reembolsable")
+		expect(intents).toContain("Estadía larga")
+		expect(intents).toContain("Anticipada")
+		expect(manage).not.toContain("Nombre del plan")
+		expect(detail).toContain("Ficha de tarifa")
+		expect(detail).toContain("Editar intención de tarifa")
+		expect(detail).not.toContain("Rate Plans")
 	})
 
 	it("keeps restrictions as the active sellability surface with operational controls", () => {
@@ -139,11 +148,11 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		)
 
 		expect(governance).toContain("Official sellability domain")
-		expect(governance).toContain("Restrictions")
+		expect(governance).toContain("Restricciones de venta")
 		expect(governance).toContain('pattern: "/rates/restrictions",\n\t\tstatus: "canonical"')
 		expect(governance).not.toContain('planned: ["ARI Summary", "Restrictions"')
 		expect(restrictions).toContain("Crear restriccion")
-		expect(restrictions).toContain("Bloqueos comerciales viven en Restrictions")
+		expect(restrictions).toContain("Bloqueos comerciales viven en Restricciones de venta")
 		expect(restrictions).toContain("Usa Stop Sell para cerrar venta")
 		expect(restrictions).toContain("Impacto operativo")
 		expect(restrictions).toContain("data-impact-example")
@@ -210,12 +219,12 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 
 		expect(routes).toContain('pricing: () => "/pricing"')
 		expect(routes).toContain('inventory: () => "/inventory"')
-		expect(governance).toContain('label: "Precios"')
+		expect(governance).toContain('label: "Calendario de precios"')
 		expect(governance).toContain("href: routes.pricing()")
-		expect(governance).toContain('label: "Inventory"')
+		expect(governance).toContain('label: "Inventario"')
 		expect(governance).toContain("href: routes.inventory()")
-		expect(governance).toContain('label: "Planes tarifarios"')
-		expect(governance).toContain('label: "Restricciones"')
+		expect(governance).toContain('label: "Tarifas"')
+		expect(governance).toContain('label: "Restricciones de venta"')
 		expect(governance).toContain("Contextual advanced workflow")
 		expect(governance).not.toContain('"Pricing Calendar", "Inventory Calendar"')
 		expect(pricing).toContain("Calendario de precios")
@@ -320,7 +329,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(pricing).toContain("data-pricing-selected-label")
 		expect(pricing).toContain("pricing-date-selected")
 		expect(pricing).toContain("Precio final")
-		expect(pricing).toContain("Base ")
+		expect(pricing).toContain("Precio base")
 		expect(pricing).not.toContain("Ajuste manual")
 		expect(pricing).not.toContain("Base heredada")
 		expect(pricing).toContain("Copiar precio")

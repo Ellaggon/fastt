@@ -244,7 +244,7 @@ if (!owned) return Astro.redirect("/product/create")
 					value === "pricing_invalid"
 				) {
 					return {
-						href: "/rates/plans",
+						href: "/rates/plans/manage",
 						label: "Abrir cobertura comercial",
 					}
 				}
@@ -470,8 +470,8 @@ if (!owned) return Astro.redirect("/product/create")
 							"Cobertura comercial",
 							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.pricing?.complete),
-							"/rates/plans",
-							"Abrir Rate Plans"
+							"/rates/plans/manage",
+							"Abrir tarifas"
 						),
 						blockCard(
 							"Inventario",

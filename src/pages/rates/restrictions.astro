@@ -123,16 +123,15 @@ function selected(value: string | undefined, expected: string): boolean {
 }
 ---
 
-<WorkspaceLayout title="Restrictions">
+<WorkspaceLayout title="Restricciones de venta">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
-				<h1 class="text-3xl font-semibold text-slate-100">Restrictions</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Restricciones de venta</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">{vocabulary.contextLine}</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button href={routes.ratePlansHub()} variant="secondary">ARI Hub</Button>
-				<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
+				<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
 			</div>
 		</header>
 
@@ -188,9 +187,9 @@ function selected(value: string | undefined, expected: string): boolean {
 		<Card className="border-blue-200 bg-blue-50 text-blue-950">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<p class="text-sm font-semibold">Bloqueos comerciales viven en Restrictions.</p>
+					<p class="text-sm font-semibold">Bloqueos comerciales viven en Restricciones de venta.</p>
 					<p class="mt-1 text-sm text-blue-900">
-						Usa Stop Sell para cerrar venta; Inventory solo cambia cupos fisicos, booked y held.
+						Usa Stop Sell para cerrar venta; Inventario solo cambia cupos fisicos, booked y held.
 					</p>
 				</div>
 				<Button href={routes.inventory()} variant="secondary" size="sm">Ver cupos físicos</Button>
@@ -500,7 +499,7 @@ function selected(value: string | undefined, expected: string): boolean {
 												variant="secondary"
 												size="sm"
 											>
-												Rate plan
+												Tarifa
 											</Button>
 										)}
 									</div>
@@ -730,25 +729,26 @@ function selected(value: string | undefined, expected: string): boolean {
 
 		<Section
 			title="Limites operativos"
-			description="Restrictions controla vendibilidad; los otros dominios conservan su ownership."
+			description="Restricciones de venta controla vendibilidad; los otros dominios conservan su responsabilidad."
 		>
 			<div class="grid gap-4 md:grid-cols-3">
 				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Pricing</h2>
+					<h2 class="text-base font-semibold text-slate-950">Calendario de precios</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Promociones, markups y automatizacion monetaria viven dentro de Pricing.
+						Ayudas recurrentes, ajustes y automatización monetaria viven dentro del calendario de
+						precios.
 					</p>
 				</Card>
 				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Inventory</h2>
+					<h2 class="text-base font-semibold text-slate-950">Inventario</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cupos, unidades fisicas y disponibilidad base viven en Inventory.
+						Cupos, unidades fisicas y disponibilidad base viven en Inventario.
 					</p>
 				</Card>
 				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Booking Policies</h2>
+					<h2 class="text-base font-semibold text-slate-950">Condiciones</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cancelacion, pago, no-show y check-in/out viven en Booking Policies.
+						Cancelacion, pago, no-show y check-in/out viven en Condiciones.
 					</p>
 				</Card>
 			</div>

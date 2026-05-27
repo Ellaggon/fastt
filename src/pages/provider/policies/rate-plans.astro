@@ -10,5 +10,5 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 void auth
-return Astro.redirect(routes.ratePlansHub())
+return Astro.redirect(routes.ratePlansList())
 ---

@@ -1,4 +1,5 @@
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
+import { routes } from "@/lib/routes"
 import { getRatePlanById } from "@/modules/pricing/public"
 import { buildRatePlanPoliciesSurface } from "@/modules/policies/public"
 
@@ -44,7 +45,7 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 		name?: string
 		template?: { name?: string } | null
 	} | null
-	if (!targetRatePlan?.id) return { redirectTo: "/rates/plans" }
+	if (!targetRatePlan?.id) return { redirectTo: routes.ratePlansList() }
 
 	const selectedRatePlans: Array<{
 		id: string

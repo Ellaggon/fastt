@@ -6,6 +6,7 @@ import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
 
@@ -26,127 +27,358 @@ const rows = await loadRatePlansReadModel({
 })
 
 const activeRatePlans = rows.filter((row) => row.isActive).length
-const incompletePolicies = rows.filter((row) => !row.policyCoverage?.isComplete).length
-const plansWithRestrictions = rows.filter(
-	(row) => Number(row.summary?.activeRestrictionsCount ?? 0) > 0
-).length
+const readyRatePlans = rows.filter((row) => row.isActive && row.policyCoverage?.isComplete).length
+const needsAttention = rows.length - readyRatePlans
+const variantChoices = Array.from(
+	new Map(
+		rows.map((row) => [
+			String(row.variantId),
+			{
+				variantId: String(row.variantId),
+				label: `${row.productName} · ${row.variantName}`,
+			},
+		])
+	).values()
+)
 ---
 
-<WorkspaceLayout title="Rate Plans">
-	<div class="space-y-8">
-		<header class="flex flex-wrap items-start justify-between gap-4">
-			<div class="space-y-2">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Rooms & Rates · Rate Plans
-				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Rate Plans</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Dominio de producto comercial. Un rate plan define qué oferta se vende sobre una variante
-					física; Pricing, Restrictions y Booking Policies completan su operación.
-				</p>
+<WorkspaceLayout title="Tarifas">
+	<div class="space-y-6">
+		<header class="rounded-3xl border border-slate-800 bg-slate-950 p-5 text-slate-100 shadow-sm">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+						Habitaciones y tarifas · Tarifas
+					</p>
+					<h1 class="text-3xl font-semibold text-slate-100">Tarifas</h1>
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Revisa las ofertas que vendes, completa lo pendiente y vuelve rápido al calendario.
+					</p>
+				</div>
+				<div class="flex flex-wrap items-center gap-2">
+					<Button href={routes.pricing()} variant="primary">Calendario de precios</Button>
+				</div>
 			</div>
-			<div class="flex items-center gap-2">
-				<Button href={routes.ratePlansHub()} variant="secondary">Rooms & Rates Hub</Button>
-				<Button href={routes.pricing()} variant="primary">Pricing</Button>
+			<div class="mt-5 flex flex-wrap gap-2 text-sm">
+				<span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-slate-200">
+					{readyRatePlans} listas
+				</span>
+				<span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-slate-200">
+					{needsAttention} por revisar
+				</span>
+				<span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-slate-200">
+					{activeRatePlans} activas
+				</span>
 			</div>
 		</header>
 
-		<section class="grid gap-4 md:grid-cols-3">
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Rate plans</p>
-				<p class="mt-2 text-2xl font-semibold">{rows.length}</p>
-				<p class="mt-1 text-xs text-slate-400">{activeRatePlans} activos</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Booking policies</p>
-				<p class="mt-2 text-2xl font-semibold">{incompletePolicies}</p>
-				<p class="mt-1 text-xs text-slate-400">Rate plans con condiciones pendientes</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Restrictions</p>
-				<p class="mt-2 text-2xl font-semibold">{plansWithRestrictions}</p>
-				<p class="mt-1 text-xs text-slate-400">Rate plans con reglas de venta activas</p>
-			</Card>
-		</section>
-
 		<Section
-			title="Commercial products"
-			description="Rate Plans responde qué se vende. Pricing responde cuánto cuesta; Restrictions responde cuándo se puede vender; Booking Policies responde bajo qué contrato."
+			title="Lista de tarifas"
+			description="Cada fila muestra lo necesario para saber si una tarifa está lista para vender."
 		>
 			{
 				rows.length === 0 ? (
-					<Card className="bg-white text-slate-700">
-						<p>No hay rate plans activos para este proveedor.</p>
+					<Card className="border-slate-200 bg-white text-slate-700">
+						<p class="text-base font-semibold text-slate-950">No hay tarifas todavía.</p>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Cuando una habitación tenga una tarifa, aparecerá aquí para revisar precio base,
+							condiciones y restricciones de venta.
+						</p>
 					</Card>
 				) : (
-					<div class="space-y-3">
-						{rows.map((row) => (
-							<Card className="bg-white text-slate-800">
-								<div class="flex flex-wrap items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="text-base font-semibold">{row.ratePlanName}</p>
-										<p class="text-sm text-slate-600">
-											Producto: <span class="font-medium text-slate-800">{row.productName}</span>
-										</p>
-										<p class="text-sm text-slate-600">
-											Variante física:{" "}
-											<span class="font-medium text-slate-800">{row.variantName}</span>
-										</p>
-									</div>
-									<div class="flex max-w-xl flex-col items-start gap-3 md:items-end">
+					<div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+						{rows.map((row, index) => {
+							const restrictionsCount = Number(row.summary?.activeRestrictionsCount ?? 0)
+							const isReady = row.isActive && Boolean(row.policyCoverage?.isComplete)
+							const primaryHref = row.policyCoverage?.isComplete
+								? routes.ratePlanDetail(String(row.ratePlanId))
+								: routes.ratePlanPolicies(String(row.ratePlanId))
+							const primaryLabel = row.policyCoverage?.isComplete
+								? "Abrir ficha"
+								: "Completar condiciones"
+							const stateLabel = !row.isActive ? "Inactiva" : isReady ? "Lista" : "Falta completar"
+							const stateVariant = !row.isActive ? "warning" : isReady ? "success" : "warning"
+							return (
+								<article
+									class={`grid gap-4 px-5 py-5 text-slate-800 md:grid-cols-[1.4fr_1fr_auto] md:items-center ${
+										index > 0 ? "border-t border-slate-100" : ""
+									}`}
+								>
+									<div class="min-w-0 space-y-2">
 										<div class="flex flex-wrap items-center gap-2">
+											<h2 class="text-base font-semibold text-slate-950">{row.ratePlanName}</h2>
 											{row.isDefault && <Badge variant="info">Principal</Badge>}
-											<Badge variant={row.isActive ? "success" : "warning"}>
-												{row.isActive ? "Activo" : "Inactivo"}
-											</Badge>
-											<Badge variant={row.policyCoverage?.isComplete ? "success" : "warning"}>
-												{row.policyCoverage?.isComplete
-													? "Booking policies completas"
-													: "Booking policies pendientes"}
-											</Badge>
-											<Badge
-												variant={
-													Number(row.summary?.activeRestrictionsCount ?? 0) > 0
-														? "warning"
-														: "neutral"
-												}
-											>
-												{Number(row.summary?.activeRestrictionsCount ?? 0)} restrictions
-											</Badge>
+											<Badge variant={stateVariant}>{stateLabel}</Badge>
 										</div>
-										<div class="flex flex-wrap items-center gap-2">
-											<Button
-												href={routes.ratePlanPricing(String(row.ratePlanId))}
-												variant="secondary"
-												size="sm"
-											>
-												Pricing
-											</Button>
-											<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
-												Restrictions
-											</Button>
-											<Button
-												href={routes.ratePlanPolicies(String(row.ratePlanId))}
-												variant="secondary"
-												size="sm"
-											>
-												Booking Policies
-											</Button>
-											<Button
-												href={routes.ratePlanDetail(String(row.ratePlanId))}
-												variant="primary"
-												size="sm"
-											>
-												Ver detalle
-											</Button>
+										<p class="text-sm text-slate-500">
+											{row.productName} · {row.variantName}
+										</p>
+									</div>
+
+									<div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+										<div class="rounded-2xl bg-slate-50 px-3 py-2">
+											<p class="text-xs text-slate-500">Condiciones</p>
+											<p class="mt-1 font-semibold text-slate-900">
+												{row.policyCoverage?.isComplete ? "Listas" : "Pendientes"}
+											</p>
+										</div>
+										<div class="rounded-2xl bg-slate-50 px-3 py-2">
+											<p class="text-xs text-slate-500">Restricciones</p>
+											<p class="mt-1 font-semibold text-slate-900">
+												{restrictionsCount > 0 ? `${restrictionsCount} activas` : "Sin reglas"}
+											</p>
+										</div>
+										<div class="rounded-2xl bg-slate-50 px-3 py-2">
+											<p class="text-xs text-slate-500">Ayudas</p>
+											<p class="mt-1 font-semibold text-slate-900">
+												{Number(row.summary?.priceRulesCount ?? 0)}
+											</p>
 										</div>
 									</div>
-								</div>
-							</Card>
-						))}
+
+									<div class="flex flex-wrap items-center gap-2 md:justify-end">
+										<Button href={routes.pricing()} variant="secondary" size="sm">
+											Precios
+										</Button>
+										<Button href={primaryHref} variant="primary" size="sm">
+											{primaryLabel}
+										</Button>
+									</div>
+								</article>
+							)
+						})}
 					</div>
 				)
 			}
 		</Section>
+
+		<Section
+			title="Crear tarifa"
+			description="Elige una intención comercial. Fastt traduce eso a la configuración necesaria."
+		>
+			<Card className="space-y-5 bg-white text-slate-800">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p class="text-base font-semibold text-slate-950">Nueva tarifa</p>
+						<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+							Empieza por lo que quieres ofrecer al huésped, no por IDs ni reglas internas.
+						</p>
+					</div>
+					<Badge variant="info">Intención humana</Badge>
+				</div>
+
+				{
+					variantChoices.length === 0 ? (
+						<p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+							Primero crea una habitación o unidad vendible. Luego podrás agregar tarifas aquí.
+						</p>
+					) : (
+						<form id="ratePlanIntentCreateForm" class="space-y-5" data-rate-plan-intent-form>
+							<div class="grid gap-3 md:grid-cols-4">
+								{ratePlanIntentPresets.map((preset, index) => (
+									<button
+										type="button"
+										class={`rounded-2xl border p-4 text-left transition hover:border-slate-400 ${
+											index === 0
+												? "border-slate-950 bg-slate-950 text-white"
+												: "border-slate-200 bg-slate-50 text-slate-800"
+										}`}
+										data-rate-plan-intent-card
+										data-intent-id={preset.id}
+										data-name={preset.name}
+										data-description={preset.description}
+										data-payment-type={preset.paymentType}
+										data-refundable={String(preset.refundable)}
+										data-type={preset.type}
+										data-value={String(preset.value)}
+										data-min-nights={String(preset.minNights ?? "")}
+										data-min-advance-days={String(preset.minAdvanceDays ?? "")}
+									>
+										<span class="block text-sm font-semibold">{preset.name}</span>
+										<span class="mt-2 block text-xs leading-5 opacity-80">{preset.summary}</span>
+										<span class="mt-3 flex flex-wrap gap-1">
+											{preset.tags.map((tag) => (
+												<span class="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-medium">
+													{tag}
+												</span>
+											))}
+										</span>
+									</button>
+								))}
+							</div>
+
+							<div class="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Habitación</span>
+									<select
+										name="variantId"
+										class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+										required
+									>
+										{variantChoices.map((choice) => (
+											<option value={choice.variantId}>{choice.label}</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm">
+									<span class="font-medium text-slate-700">Nombre visible</span>
+									<input
+										name="name"
+										class="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900"
+										value={ratePlanIntentPresets[0].name}
+										required
+									/>
+								</label>
+								<button
+									type="submit"
+									class="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+								>
+									Crear tarifa
+								</button>
+							</div>
+
+							<input
+								type="hidden"
+								name="description"
+								value={ratePlanIntentPresets[0].description}
+							/>
+							<input
+								type="hidden"
+								name="paymentType"
+								value={ratePlanIntentPresets[0].paymentType}
+							/>
+							<input
+								type="hidden"
+								name="refundable"
+								value={String(ratePlanIntentPresets[0].refundable)}
+							/>
+							<input type="hidden" name="type" value={ratePlanIntentPresets[0].type} />
+							<input type="hidden" name="value" value={String(ratePlanIntentPresets[0].value)} />
+							<input
+								type="hidden"
+								name="minNights"
+								value={String(ratePlanIntentPresets[0].minNights ?? "")}
+							/>
+							<input
+								type="hidden"
+								name="minAdvanceDays"
+								value={String(ratePlanIntentPresets[0].minAdvanceDays ?? "")}
+							/>
+							<input type="hidden" name="isActive" value="true" />
+							<input type="hidden" name="isDefault" value="false" />
+							<p class="text-sm text-slate-500" data-rate-plan-intent-feedback>
+								{ratePlanIntentPresets[0].guestPromise}
+							</p>
+						</form>
+					)
+				}
+			</Card>
+		</Section>
+
+		<div
+			class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-600"
+		>
+			<p>
+				Restricciones de venta y condiciones siguen separadas para evitar mezclar precio,
+				vendibilidad y contrato.
+			</p>
+			<div class="flex flex-wrap gap-2">
+				<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
+					Restricciones de venta
+				</Button>
+				<Button href={routes.providerPolicies()} variant="secondary" size="sm">
+					Condiciones
+				</Button>
+			</div>
+		</div>
 	</div>
 </WorkspaceLayout>
+
+<script>
+	const intentForm = document.querySelector("[data-rate-plan-intent-form]")
+	const intentFeedback = document.querySelector("[data-rate-plan-intent-feedback]")
+
+	function setHiddenValue(
+		form: Element | null | undefined,
+		name: string,
+		value: string | undefined
+	) {
+		const input = form?.querySelector<HTMLInputElement>(`[name="${name}"]`)
+		if (input) input.value = value ?? ""
+	}
+
+	function applyIntentPreset(card: HTMLElement) {
+		const form = card?.closest("[data-rate-plan-intent-form]")
+		if (!form) return
+		form.querySelectorAll("[data-rate-plan-intent-card]").forEach((item) => {
+			const active = item === card
+			item.classList.toggle("border-slate-950", active)
+			item.classList.toggle("bg-slate-950", active)
+			item.classList.toggle("text-white", active)
+			item.classList.toggle("border-slate-200", !active)
+			item.classList.toggle("bg-slate-50", !active)
+			item.classList.toggle("text-slate-800", !active)
+		})
+		setHiddenValue(form, "name", card.dataset.name)
+		setHiddenValue(form, "description", card.dataset.description)
+		setHiddenValue(form, "paymentType", card.dataset.paymentType)
+		setHiddenValue(form, "refundable", card.dataset.refundable)
+		setHiddenValue(form, "type", card.dataset.type)
+		setHiddenValue(form, "value", card.dataset.value)
+		setHiddenValue(form, "minNights", card.dataset.minNights)
+		setHiddenValue(form, "minAdvanceDays", card.dataset.minAdvanceDays)
+		if (intentFeedback) {
+			const tags = Array.from(card.querySelectorAll("span span"))
+				.map((tag) => tag.textContent?.trim())
+				.filter(Boolean)
+				.join(" · ")
+			intentFeedback.textContent = tags
+				? `${card.dataset.name}: ${tags}. Puedes ajustar condiciones después desde la ficha.`
+				: `${card.dataset.name}: puedes ajustar condiciones después desde la ficha.`
+		}
+	}
+
+	intentForm?.querySelectorAll<HTMLElement>("[data-rate-plan-intent-card]").forEach((card) => {
+		card.addEventListener("click", () => applyIntentPreset(card))
+	})
+
+	intentForm?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		const form = event.currentTarget as HTMLFormElement
+		const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+		const formData = new FormData(form)
+		const payload = {
+			variantId: String(formData.get("variantId") || ""),
+			name: String(formData.get("name") || ""),
+			description: String(formData.get("description") || ""),
+			paymentType: String(formData.get("paymentType") || ""),
+			refundable: String(formData.get("refundable") || "") === "true",
+			type: String(formData.get("type") || "package"),
+			value: Number(formData.get("value") || 0),
+			minNights: Number(formData.get("minNights") || 0) || undefined,
+			minAdvanceDays: Number(formData.get("minAdvanceDays") || 0) || undefined,
+			isActive: true,
+			isDefault: false,
+		}
+		if (intentFeedback) intentFeedback.textContent = "Creando tarifa..."
+		submit?.setAttribute("disabled", "true")
+		try {
+			const response = await fetch("/api/rateplans/create", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			})
+			const result = await response.json().catch(() => null)
+			if (!response.ok || !result?.ratePlanId) {
+				throw new Error(result?.error || "No se pudo crear la tarifa")
+			}
+			window.location.href = `/rates/plans/${encodeURIComponent(result.ratePlanId)}`
+		} catch (error) {
+			if (intentFeedback) {
+				intentFeedback.textContent =
+					error instanceof Error ? error.message : "No se pudo crear la tarifa"
+			}
+			submit?.removeAttribute("disabled")
+		}
+	})
+</script>
