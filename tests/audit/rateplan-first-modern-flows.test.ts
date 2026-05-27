@@ -9,11 +9,12 @@ function read(filePath: string) {
 }
 
 describe("audit/rateplan-first modern flows", () => {
-	it("/rates/plans hub consume endpoint canónico y evita acceso DB directo", () => {
+	it("la lista de tarifas consume endpoint canónico y evita acceso DB directo", () => {
 		const helper = read("src/lib/rates/loadRatePlansReadModel.ts")
 		expect(helper).toContain('from "@/pages/api/rates/plans"')
 
-		const page = read("src/pages/rates/plans/index.astro")
+		expect(fs.existsSync(path.join(ROOT, "src/pages/rates/plans/index.astro"))).toBe(false)
+		const page = read("src/pages/rates/plans/manage.astro")
 		expect(page).toContain("loadRatePlansReadModel")
 		expect(page).not.toContain('from "astro:db"')
 		expect(page).not.toContain("resolveEffectivePolicies")
@@ -26,9 +27,11 @@ describe("audit/rateplan-first modern flows", () => {
 	})
 
 	it("surfaces modernas operan con ratePlanId como input principal", () => {
-		const pricingPage = read("src/pages/rates/plans/[ratePlanId]/pricing.astro")
-		expect(pricingPage).toContain("ratePlanId")
-		expect(pricingPage).not.toMatch(/variantId=\{/)
+		const detailPage = read("src/pages/rates/plans/[ratePlanId].astro")
+		expect(detailPage).toContain("RatePlanPricingSurface")
+		expect(detailPage).toContain("ratePlanId={String(row.ratePlanId)}")
+		expect(detailPage).not.toContain("routes.ratePlanPricing")
+		expect(detailPage).not.toMatch(/variantId=\{/)
 
 		const policiesPage = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
 		expect(policiesPage).toContain("ratePlanId")

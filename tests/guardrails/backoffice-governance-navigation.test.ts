@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 import { describe, expect, it } from "vitest"
 
@@ -281,30 +281,31 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const roomsAndRates = enterpriseNavigation.find((section) => section.title === "Rooms & Rates")
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("rate plans")
-		expect(roomsAndRates?.operationalIntent).toContain("restrictions")
+		expect(roomsAndRates?.operationalIntent).toContain("tariffs")
+		expect(roomsAndRates?.operationalIntent).toContain("sale restrictions")
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
-		expect(roomsAndRates?.items[0]?.label).toEqual("Rooms & Rates Hub")
+		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining([
-				"Pricing",
-				"Inventory",
-				"Restrictions",
-				"Rate Plans",
-				"Booking Policies",
+				"Calendario de precios",
+				"Inventario",
+				"Restricciones de venta",
+				"Tarifas",
+				"Condiciones",
 			])
 		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Pricing")?.status).toEqual(
-			"canonical"
-		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Inventory")?.status).toEqual(
+		expect(
+			roomsAndRates?.items.find((item) => item.label === "Calendario de precios")?.status
+		).toEqual("canonical")
+		expect(roomsAndRates?.items.find((item) => item.label === "Inventario")?.status).toEqual(
 			"canonical"
 		)
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Restrictions")?.status).toEqual(
-			"canonical"
-		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
+		expect(
+			roomsAndRates?.items.find((item) => item.label === "Restricciones de venta")?.status
+		).toEqual("canonical")
 		expect(roomsAndRates?.planned).toEqual(
 			expect.arrayContaining(["Occupancy Pricing", "Audit History"])
 		)
@@ -361,15 +362,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
-	it("renders the Rooms & Rates hub from the governance ARI map", () => {
-		const source = readFileSync(join(process.cwd(), "src/pages/rates/plans/index.astro"), "utf8")
+	it("removes the visible Rooms & Rates hub page from provider navigation", () => {
+		const routes = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
+		const subnav = readFileSync(
+			join(process.cwd(), "src/components/pricing/PricingSubnav.astro"),
+			"utf8"
+		)
 
-		expect(source).toContain("roomsAndRatesOperationalMap")
-		expect(source).toContain("ARI ownership map")
-		expect(source).toContain("Contexto físico")
-		expect(source).toContain("window.location.href = `/pricing/bulk?")
-		expect(source).not.toContain("NEW_DASHBOARD_ARCH")
-		expect(source).not.toContain("window.location.href = `/rates/plans?")
+		expect(existsSync(join(process.cwd(), "src/pages/rates/plans/index.astro"))).toBe(false)
+		expect(routes).not.toContain("ratePlansHub")
+		expect(subnav).not.toContain("Hub de tarifas")
 	})
 
 	it("exposes human-readable context and status metadata for shell rendering", () => {

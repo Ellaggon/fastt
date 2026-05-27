@@ -30,20 +30,20 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 ---
 
 <Section
-	title="Gestión de rate plans"
-	description="Administra rate plans comerciales. La variante permanece como contexto físico relacionado."
+	title="Gestión de tarifas"
+	description="Administra tarifas comerciales. La variante permanece como contexto físico relacionado."
 >
 	<Card class="space-y-6 bg-slate-100">
 		<form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
 			<Input type="hidden" name="variantId" value={variantId} />
-			<FormSection title="Baseline comercial" class="text-neutral-800">
+			<FormSection title="Precio base" class="text-neutral-800">
 				<FormField label="Moneda" htmlFor="currency" required>
 					<Select id="currency" name="currency" value={initialCurrency} required>
 						<option value="USD">USD</option>
 						<option value="BOB">BOB</option>
 					</Select>
 				</FormField>
-				<FormField label="Baseline comercial por noche" htmlFor="basePrice" required>
+				<FormField label="Precio base por noche" htmlFor="basePrice" required>
 					<Input
 						id="basePrice"
 						name="basePrice"
@@ -64,7 +64,7 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 					Volver
 				</a>
 				<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-					Guardar baseline comercial
+					Guardar precio base
 				</Button>
 			</div>
 		</form>
@@ -109,16 +109,20 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 					))
 				) : (
 					<article class="rounded-lg border border-slate-200 bg-white p-4">
-						<p class="text-sm text-slate-600">Aún no hay rate plans configurados.</p>
+						<p class="text-sm text-slate-600">Aún no hay tarifas configuradas.</p>
 					</article>
 				)
 			}
 		</div>
 
 		<form id="ratePlanForm" class="mx-auto max-w-3xl space-y-6">
-			<FormSection title="Crear rate plan" class="text-neutral-800">
-				<FormField label="Nombre del plan" htmlFor="ratePlanName" required>
-					<Input id="ratePlanName" name="ratePlanName" value="Plan principal" required />
+			<FormSection title="Crear tarifa" class="text-neutral-800">
+				<p class="text-sm text-slate-600">
+					Empieza por una oferta entendible para el huésped. La configuración avanzada vive en la
+					ficha de tarifa.
+				</p>
+				<FormField label="Nombre visible" htmlFor="ratePlanName" required>
+					<Input id="ratePlanName" name="ratePlanName" value="Tarifa flexible" required />
 				</FormField>
 				<FormField label="Moneda de referencia" htmlFor="ratePlanCurrency" required>
 					<Select id="ratePlanCurrency" name="ratePlanCurrency" value={initialCurrency} required>
@@ -152,7 +156,7 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 					type="submit"
 					className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 				>
-					Crear rate plan
+					Crear tarifa
 				</Button>
 			</div>
 		</form>

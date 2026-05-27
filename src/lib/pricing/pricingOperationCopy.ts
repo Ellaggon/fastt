@@ -1,6 +1,6 @@
 export const pricingOperationCopy = {
-	reviewAction: "Revisar cambio manual",
-	reviewingAction: "Revisando cambio manual...",
+	reviewAction: "Revisar cambio puntual",
+	reviewingAction: "Revisando cambio puntual...",
 	applyAction: "Guardar cambio manual",
 	confirmAction: "Confirmar cambio manual",
 	bulkApplyAction: "Extender cambio a planes",
@@ -20,13 +20,11 @@ export const pricingOperationCopy = {
 		advancedModeTitle: "Modo avanzado de extensión",
 		advancedModeDescription:
 			"Úsalo solo cuando necesites revisar muchos planes o diagnosticar detalle técnico. La operación diaria nace en el calendario.",
-		intentSummary:
-			"Manual = cambia ahora. Extender = replica este mismo cambio. Ayudas recurrentes = actúan después.",
 		contextTitle: "Continuación desde Pricing",
 		contextFallback:
 			"Vuelve al calendario y selecciona un rango para llegar con fechas y plan preseleccionados.",
 		targetsTitle: "Planes donde se replicará",
-		changeTitle: "Cambio a replicar",
+		changeTitle: "Cambio puntual a extender",
 		reviewTitle: "Revisión de extensión",
 		noApplicableTitle: "Aplicación con revisión",
 		noApplicableSummary:

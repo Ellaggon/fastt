@@ -1,6 +1,7 @@
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ratePlanPricingReadRepository } from "@/container"
+import { routes } from "@/lib/routes"
 import {
 	resolveRatePlanOwnerContext,
 	resolveRatePlanPricingContext,
@@ -62,7 +63,7 @@ export type LoadedRatePlanPricingData =
 
 export async function loadRatePlanPricingData(input: Input): Promise<LoadedRatePlanPricingData> {
 	const ratePlanId = String(input.ratePlanId ?? "").trim()
-	if (!ratePlanId) return { redirectTo: "/rates/plans" }
+	if (!ratePlanId) return { redirectTo: routes.ratePlansList() }
 
 	const user = await getUserFromRequest(input.request)
 	if (!user) return { redirectTo: "/SignInPage" }
@@ -71,12 +72,12 @@ export async function loadRatePlanPricingData(input: Input): Promise<LoadedRateP
 	if (!providerId) return { redirectTo: "/SignInPage" }
 
 	const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
-	if (!ownerContext) return { redirectTo: "/rates/plans" }
+	if (!ownerContext) return { redirectTo: routes.ratePlansList() }
 	if (ownerContext.providerId && ownerContext.providerId !== providerId)
 		return { redirectTo: "/provider" }
 
 	const displayContext = await resolveRatePlanPricingContext({ providerId, ratePlanId })
-	if (!displayContext) return { redirectTo: "/rates/plans" }
+	if (!displayContext) return { redirectTo: routes.ratePlansList() }
 
 	const pricingSummary = await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
 	const initialCurrency = pricingSummary?.currency ?? "USD"
