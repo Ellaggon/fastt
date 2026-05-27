@@ -429,6 +429,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).toContain("Panel del proveedor")
 		expect(sidebarSource).toContain("section.planned")
 		expect(sidebarSource).toContain("Próximamente")
+		expect(sidebarSource).toContain("isRoomSurface")
+		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain(
 			'<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">\n\t\t\t\t\t\t\tPlanned'
 		)
