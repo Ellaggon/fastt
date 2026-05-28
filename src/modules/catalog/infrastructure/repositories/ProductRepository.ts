@@ -6,6 +6,7 @@ import {
 	ProductContent,
 	ProductLocation,
 	ProductStatus,
+	HouseRule,
 	Image,
 	Hotel,
 	Tour,
@@ -264,6 +265,7 @@ export class ProductRepository implements ProductRepositoryPort {
 		const images = await db.select().from(Image).where(eq(Image.entityId, productId)).all()
 
 		await db.delete(Image).where(eq(Image.entityId, productId))
+		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
 		await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
 		await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
 		await db.delete(ProductStatus).where(eq(ProductStatus.productId, productId))

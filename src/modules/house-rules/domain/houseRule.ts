@@ -39,7 +39,6 @@ export interface HouseRule {
 	id: string
 	productId: string
 	type: HouseRuleType
-	description: string
 	payloadJson: HouseRulePayload
 	createdAt: string
 }
@@ -167,10 +166,9 @@ function checkInMethodLabel(value?: string): string | undefined {
 
 export function buildHouseRuleGuestSummary(
 	type: HouseRuleType,
-	payload?: HouseRulePayload | null,
-	fallbackDescription = ""
+	payload?: HouseRulePayload | null
 ): string {
-	if (!payload) return String(fallbackDescription ?? "").trim()
+	if (!payload) return ""
 
 	switch (type) {
 		case "Pets":
@@ -236,10 +234,6 @@ export function buildHouseRuleGuestSummary(
 				payload.note,
 			])
 		default:
-			return joinParts([payload.instructions, payload.note, fallbackDescription])
+			return joinParts([payload.instructions, payload.note])
 	}
-}
-
-export function isStructuredHouseRule(rule: Pick<HouseRule, "payloadJson">): boolean {
-	return Boolean(rule.payloadJson && typeof rule.payloadJson === "object")
 }

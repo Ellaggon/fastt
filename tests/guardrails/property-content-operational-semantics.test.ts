@@ -200,9 +200,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const dbConfig = read("db/config.ts")
 		const productContentTable =
 			dbConfig.match(/const ProductContent = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const houseRuleTable =
+			dbConfig.match(/const HouseRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		const houseRuleRepository = read(
 			"src/modules/house-rules/infrastructure/repositories/HouseRuleRepository.ts"
 		)
+		const backofficeGovernance = read("src/lib/backoffice-governance.ts")
 
 		expect(routes).toContain("productPreview")
 		expect(worklist).toContain("routes.productPreview(product.id)")
@@ -224,11 +227,15 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(contentPage).not.toContain('name="rules"')
 		expect(productContentApi).not.toContain('form.get("rules")')
 		expect(productContentTable).not.toContain("rules:")
+		expect(houseRuleTable).toContain("payloadJson:")
+		expect(houseRuleTable).not.toContain("description:")
 		expect(rulesResolver).not.toContain(["ProductContent", "rules"].join("."))
 		expect(rulesResolver).not.toContain(["product_content", "rules"].join("_"))
 		expect(houseRuleRepository).toContain("payloadJson: HouseRuleTable.payloadJson")
+		expect(houseRuleRepository).not.toContain("description")
 		expect(houseRuleRepository).not.toMatch(new RegExp(["isMissing", "PayloadJsonColumn"].join("")))
 		expect(houseRuleRepository).not.toMatch(/payloadJson:\s*null/)
+		expect(backofficeGovernance).not.toContain("/api/house-rules")
 	})
 
 	it("feeds the product surface with real rooms and an explicit cover image", () => {

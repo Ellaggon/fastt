@@ -8,7 +8,6 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 		id: string
 		productId: string
 		type: HouseRuleType
-		description: string
 		payloadJson: HouseRulePayload
 		createdAt: Date
 	}) {
@@ -16,7 +15,6 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 			id: rule.id,
 			productId: rule.productId,
 			type: rule.type,
-			description: rule.description,
 			payloadJson: rule.payloadJson,
 			createdAt: rule.createdAt,
 		})
@@ -28,7 +26,6 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 				id: HouseRuleTable.id,
 				productId: HouseRuleTable.productId,
 				type: HouseRuleTable.type,
-				description: HouseRuleTable.description,
 				payloadJson: HouseRuleTable.payloadJson,
 				createdAt: HouseRuleTable.createdAt,
 			})

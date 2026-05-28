@@ -5,7 +5,6 @@ export interface HouseRuleRepositoryPort {
 		id: string
 		productId: string
 		type: HouseRuleType
-		description: string
 		payloadJson: HouseRulePayload
 		createdAt: Date
 	}): Promise<void>
@@ -14,7 +13,6 @@ export interface HouseRuleRepositoryPort {
 			id: string
 			productId: string
 			type: HouseRuleType
-			description: string
 			payloadJson: HouseRulePayload
 			createdAt: Date
 		}>

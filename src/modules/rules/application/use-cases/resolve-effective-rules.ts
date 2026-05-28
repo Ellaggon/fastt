@@ -112,7 +112,6 @@ export function createResolveEffectiveRulesUseCase() {
 				id: string
 				productId: string
 				type: string
-				description: string
 				payloadJson: Record<string, unknown>
 				createdAt: string
 			}>,

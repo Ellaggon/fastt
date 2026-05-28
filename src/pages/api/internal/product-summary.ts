@@ -3,6 +3,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
 
 function toLowerTrim(value: string | null | undefined): string {
 	return String(value ?? "")
@@ -84,14 +85,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.slice(0, 3)
 	const houseRules = await listHouseRulesByProduct(productId)
 	const houseRuleTypes = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
-	const essentialHouseRuleTypes = [
-		"Pets",
-		"Smoking",
-		"Parties",
-		"QuietHours",
-		"CheckIn",
-		"Checkout",
-	]
 	const completedHouseRuleTypes = essentialHouseRuleTypes.filter((type) => houseRuleTypes.has(type))
 	const hasHouseRules = completedHouseRuleTypes.length >= 4
 

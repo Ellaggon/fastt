@@ -15,7 +15,6 @@ type HouseRuleLike = {
 	id: string
 	productId: string
 	type: string
-	description: string
 	payloadJson: Record<string, unknown>
 	createdAt: string
 }
@@ -31,7 +30,7 @@ export function mapHouseRulesToRules(params: {
 	for (const row of rows) {
 		const ruleType = String(row.type ?? "Other")
 		const payload = normalizeHouseRulePayload(ruleType as any, row.payloadJson)
-		const description = buildHouseRuleGuestSummary(ruleType as any, payload, row.description)
+		const description = buildHouseRuleGuestSummary(ruleType as any, payload)
 		const code = normalizeRuleCode(ruleType)
 		const group = buildRuleGroup({ code, category: ruleType || "Other", nowIso })
 		const version = buildRuleVersion({
@@ -48,7 +47,6 @@ export function mapHouseRulesToRules(params: {
 				rules: {
 					type: ruleType,
 					payload,
-					rawDescription: String(row.description ?? "").trim(),
 				},
 				source: "house_rule",
 				confidence: "high",

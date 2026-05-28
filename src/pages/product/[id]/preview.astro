@@ -10,6 +10,11 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { routes } from "@/lib/routes"
 import { getProductFullAggregate } from "@/modules/catalog/public"
+import {
+	essentialHouseRuleTypes,
+	houseRuleGroups,
+	houseRuleLabels,
+} from "@/modules/house-rules/presentation/houseRulePresentation"
 import { buildHouseRuleGuestSummary, listHouseRulesByProduct } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 
@@ -28,52 +33,7 @@ if (!owned) return Astro.redirect(routes.productList())
 const aggregate = await getProductFullAggregate(productId, providerId)
 if (!aggregate) return Astro.redirect(routes.productList())
 
-type PreviewGroup = {
-	label: string
-	description: string
-	types: string[]
-}
-
-const houseRuleLabels: Record<string, string> = {
-	Pets: "Mascotas",
-	Children: "Niños",
-	Smoking: "Fumar",
-	Parties: "Fiestas y eventos",
-	QuietHours: "Horario de silencio",
-	Parking: "Estacionamiento",
-	CheckIn: "Llegada",
-	Checkout: "Salida",
-	Safety: "Seguridad y espacios",
-	ExtraBeds: "Camas adicionales",
-	Access: "Acceso",
-	Other: "Otras reglas",
-}
-
-const houseRuleGroups: PreviewGroup[] = [
-	{
-		label: "Antes de reservar",
-		description: "Lo que el huésped debe entender antes de confirmar.",
-		types: ["Pets", "Children", "Smoking", "Parties", "QuietHours"],
-	},
-	{
-		label: "Llegada",
-		description: "Lo que el huésped debe saber antes de llegar.",
-		types: ["CheckIn", "Access", "Parking"],
-	},
-	{
-		label: "Durante la estadía",
-		description: "Uso del alojamiento, espacios compartidos y seguridad.",
-		types: ["Safety", "ExtraBeds", "Other"],
-	},
-	{
-		label: "Salida",
-		description: "Tareas simples antes de irse.",
-		types: ["Checkout"],
-	},
-]
-
 const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
-const essentialHouseRules = ["Pets", "Smoking", "Parties", "QuietHours", "CheckIn", "Checkout"]
 const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 const description = String(aggregate.content.description ?? "").trim()
 const primaryImage = aggregate.images[0]?.url ?? ""
@@ -81,7 +41,8 @@ const imagePreviews = aggregate.images.slice(0, 6)
 
 const houseRules = await listHouseRulesByProduct(productId)
 const houseRuleTypeSet = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
-const missingHouseRules = essentialHouseRules.filter((type) => !houseRuleTypeSet.has(type))
+const missingHouseRules = essentialHouseRuleTypes.filter((type) => !houseRuleTypeSet.has(type))
+const houseRuleLabelByType = houseRuleLabels as Record<string, string>
 const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: any) => {
 	const type = String(rule.type ?? "Other")
 	if (!acc[type]) acc[type] = []
@@ -408,15 +369,11 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
 											{items.map((rule: any) => {
 												const type = String(rule.type ?? "Other")
-												const summary = buildHouseRuleGuestSummary(
-													type as any,
-													rule.payloadJson,
-													String(rule.description ?? "")
-												)
+												const summary = buildHouseRuleGuestSummary(type as any, rule.payloadJson)
 												return (
 													<li>
 														<span class="font-medium text-slate-900">
-															{houseRuleLabels[type] ?? "Otra regla"}:
+															{houseRuleLabelByType[type] ?? "Otra regla"}:
 														</span>{" "}
 														{summary}
 													</li>

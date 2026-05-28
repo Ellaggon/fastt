@@ -8,6 +8,14 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { routes } from "@/lib/routes"
 import {
+	essentialHouseRuleTypes,
+	houseRuleCopy,
+	houseRuleEditorTypes,
+	houseRuleGroups,
+	houseRuleQuickSetups,
+	houseRuleTypes,
+} from "@/modules/house-rules/presentation/houseRulePresentation"
+import {
 	buildHouseRuleGuestSummary,
 	createHouseRule,
 	deleteHouseRule,
@@ -30,179 +38,6 @@ type ProductOption = {
 	name: string
 	productType: string
 }
-
-type HouseRuleGroup = {
-	key: string
-	label: string
-	description: string
-	types: HouseRuleType[]
-}
-
-const houseRuleTypes: HouseRuleType[] = [
-	"Pets",
-	"Children",
-	"Smoking",
-	"Parties",
-	"QuietHours",
-	"Parking",
-	"CheckIn",
-	"Checkout",
-	"Safety",
-	"ExtraBeds",
-	"Access",
-	"Other",
-]
-
-const essentialRuleTypes: HouseRuleType[] = [
-	"Pets",
-	"Smoking",
-	"Parties",
-	"QuietHours",
-	"CheckIn",
-	"Checkout",
-]
-
-const houseRuleGroups: HouseRuleGroup[] = [
-	{
-		key: "before-booking",
-		label: "Antes de reservar",
-		description: "Lo que el huésped revisa antes de confirmar.",
-		types: ["Pets", "Children", "Smoking", "Parties", "QuietHours"],
-	},
-	{
-		key: "arrival",
-		label: "Llegada y acceso",
-		description: "Lo que ayuda a entrar sin fricción.",
-		types: ["CheckIn", "Access", "Parking"],
-	},
-	{
-		key: "during-stay",
-		label: "Durante la estadía",
-		description: "Uso del alojamiento, seguridad y espacios compartidos.",
-		types: ["Safety", "ExtraBeds", "Other"],
-	},
-	{
-		key: "departure",
-		label: "Salida",
-		description: "Horario de salida y tareas simples.",
-		types: ["Checkout"],
-	},
-]
-
-const quickSetupPresets: Array<{
-	key: string
-	title: string
-	description: string
-	rules: Array<{ type: HouseRuleType; payload: HouseRulePayload }>
-}> = [
-	{
-		key: "hotel-baseline",
-		title: "Base de alojamiento",
-		description: "Sin fumar, sin fiestas, silencio nocturno, llegada clara y salida simple.",
-		rules: [
-			{ type: "Children", payload: { kind: "Children", allowed: true } },
-			{ type: "Smoking", payload: { kind: "Smoking", allowed: false, area: "not_allowed" } },
-			{ type: "Parties", payload: { kind: "Parties", allowed: false } },
-			{ type: "QuietHours", payload: { kind: "QuietHours", start: "22:00", end: "08:00" } },
-			{ type: "CheckIn", payload: { kind: "CheckIn", method: "front_desk", idRequired: true } },
-			{
-				type: "Checkout",
-				payload: { kind: "Checkout", time: "11:00", tasks: ["devolver llaves o acceso"] },
-			},
-		],
-	},
-	{
-		key: "self-service-stay",
-		title: "Llegada autónoma",
-		description: "Acceso autónomo, silencio nocturno y salida liviana.",
-		rules: [
-			{ type: "Pets", payload: { kind: "Pets", allowed: false } },
-			{ type: "Smoking", payload: { kind: "Smoking", allowed: false, area: "not_allowed" } },
-			{ type: "Parties", payload: { kind: "Parties", allowed: false } },
-			{ type: "QuietHours", payload: { kind: "QuietHours", start: "22:00", end: "08:00" } },
-			{
-				type: "CheckIn",
-				payload: {
-					kind: "CheckIn",
-					method: "self",
-					instructions: "Las instrucciones de llegada se comparten antes del check-in.",
-				},
-			},
-			{
-				type: "Checkout",
-				payload: {
-					kind: "Checkout",
-					time: "11:00",
-					tasks: ["cerrar puertas y ventanas", "apagar luces y electrodomésticos"],
-				},
-			},
-		],
-	},
-]
-
-const categoryCopy: Record<HouseRuleType, { label: string; intent: string; guestFacing: string }> =
-	{
-		Children: {
-			label: "Niños",
-			intent: "Indica si aceptas niños y cualquier cuidado importante.",
-			guestFacing: "¿Pueden alojarse niños?",
-		},
-		Pets: {
-			label: "Mascotas",
-			intent: "Aclara si aceptas mascotas y condiciones básicas.",
-			guestFacing: "¿Pueden traer mascotas?",
-		},
-		Smoking: {
-			label: "Fumar",
-			intent: "Define si se permite fumar y dónde.",
-			guestFacing: "¿Se permite fumar?",
-		},
-		Parties: {
-			label: "Fiestas y eventos",
-			intent: "Aclara reuniones, eventos y uso responsable.",
-			guestFacing: "¿Se permiten fiestas o eventos?",
-		},
-		QuietHours: {
-			label: "Horario de silencio",
-			intent: "Evita ruido en horarios sensibles.",
-			guestFacing: "¿Cuándo deben mantener silencio?",
-		},
-		Parking: {
-			label: "Estacionamiento",
-			intent: "Explica si hay estacionamiento y cómo usarlo.",
-			guestFacing: "¿Dónde pueden estacionar?",
-		},
-		CheckIn: {
-			label: "Llegada",
-			intent: "Indica cómo entran y qué necesitan al llegar.",
-			guestFacing: "¿Cómo será la llegada?",
-		},
-		Checkout: {
-			label: "Salida",
-			intent: "Define hora de salida y tareas simples.",
-			guestFacing: "¿Qué deben hacer antes de salir?",
-		},
-		Safety: {
-			label: "Seguridad y espacios",
-			intent: "Aclara zonas compartidas, restringidas o de cuidado.",
-			guestFacing: "¿Cómo deben usar el alojamiento de forma segura?",
-		},
-		ExtraBeds: {
-			label: "Camas adicionales",
-			intent: "Aclara cunas, camas extra o arreglos para dormir.",
-			guestFacing: "¿Hay camas extra o cunas?",
-		},
-		Access: {
-			label: "Acceso",
-			intent: "Explica llaves, códigos o dispositivos de entrada.",
-			guestFacing: "¿Cómo se accede al alojamiento?",
-		},
-		Other: {
-			label: "Otra regla",
-			intent: "Agrega una expectativa de estadía que no encaja arriba.",
-			guestFacing: "¿Qué más debe saber el huésped?",
-		},
-	}
 
 async function loadProviderProducts(providerId: string): Promise<ProductOption[]> {
 	const rows = await db
@@ -326,17 +161,16 @@ if (Astro.request.method === "POST") {
 		if (action === "create-house-rule") {
 			const productId = String(form.get("productId") ?? "").trim()
 			const type = String(form.get("type") ?? "").trim() as HouseRuleType
-			const description = String(form.get("description") ?? "").trim()
 			const payload = payloadFromForm(type, form)
 			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
 			if (!houseRuleTypes.includes(type)) throw new Error("Tipo de regla no compatible")
-			await createHouseRule({ productId, type, description, payload })
+			await createHouseRule({ productId, type, payload })
 			return redirectToHouseRules("created", productId)
 		}
 		if (action === "apply-quick-setup") {
 			const productId = String(form.get("productId") ?? "").trim()
 			const presetKey = String(form.get("presetKey") ?? "").trim()
-			const preset = quickSetupPresets.find((item) => item.key === presetKey)
+			const preset = houseRuleQuickSetups.find((item) => item.key === presetKey)
 			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
 			if (!preset) throw new Error("La configuración rápida no está disponible")
 
@@ -378,7 +212,7 @@ const visibleProducts = hasProductContext && selectedProduct ? [selectedProduct]
 const stateByProduct = products.map((product) => {
 	const rules = rulesByProduct.get(product.id) ?? []
 	const typeSet = new Set(rules.map((rule) => String(rule.type ?? "Other") as HouseRuleType))
-	const missingEssentials = essentialRuleTypes.filter((type) => !typeSet.has(type))
+	const missingEssentials = essentialHouseRuleTypes.filter((type) => !typeSet.has(type))
 	return {
 		product,
 		rules,
@@ -398,7 +232,7 @@ const previewRulesByGroup = houseRuleGroups.map((group) => ({
 		group.types.includes(String(rule.type ?? "Other") as HouseRuleType)
 	),
 }))
-const missingCount = selectedState?.missingEssentials.length ?? essentialRuleTypes.length
+const missingCount = selectedState?.missingEssentials.length ?? essentialHouseRuleTypes.length
 const selectedReady = Boolean(selectedState?.ready)
 const selectedRulesByType = new Map<HouseRuleType, HouseRule[]>()
 for (const rule of previewRules) {
@@ -407,20 +241,6 @@ for (const rule of previewRules) {
 	rules.push(rule)
 	selectedRulesByType.set(type, rules)
 }
-const editorRuleTypes: HouseRuleType[] = [
-	"Pets",
-	"Smoking",
-	"Parties",
-	"QuietHours",
-	"CheckIn",
-	"Checkout",
-	"Children",
-	"Parking",
-	"Access",
-	"Safety",
-	"ExtraBeds",
-	"Other",
-]
 const internalRuleCount = allRules.length
 ---
 
@@ -528,17 +348,17 @@ const internalRuleCount = allRules.length
 							{missingCount > 0 ? (
 								<div class="mt-4 flex flex-wrap gap-2">
 									{selectedState?.missingEssentials.map((type) => (
-										<Badge variant="neutral">{categoryCopy[type].label}</Badge>
+										<Badge variant="neutral">{houseRuleCopy[type].label}</Badge>
 									))}
 								</div>
 							) : null}
 						</Card>
 
 						<div class="grid gap-3">
-							{editorRuleTypes.map((type) => {
-								const copy = categoryCopy[type]
+							{houseRuleEditorTypes.map((type) => {
+								const copy = houseRuleCopy[type]
 								const rules = selectedRulesByType.get(type) ?? []
-								const isEssential = essentialRuleTypes.includes(type)
+								const isEssential = essentialHouseRuleTypes.includes(type)
 								const isComplete = rules.length > 0
 								return (
 									<Card className="bg-white text-slate-800">
@@ -564,11 +384,7 @@ const internalRuleCount = allRules.length
 												{rules.length ? (
 													<div class="grid gap-2">
 														{rules.map((rule) => {
-															const summary = buildHouseRuleGuestSummary(
-																type,
-																rule.payloadJson,
-																rule.description
-															)
+															const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
 															return (
 																<div class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
 																	<p class="max-w-2xl text-sm leading-6 text-slate-700">
@@ -850,17 +666,6 @@ const internalRuleCount = allRules.length
 														</label>
 													) : null}
 
-													<label class="space-y-1 text-sm sm:col-span-2">
-														<span class="font-medium text-slate-700">
-															Texto para huéspedes (opcional)
-														</span>
-														<textarea
-															name="description"
-															rows="2"
-															class="w-full rounded-lg border border-slate-300 px-3 py-2"
-															placeholder="Si lo dejas vacío, se muestra un resumen claro."
-														/>
-													</label>
 													<div class="sm:col-span-2">
 														<Button type="submit" variant="primary" size="sm">
 															Guardar regla
@@ -911,15 +716,11 @@ const internalRuleCount = allRules.length
 												<ul class="mt-2 space-y-2 text-sm leading-6 text-slate-700">
 													{group.rules.map((rule) => {
 														const type = String(rule.type ?? "Other") as HouseRuleType
-														const summary = buildHouseRuleGuestSummary(
-															type,
-															rule.payloadJson,
-															rule.description
-														)
+														const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
 														return (
 															<li class="rounded-xl border border-slate-200 bg-slate-50 p-3">
 																<span class="font-medium text-slate-900">
-																	{categoryCopy[type]?.label ?? "Otra regla"}:
+																	{houseRuleCopy[type]?.label ?? "Otra regla"}:
 																</span>{" "}
 																{summary}
 															</li>
@@ -954,7 +755,7 @@ const internalRuleCount = allRules.length
 					</p>
 					<div class="mt-4 grid gap-3">
 						{
-							quickSetupPresets.map((preset) => (
+							houseRuleQuickSetups.map((preset) => (
 								<form method="POST" class="rounded-xl border border-slate-700 bg-slate-900 p-3">
 									<input type="hidden" name="action" value="apply-quick-setup" />
 									<input type="hidden" name="presetKey" value={preset.key} />
@@ -983,27 +784,12 @@ const internalRuleCount = allRules.length
 						}
 					</div>
 				</div>
-				<div class="rounded-xl border border-slate-700 bg-slate-950/50 p-4">
-					<p class="text-sm font-semibold text-slate-100">Modelo actual</p>
-					<dl class="mt-3 space-y-3 text-sm text-slate-400">
-						<div class="flex justify-between gap-4">
-							<dt>Fuente canónica</dt>
-							<dd class="text-slate-200">HouseRule</dd>
-						</div>
-						<div class="flex justify-between gap-4">
-							<dt>Reglas visibles</dt>
-							<dd class="text-slate-200">{internalRuleCount}</dd>
-						</div>
-						<div class="flex justify-between gap-4">
-							<dt>Alojamiento en edición</dt>
-							<dd class="text-right text-slate-200">{selectedProduct?.name ?? "Sin selección"}</dd>
-						</div>
-					</dl>
-					<p class="mt-4 text-sm leading-6 text-slate-400">
-						Las reglas para huéspedes no cambian precios, restricciones de venta ni condiciones
-						comerciales. Esas capas viven en Rooms & Rates.
-					</p>
-				</div>
+				<p
+					class="rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm leading-6 text-slate-400"
+				>
+					{internalRuleCount} reglas visibles. No cambian precios, restricciones de venta ni condiciones
+					comerciales.
+				</p>
 			</div>
 		</details>
 	</div>
