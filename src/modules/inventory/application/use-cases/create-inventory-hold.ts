@@ -83,6 +83,7 @@ export async function createInventoryHold(
 			requiredCategories?: string[]
 			onMissingCategory?: "return_null" | "throw_error"
 		}) => Promise<ResolveEffectiveRulesResult>
+		buildGuestExpectationsSnapshot?: (productId: string) => Promise<unknown | null>
 		policyContext: {
 			productId: string
 			ratePlanId: string
@@ -182,6 +183,9 @@ export async function createInventoryHold(
 		resolvedAt: now,
 	})
 	policySnapshot.ruleSnapshotJson = ruleSnapshot
+	const guestExpectationsSnapshot = deps.buildGuestExpectationsSnapshot
+		? await deps.buildGuestExpectationsSnapshot(deps.policyContext.productId)
+		: null
 	const ruleBasedContractSnapshot = buildRuleBasedContractSnapshot({
 		ruleSnapshot,
 		checkIn: parsed.dateRange.from,
@@ -328,6 +332,7 @@ export async function createInventoryHold(
 		expiresAt,
 		channel: deps.policyContext.channel,
 		policySnapshotJson: policySnapshot,
+		guestExpectationsSnapshotJson: guestExpectationsSnapshot,
 	})
 
 	if (!created.success) {

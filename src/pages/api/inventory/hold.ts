@@ -10,6 +10,7 @@ import {
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { resolveEffectiveRules } from "@/modules/rules/public"
+import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 import {
 	buildOccupancyKey,
@@ -485,6 +486,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								warnings: [],
 							}).dto,
 						resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
+						buildGuestExpectationsSnapshot: (productId) =>
+							buildGuestStayExpectationsSnapshot(productId),
 						policyContext: {
 							productId: variant.productId,
 							ratePlanId: parsed.ratePlanId,

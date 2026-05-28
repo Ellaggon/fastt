@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import {
 	buildHouseRuleGuestSummary,
+	buildGuestStayExpectationsSnapshot,
 	createHouseRule,
 	deleteHouseRule,
 	listHouseRulesByProduct,
@@ -58,6 +59,14 @@ describe("integration/house-rules (CAPA 6.5)", () => {
 						"Horario de silencio de 22:00 a 08:00."
 			)
 		).toBe(true)
+		const snapshot = await buildGuestStayExpectationsSnapshot(productId, {
+			capturedAt: new Date("2026-05-28T10:00:00.000Z"),
+		})
+		expect(snapshot.source).toBe("house_rule")
+		expect(snapshot.rules.map((rule) => rule.summary)).toContain(
+			"Horario de silencio de 22:00 a 08:00."
+		)
+		expect(snapshot.rules.every((rule) => rule.source === "house_rule")).toBe(true)
 
 		await deleteHouseRule(r1.id)
 		const list2 = await listHouseRulesByProduct(productId)

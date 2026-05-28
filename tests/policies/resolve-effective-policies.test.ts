@@ -83,27 +83,39 @@ describe("policies/resolveEffectivePolicies (canonical resolver, isolated)", () 
 			assignments: [
 				{
 					id: "a_prod",
-					policyGroupId: "g_rules",
-					category: "house_rules",
+					policyGroupId: "g_checkin",
+					category: "check_in",
 					scope: "product",
 					scopeId: "p1",
 					channel: null,
 				},
 				{
 					id: "a_var",
-					policyGroupId: "g_rules_v",
-					category: "house_rules",
+					policyGroupId: "g_checkin_v",
+					category: "check_in",
 					scope: "variant",
 					scopeId: "v1",
 					channel: null,
 				},
 			],
 			policiesByGroup: {
-				g_rules: [
-					{ id: "p_rules_1", groupId: "g_rules", description: "p", version: 1, status: "active" },
+				g_checkin: [
+					{
+						id: "p_checkin_1",
+						groupId: "g_checkin",
+						description: "p",
+						version: 1,
+						status: "active",
+					},
 				],
-				g_rules_v: [
-					{ id: "v_rules_1", groupId: "g_rules_v", description: "v", version: 1, status: "active" },
+				g_checkin_v: [
+					{
+						id: "v_checkin_1",
+						groupId: "g_checkin_v",
+						description: "v",
+						version: 1,
+						status: "active",
+					},
 				],
 			},
 		})
@@ -111,7 +123,7 @@ describe("policies/resolveEffectivePolicies (canonical resolver, isolated)", () 
 		const res = await resolveEffectivePolicies({ repo }, { productId: "p1", variantId: "v1" })
 		expect(res.policies).toHaveLength(1)
 		expect(res.policies[0].resolvedFromScope).toBe("variant")
-		expect(res.policies[0].policy.id).toBe("v_rules_1")
+		expect(res.policies[0].policy.id).toBe("v_checkin_1")
 	})
 
 	it("rate_plan overrides variant", async () => {

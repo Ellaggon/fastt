@@ -761,6 +761,8 @@ const Hold = defineTable({
 		expiresAt: column.date(),
 		// Canonical immutable policy contract captured at hold creation time.
 		policySnapshotJson: column.json(),
+		// Informational guest-facing expectations captured separately from operational rules.
+		guestExpectationsSnapshotJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["variantId", "checkIn"] }, { on: ["expiresAt"] }],

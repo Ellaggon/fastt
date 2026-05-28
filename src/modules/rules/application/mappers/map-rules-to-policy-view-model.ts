@@ -214,7 +214,6 @@ export function mapRuleSnapshotToPolicyCards(
 	}
 	const mapSourceToScope = (source: string): RulePolicyCardView["resolvedFromScope"] => {
 		if (source === "policy") return "rate_plan"
-		if (source === "house_rule") return "product"
 		return "global"
 	}
 	const rows: RulePolicyCardView[] = []

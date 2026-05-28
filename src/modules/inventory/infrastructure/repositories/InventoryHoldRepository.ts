@@ -88,6 +88,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		expiresAt: Date
 		channel?: string | null
 		policySnapshotJson: unknown
+		guestExpectationsSnapshotJson?: unknown | null
 	}): Promise<HoldInventoryResult> {
 		const maxAttempts = 5
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -108,6 +109,10 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 								channel: params.channel == null ? null : String(params.channel),
 								expiresAt: params.expiresAt,
 								policySnapshotJson: params.policySnapshotJson as any,
+								guestExpectationsSnapshotJson:
+									params.guestExpectationsSnapshotJson == null
+										? null
+										: (params.guestExpectationsSnapshotJson as any),
 								createdAt: new Date(),
 							} as any)
 							.run()
@@ -225,15 +230,21 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		return { success: false, reason: "not_available" }
 	}
 
-	async findHoldSnapshot(params: {
-		holdId: string
-	}): Promise<{ policySnapshotJson: unknown } | null> {
+	async findHoldSnapshot(params: { holdId: string }): Promise<{
+		policySnapshotJson: unknown
+		guestExpectationsSnapshotJson?: unknown | null
+	} | null> {
 		const id = String(params.holdId ?? "").trim()
 		if (!id) return null
-		let row: { policySnapshotJson: unknown } | undefined
+		let row:
+			| { policySnapshotJson: unknown; guestExpectationsSnapshotJson?: unknown | null }
+			| undefined
 		try {
 			row = await db
-				.select({ policySnapshotJson: Hold.policySnapshotJson })
+				.select({
+					policySnapshotJson: Hold.policySnapshotJson,
+					guestExpectationsSnapshotJson: Hold.guestExpectationsSnapshotJson,
+				})
 				.from(Hold)
 				.where(eq(Hold.id, id))
 				.get()
@@ -242,7 +253,10 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 			return null
 		}
 		if (!row) return null
-		return { policySnapshotJson: row.policySnapshotJson }
+		return {
+			policySnapshotJson: row.policySnapshotJson,
+			guestExpectationsSnapshotJson: row.guestExpectationsSnapshotJson ?? null,
+		}
 	}
 
 	async releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }> {

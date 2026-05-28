@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
@@ -6,6 +6,17 @@ import { backofficeRouteClassifications } from "../../src/lib/backoffice-governa
 
 function read(relativePath: string): string {
 	return readFileSync(join(process.cwd(), relativePath), "utf8")
+}
+
+function listFiles(relativePath: string): string[] {
+	const absolutePath = join(process.cwd(), relativePath)
+	if (!existsSync(absolutePath)) return []
+	const stat = statSync(absolutePath)
+	if (stat.isFile()) return [relativePath]
+	return readdirSync(absolutePath).flatMap((entry) => {
+		if (entry === "node_modules" || entry === "dist" || entry === ".astro") return []
+		return listFiles(`${relativePath}/${entry}`)
+	})
 }
 
 const editorialSurfaces = [
@@ -193,15 +204,24 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const readiness = read("src/pages/product/[id]/index.astro")
 		const preview = read("src/pages/product/[id]/preview.astro")
 		const houseRules = read("src/pages/provider/house-rules.astro")
+		const houseRulesPublicApi = read("src/modules/house-rules/public.ts")
+		const guestSnapshot = read("src/modules/house-rules/domain/guestStayExpectationsSnapshot.ts")
 		const routes = read("src/lib/routes.ts")
 		const contentPage = read("src/pages/product/[id]/content.astro")
 		const productContentApi = read("src/pages/api/product/content.ts")
 		const rulesResolver = read("src/modules/rules/application/use-cases/resolve-effective-rules.ts")
+		const createInventoryHold = read(
+			"src/modules/inventory/application/use-cases/create-inventory-hold.ts"
+		)
+		const rulesPublicApi = read("src/modules/rules/public.ts")
+		const ruleEntities = read("src/modules/rules/domain/rule.entities.ts")
+		const ruleTypes = read("src/modules/rules/domain/rule.types.ts")
 		const dbConfig = read("db/config.ts")
 		const productContentTable =
 			dbConfig.match(/const ProductContent = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		const houseRuleTable =
 			dbConfig.match(/const HouseRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const holdTable = dbConfig.match(/const Hold = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		const houseRuleRepository = read(
 			"src/modules/house-rules/infrastructure/repositories/HouseRuleRepository.ts"
 		)
@@ -219,6 +239,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(preview).toContain("Antes de publicar")
 		expect(preview).toContain("Condiciones que verá el huésped")
 		expect(preview).toContain("Reglas para huéspedes")
+		expect(preview).toContain("buildGuestStayExpectationsSnapshot")
 		expect(preview).toContain("routes.providerHouseRules()")
 		expect(preview).toContain("routes.providerPolicies()")
 		expect(preview).not.toContain("/api/pricing/")
@@ -231,11 +252,104 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(houseRuleTable).not.toContain("description:")
 		expect(rulesResolver).not.toContain(["ProductContent", "rules"].join("."))
 		expect(rulesResolver).not.toContain(["product_content", "rules"].join("_"))
+		expect(rulesResolver).not.toContain("listHouseRulesByProduct")
+		expect(rulesResolver).not.toContain("mapHouseRulesToRules")
+		expect(rulesResolver).not.toContain("houseRules")
+		expect(rulesPublicApi).not.toContain("house-rule-to-rule")
+		expect(ruleEntities).not.toContain('"house_rule"')
+		expect(ruleTypes).not.toContain('"INFO"')
+		expect(ruleTypes).not.toContain("InformativeRuleContent")
 		expect(houseRuleRepository).toContain("payloadJson: HouseRuleTable.payloadJson")
 		expect(houseRuleRepository).not.toContain("description")
 		expect(houseRuleRepository).not.toMatch(new RegExp(["isMissing", "PayloadJsonColumn"].join("")))
 		expect(houseRuleRepository).not.toMatch(/payloadJson:\s*null/)
 		expect(backofficeGovernance).not.toContain("/api/house-rules")
+		expect(houseRulesPublicApi).toContain("buildGuestStayExpectationsSnapshot")
+		expect(guestSnapshot).toContain('source: "house_rule"')
+		expect(guestSnapshot).not.toContain("EffectiveRule")
+		expect(holdTable).toContain("guestExpectationsSnapshotJson")
+		expect(createInventoryHold).toContain("guestExpectationsSnapshotJson")
+		expect(createInventoryHold).not.toContain("policySnapshot.guestExpectations")
+	})
+
+	it("keeps House Rules out of operational pricing, restrictions, availability, search, and policy resolution", () => {
+		const forbiddenOperationalRoots = [
+			"src/modules/pricing",
+			"src/modules/restrictions",
+			"src/modules/search",
+			"src/modules/rules",
+			"src/modules/policies",
+			"src/pages/pricing",
+			"src/pages/rates/restrictions.astro",
+			"src/pages/api/pricing",
+			"src/pages/api/policies",
+			"src/pages/api/search",
+		]
+		const forbiddenPatterns = [
+			/HouseRule/,
+			/house-rules/,
+			/listHouseRulesByProduct/,
+			/buildGuestStayExpectationsSnapshot/,
+			/house_rule/,
+		]
+
+		const violations = forbiddenOperationalRoots.flatMap((root) =>
+			listFiles(root).flatMap((relativePath) => {
+				if (!/\.(ts|astro)$/.test(relativePath)) return []
+				const source = read(relativePath)
+				return forbiddenPatterns.flatMap((pattern) =>
+					pattern.test(source) ? [`${relativePath}: forbidden HouseRule dependency ${pattern}`] : []
+				)
+			})
+		)
+
+		expect(
+			violations,
+			`HouseRule is guest-facing content only; it must not affect pricing, restrictions, availability, search sellability, rules, or policy contract resolution:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("limits cross-module House Rule consumers to guest-facing surfaces and guest expectation snapshots", () => {
+		const allowedConsumers = new Set([
+			"src/container/house-rules.container.ts",
+			"src/modules/house-rules/public.ts",
+			"src/pages/provider/house-rules.astro",
+			"src/pages/product/[id]/preview.astro",
+			"src/pages/hotels/[id]/index.astro",
+			"src/pages/api/internal/product-summary.ts",
+			"src/pages/api/inventory/hold.ts",
+			"src/modules/inventory/application/use-cases/create-inventory-hold.ts",
+			"src/modules/inventory/application/use-cases/hold-inventory.ts",
+			"src/modules/inventory/application/ports/InventoryHoldRepositoryPort.ts",
+			"src/modules/inventory/infrastructure/repositories/InventoryHoldRepository.ts",
+			"src/modules/catalog/infrastructure/repositories/ProductRepository.ts",
+		])
+		const sourceFiles = listFiles("src").filter((relativePath) =>
+			/\.(ts|astro)$/.test(relativePath)
+		)
+		const dependencyPatterns = [
+			/from\s+["']@\/modules\/house-rules/,
+			/\bHouseRule\b/,
+			/\blistHouseRulesByProduct\b/,
+			/\bbuildGuestStayExpectationsSnapshot\b/,
+			/"house_rule"/,
+			/guestExpectationsSnapshotJson/,
+		]
+
+		const violations = sourceFiles.flatMap((relativePath) => {
+			if (relativePath.startsWith("src/modules/house-rules/")) return []
+			if (relativePath === "src/test-support/astro-db.ts") return []
+			if (allowedConsumers.has(relativePath)) return []
+			const source = read(relativePath)
+			return dependencyPatterns.flatMap((pattern) =>
+				pattern.test(source) ? [`${relativePath}: unexpected HouseRule consumer ${pattern}`] : []
+			)
+		})
+
+		expect(
+			violations,
+			`Only guest-facing surfaces, product readiness/summary, the guest expectations snapshot flow, hold snapshot storage, and delete cascade may consume HouseRule concepts:\n${violations.join("\n")}`
+		).toEqual([])
 	})
 
 	it("feeds the product surface with real rooms and an explicit cover image", () => {

@@ -1,4 +1,4 @@
-export type RuleLayer = "HARD" | "CONTRACT" | "INFO"
+export type RuleLayer = "HARD" | "CONTRACT"
 
 export type RuleScope = "product" | "variant" | "rate_plan"
 
@@ -7,7 +7,6 @@ export type RuleCapabilities = {
 	affectsAvailability: boolean
 	requiresAcceptance: boolean
 	includedInSnapshot: boolean
-	informationalOnly: boolean
 }
 
 export type KnownRuleCode =
@@ -16,11 +15,6 @@ export type KnownRuleCode =
 	| "no_show"
 	| "check_in"
 	| "check_out"
-	| "pets"
-	| "smoking"
-	| "children"
-	| "extra_beds"
-	| "access"
 	| "min_stay"
 	| "stop_sell"
 	| "other"
@@ -64,14 +58,6 @@ export type HardConstraintRuleContent = {
 	rules: Record<string, unknown>
 }
 
-export type InformativeRuleContent = {
-	kind: "informative"
-	description: string
-	rules: Record<string, unknown>
-	source: "house_rule" | "policy"
-	confidence: "high" | "medium" | "low"
-}
-
 export type GenericRuleContent = {
 	kind: "generic"
 	description: string
@@ -84,5 +70,4 @@ export type RuleContent =
 	| NoShowRuleContent
 	| CheckInRuleContent
 	| HardConstraintRuleContent
-	| InformativeRuleContent
 	| GenericRuleContent

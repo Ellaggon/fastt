@@ -15,7 +15,7 @@ import {
 	houseRuleGroups,
 	houseRuleLabels,
 } from "@/modules/house-rules/presentation/houseRulePresentation"
-import { buildHouseRuleGuestSummary, listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -39,7 +39,8 @@ const description = String(aggregate.content.description ?? "").trim()
 const primaryImage = aggregate.images[0]?.url ?? ""
 const imagePreviews = aggregate.images.slice(0, 6)
 
-const houseRules = await listHouseRulesByProduct(productId)
+const guestExpectationsSnapshot = await buildGuestStayExpectationsSnapshot(productId)
+const houseRules = guestExpectationsSnapshot.rules
 const houseRuleTypeSet = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
 const missingHouseRules = essentialHouseRuleTypes.filter((type) => !houseRuleTypeSet.has(type))
 const houseRuleLabelByType = houseRuleLabels as Record<string, string>
@@ -369,13 +370,12 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
 											{items.map((rule: any) => {
 												const type = String(rule.type ?? "Other")
-												const summary = buildHouseRuleGuestSummary(type as any, rule.payloadJson)
 												return (
 													<li>
 														<span class="font-medium text-slate-900">
 															{houseRuleLabelByType[type] ?? "Otra regla"}:
 														</span>{" "}
-														{summary}
+														{rule.summary}
 													</li>
 												)
 											})}

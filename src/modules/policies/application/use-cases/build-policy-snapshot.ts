@@ -18,22 +18,21 @@ export type HoldPolicySnapshot = {
 	payment: HoldPolicyItemSnapshot | null
 	no_show: HoldPolicyItemSnapshot | null
 	check_in: HoldPolicyItemSnapshot | null
-	// Additive field for the new canonical PropertyRule domain snapshot.
-	// policySnapshotJson remains authoritative for booking behavior.
+	// Contractual/operational rules derived from policies only.
 	ruleSnapshotJson?: {
 		contractTerms: Array<{
 			ruleId: string
 			version: number
 			category: string
 			content: unknown
-			source: "policy" | "house_rule"
+			source: "policy"
 			timestamp: string
 		}>
 		hardConstraintEvidence: Array<{
 			ruleId: string
 			version: number
 			category: string
-			source: "policy" | "house_rule"
+			source: "policy"
 			timestamp: string
 		}>
 	}
@@ -55,7 +54,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule"
+			source: "policy"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -68,7 +67,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule"
+			source: "policy"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -81,7 +80,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule"
+			source: "policy"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -94,7 +93,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule"
+			source: "policy"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number

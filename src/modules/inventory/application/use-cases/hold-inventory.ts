@@ -11,6 +11,7 @@ const holdInventorySchema = z.object({
 	expiresAt: z.date(),
 	channel: z.string().trim().min(1).nullable().optional(),
 	policySnapshotJson: z.unknown(),
+	guestExpectationsSnapshotJson: z.unknown().nullable().optional(),
 })
 
 export async function holdInventory(
@@ -25,6 +26,7 @@ export async function holdInventory(
 		expiresAt: Date
 		channel?: string | null
 		policySnapshotJson: unknown
+		guestExpectationsSnapshotJson?: unknown | null
 	}
 ) {
 	const parsed = holdInventorySchema.parse(params)
@@ -36,5 +38,6 @@ export async function holdInventory(
 	return deps.repo.holdInventory({
 		...parsed,
 		policySnapshotJson: params.policySnapshotJson,
+		guestExpectationsSnapshotJson: params.guestExpectationsSnapshotJson ?? null,
 	})
 }

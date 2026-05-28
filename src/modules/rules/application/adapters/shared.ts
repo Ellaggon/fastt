@@ -22,12 +22,8 @@ export function normalizeRuleCode(value: string): RuleCode {
 	if (normalized === "noshow") return "no_show"
 	if (normalized === "checkin") return "check_in"
 	if (normalized === "checkout") return "check_out"
-	if (normalized === "extrabeds") return "extra_beds"
 	if (normalized === "stopsell") return "stop_sell"
 	if (normalized === "minstay") return "min_stay"
-	if (normalized === "house_rules" || normalized === "house_rule" || normalized === "houserules") {
-		return "other"
-	}
 	return normalized as RuleCode
 }
 

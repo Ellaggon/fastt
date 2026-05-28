@@ -16,7 +16,7 @@ import {
 	resolveProductImages,
 	resolveProductServices,
 } from "@/modules/catalog/public"
-import { buildHouseRuleGuestSummary, listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import {
 	houseRuleGroups as HOUSE_RULE_GUEST_GROUPS,
 	houseRuleLabels as HOUSE_RULE_LABELS,
@@ -160,7 +160,8 @@ if (!images.length) {
 }
 const services = await resolveProductServices(productId)
 
-const houseRules = await listHouseRulesByProduct(String(productId))
+const guestExpectationsSnapshot = await buildGuestStayExpectationsSnapshot(String(productId))
+const houseRules = guestExpectationsSnapshot.rules
 const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, r: any) => {
 	const t = String(r.type ?? "")
 	if (!acc[t]) acc[t] = []
@@ -445,16 +446,12 @@ try {
 												<ul class="mt-4 space-y-3 text-sm leading-6 text-neutral-700 md:text-base">
 													{items.map((rule: any) => {
 														const type = String(rule.type ?? "Other")
-														const summary = buildHouseRuleGuestSummary(
-															type as any,
-															rule.payloadJson
-														)
 														return (
 															<li>
 																<span class="font-medium text-neutral-900">
 																	{houseRuleLabelByType[type] ?? "Otra regla"}:
 																</span>{" "}
-																{summary}
+																{rule.summary}
 															</li>
 														)
 													})}

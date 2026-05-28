@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
-import { listHouseRulesByProduct } from "@/modules/house-rules/public"
+import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
 
 function toLowerTrim(value: string | null | undefined): string {
@@ -83,7 +83,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.map((variant) => String(variant.name ?? "").trim())
 		.filter(Boolean)
 		.slice(0, 3)
-	const houseRules = await listHouseRulesByProduct(productId)
+	const guestExpectationsSnapshot = await buildGuestStayExpectationsSnapshot(productId)
+	const houseRules = guestExpectationsSnapshot.rules
 	const houseRuleTypes = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
 	const completedHouseRuleTypes = essentialHouseRuleTypes.filter((type) => houseRuleTypes.has(type))
 	const hasHouseRules = completedHouseRuleTypes.length >= 4
@@ -137,6 +138,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			},
 			houseRules: {
 				count: houseRules.length,
+				snapshotVersion: guestExpectationsSnapshot.version,
+				capturedAt: guestExpectationsSnapshot.capturedAt,
 				completedEssentials: completedHouseRuleTypes.length,
 				totalEssentials: essentialHouseRuleTypes.length,
 				missingEssentials: essentialHouseRuleTypes.filter((type) => !houseRuleTypes.has(type)),
