@@ -40,7 +40,7 @@ export interface HouseRule {
 	productId: string
 	type: HouseRuleType
 	description: string
-	payloadJson?: HouseRulePayload | null
+	payloadJson: HouseRulePayload
 	createdAt: string
 }
 
@@ -81,9 +81,9 @@ function cleanTasks(value: unknown): string[] | undefined {
 export function normalizeHouseRulePayload(
 	type: HouseRuleType,
 	input?: Partial<HouseRulePayload> | Record<string, unknown> | null
-): HouseRulePayload | null {
-	if (!input || typeof input !== "object") return null
+): HouseRulePayload {
 	const payload: HouseRulePayload = { kind: type }
+	if (!input || typeof input !== "object") return payload
 	for (const [key, value] of Object.entries(input)) {
 		if (key === "kind") continue
 		if (key === "tasks") {
@@ -143,24 +143,24 @@ function joinParts(parts: Array<string | undefined>): string {
 
 function parkingLabel(value?: string): string | undefined {
 	const labels: Record<string, string> = {
-		free: "Free parking is available.",
-		paid: "Paid parking is available.",
-		street: "Street parking is available; follow local signs and rules.",
-		assigned: "Guests must use the assigned parking space.",
-		nearby: "Nearby parking is available.",
-		none: "Parking is not available at the property.",
+		free: "Hay estacionamiento gratuito disponible.",
+		paid: "Hay estacionamiento pagado disponible.",
+		street: "Hay estacionamiento en la calle; sigue la señalización local.",
+		assigned: "Los huéspedes deben usar el espacio asignado.",
+		nearby: "Hay estacionamiento cercano disponible.",
+		none: "No hay estacionamiento disponible en el alojamiento.",
 	}
 	return value ? labels[value] : undefined
 }
 
 function checkInMethodLabel(value?: string): string | undefined {
 	const labels: Record<string, string> = {
-		self: "Self check-in is available.",
-		host: "Host-assisted check-in is used.",
-		front_desk: "Guests check in at the front desk.",
-		lockbox: "Guests access the property using a lockbox.",
-		smart_lock: "Guests access the property using a smart lock or code.",
-		manual: "Manual key handoff is required.",
+		self: "Llegada autónoma disponible.",
+		host: "La llegada se coordina con anfitrión o personal.",
+		front_desk: "Los huéspedes hacen check-in en recepción.",
+		lockbox: "Los huéspedes acceden con caja de seguridad.",
+		smart_lock: "Los huéspedes acceden con cerradura o código.",
+		manual: "La entrega de llaves se hace en persona.",
 	}
 	return value ? labels[value] : undefined
 }
@@ -175,63 +175,63 @@ export function buildHouseRuleGuestSummary(
 	switch (type) {
 		case "Pets":
 			return joinParts([
-				payload.allowed ? "Pets are allowed." : "Pets are not allowed.",
+				payload.allowed ? "Se permiten mascotas." : "No se permiten mascotas.",
 				payload.feeNote,
 				payload.note,
 			])
 		case "Children":
 			return joinParts([
-				payload.allowed ? "Children are welcome." : "Children are not allowed.",
+				payload.allowed ? "Se aceptan niños." : "No se aceptan niños.",
 				payload.conditions,
 				payload.note,
 			])
 		case "Smoking": {
 			const area =
 				payload.allowed && payload.area === "designated_areas"
-					? "Smoking is only allowed in designated areas."
+					? "Solo se permite fumar en áreas designadas."
 					: payload.allowed && payload.area === "outdoors"
-						? "Smoking is only allowed outdoors."
+						? "Solo se permite fumar al aire libre."
 						: payload.allowed && payload.area === "rooms"
-							? "Smoking is allowed in smoking-designated rooms."
+							? "Se permite fumar solo en habitaciones designadas."
 							: payload.allowed
-								? "Smoking is allowed where marked by the property."
-								: "Smoking is not allowed."
+								? "Se permite fumar donde el alojamiento lo indique."
+								: "No se permite fumar."
 			return joinParts([area, payload.note])
 		}
 		case "Parties":
 			return joinParts([
 				payload.allowed
-					? "Parties and events are allowed with property guidance."
-					: "Parties and events are not allowed.",
+					? "Se permiten fiestas y eventos con las indicaciones del alojamiento."
+					: "No se permiten fiestas ni eventos.",
 				payload.note,
 			])
 		case "QuietHours":
 			return joinParts([
 				payload.start && payload.end
-					? `Quiet hours are from ${payload.start} to ${payload.end}.`
+					? `Horario de silencio de ${payload.start} a ${payload.end}.`
 					: undefined,
 				payload.note,
 			])
 		case "Parking":
 			return joinParts([
 				payload.available
-					? (parkingLabel(payload.parkingType) ?? "Parking is available.")
-					: "Parking is not available at the property.",
+					? (parkingLabel(payload.parkingType) ?? "Hay estacionamiento disponible.")
+					: "No hay estacionamiento disponible en el alojamiento.",
 				payload.note,
 			])
 		case "CheckIn":
 		case "Access":
 			return joinParts([
 				checkInMethodLabel(payload.method),
-				payload.idRequired ? "A valid ID may be required at check-in." : undefined,
-				payload.cardRequired ? "A payment card may be required at check-in." : undefined,
+				payload.idRequired ? "Puede solicitarse documento de identidad al llegar." : undefined,
+				payload.cardRequired ? "Puede solicitarse tarjeta de pago al llegar." : undefined,
 				payload.instructions,
 				payload.note,
 			])
 		case "Checkout":
 			return joinParts([
-				payload.time ? `Checkout is by ${payload.time}.` : undefined,
-				payload.tasks?.length ? `Before leaving: ${payload.tasks.join(", ")}.` : undefined,
+				payload.time ? `Salida hasta las ${payload.time}.` : undefined,
+				payload.tasks?.length ? `Antes de salir: ${payload.tasks.join(", ")}.` : undefined,
 				payload.instructions,
 				payload.note,
 			])

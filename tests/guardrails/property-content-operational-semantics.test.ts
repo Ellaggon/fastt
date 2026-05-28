@@ -38,10 +38,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",
-				"Required before publish",
-				"Guest-facing preview",
-				"Booking terms guests will see",
-				"Stay expectations guests will see",
+				"Antes de publicar",
+				"Condiciones que verá el huésped",
+				"Reglas para huéspedes",
 			],
 			"src/pages/product/[id]/content.astro": ["Contenido", "Contenido principal"],
 			"src/pages/product/[id]/images.astro": ["Fotos", "Galería del alojamiento"],
@@ -181,7 +180,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 		expect(governance).toContain("Alojamientos")
 		expect(governance).toContain("Habitaciones")
-		expect(governance).toContain("Reglas de la casa")
+		expect(governance).toContain("Reglas para huéspedes")
 		expect(governance).toContain("Revisión de fotos")
 		expect(governance).toContain("Metadata SEO")
 		expect(governance).toContain("Flujo de calidad de contenido")
@@ -195,24 +194,41 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const preview = read("src/pages/product/[id]/preview.astro")
 		const houseRules = read("src/pages/provider/house-rules.astro")
 		const routes = read("src/lib/routes.ts")
+		const contentPage = read("src/pages/product/[id]/content.astro")
+		const productContentApi = read("src/pages/api/product/content.ts")
+		const rulesResolver = read("src/modules/rules/application/use-cases/resolve-effective-rules.ts")
+		const dbConfig = read("db/config.ts")
+		const productContentTable =
+			dbConfig.match(/const ProductContent = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const houseRuleRepository = read(
+			"src/modules/house-rules/infrastructure/repositories/HouseRuleRepository.ts"
+		)
 
 		expect(routes).toContain("productPreview")
 		expect(worklist).toContain("routes.productPreview(product.id)")
 		expect(readiness).toContain("routes.productPreview(productId)")
 		expect(readiness).toContain("routes.providerHouseRules()}?productId=")
-		expect(houseRules).toContain("routes.productPreview(item.product.id)")
+		expect(houseRules).toContain("routes.productPreview(selectedProduct.id)")
 		expect(houseRules).toContain("requestedProductId")
 		expect(houseRules).toContain("visibleProducts")
 		expect(houseRules).toContain("Ver ficha completa")
 
-		expect(preview).toContain("Required before publish")
-		expect(preview).toContain("Guest-facing preview")
-		expect(preview).toContain("Booking terms guests will see")
-		expect(preview).toContain("Stay expectations guests will see")
+		expect(preview).toContain("Antes de publicar")
+		expect(preview).toContain("Condiciones que verá el huésped")
+		expect(preview).toContain("Reglas para huéspedes")
 		expect(preview).toContain("routes.providerHouseRules()")
 		expect(preview).toContain("routes.providerPolicies()")
 		expect(preview).not.toContain("/api/pricing/")
 		expect(preview).not.toContain("/api/inventory/")
+
+		expect(contentPage).not.toContain('name="rules"')
+		expect(productContentApi).not.toContain('form.get("rules")')
+		expect(productContentTable).not.toContain("rules:")
+		expect(rulesResolver).not.toContain(["ProductContent", "rules"].join("."))
+		expect(rulesResolver).not.toContain(["product_content", "rules"].join("_"))
+		expect(houseRuleRepository).toContain("payloadJson: HouseRuleTable.payloadJson")
+		expect(houseRuleRepository).not.toMatch(new RegExp(["isMissing", "PayloadJsonColumn"].join("")))
+		expect(houseRuleRepository).not.toMatch(/payloadJson:\s*null/)
 	})
 
 	it("feeds the product surface with real rooms and an explicit cover image", () => {

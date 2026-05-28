@@ -37,13 +37,12 @@ CREATE TABLE ProductContent_new (
   productId TEXT PRIMARY KEY,
   description TEXT,
   highlightsJson JSON,
-  rules TEXT,
   seoJson JSON,
   FOREIGN KEY (productId) REFERENCES Product(id) ON DELETE CASCADE
 );
 
-INSERT INTO ProductContent_new (productId, description, highlightsJson, rules, seoJson)
-SELECT productId, description, highlightsJson, rules, seoJson
+INSERT INTO ProductContent_new (productId, description, highlightsJson, seoJson)
+SELECT productId, description, highlightsJson, seoJson
 FROM ProductContent;
 
 DROP TABLE ProductContent;

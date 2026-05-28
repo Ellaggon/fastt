@@ -163,7 +163,7 @@ const HouseRule = defineTable({
 		productId: column.text({ references: () => Product.columns.id }),
 		type: column.text(), // Children | Pets | Smoking | Parties | QuietHours | Parking | CheckIn | Checkout | Safety | ExtraBeds | Access | Other
 		description: column.text(),
-		payloadJson: column.json({ optional: true }),
+		payloadJson: column.json(),
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["productId", "type"] }],
@@ -182,7 +182,6 @@ const ProductContent = defineTable({
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
 		description: column.text({ optional: true }),
 		highlightsJson: column.json({ optional: true }),
-		rules: column.text({ optional: true }),
 		seoJson: column.json({ optional: true }),
 	},
 })

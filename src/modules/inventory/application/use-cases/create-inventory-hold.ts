@@ -82,7 +82,6 @@ export async function createInventoryHold(
 			channel?: string
 			requiredCategories?: string[]
 			onMissingCategory?: "return_null" | "throw_error"
-			includeProductContentRules?: boolean
 		}) => Promise<ResolveEffectiveRulesResult>
 		policyContext: {
 			productId: string

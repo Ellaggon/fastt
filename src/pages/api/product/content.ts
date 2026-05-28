@@ -29,7 +29,6 @@ export const POST: APIRoute = async ({ request }) => {
 			productId: String(form.get("productId") ?? ""),
 			description: String(form.get("description") ?? ""),
 			highlightsJson: String(form.get("highlightsJson") ?? ""),
-			rules: String(form.get("rules") ?? ""),
 		}
 
 		const owned = await productRepository.ensureProductOwnedByProvider(raw.productId, providerId)
@@ -46,7 +45,6 @@ export const POST: APIRoute = async ({ request }) => {
 				productId: raw.productId,
 				description: raw.description,
 				highlightsJson: raw.highlightsJson,
-				rules: raw.rules || null,
 			}
 		)
 		await invalidateProduct(raw.productId)

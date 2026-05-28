@@ -6,7 +6,7 @@ export interface HouseRuleRepositoryPort {
 		productId: string
 		type: HouseRuleType
 		description: string
-		payloadJson?: HouseRulePayload | null
+		payloadJson: HouseRulePayload
 		createdAt: Date
 	}): Promise<void>
 	listByProduct(productId: string): Promise<
@@ -15,7 +15,7 @@ export interface HouseRuleRepositoryPort {
 			productId: string
 			type: HouseRuleType
 			description: string
-			payloadJson?: HouseRulePayload | null
+			payloadJson: HouseRulePayload
 			createdAt: Date
 		}>
 	>

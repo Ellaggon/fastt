@@ -7,8 +7,6 @@ import {
 import type { EffectiveRule } from "../../domain/rule.entities"
 import { mapHouseRulesToRules } from "../adapters/house-rule-to-rule.adapter"
 import { mapResolvedPoliciesToRules } from "../adapters/policy-to-rule.adapter"
-import { mapProductContentRulesToRule } from "../adapters/product-content-rules-to-rule.adapter"
-import type { ProductContentRulesRepositoryPort } from "../ports/ProductContentRulesRepositoryPort"
 
 export type ResolveEffectiveRulesInput = {
 	productId: string
@@ -19,7 +17,6 @@ export type ResolveEffectiveRulesInput = {
 	channel?: string
 	requiredCategories?: string[]
 	onMissingCategory?: "return_null" | "throw_error"
-	includeProductContentRules?: boolean
 }
 
 export type ResolveEffectiveRulesResult = {
@@ -68,9 +65,7 @@ function detectConflicts(items: EffectiveRule[]): Array<{
 		.sort((a, b) => a.code.localeCompare(b.code))
 }
 
-export function createResolveEffectiveRulesUseCase(deps: {
-	productContentRulesRepo: ProductContentRulesRepositoryPort
-}) {
+export function createResolveEffectiveRulesUseCase() {
 	return async function resolveEffectiveRules(
 		input: ResolveEffectiveRulesInput
 	): Promise<ResolveEffectiveRulesResult> {
@@ -85,7 +80,7 @@ export function createResolveEffectiveRulesUseCase(deps: {
 			}
 		}
 
-		const [resolvedPoliciesRaw, houseRules, productRulesText] = await Promise.all([
+		const [resolvedPoliciesRaw, houseRules] = await Promise.all([
 			resolveEffectivePolicies({
 				productId,
 				variantId: input.variantId,
@@ -97,9 +92,6 @@ export function createResolveEffectiveRulesUseCase(deps: {
 				onMissingCategory: input.onMissingCategory,
 			}),
 			listHouseRulesByProduct(productId),
-			input.includeProductContentRules === false
-				? Promise.resolve(null)
-				: deps.productContentRulesRepo.readProductContentRulesText(productId),
 		])
 		const resolvedPolicies = normalizePolicyResolutionResult(resolvedPoliciesRaw, {
 			asOfDate: input.checkIn ?? new Date().toISOString().slice(0, 10),
@@ -121,15 +113,12 @@ export function createResolveEffectiveRulesUseCase(deps: {
 				productId: string
 				type: string
 				description: string
+				payloadJson: Record<string, unknown>
 				createdAt: string
 			}>,
 		})
-		const productContentRules = mapProductContentRulesToRule({
-			productId,
-			rulesText: productRulesText,
-		})
 
-		const allRules = sortDeterministic([...policyRules, ...infoHouseRules, ...productContentRules])
+		const allRules = sortDeterministic([...policyRules, ...infoHouseRules])
 		const hardConstraints = allRules.filter((rule) => rule.group.layer === "HARD")
 		const contractTerms = allRules.filter((rule) => rule.group.layer === "CONTRACT")
 		const informativeRules = allRules.filter((rule) => rule.group.layer === "INFO")
@@ -187,7 +176,6 @@ export function createResolveEffectiveRulesUseCase(deps: {
 			productId,
 			policyRules: policyRules.length,
 			houseRules: infoHouseRules.length,
-			productContentRules: productContentRules.length,
 		})
 
 		return {

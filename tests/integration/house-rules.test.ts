@@ -30,8 +30,14 @@ describe("integration/house-rules (CAPA 6.5)", () => {
 			productId,
 			type: "Children",
 			description: "Children of all ages are welcome.",
+			payload: { kind: "Children", allowed: true },
 		})
-		const r2 = await createHouseRule({ productId, type: "Pets", description: "No pets allowed." })
+		const r2 = await createHouseRule({
+			productId,
+			type: "Pets",
+			description: "No pets allowed.",
+			payload: { kind: "Pets", allowed: false },
+		})
 		const r3 = await createHouseRule({
 			productId,
 			type: "QuietHours",
@@ -45,7 +51,7 @@ describe("integration/house-rules (CAPA 6.5)", () => {
 		expect(list1.length).toBe(3)
 		expect(list1.some((r) => r.type === "Children")).toBe(true)
 		expect(list1.some((r) => r.type === "Pets")).toBe(true)
-		expect(list1.some((r) => r.description === "Quiet hours are from 22:00 to 08:00.")).toBe(true)
+		expect(list1.some((r) => r.description === "Horario de silencio de 22:00 a 08:00.")).toBe(true)
 
 		await deleteHouseRule(r1.id)
 		const list2 = await listHouseRulesByProduct(productId)

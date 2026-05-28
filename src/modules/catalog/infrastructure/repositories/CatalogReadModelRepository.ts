@@ -45,7 +45,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				productType: Product.productType,
 				contentDescription: ProductContent.description,
 				status: ProductStatus.state,
-				contentRules: ProductContent.rules,
 				contentHighlights: ProductContent.highlightsJson,
 				address: ProductLocation.address,
 				lat: ProductLocation.lat,
@@ -86,7 +85,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			content: {
 				description,
 				highlights: row.contentHighlights ?? [],
-				rules: row.contentRules ? String(row.contentRules) : null,
 			},
 			location: {
 				address: row.address ?? null,
@@ -119,7 +117,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				productType: Product.productType,
 				status: ProductStatus.state,
 				contentDescription: ProductContent.description,
-				contentRules: ProductContent.rules,
 				contentHighlights: ProductContent.highlightsJson,
 				address: ProductLocation.address,
 				lat: ProductLocation.lat,
@@ -193,7 +190,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			content: {
 				description: row.contentDescription ? String(row.contentDescription).trim() : null,
 				highlights: row.contentHighlights ?? [],
-				rules: row.contentRules ? String(row.contentRules) : null,
 			},
 			location: {
 				address: row.address ?? null,

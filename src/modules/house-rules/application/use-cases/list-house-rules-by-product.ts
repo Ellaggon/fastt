@@ -15,7 +15,7 @@ export async function listHouseRulesByProduct(
 		productId: string
 		type: string
 		description: string
-		payloadJson: HouseRulePayload | null
+		payloadJson: HouseRulePayload
 		createdAt: string
 	}>
 > {

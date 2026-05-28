@@ -35,39 +35,39 @@ type PreviewGroup = {
 }
 
 const houseRuleLabels: Record<string, string> = {
-	Pets: "Pets",
-	Children: "Children",
-	Smoking: "Smoking",
-	Parties: "Parties & events",
-	QuietHours: "Quiet hours",
-	Parking: "Parking",
-	CheckIn: "Check-in",
-	Checkout: "Checkout",
-	Safety: "Safety & access",
-	ExtraBeds: "Extra beds",
-	Access: "Access",
-	Other: "Additional rules",
+	Pets: "Mascotas",
+	Children: "Niños",
+	Smoking: "Fumar",
+	Parties: "Fiestas y eventos",
+	QuietHours: "Horario de silencio",
+	Parking: "Estacionamiento",
+	CheckIn: "Llegada",
+	Checkout: "Salida",
+	Safety: "Seguridad y espacios",
+	ExtraBeds: "Camas adicionales",
+	Access: "Acceso",
+	Other: "Otras reglas",
 }
 
 const houseRuleGroups: PreviewGroup[] = [
 	{
-		label: "Before you book",
-		description: "Expectations guests should understand before they reserve.",
+		label: "Antes de reservar",
+		description: "Lo que el huésped debe entender antes de confirmar.",
 		types: ["Pets", "Children", "Smoking", "Parties", "QuietHours"],
 	},
 	{
-		label: "Arrival",
-		description: "What guests should know before reaching the property.",
+		label: "Llegada",
+		description: "Lo que el huésped debe saber antes de llegar.",
 		types: ["CheckIn", "Access", "Parking"],
 	},
 	{
-		label: "During your stay",
-		description: "Property-use, shared-space and safety expectations.",
+		label: "Durante la estadía",
+		description: "Uso del alojamiento, espacios compartidos y seguridad.",
 		types: ["Safety", "ExtraBeds", "Other"],
 	},
 	{
-		label: "Checkout",
-		description: "Simple departure expectations.",
+		label: "Salida",
+		description: "Tareas simples antes de irse.",
 		types: ["Checkout"],
 	},
 ]
@@ -117,57 +117,57 @@ const missingPolicies = requiredPolicyCategories.filter(
 const checks = [
 	{
 		key: "content",
-		label: "Guest-facing content",
+		label: "Contenido visible para huéspedes",
 		complete: Boolean(description && highlights.length),
 		href: `/product/${encodeURIComponent(productId)}/content`,
-		cta: "Edit content",
+		cta: "Editar contenido",
 		detail:
 			description && highlights.length
-				? "Description and highlights are ready."
-				: "Add a description and at least one highlight.",
+				? "Descripción y destacados listos."
+				: "Agrega descripción y al menos un destacado.",
 	},
 	{
 		key: "photos",
-		label: "Photos",
+		label: "Fotos",
 		complete: aggregate.images.length > 0,
 		href: `/product/${encodeURIComponent(productId)}/images`,
-		cta: "Manage photos",
+		cta: "Editar fotos",
 		detail: aggregate.images.length
-			? `${aggregate.images.length} photos available.`
-			: "Add at least one listing photo.",
+			? `${aggregate.images.length} fotos disponibles.`
+			: "Agrega al menos una foto.",
 	},
 	{
 		key: "location",
-		label: "Location",
+		label: "Ubicación",
 		complete: aggregate.location.lat !== null && aggregate.location.lng !== null,
 		href: `/product/${encodeURIComponent(productId)}/location`,
-		cta: "Edit location",
+		cta: "Editar ubicación",
 		detail:
 			aggregate.location.lat !== null && aggregate.location.lng !== null
-				? "Map coordinates are configured."
-				: "Add map coordinates before publishing.",
+				? "Coordenadas configuradas."
+				: "Agrega coordenadas antes de publicar.",
 	},
 	{
 		key: "house-rules",
-		label: "Reglas de la casa",
+		label: "Reglas para huéspedes",
 		complete: missingHouseRules.length === 0,
 		href: routes.providerHouseRules(),
 		cta: "Revisar reglas",
 		detail: missingHouseRules.length
-			? `Missing: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
-			: "Core stay expectations are ready.",
+			? `Faltan: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
+			: "Reglas principales listas.",
 	},
 	{
 		key: "booking-policies",
-		label: "Booking Policies",
+		label: "Condiciones de reserva",
 		complete: missingPolicies.length === 0 && !policyResolutionError,
 		href: routes.providerPolicies(),
-		cta: "Review policies",
+		cta: "Revisar condiciones",
 		detail: policyResolutionError
-			? "Policies could not be resolved."
+			? "No se pudieron resolver las condiciones."
 			: missingPolicies.length
-				? `Missing: ${missingPolicies.map((category) => POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ?? category).join(", ")}.`
-				: "Core booking contract terms are visible.",
+				? `Faltan: ${missingPolicies.map((category) => POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ?? category).join(", ")}.`
+				: "Condiciones principales visibles.",
 	},
 ]
 
@@ -203,13 +203,13 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 			<Card className="space-y-4 border-slate-800 bg-slate-950 text-slate-100">
 				<div class="flex items-start justify-between gap-3">
 					<div>
-						<p class="text-sm font-semibold">Publish confidence</p>
+						<p class="text-sm font-semibold">Estado de publicación</p>
 						<p class="mt-1 text-sm text-slate-400">
-							{completedChecks} of {checks.length} required guest-facing blocks ready.
+							{completedChecks} de {checks.length} bloques principales listos.
 						</p>
 					</div>
 					<Badge variant={readyToPublish ? "success" : "warning"}>
-						{readyToPublish ? "Ready to publish" : `${readinessPercent}% ready`}
+						{readyToPublish ? "Listo para publicar" : `${readinessPercent}% listo`}
 					</Badge>
 				</div>
 				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
@@ -218,8 +218,8 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 				<p class="text-sm text-slate-300">
 					{
 						readyToPublish
-							? "Guests can see a coherent listing, contract summary and stay expectations."
-							: "Review the missing blocks before treating this listing as publish-ready."
+							? "El huésped puede ver una ficha coherente, condiciones y reglas claras."
+							: "Revisa lo pendiente antes de publicar."
 					}
 				</p>
 			</Card>
@@ -227,13 +227,13 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 			<Card className="space-y-3 bg-white text-slate-800">
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<p class="text-sm font-semibold text-slate-900">Required before publish</p>
+						<p class="text-sm font-semibold text-slate-900">Antes de publicar</p>
 						<p class="mt-1 text-sm text-slate-600">
-							A practical OTA checklist for provider confidence and guest clarity.
+							Una revisión simple para que la ficha sea clara para el huésped.
 						</p>
 					</div>
 					<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-						Reglas de la casa
+						Reglas para huéspedes
 					</Button>
 				</div>
 				<div class="grid gap-3 md:grid-cols-2">
@@ -246,7 +246,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 										<p class="mt-1 text-xs leading-5 text-slate-600">{check.detail}</p>
 									</div>
 									<Badge variant={check.complete ? "success" : "warning"}>
-										{check.complete ? "Ready" : "Review"}
+										{check.complete ? "Listo" : "Revisar"}
 									</Badge>
 								</div>
 								<div class="mt-3">
@@ -262,8 +262,8 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 		</section>
 
 		<Section
-			title="Guest-facing preview"
-			description="A consolidated preview of the listing story, visual confidence, booking terms and stay expectations."
+			title="Vista previa"
+			description="Cómo se lee la ficha con contenido, fotos, condiciones y reglas para huéspedes."
 		>
 			<Card className="overflow-hidden bg-white p-0 text-slate-800">
 				{
@@ -271,7 +271,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						<img src={primaryImage} alt={aggregate.displayName} class="h-72 w-full object-cover" />
 					) : (
 						<div class="flex h-72 items-center justify-center bg-slate-100 text-sm text-slate-500">
-							Add photos to create a guest-facing first impression.
+							Agrega fotos para dar una primera impresión clara.
 						</div>
 					)
 				}
@@ -283,11 +283,11 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 							</p>
 							<h2 class="mt-1 text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
 							<p class="mt-1 text-sm text-slate-500">
-								{aggregate.location.address || "Location details not ready yet"}
+								{aggregate.location.address || "Ubicación pendiente"}
 							</p>
 						</div>
 						<Badge variant={readyToPublish ? "success" : "warning"}>
-							{readyToPublish ? "Guest-ready" : "Draft preview"}
+							{readyToPublish ? "Lista para huéspedes" : "Borrador"}
 						</Badge>
 					</div>
 
@@ -350,14 +350,14 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 		</Section>
 
 		<Section
-			title="Booking terms guests will see"
-			description="Contract terms stay in Booking Policies. This preview only verifies visibility."
+			title="Condiciones que verá el huésped"
+			description="Las condiciones de reserva viven en Condiciones. Esta vista solo confirma cómo se leen."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				{
 					policyResolutionError ? (
 						<Card className="border-red-200 bg-red-50 text-red-900">
-							<p class="font-semibold">Policies could not be resolved.</p>
+							<p class="font-semibold">No se pudieron resolver las condiciones.</p>
 							<p class="mt-1 text-sm">{policyResolutionError}</p>
 						</Card>
 					) : mappedPolicies.length ? (
@@ -372,7 +372,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 													category}
 											</p>
 											<p class="mt-1 text-sm leading-6 text-slate-600">
-												{String(policy.description ?? "No policy detail available.")}
+												{String(policy.description ?? "Sin detalle visible.")}
 											</p>
 										</div>
 										<Badge variant="info">v{Number(policy.version ?? 0)}</Badge>
@@ -382,10 +382,8 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						})
 					) : (
 						<Card className="bg-white text-slate-700">
-							<p class="font-semibold text-slate-900">No booking policies visible yet.</p>
-							<p class="mt-1 text-sm">
-								Create booking policies before treating the listing as ready.
-							</p>
+							<p class="font-semibold text-slate-900">Aún no hay condiciones visibles.</p>
+							<p class="mt-1 text-sm">Agrega condiciones antes de publicar.</p>
 						</Card>
 					)
 				}
@@ -393,8 +391,8 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 		</Section>
 
 		<Section
-			title="Stay expectations guests will see"
-			description="Las reglas de la casa explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
+			title="Reglas para huéspedes"
+			description="Explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
 				{
@@ -418,7 +416,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 												return (
 													<li>
 														<span class="font-medium text-slate-900">
-															{houseRuleLabels[type] ?? "Additional rule"}:
+															{houseRuleLabels[type] ?? "Otra regla"}:
 														</span>{" "}
 														{summary}
 													</li>
@@ -431,10 +429,9 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						</div>
 					) : (
 						<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-							<p class="text-sm font-semibold text-slate-900">Aún no hay reglas de la casa.</p>
+							<p class="text-sm font-semibold text-slate-900">Aún no hay reglas para huéspedes.</p>
 							<p class="mt-1 text-sm text-slate-600">
-								Add stay expectations so guests understand behavior, arrival and checkout before
-								booking.
+								Agrega reglas para que el huésped entienda comportamiento, llegada y salida.
 							</p>
 						</div>
 					)

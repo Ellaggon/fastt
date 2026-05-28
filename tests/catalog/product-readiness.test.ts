@@ -55,7 +55,6 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 			content: {
 				productId: "prod_1",
 				highlightsJson: ["h1"],
-				rules: null,
 				seoJson: null,
 			},
 			location: {

@@ -14,7 +14,6 @@ export type ProductAggregate = {
 		productId: string
 		description?: string | null
 		highlightsJson?: unknown | null
-		rules?: string | null
 		seoJson?: unknown | null
 	} | null
 	location: {
@@ -43,7 +42,6 @@ export interface ProductRepositoryPort {
 		productId: string
 		description?: string | null
 		highlightsJson?: unknown | null
-		rules?: string | null
 		seoJson?: unknown | null
 	}): Promise<void>
 

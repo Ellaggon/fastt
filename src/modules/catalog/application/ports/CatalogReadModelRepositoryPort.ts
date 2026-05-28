@@ -6,7 +6,6 @@ export type CatalogProductAggregate = {
 	content: {
 		description: string | null
 		highlights: unknown
-		rules: string | null
 	}
 	location: {
 		address: string | null
@@ -30,7 +29,6 @@ export type ProductFullAggregate = {
 	content: {
 		description: string | null
 		highlights: unknown
-		rules: string | null
 	}
 	location: {
 		address: string | null
