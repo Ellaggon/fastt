@@ -1,22 +1,7 @@
--- Fase 3B: HouseRule is the only canonical guest-facing rules source.
--- ProductContent keeps editorial listing copy only: description, highlights and SEO.
+-- HouseRule payload-only cleanup.
+-- Guest-facing rule copy is derived from payloadJson, avoiding a second text source.
 
 PRAGMA foreign_keys=OFF;
-
-CREATE TABLE IF NOT EXISTS "ProductContent_new" (
-  "productId" TEXT PRIMARY KEY,
-  "description" TEXT,
-  "highlightsJson" JSON,
-  "seoJson" JSON,
-  FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE
-);
-
-INSERT INTO "ProductContent_new" ("productId", "description", "highlightsJson", "seoJson")
-SELECT "productId", "description", "highlightsJson", "seoJson"
-FROM "ProductContent";
-
-DROP TABLE "ProductContent";
-ALTER TABLE "ProductContent_new" RENAME TO "ProductContent";
 
 CREATE TABLE IF NOT EXISTS "HouseRule_new" (
   "id" TEXT PRIMARY KEY,

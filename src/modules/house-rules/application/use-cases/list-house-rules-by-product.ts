@@ -1,6 +1,5 @@
 import type { HouseRuleRepositoryPort } from "../ports/HouseRuleRepositoryPort"
 import {
-	buildHouseRuleGuestSummary,
 	normalizeHouseRulePayload,
 	type HouseRulePayload,
 	type HouseRuleType,
@@ -14,7 +13,6 @@ export async function listHouseRulesByProduct(
 		id: string
 		productId: string
 		type: string
-		description: string
 		payloadJson: HouseRulePayload
 		createdAt: string
 	}>
@@ -37,7 +35,6 @@ export async function listHouseRulesByProduct(
 			id: String(r.id),
 			productId: String(r.productId),
 			type,
-			description: buildHouseRuleGuestSummary(type, payload, String(r.description ?? "")),
 			payloadJson: payload,
 			createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
 		}

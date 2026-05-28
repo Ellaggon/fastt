@@ -681,13 +681,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Physical variant management APIs.",
 	},
 	{
-		pattern: "/api/house-rules/**",
-		status: "canonical",
-		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Property content house-rule APIs.",
-	},
-	{
 		pattern: "/api/search-v2",
 		status: "public",
 		context: "public-marketplace",
