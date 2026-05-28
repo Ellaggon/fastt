@@ -1,3 +1,4 @@
+import { normalizeProductTypeValue } from "@/lib/catalog/productVerticalRegistry"
 import type { ProductRepositoryPort } from "../../ports/ProductRepositoryPort"
 import { productBaseSchema } from "../../schemas/product/productBaseSchema"
 
@@ -17,11 +18,15 @@ export async function createProduct(
 		providerId: params.providerId ?? undefined,
 		destinationId: params.destinationId,
 	})
+	const canonicalProductType = normalizeProductTypeValue(parsed.productType)
+	if (!canonicalProductType) {
+		throw new Error("Invalid product type")
+	}
 
 	await deps.repo.createProductBase({
 		id: params.id,
 		name: parsed.name,
-		productType: parsed.productType,
+		productType: canonicalProductType,
 		providerId: parsed.providerId ?? null,
 		destinationId: parsed.destinationId,
 	})

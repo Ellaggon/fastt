@@ -1,3 +1,4 @@
+import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import type { ProductRepositoryPort, ProductStatusState } from "../../ports/ProductRepositoryPort"
 
 type ValidationError = { code: string; message: string }
@@ -44,6 +45,31 @@ export async function evaluateProductReadiness(
 	// Subtype checks
 	if (!agg.subtypeExists) {
 		errors.push({ code: "missing_subtype", message: "Subtype details are required" })
+	}
+
+	const vertical = normalizeProductVertical(agg.product.productType)
+	if (vertical === "package") {
+		const packageDetails = agg.subtypeDetails?.kind === "package" ? agg.subtypeDetails : null
+		const itinerary = String(packageDetails?.itinerary ?? "").trim()
+		if (!itinerary) {
+			errors.push({
+				code: "missing_package_itinerary",
+				message: "Package itinerary is required",
+			})
+		}
+		if (!Number(packageDetails?.days) || !Number(packageDetails?.nights)) {
+			errors.push({
+				code: "missing_package_duration",
+				message: "Package days and nights are required",
+			})
+		}
+		const includes = String(packageDetails?.includes ?? "").trim()
+		if (!includes) {
+			errors.push({
+				code: "missing_package_inclusions",
+				message: "Package inclusions are required",
+			})
+		}
 	}
 
 	const state: ProductStatusState = errors.length === 0 ? "ready" : "draft"

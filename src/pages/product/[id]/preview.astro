@@ -8,6 +8,7 @@ import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 import {
@@ -33,16 +34,35 @@ if (!owned) return Astro.redirect(routes.productList())
 const aggregate = await getProductFullAggregate(productId, providerId)
 if (!aggregate) return Astro.redirect(routes.productList())
 
+const vertical = getProductVerticalEntry(aggregate.productType)
+const isHotel = vertical.vertical === "hotel"
+const publicDetailHref = vertical.routes.publicDetailHref(productId)
 const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
 const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 const description = String(aggregate.content.description ?? "").trim()
 const primaryImage = aggregate.images[0]?.url ?? ""
 const imagePreviews = aggregate.images.slice(0, 6)
+const packageIncludes =
+	aggregate.subtype?.kind === "package" ? String(aggregate.subtype.includes ?? "").trim() : ""
+const packageExcludes =
+	aggregate.subtype?.kind === "package" ? String(aggregate.subtype.excludes ?? "").trim() : ""
+const packageInclusionItems = packageIncludes
+	.split(/\r?\n|,/)
+	.map((item) => item.trim())
+	.filter(Boolean)
+const packageExclusionItems = packageExcludes
+	.split(/\r?\n|,/)
+	.map((item) => item.trim())
+	.filter(Boolean)
 
-const guestExpectationsSnapshot = await buildGuestStayExpectationsSnapshot(productId)
-const houseRules = guestExpectationsSnapshot.rules
+const guestExpectationsSnapshot = isHotel
+	? await buildGuestStayExpectationsSnapshot(productId)
+	: null
+const houseRules = guestExpectationsSnapshot?.rules ?? []
 const houseRuleTypeSet = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
-const missingHouseRules = essentialHouseRuleTypes.filter((type) => !houseRuleTypeSet.has(type))
+const missingHouseRules = isHotel
+	? essentialHouseRuleTypes.filter((type) => !houseRuleTypeSet.has(type))
+	: []
 const houseRuleLabelByType = houseRuleLabels as Record<string, string>
 const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: any) => {
 	const type = String(rule.type ?? "Other")
@@ -109,16 +129,34 @@ const checks = [
 				? "Coordenadas configuradas."
 				: "Agrega coordenadas antes de publicar.",
 	},
-	{
-		key: "house-rules",
-		label: "Reglas para huéspedes",
-		complete: missingHouseRules.length === 0,
-		href: routes.providerHouseRules(),
-		cta: "Revisar reglas",
-		detail: missingHouseRules.length
-			? `Faltan: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
-			: "Reglas principales listas.",
-	},
+	...(isHotel
+		? [
+				{
+					key: "house-rules",
+					label: "Reglas para huéspedes",
+					complete: missingHouseRules.length === 0,
+					href: routes.providerHouseRules(),
+					cta: "Revisar reglas",
+					detail: missingHouseRules.length
+						? `Faltan: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
+						: "Reglas principales listas.",
+				},
+			]
+		: []),
+	...(vertical.vertical === "package"
+		? [
+				{
+					key: "package-inclusions",
+					label: "Incluye / No incluye",
+					complete: packageInclusionItems.length > 0,
+					href: `/product/${encodeURIComponent(productId)}/subtype`,
+					cta: "Editar inclusiones",
+					detail: packageInclusionItems.length
+						? `${packageInclusionItems.length} inclusiones visibles.`
+						: "Agrega qué incluye el paquete antes de publicar.",
+				},
+			]
+		: []),
 	{
 		key: "booking-policies",
 		label: "Condiciones de reserva",
@@ -138,26 +176,31 @@ const readyToPublish = completedChecks === checks.length
 const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Vista previa">
+<WorkspaceLayout title="Catálogo · Vista previa">
 	<section class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Contenido del alojamiento · Revisión antes de publicar
+					Catálogo · Revisión antes de publicar
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Vista previa</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Confirma qué entenderán los huéspedes antes de reservar: fotos, contenido, condiciones y
-					reglas de la casa. Esta revisión no cambia precios, inventario ni venta.
+					Confirma qué entenderán los viajeros antes de reservar: fotos, contenido, condiciones
+					{isHotel ? " y reglas de la casa" : ""}. Esta revisión no cambia precios, inventario ni
+					venta.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<Button href={routes.productDetail(productId)} variant="secondary"
-					>Volver a alojamiento</Button
+					>Volver a {vertical.labels.singular}</Button
 				>
-				<Button href={`/hotels/${encodeURIComponent(productId)}`} variant="secondary"
-					>Abrir página pública</Button
-				>
+				{
+					publicDetailHref ? (
+						<Button href={publicDetailHref} variant="secondary">
+							Abrir página pública
+						</Button>
+					) : null
+				}
 			</div>
 		</header>
 
@@ -180,7 +223,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 				<p class="text-sm text-slate-300">
 					{
 						readyToPublish
-							? "El huésped puede ver una ficha coherente, condiciones y reglas claras."
+							? "El viajero puede ver una ficha coherente con contenido y condiciones claras."
 							: "Revisa lo pendiente antes de publicar."
 					}
 				</p>
@@ -194,9 +237,13 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 							Una revisión simple para que la ficha sea clara para el huésped.
 						</p>
 					</div>
-					<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-						Reglas para huéspedes
-					</Button>
+					{
+						isHotel ? (
+							<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+								Reglas para huéspedes
+							</Button>
+						) : null
+					}
 				</div>
 				<div class="grid gap-3 md:grid-cols-2">
 					{
@@ -225,7 +272,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 
 		<Section
 			title="Vista previa"
-			description="Cómo se lee la ficha con contenido, fotos, condiciones y reglas para huéspedes."
+			description="Cómo se lee la ficha con contenido, fotos y condiciones visibles para viajeros."
 		>
 			<Card className="overflow-hidden bg-white p-0 text-slate-800">
 				{
@@ -241,7 +288,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div>
 							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-								{aggregate.productType}
+								{vertical.labels.workspaceSingular}
 							</p>
 							<h2 class="mt-1 text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
 							<p class="mt-1 text-sm text-slate-500">
@@ -266,13 +313,16 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 					<div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
 						<div class="space-y-4">
 							<div>
-								<p class="text-sm font-semibold text-slate-900">About this stay</p>
+								<p class="text-sm font-semibold text-slate-900">Sobre esta oferta</p>
 								<p class="mt-2 text-sm leading-6 text-slate-700">
-									{description || "Add a clear description so guests understand the stay."}
+									{
+										description ||
+											"Agrega una descripción clara para que el viajero entienda la oferta."
+									}
 								</p>
 							</div>
 							<div>
-								<p class="text-sm font-semibold text-slate-900">Highlights</p>
+								<p class="text-sm font-semibold text-slate-900">Destacados</p>
 								{
 									highlights.length ? (
 										<ul class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
@@ -282,7 +332,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 										</ul>
 									) : (
 										<p class="mt-2 text-sm text-slate-500">
-											Add at least one guest-facing highlight.
+											Agrega al menos un destacado visible para viajeros.
 										</p>
 									)
 								}
@@ -290,10 +340,10 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						</div>
 
 						<div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-							<p class="text-sm font-semibold text-slate-900">Booking confidence</p>
+							<p class="text-sm font-semibold text-slate-900">Confianza de reserva</p>
 							<p class="text-sm leading-6 text-slate-600">
-								Guests should be able to understand cancellation, payment, no-show and check-in
-								terms before reserving.
+								Los viajeros deben entender cancelación, pagos, no-show y check-in antes de
+								reservar.
 							</p>
 							<div class="flex flex-wrap gap-2">
 								{
@@ -310,6 +360,46 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 				</div>
 			</Card>
 		</Section>
+
+		{
+			vertical.vertical === "package" ? (
+				<Section
+					title="Incluye / No incluye"
+					description="Estas listas pertenecen al paquete. No son destacados editoriales."
+				>
+					<div class="grid gap-4 md:grid-cols-2">
+						<Card className="bg-white text-slate-800">
+							<p class="text-sm font-semibold text-slate-900">Incluye</p>
+							{packageInclusionItems.length ? (
+								<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+									{packageInclusionItems.map((item) => (
+										<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
+									))}
+								</ul>
+							) : (
+								<p class="mt-2 text-sm text-slate-500">
+									Agrega inclusiones visibles antes de publicar.
+								</p>
+							)}
+						</Card>
+						<Card className="bg-white text-slate-800">
+							<p class="text-sm font-semibold text-slate-900">No incluye</p>
+							{packageExclusionItems.length ? (
+								<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+									{packageExclusionItems.map((item) => (
+										<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
+									))}
+								</ul>
+							) : (
+								<p class="mt-2 text-sm text-slate-500">
+									Las exclusiones son opcionales, pero ayudan a evitar dudas antes de reservar.
+								</p>
+							)}
+						</Card>
+					</div>
+				</Section>
+			) : null
+		}
 
 		<Section
 			title="Condiciones que verá el huésped"
@@ -352,48 +442,52 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 			</div>
 		</Section>
 
-		<Section
-			title="Reglas para huéspedes"
-			description="Explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
-		>
-			<Card className="space-y-5 bg-white text-slate-800">
-				{
-					houseRules.length ? (
-						<div class="grid gap-4 lg:grid-cols-2">
-							{houseRuleGroups.map((group) => {
-								const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
-								if (!items.length) return null
-								return (
-									<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-										<p class="text-sm font-semibold text-slate-900">{group.label}</p>
-										<p class="mt-1 text-xs text-slate-500">{group.description}</p>
-										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-											{items.map((rule: any) => {
-												const type = String(rule.type ?? "Other")
-												return (
-													<li>
-														<span class="font-medium text-slate-900">
-															{houseRuleLabelByType[type] ?? "Otra regla"}:
-														</span>{" "}
-														{rule.summary}
-													</li>
-												)
-											})}
-										</ul>
-									</div>
-								)
-							})}
-						</div>
-					) : (
-						<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-							<p class="text-sm font-semibold text-slate-900">Aún no hay reglas para huéspedes.</p>
-							<p class="mt-1 text-sm text-slate-600">
-								Agrega reglas para que el huésped entienda comportamiento, llegada y salida.
-							</p>
-						</div>
-					)
-				}
-			</Card>
-		</Section>
+		{
+			isHotel ? (
+				<Section
+					title="Reglas para huéspedes"
+					description="Explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
+				>
+					<Card className="space-y-5 bg-white text-slate-800">
+						{houseRules.length ? (
+							<div class="grid gap-4 lg:grid-cols-2">
+								{houseRuleGroups.map((group) => {
+									const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
+									if (!items.length) return null
+									return (
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+											<p class="text-sm font-semibold text-slate-900">{group.label}</p>
+											<p class="mt-1 text-xs text-slate-500">{group.description}</p>
+											<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+												{items.map((rule: any) => {
+													const type = String(rule.type ?? "Other")
+													return (
+														<li>
+															<span class="font-medium text-slate-900">
+																{houseRuleLabelByType[type] ?? "Otra regla"}:
+															</span>{" "}
+															{rule.summary}
+														</li>
+													)
+												})}
+											</ul>
+										</div>
+									)
+								})}
+							</div>
+						) : (
+							<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+								<p class="text-sm font-semibold text-slate-900">
+									Aún no hay reglas para huéspedes.
+								</p>
+								<p class="mt-1 text-sm text-slate-600">
+									Agrega reglas para que el huésped entienda comportamiento, llegada y salida.
+								</p>
+							</div>
+						)}
+					</Card>
+				</Section>
+			) : null
+		}
 	</section>
 </WorkspaceLayout>

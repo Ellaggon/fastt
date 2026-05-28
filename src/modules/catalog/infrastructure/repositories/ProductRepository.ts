@@ -224,16 +224,38 @@ export class ProductRepository implements ProductRepositoryPort {
 			.trim()
 			.toLowerCase()
 		let subtypeExists = false
+		let subtypeDetails: ProductAggregate["subtypeDetails"] = null
 		if (pt === "hotel") {
-			subtypeExists = !!(await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get())
+			const hotel = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+			subtypeExists = !!hotel
+			subtypeDetails = hotel ? { kind: "hotel", stars: hotel.stars ?? null } : null
 		} else if (pt === "tour") {
-			subtypeExists = !!(await db.select().from(Tour).where(eq(Tour.productId, productId)).get())
+			const tour = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+			subtypeExists = !!tour
+			subtypeDetails = tour
+				? {
+						kind: "tour",
+						duration: tour.duration ? String(tour.duration) : null,
+						difficultyLevel: tour.difficultyLevel ? String(tour.difficultyLevel) : null,
+					}
+				: null
 		} else if (pt === "package") {
-			subtypeExists = !!(await db
+			const packageRow = await db
 				.select()
 				.from(Package)
 				.where(eq(Package.productId, productId))
-				.get())
+				.get()
+			subtypeExists = !!packageRow
+			subtypeDetails = packageRow
+				? {
+						kind: "package",
+						itinerary: packageRow.itinerary ? String(packageRow.itinerary) : null,
+						days: packageRow.days ?? null,
+						nights: packageRow.nights ?? null,
+						includes: packageRow.includes ? String(packageRow.includes) : null,
+						excludes: packageRow.excludes ? String(packageRow.excludes) : null,
+					}
+				: null
 		}
 
 		const rawState = status?.state ?? null
@@ -254,6 +276,7 @@ export class ProductRepository implements ProductRepositoryPort {
 							validationErrorsJson: status.validationErrorsJson ?? null,
 						}
 					: null,
+			subtypeDetails,
 		}
 	}
 

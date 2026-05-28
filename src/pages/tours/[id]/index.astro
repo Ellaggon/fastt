@@ -2,304 +2,238 @@
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
-import type { ImageRow, ServiceRow } from "@/types/products"
 import {
 	asc,
 	db,
 	Destination,
 	eq,
-	Hotel,
 	Image,
-	Package,
 	Product,
+	ProductContent,
+	ProductLocation,
 	ProductService,
+	sql,
 	Tour,
 } from "astro:db"
 
-const productId = Astro.params.id
-let product: any = null
-let images: ImageRow[] = []
-let subtype: any = null
-let services: Array<ServiceRow & { iconId?: string | null }> = []
-let errorMessage: string | null = null
+const productId = String(Astro.params.id ?? "").trim()
+if (!productId) return Astro.redirect("/tours")
 
-try {
-	if (!productId) return Astro.redirect("/tours")
+const row = await db
+	.select({
+		id: Product.id,
+		name: Product.name,
+		productType: Product.productType,
+		destinationName: Destination.name,
+		destinationDepartment: Destination.department,
+		description: ProductContent.description,
+		highlights: ProductContent.highlightsJson,
+		address: ProductLocation.address,
+		lat: ProductLocation.lat,
+		lng: ProductLocation.lng,
+		duration: Tour.duration,
+		difficultyLevel: Tour.difficultyLevel,
+		guideLanguages: Tour.guideLanguages,
+		includes: Tour.includes,
+		excludes: Tour.excludes,
+	})
+	.from(Product)
+	.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+	.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+	.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
+	.leftJoin(Tour, eq(Tour.productId, Product.id))
+	.where(sql`${Product.id} = ${productId} AND lower(${Product.productType}) = 'tour'`)
+	.get()
 
-	const productResult = await db
-		.select()
-		.from(Product)
-		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-		.where(eq(Product.id, productId))
-		.get()
+if (!row) return Astro.redirect("/tours")
 
-	if (!productResult) return Astro.redirect("/tours")
-	product = { ...productResult.Product, destination: productResult.Destination }
+const images = await db
+	.select({
+		id: Image.id,
+		url: Image.url,
+		isPrimary: Image.isPrimary,
+		order: Image.order,
+	})
+	.from(Image)
+	.where(eq(Image.entityId, productId))
+	.orderBy(asc(Image.order))
+	.all()
 
-	const servicesResult = await db
-		.select({ id: ProductService.serviceId })
-		.from(ProductService)
-		.where(eq(ProductService.productId, productId))
-		.all()
+const servicesResult = await db
+	.select({ id: ProductService.serviceId })
+	.from(ProductService)
+	.where(eq(ProductService.productId, productId))
+	.all()
 
-	const catalogById = new Map(SERVICE_CATALOG.map((s) => [s.id, s]))
+const catalogById = new Map(SERVICE_CATALOG.map((service) => [service.id, service]))
+const services = servicesResult
+	.map((service) => {
+		const id = String(service.id ?? "").trim()
+		const definition = catalogById.get(id)
+		return id ? { id, name: definition?.name ?? id, iconId: definition?.id ?? null } : null
+	})
+	.filter(Boolean) as Array<{ id: string; name: string; iconId: string | null }>
 
-	services = (servicesResult ?? [])
-		.filter((s) => s.id)
-		.map((s) => {
-			const def = catalogById.get(String(s.id))
-			return {
-				id: String(s.id),
-				name: def?.name ?? String(s.id),
-				iconId: def?.id ?? null,
-			}
-		})
-
-	images = await db
-		.select()
-		.from(Image)
-		.where(eq(Image.entityId, productId))
-		.orderBy(asc(Image.order))
-		.all()
-
-	switch ((product.productType || "").toLowerCase()) {
-		case "hotel":
-			subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
-			break
-		case "package":
-			subtype = await db.select().from(Package).where(eq(Package.productId, productId)).get()
-			break
-		case "tour":
-			subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
-			break
-	}
-} catch (e) {
-	console.error("Error al obtener detalles del producto:", e)
-	errorMessage = e instanceof Error ? e.message : "Error desconocido"
+function textList(value: unknown): string[] {
+	return String(value ?? "")
+		.split(/\r?\n|,/)
+		.map((item) => item.trim())
+		.filter(Boolean)
 }
 
-const productData = product ? { ...product, images, subtype, services } : null
-export const productDataExport = productData
-console.log("productData: ", productData)
-
+const highlights = Array.isArray(row.highlights) ? row.highlights.map(String).filter(Boolean) : []
+const inclusions = textList(row.includes)
+const exclusions = textList(row.excludes)
+const guideLanguages = Array.isArray(row.guideLanguages)
+	? row.guideLanguages.map(String).filter(Boolean)
+	: textList(row.guideLanguages)
+const primaryImage =
+	images.find((image) => image.isPrimary)?.url ||
+	images[0]?.url ||
+	"https://placehold.co/1200x720?text=Tour"
+const locationText =
+	row.address ||
+	row.destinationName ||
+	row.destinationDepartment ||
+	"Punto de encuentro por confirmar"
 const breadcrumbItems = [
 	{ name: "Home", href: "/" },
-	{
-		name: productData?.productType ?? "",
-		href:
-			productData?.productType === "Hotel"
-				? "/hotels"
-				: productData?.productType === "Package"
-					? "/packages"
-					: "/tours",
-	},
-	{
-		name: productData?.name || "/",
-		href: `/tours/${productId}`,
-		current: true,
-	},
+	{ name: "Tours", href: "/tours" },
+	{ name: row.name, href: `/tours/${productId}`, current: true },
 ]
-
-const isHotel = productData?.productType?.toLowerCase() === "hotel"
 ---
 
-<Layout title={productData?.name || "Producto"}>
+<Layout title={row.name || "Tour"}>
 	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
 		<Breadcrumbs items={breadcrumbItems} />
 
-		{
-			errorMessage ? (
-				<div class="flex min-h-[60vh] flex-col items-center justify-center text-center">
-					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
-					<a
-						href="/"
-						class="rounded-lg border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
-					>
-						Volver al inicio
-					</a>
-				</div>
-			) : productData ? (
-				<>
-					{/* <!-- 🖼 Imagen principal --> */}
-					<div class="relative overflow-hidden rounded-2xl shadow-lg">
-						<img
-							id="gallery-main-img"
-							src={productData.images[0]?.url || "https://placehold.co/1200x675?text=Sin+imagen"}
-							alt={productData.name}
-							class="h-96 w-full cursor-pointer object-cover transition-transform duration-700 hover:scale-105"
-						/>
+		<section class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+			<div class="space-y-4">
+				<img
+					src={primaryImage}
+					alt={row.name}
+					class="h-[28rem] w-full rounded-2xl object-cover shadow-lg"
+				/>
+				{
+					images.length > 1 ? (
+						<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
+							{images.slice(0, 6).map((image) => (
+								<img src={image.url} alt={row.name} class="h-24 rounded-lg object-cover" />
+							))}
+						</div>
+					) : null
+				}
+			</div>
+
+			<aside class="space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+				<p class="text-sm font-semibold uppercase tracking-wide text-blue-700">Tour</p>
+				<h1 class="text-4xl font-bold text-gray-950">{row.name}</h1>
+				<p class="text-sm text-gray-600">{locationText}</p>
+				<div class="grid gap-3 sm:grid-cols-2">
+					<div class="rounded-xl bg-blue-50 p-4 text-blue-950">
+						<p class="text-sm font-semibold">Duración</p>
+						<p class="mt-1 text-lg font-semibold">{row.duration || "Por confirmar"}</p>
 					</div>
+					<div class="rounded-xl bg-slate-50 p-4 text-slate-950">
+						<p class="text-sm font-semibold">Dificultad</p>
+						<p class="mt-1 text-lg font-semibold">{row.difficultyLevel || "No indicada"}</p>
+					</div>
+				</div>
+				{
+					guideLanguages.length ? (
+						<div>
+							<p class="text-sm font-semibold text-gray-950">Idiomas del guía</p>
+							<div class="mt-2 flex flex-wrap gap-2">
+								{guideLanguages.map((language) => (
+									<span class="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">
+										{language}
+									</span>
+								))}
+							</div>
+						</div>
+					) : null
+				}
+				<a
+					href="/tours/search"
+					class="inline-flex w-full items-center justify-center rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800"
+				>
+					Ver más tours
+				</a>
+			</aside>
+		</section>
 
-					{/* <!-- 🖼 Miniaturas --> */}
-					{productData.images.length > 1 && (
-						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-							{productData.images.map((img: ImageRow, i: number) => (
-								<img
-									src={img.url}
-									alt={`Imagen ${i + 1}`}
-									class="thumb-img h-24 w-full cursor-pointer rounded-lg object-cover hover:opacity-80"
-									data-index={i}
-								/>
+		<section class="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
+			<div class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+				<h2 class="text-2xl font-semibold text-gray-950">Sobre este tour</h2>
+				<p class="mt-4 text-base leading-8 text-gray-700">
+					{row.description || "La descripción del tour está en preparación."}
+				</p>
+				{
+					highlights.length ? (
+						<ul class="mt-6 grid gap-3 text-sm text-gray-700 md:grid-cols-2">
+							{highlights.map((highlight) => (
+								<li class="rounded-lg bg-gray-50 px-4 py-3">{highlight}</li>
 							))}
-						</div>
-					)}
+						</ul>
+					) : null
+				}
+			</div>
 
-					{/* <!-- 📋 Info principal --> */}
-					<section class="space-y-4 rounded-2xl border border-gray-200 bg-gray-100 p-8 shadow-sm">
-						<div class="flex gap-1 text-black">
-							{Array.from({ length: productData.subtype?.stars || 0 }).map((_, i) => (
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									fill="currentColor"
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-								>
-									<path d="M12 .587l3.668 7.568L24 9.748l-6 5.85 1.416 8.252L12 19.771l-7.416 4.079L6 15.598 0 9.748l8.332-1.593z" />
-								</svg>
-							))}
-						</div>
-						<h1 class="text-4xl font-bold text-gray-900">{productData.name}</h1>
-
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							<p class="text-neutral-500">
-								{productData.subtype?.address}, {productData.destination?.name}
-							</p>
-						</div>
-						{/* <!-- Servicios --> */}
-						{productData.services.length > 0 && (
-							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((s: ServiceRow & { iconId?: string | null }) => (
-									<li class="flex items-center gap-2">
-										<span>{s.iconId === "wifi" ? "📶" : "•"}</span>
-										<span>{s.name}</span>
-									</li>
+			<div class="space-y-6">
+				<div class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+					<h2 class="text-2xl font-semibold text-gray-950">Incluye</h2>
+					{
+						inclusions.length ? (
+							<ul class="mt-4 grid gap-3 text-sm text-gray-700">
+								{inclusions.map((item) => (
+									<li class="rounded-lg bg-gray-50 px-4 py-3">{item}</li>
 								))}
 							</ul>
-						)}
-						<p class="mt-4 leading-relaxed text-gray-700">{productData.longDescription}</p>
-					</section>
+						) : (
+							<p class="mt-4 text-sm text-gray-600">Inclusiones en preparación.</p>
+						)
+					}
+				</div>
+				<div class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+					<h2 class="text-2xl font-semibold text-gray-950">No incluye</h2>
+					{
+						exclusions.length ? (
+							<ul class="mt-4 grid gap-3 text-sm text-gray-700">
+								{exclusions.map((item) => (
+									<li class="rounded-lg bg-gray-50 px-4 py-3">{item}</li>
+								))}
+							</ul>
+						) : (
+							<p class="mt-4 text-sm text-gray-600">Exclusiones no especificadas.</p>
+						)
+					}
+				</div>
+			</div>
+		</section>
 
-					<section class="grid grid-cols-2 p-8">
-						<div>
-							<p>
-								<b>Check-in:</b> {productData.subtype?.checkInTime}
-							</p>
-							<p>
-								<b>Check-out:</b> {productData.subtype?.checkOutTime}
-							</p>
-						</div>
-						<div>
-							<p>
-								<b>$</b>
-								{productData?.basePriceUSD}
-							</p>
-							<p>
-								{productData?.basePriceBOB}
-								<b>Bs</b>
-							</p>
-						</div>
-					</section>
-
-					{/* mapa */}
-					<section class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-						<h2 class="mb-4 text-2xl font-semibold text-gray-900">Ubicación</h2>
-						<p class="mb-4 text-gray-700">
-							{isHotel ? productData.subtype?.address : "Ver ubicación en mapa"}
-						</p>
-						<div class="flex h-64 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-							Mapa (pendiente)
-						</div>
-					</section>
-
-					{/* <!-- 🪟 Modal --> */}
-					<div
-						id="gallery-modal"
-						class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-90"
-					>
-						<button
-							id="modal-close"
-							class="absolute right-6 top-5 text-3xl font-bold text-white hover:text-gray-400"
-						>
-							&times;
-						</button>
-
-						<button
-							id="modal-prev"
-							class="absolute left-6 text-4xl font-bold text-white hover:text-gray-400"
-						>
-							❮
-						</button>
-						<img
-							id="modal-img"
-							class="max-h-[80vh] max-w-[90vw] rounded-lg shadow-lg"
-							alt="Vista ampliada"
-						/>
-						<button
-							id="modal-next"
-							class="absolute right-6 text-4xl font-bold text-white hover:text-gray-400"
-						>
-							❯
-						</button>
-					</div>
-				</>
-			) : (
-				<p class="text-center text-gray-500">Cargando...</p>
-			)
+		{
+			services.length ? (
+				<section class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+					<h2 class="text-2xl font-semibold text-gray-950">
+						Servicios y condiciones de experiencia
+					</h2>
+					<ul class="mt-5 grid gap-3 text-sm text-gray-700 md:grid-cols-3">
+						{services.map((service) => (
+							<li class="rounded-lg bg-gray-50 px-4 py-3">{service.name}</li>
+						))}
+					</ul>
+				</section>
+			) : null
 		}
+
+		<section class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+			<h2 class="text-2xl font-semibold text-gray-950">Punto de encuentro</h2>
+			<p class="mt-3 text-sm text-gray-700">{locationText}</p>
+			<div
+				class="mt-4 flex h-64 items-center justify-center rounded-xl bg-gray-100 text-sm text-gray-500"
+			>
+				Mapa (pendiente)
+			</div>
+		</section>
 	</main>
-
-	<script>
-		document.addEventListener("DOMContentLoaded", () => {
-			const mainImg = document.getElementById("gallery-main-img") as HTMLImageElement | null
-			const thumbImgs = Array.from(document.querySelectorAll<HTMLImageElement>(".thumb-img"))
-			const modal = document.getElementById("gallery-modal") as HTMLElement | null
-			const modalImg = document.getElementById("modal-img") as HTMLImageElement | null
-			const modalClose = document.getElementById("modal-close") as HTMLElement | null
-			const btnPrev = document.getElementById("modal-prev") as HTMLElement | null
-			const btnNext = document.getElementById("modal-next") as HTMLElement | null
-
-			let currentIndex = 0
-
-			const openModal = (index: number) => {
-				if (!modal || !modalImg) return
-				currentIndex = index
-				modalImg.src = thumbImgs[index].src
-				modal.classList.remove("hidden")
-			}
-
-			const closeModal = () => modal?.classList.add("hidden")
-
-			const showPrev = () => {
-				if (!modalImg) return
-				currentIndex = (currentIndex - 1 + thumbImgs.length) % thumbImgs.length
-				modalImg.src = thumbImgs[currentIndex].src
-			}
-
-			const showNext = () => {
-				if (!modalImg) return
-				currentIndex = (currentIndex + 1) % thumbImgs.length
-				modalImg.src = thumbImgs[currentIndex].src
-			}
-
-			mainImg?.addEventListener("click", () => openModal(0))
-			thumbImgs.forEach((thumb, i) => thumb.addEventListener("click", () => openModal(i)))
-			modalClose?.addEventListener("click", closeModal)
-			modal?.addEventListener("click", (e) => e.target === modal && closeModal())
-			btnPrev?.addEventListener("click", (e) => {
-				e.stopPropagation()
-				showPrev()
-			})
-			btnNext?.addEventListener("click", (e) => {
-				e.stopPropagation()
-				showNext()
-			})
-
-			document.addEventListener("keydown", (e) => {
-				if (modal?.classList.contains("hidden")) return
-				if (e.key === "ArrowLeft") showPrev()
-				if (e.key === "ArrowRight") showNext()
-				if (e.key === "Escape") closeModal()
-			})
-		})
-	</script>
 </Layout>

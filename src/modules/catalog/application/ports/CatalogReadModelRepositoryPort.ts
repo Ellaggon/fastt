@@ -59,6 +59,8 @@ export type ProductFullAggregate = {
 				kind: "package"
 				days: number | null
 				nights: number | null
+				includes: string | null
+				excludes: string | null
 		  }
 		| null
 }

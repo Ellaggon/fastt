@@ -29,19 +29,16 @@ const editorialSurfaces = [
 	"src/pages/product/[id]/location.astro",
 	"src/pages/product/[id]/subtype.astro",
 	"src/pages/product/[id]/rooms.astro",
+	"src/pages/catalog/accommodations/rooms/index.astro",
 ]
 
 describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content framed as catalog readiness instead of generic CRUD", () => {
 		const requiredSignals: Record<string, string[]> = {
-			"src/pages/product/index.astro": [
-				"Alojamientos",
-				"Lista de alojamientos",
-				"Flujo de publicación",
-			],
-			"src/pages/product/create.astro": ["Crear alojamiento", "identidad mínima del alojamiento"],
+			"src/pages/product/index.astro": ["Catálogo", "Lista de ofertas", "Flujo de publicación"],
+			"src/pages/product/create.astro": ["Crear oferta", "Datos base de la oferta"],
 			"src/pages/product/[id]/index.astro": [
-				"Ficha del alojamiento",
+				"Ficha de",
 				"Descripción",
 				"Habitaciones",
 				"Tipo y características",
@@ -54,9 +51,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Reglas para huéspedes",
 			],
 			"src/pages/product/[id]/content.astro": ["Contenido", "Contenido principal"],
-			"src/pages/product/[id]/images.astro": ["Fotos", "Galería del alojamiento"],
+			"src/pages/product/[id]/images.astro": ["Fotos", "Galería de la oferta"],
 			"src/pages/product/[id]/location.astro": ["Ubicación", "Metadata geográfica"],
-			"src/pages/product/[id]/subtype.astro": ["Detalles del alojamiento", "Detalles específicos"],
+			"src/pages/product/[id]/subtype.astro": ["Detalles de", "Detalles específicos"],
 			"src/pages/product/[id]/rooms.astro": [
 				"Habitaciones de",
 				"Nueva habitación",
@@ -64,6 +61,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Inventario base",
 				"Tarifas vinculadas",
 				"Detalle interno",
+			],
+			"src/pages/catalog/accommodations/rooms/index.astro": [
+				"Alojamientos · Habitaciones",
+				"Habitaciones por alojamiento",
+				"lower(${Product.productType}) = 'hotel'",
+				"Tours y paquetes no aparecen",
 			],
 		}
 
@@ -78,6 +81,124 @@ describe("Guardrail: Property Content operational semantics", () => {
 			violations,
 			`Property Content surfaces must communicate editorial/catalog ownership and readiness boundaries:\n${violations.join("\n")}`
 		).toEqual([])
+	})
+
+	it("exposes vertical catalog surfaces without making product mean accommodations only", () => {
+		const catalog = read("src/pages/product/index.astro")
+		const routes = read("src/lib/routes.ts")
+		const accommodationsAlias = read("src/pages/catalog/accommodations.astro")
+		const accommodationRooms = read("src/pages/catalog/accommodations/rooms/index.astro")
+		const legacyProductRooms = read("src/pages/product/rooms.astro")
+		const legacyRooms = read("src/pages/rooms.astro")
+		const toursAlias = read("src/pages/catalog/tours.astro")
+		const packagesAlias = read("src/pages/catalog/packages.astro")
+
+		expect(catalog).toContain('Astro.url.searchParams.get("type")')
+		expect(catalog).toContain("selectedVertical")
+		expect(catalog).toContain("workspaceFilteredHref")
+		expect(catalog).toContain("Todo el catálogo")
+		expect(catalog).toContain("selectedVertical.routes.workspaceCreateHref")
+		expect(routes).toContain("productListByType")
+		expect(routes).toContain("catalogAccommodationRooms")
+		expect(routes).toContain('productRooms: () => "/catalog/accommodations/rooms"')
+		expect(routes).toContain("catalogAccommodations")
+		expect(accommodationsAlias).toContain("/product?type=Hotel")
+		expect(accommodationRooms).toContain("lower(${Product.productType}) = 'hotel'")
+		expect(legacyProductRooms).toContain("/catalog/accommodations/rooms")
+		expect(legacyRooms).toContain("/catalog/accommodations/rooms")
+		expect(toursAlias).toContain("/product?type=Tour")
+		expect(packagesAlias).toContain("/product?type=Package")
+	})
+
+	it("renders product detail cards by vertical instead of forcing every product through hotel cards", () => {
+		const detail = read("src/pages/product/[id]/index.astro")
+		const summaryEndpoint = read("src/pages/api/internal/product-summary.ts")
+
+		expect(detail).toContain("Ficha del alojamiento")
+		expect(detail).toContain("Ficha del tour")
+		expect(detail).toContain("Ficha del paquete")
+		expect(detail).toContain("Punto de encuentro")
+		expect(detail).toContain("Duración y guía")
+		expect(detail).toContain("Días y noches")
+		expect(detail).toContain("Inclusiones")
+		expect(detail).toContain("isHotel ? (")
+		expect(detail).toContain("isTour ? (")
+		expect(detail).toContain("isPackage ? (")
+		expect(summaryEndpoint).toContain("subtypeDetails")
+		expect(summaryEndpoint).toContain("guideLanguages")
+		expect(summaryEndpoint).toContain("itinerary")
+	})
+
+	it("keeps ProductLocation as canonical location after migrating legacy hotel columns", () => {
+		const migration = read("db/migrations/2026-05-28_catalog_vertical_db_cleanup.sql")
+		const dropMigration = read("db/migrations/2026-05-29_drop_legacy_hotel_location_columns.sql")
+		const dbConfig = read("db/config.ts")
+		const subtypeRepository = read(
+			"src/modules/catalog/infrastructure/repositories/SubtypeRepository.ts"
+		)
+		const createSubtype = read(
+			"src/modules/catalog/application/use-cases/create-product-subtype.ts"
+		)
+		const hotelSearch = read("src/pages/hotels/search.astro")
+		const hotelDept = read("src/pages/hotels/depts/[dept]/index.astro")
+
+		expect(migration).toContain('"ProductLocation"')
+		expect(migration).toContain('FROM "Hotel"')
+		expect(migration).toContain("SET \"productType\" = 'Hotel'")
+		expect(dropMigration).toContain('DROP COLUMN "address"')
+		expect(dropMigration).toContain('DROP COLUMN "latitude"')
+		expect(dropMigration).toContain('DROP COLUMN "longitude"')
+		const hotelTable = dbConfig.slice(
+			dbConfig.indexOf("const Hotel = defineTable"),
+			dbConfig.indexOf("const Tour = defineTable")
+		)
+		expect(hotelTable).not.toContain("address:")
+		expect(hotelTable).not.toContain("latitude:")
+		expect(hotelTable).not.toContain("longitude:")
+		expect(subtypeRepository).not.toContain("address: data.address")
+		expect(subtypeRepository).not.toContain("latitude: data.latitude")
+		expect(subtypeRepository).not.toContain("longitude: data.longitude")
+		expect(createSubtype).not.toContain('form.get("address")')
+		expect(createSubtype).not.toContain('form.get("latitude")')
+		expect(createSubtype).not.toContain('form.get("longitude")')
+		expect(hotelSearch).toContain("ProductLocation.address")
+		expect(hotelDept).toContain("ProductLocation.address")
+	})
+
+	it("publishes package public surfaces because package registry routes are active", () => {
+		const packageList = read("src/pages/packages/index.astro")
+		const packageDetail = read("src/pages/packages/[id]/index.astro")
+		const registry = read("src/lib/catalog/productVerticalRegistry.ts")
+
+		expect(registry).toContain('publicCollectionHref: "/packages"')
+		expect(packageList).toContain("Paquetes turísticos")
+		expect(packageList).toContain("lower(${Product.productType}) = 'package'")
+		expect(packageDetail).toContain("lower(${Product.productType}) = 'package'")
+		expect(packageDetail).toContain("Itinerario")
+		expect(packageDetail).toContain("Incluye")
+		expect(packageDetail).toContain("No incluye")
+	})
+
+	it("keeps tour public surfaces vertical-specific instead of hotel legacy UI", () => {
+		const tourIndex = read("src/pages/tours/index.astro")
+		const tourSearch = read("src/pages/tours/search.astro")
+		const tourDetail = read("src/pages/tours/[id]/index.astro")
+
+		expect(tourIndex).toContain("Tours por tipo de experiencia")
+		expect(tourIndex).toContain("/tours/search?destinationQuery=la-paz")
+		expect(tourIndex).toContain("Descubre tours y experiencias")
+		expect(tourSearch).toContain("Tours y experiencias")
+		expect(tourSearch).toContain("Punto de encuentro")
+		expect(tourSearch).toContain("Tour.includes")
+		expect(tourDetail).toContain("Sobre este tour")
+		expect(tourDetail).toContain("Punto de encuentro")
+		expect(tourDetail).toContain("Idiomas del guía")
+		expect(tourDetail).toContain("Tour.includes")
+		expect(tourDetail).toContain("Tour.excludes")
+		expect(tourDetail).not.toContain("productData.subtype?.stars")
+		expect(tourDetail).not.toContain("checkInTime")
+		expect(tourDetail).not.toContain("checkOutTime")
+		expect(tourDetail).not.toContain("longDescription")
 	})
 
 	it("keeps page-level governance light because WorkspaceLayout owns context framing", () => {
@@ -134,6 +255,60 @@ describe("Guardrail: Property Content operational semantics", () => {
 		).toEqual([])
 	})
 
+	it("requires provider-scoped SSR reads for product edit surfaces", () => {
+		const scopedSurfaceExpectations: Record<string, string[]> = {
+			"src/pages/product/[id]/content.astro": ["getProductFullAggregate(productId, providerId)"],
+			"src/pages/product/[id]/images.astro": ["getProductFullAggregate(productId, providerId)"],
+			"src/pages/product/[id]/location.astro": ["getProductFullAggregate(productId, providerId)"],
+			"src/pages/product/[id]/subtype.astro": [
+				"ensureProductOwnedByProvider(productId, providerId)",
+			],
+		}
+		const forbiddenUnscopedReads: Record<string, RegExp[]> = {
+			"src/pages/product/[id]/content.astro": [/getProductAggregate\(productId\)/],
+			"src/pages/product/[id]/images.astro": [/getProductAggregate\(productId\)/],
+			"src/pages/product/[id]/location.astro": [
+				/\.where\(eq\(ProductLocation\.productId,\s*productId\)\)/,
+			],
+			"src/pages/product/[id]/subtype.astro": [/getProductById\(productId\)/],
+		}
+
+		const violations = Object.entries(scopedSurfaceExpectations).flatMap(
+			([relativePath, requiredSignals]) => {
+				const source = read(relativePath)
+				const missing = requiredSignals.flatMap((signal) =>
+					source.includes(signal) ? [] : [`${relativePath}: missing scoped read "${signal}"`]
+				)
+				const forbidden = (forbiddenUnscopedReads[relativePath] ?? []).flatMap((pattern) =>
+					pattern.test(source) ? [`${relativePath}: forbidden unscoped read ${pattern}`] : []
+				)
+				return [...missing, ...forbidden]
+			}
+		)
+
+		expect(
+			violations,
+			`Product edit SSR surfaces must not render product data without provider ownership scope:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps full product aggregates vertical-aware instead of joining every subtype table", () => {
+		const repository = read(
+			"src/modules/catalog/infrastructure/repositories/CatalogReadModelRepository.ts"
+		)
+		const aggregateSection = repository.slice(
+			repository.indexOf("async getProductFullAggregate"),
+			repository.indexOf("async getProductVariantsAggregate")
+		)
+
+		expect(aggregateSection).toContain('normalizedType === "hotel"')
+		expect(aggregateSection).toContain('normalizedType === "tour"')
+		expect(aggregateSection).toContain('normalizedType === "package"')
+		expect(aggregateSection).not.toContain(".leftJoin(Hotel")
+		expect(aggregateSection).not.toContain(".leftJoin(Tour")
+		expect(aggregateSection).not.toContain(".leftJoin(Package")
+	})
+
 	it("keeps physical variant surfaces from reverting to variant-pricing language", () => {
 		const files = [
 			"src/pages/product/[id]/variants.astro",
@@ -163,6 +338,16 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(backofficeRouteClassifications).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
+					pattern: "/catalog/accommodations/rooms",
+					status: "canonical",
+					owner: "Property Content",
+				}),
+				expect.objectContaining({
+					pattern: "/product/rooms",
+					status: "legacy",
+					owner: "Property Content",
+				}),
+				expect.objectContaining({
 					pattern: "/product/:id/rooms",
 					status: "canonical",
 					owner: "Property Content",
@@ -189,13 +374,14 @@ describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content navigation honest about planned maturity", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 
-		expect(governance).toContain("Alojamientos")
+		expect(governance).toContain("Catálogo de ofertas")
+		expect(governance).toContain("Catálogo")
 		expect(governance).toContain("Habitaciones")
 		expect(governance).toContain("Reglas para huéspedes")
 		expect(governance).toContain("Revisión de fotos")
 		expect(governance).toContain("Metadata SEO")
 		expect(governance).toContain("Flujo de calidad de contenido")
-		expect(governance).toContain("Gestiona alojamientos")
+		expect(governance).toContain("Gestiona ofertas de catálogo")
 		expect(governance).not.toContain("Property Content NO")
 	})
 

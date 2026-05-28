@@ -41,7 +41,7 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 				)`.as("heroImageUrl"),
 			})
 			.from(Product)
-			.where(and(eq(Product.productType, "Hotel"), eq(Product.destinationId, dest.id)))
+			.where(and(sql`lower(${Product.productType}) = 'hotel'`, eq(Product.destinationId, dest.id)))
 			.limit(limit)
 			.all()
 

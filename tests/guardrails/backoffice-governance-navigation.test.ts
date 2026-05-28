@@ -236,6 +236,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Inicio": ["Command Center"],
 			"Habitaciones y tarifas": ["Rooms & Rates"],
 			"Reservas": ["Reservations"],
+			"Catálogo de ofertas": ["Property Content"],
 			"Contenido del alojamiento": ["Property Content"],
 			"Pagos y finanzas": ["Payments & Finance"],
 			"Analítica": ["Analytics & Performance"],

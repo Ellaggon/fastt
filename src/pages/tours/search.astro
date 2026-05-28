@@ -1,144 +1,177 @@
 ---
-import ProductCard from "@/components/productUI/ProductCard.astro"
-import { ratePlanPricingReadRepository } from "@/container"
+import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 import {
 	and,
+	asc,
 	db,
 	Destination,
 	eq,
-	Image,
 	or,
 	Product,
 	ProductContent,
+	ProductLocation,
+	sql,
 	Tour,
-	Variant,
 } from "astro:db"
 
-type ProductResult = {
+type TourResult = {
 	id: string
 	name: string
 	description: string | null
-	basePriceUSD: number | null
-	basePriceBOB: number | null
+	destinationName: string | null
+	address: string | null
 	duration: string | null
 	difficultyLevel: string | null
+	guideLanguages: unknown
+	includes: string | null
 	imageUrl: string | null
 }
 
-const url = new URL(Astro.request.url)
-const params = url.searchParams
+const params = Astro.url.searchParams
 const destinationId = params.get("destinationId") || params.get("destinationQuery") || null
-const checkin = params.get("checkin") || null
-const checkout = params.get("checkout") || null
-const adults = params.get("adults") || "2"
-const children = params.get("children") || "0"
-const rooms = params.get("rooms") || "1"
-let tours: ProductResult[] = []
-let destination = null
+let destination: any = null
 
 if (destinationId) {
-	// si nos pasan un slug o un id, intentamos resolverlo en Destination
 	const possible = await db
 		.select()
 		.from(Destination)
 		.where(or(eq(Destination.id, destinationId), eq(Destination.slug, destinationId)))
 		.limit(1)
 		.all()
-
-	if (possible.length > 0) {
-		destination = possible[0]
-	}
+	destination = possible[0] ?? null
 }
 
+let tours: TourResult[] = []
 try {
 	const whereClause = destination
 		? and(
-				eq(Product.productType, "Tour"),
+				sql`lower(${Product.productType}) = 'tour'`,
 				or(
-					eq(Product.destinationId, destination?.id),
-					eq(Destination.department, destination?.department ?? destination?.id)
+					eq(Product.destinationId, destination.id),
+					eq(Destination.department, destination.department ?? destination.id)
 				)
 			)
-		: eq(Product.productType, "Tour")
+		: sql`lower(${Product.productType}) = 'tour'`
 
-	const rows = await db
+	tours = await db
 		.select({
 			id: Product.id,
 			name: Product.name,
 			description: ProductContent.description,
+			destinationName: Destination.name,
+			address: ProductLocation.address,
 			duration: Tour.duration,
 			difficultyLevel: Tour.difficultyLevel,
-			imageUrl: Image.url,
-			variantId: Variant.id,
+			guideLanguages: Tour.guideLanguages,
+			includes: Tour.includes,
+			imageUrl: sql<string>`(
+				SELECT url
+				FROM Image
+				WHERE entityId = ${Product.id}
+				ORDER BY isPrimary DESC, "order" ASC
+				LIMIT 1
+			)`.as("imageUrl"),
 		})
 		.from(Product)
 		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
-		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
 		.where(whereClause)
-		.groupBy(Product.id)
-		.limit(50)
+		.orderBy(asc(Product.name))
+		.limit(60)
 		.all()
-
-	tours = await Promise.all(
-		rows.map(async (row) => {
-			const variantId = String(row.variantId ?? "").trim()
-			const summary = variantId
-				? await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
-				: null
-			const normalizedCurrency = String(summary?.currency ?? "USD")
-				.trim()
-				.toUpperCase()
-			const basePrice = Number(summary?.basePrice ?? 0)
-			return {
-				id: row.id,
-				name: row.name,
-				description: row.description,
-				basePriceUSD: normalizedCurrency === "USD" ? basePrice : null,
-				basePriceBOB: normalizedCurrency === "BOB" ? basePrice : null,
-				duration: row.duration,
-				difficultyLevel: row.difficultyLevel,
-				imageUrl: row.imageUrl,
-			}
-		})
-	)
 } catch (err) {
-	console.error("error querying hotels", err)
+	console.error("error querying tours", err)
 }
+
+function textList(value: unknown): string[] {
+	if (Array.isArray(value))
+		return value
+			.map(String)
+			.map((item) => item.trim())
+			.filter(Boolean)
+	return String(value ?? "")
+		.split(/\r?\n|,/)
+		.map((item) => item.trim())
+		.filter(Boolean)
+}
+
+const breadcrumbItems = [
+	{ name: "Home", href: "/" },
+	{ name: "Tours", href: "/tours/search", current: true },
+]
 ---
 
-<SearchLayout title="Resultados de búsqueda" producType="tours">
-	<main class="mx-auto max-w-7xl p-6">
-		<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
-		<p class="text-sm text-gray-600">
-			Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
-				checkout ?? "-"
-			}
-		</p>
-		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+<SearchLayout title="Tours en Bolivia" producType="tours">
+	<main class="mx-auto min-h-screen max-w-7xl space-y-8 p-6 lg:p-10">
+		<Breadcrumbs items={breadcrumbItems} />
+
+		<header class="space-y-3">
+			<p class="text-sm font-semibold uppercase tracking-wide text-blue-200">Tours</p>
+			<h1 class="text-4xl font-bold text-gray-100">Tours y experiencias</h1>
+			<p class="max-w-3xl text-base leading-7 text-gray-200">
+				Explora recorridos con duración, punto de encuentro, dificultad, guía e inclusiones claras.
+			</p>
+			<p class="text-sm text-gray-300">
+				Destino: {destination?.name ?? "Cualquier lugar"}
+			</p>
+		</header>
+
+		<section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 			{
-				tours.length === 0 ? (
-					<p class="col-span-full text-gray-500">No se encontraron hoteles para esos filtros.</p>
+				tours.length ? (
+					tours.map((tour) => {
+						const languages = textList(tour.guideLanguages).slice(0, 3)
+						const inclusions = textList(tour.includes).slice(0, 2)
+						return (
+							<a
+								href={`/tours/${tour.id}`}
+								class="group overflow-hidden rounded-xl border border-white/10 bg-white text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl"
+							>
+								<img
+									src={tour.imageUrl || "https://placehold.co/800x500?text=Tour"}
+									alt={tour.name}
+									class="h-52 w-full object-cover"
+								/>
+								<div class="space-y-4 p-5">
+									<div class="space-y-1">
+										<p class="text-xs font-semibold tracking-wide text-blue-700 uppercase">
+											{tour.destinationName || tour.address || "Punto de encuentro por confirmar"}
+										</p>
+										<h2 class="text-xl font-semibold text-slate-950 group-hover:text-blue-700">
+											{tour.name}
+										</h2>
+										<p class="text-sm text-slate-500">
+											{tour.duration || "Duración por confirmar"} ·{" "}
+											{tour.difficultyLevel || "Dificultad no indicada"}
+										</p>
+									</div>
+									<p class="line-clamp-3 text-sm leading-6 text-slate-700">
+										{tour.description || "Descripción en preparación."}
+									</p>
+									<div class="flex flex-wrap gap-2 text-xs text-slate-600">
+										{languages.map((language) => (
+											<span class="rounded-full bg-slate-100 px-3 py-1">{language}</span>
+										))}
+										{inclusions.map((item) => (
+											<span class="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{item}</span>
+										))}
+									</div>
+								</div>
+							</a>
+						)
+					})
 				) : (
-					tours.map((t) => (
-						<ProductCard
-							name={t.name}
-							href={`/hotels/${t.id}`}
-							image={t.imageUrl || "https://picsum.photos/400/250"}
-							alt={t.name}
-							duration={t.duration || ""}
-							difficultyLevel={t.difficultyLevel || ""}
-							description={t.description || ""}
-							priceUSD={t.basePriceUSD || 0}
-							priceBOB={t.basePriceBOB || 0}
-							services={[]}
-						/>
-					))
+					<div class="rounded-xl border border-dashed border-white/20 bg-white/10 p-8 text-gray-100 md:col-span-2 xl:col-span-3">
+						<h2 class="text-xl font-semibold">No se encontraron tours.</h2>
+						<p class="mt-2 text-sm text-gray-200">
+							Prueba otro destino o vuelve cuando haya experiencias publicadas.
+						</p>
+					</div>
 				)
 			}
-		</div>
+		</section>
 	</main>
 </SearchLayout>

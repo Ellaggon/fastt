@@ -64,4 +64,30 @@ describe("catalog/product/createProduct (unit)", () => {
 		})
 		expect(res).toEqual({ id: "prod_abc" })
 	})
+
+	it("stores productType with canonical casing even when the form sends a vertical alias", async () => {
+		const repo = makeRepo({
+			createProductBase: vi.fn(async () => {}),
+			upsertProductStatus: vi.fn(async () => {}),
+		})
+
+		await createProduct(
+			{ repo },
+			{
+				id: "prod_lower",
+				name: "QA Product",
+				productType: "hotel",
+				providerId: "prov_1",
+				destinationId: "dest_1",
+			}
+		)
+
+		expect(repo.createProductBase).toHaveBeenCalledWith({
+			id: "prod_lower",
+			name: "QA Product",
+			productType: "Hotel",
+			providerId: "prov_1",
+			destinationId: "dest_1",
+		})
+	})
 })

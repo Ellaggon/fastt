@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-import { productRepository, subtypeRepository } from "@/container"
+import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 
 import { POST as createProductPost } from "@/pages/api/product/create"
 import { POST as upsertContentPost } from "@/pages/api/product/content"
@@ -365,6 +365,110 @@ describe("integration/catalog Product V2 API", () => {
 					}),
 				} as any)
 				expect(contentRes.status).toBe(404)
+			}
+		)
+	})
+
+	it("ownership: user B cannot modify user A's product edit resources", async () => {
+		const tokenA = "token_a"
+		const tokenB = "token_b"
+		const emailA = "usera_edit_own@example.com"
+		const emailB = "userb_edit_own@example.com"
+		const providerA = "prov_int_product_v2_api_edit_own_a"
+		const providerB = "prov_int_product_v2_api_edit_own_b"
+		const destinationId = "dest_int_product_v2_api_edit_own"
+
+		await upsertDestination({
+			id: destinationId,
+			name: "Product V2 API Edit Ownership",
+			type: "city",
+			country: "CL",
+			slug: "product-v2-api-edit-ownership",
+		})
+		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
+		await upsertProvider({ id: providerB, displayName: "Provider B", ownerEmail: emailB })
+
+		await withSupabaseAuthStub(
+			{
+				[tokenA]: { id: "u_edit_a", email: emailA },
+				[tokenB]: { id: "u_edit_b", email: emailB },
+			},
+			async () => {
+				const createForm = new FormData()
+				createForm.set("name", "Provider A Edit Owned Product")
+				createForm.set("productType", "Hotel")
+				createForm.set("destinationId", destinationId)
+
+				const createRes = await createProductPost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/create",
+						token: tokenA,
+						form: createForm,
+					}),
+				} as any)
+				expect(createRes.status).toBe(200)
+				const created = (await readJson(createRes)) as { id?: string }
+				const productId = created.id!
+
+				await productImageRepository.insertImage({
+					productId,
+					objectKey: `products/${productId}/seed.png`,
+					url: `https://cdn.test/products/${productId}/seed.png`,
+					order: 0,
+					isPrimary: true,
+				})
+				const existingImages = await productImageRepository.listByProduct(productId)
+				const imageId = String(existingImages[0]?.id ?? "")
+				expect(imageId).toBeTruthy()
+
+				const locationForm = new FormData()
+				locationForm.set("productId", productId)
+				locationForm.set("address", "Forbidden Address")
+				locationForm.set("lat", "-16.5")
+				locationForm.set("lng", "-68.1")
+				const locationRes = await upsertLocationPost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/location",
+						token: tokenB,
+						form: locationForm,
+					}),
+				} as any)
+				expect(locationRes.status).toBe(404)
+
+				const imagesForm = new FormData()
+				imagesForm.set("productId", productId)
+				imagesForm.append("imageId", imageId)
+				const imagesRes = await upsertImagesPost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/images",
+						token: tokenB,
+						form: imagesForm,
+					}),
+				} as any)
+				expect(imagesRes.status).toBe(403)
+
+				const subtypeForm = new FormData()
+				subtypeForm.set("productId", productId)
+				subtypeForm.set("stars", "4")
+				const subtypeRes = await upsertSubtypePost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/subtype",
+						token: tokenB,
+						form: subtypeForm,
+					}),
+				} as any)
+				expect(subtypeRes.status).toBe(403)
+
+				const evaluateForm = new FormData()
+				evaluateForm.set("productId", productId)
+				const evaluateRes = await evaluatePost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/evaluate",
+						token: tokenB,
+						form: evaluateForm,
+					}),
+				} as any)
+				expect(evaluateRes.status).toBe(404)
 			}
 		)
 	})

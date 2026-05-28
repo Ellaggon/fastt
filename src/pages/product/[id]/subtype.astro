@@ -5,9 +5,10 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductById } from "@/modules/catalog/public"
 import { db, eq, Hotel, Package, Tour } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
@@ -20,9 +21,10 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
 
-const product = await getProductById(productId)
+const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!product) return Astro.redirect("/product/create")
 
+const vertical = getProductVerticalEntry(product.productType)
 const pt = String(product.productType || "")
 	.trim()
 	.toLowerCase()
@@ -63,6 +65,8 @@ const packageSubtype =
 					itinerary: Package.itinerary,
 					days: Package.days,
 					nights: Package.nights,
+					includes: Package.includes,
+					excludes: Package.excludes,
 				})
 				.from(Package)
 				.where(eq(Package.productId, productId))
@@ -70,14 +74,16 @@ const packageSubtype =
 		: null
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Detalles">
+<WorkspaceLayout title="Catálogo · Detalles">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Detalles del alojamiento</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					Detalles de {vertical.labels.singular}
+				</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
 					Completa atributos editoriales y de categoría que ayudan a presentar y descubrir el
-					alojamiento.
+					{vertical.labels.singular}.
 				</p>
 			</header>
 
@@ -94,7 +100,7 @@ const packageSubtype =
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Detalles específicos</h2>
 							<p class="text-sm text-slate-600">
-								Completa los campos específicos del tipo de alojamiento seleccionado.
+								Completa los campos específicos del tipo de oferta seleccionado.
 							</p>
 						</div>
 
@@ -213,6 +219,31 @@ const packageSubtype =
 											name="nights"
 											value={packageSubtype?.nights != null ? String(packageSubtype.nights) : ""}
 											placeholder="0 o más"
+										/>
+									</FormField>
+									<div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+										<h3 class="text-sm font-semibold text-blue-950">Incluye / No incluye</h3>
+										<p class="mt-1 text-sm leading-6 text-blue-900">
+											Estas listas pertenecen al paquete. No son destacados editoriales: explican
+											qué está incluido en la oferta y qué queda fuera antes de reservar.
+										</p>
+									</div>
+									<FormField label="Incluye" htmlFor="includes">
+										<Textarea
+											id="includes"
+											name="includes"
+											value={packageSubtype?.includes ?? ""}
+											rows="4"
+											placeholder="Transporte interno, alojamiento, desayunos, guía local"
+										/>
+									</FormField>
+									<FormField label="No incluye" htmlFor="excludes">
+										<Textarea
+											id="excludes"
+											name="excludes"
+											value={packageSubtype?.excludes ?? ""}
+											rows="4"
+											placeholder="Vuelos internacionales, propinas, gastos personales"
 										/>
 									</FormField>
 								</div>

@@ -12,6 +12,7 @@ import {
 	Image,
 	Product,
 	ProductContent,
+	ProductLocation,
 	ProductService,
 	Service,
 	sql,
@@ -41,7 +42,7 @@ try {
 				LIMIT 1
 			)`.as("imageUrl"),
 			description: ProductContent.description,
-			address: Hotel.address,
+			address: ProductLocation.address,
 			stars: Hotel.stars,
 			services: sql`(
 				SELECT json_group_array(
@@ -57,11 +58,12 @@ try {
 		.from(Product)
 		.leftJoin(Image, eq(Image.entityId, Product.id))
 		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.leftJoin(Hotel, eq(Hotel.productId, Product.id))
 		.leftJoin(ProductService, eq(ProductService.productId, Product.id))
 		.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-		.where(and(eq(Product.productType, "Hotel"), eq(Destination.department, deptId)))
+		.where(and(sql`lower(${Product.productType}) = 'hotel'`, eq(Destination.department, deptId)))
 		.groupBy(Product.id)
 		.all()
 	console.log("product: ", hotels)

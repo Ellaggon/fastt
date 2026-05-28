@@ -24,7 +24,19 @@ import {
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import type { ImageRow } from "@/types/products"
-import { and, asc, db, Destination, eq, Hotel, Image, inArray, Product } from "astro:db"
+import {
+	and,
+	asc,
+	db,
+	Destination,
+	eq,
+	Hotel,
+	Image,
+	inArray,
+	Product,
+	ProductLocation,
+	sql,
+} from "astro:db"
 
 const url = Astro.url
 const productId = Astro.params.id
@@ -221,13 +233,18 @@ try {
 		.select()
 		.from(Product)
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-		.where(eq(Product.id, productId))
+		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
+		.where(sql`${Product.id} = ${productId} AND lower(${Product.productType}) = 'hotel'`)
 		.get()
 
 	if (!productResult) {
 		errorMessage = "Producto no encontrado."
 	} else {
-		hotelProduct = { ...productResult.Product, destination: productResult.Destination }
+		hotelProduct = {
+			...productResult.Product,
+			destination: productResult.Destination,
+			location: productResult.ProductLocation,
+		}
 		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
 	}
 } catch (e) {
@@ -317,7 +334,9 @@ try {
 								{hotelProduct?.name}
 							</h1>
 							<p class="text-xs text-neutral-500 md:text-sm">
-								{hotelSubtype?.address}, {hotelProduct.destination?.name}
+								{hotelProduct.location?.address ||
+									hotelProduct.destination?.name ||
+									"Ubicación por confirmar"}
 							</p>
 
 							<p class="pt-7 text-sm leading-relaxed text-neutral-700 md:text-base">
@@ -477,9 +496,9 @@ try {
 	<ImageModal />
 	<ServiceDetailsModal services={services} />
 	<MapModal
-		latitude={hotelSubtype?.latitude}
-		longitude={hotelSubtype?.longitude}
-		address={hotelSubtype?.address || ""}
+		latitude={hotelProduct?.location?.lat}
+		longitude={hotelProduct?.location?.lng}
+		address={hotelProduct?.location?.address || ""}
 	/>
 	<RoomModal
 		searchState={searchState}

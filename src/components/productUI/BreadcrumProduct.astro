@@ -2,21 +2,21 @@
 import Breadcrumbs from "../Breadcrumbs.astro"
 
 const { productData, productId } = Astro.props
+const productType = String(productData?.productType ?? "")
+	.trim()
+	.toLowerCase()
+const collectionHref =
+	productType === "hotel" ? "/hotels" : productType === "package" ? "/packages" : "/tours"
 
 const breadcrumbItems = [
 	{ name: "Home", href: "/" },
 	{
 		name: productData?.productType ?? "",
-		href:
-			productData?.productType === "Hotel"
-				? "/hotels"
-				: productData?.productType === "Package"
-					? "/packages"
-					: "/tours",
+		href: collectionHref,
 	},
 	{
 		name: productData?.name || "/",
-		href: `/${String(productData?.productType || "").toLowerCase()}s/${productId}`,
+		href: `${collectionHref}/${productId}`,
 		current: true,
 	},
 ]
