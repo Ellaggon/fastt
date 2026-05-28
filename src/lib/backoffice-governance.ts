@@ -232,7 +232,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Catalog content, media, location, metadata, House Rules, and guest-facing pre-publish review.",
+			"Contenido, fotos, ubicación, detalles, reglas para huéspedes y vista previa antes de publicar.",
 	},
 	{
 		pattern: "/rates/plans/**",
@@ -316,7 +316,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Guest behavior and property-use expectations; not pricing, restrictions, or booking contract terms.",
+			"Reglas visibles para huéspedes; no son precios, restricciones ni condiciones de reserva.",
 	},
 	{
 		pattern: "/provider/policies/**",
@@ -868,7 +868,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Tipos de habitación, capacidad, fotos propias y contexto físico.",
 			},
 			{
-				label: "Reglas de la casa",
+				label: "Reglas para huéspedes",
 				href: routes.providerHouseRules(),
 				status: "canonical",
 				summary:

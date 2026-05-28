@@ -68,7 +68,7 @@ export type InformativeRuleContent = {
 	kind: "informative"
 	description: string
 	rules: Record<string, unknown>
-	source: "house_rule" | "product_content_rules" | "policy"
+	source: "house_rule" | "policy"
 	confidence: "high" | "medium" | "low"
 }
 

@@ -4,36 +4,22 @@ import type { HouseRulePayload, HouseRuleType } from "../../domain/houseRule"
 import type { HouseRuleRepositoryPort } from "../../application/ports/HouseRuleRepositoryPort"
 
 export class HouseRuleRepository implements HouseRuleRepositoryPort {
-	private isMissingPayloadJsonColumn(error: unknown) {
-		const message = String(error instanceof Error ? error.message : error)
-		return message.includes("payloadJson") && message.includes("no such column")
-	}
-
 	async create(rule: {
 		id: string
 		productId: string
 		type: HouseRuleType
 		description: string
-		payloadJson?: HouseRulePayload | null
+		payloadJson: HouseRulePayload
 		createdAt: Date
 	}) {
-		const values = {
+		await db.insert(HouseRuleTable).values({
 			id: rule.id,
 			productId: rule.productId,
 			type: rule.type,
 			description: rule.description,
-			payloadJson: rule.payloadJson ?? null,
+			payloadJson: rule.payloadJson,
 			createdAt: rule.createdAt,
-		} as any
-
-		try {
-			await db.insert(HouseRuleTable).values(values)
-		} catch (error) {
-			if (!this.isMissingPayloadJsonColumn(error)) throw error
-
-			const { payloadJson: _payloadJson, ...legacyValues } = values
-			await db.insert(HouseRuleTable).values(legacyValues)
-		}
+		})
 	}
 
 	async listByProduct(productId: string) {
@@ -43,13 +29,14 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 				productId: HouseRuleTable.productId,
 				type: HouseRuleTable.type,
 				description: HouseRuleTable.description,
+				payloadJson: HouseRuleTable.payloadJson,
 				createdAt: HouseRuleTable.createdAt,
 			})
 			.from(HouseRuleTable)
 			.where(eq(HouseRuleTable.productId, productId))
 			.all()
 
-		return rows.map((row) => ({ ...row, payloadJson: null })) as any
+		return rows as any
 	}
 
 	async delete(id: string) {

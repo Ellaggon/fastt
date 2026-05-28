@@ -7,7 +7,7 @@ export type RuleBasedContractItemSnapshot = {
 	ruleId: string
 	version: number
 	description: string
-	source: "policy" | "house_rule" | "product_content_rules"
+	source: "policy" | "house_rule"
 	rules: Record<string, unknown>
 	cancellationTiers: Array<{
 		daysBeforeArrival: number

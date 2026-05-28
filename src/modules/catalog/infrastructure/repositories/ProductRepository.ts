@@ -77,7 +77,6 @@ export class ProductRepository implements ProductRepositoryPort {
 		productId: string
 		description?: string | null
 		highlightsJson?: unknown | null
-		rules?: string | null
 		seoJson?: unknown | null
 	}): Promise<void> {
 		const existing = await db
@@ -91,7 +90,6 @@ export class ProductRepository implements ProductRepositoryPort {
 				productId: params.productId,
 				description: params.description ?? null,
 				highlightsJson: params.highlightsJson ?? null,
-				rules: params.rules ?? null,
 				seoJson: params.seoJson ?? null,
 			})
 			return
@@ -102,7 +100,6 @@ export class ProductRepository implements ProductRepositoryPort {
 			.set({
 				description: params.description ?? null,
 				highlightsJson: params.highlightsJson ?? null,
-				rules: params.rules ?? null,
 				seoJson: params.seoJson ?? null,
 			})
 			.where(eq(ProductContent.productId, params.productId))
@@ -189,7 +186,6 @@ export class ProductRepository implements ProductRepositoryPort {
 				productId: ProductContent.productId,
 				description: ProductContent.description,
 				highlightsJson: ProductContent.highlightsJson,
-				rules: ProductContent.rules,
 				seoJson: ProductContent.seoJson,
 			})
 			.from(ProductContent)

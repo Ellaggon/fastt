@@ -16,7 +16,7 @@ type HouseRuleLike = {
 	productId: string
 	type: string
 	description: string
-	payloadJson?: Record<string, unknown> | null
+	payloadJson: Record<string, unknown>
 	createdAt: string
 }
 

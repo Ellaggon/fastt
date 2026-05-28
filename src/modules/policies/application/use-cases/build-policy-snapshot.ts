@@ -26,14 +26,14 @@ export type HoldPolicySnapshot = {
 			version: number
 			category: string
 			content: unknown
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			timestamp: string
 		}>
 		hardConstraintEvidence: Array<{
 			ruleId: string
 			version: number
 			category: string
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			timestamp: string
 		}>
 	}
@@ -55,7 +55,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -68,7 +68,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -81,7 +81,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number
@@ -94,7 +94,7 @@ export type HoldPolicySnapshot = {
 			ruleId: string
 			version: number
 			description: string
-			source: "policy" | "house_rule" | "product_content_rules"
+			source: "policy" | "house_rule"
 			rules: Record<string, unknown>
 			cancellationTiers: Array<{
 				daysBeforeArrival: number

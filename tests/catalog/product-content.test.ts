@@ -44,7 +44,6 @@ describe("catalog/product/upsertProductContent (unit)", () => {
 		expect(repo.upsertProductContent).toHaveBeenCalledWith({
 			productId: "prod_plain",
 			highlightsJson: ["Great location", "Breakfast included"],
-			rules: null,
 			seoJson: null,
 		})
 	})
@@ -85,7 +84,6 @@ describe("catalog/product/upsertProductContent (unit)", () => {
 			{
 				productId: "prod_abc",
 				highlightsJson: JSON.stringify(["Great location"]),
-				rules: "No smoking",
 			}
 		)
 
@@ -93,7 +91,6 @@ describe("catalog/product/upsertProductContent (unit)", () => {
 		expect(repo.upsertProductContent).toHaveBeenCalledWith({
 			productId: "prod_abc",
 			highlightsJson: ["Great location"],
-			rules: "No smoking",
 			seoJson: null,
 		})
 		expect(res).toEqual({ productId: "prod_abc" })

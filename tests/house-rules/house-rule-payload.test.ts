@@ -14,7 +14,7 @@ describe("house rule structured payloads", () => {
 		})
 
 		expect(buildHouseRuleGuestSummary("Pets", payload)).toBe(
-			"Pets are not allowed. Service animals remain allowed where required."
+			"No se permiten mascotas. Service animals remain allowed where required."
 		)
 	})
 
@@ -26,7 +26,7 @@ describe("house rule structured payloads", () => {
 
 		expect(() => validateHouseRulePayload("QuietHours", payload)).not.toThrow()
 		expect(buildHouseRuleGuestSummary("QuietHours", payload)).toBe(
-			"Quiet hours are from 22:00 to 08:00."
+			"Horario de silencio de 22:00 a 08:00."
 		)
 	})
 

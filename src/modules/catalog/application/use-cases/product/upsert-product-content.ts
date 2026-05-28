@@ -8,14 +8,12 @@ export async function upsertProductContent(
 		productId: string
 		description?: string | null
 		highlightsJson: string
-		rules?: string | null
 	}
 ): Promise<{ productId: string }> {
 	const parsed = productContentSchema.parse({
 		productId: params.productId,
 		description: params.description ?? undefined,
 		highlightsJson: params.highlightsJson,
-		rules: params.rules ?? undefined,
 	})
 
 	const raw = parsed.highlightsJson.trim()
@@ -59,12 +57,10 @@ export async function upsertProductContent(
 		productId: string
 		description?: string | null
 		highlightsJson: string[]
-		rules: string | null
 		seoJson: null
 	} = {
 		productId: parsed.productId,
 		highlightsJson: highlights,
-		rules: parsed.rules ?? null,
 		seoJson: null,
 	}
 	if (typeof parsed.description === "string" && parsed.description.trim().length > 0) {

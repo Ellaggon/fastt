@@ -47,7 +47,6 @@ describe("integration/catalog Product V2 flow", () => {
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
-				rules: "No smoking",
 			}
 		)
 
@@ -173,7 +172,6 @@ describe("integration/catalog Product V2 flow", () => {
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
-				rules: null,
 			}
 		)
 
@@ -226,7 +224,6 @@ describe("integration/catalog Product V2 flow", () => {
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
-				rules: null,
 			}
 		)
 
@@ -282,7 +279,6 @@ describe("integration/catalog Product V2 flow", () => {
 			{
 				productId,
 				highlightsJson: JSON.stringify(["Great location"]),
-				rules: null,
 			}
 		)
 

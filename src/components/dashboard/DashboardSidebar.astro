@@ -2,14 +2,20 @@
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
 import { enterpriseNavigation } from "@/lib/backoffice-governance"
+import { routes } from "@/lib/routes"
 
 interface Props {
 	pathname?: string
 }
 
 const { pathname = "" } = Astro.props
-const isActive = (href: string) =>
-	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+const isRoomSurface = (value: string) =>
+	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value) ||
+	/^\/product\/[^/]+\/variants(?:\/|$)/.test(value)
+const isActive = (href: string) => {
+	if (href === routes.productRooms() && isRoomSurface(pathname)) return true
+	return pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+}
 const activeHref =
 	enterpriseNavigation
 		.flatMap((section) => section.items.map((item) => item.href))
