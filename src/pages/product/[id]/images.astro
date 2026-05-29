@@ -6,7 +6,8 @@ import Input from "@/components/ui/Input.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductAggregate } from "@/modules/catalog/public"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
+import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -18,19 +19,20 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
 
-const product = await getProductAggregate(productId)
+const product = await getProductFullAggregate(productId, providerId)
 if (!product) return Astro.redirect("/product/create")
 
+const vertical = getProductVerticalEntry(product.productType)
 const existingImages = product.images || []
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Fotos">
+<WorkspaceLayout title="Catálogo · Fotos">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Fotos</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Gestiona la galería visible del alojamiento y su cobertura visual mínima.
+					Gestiona la galería visible de {vertical.labels.singular} y su cobertura visual mínima.
 				</p>
 			</header>
 
@@ -45,7 +47,7 @@ const existingImages = product.images || []
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Galería del alojamiento</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Galería de la oferta</h2>
 							<p class="text-sm text-slate-600">
 								Arrastra imágenes aquí o haz clic para seleccionarlas.
 							</p>

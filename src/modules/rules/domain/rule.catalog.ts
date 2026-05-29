@@ -17,7 +17,6 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: false,
 			requiresAcceptance: true,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 	{
@@ -29,7 +28,6 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: false,
 			requiresAcceptance: true,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 	{
@@ -41,7 +39,6 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: false,
 			requiresAcceptance: true,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 	{
@@ -53,55 +50,17 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: false,
 			requiresAcceptance: true,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 	{
-		code: "pets",
-		category: "Pets",
-		layer: "INFO",
+		code: "check_out",
+		category: "CheckOut",
+		layer: "CONTRACT",
 		capabilities: {
 			affectsSearch: true,
 			affectsAvailability: false,
-			requiresAcceptance: false,
-			includedInSnapshot: false,
-			informationalOnly: true,
-		},
-	},
-	{
-		code: "smoking",
-		category: "Smoking",
-		layer: "INFO",
-		capabilities: {
-			affectsSearch: true,
-			affectsAvailability: false,
-			requiresAcceptance: false,
-			includedInSnapshot: false,
-			informationalOnly: true,
-		},
-	},
-	{
-		code: "children",
-		category: "Children",
-		layer: "INFO",
-		capabilities: {
-			affectsSearch: true,
-			affectsAvailability: false,
-			requiresAcceptance: false,
-			includedInSnapshot: false,
-			informationalOnly: true,
-		},
-	},
-	{
-		code: "extra_beds",
-		category: "ExtraBeds",
-		layer: "INFO",
-		capabilities: {
-			affectsSearch: true,
-			affectsAvailability: false,
-			requiresAcceptance: false,
-			includedInSnapshot: false,
-			informationalOnly: true,
+			requiresAcceptance: true,
+			includedInSnapshot: true,
 		},
 	},
 	{
@@ -113,7 +72,6 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: true,
 			requiresAcceptance: false,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 	{
@@ -125,17 +83,15 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 			affectsAvailability: true,
 			requiresAcceptance: false,
 			includedInSnapshot: true,
-			informationalOnly: false,
 		},
 	},
 ]
 
-const DEFAULT_INFO_CAPABILITIES: RuleCapabilities = {
+const DEFAULT_CONTRACT_CAPABILITIES: RuleCapabilities = {
 	affectsSearch: true,
 	affectsAvailability: false,
-	requiresAcceptance: false,
-	includedInSnapshot: false,
-	informationalOnly: true,
+	requiresAcceptance: true,
+	includedInSnapshot: true,
 }
 
 export function getRuleCatalogItem(code: RuleCode): RuleCatalogItem {
@@ -147,8 +103,8 @@ export function getRuleCatalogItem(code: RuleCode): RuleCatalogItem {
 	return {
 		code: normalizedCode || "other",
 		category: "Other",
-		layer: "INFO",
-		capabilities: DEFAULT_INFO_CAPABILITIES,
+		layer: "CONTRACT",
+		capabilities: DEFAULT_CONTRACT_CAPABILITIES,
 	}
 }
 

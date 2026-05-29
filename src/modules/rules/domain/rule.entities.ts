@@ -45,6 +45,6 @@ export type EffectiveRule = {
 	group: RuleGroup
 	version: RuleVersion
 	assignment: RuleAssignment | null
-	source: "policy" | "house_rule"
+	source: "policy"
 	resolvedFromScope: RuleScope | "global" | "unknown"
 }

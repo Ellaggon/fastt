@@ -8,7 +8,13 @@ export const routes = {
 	providerTaxFees: () => "/provider/tax-fees",
 	providerVerification: () => "/provider/verification",
 	productList: () => "/product",
-	productRooms: () => "/product/rooms",
+	productListByType: (productType: string) =>
+		`/product?type=${encodeURIComponent(String(productType))}`,
+	catalogAccommodations: () => "/catalog/accommodations",
+	catalogAccommodationRooms: () => "/catalog/accommodations/rooms",
+	catalogTours: () => "/catalog/tours",
+	catalogPackages: () => "/catalog/packages",
+	productRooms: () => "/catalog/accommodations/rooms",
 	productRoomsForProduct: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms`,
 	bookingList: () => "/booking",

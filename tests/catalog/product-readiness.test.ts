@@ -77,4 +77,50 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 			validationErrorsJson: null,
 		})
 	})
+
+	it("requires package-specific itinerary and days/nights before package readiness", async () => {
+		const agg: ProductAggregate = {
+			product: {
+				id: "pkg_1",
+				name: "Package",
+				productType: "package",
+				providerId: "prov_1",
+				destinationId: "dest_1",
+			},
+			imagesCount: 1,
+			subtypeExists: true,
+			subtypeDetails: {
+				kind: "package",
+				itinerary: "",
+				days: null,
+				nights: null,
+				includes: "",
+				excludes: null,
+			},
+			content: {
+				productId: "pkg_1",
+				highlightsJson: ["Transfers included"],
+				seoJson: null,
+			},
+			location: {
+				productId: "pkg_1",
+				address: "La Paz",
+				lat: -16.5,
+				lng: -68.13,
+			},
+			status: null,
+		}
+		const repo = makeRepo(agg)
+
+		const res = await evaluateProductReadiness({ repo }, { productId: "pkg_1" })
+
+		expect(res.state).toBe("draft")
+		expect(res.validationErrors.map((error) => error.code)).toEqual(
+			expect.arrayContaining([
+				"missing_package_itinerary",
+				"missing_package_duration",
+				"missing_package_inclusions",
+			])
+		)
+	})
 })

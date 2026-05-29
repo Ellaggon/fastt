@@ -13,12 +13,9 @@ export const hotelSchema = z.object({
 		const n = Number(v)
 		return Number.isFinite(n) ? n : undefined
 	}, z.number().int().min(1).max(5).optional()),
-	address: z.preprocess((v) => (v === "" ? null : v), z.string().min(1).optional().nullable()),
 	phone: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
 	email: z.preprocess((v) => (v === "" ? null : v), z.string().email().optional().nullable()),
 	website: z.preprocess((v) => (v === "" ? null : v), z.string().url().optional().nullable()),
-	latitude: z.number().nullable().optional(),
-	longitude: z.number().nullable().optional(),
 })
 
 export const tourSchema = z.object({
@@ -51,6 +48,8 @@ export const packageSchema = z.object({
 		const n = Number(v)
 		return Number.isFinite(n) ? n : undefined
 	}, z.number().int().min(0).optional()),
+	includes: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
+	excludes: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
 })
 
 /** helper simple para normalizar productType del form */

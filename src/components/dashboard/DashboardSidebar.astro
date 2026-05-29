@@ -10,6 +10,7 @@ interface Props {
 
 const { pathname = "" } = Astro.props
 const isRoomSurface = (value: string) =>
+	/^\/catalog\/accommodations\/rooms(?:\/|$)/.test(value) ||
 	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value) ||
 	/^\/product\/[^/]+\/variants(?:\/|$)/.test(value)
 const isActive = (href: string) => {

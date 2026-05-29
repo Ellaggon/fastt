@@ -6,9 +6,10 @@ import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { routes } from "@/lib/routes"
-import { getProductAggregate } from "@/modules/catalog/public"
+import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -20,9 +21,11 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
 
-const aggregate = await getProductAggregate(productId)
+const aggregate = await getProductFullAggregate(productId, providerId)
 if (!aggregate) return Astro.redirect("/product/create")
 
+const vertical = getProductVerticalEntry(aggregate.productType)
+const isHotel = vertical.vertical === "hotel"
 const descriptionValue = aggregate.content.description ?? ""
 
 const highlightsValue = Array.isArray(aggregate.content.highlights)
@@ -32,14 +35,18 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 		: ""
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Contenido">
+<WorkspaceLayout title="Catálogo · Contenido">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Contenido</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define la narrativa visible del alojamiento: descripción y destacados. Las reglas de
-					comportamiento e instrucciones operativas viven en Reglas para huéspedes.
+					Define la narrativa visible de esta oferta: descripción y destacados.
+					{
+						isHotel
+							? " Las reglas de comportamiento e instrucciones operativas viven en Reglas para huéspedes."
+							: ""
+					}
 				</p>
 			</header>
 
@@ -56,7 +63,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
 							<p class="text-sm text-slate-600">
-								Este bloque define la información visible del producto.
+								Este bloque define la información visible de {vertical.labels.singular}.
 							</p>
 						</div>
 
@@ -67,7 +74,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 								value={descriptionValue}
 								rows="5"
 								required
-								placeholder="Describe el producto con claridad para el huésped."
+								placeholder="Describe la oferta con claridad para el viajero."
 							/>
 							<p id="descriptionError" class="hidden text-sm text-red-600"></p>
 						</FormField>
@@ -83,21 +90,25 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 							/>
 						</FormField>
 
-						<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950">
-							<p class="text-sm font-semibold">
-								Reglas para huéspedes vive fuera de la descripción
-							</p>
-							<p class="mt-1 text-sm">
-								Usa Reglas para huéspedes para mascotas, fumar, horarios de silencio, parking,
-								check-in, checkout y comportamiento de huéspedes. Así el contenido del alojamiento
-								queda separado de las expectativas de estadía.
-							</p>
-							<div class="mt-3">
-								<Button href={routes.providerHouseRules()} variant="secondary">
-									Abrir reglas para huéspedes
-								</Button>
-							</div>
-						</div>
+						{
+							isHotel ? (
+								<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950">
+									<p class="text-sm font-semibold">
+										Reglas para huéspedes vive fuera de la descripción
+									</p>
+									<p class="mt-1 text-sm">
+										Usa Reglas para huéspedes para mascotas, fumar, horarios de silencio, parking,
+										check-in, checkout y comportamiento de huéspedes. Así el contenido del
+										alojamiento queda separado de las expectativas de estadía.
+									</p>
+									<div class="mt-3">
+										<Button href={routes.providerHouseRules()} variant="secondary">
+											Abrir reglas para huéspedes
+										</Button>
+									</div>
+								</div>
+							) : null
+						}
 					</div>
 
 					<div class="space-y-1">

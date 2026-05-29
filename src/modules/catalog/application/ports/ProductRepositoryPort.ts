@@ -27,6 +27,25 @@ export type ProductAggregate = {
 		state: ProductStatusState
 		validationErrorsJson?: unknown | null
 	} | null
+	subtypeDetails?:
+		| {
+				kind: "hotel"
+				stars?: number | null
+		  }
+		| {
+				kind: "tour"
+				duration?: string | null
+				difficultyLevel?: string | null
+		  }
+		| {
+				kind: "package"
+				itinerary?: string | null
+				days?: number | null
+				nights?: number | null
+				includes?: string | null
+				excludes?: string | null
+		  }
+		| null
 }
 
 export interface ProductRepositoryPort {

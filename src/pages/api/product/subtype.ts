@@ -65,6 +65,8 @@ export const POST: APIRoute = async ({ request }) => {
 							itinerary: String(form.get("itinerary") ?? "").trim() || null,
 							days: form.get("days") ? Number(form.get("days")) : null,
 							nights: form.get("nights") ? Number(form.get("nights")) : null,
+							includes: String(form.get("includes") ?? "").trim() || null,
+							excludes: String(form.get("excludes") ?? "").trim() || null,
 						}
 
 		const response = await updateProductSubtype({

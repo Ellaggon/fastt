@@ -18,9 +18,13 @@ export interface InventoryHoldRepositoryPort {
 		expiresAt: Date
 		channel?: string | null
 		policySnapshotJson: unknown
+		guestExpectationsSnapshotJson?: unknown | null
 	}): Promise<HoldInventoryResult>
 
-	findHoldSnapshot(params: { holdId: string }): Promise<{ policySnapshotJson: unknown } | null>
+	findHoldSnapshot(params: { holdId: string }): Promise<{
+		policySnapshotJson: unknown
+		guestExpectationsSnapshotJson?: unknown | null
+	} | null>
 
 	releaseHold(params: { holdId: string }): Promise<{ released: boolean; days: number }>
 

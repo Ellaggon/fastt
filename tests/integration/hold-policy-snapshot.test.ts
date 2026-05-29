@@ -6,6 +6,7 @@ import {
 	DailyInventory,
 	EffectivePricingV2,
 	Hold,
+	HouseRule,
 	RatePlan,
 	db,
 	eq,
@@ -36,6 +37,7 @@ import {
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
+import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
@@ -191,6 +193,14 @@ describe("integration/hold policy snapshot", () => {
 				channel: "web",
 			})
 		}
+		await db.insert(HouseRule).values({
+			id: `hr_hps_${crypto.randomUUID()}`,
+			productId,
+			type: "QuietHours",
+			payloadJson: { kind: "QuietHours", start: "22:00", end: "08:00" },
+			isActive: true,
+			createdAt: new Date(),
+		} as any)
 
 		const hold = await createInventoryHold(
 			{
@@ -201,6 +211,7 @@ describe("integration/hold policy snapshot", () => {
 						warnings: [],
 					}).dto,
 				resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
+				buildGuestExpectationsSnapshot: (id) => buildGuestStayExpectationsSnapshot(id),
 				policyContext: {
 					productId,
 					ratePlanId,
@@ -230,7 +241,10 @@ describe("integration/hold policy snapshot", () => {
 		)
 
 		const holdRow = await db
-			.select({ policySnapshotJson: Hold.policySnapshotJson })
+			.select({
+				policySnapshotJson: Hold.policySnapshotJson,
+				guestExpectationsSnapshotJson: Hold.guestExpectationsSnapshotJson,
+			})
 			.from(Hold)
 			.where(eq(Hold.id, hold.holdId))
 			.get()
@@ -243,6 +257,10 @@ describe("integration/hold policy snapshot", () => {
 		expect(holdSnapshot.ruleBasedContractSnapshot).toBeTruthy()
 		expect(holdSnapshot.contractComparisonJson).toBeTruthy()
 		expect(holdSnapshot.contractComparisonJson?.isConsistent).toBe(true)
+		expect(JSON.stringify(holdSnapshot.ruleSnapshotJson)).not.toContain("house_rule")
+		const guestSnapshot = holdRow?.guestExpectationsSnapshotJson as any
+		expect(guestSnapshot?.source).toBe("house_rule")
+		expect(guestSnapshot?.rules?.[0]?.summary).toContain("22:00")
 
 		await createPolicyVersionCapa6({
 			previousPolicyId: paymentPolicy.policyId,

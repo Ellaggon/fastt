@@ -52,12 +52,9 @@ export async function createProductSubtype(params: {
 			productId,
 			productType: "hotel",
 			stars: form.get("stars"),
-			address: form.get("address"),
 			phone: form.get("phone"),
 			email: form.get("email"),
 			website: form.get("website"),
-			latitude: form.get("latitude") ? Number(form.get("latitude")) : null,
-			longitude: form.get("longitude") ? Number(form.get("longitude")) : null,
 		}
 		const parsed = hotelSchema.safeParse(payload)
 		if (!parsed.success) {
@@ -92,6 +89,8 @@ export async function createProductSubtype(params: {
 		itinerary: form.get("itinerary"),
 		days: form.get("days"),
 		nights: form.get("nights"),
+		includes: form.get("includes"),
+		excludes: form.get("excludes"),
 	}
 	const parsed = packageSchema.safeParse(payload)
 	if (!parsed.success) {

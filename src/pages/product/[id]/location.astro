@@ -5,8 +5,9 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, eq, ProductLocation } from "astro:db"
+import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -18,28 +19,23 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
 
-const existingLocation =
-	(await db
-		.select({
-			address: ProductLocation.address,
-			lat: ProductLocation.lat,
-			lng: ProductLocation.lng,
-		})
-		.from(ProductLocation)
-		.where(eq(ProductLocation.productId, productId))
-		.get()) ?? null
+const product = await getProductFullAggregate(productId, providerId)
+if (!product) return Astro.redirect("/product/create")
+
+const vertical = getProductVerticalEntry(product.productType)
+const existingLocation = product.location
 
 const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -16.495905
 const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Ubicación">
+<WorkspaceLayout title="Catálogo · Ubicación">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Ubicación</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define ubicación, coordenadas y contexto geográfico para discoverability.
+					Define ubicación, coordenadas y contexto geográfico de {vertical.labels.singular}.
 				</p>
 			</header>
 
@@ -71,7 +67,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 						</FormField>
 
 						<FormField
-							label="Ubicación del producto"
+							label="Ubicación de la oferta"
 							htmlFor="map"
 							required
 							description="Haz clic en el mapa para seleccionar la ubicación"

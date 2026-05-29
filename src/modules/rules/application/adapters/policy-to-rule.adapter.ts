@@ -120,11 +120,9 @@ export function mapResolvedPoliciesToRules(params: {
 									rules: rulesMap,
 								}
 							: {
-									kind: "informative" as const,
+									kind: "generic" as const,
 									description: String(item.policy?.description ?? "").trim(),
 									rules: rulesMap,
-									source: "policy" as const,
-									confidence: "medium" as const,
 								}
 
 		const version = buildRuleVersion({

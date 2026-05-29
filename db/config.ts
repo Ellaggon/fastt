@@ -196,12 +196,9 @@ const Hotel = defineTable({
 	columns: {
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
 		stars: column.number({ optional: true }), // 1-5
-		address: column.text({ optional: true }),
 		phone: column.text({ optional: true }),
 		email: column.text({ optional: true }),
 		website: column.text({ optional: true }),
-		latitude: column.number({ optional: true }),
-		longitude: column.number({ optional: true }),
 	},
 })
 const Tour = defineTable({
@@ -220,6 +217,8 @@ const Package = defineTable({
 		itinerary: column.text({ optional: true }),
 		days: column.number({ optional: true }),
 		nights: column.number({ optional: true }),
+		includes: column.text({ optional: true }),
+		excludes: column.text({ optional: true }),
 	},
 })
 const Variant = defineTable({
@@ -761,6 +760,8 @@ const Hold = defineTable({
 		expiresAt: column.date(),
 		// Canonical immutable policy contract captured at hold creation time.
 		policySnapshotJson: column.json(),
+		// Informational guest-facing expectations captured separately from operational rules.
+		guestExpectationsSnapshotJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["variantId", "checkIn"] }, { on: ["expiresAt"] }],

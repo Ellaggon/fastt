@@ -6,7 +6,7 @@ export type RuleContractTermSnapshot = {
 	version: number
 	category: string
 	content: RuleContent
-	source: "policy" | "house_rule"
+	source: "policy"
 	timestamp: string
 }
 
@@ -14,7 +14,7 @@ export type RuleHardConstraintEvidenceSnapshot = {
 	ruleId: string
 	version: number
 	category: string
-	source: "policy" | "house_rule"
+	source: "policy"
 	timestamp: string
 }
 

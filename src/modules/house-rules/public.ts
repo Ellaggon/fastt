@@ -2,6 +2,7 @@
 // External consumers MUST import from "@/modules/house-rules/public".
 
 export * from "./domain/houseRule"
+export * from "./domain/guestStayExpectationsSnapshot"
 
 export async function createHouseRule(params: {
 	productId: string
@@ -15,6 +16,15 @@ export async function createHouseRule(params: {
 export async function listHouseRulesByProduct(productId: string) {
 	const { listHouseRulesByProductUseCase } = await import("@/container/house-rules.container")
 	return listHouseRulesByProductUseCase(productId)
+}
+
+export async function buildGuestStayExpectationsSnapshot(
+	productId: string,
+	options?: { capturedAt?: Date }
+) {
+	const { buildGuestStayExpectationsSnapshotUseCase } =
+		await import("@/container/house-rules.container")
+	return buildGuestStayExpectationsSnapshotUseCase(productId, options)
 }
 
 export async function deleteHouseRule(id: string) {

@@ -6,6 +6,11 @@ import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	getProductVerticalEntry,
+	listActiveProductVerticalEntries,
+	normalizeProductTypeValue,
+} from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { db, eq, inArray, Product, ProductStatus } from "astro:db"
 
@@ -15,7 +20,13 @@ if (!user) return Astro.redirect("/SignInPage")
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 
-const products = await db
+const activeVerticals = listActiveProductVerticalEntries()
+const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
+const requestedProductType = normalizeProductTypeValue(requestedType)
+const selectedVertical =
+	activeVerticals.find((vertical) => vertical.productType === requestedProductType) ?? null
+
+const allProducts = await db
 	.select({
 		id: Product.id,
 		name: Product.name,
@@ -24,6 +35,11 @@ const products = await db
 	.from(Product)
 	.where(eq(Product.providerId, providerId))
 
+const products = selectedVertical
+	? allProducts.filter(
+			(product) => normalizeProductTypeValue(product.productType) === selectedVertical.productType
+		)
+	: allProducts
 const productIds = products.map((product) => product.id)
 const statuses = productIds.length
 	? await db
@@ -47,6 +63,27 @@ const readyProducts = statuses.filter(
 	(status) => String(status.state ?? "").toLowerCase() === "ready"
 ).length
 const draftProducts = Math.max(0, totalProducts - publishedProducts - readyProducts)
+const catalogTitle = selectedVertical ? selectedVertical.labels.workspacePlural : "Catálogo"
+const catalogDescription = selectedVertical
+	? selectedVertical.readiness.publishSummary
+	: "Revisa contenido, fotos, ubicación, condiciones y vista previa antes de publicar. Hoteles, tours y paquetes comparten catálogo, pero cada tipo mantiene su propio modelo operativo."
+const createHref = selectedVertical
+	? selectedVertical.routes.workspaceCreateHref
+	: "/product/create"
+const emptyTitle = selectedVertical
+	? `Aún no tienes ${selectedVertical.labels.plural}`
+	: "Aún no tienes ofertas"
+const emptyDescription = selectedVertical
+	? `Crea tu primer ${selectedVertical.labels.singular} para preparar contenido, operación y publicación.`
+	: "Crea tu primera oferta para preparar contenido, operación y publicación."
+const sectionDescription = selectedVertical
+	? `Accede a cada ${selectedVertical.labels.singular} para revisar contenido, fotos, ubicación, detalles y vista previa.`
+	: "Accede a cada oferta para revisar contenido, fotos, ubicación, detalles y vista previa."
+const verticalCounts = new Map<string, number>()
+for (const product of allProducts) {
+	const vertical = getProductVerticalEntry(product.productType)
+	verticalCounts.set(vertical.vertical, (verticalCounts.get(vertical.vertical) ?? 0) + 1)
+}
 
 const getStatusMeta = (rawState: string | undefined) => {
 	const state = String(rawState ?? "draft")
@@ -58,21 +95,57 @@ const getStatusMeta = (rawState: string | undefined) => {
 }
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Alojamientos">
+<WorkspaceLayout
+	title={selectedVertical
+		? `Catálogo · ${selectedVertical.labels.workspacePlural}`
+		: "Catálogo · Ofertas"}
+>
 	<section class="space-y-8">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Alojamientos</h1>
+			<h1 class="text-3xl font-semibold text-slate-100">{catalogTitle}</h1>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">
-				Revisa contenido, fotos, reglas de la casa, condiciones y vista previa antes de publicar.
-				Las tarifas, inventario y restricciones viven en Habitaciones y tarifas.
+				{catalogDescription}
 			</p>
 		</header>
 
+		<nav class="flex flex-wrap gap-2" aria-label="Filtros de catálogo">
+			<a
+				href={routes.productList()}
+				class={`inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium transition ${
+					selectedVertical
+						? "border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-900"
+						: "border-blue-600 bg-blue-600 text-white"
+				}`}
+			>
+				Todo el catálogo
+			</a>
+			{
+				activeVerticals.map((vertical) => {
+					const isActive = selectedVertical?.vertical === vertical.vertical
+					const count = verticalCounts.get(vertical.vertical) ?? 0
+					return (
+						<a
+							href={vertical.routes.workspaceFilteredHref}
+							class={`inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium transition ${
+								isActive
+									? "border-blue-600 bg-blue-600 text-white"
+									: "border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-900"
+							}`}
+							aria-current={isActive ? "page" : undefined}
+						>
+							{vertical.labels.workspacePlural}
+							<span class="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">{count}</span>
+						</a>
+					)
+				})
+			}
+		</nav>
+
 		<section class="grid gap-4 md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Alojamientos</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Ofertas</p>
 				<p class="mt-2 text-2xl font-semibold">{totalProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Alojamientos bajo edición de contenido</p>
+				<p class="mt-1 text-xs text-slate-400">Ofertas bajo edición de catálogo</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Publicados</p>
@@ -92,25 +165,23 @@ const getStatusMeta = (rawState: string | undefined) => {
 		</section>
 
 		<Section
-			title="Lista de alojamientos"
-			description="Accede a cada alojamiento para revisar contenido, fotos, ubicación, detalles y vista previa."
+			title={selectedVertical ? `Lista de ${selectedVertical.labels.plural}` : "Lista de ofertas"}
+			description={sectionDescription}
 		>
 			{
 				products.length === 0 ? (
 					<Card class="space-y-4 bg-slate-100">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes productos</h2>
-							<p class="text-sm text-slate-600">
-								Crea tu primer alojamiento para preparar contenido, habitaciones y publicación.
-							</p>
+							<h2 class="text-xl font-semibold text-slate-900">{emptyTitle}</h2>
+							<p class="text-sm text-slate-600">{emptyDescription}</p>
 						</div>
 						<div class="flex justify-end">
 							<Button
-								href="/product/create"
+								href={createHref}
 								data-astro-prefetch
 								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 							>
-								Crear alojamiento
+								{selectedVertical ? `Crear ${selectedVertical.labels.singular}` : "Crear oferta"}
 							</Button>
 						</div>
 					</Card>
@@ -118,17 +189,16 @@ const getStatusMeta = (rawState: string | undefined) => {
 					<div class="space-y-4">
 						{products.map((product) => {
 							const status = getStatusMeta(statusMap.get(product.id))
+							const vertical = getProductVerticalEntry(product.productType)
 							return (
 								<Card class="space-y-4 bg-slate-100">
 									<div class="flex flex-wrap items-start justify-between gap-4">
 										<div class="space-y-1">
 											<p class="text-lg font-semibold text-slate-900">{product.name}</p>
 											<p class="text-sm text-slate-600">
-												Tipo: {String(product.productType ?? "No definido")}
+												Tipo: {vertical.labels.workspaceSingular}
 											</p>
-											<p class="text-sm text-slate-500">
-												Contenido, fotos, reglas y condiciones se revisan antes de publicar.
-											</p>
+											<p class="text-sm text-slate-500">{vertical.readiness.publishSummary}</p>
 										</div>
 										<div class="flex flex-wrap items-center justify-end gap-3">
 											<Badge variant={status.variant}>{status.label}</Badge>
@@ -144,7 +214,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 												data-astro-prefetch
 												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 											>
-												Editar alojamiento
+												Editar {vertical.labels.singular}
 											</Button>
 										</div>
 									</div>
@@ -158,23 +228,23 @@ const getStatusMeta = (rawState: string | undefined) => {
 
 		<Section
 			title="Flujo de publicación"
-			description="El alojamiento concentra presentación, reglas y vista previa; habitaciones, tarifas e inventario se gestionan en sus secciones."
+			description="El catálogo concentra presentación y vista previa; cada vertical agrega sus propios bloques operativos."
 		>
 			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
 				<p class="text-sm text-slate-600">
-					Contenido del alojamiento prepara la presentación vendible: contenido, reglas de la casa,
-					fotos, ubicación, detalles y vista previa antes de publicar.
+					El catálogo prepara la presentación vendible: contenido, fotos, ubicación, detalles,
+					condiciones y vista previa antes de publicar.
 				</p>
 				<div class="flex flex-wrap gap-2">
 					<Button href="/provider/house-rules" data-astro-prefetch variant="secondary">
-						Configurar reglas
+						Reglas para huéspedes
 					</Button>
 					<Button
-						href="/product/create"
+						href={createHref}
 						data-astro-prefetch
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
-						Crear alojamiento
+						{selectedVertical ? `Crear ${selectedVertical.labels.singular}` : "Crear oferta"}
 					</Button>
 				</div>
 			</Card>

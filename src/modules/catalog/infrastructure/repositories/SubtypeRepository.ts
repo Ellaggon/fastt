@@ -3,12 +3,9 @@ import { db, Hotel, Tour, Package, eq, HotelRoomType } from "astro:db"
 export type HotelPayload = {
 	productId: string
 	stars?: number | null
-	address?: string | null
 	phone?: string | null
 	email?: string | null
 	website?: string | null
-	latitude?: number | null
-	longitude?: number | null
 }
 export type TourPayload = {
 	productId: string
@@ -23,6 +20,8 @@ export type PackagePayload = {
 	itinerary?: string | null
 	days?: number | null
 	nights?: number | null
+	includes?: string | null
+	excludes?: string | null
 }
 
 type DrizzleDB = typeof db
@@ -50,12 +49,9 @@ export class SubtypeRepository {
 		return await dbOrTx.insert(Hotel).values({
 			productId: data.productId,
 			stars: data.stars ?? null,
-			address: data.address ?? null,
 			phone: data.phone ?? null,
 			email: data.email ?? null,
 			website: data.website ?? null,
-			latitude: data.latitude ?? null,
-			longitude: data.longitude ?? null,
 		})
 	}
 
@@ -64,12 +60,9 @@ export class SubtypeRepository {
 			.update(Hotel)
 			.set({
 				stars: data.stars ?? null,
-				address: data.address ?? null,
 				phone: data.phone ?? null,
 				email: data.email ?? null,
 				website: data.website ?? null,
-				latitude: data.latitude ?? null,
-				longitude: data.longitude ?? null,
 			})
 			.where(eq(Hotel.productId, productId))
 	}
@@ -120,6 +113,8 @@ export class SubtypeRepository {
 			itinerary: data.itinerary ?? null,
 			days: data.days ?? null,
 			nights: data.nights ?? null,
+			includes: data.includes ?? null,
+			excludes: data.excludes ?? null,
 		})
 	}
 
@@ -130,6 +125,8 @@ export class SubtypeRepository {
 				itinerary: data.itinerary ?? null,
 				days: data.days ?? null,
 				nights: data.nights ?? null,
+				includes: data.includes ?? null,
+				excludes: data.excludes ?? null,
 			})
 			.where(eq(Package.productId, productId))
 	}

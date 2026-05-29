@@ -20,7 +20,8 @@ const breadcrumbsItems = [
 
 		<h1 class="mb-5 mt-8 text-4xl font-bold text-gray-100">Tours en Bolivia</h1>
 		<p class="mb-8 text-gray-100">
-			Encuentra los mejores tours y actividades para tu aventura en Bolivia.
+			Encuentra tours con duración, punto de encuentro, guía e inclusiones claras para tu aventura
+			en Bolivia.
 		</p>
 
 		<div class="flex flex-col gap-8 md:flex-row">
@@ -33,35 +34,35 @@ const breadcrumbsItems = [
 				</li>
 				<li>
 					<a
-						href="/es/hoteles-la-paz.htm"
+						href="/tours/search?destinationQuery=la-paz"
 						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
 						>La Paz</a
 					>
 				</li>
 				<li>
 					<a
-						href="/es/hoteles-uyuni.htm"
+						href="/tours/search?destinationQuery=uyuni"
 						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
 						>Uyuni</a
 					>
 				</li>
 				<li>
 					<a
-						href="/es/hoteles-santa-cruz.htm"
+						href="/tours/search?destinationQuery=santa-cruz"
 						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
 						>Santa Cruz</a
 					>
 				</li>
 				<li>
 					<a
-						href="/es/hoteles-copacabana.htm"
+						href="/tours/search?destinationQuery=copacabana"
 						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
 						>Copacabana</a
 					>
 				</li>
 				<li>
 					<a
-						href="/es/hoteles-copacabana.htm"
+						href="/tours/search?destinationQuery=cochabamba"
 						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
 						>Cochabamba</a
 					>
@@ -77,7 +78,7 @@ const breadcrumbsItems = [
 								<DepartmentCard
 									id={dept.id}
 									name={dept.name}
-									description={`Descubre los mejores alojamientos en ${dept.name}.`}
+									description={`Descubre tours y experiencias en ${dept.name}.`}
 									imageUrl={
 										dept.imageUrl ? dept.imageUrl : `https://picsum.photos/290/183?random=${i + 20}`
 									}
@@ -91,70 +92,72 @@ const breadcrumbsItems = [
 		</div>
 
 		<article class="links mt-12">
-			<h2 class="mb-6 text-3xl font-bold text-gray-100">Hoteles por tipo de alojamiento</h2>
+			<h2 class="mb-6 text-3xl font-bold text-gray-100">Tours por tipo de experiencia</h2>
 			<div class="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
 				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Hoteles</h3>
+					<h3 class="mb-4 text-xl font-semibold text-gray-100">Naturaleza</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/hoteles/5-estrellas.htm" class="text-blue-600 hover:underline"
-								>5 Estrellas</a
+							<a href="/tours/search?destinationQuery=uyuni" class="text-blue-600 hover:underline"
+								>Salares y desiertos</a
 							>
 						</li>
 						<li>
-							<a href="/es/hoteles/4-estrellas.htm" class="text-blue-600 hover:underline"
-								>4 Estrellas</a
+							<a
+								href="/tours/search?destinationQuery=amazonas"
+								class="text-blue-600 hover:underline">Selva y biodiversidad</a
 							>
 						</li>
 						<li>
-							<a href="/es/hoteles/3-estrellas.htm" class="text-blue-600 hover:underline"
-								>3 Estrellas</a
+							<a
+								href="/tours/search?destinationQuery=altiplano"
+								class="text-blue-600 hover:underline">Altiplano</a
 							>
 						</li>
 					</ul>
 				</section>
 
 				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Hostales</h3>
+					<h3 class="mb-4 text-xl font-semibold text-gray-100">Cultura</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/hostales/centro.htm" class="text-blue-600 hover:underline"
-								>En el Centro</a
+							<a href="/tours/search?destinationQuery=la-paz" class="text-blue-600 hover:underline"
+								>City tours</a
 							>
 						</li>
 						<li>
-							<a href="/es/hostales/economicos.htm" class="text-blue-600 hover:underline"
-								>Económicos</a
+							<a href="/tours/search?destinationQuery=sucre" class="text-blue-600 hover:underline"
+								>Patrimonio histórico</a
 							>
 						</li>
 					</ul>
 				</section>
 
 				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Ecolodges</h3>
+					<h3 class="mb-4 text-xl font-semibold text-gray-100">Aventura</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/ecolodges/amazonas.htm" class="text-blue-600 hover:underline">Amazonas</a
+							<a
+								href="/tours/search?destinationQuery=cochabamba"
+								class="text-blue-600 hover:underline">Trekking</a
 							>
 						</li>
 						<li>
-							<a href="/es/ecolodges/altiplano.htm" class="text-blue-600 hover:underline"
-								>Altiplano</a
+							<a href="/tours/search?destinationQuery=la-paz" class="text-blue-600 hover:underline"
+								>Bicicleta y montaña</a
 							>
 						</li>
 					</ul>
 				</section>
 
 				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Resorts</h3>
+					<h3 class="mb-4 text-xl font-semibold text-gray-100">Duración</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/resorts/lujo.htm" class="text-blue-600 hover:underline">De Lujo</a>
+							<a href="/tours/search" class="text-blue-600 hover:underline">Medio día</a>
 						</li>
 						<li>
-							<a href="/es/resorts/familiares.htm" class="text-blue-600 hover:underline"
-								>Familiares</a
-							>
+							<a href="/tours/search" class="text-blue-600 hover:underline">Día completo</a>
 						</li>
 					</ul>
 				</section>

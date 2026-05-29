@@ -29,6 +29,7 @@ import {
 import { ensureObjectKey } from "@/lib/images/objectKey"
 import type {
 	CatalogReadModelRepositoryPort,
+	ProductFullAggregate,
 	VariantFullAggregate,
 } from "@/modules/catalog/application/ports/CatalogReadModelRepositoryPort"
 import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
@@ -121,22 +122,11 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				address: ProductLocation.address,
 				lat: ProductLocation.lat,
 				lng: ProductLocation.lng,
-				hotelStars: Hotel.stars,
-				hotelPhone: Hotel.phone,
-				hotelEmail: Hotel.email,
-				tourDuration: Tour.duration,
-				tourDifficulty: Tour.difficultyLevel,
-				tourLanguages: Tour.guideLanguages,
-				packageDays: Package.days,
-				packageNights: Package.nights,
 			})
 			.from(Product)
 			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
-			.leftJoin(Hotel, eq(Hotel.productId, Product.id))
-			.leftJoin(Tour, eq(Tour.productId, Product.id))
-			.leftJoin(Package, eq(Package.productId, Product.id))
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
 			.get()
 
@@ -159,28 +149,69 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.trim()
 			.toLowerCase()
 
-		const subtype =
-			normalizedType === "hotel"
+		let subtype: ProductFullAggregate["subtype"] = null
+
+		if (normalizedType === "hotel") {
+			const hotel = await db
+				.select({
+					stars: Hotel.stars,
+					phone: Hotel.phone,
+					email: Hotel.email,
+				})
+				.from(Hotel)
+				.where(eq(Hotel.productId, productId))
+				.get()
+			subtype = hotel
 				? {
-						kind: "hotel" as const,
-						stars: row.hotelStars ?? null,
-						phone: row.hotelPhone ?? null,
-						email: row.hotelEmail ?? null,
+						kind: "hotel",
+						stars: hotel.stars ?? null,
+						phone: hotel.phone ?? null,
+						email: hotel.email ?? null,
 					}
-				: normalizedType === "tour"
-					? {
-							kind: "tour" as const,
-							duration: row.tourDuration ? String(row.tourDuration) : null,
-							difficultyLevel: row.tourDifficulty ? String(row.tourDifficulty) : null,
-							guideLanguages: row.tourLanguages ?? null,
-						}
-					: normalizedType === "package"
-						? {
-								kind: "package" as const,
-								days: row.packageDays ?? null,
-								nights: row.packageNights ?? null,
-							}
-						: null
+				: null
+		}
+
+		if (normalizedType === "tour") {
+			const tour = await db
+				.select({
+					duration: Tour.duration,
+					difficultyLevel: Tour.difficultyLevel,
+					guideLanguages: Tour.guideLanguages,
+				})
+				.from(Tour)
+				.where(eq(Tour.productId, productId))
+				.get()
+			subtype = tour
+				? {
+						kind: "tour",
+						duration: tour.duration ? String(tour.duration) : null,
+						difficultyLevel: tour.difficultyLevel ? String(tour.difficultyLevel) : null,
+						guideLanguages: tour.guideLanguages ?? null,
+					}
+				: null
+		}
+
+		if (normalizedType === "package") {
+			const packageRow = await db
+				.select({
+					days: Package.days,
+					nights: Package.nights,
+					includes: Package.includes,
+					excludes: Package.excludes,
+				})
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.get()
+			subtype = packageRow
+				? {
+						kind: "package",
+						days: packageRow.days ?? null,
+						nights: packageRow.nights ?? null,
+						includes: packageRow.includes ? String(packageRow.includes) : null,
+						excludes: packageRow.excludes ? String(packageRow.excludes) : null,
+					}
+				: null
+		}
 
 		return {
 			id: row.id,

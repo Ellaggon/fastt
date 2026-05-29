@@ -205,10 +205,49 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/rooms",
+		status: "legacy",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale: "Short alias that redirects to the accommodation rooms workspace.",
+	},
+	{
+		pattern: "/product/rooms",
+		status: "legacy",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale: "Legacy catalog route that redirects to the accommodation rooms workspace.",
+	},
+	{
+		pattern: "/catalog/accommodations/rooms",
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Short client-first alias that forwards providers to the room selector.",
+		rationale:
+			"Accommodation-only room selector; rooms belong to Hotel/accommodation verticals, not generic Product.",
+	},
+	{
+		pattern: "/catalog/accommodations",
+		status: "transitional",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Vertical alias that opens the catalog filtered to accommodations while Product remains the generic catalog root.",
+	},
+	{
+		pattern: "/catalog/tours",
+		status: "transitional",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Vertical alias that opens the catalog filtered to tours while Product remains the generic catalog root.",
+	},
+	{
+		pattern: "/catalog/packages",
+		status: "transitional",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Vertical alias that opens the catalog filtered to packages while Product remains the generic catalog root.",
 	},
 	{
 		pattern: "/product/:id/rooms",
@@ -757,6 +796,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		owner: "Public Marketplace",
 		rationale: "Consumer tour discovery and detail routes.",
 	},
+	{
+		pattern: "/packages/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Consumer package discovery and detail routes.",
+	},
 ]
 
 export const enterpriseNavigation: EnterpriseNavigationSection[] = [
@@ -773,7 +819,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				label: "Resumen",
 				href: routes.dashboard(),
 				status: "canonical",
-				summary: "Preparación del proveedor, avance de alojamientos y accesos rápidos.",
+				summary: "Preparación del proveedor, avance de catálogo y accesos rápidos.",
 			},
 		],
 	},
@@ -840,19 +886,19 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		planned: ["Cambios de reserva", "Relación con huéspedes", "Reembolsos"],
 	},
 	{
-		title: "Contenido del alojamiento",
-		subtitle: "Presentación, habitaciones y reglas",
-		owner: "Contenido",
+		title: "Catálogo de ofertas",
+		subtitle: "Presentación, verticales y readiness",
+		owner: "Property Content",
 		context: "provider-workspace",
 		operationalIntent:
-			"Gestiona alojamientos, habitaciones, fotos, ubicación, detalles y reglas visibles para huéspedes.",
+			"Gestiona ofertas de catálogo: hoteles, tours y paquetes con contenido, fotos, ubicación, detalles y vista previa.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Alojamientos",
+				label: "Catálogo",
 				href: routes.productList(),
 				status: "canonical",
-				summary: "Contenido, fotos, ubicación, detalles y vista previa del alojamiento.",
+				summary: "Contenido, fotos, ubicación, detalles y vista previa por tipo de oferta.",
 			},
 			{
 				label: "Habitaciones",
@@ -1006,12 +1052,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Variant-first physical inventory ownership for room types, availability, and unit capacity.",
 		surfaces: [
 			{
-				label: "Alojamientos y habitaciones",
+				label: "Catálogo y habitaciones",
 				href: routes.productList(),
 				status: "canonical",
-				owner: "Contenido del alojamiento",
+				owner: "Catálogo de ofertas",
 				description:
-					"Setup de alojamiento y habitaciones que entrega contexto físico al inventario.",
+					"Setup de catálogo; hoteles entregan habitaciones como contexto físico al inventario.",
 			},
 			{
 				label: "Inventario",

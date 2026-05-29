@@ -1,11 +1,9 @@
 import { logger } from "@/lib/observability/logger"
-import { listHouseRulesByProduct } from "@/modules/house-rules/public"
 import {
 	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import type { EffectiveRule } from "../../domain/rule.entities"
-import { mapHouseRulesToRules } from "../adapters/house-rule-to-rule.adapter"
 import { mapResolvedPoliciesToRules } from "../adapters/policy-to-rule.adapter"
 
 export type ResolveEffectiveRulesInput = {
@@ -22,7 +20,6 @@ export type ResolveEffectiveRulesInput = {
 export type ResolveEffectiveRulesResult = {
 	hardConstraints: EffectiveRule[]
 	contractTerms: EffectiveRule[]
-	informativeRules: EffectiveRule[]
 	allRules: EffectiveRule[]
 	conflicts: Array<{ code: string; count: number; layers: string[]; sources: string[] }>
 }
@@ -32,7 +29,6 @@ function sortDeterministic(items: EffectiveRule[]): EffectiveRule[] {
 		if (a.group.layer !== b.group.layer) return a.group.layer.localeCompare(b.group.layer)
 		if (a.group.code !== b.group.code)
 			return String(a.group.code).localeCompare(String(b.group.code))
-		if (a.source !== b.source) return a.source.localeCompare(b.source)
 		if (a.version.id !== b.version.id) return a.version.id.localeCompare(b.version.id)
 		return (a.assignment?.id ?? "").localeCompare(b.assignment?.id ?? "")
 	})
@@ -74,25 +70,21 @@ export function createResolveEffectiveRulesUseCase() {
 			return {
 				hardConstraints: [],
 				contractTerms: [],
-				informativeRules: [],
 				allRules: [],
 				conflicts: [],
 			}
 		}
 
-		const [resolvedPoliciesRaw, houseRules] = await Promise.all([
-			resolveEffectivePolicies({
-				productId,
-				variantId: input.variantId,
-				ratePlanId: input.ratePlanId,
-				checkIn: input.checkIn,
-				checkOut: input.checkOut,
-				channel: input.channel,
-				requiredCategories: input.requiredCategories,
-				onMissingCategory: input.onMissingCategory,
-			}),
-			listHouseRulesByProduct(productId),
-		])
+		const resolvedPoliciesRaw = await resolveEffectivePolicies({
+			productId,
+			variantId: input.variantId,
+			ratePlanId: input.ratePlanId,
+			checkIn: input.checkIn,
+			checkOut: input.checkOut,
+			channel: input.channel,
+			requiredCategories: input.requiredCategories,
+			onMissingCategory: input.onMissingCategory,
+		})
 		const resolvedPolicies = normalizePolicyResolutionResult(resolvedPoliciesRaw, {
 			asOfDate: input.checkIn ?? new Date().toISOString().slice(0, 10),
 			warnings: [],
@@ -107,20 +99,9 @@ export function createResolveEffectiveRulesUseCase() {
 				channel: input.channel ?? null,
 			},
 		})
-		const infoHouseRules = mapHouseRulesToRules({
-			houseRules: houseRules as Array<{
-				id: string
-				productId: string
-				type: string
-				payloadJson: Record<string, unknown>
-				createdAt: string
-			}>,
-		})
-
-		const allRules = sortDeterministic([...policyRules, ...infoHouseRules])
+		const allRules = sortDeterministic(policyRules)
 		const hardConstraints = allRules.filter((rule) => rule.group.layer === "HARD")
 		const contractTerms = allRules.filter((rule) => rule.group.layer === "CONTRACT")
-		const informativeRules = allRules.filter((rule) => rule.group.layer === "INFO")
 		const conflicts = detectConflicts(allRules)
 
 		logger.info("rules.resolution.summary", {
@@ -131,7 +112,6 @@ export function createResolveEffectiveRulesUseCase() {
 			total: allRules.length,
 			hardConstraints: hardConstraints.length,
 			contractTerms: contractTerms.length,
-			informativeRules: informativeRules.length,
 			conflicts: conflicts.length,
 		})
 		logger.debug("rules.resolution.evaluation", {
@@ -157,7 +137,6 @@ export function createResolveEffectiveRulesUseCase() {
 				totalRules: allRules.length,
 				hardConstraints: hardConstraints.length,
 				contractTerms: contractTerms.length,
-				informativeRules: informativeRules.length,
 				conflicts: conflicts.length,
 			},
 		})
@@ -174,13 +153,11 @@ export function createResolveEffectiveRulesUseCase() {
 		logger.debug("rules.resolution.sources", {
 			productId,
 			policyRules: policyRules.length,
-			houseRules: infoHouseRules.length,
 		})
 
 		return {
 			hardConstraints,
 			contractTerms,
-			informativeRules,
 			allRules,
 			conflicts,
 		}
