@@ -1,11 +1,11 @@
 ---
+import { routes } from "@/lib/routes"
+
 const productId = String(Astro.params.id ?? "")
 const variantId = String(Astro.params.variantId ?? "")
 
 if (!productId) return Astro.redirect("/product/create")
-if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/variants`)
+if (!variantId) return Astro.redirect(routes.productRoomsForProduct(productId))
 
-return Astro.redirect(
-	`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/subtype`
-)
+return Astro.redirect(routes.productRoomSubtype(productId, variantId))
 ---

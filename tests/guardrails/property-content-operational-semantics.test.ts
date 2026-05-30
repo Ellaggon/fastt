@@ -121,6 +121,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 	it("keeps physical variant surfaces from reverting to variant-pricing language", () => {
 		const files = [
+			"src/pages/product/[id]/rooms/new.astro",
+			"src/pages/product/[id]/rooms/[roomId]/index.astro",
+			"src/pages/product/[id]/rooms/[roomId]/capacity.astro",
+			"src/pages/product/[id]/rooms/[roomId]/inventory.astro",
+			"src/pages/product/[id]/rooms/[roomId]/subtype.astro",
+			"src/pages/product/[id]/rooms/[roomId]/availability.astro",
 			"src/pages/product/[id]/variants.astro",
 			"src/pages/product/[id]/variants/[variantId].astro",
 			"src/pages/product/[id]/variants/new.astro",
@@ -153,8 +159,13 @@ describe("Guardrail: Property Content operational semantics", () => {
 					owner: "Property Content",
 				}),
 				expect.objectContaining({
+					pattern: "/product/:id/rooms/**",
+					status: "canonical",
+					owner: "Property Content",
+				}),
+				expect.objectContaining({
 					pattern: "/product/:id/variants/**",
-					status: "transitional",
+					status: "legacy",
 					owner: "Physical Inventory Context",
 				}),
 				expect.objectContaining({
@@ -188,9 +199,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const registry = read("src/lib/productVerticalRegistry.ts")
 		const productList = read("src/pages/product/index.astro")
 		const productCreate = read("src/pages/product/create.astro")
-		const roomsAggregate = read("src/pages/product/rooms.astro")
+		const roomsAggregate = read("src/pages/catalog/accommodations/rooms/index.astro")
 		const roomsByProduct = read("src/pages/product/[id]/rooms.astro")
-		const roomWizard = read("src/pages/product/[id]/variants/new.astro")
+		const roomWizard = read("src/pages/product/[id]/rooms/new.astro")
 
 		expect(registry).toContain('storageType: "Hotel"')
 		expect(registry).toContain('storageType: "Tour"')

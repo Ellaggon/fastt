@@ -132,7 +132,7 @@ const activeRooms = products.reduce(
 											Abrir habitaciones
 										</Button>
 										<Button
-											href={`${routes.productVariants(product.id)}/new`}
+											href={routes.productRoomNew(product.id)}
 											data-astro-prefetch
 											variant="secondary"
 										>
@@ -149,7 +149,7 @@ const activeRooms = products.reduce(
 									<div class="grid gap-3 md:grid-cols-2">
 										{product.rooms.map((room) => (
 											<a
-												href={routes.variantDetail(product.id, room.id)}
+												href={routes.productRoomDetail(product.id, room.id)}
 												data-astro-prefetch
 												class="rounded-lg border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
 											>
