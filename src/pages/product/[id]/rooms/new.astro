@@ -1,0 +1,562 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import FormSection from "@/components/ui/FormSection.astro"
+import Input from "@/components/ui/Input.astro"
+import Section from "@/components/ui/Section.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import {
+	productRepository,
+	ratePlanPricingReadRepository,
+	variantInventoryConfigRepository,
+	variantManagementRepository,
+} from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { getProductAggregate } from "@/modules/catalog/public"
+import { asc, db, RoomType } from "astro:db"
+
+type WizardStep = "identity" | "capacity" | "subtype" | "pricing" | "inventory"
+
+const steps: WizardStep[] = ["identity", "capacity", "subtype", "pricing", "inventory"]
+const stepLabels: Record<WizardStep, string> = {
+	identity: "Identidad",
+	capacity: "Capacidad",
+	subtype: "Tipo de habitación",
+	pricing: "Handoff comercial",
+	inventory: "Inventario",
+}
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+if (!isHotelProductType(owned.productType)) {
+	return Astro.redirect(`/product/${encodeURIComponent(productId)}`)
+}
+
+const product = await getProductAggregate(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const requestedStepParam = String(Astro.url.searchParams.get("step") ?? "identity").trim()
+const requestedStep: WizardStep = steps.includes(requestedStepParam as WizardStep)
+	? (requestedStepParam as WizardStep)
+	: "identity"
+const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+
+const toStepUrl = (step: WizardStep, variantId?: string) => {
+	const base = `/product/${encodeURIComponent(productId)}/rooms/new?step=${encodeURIComponent(step)}`
+	return variantId ? `${base}&variantId=${encodeURIComponent(variantId)}` : base
+}
+
+let variant: Awaited<ReturnType<typeof variantManagementRepository.getVariantById>> | null = null
+let capacity: Awaited<ReturnType<typeof variantManagementRepository.getCapacity>> | null = null
+let subtype: Awaited<ReturnType<typeof variantManagementRepository.getHotelRoomSubtype>> | null =
+	null
+let baseRate: { variantId: string; currency: string; basePrice: number } | null = null
+let defaultRatePlanId: string | null = null
+let inventoryConfig: Awaited<
+	ReturnType<typeof variantInventoryConfigRepository.getByVariantId>
+> | null = null
+let effectivePricingDays = 0
+
+if (variantIdParam) {
+	variant = await variantManagementRepository.getVariantById(variantIdParam)
+	if (!variant || variant.productId !== productId) {
+		return Astro.redirect(routes.productRoomsForProduct(productId))
+	}
+	capacity = await variantManagementRepository.getCapacity(variantIdParam)
+	subtype = await variantManagementRepository.getHotelRoomSubtype(variantIdParam)
+	const pricingSummary =
+		await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantIdParam)
+	baseRate = pricingSummary
+		? {
+				variantId: variantIdParam,
+				currency: pricingSummary.currency,
+				basePrice: pricingSummary.basePrice,
+			}
+		: null
+	defaultRatePlanId = pricingSummary?.ratePlanId ?? null
+	inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantIdParam)
+	effectivePricingDays = Number(pricingSummary?.effectivePricingDays ?? 0)
+}
+
+const subtypeRequired =
+	String(variant?.kind ?? "")
+		.trim()
+		.toLowerCase() === "hotel_room"
+
+const completion = {
+	identity: Boolean(variant),
+	capacity: Boolean(capacity),
+	subtype: subtypeRequired ? Boolean(subtype) : true,
+	pricing: Boolean(baseRate && defaultRatePlanId),
+	inventory: Boolean(inventoryConfig),
+}
+
+const firstIncompleteStep: WizardStep = (() => {
+	for (const step of steps) {
+		if (!completion[step]) return step
+	}
+	return "inventory"
+})()
+
+if (!variant) {
+	if (requestedStep !== "identity") return Astro.redirect(toStepUrl("identity"))
+} else {
+	if (requestedStep === "identity")
+		return Astro.redirect(toStepUrl(firstIncompleteStep, variant.id))
+	if (!subtypeRequired && requestedStep === "subtype") {
+		return Astro.redirect(toStepUrl("pricing", variant.id))
+	}
+	const requestedIndex = steps.indexOf(requestedStep)
+	const firstIncompleteIndex = steps.indexOf(firstIncompleteStep)
+	if (requestedIndex > firstIncompleteIndex) {
+		return Astro.redirect(toStepUrl(firstIncompleteStep, variant.id))
+	}
+}
+
+const currentStep: WizardStep = requestedStep
+const currentIndex = steps.indexOf(currentStep)
+const previousStep = currentIndex > 0 ? steps[currentIndex - 1] : null
+const nextStep = currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null
+const progressPercent = Math.round(((currentIndex + 1) / steps.length) * 100)
+const progressWidthClass =
+	progressPercent >= 100
+		? "w-full"
+		: progressPercent >= 75
+			? "w-3/4"
+			: progressPercent >= 50
+				? "w-1/2"
+				: progressPercent >= 25
+					? "w-1/4"
+					: "w-1/12"
+
+const roomTypes =
+	currentStep === "subtype"
+		? await db
+				.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
+				.from(RoomType)
+				.orderBy(asc(RoomType.name))
+				.all()
+		: []
+
+const initialVariantName = variant?.name ?? ""
+const initialVariantDescription = String(variant?.description ?? "")
+
+const initialMin = capacity?.minOccupancy != null ? String(capacity.minOccupancy) : ""
+const initialMax = capacity?.maxOccupancy != null ? String(capacity.maxOccupancy) : ""
+const initialMaxAdults = capacity?.maxAdults != null ? String(capacity.maxAdults) : ""
+const initialMaxChildren = capacity?.maxChildren != null ? String(capacity.maxChildren) : ""
+
+const initialRoomTypeId = subtype?.roomTypeId ?? ""
+const initialCurrency = baseRate?.currency ?? "USD"
+const initialBasePrice = baseRate?.basePrice != null ? String(baseRate.basePrice) : ""
+const initialTotalUnits =
+	inventoryConfig?.defaultTotalUnits != null ? String(inventoryConfig.defaultTotalUnits) : ""
+const initialHorizonDays =
+	inventoryConfig?.horizonDays != null ? String(inventoryConfig.horizonDays) : "365"
+
+const previousHref =
+	previousStep && variant
+		? toStepUrl(previousStep, variant.id)
+		: previousStep === "identity"
+			? toStepUrl("identity")
+			: null
+
+const submitLabel = currentStep === "inventory" ? "Guardar y finalizar" : "Guardar y continuar"
+const pageSubtitle =
+	"Completa la ficha física de la habitación. Tarifas, precios y restricciones se gestionan fuera de este flujo."
+---
+
+<WorkspaceLayout title="Contenido del alojamiento · Nueva habitación">
+	<section class="space-y-8">
+		<header class="space-y-4">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<h1 class="text-3xl font-semibold text-slate-100">Nueva habitación</h1>
+					<p class="text-sm text-slate-400">{pageSubtitle}</p>
+					<p class="text-sm text-slate-300">Alojamiento: {product.displayName}</p>
+				</div>
+				<Badge variant="info">Paso {currentIndex + 1} de {steps.length}</Badge>
+			</div>
+		</header>
+
+		<Section
+			title="Progreso del asistente"
+			description={`Paso actual: ${stepLabels[currentStep]}.`}
+		>
+			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
+				<div class="space-y-4">
+					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
+						<div class={`h-full bg-[#1E3A8A] ${progressWidthClass}`}></div>
+					</div>
+					<div class="grid gap-2 text-sm sm:grid-cols-5">
+						{
+							steps.map((step, idx) => (
+								<div
+									class={`rounded-lg border px-3 py-2 text-center ${
+										idx === currentIndex
+											? "border-blue-400 bg-blue-500/10 text-blue-100"
+											: idx < currentIndex
+												? "border-green-400/30 bg-green-500/10 text-green-100"
+												: "border-slate-700 text-slate-300"
+									}`}
+								>
+									{stepLabels[step]}
+								</div>
+							))
+						}
+					</div>
+				</div>
+			</Card>
+		</Section>
+
+		<Section
+			title={stepLabels[currentStep]}
+			description="Completa los datos requeridos para avanzar."
+		>
+			<Card class="bg-slate-100">
+				<form id="wizardForm" class="mx-auto max-w-3xl space-y-6">
+					<Input type="hidden" id="productId" name="productId" value={productId} />
+					<Input type="hidden" id="step" name="step" value={currentStep} />
+					<Input type="hidden" id="variantId" name="variantId" value={variant?.id ?? ""} />
+
+					{
+						currentStep === "identity" && (
+							<FormSection title="Datos base de la habitación" class="text-neutral-800">
+								<FormField label="Nombre" htmlFor="name" required>
+									<Input id="name" name="name" value={initialVariantName} required minlength="1" />
+								</FormField>
+								<FormField label="Tipo" htmlFor="kind" required>
+									<Input id="kind" name="kind" type="hidden" value="hotel_room" />
+									<p class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+										Habitación de alojamiento. Tours y paquetes usan sus propios flujos del
+										catálogo.
+									</p>
+								</FormField>
+								<FormField label="Descripción" htmlFor="description">
+									<Textarea
+										id="description"
+										name="description"
+										value={initialVariantDescription}
+										rows="4"
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "capacity" && (
+							<FormSection title="Capacidad de ocupación" class="text-neutral-800">
+								<FormField label="Huéspedes mínimos" htmlFor="minOccupancy" required>
+									<Input
+										id="minOccupancy"
+										name="minOccupancy"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMin}
+										required
+									/>
+								</FormField>
+								<FormField label="Huéspedes máximos" htmlFor="maxOccupancy" required>
+									<Input
+										id="maxOccupancy"
+										name="maxOccupancy"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMax}
+										required
+									/>
+								</FormField>
+								<FormField label="Máximo adultos" htmlFor="maxAdults">
+									<Input
+										id="maxAdults"
+										name="maxAdults"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMaxAdults}
+									/>
+								</FormField>
+								<FormField label="Máximo niños" htmlFor="maxChildren">
+									<Input
+										id="maxChildren"
+										name="maxChildren"
+										type="number"
+										min="0"
+										step="1"
+										value={initialMaxChildren}
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "subtype" && (
+							<FormSection title="Tipo de habitación" class="text-neutral-800">
+								<FormField label="Tipo de habitación" htmlFor="roomTypeId">
+									<Select id="roomTypeId" name="roomTypeId" value={initialRoomTypeId}>
+										<option value="">Selecciona una opción</option>
+										{roomTypes.map((roomType) => (
+											<option value={roomType.id}>
+												{roomType.name}
+												{roomType.maxOccupancy != null ? ` (max ${roomType.maxOccupancy})` : ""}
+											</option>
+										))}
+									</Select>
+								</FormField>
+								{roomTypes.length === 0 && (
+									<p class="text-sm text-slate-600">
+										No hay tipos de habitación disponibles. Puedes continuar y asignarlo más
+										adelante.
+									</p>
+								)}
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "pricing" && (
+							<FormSection title="Precio base inicial" class="text-neutral-800">
+								<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+									<p class="font-medium">Crea una tarifa mínima para vender esta habitación.</p>
+									<p>
+										La gestión completa vive en Habitaciones y tarifas; este paso solo evita que la
+										habitación quede sin precio base inicial.
+									</p>
+									<p>
+										La habitación aporta contexto físico; la tarifa mantiene el precio comercial.
+									</p>
+								</div>
+								<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+									{effectivePricingDays > 0
+										? `Estado actual: precio base disponible (${effectivePricingDays} día(s)).`
+										: "Estado actual: sin precio base disponible. Completa este paso o continúa en Tarifas."}
+									{variant?.id && (
+										<>
+											{" "}
+											<a class="font-medium underline" href="/rates/plans/manage">
+												Configurar tarifas.
+											</a>
+										</>
+									)}
+								</div>
+								<FormField label="Moneda" htmlFor="currency" required>
+									<Select id="currency" name="currency" required value={initialCurrency}>
+										<option value="USD">USD</option>
+										<option value="BOB">BOB</option>
+									</Select>
+								</FormField>
+								<FormField label="Precio base" htmlFor="basePrice" required>
+									<Input
+										id="basePrice"
+										name="basePrice"
+										type="number"
+										min="0"
+										step="1"
+										value={initialBasePrice}
+										required
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					{
+						currentStep === "inventory" && (
+							<FormSection title="Inventario inicial" class="text-neutral-800">
+								<FormField label="Unidades totales" htmlFor="totalUnits" required>
+									<Input
+										id="totalUnits"
+										name="totalUnits"
+										type="number"
+										min="0"
+										step="1"
+										value={initialTotalUnits}
+										required
+									/>
+								</FormField>
+								<FormField label="Horizonte (días)" htmlFor="horizonDays">
+									<Input
+										id="horizonDays"
+										name="horizonDays"
+										type="number"
+										min="1"
+										max="3650"
+										step="1"
+										value={initialHorizonDays}
+									/>
+								</FormField>
+							</FormSection>
+						)
+					}
+
+					<p id="wizardFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							{
+								previousHref ? (
+									<a
+										href={previousHref}
+										class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+									>
+										Anterior
+									</a>
+								) : (
+									<span />
+								)
+							}
+						</div>
+						<Button
+							id="submitBtn"
+							type="submit"
+							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							{submitLabel}
+						</Button>
+					</div>
+				</form>
+			</Card>
+		</Section>
+	</section>
+
+	<script
+		type="module"
+		define:vars={{
+			productId,
+			currentStep,
+			nextStep,
+			variantIdFromServer: variant?.id ?? "",
+			toIdentityUrl: toStepUrl("identity"),
+		}}
+	>
+		const form = document.getElementById("wizardForm")
+		const submitBtn = document.getElementById("submitBtn")
+		const feedback = document.getElementById("wizardFeedback")
+
+		const stepToEndpoint = {
+			identity: "/api/variant/create",
+			capacity: "/api/variant/capacity",
+			subtype: "/api/variant/subtype/hotel-room",
+			pricing: "/api/pricing/base-rate",
+			inventory: "/api/inventory/set-default",
+		}
+
+		function setState(state, detail = "") {
+			const map = {
+				empty: "Completa los campos requeridos para continuar.",
+				loading: "Guardando...",
+				success: "Guardado correctamente.",
+				error: "No se pudo guardar este paso.",
+				disabled: "Procesando solicitud...",
+			}
+			if (feedback) feedback.textContent = `${map[state] ?? ""}${detail ? `\n${detail}` : ""}`
+		}
+
+		function getNextUrl(variantId) {
+			if (!nextStep)
+				return `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}`
+			return `/product/${encodeURIComponent(productId)}/rooms/new?step=${encodeURIComponent(nextStep)}&variantId=${encodeURIComponent(variantId)}`
+		}
+
+		function parseErrorPayload(payload, fallback = "Error de validación") {
+			if (!payload) return fallback
+			if (payload?.error === "validation_error" && Array.isArray(payload?.details)) {
+				const messages = payload.details.map((item) => String(item?.message || "")).filter(Boolean)
+				if (messages.length) return messages.join("\n")
+			}
+			if (typeof payload?.error === "string" && payload.error.trim()) return payload.error
+			return fallback
+		}
+
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!submitBtn) return
+			submitBtn.disabled = true
+			setState("loading")
+
+			try {
+				const fd = new FormData(form)
+				const step = String(fd.get("step") || currentStep)
+				const endpoint = stepToEndpoint[step]
+				if (!endpoint) {
+					submitBtn.disabled = false
+					setState("error", "Paso inválido")
+					return
+				}
+
+				if (step === "identity") {
+					fd.set("kind", String(fd.get("kind") || "hotel_room"))
+				} else {
+					const existingVariantId = String(fd.get("variantId") || variantIdFromServer || "").trim()
+					if (!existingVariantId) {
+						submitBtn.disabled = false
+						setState("error", "No se encontró la habitación para continuar.")
+						window.location.href = toIdentityUrl
+						return
+					}
+					fd.set("variantId", existingVariantId)
+				}
+
+				if (step === "inventory") {
+					fd.set("totalUnits", String(fd.get("totalUnits") || ""))
+					if (!fd.get("horizonDays")) fd.set("horizonDays", "365")
+				}
+
+				const response = await fetch(endpoint, { method: "POST", body: fd })
+
+				if (response.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+
+				let payload = null
+				try {
+					payload = await response.json()
+				} catch {
+					payload = null
+				}
+
+				if (!response.ok) {
+					submitBtn.disabled = false
+					setState("error", parseErrorPayload(payload, `status=${response.status}`))
+					return
+				}
+
+				let variantId = String(fd.get("variantId") || variantIdFromServer || "").trim()
+				if (step === "identity") {
+					variantId = String(payload?.variantId || "").trim()
+					if (!variantId) {
+						submitBtn.disabled = false
+						setState("error", "No recibimos el identificador de la habitación.")
+						return
+					}
+				}
+
+				setState("success")
+				window.location.href = getNextUrl(variantId)
+			} catch (error) {
+				submitBtn.disabled = false
+				setState("error", `Error de red: ${String(error)}`)
+			}
+		})
+	</script>
+</WorkspaceLayout>

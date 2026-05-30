@@ -17,6 +17,18 @@ export const routes = {
 	productRooms: () => "/catalog/accommodations/rooms",
 	productRoomsForProduct: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms`,
+	productRoomNew: (productId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/new`,
+	productRoomDetail: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}`,
+	productRoomCapacity: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/capacity`,
+	productRoomSubtype: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/subtype`,
+	productRoomAvailability: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/availability`,
+	productRoomInventory: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/inventory`,
 	bookingList: () => "/booking",
 	financialOperations: () => "/financial",
 	ratePlansList: () => "/rates/plans/manage",

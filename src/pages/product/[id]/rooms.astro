@@ -40,7 +40,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						Volver a la ficha
 					</Button>
 					<Button
-						href={`${routes.productVariants(productId)}/new`}
+						href={routes.productRoomNew(productId)}
 						data-astro-prefetch
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
@@ -83,7 +83,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					</div>
 					<div class="flex justify-end">
 						<Button
-							href={`${routes.productVariants(productId)}/new`}
+							href={routes.productRoomNew(productId)}
 							data-astro-prefetch
 							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 						>

@@ -255,15 +255,22 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Cliente-first room surface for one accommodation; technical variant routes remain compatibility internals.",
+			"Cliente-first room surface for one accommodation; providers manage room profiles from rooms routes.",
+	},
+	{
+		pattern: "/product/:id/rooms/**",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Canonical room creation, detail, capacity, type, gallery and inventory handoff routes for accommodations.",
 	},
 	{
 		pattern: "/product/:id/variants/**",
-		status: "transitional",
+		status: "legacy",
 		context: "provider-workspace",
 		owner: "Physical Inventory Context",
-		rationale:
-			"Transitional physical variant workspace under the product tree; catalog may navigate here, but pricing and ARI ownership stay outside Property Content.",
+		rationale: "Legacy technical variant routes redirect to canonical accommodation room routes.",
 	},
 	{
 		pattern: "/product/**",
