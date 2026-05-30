@@ -230,14 +230,14 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					.toLowerCase()
 				if (value === "missing_capacity") {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/capacity`,
-						label: "Configurar capacidad",
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+						label: "Completar ficha",
 					}
 				}
 				if (value === "missing_subtype") {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/subtype`,
-						label: "Configurar tipo",
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+						label: "Completar ficha",
 					}
 				}
 				if (
@@ -447,7 +447,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				const percent = Number(payload?.progress?.progressPercent ?? 0)
 				if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
 				if (progressCompleted)
-					progressCompleted.textContent = `${Number(payload?.progress?.completedBlocks ?? 0)}/4`
+					progressCompleted.textContent = `${Number(payload?.progress?.completedBlocks ?? 0)}/${Number(payload?.progress?.totalBlocks ?? 3)}`
 				if (progressPending)
 					progressPending.textContent = String(Number(payload?.progress?.pendingBlocks ?? 0))
 				if (progressPercent) progressPercent.textContent = `${percent}%`
@@ -456,18 +456,11 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					blocksContainer.innerHTML = ""
 					blocksContainer.append(
 						blockCard(
-							"Capacidad",
-							String(payload?.blocks?.capacity?.summary ?? "Sin información"),
-							Boolean(payload?.blocks?.capacity?.complete),
-							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/capacity`,
-							"Editar capacidad"
-						),
-						blockCard(
-							"Tipo de habitación",
-							String(payload?.blocks?.subtype?.summary ?? "Sin información"),
-							Boolean(payload?.blocks?.subtype?.complete),
-							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/subtype`,
-							"Editar tipo"
+							"Ficha de habitación",
+							String(payload?.blocks?.profile?.summary ?? "Sin información"),
+							Boolean(payload?.blocks?.profile?.complete),
+							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+							"Editar ficha"
 						),
 						blockCard(
 							"Cobertura comercial",
@@ -489,10 +482,9 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				if (summaryContainer) {
 					summaryContainer.innerHTML = ""
 					summaryContainer.append(
-						summaryCard("Capacidad", String(payload?.summary?.capacity ?? "Sin información")),
 						summaryCard(
-							"Tipo de habitación",
-							String(payload?.summary?.subtype ?? "Sin información")
+							"Ficha de habitación",
+							String(payload?.summary?.profile ?? "Sin información")
 						),
 						summaryCard(
 							"Cobertura comercial",

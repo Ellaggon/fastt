@@ -250,8 +250,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 			},
 			actions: {
 				detailHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}`,
-				capacityHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/capacity`,
-				typeHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/subtype`,
+				capacityHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
+				typeHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
+				profileHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
 				inventoryHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/inventory`,
 			},
 		}
