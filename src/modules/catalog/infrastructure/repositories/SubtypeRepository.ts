@@ -1,4 +1,4 @@
-import { db, Hotel, Tour, Package, eq, HotelRoomType } from "astro:db"
+import { db, Hotel, Limousine, Tour, Package, eq } from "astro:db"
 
 export type HotelPayload = {
 	productId: string
@@ -11,17 +11,26 @@ export type TourPayload = {
 	productId: string
 	duration?: string | null
 	difficultyLevel?: string | null
-	guideLanguages?: string[] | null
-	includes?: string | null
-	excludes?: string | null
+	meetingPointJson?: unknown | null
+	itineraryJson?: unknown | null
+	safetyJson?: unknown | null
+	guideJson?: unknown | null
 }
 export type PackagePayload = {
 	productId: string
-	itinerary?: string | null
 	days?: number | null
 	nights?: number | null
-	includes?: string | null
-	excludes?: string | null
+	itineraryJson?: unknown | null
+	includesJson?: unknown | null
+	excludesJson?: unknown | null
+}
+export type LimousinePayload = {
+	productId: string
+	vehicleProfileJson?: unknown | null
+	pickupJson?: unknown | null
+	dropoffJson?: unknown | null
+	passengerCapacity?: number | null
+	luggageCapacity?: number | null
 }
 
 type DrizzleDB = typeof db
@@ -42,6 +51,9 @@ export class SubtypeRepository {
 	}
 	async insertPackageStandalone(data: PackagePayload) {
 		return this.insertPackage(db, data)
+	}
+	async insertLimousineStandalone(data: LimousinePayload) {
+		return this.insertLimousine(db, data)
 	}
 
 	/* ---------- HOTEL ---------- */
@@ -68,12 +80,6 @@ export class SubtypeRepository {
 	}
 
 	async deleteHotel(dbOrTx: DBOrTx, productId: string) {
-		// borrar hotel room types (si la tabla existe y tiene hotelId)
-		try {
-			await dbOrTx.delete(HotelRoomType).where(eq(HotelRoomType.hotelId, productId))
-		} catch (e) {
-			console.warn("deleteHotel: no pudo borrar HotelRoomType (o no existe): ", e)
-		}
 		await dbOrTx.delete(Hotel).where(eq(Hotel.productId, productId))
 	}
 
@@ -83,9 +89,10 @@ export class SubtypeRepository {
 			productId: data.productId,
 			duration: data.duration ?? null,
 			difficultyLevel: data.difficultyLevel ?? null,
-			guideLanguages: data.guideLanguages ?? null,
-			includes: data.includes ?? null,
-			excludes: data.excludes ?? null,
+			meetingPointJson: data.meetingPointJson ?? null,
+			itineraryJson: data.itineraryJson ?? null,
+			safetyJson: data.safetyJson ?? null,
+			guideJson: data.guideJson ?? null,
 		})
 	}
 
@@ -95,9 +102,10 @@ export class SubtypeRepository {
 			.set({
 				duration: data.duration ?? null,
 				difficultyLevel: data.difficultyLevel ?? null,
-				guideLanguages: data.guideLanguages ?? null,
-				includes: data.includes ?? null,
-				excludes: data.excludes ?? null,
+				meetingPointJson: data.meetingPointJson ?? null,
+				itineraryJson: data.itineraryJson ?? null,
+				safetyJson: data.safetyJson ?? null,
+				guideJson: data.guideJson ?? null,
 			})
 			.where(eq(Tour.productId, productId))
 	}
@@ -110,11 +118,11 @@ export class SubtypeRepository {
 	async insertPackage(dbOrTx: DBOrTx, data: PackagePayload) {
 		return await dbOrTx.insert(Package).values({
 			productId: data.productId,
-			itinerary: data.itinerary ?? null,
 			days: data.days ?? null,
 			nights: data.nights ?? null,
-			includes: data.includes ?? null,
-			excludes: data.excludes ?? null,
+			itineraryJson: data.itineraryJson ?? null,
+			includesJson: data.includesJson ?? null,
+			excludesJson: data.excludesJson ?? null,
 		})
 	}
 
@@ -122,11 +130,11 @@ export class SubtypeRepository {
 		return await dbOrTx
 			.update(Package)
 			.set({
-				itinerary: data.itinerary ?? null,
 				days: data.days ?? null,
 				nights: data.nights ?? null,
-				includes: data.includes ?? null,
-				excludes: data.excludes ?? null,
+				itineraryJson: data.itineraryJson ?? null,
+				includesJson: data.includesJson ?? null,
+				excludesJson: data.excludesJson ?? null,
 			})
 			.where(eq(Package.productId, productId))
 	}
@@ -135,17 +143,49 @@ export class SubtypeRepository {
 		await dbOrTx.delete(Package).where(eq(Package.productId, productId))
 	}
 
+	/* ---------- LIMOUSINE ---------- */
+	async insertLimousine(dbOrTx: DBOrTx, data: LimousinePayload) {
+		return await dbOrTx.insert(Limousine).values({
+			productId: data.productId,
+			vehicleProfileJson: data.vehicleProfileJson ?? null,
+			pickupJson: data.pickupJson ?? null,
+			dropoffJson: data.dropoffJson ?? null,
+			passengerCapacity: data.passengerCapacity ?? null,
+			luggageCapacity: data.luggageCapacity ?? null,
+		})
+	}
+
+	async updateLimousine(dbOrTx: DBOrTx, productId: string, data: Partial<LimousinePayload>) {
+		await dbOrTx
+			.update(Limousine)
+			.set({
+				vehicleProfileJson: data.vehicleProfileJson ?? null,
+				pickupJson: data.pickupJson ?? null,
+				dropoffJson: data.dropoffJson ?? null,
+				passengerCapacity: data.passengerCapacity ?? null,
+				luggageCapacity: data.luggageCapacity ?? null,
+			})
+			.where(eq(Limousine.productId, productId))
+	}
+
+	async deleteLimousine(dbOrTx: DBOrTx, productId: string) {
+		await dbOrTx.delete(Limousine).where(eq(Limousine.productId, productId))
+	}
+
 	/* ---------- AUX ---------- */
-	async subtypeExists(productId: string, subtype: "hotel" | "tour" | "package"): Promise<boolean>
+	async subtypeExists(
+		productId: string,
+		subtype: "hotel" | "tour" | "package" | "limousine"
+	): Promise<boolean>
 	async subtypeExists(
 		dbOrTx: DBOrTx,
 		productId: string,
-		subtype: "hotel" | "tour" | "package"
+		subtype: "hotel" | "tour" | "package" | "limousine"
 	): Promise<boolean>
 	async subtypeExists(a: any, b?: any, c?: any) {
 		let dbOrtx: DBOrTx
 		let productId: string
-		let subtype: "hotel" | "tour" | "package"
+		let subtype: "hotel" | "tour" | "package" | "limousine"
 
 		if (typeof a === "string") {
 			// llamada: subtypeExists(productId, subtype)
@@ -168,7 +208,11 @@ export class SubtypeRepository {
 			const r = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
 			return !!r
 		}
-		const r = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+		if (subtype === "package") {
+			const r = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			return !!r
+		}
+		const r = await db.select().from(Limousine).where(eq(Limousine.productId, productId)).get()
 		return !!r
 	}
 }

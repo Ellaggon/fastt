@@ -27,11 +27,11 @@ const row = await db
 		address: ProductLocation.address,
 		lat: ProductLocation.lat,
 		lng: ProductLocation.lng,
-		itinerary: Package.itinerary,
+		itinerary: Package.itineraryJson,
 		days: Package.days,
 		nights: Package.nights,
-		includes: Package.includes,
-		excludes: Package.excludes,
+		includes: Package.includesJson,
+		excludes: Package.excludesJson,
 	})
 	.from(Product)
 	.leftJoin(Destination, eq(Destination.id, Product.destinationId))
@@ -56,6 +56,20 @@ const images = await db
 	.all()
 
 function textList(value: unknown): string[] {
+	if (Array.isArray(value)) {
+		return value
+			.map((item) => {
+				if (typeof item === "string") return item
+				if (item && typeof item === "object") {
+					return String(
+						(item as any).description ?? (item as any).title ?? (item as any).name ?? ""
+					)
+				}
+				return ""
+			})
+			.map((item) => item.trim())
+			.filter(Boolean)
+	}
 	return String(value ?? "")
 		.split(/\r?\n|,/)
 		.map((item) => item.trim())
@@ -64,6 +78,7 @@ function textList(value: unknown): string[] {
 
 const inclusions = textList(row.includes)
 const exclusions = textList(row.excludes)
+const itineraryItems = textList(row.itinerary)
 const duration =
 	row.days || row.nights
 		? `${Number(row.days ?? 0)} días / ${Number(row.nights ?? 0)} noches`
@@ -163,7 +178,7 @@ const breadcrumbItems = [
 		<section class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
 			<h2 class="text-2xl font-semibold text-gray-950">Itinerario</h2>
 			<p class="mt-4 whitespace-pre-line text-base leading-8 text-gray-700">
-				{row.itinerary || "Itinerario en preparación."}
+				{itineraryItems.length ? itineraryItems.join("\n") : "Itinerario en preparación."}
 			</p>
 		</section>
 

@@ -23,6 +23,7 @@ const kindLabel = (kind: string | null) => {
 	if (normalized === "hotel_room") return "Habitación"
 	if (normalized === "tour_slot") return "Cupo de tour"
 	if (normalized === "package_base") return "Base de paquete"
+	if (normalized === "limousine_service") return "Servicio de limusina"
 	return normalized || "Sin tipo"
 }
 

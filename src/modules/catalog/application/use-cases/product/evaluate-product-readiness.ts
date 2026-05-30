@@ -1,5 +1,5 @@
-import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import type { ProductRepositoryPort, ProductStatusState } from "../../ports/ProductRepositoryPort"
+import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
 
 type ValidationError = { code: string; message: string }
 
@@ -48,26 +48,70 @@ export async function evaluateProductReadiness(
 	}
 
 	const vertical = normalizeProductVertical(agg.product.productType)
-	if (vertical === "package") {
-		const packageDetails = agg.subtypeDetails?.kind === "package" ? agg.subtypeDetails : null
-		const itinerary = String(packageDetails?.itinerary ?? "").trim()
-		if (!itinerary) {
+	const verticalReadiness = agg.verticalReadiness
+
+	if (vertical === "hotel") {
+		const room = verticalReadiness?.hotel
+		if (!room || room.variantCount < 1) {
 			errors.push({
-				code: "missing_package_itinerary",
-				message: "Package itinerary is required",
+				code: "missing_hotel_rooms",
+				message: "At least one room must be created before publishing",
+			})
+		} else if (room.completeRoomCount < room.variantCount) {
+			errors.push({
+				code: "incomplete_hotel_rooms",
+				message: "All hotel rooms must have profile, capacity and bed setup",
 			})
 		}
-		if (!Number(packageDetails?.days) || !Number(packageDetails?.nights)) {
+	}
+
+	if (vertical === "tour") {
+		const tour = verticalReadiness?.tour
+		if (!tour?.hasItinerary) {
+			errors.push({ code: "missing_tour_itinerary", message: "Tour itinerary is required" })
+		}
+		if (!tour?.hasMeetingPoint) {
+			errors.push({ code: "missing_tour_meeting_point", message: "Tour meeting point is required" })
+		}
+		if (!tour?.hasSchedule) {
+			errors.push({ code: "missing_tour_schedule", message: "Tour schedule is required" })
+		}
+	}
+
+	if (vertical === "package") {
+		const pkg = verticalReadiness?.package
+		if (!pkg?.hasDaysAndNights) {
 			errors.push({
 				code: "missing_package_duration",
 				message: "Package days and nights are required",
 			})
 		}
-		const includes = String(packageDetails?.includes ?? "").trim()
-		if (!includes) {
+		if (!pkg?.hasItinerary) {
+			errors.push({ code: "missing_package_itinerary", message: "Package itinerary is required" })
+		}
+		if (!pkg?.hasInclusions) {
 			errors.push({
 				code: "missing_package_inclusions",
 				message: "Package inclusions are required",
+			})
+		}
+	}
+
+	if (vertical === "limousine") {
+		const limo = verticalReadiness?.limousine
+		if (!limo?.hasVehicle) {
+			errors.push({ code: "missing_limousine_vehicle", message: "Vehicle profile is required" })
+		}
+		if (!limo?.hasPickupDropoff) {
+			errors.push({
+				code: "missing_limousine_pickup_dropoff",
+				message: "Pickup and dropoff model is required",
+			})
+		}
+		if (!limo?.hasCapacity) {
+			errors.push({
+				code: "missing_limousine_capacity",
+				message: "Passenger and luggage capacity are required",
 			})
 		}
 	}

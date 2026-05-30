@@ -54,13 +54,15 @@ export let ProviderUser: any
 export let Hotel: any
 export let Tour: any
 export let Package: any
+export let Limousine: any
 export let RoomType: any
 export let AmenityRoom: any
-export let HotelRoomType: any
-export let HotelRoomAmenity: any
 export let Variant: any
 export let VariantCapacity: any
 export let VariantHotelRoom: any
+export let VariantRoomProfile: any
+export let VariantRoomBed: any
+export let VariantRoomAmenity: any
 export let VariantReadiness: any
 export let VariantInventoryConfig: any
 export let DailyInventory: any
@@ -190,13 +192,15 @@ async function init() {
 	Hotel = drizzleTables.Hotel
 	Tour = drizzleTables.Tour
 	Package = drizzleTables.Package
+	Limousine = drizzleTables.Limousine
 	RoomType = drizzleTables.RoomType
 	AmenityRoom = drizzleTables.AmenityRoom
-	HotelRoomType = drizzleTables.HotelRoomType
-	HotelRoomAmenity = drizzleTables.HotelRoomAmenity
 	Variant = drizzleTables.Variant
 	VariantCapacity = drizzleTables.VariantCapacity
 	VariantHotelRoom = drizzleTables.VariantHotelRoom
+	VariantRoomProfile = drizzleTables.VariantRoomProfile
+	VariantRoomBed = drizzleTables.VariantRoomBed
+	VariantRoomAmenity = drizzleTables.VariantRoomAmenity
 	VariantReadiness = drizzleTables.VariantReadiness
 	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory

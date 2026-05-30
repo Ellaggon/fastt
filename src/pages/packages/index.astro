@@ -20,8 +20,8 @@ const packages = await db
 		destinationName: Destination.name,
 		description: ProductContent.description,
 		address: ProductLocation.address,
-		includes: Package.includes,
-		excludes: Package.excludes,
+		includes: Package.includesJson,
+		excludes: Package.excludesJson,
 		imageUrl: sql<string>`(
 			SELECT url
 			FROM Image
@@ -29,7 +29,7 @@ const packages = await db
 			ORDER BY isPrimary DESC, "order" ASC
 			LIMIT 1
 		)`.as("imageUrl"),
-		itinerary: Package.itinerary,
+		itinerary: Package.itineraryJson,
 		days: Package.days,
 		nights: Package.nights,
 	})
@@ -50,6 +50,20 @@ const breadcrumbsItems = [
 ]
 
 function textList(value: unknown): string[] {
+	if (Array.isArray(value)) {
+		return value
+			.map((item) => {
+				if (typeof item === "string") return item
+				if (item && typeof item === "object") {
+					return String(
+						(item as any).description ?? (item as any).title ?? (item as any).name ?? ""
+					)
+				}
+				return ""
+			})
+			.map((item) => item.trim())
+			.filter(Boolean)
+	}
 	return String(value ?? "")
 		.split(/\r?\n|,/)
 		.map((item) => item.trim())
@@ -100,7 +114,9 @@ function textList(value: unknown): string[] {
 										<p class="text-sm text-slate-500">{duration}</p>
 									</div>
 									<p class="line-clamp-3 text-sm leading-6 text-slate-700">
-										{item.description || item.itinerary || "Itinerario en preparación."}
+										{item.description ||
+											textList(item.itinerary)[0] ||
+											"Itinerario en preparación."}
 									</p>
 									{inclusions.length ? (
 										<ul class="grid gap-2 text-sm text-slate-700">

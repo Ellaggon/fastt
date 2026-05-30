@@ -6,7 +6,7 @@ export const productFormSchema = z.object({
 		.string()
 		.min(10, "El título debe tener al menos 10 caracteres")
 		.max(50, "El título no debe superar los 50 caracteres."),
-	productType: z.enum(["Hotel", "Tour", "Package"], {
+	productType: z.enum(["Hotel", "Tour", "Package", "Limousine"], {
 		error: "Tipo de producto requerido",
 	}),
 	description: z

@@ -19,7 +19,7 @@ import type {
 	VariantSnapshot,
 } from "../../application/ports/VariantRepositoryPort"
 
-const VARIANT_KINDS = ["hotel_room", "tour_slot", "package_base"] as const
+const VARIANT_KINDS = ["hotel_room", "tour_slot", "package_base", "limousine_service"] as const
 const SEARCHABLE_VARIANT_STATUSES = ["ready", "sellable", "published"] as const
 
 function assertVariantKind(kind: string | null): VariantKind {

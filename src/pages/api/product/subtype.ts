@@ -4,6 +4,22 @@ import { invalidateProduct } from "@/lib/cache/invalidation"
 import { updateProductSubtype } from "@/modules/catalog/public"
 import { productRepository, subtypeRepository } from "@/container"
 
+function listFromForm(value: FormDataEntryValue | null): string[] {
+	return String(value ?? "")
+		.split(/\r?\n|,/)
+		.map((item) => item.trim())
+		.filter(Boolean)
+}
+
+function objectFromFields(
+	fields: Record<string, FormDataEntryValue | null>
+): Record<string, string> | null {
+	const entries = Object.entries(fields)
+		.map(([key, value]) => [key, String(value ?? "").trim()] as const)
+		.filter(([, value]) => value.length > 0)
+	return entries.length ? Object.fromEntries(entries) : null
+}
+
 export const POST: APIRoute = async ({ request }) => {
 	try {
 		const providerId = await getProviderIdFromRequest(request)
@@ -33,9 +49,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const subtypeType = String((owned as any).productType ?? "")
 			.trim()
-			.toLowerCase() as "hotel" | "tour" | "package"
+			.toLowerCase() as "hotel" | "tour" | "package" | "limousine"
 
-		if (!["hotel", "tour", "package"].includes(subtypeType)) {
+		if (!["hotel", "tour", "package", "limousine"].includes(subtypeType)) {
 			return new Response(JSON.stringify({ error: "Invalid product type in DB" }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
@@ -54,20 +70,56 @@ export const POST: APIRoute = async ({ request }) => {
 					? {
 							duration: String(form.get("duration") ?? "").trim() || null,
 							difficultyLevel: String(form.get("difficultyLevel") ?? "").trim() || null,
-							guideLanguages: String(form.get("guideLanguages") ?? "")
-								.split(",")
-								.map((item) => item.trim())
-								.filter(Boolean),
-							includes: String(form.get("includes") ?? "").trim() || null,
-							excludes: String(form.get("excludes") ?? "").trim() || null,
+							meetingPointJson: objectFromFields({
+								address: form.get("meetingPointAddress"),
+								instructions: form.get("meetingPointInstructions"),
+							}),
+							itineraryJson: listFromForm(form.get("tourItinerary")).map((description, index) => ({
+								step: index + 1,
+								description,
+							})),
+							safetyJson: objectFromFields({
+								requirements: form.get("safetyRequirements"),
+								warnings: form.get("safetyWarnings"),
+							}),
+							guideJson: objectFromFields({
+								languages: listFromForm(form.get("guideLanguages")).join(", "),
+								guideType: form.get("guideType"),
+							}),
 						}
-					: {
-							itinerary: String(form.get("itinerary") ?? "").trim() || null,
-							days: form.get("days") ? Number(form.get("days")) : null,
-							nights: form.get("nights") ? Number(form.get("nights")) : null,
-							includes: String(form.get("includes") ?? "").trim() || null,
-							excludes: String(form.get("excludes") ?? "").trim() || null,
-						}
+					: subtypeType === "package"
+						? {
+								days: form.get("days") ? Number(form.get("days")) : null,
+								nights: form.get("nights") ? Number(form.get("nights")) : null,
+								itineraryJson: listFromForm(form.get("itinerary")).map((description, index) => ({
+									day: index + 1,
+									description,
+								})),
+								includesJson: listFromForm(form.get("includes")),
+								excludesJson: listFromForm(form.get("excludes")),
+							}
+						: {
+								vehicleProfileJson: objectFromFields({
+									make: form.get("vehicleMake"),
+									model: form.get("vehicleModel"),
+									class: form.get("vehicleClass"),
+									color: form.get("vehicleColor"),
+								}),
+								pickupJson: objectFromFields({
+									defaultArea: form.get("pickupDefaultArea"),
+									instructions: form.get("pickupInstructions"),
+								}),
+								dropoffJson: objectFromFields({
+									defaultArea: form.get("dropoffDefaultArea"),
+									instructions: form.get("dropoffInstructions"),
+								}),
+								passengerCapacity: form.get("passengerCapacity")
+									? Number(form.get("passengerCapacity"))
+									: null,
+								luggageCapacity: form.get("luggageCapacity")
+									? Number(form.get("luggageCapacity"))
+									: null,
+							}
 
 		const response = await updateProductSubtype({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
@@ -77,9 +129,11 @@ export const POST: APIRoute = async ({ request }) => {
 			updateHotel: (dbOrTx, pid, data) => subtypeRepository.updateHotel(dbOrTx, pid, data),
 			updateTour: (dbOrTx, pid, data) => subtypeRepository.updateTour(dbOrTx, pid, data),
 			updatePackage: (dbOrTx, pid, data) => subtypeRepository.updatePackage(dbOrTx, pid, data),
+			updateLimousine: (dbOrTx, pid, data) => subtypeRepository.updateLimousine(dbOrTx, pid, data),
 			insertHotel: (dbOrTx, data) => subtypeRepository.insertHotel(dbOrTx, data as any),
 			insertTour: (dbOrTx, data) => subtypeRepository.insertTour(dbOrTx, data as any),
 			insertPackage: (dbOrTx, data) => subtypeRepository.insertPackage(dbOrTx, data as any),
+			insertLimousine: (dbOrTx, data) => subtypeRepository.insertLimousine(dbOrTx, data as any),
 			providerId,
 			productId,
 			subtypeType,

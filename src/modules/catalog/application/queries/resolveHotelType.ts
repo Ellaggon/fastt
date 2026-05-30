@@ -1,6 +1,6 @@
-import type { HotelRoomTypeRepositoryPort } from "../ports/HotelRoomTypeRepositoryPort"
+import type { VariantRoomProfileRepositoryPort } from "../ports/VariantRoomProfileRepositoryPort"
 
-export function createResolveHotelTypeQuery(deps: { repo: HotelRoomTypeRepositoryPort }) {
+export function createResolveHotelTypeQuery(deps: { repo: VariantRoomProfileRepositoryPort }) {
 	return async function resolveHotelType(ids: string[]) {
 		return deps.repo.getByIds(ids)
 	}

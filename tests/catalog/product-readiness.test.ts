@@ -63,6 +63,14 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 				lat: -16.5,
 				lng: -68.13,
 			},
+			verticalReadiness: {
+				kind: "hotel",
+				subtypeExists: true,
+				hotel: {
+					variantCount: 1,
+					completeRoomCount: 1,
+				},
+			},
 			status: null,
 		}
 		const repo = makeRepo(agg)
@@ -78,49 +86,43 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 		})
 	})
 
-	it("requires package-specific itinerary and days/nights before package readiness", async () => {
+	it("draft when hotel rooms are missing", async () => {
 		const agg: ProductAggregate = {
 			product: {
-				id: "pkg_1",
-				name: "Package",
-				productType: "package",
+				id: "prod_1",
+				name: "P",
+				productType: "Hotel",
 				providerId: "prov_1",
 				destinationId: "dest_1",
 			},
 			imagesCount: 1,
 			subtypeExists: true,
-			subtypeDetails: {
-				kind: "package",
-				itinerary: "",
-				days: null,
-				nights: null,
-				includes: "",
-				excludes: null,
-			},
 			content: {
-				productId: "pkg_1",
-				highlightsJson: ["Transfers included"],
+				productId: "prod_1",
+				highlightsJson: ["h1"],
 				seoJson: null,
 			},
 			location: {
-				productId: "pkg_1",
-				address: "La Paz",
+				productId: "prod_1",
+				address: null,
 				lat: -16.5,
 				lng: -68.13,
+			},
+			verticalReadiness: {
+				kind: "hotel",
+				subtypeExists: true,
+				hotel: {
+					variantCount: 0,
+					completeRoomCount: 0,
+				},
 			},
 			status: null,
 		}
 		const repo = makeRepo(agg)
 
-		const res = await evaluateProductReadiness({ repo }, { productId: "pkg_1" })
+		const res = await evaluateProductReadiness({ repo }, { productId: "prod_1" })
 
 		expect(res.state).toBe("draft")
-		expect(res.validationErrors.map((error) => error.code)).toEqual(
-			expect.arrayContaining([
-				"missing_package_itinerary",
-				"missing_package_duration",
-				"missing_package_inclusions",
-			])
-		)
+		expect(res.validationErrors.some((error) => error.code === "missing_hotel_rooms")).toBe(true)
 	})
 })

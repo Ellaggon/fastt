@@ -1,14 +1,6 @@
-import {
-	getProductVerticalEntry,
-	normalizeProductVertical,
-	productVerticalRegistry,
-	resolveProductVerticalEntry,
-	type ProductVertical,
-} from "@/lib/catalog/productVerticalRegistry"
+import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
 
-// Compatibility signal for existing Rooms & Rates guardrails:
-// hotel => habitacion, tour => salida, hotel rate plan => plan tarifario.
-export type ProviderVertical = ProductVertical
+export type ProviderVertical = "hotel" | "tour" | "rental" | "package" | "limousine" | "generic"
 
 export type VerticalVocabulary = {
 	vertical: ProviderVertical
@@ -24,31 +16,110 @@ export type VerticalVocabulary = {
 	contextLine: string
 }
 
-function toVocabulary(vertical: ProviderVertical): VerticalVocabulary {
-	const entry = productVerticalRegistry[vertical]
-	return {
-		vertical: entry.vertical,
-		product: entry.labels.singular,
-		productPlural: entry.labels.plural,
-		variant: entry.labels.variantSingular,
-		variantPlural: entry.labels.variantPlural,
-		ratePlan: entry.labels.ratePlanSingular,
-		ratePlanPlural: entry.labels.ratePlanPlural,
-		scopeProduct: entry.labels.scopeProduct,
-		scopeVariant: entry.labels.scopeVariant,
-		scopeRatePlan: entry.labels.scopeRatePlan,
-		contextLine: entry.contextLine,
-	}
+const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
+	hotel: {
+		vertical: "hotel",
+		product: "alojamiento",
+		productPlural: "alojamientos",
+		variant: "habitacion",
+		variantPlural: "habitaciones",
+		ratePlan: "plan tarifario",
+		ratePlanPlural: "planes tarifarios",
+		scopeProduct: "Alojamiento",
+		scopeVariant: "Habitacion",
+		scopeRatePlan: "Plan tarifario",
+		contextLine:
+			"Gestiona reglas operativas de venta por alojamiento, habitacion o plan tarifario sin mezclar contenido de catalogo.",
+	},
+	tour: {
+		vertical: "tour",
+		product: "tour",
+		productPlural: "tours",
+		variant: "salida",
+		variantPlural: "salidas",
+		ratePlan: "tarifa",
+		ratePlanPlural: "tarifas",
+		scopeProduct: "Tour",
+		scopeVariant: "Salida",
+		scopeRatePlan: "Tarifa",
+		contextLine:
+			"Gestiona reglas operativas de venta por tour, salida o tarifa sin mezclar contenido de catalogo.",
+	},
+	rental: {
+		vertical: "rental",
+		product: "propiedad",
+		productPlural: "propiedades",
+		variant: "unidad",
+		variantPlural: "unidades",
+		ratePlan: "tarifa",
+		ratePlanPlural: "tarifas",
+		scopeProduct: "Propiedad",
+		scopeVariant: "Unidad",
+		scopeRatePlan: "Tarifa",
+		contextLine:
+			"Gestiona reglas operativas de venta por propiedad, unidad o tarifa sin mezclar contenido de catalogo.",
+	},
+	package: {
+		vertical: "package",
+		product: "paquete",
+		productPlural: "paquetes",
+		variant: "modalidad",
+		variantPlural: "modalidades",
+		ratePlan: "tarifa",
+		ratePlanPlural: "tarifas",
+		scopeProduct: "Paquete",
+		scopeVariant: "Modalidad",
+		scopeRatePlan: "Tarifa",
+		contextLine:
+			"Gestiona reglas operativas de venta por paquete, modalidad o tarifa sin mezclar contenido de catalogo.",
+	},
+	limousine: {
+		vertical: "limousine",
+		product: "limusina",
+		productPlural: "limusinas",
+		variant: "servicio",
+		variantPlural: "servicios",
+		ratePlan: "tarifa",
+		ratePlanPlural: "tarifas",
+		scopeProduct: "Limusina",
+		scopeVariant: "Servicio",
+		scopeRatePlan: "Tarifa",
+		contextLine:
+			"Gestiona reglas operativas de venta por limusina, servicio o tarifa sin mezclar contenido de catalogo.",
+	},
+	generic: {
+		vertical: "generic",
+		product: "producto",
+		productPlural: "productos",
+		variant: "variante",
+		variantPlural: "variantes",
+		ratePlan: "rate plan",
+		ratePlanPlural: "rate plans",
+		scopeProduct: "Producto",
+		scopeVariant: "Variante",
+		scopeRatePlan: "Rate Plan",
+		contextLine:
+			"Gestiona reglas operativas de venta por oferta, unidad vendible o rate plan sin mezclar contenido de catalogo.",
+	},
 }
 
 export function normalizeVertical(value: unknown): ProviderVertical {
-	return normalizeProductVertical(value)
+	const raw = String(value ?? "")
+		.trim()
+		.toLowerCase()
+	const productVertical = normalizeProductVertical(raw)
+	if (productVertical) return productVertical
+	if (raw === "rental" || raw === "rentals" || raw === "vacation_rental") return "rental"
+	return "generic"
 }
 
 export function resolveVerticalVocabulary(productTypes: unknown[]): VerticalVocabulary {
-	return toVocabulary(resolveProductVerticalEntry(productTypes).vertical)
+	const verticals = [...new Set(productTypes.map(normalizeVertical))]
+	const concrete = verticals.filter((vertical) => vertical !== "generic")
+	if (concrete.length === 1) return VOCABULARY[concrete[0]]
+	return VOCABULARY.generic
 }
 
 export function getVerticalVocabulary(vertical: ProviderVertical = "generic"): VerticalVocabulary {
-	return toVocabulary(getProductVerticalEntry(vertical).vertical)
+	return VOCABULARY[vertical]
 }

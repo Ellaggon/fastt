@@ -1,4 +1,12 @@
 import { describe, it, expect } from "vitest"
+import {
+	db,
+	RoomType,
+	Variant,
+	VariantCapacity,
+	VariantRoomBed,
+	VariantRoomProfile,
+} from "astro:db"
 
 import { productRepository, productImageRepository, subtypeRepository } from "@/container"
 import {
@@ -70,6 +78,44 @@ describe("integration/catalog Product V2 flow", () => {
 
 		// Attach subtype using the real repository (minimal hotel row).
 		await subtypeRepository.insertHotelStandalone({ productId })
+		const variantId = `variant_${productId}`
+		const roomTypeId = `room_type_${productId}`
+		await db.insert(RoomType).values({
+			id: roomTypeId,
+			name: "Suite",
+			maxOccupancy: 2,
+			description: "Suite ready",
+		})
+		await db.insert(Variant).values({
+			id: variantId,
+			productId,
+			name: "Suite",
+			kind: "hotel_room",
+			status: "ready",
+			isActive: true,
+		})
+		await db.insert(VariantCapacity).values({
+			variantId,
+			minOccupancy: 1,
+			maxOccupancy: 2,
+			maxAdults: 2,
+			maxChildren: 0,
+		})
+		await db.insert(VariantRoomProfile).values({
+			variantId,
+			roomTypeId,
+			totalRooms: 1,
+			sizeM2: 28,
+			bathroomCount: 1,
+			bathroomType: "private",
+		})
+		await db.insert(VariantRoomBed).values({
+			id: `${variantId}:bed:queen`,
+			variantId,
+			bedType: "queen",
+			count: 1,
+			sortOrder: 0,
+		})
 
 		const evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("ready")

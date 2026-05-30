@@ -206,19 +206,30 @@ const Tour = defineTable({
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
 		duration: column.text({ optional: true }), // e.g., '3 Hours', '5 Days'
 		difficultyLevel: column.text({ optional: true }), // e.g., 'Easy', 'Moderate', 'Difficult'
-		guideLanguages: column.json({ optional: true }), // Array of strings: ['Spanish', 'English']
-		includes: column.text({ optional: true }),
-		excludes: column.text({ optional: true }),
+		meetingPointJson: column.json({ optional: true }),
+		itineraryJson: column.json({ optional: true }),
+		safetyJson: column.json({ optional: true }),
+		guideJson: column.json({ optional: true }),
 	},
 })
 const Package = defineTable({
 	columns: {
 		productId: column.text({ primaryKey: true, references: () => Product.columns.id }), // FK to Product
-		itinerary: column.text({ optional: true }),
 		days: column.number({ optional: true }),
 		nights: column.number({ optional: true }),
-		includes: column.text({ optional: true }),
-		excludes: column.text({ optional: true }),
+		itineraryJson: column.json({ optional: true }),
+		includesJson: column.json({ optional: true }),
+		excludesJson: column.json({ optional: true }),
+	},
+})
+const Limousine = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
+		vehicleProfileJson: column.json({ optional: true }),
+		pickupJson: column.json({ optional: true }),
+		dropoffJson: column.json({ optional: true }),
+		passengerCapacity: column.number({ optional: true }),
+		luggageCapacity: column.number({ optional: true }),
 	},
 })
 const Variant = defineTable({
@@ -266,6 +277,49 @@ const VariantHotelRoom = defineTable({
 	indexes: [{ on: ["roomTypeId"] }],
 })
 
+// CAPA Rooms v2: guest-facing room profile owned by the Hotel variant.
+// Variant remains the sellable unit; this table stores the room experience.
+const VariantRoomProfile = defineTable({
+	columns: {
+		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
+		roomTypeId: column.text({ references: () => RoomType.columns.id, optional: true }),
+		totalRooms: column.number({ default: 0 }),
+		sizeM2: column.number({ optional: true }),
+		viewType: column.text({ optional: true }),
+		bathroomCount: column.number({ optional: true }),
+		bathroomType: column.text({ optional: true }), // private | shared | ensuite | dedicated | unknown
+		hasBalcony: column.boolean({ optional: true }),
+		maxOccupancyOverride: column.number({ optional: true }),
+		guestFacingNotes: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["roomTypeId"] }],
+})
+
+const VariantRoomBed = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		bedType: column.text(),
+		count: column.number({ default: 1 }),
+		roomLabel: column.text({ optional: true }),
+		sortOrder: column.number({ default: 0 }),
+	},
+	indexes: [{ on: ["variantId"] }],
+})
+
+const VariantRoomAmenity = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		amenityId: column.text({ references: () => AmenityRoom.columns.id }),
+		isAvailable: column.boolean({ default: true }),
+		notes: column.text({ optional: true }),
+	},
+	indexes: [{ on: ["variantId", "amenityId"], unique: true }],
+})
+
 // CAPA 3 (Variant): readiness snapshot (catalog completeness only).
 const VariantReadiness = defineTable({
 	columns: {
@@ -276,30 +330,6 @@ const VariantReadiness = defineTable({
 	},
 })
 
-// 3. Configuración estructural de producto delete hotelroomtype
-
-const HotelRoomType = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		hotelId: column.text({ references: () => Hotel.columns.productId }),
-		roomTypeId: column.text({ references: () => RoomType.columns.id }),
-		totalRooms: column.number({ default: 0 }),
-		hasView: column.text({ optional: true }),
-		bedType: column.json({ optional: true }),
-		sizeM2: column.number({ optional: true }),
-		bathroom: column.number({ optional: true }),
-		hasBalcony: column.boolean({ optional: true }),
-		maxOccupancyOverride: column.number({ optional: true }),
-	},
-})
-const HotelRoomAmenity = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		hotelRoomTypeId: column.text({ references: () => HotelRoomType.columns.id }),
-		amenityId: column.text({ references: () => AmenityRoom.columns.id }),
-		isAvailable: column.boolean({ default: true }),
-	},
-})
 const ProductService = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -760,7 +790,7 @@ const Hold = defineTable({
 		expiresAt: column.date(),
 		// Canonical immutable policy contract captured at hold creation time.
 		policySnapshotJson: column.json(),
-		// Informational guest-facing expectations captured separately from operational rules.
+		// Immutable guest-facing expectations captured from House Rules at hold time.
 		guestExpectationsSnapshotJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -1090,14 +1120,16 @@ export default defineDb({
 		Hotel,
 		Tour,
 		Package,
+		Limousine,
 		Variant,
 		VariantCapacity,
 		VariantHotelRoom,
+		VariantRoomProfile,
+		VariantRoomBed,
+		VariantRoomAmenity,
 		VariantReadiness,
 
 		// 3 product structure
-		HotelRoomType,
-		HotelRoomAmenity,
 		ProductService,
 		ProductServiceAttribute,
 

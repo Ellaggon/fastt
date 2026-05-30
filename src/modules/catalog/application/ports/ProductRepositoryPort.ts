@@ -27,25 +27,29 @@ export type ProductAggregate = {
 		state: ProductStatusState
 		validationErrorsJson?: unknown | null
 	} | null
-	subtypeDetails?:
-		| {
-				kind: "hotel"
-				stars?: number | null
-		  }
-		| {
-				kind: "tour"
-				duration?: string | null
-				difficultyLevel?: string | null
-		  }
-		| {
-				kind: "package"
-				itinerary?: string | null
-				days?: number | null
-				nights?: number | null
-				includes?: string | null
-				excludes?: string | null
-		  }
-		| null
+	verticalReadiness?: {
+		kind: "hotel" | "tour" | "package" | "limousine" | "unknown"
+		subtypeExists: boolean
+		hotel?: {
+			variantCount: number
+			completeRoomCount: number
+		}
+		tour?: {
+			hasItinerary: boolean
+			hasMeetingPoint: boolean
+			hasSchedule: boolean
+		}
+		package?: {
+			hasDaysAndNights: boolean
+			hasItinerary: boolean
+			hasInclusions: boolean
+		}
+		limousine?: {
+			hasVehicle: boolean
+			hasPickupDropoff: boolean
+			hasCapacity: boolean
+		}
+	}
 }
 
 export interface ProductRepositoryPort {
