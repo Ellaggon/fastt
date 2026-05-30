@@ -1,6 +1,11 @@
 import { z } from "zod"
 
-export const variantKindSchema = z.enum(["hotel_room", "tour_slot", "package_base"])
+export const variantKindSchema = z.enum([
+	"hotel_room",
+	"tour_slot",
+	"package_base",
+	"limousine_service",
+])
 export const variantLifecycleStatusSchema = z.enum(["draft", "ready", "sellable", "archived"])
 
 export const createVariantSchema = z.object({

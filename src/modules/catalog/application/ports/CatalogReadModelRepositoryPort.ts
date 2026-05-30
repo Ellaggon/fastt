@@ -53,14 +53,26 @@ export type ProductFullAggregate = {
 				kind: "tour"
 				duration: string | null
 				difficultyLevel: string | null
-				guideLanguages: unknown
+				meetingPoint: unknown
+				itinerary: unknown
+				safety: unknown
+				guide: unknown
 		  }
 		| {
 				kind: "package"
 				days: number | null
 				nights: number | null
-				includes: string | null
-				excludes: string | null
+				itinerary: unknown
+				includes: unknown
+				excludes: unknown
+		  }
+		| {
+				kind: "limousine"
+				vehicleProfile: unknown
+				pickup: unknown
+				dropoff: unknown
+				passengerCapacity: number | null
+				luggageCapacity: number | null
 		  }
 		| null
 }

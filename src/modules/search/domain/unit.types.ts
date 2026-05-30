@@ -1,7 +1,7 @@
 import type { RestrictionRow } from "./restrictions.types"
 import type { Promotion } from "./promotions.types"
 
-export const UNIT_TYPES = ["hotel_room", "tour_slot", "package_base"] as const
+export const UNIT_TYPES = ["hotel_room", "tour_slot", "package_base", "limousine_service"] as const
 
 export type UnitType = (typeof UNIT_TYPES)[number]
 

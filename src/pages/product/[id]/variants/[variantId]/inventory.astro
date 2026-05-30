@@ -16,6 +16,7 @@ import {
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { and, DailyInventory, db, EffectiveAvailability, eq, gte, lt, sql } from "astro:db"
 
@@ -53,6 +54,7 @@ if (!variant || variant.productId !== productId) {
 
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect("/product/create")
+if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 
 const inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantId)
 

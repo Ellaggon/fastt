@@ -64,7 +64,7 @@ export async function upsertProduct(row: {
 export async function upsertVariant(row: {
 	id: string
 	productId: string
-	kind?: "hotel_room" | "tour_slot" | "package_base"
+	kind?: "hotel_room" | "tour_slot" | "package_base" | "limousine_service"
 	name: string
 	description?: string | null
 	baseRateCurrency?: string

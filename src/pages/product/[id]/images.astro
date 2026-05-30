@@ -47,7 +47,9 @@ const existingImages = product.images || []
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Galería de la oferta</h2>
+							<h2 class="text-xl font-semibold text-slate-900">
+								{vertical.vertical === "hotel" ? "Galería del alojamiento" : "Galería de la oferta"}
+							</h2>
 							<p class="text-sm text-slate-600">
 								Arrastra imágenes aquí o haz clic para seleccionarlas.
 							</p>

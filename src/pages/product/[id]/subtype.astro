@@ -5,11 +5,11 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { db, eq, Hotel, Package, Tour } from "astro:db"
+import { getProductVerticalDefinition } from "@/lib/productVerticalRegistry"
+import { getProductById } from "@/modules/catalog/public"
+import { db, eq, Hotel, Limousine, Package, Tour } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -21,13 +21,33 @@ const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
 
-const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+const product = await getProductById(productId)
 if (!product) return Astro.redirect("/product/create")
 
-const vertical = getProductVerticalEntry(product.productType)
 const pt = String(product.productType || "")
 	.trim()
 	.toLowerCase()
+const vertical = getProductVerticalDefinition(product.productType)
+const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"
+const detailTitle = vertical?.labels.detailTitle ?? "Detalles de la oferta"
+const subtypeHeading = pt === "hotel" ? "Detalles del alojamiento" : `Detalles del ${verticalLabel}`
+
+function listToText(value: unknown, key = "description") {
+	if (!Array.isArray(value)) return ""
+	return value
+		.map((item) => {
+			if (typeof item === "string") return item
+			if (item && typeof item === "object") return String((item as any)[key] ?? "").trim()
+			return ""
+		})
+		.filter(Boolean)
+		.join("\n")
+}
+
+function fieldFromObject(value: unknown, key: string) {
+	if (!value || typeof value !== "object") return ""
+	return String((value as any)[key] ?? "")
+}
 
 const hotelSubtype =
 	pt === "hotel"
@@ -49,9 +69,10 @@ const tourSubtype =
 				.select({
 					duration: Tour.duration,
 					difficultyLevel: Tour.difficultyLevel,
-					guideLanguages: Tour.guideLanguages,
-					includes: Tour.includes,
-					excludes: Tour.excludes,
+					meetingPointJson: Tour.meetingPointJson,
+					itineraryJson: Tour.itineraryJson,
+					safetyJson: Tour.safetyJson,
+					guideJson: Tour.guideJson,
 				})
 				.from(Tour)
 				.where(eq(Tour.productId, productId))
@@ -62,28 +83,41 @@ const packageSubtype =
 	pt === "package"
 		? await db
 				.select({
-					itinerary: Package.itinerary,
 					days: Package.days,
 					nights: Package.nights,
-					includes: Package.includes,
-					excludes: Package.excludes,
+					itineraryJson: Package.itineraryJson,
+					includesJson: Package.includesJson,
+					excludesJson: Package.excludesJson,
 				})
 				.from(Package)
 				.where(eq(Package.productId, productId))
 				.get()
 		: null
+
+const limousineSubtype =
+	pt === "limousine"
+		? await db
+				.select({
+					vehicleProfileJson: Limousine.vehicleProfileJson,
+					pickupJson: Limousine.pickupJson,
+					dropoffJson: Limousine.dropoffJson,
+					passengerCapacity: Limousine.passengerCapacity,
+					luggageCapacity: Limousine.luggageCapacity,
+				})
+				.from(Limousine)
+				.where(eq(Limousine.productId, productId))
+				.get()
+		: null
 ---
 
-<WorkspaceLayout title="Catálogo · Detalles">
+<WorkspaceLayout title={`Catálogo · ${detailTitle}`}>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">
-					Detalles de {vertical.labels.singular}
-				</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">{detailTitle}</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
 					Completa atributos editoriales y de categoría que ayudan a presentar y descubrir el
-					{vertical.labels.singular}.
+					{verticalLabel}.
 				</p>
 			</header>
 
@@ -98,9 +132,11 @@ const packageSubtype =
 					<Input type="hidden" name="flow" value={flow} />
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Detalles específicos</h2>
+							<h2 class="text-xl font-semibold text-slate-900">{subtypeHeading}</h2>
+							<p class="text-sm font-medium text-slate-500">Detalles específicos</p>
 							<p class="text-sm text-slate-600">
-								Completa los campos específicos del tipo de oferta seleccionado.
+								Completa los campos propios de este tipo de oferta. La ubicación vive en la sección
+								Ubicación y el contenido editorial vive en Contenido.
 							</p>
 						</div>
 
@@ -166,27 +202,59 @@ const packageSubtype =
 										<Input
 											id="guideLanguages"
 											name="guideLanguages"
-											value={
-												Array.isArray(tourSubtype?.guideLanguages)
-													? tourSubtype.guideLanguages.join(",")
-													: ""
-											}
+											value={fieldFromObject(tourSubtype?.guideJson, "languages")}
 											placeholder="es,en"
 										/>
 									</FormField>
-									<FormField label="Incluye" htmlFor="includes">
+									<FormField label="Tipo de guía" htmlFor="guideType">
+										<Input
+											id="guideType"
+											name="guideType"
+											value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
+											placeholder="Guía local, conductor guía, anfitrión..."
+										/>
+									</FormField>
+									<FormField label="Punto de encuentro" htmlFor="meetingPointAddress">
+										<Input
+											id="meetingPointAddress"
+											name="meetingPointAddress"
+											value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
+											placeholder="Dirección o referencia"
+										/>
+									</FormField>
+									<FormField
+										label="Instrucciones del punto de encuentro"
+										htmlFor="meetingPointInstructions"
+									>
 										<Textarea
-											id="includes"
-											name="includes"
-											value={tourSubtype?.includes ?? ""}
+											id="meetingPointInstructions"
+											name="meetingPointInstructions"
+											value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
 											rows="3"
 										/>
 									</FormField>
-									<FormField label="No incluye" htmlFor="excludes">
+									<FormField label="Itinerario del tour" htmlFor="tourItinerary">
 										<Textarea
-											id="excludes"
-											name="excludes"
-											value={tourSubtype?.excludes ?? ""}
+											id="tourItinerary"
+											name="tourItinerary"
+											value={listToText(tourSubtype?.itineraryJson)}
+											rows="5"
+											placeholder="Una parada o experiencia por línea"
+										/>
+									</FormField>
+									<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
+										<Textarea
+											id="safetyRequirements"
+											name="safetyRequirements"
+											value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
+											rows="3"
+										/>
+									</FormField>
+									<FormField label="Advertencias o condiciones físicas" htmlFor="safetyWarnings">
+										<Textarea
+											id="safetyWarnings"
+											name="safetyWarnings"
+											value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
 											rows="3"
 										/>
 									</FormField>
@@ -201,8 +269,9 @@ const packageSubtype =
 										<Textarea
 											id="itinerary"
 											name="itinerary"
-											value={packageSubtype?.itinerary ?? ""}
-											rows="3"
+											value={listToText(packageSubtype?.itineraryJson)}
+											rows="5"
+											placeholder="Un día o etapa por línea"
 										/>
 									</FormField>
 									<FormField label="Días" htmlFor="days">
@@ -221,29 +290,119 @@ const packageSubtype =
 											placeholder="0 o más"
 										/>
 									</FormField>
-									<div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
-										<h3 class="text-sm font-semibold text-blue-950">Incluye / No incluye</h3>
-										<p class="mt-1 text-sm leading-6 text-blue-900">
-											Estas listas pertenecen al paquete. No son destacados editoriales: explican
-											qué está incluido en la oferta y qué queda fuera antes de reservar.
-										</p>
-									</div>
 									<FormField label="Incluye" htmlFor="includes">
 										<Textarea
 											id="includes"
 											name="includes"
-											value={packageSubtype?.includes ?? ""}
+											value={listToText(packageSubtype?.includesJson, "")}
 											rows="4"
-											placeholder="Transporte interno, alojamiento, desayunos, guía local"
+											placeholder="Una inclusión por línea"
 										/>
 									</FormField>
 									<FormField label="No incluye" htmlFor="excludes">
 										<Textarea
 											id="excludes"
 											name="excludes"
-											value={packageSubtype?.excludes ?? ""}
+											value={listToText(packageSubtype?.excludesJson, "")}
 											rows="4"
-											placeholder="Vuelos internacionales, propinas, gastos personales"
+											placeholder="Una exclusión por línea"
+										/>
+									</FormField>
+								</div>
+							) : null
+						}
+
+						{
+							pt === "limousine" ? (
+								<div class="space-y-4">
+									<FormField label="Marca" htmlFor="vehicleMake">
+										<Input
+											id="vehicleMake"
+											name="vehicleMake"
+											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "make")}
+											placeholder="Mercedes-Benz"
+										/>
+									</FormField>
+									<FormField label="Modelo" htmlFor="vehicleModel">
+										<Input
+											id="vehicleModel"
+											name="vehicleModel"
+											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "model")}
+											placeholder="Clase S"
+										/>
+									</FormField>
+									<FormField label="Clase de vehículo" htmlFor="vehicleClass">
+										<Input
+											id="vehicleClass"
+											name="vehicleClass"
+											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "class")}
+											placeholder="Ejecutivo, lujo, van premium"
+										/>
+									</FormField>
+									<FormField label="Color" htmlFor="vehicleColor">
+										<Input
+											id="vehicleColor"
+											name="vehicleColor"
+											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "color")}
+											placeholder="Negro"
+										/>
+									</FormField>
+									<div class="grid gap-4 md:grid-cols-2">
+										<FormField label="Capacidad de pasajeros" htmlFor="passengerCapacity">
+											<Input
+												id="passengerCapacity"
+												name="passengerCapacity"
+												value={
+													limousineSubtype?.passengerCapacity != null
+														? String(limousineSubtype.passengerCapacity)
+														: ""
+												}
+												placeholder="3"
+											/>
+										</FormField>
+										<FormField label="Capacidad de equipaje" htmlFor="luggageCapacity">
+											<Input
+												id="luggageCapacity"
+												name="luggageCapacity"
+												value={
+													limousineSubtype?.luggageCapacity != null
+														? String(limousineSubtype.luggageCapacity)
+														: ""
+												}
+												placeholder="2"
+											/>
+										</FormField>
+									</div>
+									<FormField label="Área base de recogida" htmlFor="pickupDefaultArea">
+										<Input
+											id="pickupDefaultArea"
+											name="pickupDefaultArea"
+											value={fieldFromObject(limousineSubtype?.pickupJson, "defaultArea")}
+											placeholder="Aeropuerto, zona hotelera..."
+										/>
+									</FormField>
+									<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+										<Textarea
+											id="pickupInstructions"
+											name="pickupInstructions"
+											value={fieldFromObject(limousineSubtype?.pickupJson, "instructions")}
+											rows="3"
+										/>
+									</FormField>
+									<FormField label="Área base de destino" htmlFor="dropoffDefaultArea">
+										<Input
+											id="dropoffDefaultArea"
+											name="dropoffDefaultArea"
+											value={fieldFromObject(limousineSubtype?.dropoffJson, "defaultArea")}
+											placeholder="Centro, terminal, hotel..."
+										/>
+									</FormField>
+									<FormField label="Instrucciones de dropoff" htmlFor="dropoffInstructions">
+										<Textarea
+											id="dropoffInstructions"
+											name="dropoffInstructions"
+											value={fieldFromObject(limousineSubtype?.dropoffJson, "instructions")}
+											rows="3"
 										/>
 									</FormField>
 								</div>

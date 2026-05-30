@@ -39,6 +39,22 @@ function toMoney(value: number): number {
 	return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+function formatBeds(room: any): string {
+	const beds = Array.isArray(room?.beds)
+		? room.beds
+		: Array.isArray(room?.bedType)
+			? room.bedType
+			: []
+	if (!beds.length) return "Tipo de cama no especificado"
+	return beds
+		.map((bed: any) => {
+			const count = Number(bed?.count ?? 1)
+			const label = String(bed?.id ?? bed?.bedType ?? bed?.type ?? "cama").trim()
+			return `${Number.isFinite(count) && count > 0 ? count : 1} ${label}`
+		})
+		.join(", ")
+}
+
 export function toRoomSectionRows(params: {
 	offers: any[]
 	hotelRoom: any[]
@@ -96,20 +112,18 @@ export function toRoomSectionRows(params: {
 							? `${roomMetaRaw.sizeM2} m²`
 							: "Tamaño no especificado",
 					view:
-						roomMetaRaw?.hasView != null && String(roomMetaRaw.hasView).trim().length > 0
-							? `Vista: ${roomMetaRaw.hasView}`
+						(roomMetaRaw?.viewType ?? roomMetaRaw?.hasView) != null &&
+						String(roomMetaRaw.viewType ?? roomMetaRaw.hasView).trim().length > 0
+							? `Vista: ${roomMetaRaw.viewType ?? roomMetaRaw.hasView}`
 							: "Vista no especificada",
-					beds:
-						Array.isArray(roomMetaRaw?.bedType) && roomMetaRaw.bedType.length > 0
-							? roomMetaRaw.bedType.map((bed: any) => `${bed.count} ${bed.id}`).join(", ")
-							: "Tipo de cama no especificado",
+					beds: formatBeds(roomMetaRaw),
 					bathrooms:
-						roomMetaRaw?.bathroom != null
-							? `${roomMetaRaw.bathroom} baño${Number(roomMetaRaw.bathroom) > 1 ? "s" : ""}`
+						(roomMetaRaw?.bathroomCount ?? roomMetaRaw?.bathroom) != null
+							? `${roomMetaRaw.bathroomCount ?? roomMetaRaw.bathroom} baño${Number(roomMetaRaw.bathroomCount ?? roomMetaRaw.bathroom) > 1 ? "s" : ""}`
 							: "Baños no especificados",
 					occupancy:
-						roomMetaRaw?.maxOccupancy != null
-							? `${roomMetaRaw.maxOccupancy} persona${Number(roomMetaRaw.maxOccupancy) > 1 ? "s" : ""}`
+						(roomMetaRaw?.maxOccupancy ?? roomMetaRaw?.maxOccupancyOverride) != null
+							? `${roomMetaRaw.maxOccupancy ?? roomMetaRaw.maxOccupancyOverride} persona${Number(roomMetaRaw.maxOccupancy ?? roomMetaRaw.maxOccupancyOverride) > 1 ? "s" : ""}`
 							: "Capacidad no especificada",
 				},
 			})

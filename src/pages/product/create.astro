@@ -6,11 +6,11 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import {
-	listActiveProductVerticalEntries,
-	normalizeProductTypeValue,
-} from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	getProductVerticalDefinition,
+	PRODUCT_VERTICAL_OPTIONS,
+} from "@/lib/productVerticalRegistry"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -18,20 +18,24 @@ if (!user) return Astro.redirect("/SignInPage")
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 
-const verticalOptions = listActiveProductVerticalEntries()
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
-const requestedProductType = normalizeProductTypeValue(requestedType)
+const requestedVertical = getProductVerticalDefinition(requestedType)
+const createCopy = requestedVertical?.createCopy ?? {
+	title: "Crear oferta",
+	description:
+		"Crea la identidad mínima de la oferta para empezar contenido, configuración y publicación.",
+	namePlaceholder: "Ej: Hotel Boutique Centro",
+}
+const selectedProductType = requestedVertical?.storageType ?? ""
 ---
 
 <WorkspaceLayout title="Catálogo · Crear oferta">
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
-				<h1 class="text-3xl font-semibold text-slate-100">Crear oferta</h1>
-				<p class="text-sm text-slate-400">
-					Elige el tipo de oferta y crea su identidad mínima. Cada vertical activa sus propios
-					bloques de contenido y readiness.
-				</p>
+				<p class="text-sm font-medium text-slate-400">Catálogo</p>
+				<h1 class="text-3xl font-semibold text-slate-100">{createCopy.title}</h1>
+				<p class="text-sm text-slate-400">{createCopy.description}</p>
 			</header>
 
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
@@ -44,37 +48,25 @@ const requestedProductType = normalizeProductTypeValue(requestedType)
 					<div class="space-y-4">
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Datos base de la oferta</h2>
-							<p class="text-sm text-slate-600">
-								Solo se piden los campos mínimos obligatorios para crear la ficha inicial.
-							</p>
+							<p class="text-sm text-slate-600">Solo se piden los campos mínimos obligatorios.</p>
 						</div>
 
-						<FormField label="Nombre de la oferta" htmlFor="name" required>
-							<Input
-								id="name"
-								name="name"
-								required
-								placeholder="Ej: Hotel Central, City Tour Histórico o Paquete Lago Titicaca"
-							/>
+						<FormField label="Nombre" htmlFor="name" required>
+							<Input id="name" name="name" required placeholder={createCopy.namePlaceholder} />
 						</FormField>
 
 						<FormField label="Tipo de oferta" htmlFor="productType" required>
-							<Select id="productType" name="productType" required>
+							<Select id="productType" name="productType" required value={selectedProductType}>
 								<option value="">Selecciona una opción</option>
 								{
-									verticalOptions.map((vertical) => (
-										<option
-											value={vertical.productType ?? ""}
-											selected={requestedProductType === vertical.productType}
-										>
-											{vertical.creation.typeOptionLabel}
-										</option>
+									PRODUCT_VERTICAL_OPTIONS.map((vertical) => (
+										<option value={vertical.storageType}>{vertical.labels.singular}</option>
 									))
 								}
 							</Select>
 						</FormField>
 
-						<FormField label="Destino principal (ID)" htmlFor="destinationId" required>
+						<FormField label="Destino (ID)" htmlFor="destinationId" required>
 							<Input id="destinationId" name="destinationId" required placeholder="Ej: la-paz" />
 						</FormField>
 					</div>
@@ -98,7 +90,7 @@ const requestedProductType = normalizeProductTypeValue(requestedType)
 							type="submit"
 							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
 						>
-							Crear oferta
+							{requestedVertical?.labels.createCta ?? "Crear oferta"}
 						</Button>
 					</div>
 				</form>
@@ -109,7 +101,7 @@ const requestedProductType = normalizeProductTypeValue(requestedType)
 	<script type="module">
 		const form = document.getElementById("createForm")
 		const btn = document.getElementById("submitBtn")
-		const btnText = btn?.textContent || "Crear oferta"
+		const btnText = btn?.textContent || "Crear producto"
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
 

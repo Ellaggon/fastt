@@ -47,7 +47,7 @@ export * from "./application/use-cases/variant/update-variant-status"
 // Application ports (types/interfaces)
 export * from "./application/ports/CancellationPolicyRepositoryPort"
 export * from "./application/ports/HotelAmenityQueryRepositoryPort"
-export * from "./application/ports/HotelRoomTypeRepositoryPort"
+export * from "./application/ports/VariantRoomProfileRepositoryPort"
 export * from "./application/ports/ImageQueryRepositoryPort"
 export * from "./application/ports/ProductImageRepositoryPort"
 export * from "./application/ports/ProductRepositoryPort"

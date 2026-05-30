@@ -131,7 +131,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	async createVariant(params: {
 		id: string
 		productId: string
-		kind: "hotel_room" | "tour_slot" | "package_base"
+		kind: "hotel_room" | "tour_slot" | "package_base" | "limousine_service"
 		name: string
 		description?: string | null
 		status: VariantLifecycleStatus

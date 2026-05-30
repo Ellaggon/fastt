@@ -3,19 +3,48 @@ import {
 	hotelSchema,
 	tourSchema,
 	packageSchema,
+	limousineSchema,
 } from "@/schemas/product/subtype"
+
+function listFromForm(value: FormDataEntryValue | null): string[] {
+	return String(value ?? "")
+		.split(/\r?\n|,/)
+		.map((item) => item.trim())
+		.filter(Boolean)
+}
+
+function objectFromFields(
+	fields: Record<string, FormDataEntryValue | null>
+): Record<string, string> | null {
+	const entries = Object.entries(fields)
+		.map(([key, value]) => [key, String(value ?? "").trim()] as const)
+		.filter(([, value]) => value.length > 0)
+	return entries.length ? Object.fromEntries(entries) : null
+}
 
 export async function createProductSubtype(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
-	subtypeExists: (productId: string, subtype: "hotel" | "tour" | "package") => Promise<boolean>
+	subtypeExists: (
+		productId: string,
+		subtype: "hotel" | "tour" | "package" | "limousine"
+	) => Promise<boolean>
 	insertHotel: (data: any) => Promise<any>
 	insertTour: (data: any) => Promise<any>
 	insertPackage: (data: any) => Promise<any>
+	insertLimousine: (data: any) => Promise<any>
 	providerId: string
 	form: FormData
 }): Promise<Response> {
-	const { ensureOwned, subtypeExists, insertHotel, insertTour, insertPackage, providerId, form } =
-		params
+	const {
+		ensureOwned,
+		subtypeExists,
+		insertHotel,
+		insertTour,
+		insertPackage,
+		insertLimousine,
+		providerId,
+		form,
+	} = params
 
 	const productId = String(form.get("productId") || "").trim()
 	if (!productId)
@@ -31,7 +60,7 @@ export async function createProductSubtype(params: {
 
 	// Use DB productType as source of truth (normalize)
 	const productType = normalizeProductType((product as any).productType)
-	if (!["hotel", "tour", "package"].includes(productType)) {
+	if (!["hotel", "tour", "package", "limousine"].includes(productType)) {
 		return new Response(JSON.stringify({ error: "Invalid product type in DB" }), { status: 400 })
 	}
 
@@ -70,9 +99,22 @@ export async function createProductSubtype(params: {
 			productType: "tour",
 			duration: form.get("duration"),
 			difficultyLevel: form.get("difficultyLevel"),
-			guideLanguages: form.get("guideLanguages"),
-			includes: form.get("includes"),
-			excludes: form.get("excludes"),
+			meetingPointJson: objectFromFields({
+				address: form.get("meetingPointAddress"),
+				instructions: form.get("meetingPointInstructions"),
+			}),
+			itineraryJson: listFromForm(form.get("tourItinerary")).map((description, index) => ({
+				step: index + 1,
+				description,
+			})),
+			safetyJson: objectFromFields({
+				requirements: form.get("safetyRequirements"),
+				warnings: form.get("safetyWarnings"),
+			}),
+			guideJson: objectFromFields({
+				languages: listFromForm(form.get("guideLanguages")).join(", "),
+				guideType: form.get("guideType"),
+			}),
 		}
 		const parsed = tourSchema.safeParse(payload)
 		if (!parsed.success) {
@@ -82,20 +124,51 @@ export async function createProductSubtype(params: {
 		return new Response(JSON.stringify({ ok: true }), { status: 200 })
 	}
 
-	// package
+	if (productType === "package") {
+		const payload = {
+			productId,
+			productType: "package",
+			days: form.get("days"),
+			nights: form.get("nights"),
+			itineraryJson: listFromForm(form.get("itinerary")).map((description, index) => ({
+				day: index + 1,
+				description,
+			})),
+			includesJson: listFromForm(form.get("includes")),
+			excludesJson: listFromForm(form.get("excludes")),
+		}
+		const parsed = packageSchema.safeParse(payload)
+		if (!parsed.success) {
+			return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
+		}
+		await insertPackage(parsed.data as any)
+		return new Response(JSON.stringify({ ok: true }), { status: 200 })
+	}
+
 	const payload = {
 		productId,
-		productType: "package",
-		itinerary: form.get("itinerary"),
-		days: form.get("days"),
-		nights: form.get("nights"),
-		includes: form.get("includes"),
-		excludes: form.get("excludes"),
+		productType: "limousine",
+		vehicleProfileJson: objectFromFields({
+			make: form.get("vehicleMake"),
+			model: form.get("vehicleModel"),
+			class: form.get("vehicleClass"),
+			color: form.get("vehicleColor"),
+		}),
+		pickupJson: objectFromFields({
+			defaultArea: form.get("pickupDefaultArea"),
+			instructions: form.get("pickupInstructions"),
+		}),
+		dropoffJson: objectFromFields({
+			defaultArea: form.get("dropoffDefaultArea"),
+			instructions: form.get("dropoffInstructions"),
+		}),
+		passengerCapacity: form.get("passengerCapacity"),
+		luggageCapacity: form.get("luggageCapacity"),
 	}
-	const parsed = packageSchema.safeParse(payload)
+	const parsed = limousineSchema.safeParse(payload)
 	if (!parsed.success) {
 		return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 })
 	}
-	await insertPackage(parsed.data as any)
+	await insertLimousine(parsed.data as any)
 	return new Response(JSON.stringify({ ok: true }), { status: 200 })
 }

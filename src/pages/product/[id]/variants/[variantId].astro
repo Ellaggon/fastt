@@ -7,6 +7,8 @@ import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -22,6 +24,7 @@ if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}
 
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect("/product/create")
+if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 ---
 
 <WorkspaceLayout title="Contenido del alojamiento · Habitación">

@@ -8,23 +8,14 @@ import type {
 	InventoryBootstrapPort,
 	VariantInventoryConfigRepositoryPort,
 } from "@/modules/inventory/public"
+import { normalizeProductVertical, variantKindForProductType } from "@/lib/productVerticalRegistry"
 
-function normalizeProductType(raw: string): "hotel" | "tour" | "package" | "unknown" {
-	const s = String(raw || "")
-		.trim()
-		.toLowerCase()
-	if (s === "hotel") return "hotel"
-	if (s === "tour") return "tour"
-	if (s === "package") return "package"
-	return "unknown"
+function normalizeProductType(raw: string): "hotel" | "tour" | "package" | "limousine" | "unknown" {
+	return normalizeProductVertical(raw) ?? "unknown"
 }
 
 function expectedKindForProductType(pt: string): VariantKind | null {
-	const t = normalizeProductType(pt)
-	if (t === "hotel") return "hotel_room"
-	if (t === "tour") return "tour_slot"
-	if (t === "package") return "package_base"
-	return null
+	return variantKindForProductType(normalizeProductType(pt))
 }
 
 export async function createVariant(

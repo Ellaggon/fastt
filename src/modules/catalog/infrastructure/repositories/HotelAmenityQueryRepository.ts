@@ -1,4 +1,4 @@
-import { db, inArray, eq, AmenityRoom, HotelRoomAmenity } from "astro:db"
+import { db, inArray, eq, AmenityRoom, VariantRoomAmenity } from "astro:db"
 import type {
 	HotelAmenityQueryRepositoryPort,
 	HotelAmenityRow,
@@ -6,19 +6,20 @@ import type {
 
 export class HotelAmenityQueryRepository implements HotelAmenityQueryRepositoryPort {
 	async listByRoomTypeIds(roomTypeIds: string[]): Promise<HotelAmenityRow[]> {
-		if (!roomTypeIds.length) return []
+		const variantIds = [...new Set(roomTypeIds.map((id) => String(id).trim()).filter(Boolean))]
+		if (!variantIds.length) return []
 
 		return db
 			.select({
-				roomId: HotelRoomAmenity.hotelRoomTypeId,
+				roomId: VariantRoomAmenity.variantId,
 				amenityId: AmenityRoom.id,
 				amenityName: AmenityRoom.name,
 				category: AmenityRoom.category,
-				isAvailable: HotelRoomAmenity.isAvailable,
+				isAvailable: VariantRoomAmenity.isAvailable,
 			})
-			.from(HotelRoomAmenity)
-			.leftJoin(AmenityRoom, eq(HotelRoomAmenity.amenityId, AmenityRoom.id))
-			.where(inArray(HotelRoomAmenity.hotelRoomTypeId, roomTypeIds))
+			.from(VariantRoomAmenity)
+			.leftJoin(AmenityRoom, eq(VariantRoomAmenity.amenityId, AmenityRoom.id))
+			.where(inArray(VariantRoomAmenity.variantId, variantIds))
 			.all()
 	}
 }

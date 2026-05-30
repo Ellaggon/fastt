@@ -150,9 +150,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.select({
 				duration: Tour.duration,
 				difficultyLevel: Tour.difficultyLevel,
-				guideLanguages: Tour.guideLanguages,
-				includes: Tour.includes,
-				excludes: Tour.excludes,
+				meetingPointJson: Tour.meetingPointJson,
+				itineraryJson: Tour.itineraryJson,
+				safetyJson: Tour.safetyJson,
+				guideJson: Tour.guideJson,
 			})
 			.from(Tour)
 			.where(eq(Tour.productId, productId))
@@ -160,33 +161,30 @@ export const GET: APIRoute = async ({ request, url }) => {
 		subtypeDetails = {
 			duration: row?.duration ?? aggregate.subtype.duration ?? "",
 			difficultyLevel: row?.difficultyLevel ?? aggregate.subtype.difficultyLevel ?? "",
-			guideLanguages: Array.isArray(row?.guideLanguages)
-				? row?.guideLanguages
-				: Array.isArray(aggregate.subtype.guideLanguages)
-					? aggregate.subtype.guideLanguages
-					: [],
-			includes: row?.includes ?? "",
-			excludes: row?.excludes ?? "",
+			meetingPoint: row?.meetingPointJson ?? aggregate.subtype.meetingPoint ?? null,
+			itinerary: row?.itineraryJson ?? aggregate.subtype.itinerary ?? null,
+			safety: row?.safetyJson ?? aggregate.subtype.safety ?? null,
+			guide: row?.guideJson ?? aggregate.subtype.guide ?? null,
 		}
 	}
 	if (aggregate.subtype?.kind === "package") {
 		const row = await db
 			.select({
-				itinerary: Package.itinerary,
 				days: Package.days,
 				nights: Package.nights,
-				includes: Package.includes,
-				excludes: Package.excludes,
+				itineraryJson: Package.itineraryJson,
+				includesJson: Package.includesJson,
+				excludesJson: Package.excludesJson,
 			})
 			.from(Package)
 			.where(eq(Package.productId, productId))
 			.get()
 		subtypeDetails = {
-			itinerary: row?.itinerary ?? "",
+			itinerary: row?.itineraryJson ?? aggregate.subtype.itinerary ?? null,
 			days: row?.days ?? aggregate.subtype.days ?? 0,
 			nights: row?.nights ?? aggregate.subtype.nights ?? 0,
-			includes: row?.includes ?? aggregate.subtype.includes ?? "",
-			excludes: row?.excludes ?? aggregate.subtype.excludes ?? "",
+			includes: row?.includesJson ?? aggregate.subtype.includes ?? null,
+			excludes: row?.excludesJson ?? aggregate.subtype.excludes ?? null,
 		}
 	}
 

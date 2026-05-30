@@ -9,6 +9,37 @@ const variants = (offers ?? []).map((room: any) => ({
 	name: String(room?.variant?.name ?? "Habitación"),
 	capacity: Number(room?.variant?.maxOccupancy ?? 0),
 }))
+
+function bedsLabel(room: any): string {
+	const beds = Array.isArray(room?.beds)
+		? room.beds
+		: Array.isArray(room?.bedType)
+			? room.bedType
+			: []
+	if (!beds.length) return "-"
+	return beds
+		.map((bed: any) => {
+			const count = Number(bed?.count ?? 1)
+			const label = String(bed?.id ?? bed?.bedType ?? bed?.type ?? "cama").trim()
+			return `${Number.isFinite(count) && count > 0 ? count : 1} ${label}`
+		})
+		.join(", ")
+}
+
+function roomView(room: any): string | null {
+	const value = String(room?.viewType ?? room?.hasView ?? "").trim()
+	return value || null
+}
+
+function bathroomCount(room: any): number | null {
+	const value = Number(room?.bathroomCount ?? room?.bathroom)
+	return Number.isFinite(value) ? value : null
+}
+
+function occupancyCount(room: any): number | null {
+	const value = Number(room?.maxOccupancy ?? room?.maxOccupancyOverride)
+	return Number.isFinite(value) ? value : null
+}
 ---
 
 <header
@@ -186,22 +217,20 @@ const variants = (offers ?? []).map((room: any) => ({
 
 							<p class="mt-1 text-sm text-neutral-500">
 								{entity.sizeM2 && `${entity.sizeM2} m²`}
-								{entity.hasView && ` • Con vista ${entity.hasView}`}
+								{roomView(entity) && ` • Con vista ${roomView(entity)}`}
 							</p>
 
 							<div class="mt-4 grid grid-cols-2 gap-2 text-sm text-neutral-600">
 								<label class="flex items-center gap-1">
-									<BedDouble class={`h-4 w-4 ${entity.bedType ? "block" : "hidden"}`} />
-									<span>
-										{entity.bedType?.map((b: any) => `${b.count} ${b.id}`).join(", ") ?? "-"}
-									</span>
+									<BedDouble class={`h-4 w-4 ${bedsLabel(entity) !== "-" ? "block" : "hidden"}`} />
+									<span>{bedsLabel(entity)}</span>
 								</label>
 
 								<label class="flex items-center gap-1">
-									<Bath class={`h-4 w-4 ${entity.bathroom ? "block" : "hidden"}`} />
-									{entity.bathroom != null && (
+									<Bath class={`h-4 w-4 ${bathroomCount(entity) ? "block" : "hidden"}`} />
+									{bathroomCount(entity) != null && (
 										<span>
-											{entity.bathroom} {entity.bathroom > 1 ? "baños" : "baño"}
+											{bathroomCount(entity)} {Number(bathroomCount(entity)) > 1 ? "baños" : "baño"}
 										</span>
 									)}
 								</label>
@@ -228,10 +257,11 @@ const variants = (offers ?? []).map((room: any) => ({
 								</label>
 
 								<label class="flex items-center gap-1">
-									<User class={`h-4 w-4 ${entity.maxOccupancy ? "block" : "hidden"}`} />
-									{entity.maxOccupancy > 0 && (
+									<User class={`h-4 w-4 ${occupancyCount(entity) ? "block" : "hidden"}`} />
+									{Number(occupancyCount(entity) ?? 0) > 0 && (
 										<span>
-											{entity.maxOccupancy} {entity.maxOccupancy > 1 ? "Personas" : "Persona"}
+											{occupancyCount(entity)}{" "}
+											{Number(occupancyCount(entity)) > 1 ? "Personas" : "Persona"}
 										</span>
 									)}
 								</label>

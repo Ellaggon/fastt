@@ -898,7 +898,8 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				label: "Catálogo",
 				href: routes.productList(),
 				status: "canonical",
-				summary: "Contenido, fotos, ubicación, detalles y vista previa por tipo de oferta.",
+				summary:
+					"Gestiona alojamientos, tours y paquetes con contenido, fotos, ubicación, detalles y vista previa. Alojamientos mantiene habitaciones como flujo físico propio.",
 			},
 			{
 				label: "Habitaciones",

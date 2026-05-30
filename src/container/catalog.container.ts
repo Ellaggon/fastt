@@ -11,7 +11,7 @@ import { ProductImageRepository } from "../modules/catalog/infrastructure/reposi
 import { ImageUploadRepository } from "../modules/catalog/infrastructure/repositories/ImageUploadRepository"
 import { VariantManagementRepository } from "../modules/catalog/infrastructure/repositories/VariantManagementRepository"
 import { HotelAmenityQueryRepository } from "../modules/catalog/infrastructure/repositories/HotelAmenityQueryRepository"
-import { HotelRoomTypeRepository } from "../modules/catalog/infrastructure/repositories/HotelRoomTypeRepository"
+import { VariantRoomProfileRepository } from "../modules/catalog/infrastructure/repositories/VariantRoomProfileRepository"
 import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
 import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
@@ -62,7 +62,7 @@ export async function cleanupStaleUploads(params: { olderThanMinutes: number }) 
 }
 
 export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
-export const hotelRoomTypeRepository = new HotelRoomTypeRepository()
+export const variantRoomProfileRepository = new VariantRoomProfileRepository()
 export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
 export const destinationQueryRepository = new DestinationQueryRepository()
@@ -73,7 +73,7 @@ export const catalogReadModelRepository = new CatalogReadModelRepository()
 export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
 	repo: hotelAmenityQueryRepository,
 })
-export const resolveHotelType = createResolveHotelTypeQuery({ repo: hotelRoomTypeRepository })
+export const resolveHotelType = createResolveHotelTypeQuery({ repo: variantRoomProfileRepository })
 export const resolveProductImages = createResolveProductImagesQuery({
 	repo: productImageRepository,
 })

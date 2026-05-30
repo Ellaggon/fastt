@@ -4,17 +4,19 @@ export async function updateProductSubtype(params: {
 	subtypeExists: (
 		dbOrTx: any,
 		productId: string,
-		subtype: "hotel" | "tour" | "package"
+		subtype: "hotel" | "tour" | "package" | "limousine"
 	) => Promise<boolean>
 	updateHotel: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
 	updateTour: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
 	updatePackage: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
+	updateLimousine: (dbOrTx: any, productId: string, data: any) => Promise<unknown>
 	insertHotel: (dbOrTx: any, data: any) => Promise<any>
 	insertTour: (dbOrTx: any, data: any) => Promise<any>
 	insertPackage: (dbOrTx: any, data: any) => Promise<any>
+	insertLimousine: (dbOrTx: any, data: any) => Promise<any>
 	providerId: string
 	productId: string
-	subtypeType: "hotel" | "tour" | "package"
+	subtypeType: "hotel" | "tour" | "package" | "limousine"
 	subtype: any
 }): Promise<Response> {
 	const {
@@ -24,9 +26,11 @@ export async function updateProductSubtype(params: {
 		updateHotel,
 		updateTour,
 		updatePackage,
+		updateLimousine,
 		insertHotel,
 		insertTour,
 		insertPackage,
+		insertLimousine,
 		providerId,
 		productId,
 		subtypeType,
@@ -56,6 +60,7 @@ export async function updateProductSubtype(params: {
 			if (subtypeType === "hotel") await updateHotel(tx as any, productId, subtype || {})
 			if (subtypeType === "tour") await updateTour(tx as any, productId, subtype || {})
 			if (subtypeType === "package") await updatePackage(tx as any, productId, subtype || {})
+			if (subtypeType === "limousine") await updateLimousine(tx as any, productId, subtype || {})
 		} else {
 			if (subtypeType === "hotel")
 				await insertHotel(tx as any, { productId, ...(subtype || {}) } as any)
@@ -63,6 +68,8 @@ export async function updateProductSubtype(params: {
 				await insertTour(tx as any, { productId, ...(subtype || {}) } as any)
 			if (subtypeType === "package")
 				await insertPackage(tx as any, { productId, ...(subtype || {}) } as any)
+			if (subtypeType === "limousine")
+				await insertLimousine(tx as any, { productId, ...(subtype || {}) } as any)
 		}
 	})
 

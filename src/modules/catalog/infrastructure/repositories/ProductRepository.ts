@@ -9,8 +9,13 @@ import {
 	HouseRule,
 	Image,
 	Hotel,
+	Limousine,
 	Tour,
 	Package,
+	Variant,
+	VariantCapacity,
+	VariantRoomBed,
+	VariantRoomProfile,
 } from "astro:db"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
@@ -224,38 +229,90 @@ export class ProductRepository implements ProductRepositoryPort {
 			.trim()
 			.toLowerCase()
 		let subtypeExists = false
-		let subtypeDetails: ProductAggregate["subtypeDetails"] = null
+		let verticalReadiness: ProductAggregate["verticalReadiness"] = {
+			kind: "unknown",
+			subtypeExists: false,
+		}
 		if (pt === "hotel") {
-			const hotel = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
-			subtypeExists = !!hotel
-			subtypeDetails = hotel ? { kind: "hotel", stars: hotel.stars ?? null } : null
+			subtypeExists = !!(await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get())
+			const variants = await db
+				.select({
+					id: Variant.id,
+					profileVariantId: VariantRoomProfile.variantId,
+					capacityVariantId: VariantCapacity.variantId,
+				})
+				.from(Variant)
+				.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))
+				.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "hotel_room")))
+				.all()
+			let completeRoomCount = 0
+			for (const variant of variants) {
+				const beds = await db
+					.select({ id: VariantRoomBed.id })
+					.from(VariantRoomBed)
+					.where(eq(VariantRoomBed.variantId, variant.id))
+					.all()
+				if (variant.profileVariantId && variant.capacityVariantId && beds.length > 0) {
+					completeRoomCount += 1
+				}
+			}
+			verticalReadiness = {
+				kind: "hotel",
+				subtypeExists,
+				hotel: {
+					variantCount: variants.length,
+					completeRoomCount,
+				},
+			}
 		} else if (pt === "tour") {
 			const tour = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
 			subtypeExists = !!tour
-			subtypeDetails = tour
-				? {
-						kind: "tour",
-						duration: tour.duration ? String(tour.duration) : null,
-						difficultyLevel: tour.difficultyLevel ? String(tour.difficultyLevel) : null,
-					}
-				: null
+			const schedules = await db
+				.select({ id: Variant.id })
+				.from(Variant)
+				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
+				.all()
+			verticalReadiness = {
+				kind: "tour",
+				subtypeExists,
+				tour: {
+					hasItinerary: Array.isArray(tour?.itineraryJson) && tour.itineraryJson.length > 0,
+					hasMeetingPoint: !!tour?.meetingPointJson,
+					hasSchedule: schedules.length > 0,
+				},
+			}
 		} else if (pt === "package") {
-			const packageRow = await db
-				.select()
-				.from(Package)
-				.where(eq(Package.productId, productId))
-				.get()
-			subtypeExists = !!packageRow
-			subtypeDetails = packageRow
-				? {
-						kind: "package",
-						itinerary: packageRow.itinerary ? String(packageRow.itinerary) : null,
-						days: packageRow.days ?? null,
-						nights: packageRow.nights ?? null,
-						includes: packageRow.includes ? String(packageRow.includes) : null,
-						excludes: packageRow.excludes ? String(packageRow.excludes) : null,
-					}
-				: null
+			const pkg = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			subtypeExists = !!pkg
+			verticalReadiness = {
+				kind: "package",
+				subtypeExists,
+				package: {
+					hasDaysAndNights:
+						pkg?.days !== null &&
+						pkg?.days !== undefined &&
+						pkg?.nights !== null &&
+						pkg?.nights !== undefined &&
+						Number(pkg.days) > 0 &&
+						Number(pkg.nights) >= 0,
+					hasItinerary: Array.isArray(pkg?.itineraryJson) && pkg.itineraryJson.length > 0,
+					hasInclusions: Array.isArray(pkg?.includesJson) && pkg.includesJson.length > 0,
+				},
+			}
+		} else if (pt === "limousine") {
+			const limo = await db.select().from(Limousine).where(eq(Limousine.productId, productId)).get()
+			subtypeExists = !!limo
+			verticalReadiness = {
+				kind: "limousine",
+				subtypeExists,
+				limousine: {
+					hasVehicle: !!limo?.vehicleProfileJson,
+					hasPickupDropoff: !!limo?.pickupJson && !!limo?.dropoffJson,
+					hasCapacity:
+						Number(limo?.passengerCapacity ?? 0) > 0 && Number(limo?.luggageCapacity ?? -1) >= 0,
+				},
+			}
 		}
 
 		const rawState = status?.state ?? null
@@ -276,7 +333,7 @@ export class ProductRepository implements ProductRepositoryPort {
 							validationErrorsJson: status.validationErrorsJson ?? null,
 						}
 					: null,
-			subtypeDetails,
+			verticalReadiness,
 		}
 	}
 
@@ -300,6 +357,8 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db.delete(Tour).where(eq(Tour.productId, productId))
 		} else if (pt === "package") {
 			await db.delete(Package).where(eq(Package.productId, productId))
+		} else if (pt === "limousine") {
+			await db.delete(Limousine).where(eq(Limousine.productId, productId))
 		}
 
 		await db.delete(Product).where(eq(Product.id, productId))
