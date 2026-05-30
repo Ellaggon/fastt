@@ -21,6 +21,8 @@ export const routes = {
 		`/product/${encodeURIComponent(String(productId))}/rooms/new`,
 	productRoomDetail: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}`,
+	productRoomProfile: (productId: string, roomId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/profile`,
 	productRoomCapacity: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/capacity`,
 	productRoomSubtype: (productId: string, roomId: string) =>

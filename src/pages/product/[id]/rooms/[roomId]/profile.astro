@@ -1,0 +1,108 @@
+---
+import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
+import Section from "@/components/ui/Section.astro"
+import {
+	productRepository,
+	variantManagementRepository,
+	variantRoomProfileRepository,
+} from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
+import { AmenityRoom, asc, db, eq, RoomType, VariantRoomAmenity } from "astro:db"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.roomId ?? "")
+
+if (!productId) return Astro.redirect("/product/create")
+if (!variantId) return Astro.redirect(routes.productRoomsForProduct(productId))
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const variant = await variantManagementRepository.getVariantById(variantId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(routes.productRoomsForProduct(productId))
+}
+if (
+	String(variant.kind ?? "")
+		.trim()
+		.toLowerCase() !== "hotel_room"
+) {
+	return Astro.redirect(routes.productRoomsForProduct(productId))
+}
+
+const [capacity, profiles, roomTypes, amenities, selectedAmenityRows] = await Promise.all([
+	variantManagementRepository.getCapacity(variantId),
+	variantRoomProfileRepository.getByIds([variantId]),
+	db
+		.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
+		.from(RoomType)
+		.orderBy(asc(RoomType.name))
+		.all(),
+	db
+		.select({ id: AmenityRoom.id, name: AmenityRoom.name, category: AmenityRoom.category })
+		.from(AmenityRoom)
+		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name))
+		.all(),
+	db
+		.select({ amenityId: VariantRoomAmenity.amenityId })
+		.from(VariantRoomAmenity)
+		.where(eq(VariantRoomAmenity.variantId, variantId))
+		.all(),
+])
+
+const rawProfile = profiles[0] ?? null
+const profile = rawProfile
+	? {
+			...rawProfile,
+			beds: Array.isArray(rawProfile.beds)
+				? rawProfile.beds.map((bed: any) => ({
+						bedType: String(bed.bedType ?? bed.id ?? ""),
+						count: Number(bed.count ?? 1),
+						roomLabel: bed.roomLabel ? String(bed.roomLabel) : null,
+					}))
+				: [],
+		}
+	: null
+const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId))
+---
+
+<WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
+	<section class="space-y-8 text-neutral-100">
+		<header class="space-y-2">
+			<h1 class="text-3xl font-semibold text-slate-100">Ficha de habitación</h1>
+			<p class="text-sm text-slate-400">
+				Una sola ficha para lo que el huésped necesita entender antes de reservar: ocupación, camas,
+				baño, vista, tipo y comodidades propias de la habitación.
+			</p>
+		</header>
+
+		<Section
+			title="Perfil OTA de la habitación"
+			description="Mantiene separada la experiencia física de la habitación de pricing, restricciones e inventario operativo."
+		>
+			<RoomProfileEditor
+				productId={productId}
+				variantId={variantId}
+				mode="edit"
+				roomName={variant.name}
+				roomDescription={variant.description}
+				capacity={capacity}
+				profile={profile}
+				roomTypes={roomTypes}
+				amenities={amenities}
+				selectedAmenityIds={selectedAmenityIds}
+			/>
+		</Section>
+	</section>
+</WorkspaceLayout>

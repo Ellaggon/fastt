@@ -202,6 +202,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const roomsAggregate = read("src/pages/catalog/accommodations/rooms/index.astro")
 		const roomsByProduct = read("src/pages/product/[id]/rooms.astro")
 		const roomWizard = read("src/pages/product/[id]/rooms/new.astro")
+		const roomProfileEditor = read("src/components/rooms/RoomProfileEditor.astro")
+		const roomProfileApi = read("src/pages/api/variant/room-profile.ts")
 
 		expect(registry).toContain('storageType: "Hotel"')
 		expect(registry).toContain('storageType: "Tour"')
@@ -213,9 +215,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(productCreate).toContain("Crear oferta")
 		expect(roomsAggregate).toContain("lower(${Product.productType}) = 'hotel'")
 		expect(roomsByProduct).toContain("isHotelProductType")
-		expect(roomWizard).toContain('value="hotel_room"')
-		expect(roomWizard).not.toContain('value="tour_slot"')
-		expect(roomWizard).not.toContain('value="package_base"')
+		expect(roomWizard).toContain("RoomProfileEditor")
+		expect(roomProfileEditor).toContain('value="hotel_room"')
+		expect(roomProfileApi).toContain('kind: "hotel_room"')
+		expect(`${roomWizard}\n${roomProfileEditor}`).not.toContain('value="tour_slot"')
+		expect(`${roomWizard}\n${roomProfileEditor}`).not.toContain('value="package_base"')
 	})
 
 	it("integrates House Rules into the provider publish confidence loop", () => {

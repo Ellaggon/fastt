@@ -10,6 +10,10 @@ import {
 	asc,
 	Image,
 	inArray,
+	RoomType,
+	VariantRoomAmenity,
+	VariantRoomBed,
+	VariantRoomProfile,
 } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -174,14 +178,50 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 		.orderBy(asc(Image.order), asc(Image.id))
 		.all()
+	const roomProfile = await db
+		.select({
+			variantId: VariantRoomProfile.variantId,
+			roomTypeId: VariantRoomProfile.roomTypeId,
+			roomTypeName: RoomType.name,
+			totalRooms: VariantRoomProfile.totalRooms,
+			sizeM2: VariantRoomProfile.sizeM2,
+			viewType: VariantRoomProfile.viewType,
+			bathroomCount: VariantRoomProfile.bathroomCount,
+			bathroomType: VariantRoomProfile.bathroomType,
+			hasBalcony: VariantRoomProfile.hasBalcony,
+			guestFacingNotes: VariantRoomProfile.guestFacingNotes,
+		})
+		.from(VariantRoomProfile)
+		.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
+		.where(eq(VariantRoomProfile.variantId, variantId))
+		.get()
+	const roomBeds = await db
+		.select({
+			bedType: VariantRoomBed.bedType,
+			count: VariantRoomBed.count,
+			roomLabel: VariantRoomBed.roomLabel,
+		})
+		.from(VariantRoomBed)
+		.where(eq(VariantRoomBed.variantId, variantId))
+		.orderBy(asc(VariantRoomBed.sortOrder))
+		.all()
+	const roomAmenityCount = Number(
+		(
+			await db
+				.select({ value: count() })
+				.from(VariantRoomAmenity)
+				.where(eq(VariantRoomAmenity.variantId, variantId))
+				.get()
+		)?.value ?? 0
+	)
 
 	const pricingComplete = Boolean(
 		aggregate.baseRate && aggregate.defaultRatePlan && effectivePricingDays > 0
 	)
 	const inventoryComplete = dailyInventoryDays >= readinessInventoryMinDays
+	const profileComplete = Boolean(aggregate.capacity && roomProfile && roomBeds.length > 0)
 	const blocks = [
-		{ key: "capacity", complete: capacityComplete },
-		{ key: "subtype", complete: subtypeComplete },
+		{ key: "profile", complete: profileComplete },
 		{ key: "pricing", complete: pricingComplete },
 		{ key: "inventory", complete: inventoryComplete },
 	]
@@ -215,6 +255,28 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const pricingSummary = aggregate.baseRate
 		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · rate plan comercial activo" : " · falta rate plan comercial"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con pricing efectivo` : " · pricing efectivo pendiente"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
 		: "Sin precio base"
+	const bedSummary = roomBeds.length
+		? roomBeds
+				.map((bed) => `${Number(bed.count ?? 1)} ${String(bed.bedType ?? "cama")}`)
+				.join(" · ")
+		: "Camas pendientes"
+	const roomTypeLabel =
+		String(
+			roomProfile?.roomTypeName ?? aggregate.subtype?.name ?? aggregate.subtype?.roomTypeId ?? ""
+		).trim() || "Tipo pendiente"
+	const bathroomLabel =
+		roomProfile?.bathroomCount != null
+			? `${roomProfile.bathroomCount} baño(s)${roomProfile.bathroomType ? ` · ${roomProfile.bathroomType}` : ""}`
+			: "Baño pendiente"
+	const profileSummary = profileComplete
+		? `${roomTypeLabel} · ${aggregate.capacity?.minOccupancy}-${aggregate.capacity?.maxOccupancy} huéspedes · ${bedSummary} · ${bathroomLabel}${roomAmenityCount > 0 ? ` · ${roomAmenityCount} comodidad(es)` : ""}`
+		: [
+				!aggregate.capacity ? "capacidad" : null,
+				!roomProfile ? "perfil físico" : null,
+				roomBeds.length === 0 ? "camas" : null,
+			]
+				.filter(Boolean)
+				.join(", ") || "Ficha incompleta"
 
 	logEndpoint()
 	return new Response(
@@ -248,6 +310,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 				progressPercent,
 			},
 			blocks: {
+				profile: {
+					complete: profileComplete,
+					summary: profileSummary,
+				},
 				capacity: {
 					complete: capacityComplete,
 					summary: aggregate.capacity
@@ -278,6 +344,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				},
 			},
 			summary: {
+				profile: profileSummary,
 				capacity: aggregate.capacity
 					? `Min ${aggregate.capacity.minOccupancy} · Max ${aggregate.capacity.maxOccupancy} · Adultos ${aggregate.capacity.maxAdults ?? "-"} · Niños ${aggregate.capacity.maxChildren ?? "-"}`
 					: "Sin capacidad registrada",

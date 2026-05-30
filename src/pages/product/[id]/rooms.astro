@@ -218,7 +218,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				const tariffCount = Number(room?.tariffs?.count ?? 0)
 				grid.append(
 					metric(
-						"Capacidad",
+						"Ficha",
 						text(room?.capacity?.label, "Capacidad pendiente"),
 						room?.states?.capacityComplete ? "ok" : "warn"
 					),
@@ -253,7 +253,11 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				actions.className = "flex flex-wrap gap-2"
 				actions.append(
 					action(text(room?.actions?.detailHref, "#"), "Editar habitación", true),
-					action(text(room?.actions?.capacityHref, "#"), "Capacidad", false),
+					action(
+						text(room?.actions?.profileHref, room?.actions?.capacityHref ?? "#"),
+						"Ficha",
+						false
+					),
 					action(text(room?.actions?.inventoryHref, "#"), "Inventario base", false)
 				)
 
