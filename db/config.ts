@@ -267,16 +267,6 @@ const VariantCapacity = defineTable({
 	},
 })
 
-// CAPA 3 (Variant): hotel_room subtype extension.
-// Links a variant to a RoomType (e.g. "double"). ProductId is on Variant.
-const VariantHotelRoom = defineTable({
-	columns: {
-		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
-		roomTypeId: column.text({ references: () => RoomType.columns.id }),
-	},
-	indexes: [{ on: ["roomTypeId"] }],
-})
-
 // CAPA Rooms v2: guest-facing room profile owned by the Hotel variant.
 // Variant remains the sellable unit; this table stores the room experience.
 const VariantRoomProfile = defineTable({
@@ -1123,7 +1113,6 @@ export default defineDb({
 		Limousine,
 		Variant,
 		VariantCapacity,
-		VariantHotelRoom,
 		VariantRoomProfile,
 		VariantRoomBed,
 		VariantRoomAmenity,

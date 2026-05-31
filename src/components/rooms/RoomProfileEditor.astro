@@ -8,6 +8,15 @@ import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { BED_TYPES } from "@/data/room/room-beds"
 import { routes } from "@/lib/routes"
+import {
+	Bath,
+	BedDouble,
+	ClipboardList,
+	Hotel,
+	Sparkles,
+	UserRound,
+	WandSparkles,
+} from "@lucide/astro"
 
 type RoomTypeOption = { id: string; name: string; maxOccupancy: number | null }
 type AmenityOption = { id: string; name: string; category: string | null }
@@ -86,10 +95,11 @@ const initial = {
 	guestFacingNotes: String(profile?.guestFacingNotes ?? ""),
 }
 
-const submitLabel = mode === "create" ? "Crear ficha de habitación" : "Guardar ficha"
-const introTitle = mode === "create" ? "Ficha única de habitación" : "Editar ficha de habitación"
+const submitLabel = mode === "create" ? "Crear habitación" : "Guardar habitación"
+const introTitle =
+	mode === "create" ? "Crea una habitación lista para huéspedes" : "Editar habitación"
 const introCopy =
-	"Define lo que el huésped entiende como habitación: identidad, capacidad, tipo, camas, baño, vista y comodidades. Pricing e inventario se mantienen en sus flujos operativos."
+	"Define lo que el huésped verá antes de reservar: nombre, capacidad, camas, baño, vista, comodidades y notas importantes."
 ---
 
 <Card class="bg-slate-100">
@@ -98,15 +108,86 @@ const introCopy =
 		<Input type="hidden" name="variantId" value={variantId ?? ""} />
 		<Input type="hidden" name="kind" value="hotel_room" />
 
-		<div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-			<p class="font-semibold">{introTitle}</p>
-			<p>{introCopy}</p>
+		<div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-950">
+			<div class="flex items-start gap-3">
+				<div
+					class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-blue-800 ring-1 ring-blue-100"
+				>
+					<Hotel class="h-5 w-5" />
+				</div>
+				<div>
+					<p class="font-semibold">{introTitle}</p>
+					<p class="mt-1 leading-6">{introCopy}</p>
+				</div>
+			</div>
 		</div>
 
-		<FormSection title="Identidad guest-facing" class="text-neutral-800">
+		<div class="rounded-2xl border border-slate-200 bg-white p-4">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+						<WandSparkles class="h-4 w-4 text-blue-800" />
+						Configuración rápida
+					</p>
+					<p class="mt-1 text-sm text-slate-600">
+						Usa un punto de partida y ajusta los detalles. No cambia precios ni disponibilidad.
+					</p>
+				</div>
+			</div>
+			<div class="mt-4 grid gap-3 md:grid-cols-3">
+				<button
+					type="button"
+					class="roomPreset rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+					data-preset="couple"
+				>
+					<span class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+						<BedDouble class="h-4 w-4 text-blue-800" />
+						Pareja
+					</span>
+					<span class="mt-1 block text-xs leading-5 text-slate-600">
+						1-2 huéspedes, cama queen, baño privado.
+					</span>
+				</button>
+				<button
+					type="button"
+					class="roomPreset rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+					data-preset="family"
+				>
+					<span class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+						<UserRound class="h-4 w-4 text-blue-800" />
+						Familiar
+					</span>
+					<span class="mt-1 block text-xs leading-5 text-slate-600">
+						Hasta 4 huéspedes, cama doble y camas simples.
+					</span>
+				</button>
+				<button
+					type="button"
+					class="roomPreset rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+					data-preset="shared"
+				>
+					<span class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+						<Bath class="h-4 w-4 text-blue-800" />
+						Económica
+					</span>
+					<span class="mt-1 block text-xs leading-5 text-slate-600">
+						1 huésped, cama simple, baño compartido o dedicado.
+					</span>
+				</button>
+			</div>
+		</div>
+
+		<FormSection title="Cómo verá el huésped la habitación" class="text-neutral-800">
 			<div class="grid gap-4 md:grid-cols-2">
 				<FormField label="Nombre de la habitación" htmlFor="name" required>
-					<Input id="name" name="name" value={initial.name} required minlength="1" />
+					<Input
+						id="name"
+						name="name"
+						value={initial.name}
+						required
+						minlength="1"
+						placeholder="Suite jardín, Habitación familiar..."
+					/>
 				</FormField>
 				<FormField label="Tipo de habitación" htmlFor="roomTypeId">
 					<Select id="roomTypeId" name="roomTypeId" value={initial.roomTypeId}>
@@ -123,7 +204,13 @@ const introCopy =
 				</FormField>
 			</div>
 			<FormField label="Descripción breve para huésped" htmlFor="description">
-				<Textarea id="description" name="description" value={initial.description} rows="3" />
+				<Textarea
+					id="description"
+					name="description"
+					value={initial.description}
+					rows="3"
+					placeholder="Describe el ambiente, la luz, la vista o para quién es ideal."
+				/>
 			</FormField>
 			<FormField label="Notas visibles para huésped" htmlFor="guestFacingNotes">
 				<Textarea
@@ -183,7 +270,7 @@ const introCopy =
 			</div>
 		</FormSection>
 
-		<FormSection title="Estructura física" class="text-neutral-800">
+		<FormSection title="Espacio, baño y vista" class="text-neutral-800">
 			<div class="grid gap-4 md:grid-cols-4">
 				<FormField label="Unidades de este tipo" htmlFor="totalRooms" required>
 					<Input
@@ -238,7 +325,7 @@ const introCopy =
 			</div>
 		</FormSection>
 
-		<FormSection title="Camas" class="text-neutral-800">
+		<FormSection title="Dónde dormirán" class="text-neutral-800">
 			<div class="space-y-3" id="bedRows">
 				{
 					bedRows.map((bed, index) => (
@@ -288,7 +375,7 @@ const introCopy =
 			<Button id="addBedRow" type="button" variant="secondary">Agregar cama</Button>
 		</FormSection>
 
-		<FormSection title="Comodidades de la habitación" class="text-neutral-800">
+		<FormSection title="Comodidades propias de la habitación" class="text-neutral-800">
 			{
 				amenities.length > 0 ? (
 					<div class="grid gap-4 md:grid-cols-2">
@@ -313,10 +400,16 @@ const introCopy =
 						))}
 					</div>
 				) : (
-					<p class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-						Aún no hay comodidades de habitación configuradas en el catálogo. Puedes guardar la
-						ficha y añadirlas cuando exista master data.
-					</p>
+					<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+						<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+							<ClipboardList class="h-4 w-4" />
+							Aún no hay comodidades configuradas
+						</p>
+						<p class="mt-1 text-sm leading-6 text-slate-600">
+							Guarda la habitación ahora. Luego podrás sumar Wi-Fi, minibar, climatización u otras
+							comodidades visibles para huéspedes.
+						</p>
+					</div>
 				)
 			}
 		</FormSection>
@@ -337,6 +430,7 @@ const introCopy =
 				type="submit"
 				className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 			>
+				<Sparkles class="mr-2 h-4 w-4" />
 				{submitLabel}
 			</Button>
 		</div>
@@ -396,9 +490,9 @@ const introCopy =
 
 	function setState(state, detail = "") {
 		const labels = {
-			loading: "Guardando ficha de habitación...",
-			success: "Ficha guardada correctamente.",
-			error: "No se pudo guardar la ficha.",
+			loading: "Guardando habitación...",
+			success: "Habitación guardada correctamente.",
+			error: "No se pudo guardar la habitación.",
 		}
 		if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
 	}
@@ -413,6 +507,83 @@ const introCopy =
 		}
 	}
 
+	function setField(name, value) {
+		const field = form?.querySelector(`[name="${name}"]`)
+		if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+			field.value = String(value ?? "")
+		}
+		if (field instanceof HTMLSelectElement) {
+			field.value = String(value ?? "")
+		}
+	}
+
+	function addBedPresetRow(bedType, count, roomLabel) {
+		const content = bedRowTemplate?.content?.cloneNode(true)
+		if (!content || !bedRows) return
+		bedRows.appendChild(content)
+		const row = bedRows.lastElementChild
+		const bedTypeInput = row?.querySelector('[name="bedType"]')
+		const bedCountInput = row?.querySelector('[name="bedCount"]')
+		const bedRoomLabelInput = row?.querySelector('[name="bedRoomLabel"]')
+		if (bedTypeInput instanceof HTMLSelectElement) bedTypeInput.value = bedType
+		if (bedCountInput instanceof HTMLInputElement) bedCountInput.value = String(count)
+		if (bedRoomLabelInput instanceof HTMLInputElement) bedRoomLabelInput.value = roomLabel
+	}
+
+	function applyPreset(name) {
+		if (!bedRows) return
+		const presets = {
+			couple: {
+				maxOccupancy: 2,
+				maxAdults: 2,
+				maxChildren: 0,
+				totalRooms: 1,
+				bathroomCount: 1,
+				bathroomType: "private",
+				beds: [{ bedType: "queen", count: 1, roomLabel: "Dormitorio" }],
+				notes: "Habitación ideal para parejas, con baño privado.",
+			},
+			family: {
+				maxOccupancy: 4,
+				maxAdults: 2,
+				maxChildren: 2,
+				totalRooms: 1,
+				bathroomCount: 1,
+				bathroomType: "private",
+				beds: [
+					{ bedType: "double", count: 1, roomLabel: "Dormitorio principal" },
+					{ bedType: "single", count: 2, roomLabel: "Área secundaria" },
+				],
+				notes: "Habitación pensada para familias o grupos pequeños.",
+			},
+			shared: {
+				maxOccupancy: 1,
+				maxAdults: 1,
+				maxChildren: 0,
+				totalRooms: 1,
+				bathroomCount: 1,
+				bathroomType: "shared",
+				beds: [{ bedType: "single", count: 1, roomLabel: "Dormitorio" }],
+				notes: "Habitación simple con baño compartido o dedicado según disponibilidad.",
+			},
+		}
+		const preset = presets[name]
+		if (!preset) return
+		setField("minOccupancy", 1)
+		setField("maxOccupancy", preset.maxOccupancy)
+		setField("maxAdults", preset.maxAdults)
+		setField("maxChildren", preset.maxChildren)
+		setField("totalRooms", preset.totalRooms)
+		setField("bathroomCount", preset.bathroomCount)
+		setField("bathroomType", preset.bathroomType)
+		const notes = form?.querySelector('[name="guestFacingNotes"]')
+		if (notes instanceof HTMLTextAreaElement && !notes.value.trim()) notes.value = preset.notes
+		bedRows.innerHTML = ""
+		for (const bed of preset.beds) addBedPresetRow(bed.bedType, bed.count, bed.roomLabel)
+		bindRemoveButtons()
+		setState("success", "Configuración rápida aplicada. Revisa y ajusta antes de guardar.")
+	}
+
 	addBedRow?.addEventListener("click", () => {
 		const content = bedRowTemplate?.content?.cloneNode(true)
 		if (content && bedRows) {
@@ -422,6 +593,12 @@ const introCopy =
 	})
 
 	bindRemoveButtons()
+
+	for (const preset of document.querySelectorAll(".roomPreset")) {
+		preset.addEventListener("click", () => {
+			applyPreset(String(preset.dataset?.preset ?? ""))
+		})
+	}
 
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()

@@ -22,7 +22,7 @@ import {
 	User,
 	Variant,
 	VariantCapacity,
-	VariantHotelRoom,
+	VariantRoomProfile,
 	VariantReadiness,
 	RoomType,
 } from "astro:db"
@@ -259,16 +259,16 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				maxOccupancy: VariantCapacity.maxOccupancy,
 				maxAdults: VariantCapacity.maxAdults,
 				maxChildren: VariantCapacity.maxChildren,
-				hotelRoomVariantId: VariantHotelRoom.variantId,
-				roomTypeId: VariantHotelRoom.roomTypeId,
+				roomProfileVariantId: VariantRoomProfile.variantId,
+				roomTypeId: VariantRoomProfile.roomTypeId,
 				roomTypeName: RoomType.name,
 			})
 			.from(Product)
 			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(Variant, eq(Variant.productId, Product.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
-			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
+			.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))
+			.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 			.leftJoin(
 				RatePlan,
 				and(
@@ -312,7 +312,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 						}
 					: null,
 				subtype:
-					row.hotelRoomVariantId && row.roomTypeId
+					row.roomProfileVariantId && row.roomTypeId
 						? { roomTypeId: row.roomTypeId, name: row.roomTypeName ?? null }
 						: null,
 			}))
@@ -346,8 +346,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				maxOccupancy: VariantCapacity.maxOccupancy,
 				maxAdults: VariantCapacity.maxAdults,
 				maxChildren: VariantCapacity.maxChildren,
-				hotelRoomVariantId: VariantHotelRoom.variantId,
-				roomTypeId: VariantHotelRoom.roomTypeId,
+				roomProfileVariantId: VariantRoomProfile.variantId,
+				roomTypeId: VariantRoomProfile.roomTypeId,
 				roomTypeName: RoomType.name,
 				defaultRatePlanId: RatePlan.id,
 				readinessState: VariantReadiness.state,
@@ -356,8 +356,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
-			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
+			.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))
+			.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 			.leftJoin(
 				RatePlan,
 				and(
@@ -407,7 +407,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					}
 				: null,
 			subtype:
-				row.hotelRoomVariantId && row.roomTypeId
+				row.roomProfileVariantId && row.roomTypeId
 					? { roomTypeId: row.roomTypeId, name: row.roomTypeName ?? null }
 					: null,
 			baseRate:

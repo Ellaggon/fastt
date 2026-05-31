@@ -59,7 +59,6 @@ export let RoomType: any
 export let AmenityRoom: any
 export let Variant: any
 export let VariantCapacity: any
-export let VariantHotelRoom: any
 export let VariantRoomProfile: any
 export let VariantRoomBed: any
 export let VariantRoomAmenity: any
@@ -197,7 +196,6 @@ async function init() {
 	AmenityRoom = drizzleTables.AmenityRoom
 	Variant = drizzleTables.Variant
 	VariantCapacity = drizzleTables.VariantCapacity
-	VariantHotelRoom = drizzleTables.VariantHotelRoom
 	VariantRoomProfile = drizzleTables.VariantRoomProfile
 	VariantRoomBed = drizzleTables.VariantRoomBed
 	VariantRoomAmenity = drizzleTables.VariantRoomAmenity

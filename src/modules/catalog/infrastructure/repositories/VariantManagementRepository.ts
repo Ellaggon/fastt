@@ -2,7 +2,7 @@ import {
 	db,
 	Variant,
 	VariantCapacity,
-	VariantHotelRoom,
+	VariantRoomProfile,
 	VariantReadiness,
 	Product,
 	RoomType,
@@ -53,14 +53,14 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				maxOccupancy: VariantCapacity.maxOccupancy,
 				maxAdults: VariantCapacity.maxAdults,
 				maxChildren: VariantCapacity.maxChildren,
-				hotelRoomVariantId: VariantHotelRoom.variantId,
-				roomTypeId: VariantHotelRoom.roomTypeId,
+				roomProfileVariantId: VariantRoomProfile.variantId,
+				roomTypeId: VariantRoomProfile.roomTypeId,
 				roomTypeName: RoomType.name,
 			})
 			.from(Variant)
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.leftJoin(VariantHotelRoom, eq(VariantHotelRoom.variantId, Variant.id))
-			.leftJoin(RoomType, eq(RoomType.id, VariantHotelRoom.roomTypeId))
+			.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))
+			.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 			.leftJoin(
 				RatePlan,
 				and(
@@ -94,7 +94,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 							}
 						: null,
 					subtype:
-						r.hotelRoomVariantId && r.roomTypeId
+						r.roomProfileVariantId && r.roomTypeId
 							? { roomTypeId: r.roomTypeId, name: r.roomTypeName ?? null }
 							: null,
 				}
@@ -196,34 +196,53 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	}
 
 	async attachHotelRoomSubtype(params: { variantId: string; roomTypeId: string }) {
-		await db.insert(VariantHotelRoom).values({
+		const existing = await db
+			.select({ variantId: VariantRoomProfile.variantId })
+			.from(VariantRoomProfile)
+			.where(eq(VariantRoomProfile.variantId, params.variantId))
+			.get()
+		if (existing) {
+			await db
+				.update(VariantRoomProfile)
+				.set({ roomTypeId: params.roomTypeId, updatedAt: new Date() })
+				.where(eq(VariantRoomProfile.variantId, params.variantId))
+			return
+		}
+
+		await db.insert(VariantRoomProfile).values({
 			variantId: params.variantId,
 			roomTypeId: params.roomTypeId,
+			totalRooms: 0,
+			createdAt: new Date(),
+			updatedAt: new Date(),
 		})
 	}
 
 	async getHotelRoomSubtype(variantId: string) {
 		const row = await db
-			.select()
-			.from(VariantHotelRoom)
-			.where(eq(VariantHotelRoom.variantId, variantId))
+			.select({
+				variantId: VariantRoomProfile.variantId,
+				roomTypeId: VariantRoomProfile.roomTypeId,
+			})
+			.from(VariantRoomProfile)
+			.where(eq(VariantRoomProfile.variantId, variantId))
 			.get()
-		return row ?? null
+		return row?.roomTypeId ? { variantId: row.variantId, roomTypeId: row.roomTypeId } : null
 	}
 
 	async existsHotelRoomSubtypeForProductRoomType(params: {
 		productId: string
 		roomTypeId: string
 	}) {
-		// Join VariantHotelRoom -> Variant to check uniqueness by (productId, roomTypeId)
+		// Join VariantRoomProfile -> Variant to check uniqueness by (productId, roomTypeId).
 		const rows = await db
-			.select({ variantId: VariantHotelRoom.variantId })
-			.from(VariantHotelRoom)
-			.leftJoin(Variant, eq(Variant.id, VariantHotelRoom.variantId))
+			.select({ variantId: VariantRoomProfile.variantId })
+			.from(VariantRoomProfile)
+			.leftJoin(Variant, eq(Variant.id, VariantRoomProfile.variantId))
 			.where(
 				and(
 					eq(Variant.productId, params.productId),
-					eq(VariantHotelRoom.roomTypeId, params.roomTypeId)
+					eq(VariantRoomProfile.roomTypeId, params.roomTypeId)
 				)
 			)
 			.all()

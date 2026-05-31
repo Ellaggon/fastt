@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+	buildGuestRoomPreviews,
 	buildHoldRequest,
 	computeNights,
 	resolveInitialSelection,
@@ -8,6 +9,60 @@ import {
 } from "@/components/productUI/room-section.viewmodel"
 
 describe("room-section viewmodel", () => {
+	it("builds guest-facing room previews from profile, beds, amenities and photos", () => {
+		const previews = buildGuestRoomPreviews({
+			offers: [
+				{
+					variantId: "v1",
+					variant: { id: "v1", name: "Suite Andes", maxOccupancy: 3 },
+					variantImages: [
+						{ id: "img2", url: "https://example.com/second.jpg", order: 2, isPrimary: false },
+						{ id: "img1", url: "https://example.com/main.jpg", order: 1, isPrimary: true },
+					],
+				},
+			],
+			hotelRoom: [
+				{
+					id: "v1",
+					roomTypeName: "Suite",
+					sizeM2: 42,
+					viewType: "al jardín",
+					bathroomCount: 1,
+					bathroomType: "private",
+					maxOccupancyOverride: 3,
+					hasBalcony: true,
+					guestFacingNotes: "Acceso por segundo piso.",
+					beds: [
+						{ id: "queen", count: 1, roomLabel: "Dormitorio principal" },
+						{ id: "sofa_bed", count: 1, roomLabel: "Sala" },
+					],
+				},
+			],
+			amenities: [
+				{ roomId: "v1", amenityName: "Wi-Fi", category: "Conectividad", isAvailable: true },
+				{ roomId: "v1", amenityName: "Minibar", category: "Confort", isAvailable: true },
+				{ roomId: "v1", amenityName: "TV", category: "Confort", isAvailable: false },
+			],
+			productFallbackImage: "https://example.com/fallback.jpg",
+		})
+
+		expect(previews).toHaveLength(1)
+		expect(previews[0].imageUrl).toBe("https://example.com/main.jpg")
+		expect(previews[0].roomName).toBe("Suite Andes")
+		expect(previews[0].roomTypeName).toBe("Suite")
+		expect(previews[0].sleepSummary).toContain("Queen")
+		expect(previews[0].sleepAreas).toEqual([
+			expect.objectContaining({ label: "Dormitorio principal" }),
+			expect.objectContaining({ label: "Sala" }),
+		])
+		expect(previews[0].bathroomSummary).toBe("1 baño privado")
+		expect(previews[0].occupancySummary).toBe("Hasta 3 huéspedes")
+		expect(previews[0].sizeSummary).toBe("42 m²")
+		expect(previews[0].viewSummary).toBe("Vista al jardín")
+		expect(previews[0].amenityLabels).toEqual(["Wi-Fi", "Minibar"])
+		expect(previews[0].guestFacingNotes).toBe("Acceso por segundo piso.")
+	})
+
 	it("maps rate plans with total + nightly price clarity", () => {
 		const rows = toRoomSectionRows({
 			offers: [

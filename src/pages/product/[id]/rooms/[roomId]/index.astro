@@ -9,6 +9,17 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import {
+	BadgeCheck,
+	CalendarDays,
+	Camera,
+	CircleAlert,
+	ClipboardCheck,
+	Hotel,
+	ImagePlus,
+	RefreshCw,
+	Sparkles,
+} from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -29,24 +40,29 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 <WorkspaceLayout title="Contenido del alojamiento · Habitación">
 	<section class="space-y-8">
-		<header class="space-y-4">
+		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
+					<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
+						<Hotel class="h-4 w-4" />
+						Alojamiento · Habitación
+					</p>
 					<h1 id="variantTitle" class="text-3xl font-semibold text-slate-100">
 						Cargando habitación...
 					</h1>
 					<p class="text-sm text-slate-400">
-						Gestiona capacidad, tipo de habitación, fotos e inventario base. Tarifas y precios se
-						resuelven en Habitaciones y tarifas.
+						Revisa cómo se ve esta habitación para el huésped y completa lo necesario para que pueda
+						venderse con confianza.
 					</p>
 				</div>
-				<div class="flex items-center gap-3">
+				<div class="flex flex-wrap items-center gap-3">
 					<Button
 						href={routes.productRoomAvailability(productId, variantId)}
 						data-astro-prefetch
 						className="bg-slate-800 text-white hover:bg-slate-700"
 					>
-						Ver disponibilidad
+						<CalendarDays class="mr-2 h-4 w-4" />
+						Disponibilidad
 					</Button>
 					<Badge id="variantStatusBadge" variant="neutral">Cargando...</Badge>
 					<Button
@@ -54,15 +70,16 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						type="button"
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
-						Evaluar estado
+						<RefreshCw class="mr-2 h-4 w-4" />
+						Actualizar estado
 					</Button>
 				</div>
 			</div>
 		</header>
 
 		<Section
-			title="Estado de la habitación"
-			description="Estado operativo de capacidad, tipo de habitación, inventario base y cobertura comercial relacionada."
+			title="Preparación"
+			description="Estado de los bloques que hacen que la habitación sea clara, vendible y confiable para huéspedes."
 		>
 			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
 				<div class="space-y-4">
@@ -71,15 +88,24 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					</div>
 					<div class="grid gap-4 text-sm md:grid-cols-3">
 						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="text-slate-300">Completado</p>
+							<p class="flex items-center gap-2 text-slate-300">
+								<BadgeCheck class="h-4 w-4" />
+								Listo
+							</p>
 							<p id="variantProgressCompleted" class="text-xl font-semibold text-white">—/4</p>
 						</div>
 						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="text-slate-300">Pendiente</p>
+							<p class="flex items-center gap-2 text-slate-300">
+								<CircleAlert class="h-4 w-4" />
+								Pendiente
+							</p>
 							<p id="variantProgressPending" class="text-xl font-semibold text-white">—</p>
 						</div>
 						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="text-slate-300">Progreso</p>
+							<p class="flex items-center gap-2 text-slate-300">
+								<Sparkles class="h-4 w-4" />
+								Progreso
+							</p>
 							<p id="variantProgressPercent" class="text-xl font-semibold text-white">—%</p>
 						</div>
 					</div>
@@ -88,8 +114,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 		</Section>
 
 		<Section
-			title="Bloques de configuración"
-			description="Completa los bloques físicos; abre Habitaciones y tarifas solo para cobertura comercial."
+			title="Próximos pasos"
+			description="Completa los bloques principales sin mezclar descripción, disponibilidad y tarifas."
 		>
 			<div id="variantBlocks" class="grid gap-4 md:grid-cols-2">
 				{
@@ -111,7 +137,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 			</div>
 		</Section>
 
-		<Section title="Resumen" description="Vista rápida de datos operativos de la habitación.">
+		<Section title="Resumen para gestión" description="Lectura rápida de lo que ya está listo.">
 			<div id="variantSummary" class="grid gap-4 md:grid-cols-2">
 				{
 					Array.from({ length: 4 }).map(() => (
@@ -126,16 +152,19 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 		</Section>
 
 		<Section
-			title="Galería de la habitación"
-			description="Gestiona imágenes propias de esta habitación."
+			title="Fotos de la habitación"
+			description="Las fotos deben ayudar al huésped a entender dónde dormirá, el baño y la distribución."
 		>
 			<Card class="min-h-[220px] space-y-4 bg-slate-100">
 				<div class="flex flex-wrap items-center justify-between gap-3">
-					<p class="text-sm text-slate-600">Sube, ordena y guarda imágenes para esta habitación.</p>
+					<p class="flex items-center gap-2 text-sm text-slate-600">
+						<Camera class="h-4 w-4" />
+						Sube, ordena y guarda imágenes reales de esta habitación.
+					</p>
 					<div class="flex items-center gap-2">
 						<input id="variantImageFiles" type="file" accept="image/*" multiple class="hidden" />
 						<Button id="variantImageUploadBtn" type="button" variant="outline"
-							>Subir imágenes</Button
+							><ImagePlus class="mr-2 h-4 w-4" />Subir imágenes</Button
 						>
 						<Button
 							id="variantImageSaveBtn"
@@ -157,11 +186,17 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 			</Card>
 		</Section>
 
-		<Section title="Validación" description="Estado de readiness por bloqueante y no bloqueante.">
+		<Section
+			title="Revisión antes de publicar"
+			description="Pendientes que afectan la confianza del huésped."
+		>
 			<Card class="min-h-[248px] space-y-4 bg-slate-100">
 				<div class="flex items-center justify-between gap-3">
 					<div class="space-y-1">
-						<h2 class="text-xl font-semibold text-slate-900">Validación de la habitación</h2>
+						<h2 class="flex items-center gap-2 text-xl font-semibold text-slate-900">
+							<ClipboardCheck class="h-5 w-5" />
+							Estado de publicación
+						</h2>
 						<p id="readinessStateText" class="text-sm text-slate-600">Estado actual: Cargando...</p>
 					</div>
 					<Badge id="readinessStateBadge" variant="neutral">Cargando</Badge>
@@ -169,13 +204,13 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 				<div class="grid gap-4 md:grid-cols-2">
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Bloqueantes de publicación</p>
+						<p class="text-sm font-semibold text-slate-900">Necesario para publicar</p>
 						<ul id="blockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
 							<li class="list-none text-slate-500">Cargando validaciones...</li>
 						</ul>
 					</div>
 					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Pendientes recomendados</p>
+						<p class="text-sm font-semibold text-slate-900">Mejoras recomendadas</p>
 						<ul id="nonBlockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
 							<li class="list-none text-slate-500">Cargando validaciones...</li>
 						</ul>
@@ -190,7 +225,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						type="button"
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
-						Re-evaluar
+						<RefreshCw class="mr-2 h-4 w-4" />
+						Actualizar revisión
 					</Button>
 				</div>
 			</Card>
@@ -231,13 +267,13 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				if (value === "missing_capacity") {
 					return {
 						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
-						label: "Completar ficha",
+						label: "Completar perfil",
 					}
 				}
 				if (value === "missing_subtype") {
 					return {
 						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
-						label: "Completar ficha",
+						label: "Completar perfil",
 					}
 				}
 				if (
@@ -248,13 +284,13 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				) {
 					return {
 						href: "/rates/plans/manage",
-						label: "Abrir cobertura comercial",
+						label: "Abrir tarifas",
 					}
 				}
 				if (value === "inventory_missing") {
 					return {
 						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
-						label: "Configurar inventario",
+						label: "Configurar disponibilidad",
 					}
 				}
 				return null
@@ -293,7 +329,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const blockCard = (label, summary, complete, href, ctaLabel) => {
 				const wrapper = document.createElement("article")
-				wrapper.className = "space-y-4 rounded-lg border border-slate-200 bg-slate-100 p-6"
+				wrapper.className =
+					"space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
 				const top = document.createElement("div")
 				top.className = "flex items-start justify-between gap-3"
 				const text = document.createElement("div")
@@ -308,10 +345,10 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				const badge = document.createElement("span")
 				badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
 					complete
-						? "bg-green-100 text-green-800 border-green-200"
-						: "bg-orange-100 text-orange-800 border-orange-200"
+						? "bg-emerald-50 text-emerald-800 border-emerald-200"
+						: "bg-amber-50 text-amber-800 border-amber-200"
 				}`
-				badge.textContent = complete ? "✅ Completo" : "⚠️ Incompleto"
+				badge.textContent = complete ? "Listo" : "Pendiente"
 				top.append(text, badge)
 				const actions = document.createElement("div")
 				actions.className = "flex justify-end"
@@ -328,7 +365,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const summaryCard = (label, summary) => {
 				const card = document.createElement("article")
-				card.className = "space-y-2 rounded-lg border border-slate-200 bg-slate-100 p-6"
+				card.className = "space-y-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
 				const title = document.createElement("p")
 				title.className = "text-sm font-semibold text-slate-900"
 				title.textContent = label
@@ -345,8 +382,9 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				if (!Array.isArray(variantImages) || variantImages.length === 0) {
 					const empty = document.createElement("div")
 					empty.className =
-						"col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
-					empty.textContent = "Aún no hay imágenes para esta habitación."
+						"col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600"
+					empty.textContent =
+						"Aún no hay fotos. Agrega al menos una imagen clara de la cama y el baño."
 					variantImageGrid.appendChild(empty)
 					return
 				}
@@ -362,14 +400,14 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					if (index === 0) {
 						const primary = document.createElement("span")
 						primary.className =
-							"inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs text-green-800"
+							"inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
 						primary.textContent = "Principal"
 						badges.appendChild(primary)
 					}
 					const existent = document.createElement("span")
 					existent.className =
 						"inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
-					existent.textContent = "Habitación"
+					existent.textContent = "Foto de habitación"
 					badges.appendChild(existent)
 					const actions = document.createElement("div")
 					actions.className = "flex items-center justify-between gap-2"
@@ -377,7 +415,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					up.type = "button"
 					up.className =
 						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
-					up.textContent = "Subir"
+					up.textContent = "Mover arriba"
 					up.disabled = index === 0
 					up.addEventListener("click", () => {
 						if (index === 0) return
@@ -392,7 +430,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					down.type = "button"
 					down.className =
 						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
-					down.textContent = "Bajar"
+					down.textContent = "Mover abajo"
 					down.disabled = index === variantImages.length - 1
 					down.addEventListener("click", () => {
 						if (index === variantImages.length - 1) return
@@ -456,25 +494,25 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					blocksContainer.innerHTML = ""
 					blocksContainer.append(
 						blockCard(
-							"Ficha de habitación",
+							"Perfil para huéspedes",
 							String(payload?.blocks?.profile?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.profile?.complete),
 							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
-							"Editar ficha"
+							"Editar perfil"
 						),
 						blockCard(
-							"Cobertura comercial",
+							"Tarifas",
 							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.pricing?.complete),
 							"/rates/plans/manage",
 							"Abrir tarifas"
 						),
 						blockCard(
-							"Inventario",
+							"Disponibilidad",
 							String(payload?.blocks?.inventory?.summary ?? "Sin información"),
 							Boolean(payload?.blocks?.inventory?.complete),
 							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
-							"Editar inventario"
+							"Editar disponibilidad"
 						)
 					)
 				}
@@ -483,14 +521,11 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					summaryContainer.innerHTML = ""
 					summaryContainer.append(
 						summaryCard(
-							"Ficha de habitación",
+							"Perfil para huéspedes",
 							String(payload?.summary?.profile ?? "Sin información")
 						),
-						summaryCard(
-							"Cobertura comercial",
-							String(payload?.summary?.pricing ?? "Sin información")
-						),
-						summaryCard("Inventario", String(payload?.summary?.inventory ?? "Sin información"))
+						summaryCard("Tarifas", String(payload?.summary?.pricing ?? "Sin información")),
+						summaryCard("Disponibilidad", String(payload?.summary?.inventory ?? "Sin información"))
 					)
 				}
 				variantImages = Array.isArray(payload?.variant?.images)

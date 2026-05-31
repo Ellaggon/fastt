@@ -6,7 +6,6 @@ import {
 	eq,
 	inArray,
 	Variant,
-	VariantHotelRoom,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -224,22 +223,6 @@ export const POST: APIRoute = async ({ request }) => {
 			maxAdults: parsed.maxAdults,
 			maxChildren: parsed.maxChildren,
 		})
-
-		const subtypeExists = await db
-			.select({ variantId: VariantHotelRoom.variantId })
-			.from(VariantHotelRoom)
-			.where(eq(VariantHotelRoom.variantId, variantId))
-			.get()
-		if (roomTypeId) {
-			if (subtypeExists) {
-				await db
-					.update(VariantHotelRoom)
-					.set({ roomTypeId })
-					.where(eq(VariantHotelRoom.variantId, variantId))
-			} else {
-				await db.insert(VariantHotelRoom).values({ variantId, roomTypeId })
-			}
-		}
 
 		await db.delete(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId))
 		for (let index = 0; index < parsed.bedTypes.length; index += 1) {

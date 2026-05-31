@@ -43,12 +43,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 			"src/pages/product/[id]/location.astro": ["Ubicación", "Metadata geográfica"],
 			"src/pages/product/[id]/subtype.astro": ["Detalles del alojamiento", "Detalles específicos"],
 			"src/pages/product/[id]/rooms.astro": [
-				"Habitaciones de",
+				"Experiencia de descanso de",
 				"Nueva habitación",
 				"Editar habitación",
-				"Inventario base",
-				"Tarifas vinculadas",
-				"Detalle interno",
+				"Disponibilidad",
+				"Tarifas",
+				"Siguiente paso recomendado",
 			],
 		}
 
@@ -251,6 +251,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(houseRules).toContain("Ver ficha completa")
 
 		expect(preview).toContain("Antes de publicar")
+		expect(preview).toContain("Dónde dormirán los huéspedes")
 		expect(preview).toContain("Condiciones que verá el huésped")
 		expect(preview).toContain("Reglas para huéspedes")
 		expect(preview).toContain("routes.providerHouseRules()")
@@ -288,15 +289,23 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 	it("keeps the room ficha guest-facing while reading operational context through summaries", () => {
 		const roomsSurface = read("src/pages/product/[id]/rooms.astro")
+		const publicRooms = read("src/components/productUI/RoomSection.astro")
+		const roomModal = read("src/components/productUI/RoomModal.astro")
 		const variantsSummary = read("src/pages/api/internal/variants-summary.ts")
 
-		expect(roomsSurface).toContain("Ficha de habitaciones")
-		expect(roomsSurface).toContain("Tarifas vinculadas")
-		expect(roomsSurface).toContain("Inventario base")
-		expect(roomsSurface).toContain("Detalle interno")
+		expect(roomsSurface).toContain("Experiencia de descanso")
+		expect(roomsSurface).toContain("Tarifas")
+		expect(roomsSurface).toContain("Disponibilidad")
+		expect(roomsSurface).toContain("Siguiente paso recomendado")
+		expect(roomsSurface).not.toContain("Inventario base")
+		expect(roomsSurface).not.toContain("Detalle interno")
 		expect(roomsSurface).toContain("/api/internal/variants-summary")
 		expect(roomsSurface).not.toContain("RatePlan")
 		expect(roomsSurface).not.toContain("DailyInventory")
+		expect(publicRooms).toContain("Dónde dormirás")
+		expect(publicRooms).toContain("guestRoomPreviews")
+		expect(roomModal).toContain("Dónde dormirás")
+		expect(roomModal).toContain("Notas para huéspedes")
 
 		expect(variantsSummary).toContain("photos:")
 		expect(variantsSummary).toContain("tariffs:")

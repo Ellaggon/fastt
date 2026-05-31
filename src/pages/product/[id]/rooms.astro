@@ -8,6 +8,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { BedDouble, Camera, DoorOpen, Hotel, ListChecks, Plus, Users } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -25,14 +26,21 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 <WorkspaceLayout title={`Habitaciones · ${owned.name}`}>
 	<section class="space-y-8">
-		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
+		<header
+			class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6"
+		>
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="max-w-3xl space-y-2">
-					<p class="text-sm font-medium text-slate-400">Ficha de habitaciones</p>
-					<h1 class="text-3xl font-semibold text-slate-100">Habitaciones de {owned.name}</h1>
+					<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
+						<Hotel class="h-4 w-4" />
+						Alojamiento · Habitaciones
+					</p>
+					<h1 class="text-3xl font-semibold text-slate-100">
+						Experiencia de descanso de {owned.name}
+					</h1>
 					<p class="text-sm leading-6 text-slate-400">
-						Define lo que el huésped puede reservar: tipo, capacidad, fotos, inventario base y
-						tarifas vinculadas. El detalle técnico queda disponible solo cuando lo necesites.
+						Crea habitaciones claras para huéspedes: fotos, camas, baño, capacidad y condiciones
+						básicas para que sepan exactamente dónde dormirán.
 					</p>
 				</div>
 				<div class="flex flex-wrap gap-2">
@@ -44,6 +52,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						data-astro-prefetch
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
+						<Plus class="mr-2 h-4 w-4" />
 						Nueva habitación
 					</Button>
 				</div>
@@ -52,43 +61,101 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumen de habitaciones">
 			<Card class="bg-slate-100 p-4">
-				<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Habitaciones</p>
+				<p
+					class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500"
+				>
+					<DoorOpen class="h-4 w-4" />
+					Habitaciones
+				</p>
 				<p id="roomsTotal" class="mt-2 text-2xl font-semibold text-slate-950">—</p>
 			</Card>
 			<Card class="bg-slate-100 p-4">
-				<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Con capacidad</p>
+				<p
+					class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500"
+				>
+					<Users class="h-4 w-4" />
+					Capacidad lista
+				</p>
 				<p id="roomsWithCapacity" class="mt-2 text-2xl font-semibold text-slate-950">—</p>
 			</Card>
 			<Card class="bg-slate-100 p-4">
-				<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Con fotos</p>
+				<p
+					class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500"
+				>
+					<Camera class="h-4 w-4" />
+					Con fotos
+				</p>
 				<p id="roomsWithPhotos" class="mt-2 text-2xl font-semibold text-slate-950">—</p>
 			</Card>
 			<Card class="bg-slate-100 p-4">
-				<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Tarifas vinculadas</p>
+				<p
+					class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500"
+				>
+					<ListChecks class="h-4 w-4" />
+					Listas para vender
+				</p>
 				<p id="roomsWithTariffs" class="mt-2 text-2xl font-semibold text-slate-950">—</p>
 			</Card>
 		</div>
 
 		<Section
 			title="Habitaciones"
-			description="Una ficha por habitación, con lo esencial visible y soporte técnico colapsado."
+			description="Una card por habitación, con foco en lo que entiende el huésped y el próximo paso operativo."
 		>
 			<div id="roomsEmptyState" class="hidden">
-				<Card class="space-y-4 bg-slate-100">
-					<div class="space-y-1">
-						<h2 class="text-xl font-semibold text-slate-900">Aún no hay habitaciones</h2>
-						<p class="text-sm text-slate-600">
-							Crea la primera habitación para definir capacidad, fotos, inventario base y tarifas.
-						</p>
-					</div>
-					<div class="flex justify-end">
-						<Button
-							href={routes.productRoomNew(productId)}
-							data-astro-prefetch
-							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-						>
-							Nueva habitación
-						</Button>
+				<Card class="overflow-hidden bg-white p-0">
+					<div class="grid gap-0 md:grid-cols-[1fr_0.8fr]">
+						<div class="space-y-5 p-6">
+							<div
+								class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-800"
+							>
+								<BedDouble class="h-6 w-6" />
+							</div>
+							<div class="space-y-2">
+								<h2 class="text-xl font-semibold text-slate-900">
+									Crea la primera habitación del alojamiento
+								</h2>
+								<p class="text-sm leading-6 text-slate-600">
+									Empieza con una ficha simple: nombre, capacidad, camas, baño y una foto. Luego
+									podrás completar disponibilidad y tarifas.
+								</p>
+							</div>
+							<div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
+								<span class="rounded-lg bg-slate-50 px-3 py-2">Camas y baño</span>
+								<span class="rounded-lg bg-slate-50 px-3 py-2">Fotos reales</span>
+								<span class="rounded-lg bg-slate-50 px-3 py-2">Lista para vender</span>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								<Button
+									href={routes.productRoomNew(productId)}
+									data-astro-prefetch
+									className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+								>
+									<Plus class="mr-2 h-4 w-4" />
+									Nueva habitación
+								</Button>
+								<Button
+									href={routes.productDetail(productId)}
+									data-astro-prefetch
+									variant="secondary"
+								>
+									Volver a la ficha
+								</Button>
+							</div>
+						</div>
+						<div class="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
+							<div class="max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+								<div class="h-36 rounded-xl bg-slate-200"></div>
+								<div class="mt-4 space-y-2">
+									<div class="h-4 w-32 rounded bg-slate-200"></div>
+									<div class="h-3 w-48 rounded bg-slate-100"></div>
+									<div class="flex gap-2">
+										<span class="h-7 w-20 rounded-full bg-slate-100"></span>
+										<span class="h-7 w-24 rounded-full bg-slate-100"></span>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 				</Card>
 			</div>
@@ -134,14 +201,14 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 			}
 
 			const statusClass = (tone) => {
-				if (tone === "ok") return "border-green-200 bg-green-50 text-green-800"
+				if (tone === "ok") return "border-emerald-200 bg-emerald-50 text-emerald-800"
 				if (tone === "warn") return "border-amber-200 bg-amber-50 text-amber-800"
 				return "border-slate-200 bg-white text-slate-700"
 			}
 
 			const pill = (label, tone) => {
 				const element = document.createElement("span")
-				element.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(tone)}`
+				element.className = `inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(tone)}`
 				element.textContent = label
 				return element
 			}
@@ -172,7 +239,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const roomCard = (room) => {
 				const card = document.createElement("article")
-				card.className = "overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm"
+				card.className =
+					"overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
 
 				const layout = document.createElement("div")
 				layout.className = "grid min-h-[280px] gap-0 md:grid-cols-[180px_1fr]"
@@ -191,7 +259,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					imageSlot.classList.add("flex", "items-center", "justify-center")
 					const placeholder = document.createElement("span")
 					placeholder.className = "px-4 text-center text-sm font-medium text-slate-500"
-					placeholder.textContent = "Sin foto"
+					placeholder.textContent = "Agrega una foto para mostrar esta habitación"
 					imageSlot.append(placeholder)
 				}
 
@@ -210,7 +278,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				type.textContent = text(room?.type?.label, text(room?.kindLabel, "Habitación"))
 				titleBlock.append(name, type)
 				const active = String(room?.status ?? "").toLowerCase() !== "archived"
-				top.append(titleBlock, pill(active ? "Activa" : "Inactiva", active ? "ok" : "neutral"))
+				top.append(titleBlock, pill(active ? "Visible" : "Pausada", active ? "ok" : "neutral"))
 
 				const grid = document.createElement("div")
 				grid.className = "grid gap-3 sm:grid-cols-2"
@@ -218,7 +286,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				const tariffCount = Number(room?.tariffs?.count ?? 0)
 				grid.append(
 					metric(
-						"Ficha",
+						"Capacidad",
 						text(room?.capacity?.label, "Capacidad pendiente"),
 						room?.states?.capacityComplete ? "ok" : "warn"
 					),
@@ -228,15 +296,13 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						photosCount > 0 ? "ok" : "warn"
 					),
 					metric(
-						"Inventario base",
-						text(room?.inventory?.label, "Inventario base pendiente"),
+						"Disponibilidad",
+						text(room?.inventory?.label, "Fechas pendientes"),
 						room?.states?.inventoryComplete ? "ok" : "warn"
 					),
 					metric(
-						"Tarifas vinculadas",
-						tariffCount > 0
-							? `${tariffCount} tarifa${tariffCount === 1 ? "" : "s"}`
-							: "Sin tarifas vinculadas",
+						"Tarifas",
+						tariffCount > 0 ? `${tariffCount} tarifa${tariffCount === 1 ? "" : "s"}` : "Pendientes",
 						tariffCount > 0 ? "ok" : "warn"
 					)
 				)
@@ -247,7 +313,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				tariffSummary.textContent =
 					tariffNames.length > 0
 						? `Tarifas: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
-						: "Vincula tarifas para vender esta habitación desde Habitaciones y tarifas."
+						: "Agrega una tarifa para que esta habitación pueda venderse."
 
 				const actions = document.createElement("div")
 				actions.className = "flex flex-wrap gap-2"
@@ -255,33 +321,25 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					action(text(room?.actions?.detailHref, "#"), "Editar habitación", true),
 					action(
 						text(room?.actions?.profileHref, room?.actions?.capacityHref ?? "#"),
-						"Ficha",
+						"Perfil",
 						false
 					),
-					action(text(room?.actions?.inventoryHref, "#"), "Inventario base", false)
+					action(text(room?.actions?.inventoryHref, "#"), "Disponibilidad", false)
 				)
 
-				const details = document.createElement("details")
-				details.className = "rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600"
-				const summary = document.createElement("summary")
-				summary.className = "cursor-pointer font-medium text-slate-800"
-				summary.textContent = "Detalle interno"
-				const detailBody = document.createElement("div")
-				detailBody.className = "mt-3 grid gap-2 text-xs leading-5 text-slate-500"
-				for (const item of [
-					`ID habitación: ${text(room?.id, "sin ID")}`,
-					`Tipo interno: ${text(room?.kindLabel, "Sin tipo")}`,
-					`Estado: ${text(room?.status, "draft")}`,
-					`Noches con inventario: ${Number(room?.inventory?.days ?? 0)}`,
-					`Tarifa principal: ${text(room?.tariffs?.defaultName, "Sin tarifa principal")}`,
-				]) {
-					const line = document.createElement("p")
-					line.textContent = item
-					detailBody.append(line)
-				}
-				details.append(summary, detailBody)
+				const nextStep = document.createElement("div")
+				nextStep.className =
+					"rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+				const missing = []
+				if (!room?.states?.capacityComplete) missing.push("perfil")
+				if (photosCount <= 0) missing.push("fotos")
+				if (!room?.states?.inventoryComplete) missing.push("disponibilidad")
+				if (tariffCount <= 0) missing.push("tarifas")
+				nextStep.textContent = missing.length
+					? `Siguiente paso recomendado: completar ${missing[0]}.`
+					: "Lista para mostrarse con confianza en la ficha pública."
 
-				body.append(top, grid, tariffSummary, actions, details)
+				body.append(top, grid, tariffSummary, actions, nextStep)
 				layout.append(imageSlot, body)
 				card.append(layout)
 				return card

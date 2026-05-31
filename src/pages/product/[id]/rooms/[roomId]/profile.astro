@@ -11,6 +11,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { Hotel } from "@lucide/astro"
 import { AmenityRoom, asc, db, eq, RoomType, VariantRoomAmenity } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
@@ -79,17 +80,21 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 
 <WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
 	<section class="space-y-8 text-neutral-100">
-		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Ficha de habitación</h1>
-			<p class="text-sm text-slate-400">
-				Una sola ficha para lo que el huésped necesita entender antes de reservar: ocupación, camas,
-				baño, vista, tipo y comodidades propias de la habitación.
+		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
+			<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
+				<Hotel class="h-4 w-4" />
+				Alojamiento · Habitación
+			</p>
+			<h1 class="mt-2 text-3xl font-semibold text-slate-100">Editar habitación</h1>
+			<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+				Mantén clara la experiencia de descanso: ocupación, camas, baño, vista y comodidades que el
+				huésped verá antes de reservar.
 			</p>
 		</header>
 
 		<Section
-			title="Perfil OTA de la habitación"
-			description="Mantiene separada la experiencia física de la habitación de pricing, restricciones e inventario operativo."
+			title="Perfil de descanso"
+			description="Información visible para huéspedes y útil para completar la publicación."
 		>
 			<RoomProfileEditor
 				productId={productId}

@@ -197,8 +197,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const typeLabel = String(variant.subtype?.name ?? kindLabel(variant.kind))
 		const inventoryLabel =
 			inventoryDays > 0
-				? `${inventoryDays} noches con inventario base`
-				: "Inventario base pendiente"
+				? `${inventoryDays} noches con disponibilidad configurada`
+				: "Disponibilidad pendiente"
 		const completedBlocks = [
 			capacityComplete,
 			subtypeComplete,

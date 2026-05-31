@@ -104,8 +104,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const statusVariant = status === "published" ? "success" : status === "ready" ? "info" : "warning"
 
 	const capacityComplete = Boolean(aggregate.capacity)
-	// CAPA 4.6:
-	// roomType is temporarily optional to avoid blocking variants in environments
+	// roomType is temporarily optional to avoid blocking rooms in environments
 	// without seeded RoomType data.
 	const subtypeComplete = true
 	const defaultRatePlanId = String(aggregate.defaultRatePlan?.ratePlanId ?? "").trim()
@@ -235,13 +234,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 	if (!pricingComplete) {
 		syntheticBlockingErrors.push({
 			code: "effective_pricing_missing",
-			message: "Pricing efectivo no generado",
+			message: "Precios efectivos pendientes",
 		})
 	}
 	if (!inventoryComplete) {
 		syntheticBlockingErrors.push({
 			code: "inventory_missing",
-			message: `Inventario diario no generado (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+			message: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
 		})
 	}
 	const allErrors = [...errors, ...syntheticBlockingErrors]
@@ -253,7 +252,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const readinessStateVariant = readinessState === "ready" ? "success" : "warning"
 
 	const pricingSummary = aggregate.baseRate
-		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · rate plan comercial activo" : " · falta rate plan comercial"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con pricing efectivo` : " · pricing efectivo pendiente"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
+		? `${aggregate.baseRate.currency} ${aggregate.baseRate.basePrice}${aggregate.defaultRatePlan ? " · tarifa comercial activa" : " · falta tarifa comercial"}${effectivePricingDays > 0 ? ` · ${effectivePricingDays} día(s) con precios efectivos` : " · precios efectivos pendientes"}${coverageGaps > 0 ? ` · Faltan precios para ${coverageGaps} día(s)` : ""}`
 		: "Sin precio base"
 	const bedSummary = roomBeds.length
 		? roomBeds
@@ -323,7 +322,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				subtype: {
 					complete: subtypeComplete,
 					summary: subtypeComplete
-						? (aggregate.subtype?.roomTypeId ?? "No requerido para este tipo de variante")
+						? (aggregate.subtype?.roomTypeId ?? "No requerido para esta habitación")
 						: "Falta seleccionar tipo de habitación",
 				},
 				pricing: {
@@ -339,8 +338,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 				inventory: {
 					complete: inventoryComplete,
 					summary: inventoryComplete
-						? `${dailyInventoryDays} día(s) de inventario diario generado`
-						: `Inventario diario no generado (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+						? `${dailyInventoryDays} día(s) con disponibilidad diaria`
+						: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
 				},
 			},
 			summary: {
@@ -350,11 +349,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 					: "Sin capacidad registrada",
 				subtype: aggregate.subtype
 					? `Tipo de habitación: ${aggregate.subtype.roomTypeId}`
-					: "Sin subtipo registrado",
+					: "Sin tipo de habitación registrado",
 				pricing: pricingSummary,
 				inventory: inventoryComplete
-					? `${dailyInventoryDays} día(s) de inventario diario generado`
-					: `Inventario diario no generado (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+					? `${dailyInventoryDays} día(s) con disponibilidad diaria`
+					: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
 			},
 			readiness: {
 				state: readinessState,
