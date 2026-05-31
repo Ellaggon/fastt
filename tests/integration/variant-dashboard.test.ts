@@ -76,10 +76,10 @@ async function readJson(res: Response) {
 
 function continueSetupUrl(pid: string, variant: any): string {
 	if (!variant.capacity)
-		return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/capacity`
+		return `/product/${encodeURIComponent(pid)}/rooms/${encodeURIComponent(variant.id)}/profile`
 	if (!variant.subtype)
-		return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/room-type`
-	return `/product/${encodeURIComponent(pid)}/variants/${encodeURIComponent(variant.id)}/pricing`
+		return `/product/${encodeURIComponent(pid)}/rooms/${encodeURIComponent(variant.id)}/profile`
+	return `/product/${encodeURIComponent(pid)}/rooms/${encodeURIComponent(variant.id)}`
 }
 
 describe("integration/variant dashboard behavior (API + routing decisions)", () => {
@@ -118,7 +118,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		})
 	})
 
-	it("continue setup routing: no capacity => /capacity; with capacity => /room-type; complete => /pricing", async () => {
+	it("continue setup routing: no capacity => /profile; with capacity => /profile; complete => /pricing", async () => {
 		const token = "t_dash_route"
 		const email = "dash-route@example.com"
 		const providerId = "prov_dash_route"
@@ -164,7 +164,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			const v1 = (await readJson(list1)) as any[]
 			expect(v1.length).toBe(1)
 			expect(continueSetupUrl(productId, v1[0])).toContain(
-				`/variants/${encodeURIComponent(variantId)}/capacity`
+				`/rooms/${encodeURIComponent(variantId)}/profile`
 			)
 
 			// Set capacity
@@ -191,7 +191,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			expect(v2[0].capacity).toBeTruthy()
 			expect(v2[0].subtype).toBeNull()
 			expect(continueSetupUrl(productId, v2[0])).toContain(
-				`/variants/${encodeURIComponent(variantId)}/room-type`
+				`/rooms/${encodeURIComponent(variantId)}/profile`
 			)
 
 			// Attach subtype
@@ -220,7 +220,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			const v3 = (await readJson(list3)) as any[]
 			expect(v3[0].subtype).toBeTruthy()
 			expect(continueSetupUrl(productId, v3[0])).toContain(
-				`/variants/${encodeURIComponent(variantId)}/pricing`
+				`/rooms/${encodeURIComponent(variantId)}`
 			)
 		})
 	})

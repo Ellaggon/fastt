@@ -1,8 +1,0 @@
----
-import { routes } from "@/lib/routes"
-
-const productId = String(Astro.params.id ?? "").trim()
-if (!productId) return Astro.redirect(routes.productList())
-
-return Astro.redirect(routes.productRoomsForProduct(productId))
----

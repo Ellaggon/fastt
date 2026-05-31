@@ -11,8 +11,7 @@ interface Props {
 const { pathname = "" } = Astro.props
 const isRoomSurface = (value: string) =>
 	/^\/catalog\/accommodations\/rooms(?:\/|$)/.test(value) ||
-	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value) ||
-	/^\/product\/[^/]+\/variants(?:\/|$)/.test(value)
+	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
 const isActive = (href: string) => {
 	if (href === routes.productRooms() && isRoomSurface(pathname)) return true
 	return pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)

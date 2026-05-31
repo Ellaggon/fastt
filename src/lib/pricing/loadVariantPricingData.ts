@@ -2,6 +2,7 @@ import { productRepository, variantManagementRepository } from "@/container"
 import { ratePlanPricingReadRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 
 type Input = {
 	request: Request
@@ -58,12 +59,11 @@ export async function loadVariantPricingData(input: Input): Promise<
 	const providerId = (await getProviderIdFromRequest(input.request, user)) ?? ""
 	if (!providerId) return { redirectTo: "/provider" }
 	if (!input.productId) return { redirectTo: "/product/create" }
-	if (!input.variantId)
-		return { redirectTo: `/product/${encodeURIComponent(input.productId)}/variants` }
+	if (!input.variantId) return { redirectTo: routes.productRoomsForProduct(input.productId) }
 
 	const variant = await variantManagementRepository.getVariantById(input.variantId)
 	if (!variant || variant.productId !== input.productId) {
-		return { redirectTo: `/product/${encodeURIComponent(input.productId)}/variants` }
+		return { redirectTo: routes.productRoomsForProduct(input.productId) }
 	}
 	const owned = await productRepository.ensureProductOwnedByProvider(input.productId, providerId)
 	if (!owned) return { redirectTo: "/product/create" }

@@ -263,14 +263,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Canonical room creation, detail, capacity, type, gallery and inventory handoff routes for accommodations.",
-	},
-	{
-		pattern: "/product/:id/variants/**",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Physical Inventory Context",
-		rationale: "Legacy technical variant routes redirect to canonical accommodation room routes.",
+			"Canonical room creation, detail, profile, gallery and availability handoff routes for accommodations.",
 	},
 	{
 		pattern: "/product/**",
@@ -450,20 +443,32 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Provider-facing BFF read model for property content.",
 	},
 	{
-		pattern: "/api/internal/variants-summary",
-		status: "transitional",
+		pattern: "/api/internal/rooms-summary",
+		status: "canonical",
 		context: "provider-workspace",
-		owner: "Physical Inventory Context",
-		rationale:
-			"Provider-facing BFF for transitional physical variant context under the product tree.",
+		owner: "Property Content",
+		rationale: "Provider-facing BFF for accommodation room cards and room readiness.",
+	},
+	{
+		pattern: "/api/internal/room-summary",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale: "Provider-facing BFF for one room workspace and guest-facing readiness.",
+	},
+	{
+		pattern: "/api/internal/variants-summary",
+		status: "legacy",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale: "Compatibility alias for the room-facing rooms-summary BFF.",
 	},
 	{
 		pattern: "/api/internal/variant-summary",
-		status: "transitional",
+		status: "legacy",
 		context: "provider-workspace",
-		owner: "Physical Inventory Context",
-		rationale:
-			"Provider-facing BFF for a transitional physical variant surface; not catalog editorial ownership.",
+		owner: "Property Content",
+		rationale: "Compatibility alias for the room-facing room-summary BFF.",
 	},
 	{
 		pattern: "/api/internal/availability-summary",
