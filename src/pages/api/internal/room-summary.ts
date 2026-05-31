@@ -10,11 +10,13 @@ import {
 	asc,
 	Image,
 	inArray,
+	AmenityRoom,
 	RoomType,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
 } from "astro:db"
+import { BED_TYPES } from "@/data/room/room-beds"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
@@ -46,6 +48,25 @@ const normalizeErrors = (value: unknown): Array<{ code: string; message: string 
 			return { code, message: message || code }
 		})
 		.filter((item): item is { code: string; message: string } => Boolean(item))
+}
+
+const bedTypeLabel = (value: unknown): string => {
+	const id = String(value ?? "").trim()
+	return BED_TYPES.find((bed) => bed.id === id)?.name ?? (id || "Cama")
+}
+
+const bathroomTypeLabel = (value: unknown): string => {
+	const normalized = String(value ?? "")
+		.trim()
+		.toLowerCase()
+	const labels: Record<string, string> = {
+		private: "privado",
+		ensuite: "en suite",
+		dedicated: "dedicado fuera de la habitación",
+		shared: "compartido",
+		unknown: "",
+	}
+	return labels[normalized] ?? normalized
 }
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -204,15 +225,29 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.where(eq(VariantRoomBed.variantId, variantId))
 		.orderBy(asc(VariantRoomBed.sortOrder))
 		.all()
-	const roomAmenityCount = Number(
-		(
-			await db
-				.select({ value: count() })
-				.from(VariantRoomAmenity)
-				.where(eq(VariantRoomAmenity.variantId, variantId))
-				.get()
-		)?.value ?? 0
-	)
+	const roomAmenities = await db
+		.select({
+			amenityId: VariantRoomAmenity.amenityId,
+			amenityName: AmenityRoom.name,
+			category: AmenityRoom.category,
+			isAvailable: VariantRoomAmenity.isAvailable,
+		})
+		.from(VariantRoomAmenity)
+		.leftJoin(AmenityRoom, eq(AmenityRoom.id, VariantRoomAmenity.amenityId))
+		.where(eq(VariantRoomAmenity.variantId, variantId))
+		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name))
+		.all()
+	const availableAmenities = roomAmenities.filter((amenity) => amenity.isAvailable !== false)
+	const amenityGroups = Array.from(
+		availableAmenities.reduce<Map<string, string[]>>((acc, amenity) => {
+			const category = String(amenity.category ?? "General").trim() || "General"
+			const name = String(amenity.amenityName ?? amenity.amenityId ?? "").trim()
+			if (!name) return acc
+			acc.set(category, [...(acc.get(category) ?? []), name])
+			return acc
+		}, new Map())
+	).map(([category, labels]) => ({ category, labels }))
+	const roomAmenityCount = availableAmenities.length
 
 	const pricingComplete = Boolean(
 		aggregate.baseRate && aggregate.defaultRatePlan && effectivePricingDays > 0
@@ -276,6 +311,51 @@ export const GET: APIRoute = async ({ request, url }) => {
 			]
 				.filter(Boolean)
 				.join(", ") || "Ficha incompleta"
+	const gallery = variantImages.map((image) => ({
+		id: String(image.id),
+		url: String(image.url),
+		objectKey:
+			ensureObjectKey({
+				objectKey: image.objectKey ? String(image.objectKey) : null,
+				url: String(image.url),
+				context: "room-summary",
+				imageId: String(image.id),
+			}) ?? null,
+		order: Number(image.order ?? 0),
+		isPrimary: Boolean(image.isPrimary),
+	}))
+	const sleepAreas = Array.from(
+		roomBeds.reduce<Map<string, Array<{ bedType: string; count: number; label: string }>>>(
+			(acc, bed) => {
+				const area = String(bed.roomLabel ?? "").trim() || "Dormitorio"
+				const countValue = Number(bed.count ?? 1)
+				const countSafe = Number.isFinite(countValue) && countValue > 0 ? countValue : 1
+				const bedType = String(bed.bedType ?? "single").trim() || "single"
+				acc.set(area, [
+					...(acc.get(area) ?? []),
+					{ bedType, count: countSafe, label: bedTypeLabel(bedType) },
+				])
+				return acc
+			},
+			new Map()
+		)
+	).map(([label, beds]) => ({
+		label,
+		beds,
+		summary: beds
+			.map((bed) => `${bed.count} ${bed.count === 1 ? bed.label : `${bed.label}s`}`)
+			.join(" · "),
+	}))
+	const bathroomType = bathroomTypeLabel(roomProfile?.bathroomType)
+	const bathroomSummary =
+		roomProfile?.bathroomCount != null
+			? `${roomProfile.bathroomCount} baño${Number(roomProfile.bathroomCount) === 1 ? "" : "s"}${bathroomType ? ` ${bathroomType}` : ""}`
+			: "Baño por confirmar"
+	const occupancySummary = aggregate.capacity
+		? aggregate.capacity.minOccupancy === aggregate.capacity.maxOccupancy
+			? `${aggregate.capacity.maxOccupancy} huésped${aggregate.capacity.maxOccupancy === 1 ? "" : "es"}`
+			: `${aggregate.capacity.minOccupancy}-${aggregate.capacity.maxOccupancy} huéspedes`
+		: "Capacidad por confirmar"
 
 	logEndpoint()
 	return new Response(
@@ -288,19 +368,34 @@ export const GET: APIRoute = async ({ request, url }) => {
 				status,
 				statusLabel,
 				statusVariant,
-				images: variantImages.map((image) => ({
-					id: String(image.id),
-					url: String(image.url),
-					objectKey:
-						ensureObjectKey({
-							objectKey: image.objectKey ? String(image.objectKey) : null,
-							url: String(image.url),
-							context: "room-summary",
-							imageId: String(image.id),
-						}) ?? null,
-					order: Number(image.order ?? 0),
-					isPrimary: Boolean(image.isPrimary),
-				})),
+				images: gallery,
+			},
+			guestPreview: {
+				roomName: aggregate.variant.name,
+				roomTypeLabel,
+				description:
+					(aggregate.variant as { description?: string | null }).description ??
+					roomProfile?.guestFacingNotes ??
+					"",
+				gallery,
+				coverUrl: gallery.find((image) => image.isPrimary)?.url ?? gallery[0]?.url ?? null,
+				occupancySummary,
+				sleepSummary: sleepAreas.length
+					? sleepAreas.map((area) => `${area.label}: ${area.summary}`).join(" · ")
+					: "Camas por confirmar",
+				sleepAreas,
+				bathroomSummary,
+				sizeSummary:
+					roomProfile?.sizeM2 != null && Number(roomProfile.sizeM2) > 0
+						? `${roomProfile.sizeM2} m²`
+						: "",
+				viewSummary: roomProfile?.viewType ? `Vista ${roomProfile.viewType}` : "",
+				hasBalcony: roomProfile?.hasBalcony === true,
+				guestFacingNotes: roomProfile?.guestFacingNotes ?? "",
+				amenityLabels: availableAmenities
+					.map((amenity) => String(amenity.amenityName ?? amenity.amenityId ?? "").trim())
+					.filter(Boolean),
+				amenityGroups,
 			},
 			progress: {
 				completedBlocks,

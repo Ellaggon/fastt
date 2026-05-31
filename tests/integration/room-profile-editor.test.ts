@@ -105,12 +105,14 @@ function buildProfileForm(params: {
 	variantId?: string
 	roomTypeId: string
 	amenityId: string
+	roomCode?: string
 }) {
 	const fd = new FormData()
 	fd.set("productId", params.productId)
 	if (params.variantId) fd.set("variantId", params.variantId)
 	fd.set("name", "Suite vista jardín")
 	fd.set("description", "Habitación luminosa con escritorio.")
+	if (params.roomCode) fd.set("roomCode", params.roomCode)
 	fd.set("roomTypeId", params.roomTypeId)
 	fd.set("minOccupancy", "1")
 	fd.set("maxOccupancy", "3")
@@ -168,7 +170,7 @@ describe("integration/room profile editor", () => {
 				request: makeAuthedFormRequest({
 					path: "/api/variant/room-profile",
 					token,
-					form: buildProfileForm({ productId, roomTypeId, amenityId }),
+					form: buildProfileForm({ productId, roomTypeId, amenityId, roomCode: "jr-101" }),
 				}),
 			} as any)
 			expect(res.status).toBe(200)
@@ -196,6 +198,7 @@ describe("integration/room profile editor", () => {
 				productId,
 				kind: "hotel_room",
 				name: "Suite vista jardín",
+				externalCode: "JR-101",
 			})
 			expect(capacity).toMatchObject({
 				minOccupancy: 1,
@@ -217,6 +220,63 @@ describe("integration/room profile editor", () => {
 			expect(beds.map((bed) => bed.bedType).sort()).toEqual(["queen", "sofa_bed"])
 			expect(amenities).toHaveLength(1)
 			expect(amenities[0].amenityId).toBe(amenityId)
+		})
+	})
+
+	it("rejects duplicate room codes within the same hotel while allowing reusable room types", async () => {
+		const suffix = crypto.randomUUID()
+		const token = `token_dup_code_${suffix}`
+		const email = `room-code-${suffix}@example.com`
+		const providerId = `provider_code_${suffix}`
+		const destinationId = `destination_code_${suffix}`
+		const productId = `product_code_${suffix}`
+		const { roomTypeId, amenityId } = await seedRoomMasterData(`code_${suffix}`)
+
+		await upsertDestination({
+			id: destinationId,
+			name: "Room Code City",
+			type: "city",
+			country: "CL",
+			slug: `room-code-${suffix}`,
+		})
+		await upsertProvider({ id: providerId, displayName: "Room Code Provider", ownerEmail: email })
+		await upsertProduct({
+			id: productId,
+			name: "Room Code Hotel",
+			productType: "Hotel",
+			destinationId,
+			providerId,
+		})
+
+		await withSupabaseAuthStub({ [token]: { id: `user_code_${suffix}`, email } }, async () => {
+			const first = await saveRoomProfilePost({
+				request: makeAuthedFormRequest({
+					path: "/api/variant/room-profile",
+					token,
+					form: buildProfileForm({ productId, roomTypeId, amenityId, roomCode: "dlx-01" }),
+				}),
+			} as any)
+			expect(first.status).toBe(200)
+
+			const duplicate = await saveRoomProfilePost({
+				request: makeAuthedFormRequest({
+					path: "/api/variant/room-profile",
+					token,
+					form: buildProfileForm({ productId, roomTypeId, amenityId, roomCode: "DLX-01" }),
+				}),
+			} as any)
+			expect(duplicate.status).toBe(400)
+			const duplicateBody = (await readJson(duplicate)) as any
+			expect(String(duplicateBody?.error ?? "")).toContain("código interno")
+
+			const secondSameRoomType = await saveRoomProfilePost({
+				request: makeAuthedFormRequest({
+					path: "/api/variant/room-profile",
+					token,
+					form: buildProfileForm({ productId, roomTypeId, amenityId, roomCode: "DLX-02" }),
+				}),
+			} as any)
+			expect(secondSameRoomType.status).toBe(200)
 		})
 	})
 
