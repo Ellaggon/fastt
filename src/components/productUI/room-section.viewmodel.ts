@@ -1,3 +1,5 @@
+import { formatBedType } from "@/data/room/room-beds"
+
 export type RoomSectionRatePlanRow = {
 	variantId: string
 	variantName: string
@@ -23,11 +25,226 @@ export type RoomSectionRatePlanRow = {
 	}
 }
 
+export type GuestRoomAmenityRow = {
+	roomId?: string | null
+	variantId?: string | null
+	amenityName?: string | null
+	category?: string | null
+	isAvailable?: boolean | null
+}
+
+export type GuestRoomSleepArea = {
+	label: string
+	summary: string
+	items: string[]
+}
+
+export type GuestRoomPreview = {
+	variantId: string
+	roomName: string
+	roomTypeName: string
+	imageUrl: string
+	gallery: { id: string; url: string; order: number; isPrimary: boolean }[]
+	sleepSummary: string
+	sleepAreas: GuestRoomSleepArea[]
+	bathroomSummary: string
+	occupancySummary: string
+	sizeSummary: string
+	viewSummary: string
+	amenityLabels: string[]
+	amenityGroups: { category: string; labels: string[] }[]
+	guestFacingNotes: string
+	hasBalcony: boolean
+}
+
 export function computeNights(from: string, to: string): number {
 	const fromDate = new Date(`${String(from)}T00:00:00.000Z`)
 	const toDate = new Date(`${String(to)}T00:00:00.000Z`)
 	if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 0
 	return Math.max(0, Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000))
+}
+
+function normalizeGallery(
+	variantImages: any[],
+	productFallbackImage: string,
+	productFallbackGallery: string[] = []
+): { id: string; url: string; order: number; isPrimary: boolean }[] {
+	const images = (Array.isArray(variantImages) ? variantImages : [])
+		.map((image: any, index: number) => ({
+			id: String(image?.id ?? `variant-${index}`),
+			url: String(image?.url ?? "").trim(),
+			order: Number(image?.order ?? index),
+			isPrimary: Boolean(image?.isPrimary),
+		}))
+		.filter((image) => image.url.length > 0)
+		.sort((a, b) => a.order - b.order)
+
+	if (images.length > 0) return images
+
+	const fallbackGallery = (Array.isArray(productFallbackGallery) ? productFallbackGallery : [])
+		.map((url, index) => ({
+			id: `fallback-${index}`,
+			url: String(url ?? "").trim(),
+			order: index,
+			isPrimary: index === 0,
+		}))
+		.filter((image) => image.url.length > 0)
+
+	if (fallbackGallery.length > 0) return fallbackGallery
+
+	const fallback = String(productFallbackImage ?? "").trim()
+	return fallback
+		? [{ id: "fallback", url: fallback, order: 0, isPrimary: true }]
+		: [
+				{
+					id: "placeholder",
+					url: "https://placehold.co/1200x800?text=Habitacion",
+					order: 0,
+					isPrimary: true,
+				},
+			]
+}
+
+function formatGuestBeds(room: any): GuestRoomSleepArea[] {
+	const beds = Array.isArray(room?.beds)
+		? room.beds
+		: Array.isArray(room?.bedType)
+			? room.bedType
+			: []
+
+	if (!beds.length) return []
+
+	const grouped = new Map<string, { id: string; count: number }[]>()
+	for (const bed of beds) {
+		const roomLabel = String(bed?.roomLabel ?? "").trim() || "Dormitorio"
+		const id = String(bed?.id ?? bed?.bedType ?? bed?.type ?? "single").trim()
+		const count = Number(bed?.count ?? 1)
+		const safeCount = Number.isFinite(count) && count > 0 ? count : 1
+		grouped.set(roomLabel, [...(grouped.get(roomLabel) ?? []), { id, count: safeCount }])
+	}
+
+	return Array.from(grouped.entries()).map(([label, items]) => {
+		const summary = formatBedType(items).replace(/\n/g, ", ")
+		return {
+			label,
+			summary,
+			items: items.map((item) => formatBedType([item]).replace(/\n/g, ", ")),
+		}
+	})
+}
+
+function formatBathroomType(value: unknown): string {
+	const normalized = String(value ?? "")
+		.trim()
+		.toLowerCase()
+	const labels: Record<string, string> = {
+		private: "privado",
+		shared: "compartido",
+		ensuite: "en suite",
+		dedicated: "dedicado",
+		unknown: "",
+	}
+	return labels[normalized] ?? normalized
+}
+
+function formatBathroomSummary(room: any): string {
+	const count = Number(room?.bathroomCount ?? room?.bathroom)
+	const type = formatBathroomType(room?.bathroomType)
+	if (!Number.isFinite(count) || count <= 0) return type ? `Baño ${type}` : "Baño por confirmar"
+	const base = `${count} baño${count > 1 ? "s" : ""}`
+	return type ? `${base} ${type}` : base
+}
+
+function formatOccupancySummary(room: any, offer: any): string {
+	const count = Number(
+		room?.maxOccupancyOverride ?? room?.maxOccupancy ?? offer?.variant?.maxOccupancy ?? 0
+	)
+	return Number.isFinite(count) && count > 0
+		? `Hasta ${count} huésped${count > 1 ? "es" : ""}`
+		: "Capacidad por confirmar"
+}
+
+function formatSizeSummary(room: any): string {
+	const value = Number(room?.sizeM2)
+	return Number.isFinite(value) && value > 0 ? `${value} m²` : ""
+}
+
+function formatViewSummary(room: any): string {
+	const view = String(room?.viewType ?? room?.hasView ?? "").trim()
+	return view ? `Vista ${view}` : ""
+}
+
+function groupAmenities(amenities: GuestRoomAmenityRow[]) {
+	const grouped = new Map<string, string[]>()
+	for (const amenity of amenities) {
+		if (amenity.isAvailable === false) continue
+		const label = String(amenity.amenityName ?? "").trim()
+		if (!label) continue
+		const category = String(amenity.category ?? "").trim() || "Comodidades"
+		if (!grouped.has(category)) grouped.set(category, [])
+		const values = grouped.get(category) ?? []
+		if (!values.includes(label)) values.push(label)
+		grouped.set(category, values)
+	}
+	return Array.from(grouped.entries()).map(([category, labels]) => ({ category, labels }))
+}
+
+export function buildGuestRoomPreviews(params: {
+	offers: any[]
+	hotelRoom: any[]
+	amenities?: GuestRoomAmenityRow[]
+	productFallbackImage: string
+	productFallbackGallery?: string[]
+}): GuestRoomPreview[] {
+	const previews: GuestRoomPreview[] = []
+	const seen = new Set<string>()
+
+	for (const offer of params.offers ?? []) {
+		const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "").trim()
+		if (!variantId || seen.has(variantId)) continue
+		seen.add(variantId)
+
+		const room =
+			(params.hotelRoom ?? []).find(
+				(candidate: any) => String(candidate?.id ?? candidate?.variantId ?? "").trim() === variantId
+			) ?? {}
+		const gallery = normalizeGallery(
+			Array.isArray(offer?.variantImages) ? offer.variantImages : [],
+			params.productFallbackImage,
+			params.productFallbackGallery
+		)
+		const sleepAreas = formatGuestBeds(room)
+		const roomAmenities = (params.amenities ?? []).filter((amenity) => {
+			const roomId = String(amenity.roomId ?? amenity.variantId ?? "").trim()
+			return roomId === variantId
+		})
+		const amenityGroups = groupAmenities(roomAmenities)
+		const amenityLabels = amenityGroups.flatMap((group) => group.labels)
+		const roomName = String(offer?.variant?.name ?? offer?.name ?? "Habitación").trim()
+		const roomTypeName = String(room?.roomTypeName ?? room?.typeName ?? "").trim()
+
+		previews.push({
+			variantId,
+			roomName,
+			roomTypeName,
+			imageUrl: gallery.find((image) => image.isPrimary)?.url ?? gallery[0]?.url ?? "",
+			gallery,
+			sleepSummary: sleepAreas.length
+				? sleepAreas.map((area) => area.summary).join(" · ")
+				: "Camas por confirmar",
+			sleepAreas,
+			bathroomSummary: formatBathroomSummary(room),
+			occupancySummary: formatOccupancySummary(room, offer),
+			sizeSummary: formatSizeSummary(room),
+			viewSummary: formatViewSummary(room),
+			amenityLabels,
+			amenityGroups,
+			guestFacingNotes: String(room?.guestFacingNotes ?? "").trim(),
+			hasBalcony: Boolean(room?.hasBalcony),
+		})
+	}
+
+	return previews
 }
 
 function toFiniteNumber(value: unknown): number | null {

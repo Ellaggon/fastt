@@ -1,4 +1,5 @@
 ---
+import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -10,7 +11,12 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { getProductFullAggregate } from "@/modules/catalog/public"
+import {
+	getProductFullAggregate,
+	getProductVariantsAggregate,
+	resolveHotelAmenities,
+	resolveHotelType,
+} from "@/modules/catalog/public"
 import {
 	essentialHouseRuleTypes,
 	houseRuleGroups,
@@ -18,6 +24,7 @@ import {
 } from "@/modules/house-rules/presentation/houseRulePresentation"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
+import { and, asc, db, Image, inArray } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -42,6 +49,9 @@ const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.conte
 const description = String(aggregate.content.description ?? "").trim()
 const primaryImage = aggregate.images[0]?.url ?? ""
 const imagePreviews = aggregate.images.slice(0, 6)
+const productFallbackGallery = aggregate.images
+	.map((image) => String(image.url ?? "").trim())
+	.filter(Boolean)
 const packageIncludes =
 	aggregate.subtype?.kind === "package" ? String(aggregate.subtype.includes ?? "").trim() : ""
 const packageExcludes =
@@ -70,6 +80,65 @@ const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: an
 	acc[type].push(rule)
 	return acc
 }, {})
+
+let guestRoomPreviews: ReturnType<typeof buildGuestRoomPreviews> = []
+if (isHotel) {
+	const variantsAggregate = await getProductVariantsAggregate(productId, providerId)
+	const roomVariants = variantsAggregate?.variants ?? []
+	const roomVariantIds = roomVariants
+		.map((variant: any) => String(variant.id ?? "").trim())
+		.filter(Boolean)
+	const [roomProfiles, roomAmenities, variantImageRows] = roomVariantIds.length
+		? await Promise.all([
+				resolveHotelType(roomVariantIds),
+				resolveHotelAmenities(roomVariantIds),
+				db
+					.select({
+						id: Image.id,
+						entityId: Image.entityId,
+						url: Image.url,
+						order: Image.order,
+						isPrimary: Image.isPrimary,
+					})
+					.from(Image)
+					.where(
+						and(
+							inArray(Image.entityType, ["variant", "Variant"]),
+							inArray(Image.entityId, roomVariantIds)
+						)
+					)
+					.orderBy(asc(Image.order), asc(Image.id))
+					.all(),
+			])
+		: [[], [], []]
+	const imagesByVariant = new Map<string, any[]>()
+	for (const image of variantImageRows) {
+		const variantId = String(image.entityId ?? "")
+		if (!imagesByVariant.has(variantId)) imagesByVariant.set(variantId, [])
+		imagesByVariant.get(variantId)?.push({
+			id: String(image.id),
+			url: String(image.url),
+			order: Number(image.order ?? 0),
+			isPrimary: Boolean(image.isPrimary),
+		})
+	}
+
+	guestRoomPreviews = buildGuestRoomPreviews({
+		offers: roomVariants.map((variant: any) => ({
+			variantId: variant.id,
+			variant: {
+				id: variant.id,
+				name: variant.name,
+				maxOccupancy: variant.capacity?.maxOccupancy ?? null,
+			},
+			variantImages: imagesByVariant.get(String(variant.id)) ?? [],
+		})),
+		hotelRoom: roomProfiles,
+		amenities: roomAmenities,
+		productFallbackImage: primaryImage || "https://placehold.co/1200x800?text=Habitacion",
+		productFallbackGallery,
+	})
+}
 
 let mappedPolicies: any[] = []
 let policyResolutionError: string | null = null
@@ -360,6 +429,113 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 				</div>
 			</Card>
 		</Section>
+
+		{
+			isHotel ? (
+				<Section
+					title="Dónde dormirán los huéspedes"
+					description="Vista de habitaciones, camas, baño, fotos y comodidades como aparecerán en la ficha pública."
+				>
+					{guestRoomPreviews.length ? (
+						<div class="grid gap-4 lg:grid-cols-2">
+							{guestRoomPreviews.map((preview) => (
+								<Card className="overflow-hidden bg-white p-0 text-slate-800">
+									<img
+										src={preview.imageUrl}
+										alt={preview.roomName}
+										class="h-56 w-full object-cover"
+									/>
+									<div class="space-y-5 p-5">
+										<div>
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												{preview.roomTypeName || "Habitación"}
+											</p>
+											<h3 class="mt-1 text-lg font-semibold text-slate-950">{preview.roomName}</h3>
+											<p class="mt-1 text-sm text-slate-500">
+												{[preview.sizeSummary, preview.viewSummary].filter(Boolean).join(" · ") ||
+													"Detalle de habitación"}
+											</p>
+										</div>
+
+										<div class="grid gap-3 text-sm leading-6 text-slate-700">
+											<div>
+												<p class="font-semibold text-slate-900">Dónde dormirás</p>
+												{preview.sleepAreas.length ? (
+													<div class="mt-2 grid gap-2">
+														{preview.sleepAreas.map((area) => (
+															<p class="rounded-lg bg-slate-50 px-3 py-2">
+																<span class="font-medium text-slate-900">{area.label}:</span>{" "}
+																{area.summary}
+															</p>
+														))}
+													</div>
+												) : (
+													<p class="mt-1 text-slate-500">Camas por confirmar.</p>
+												)}
+											</div>
+											<div class="grid gap-2 sm:grid-cols-2">
+												<p class="rounded-lg bg-slate-50 px-3 py-2">
+													<span class="font-medium text-slate-900">Baño:</span>{" "}
+													{preview.bathroomSummary}
+												</p>
+												<p class="rounded-lg bg-slate-50 px-3 py-2">
+													<span class="font-medium text-slate-900">Capacidad:</span>{" "}
+													{preview.occupancySummary}
+												</p>
+											</div>
+										</div>
+
+										{preview.amenityLabels.length ? (
+											<div>
+												<p class="text-sm font-semibold text-slate-900">Comodidades visibles</p>
+												<div class="mt-2 flex flex-wrap gap-2">
+													{preview.amenityLabels.slice(0, 8).map((label) => (
+														<span class="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+															{label}
+														</span>
+													))}
+													{preview.amenityLabels.length > 8 ? (
+														<span class="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+															+{preview.amenityLabels.length - 8}
+														</span>
+													) : null}
+												</div>
+											</div>
+										) : null}
+
+										{preview.guestFacingNotes ? (
+											<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+												<p class="text-sm font-semibold text-slate-900">Notas para huéspedes</p>
+												<p class="mt-1 text-sm leading-6 text-slate-600">
+													{preview.guestFacingNotes}
+												</p>
+											</div>
+										) : null}
+									</div>
+								</Card>
+							))}
+						</div>
+					) : (
+						<Card className="border-amber-200 bg-amber-50 text-amber-950">
+							<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>
+							<p class="mt-1 text-sm leading-6">
+								Completa la ficha de habitación con camas, baño, capacidad, fotos y notas para que
+								el huésped pueda entender dónde dormirá.
+							</p>
+							<div class="mt-4">
+								<Button
+									href={`/product/${encodeURIComponent(productId)}/rooms`}
+									variant="secondary"
+									size="sm"
+								>
+									Editar habitaciones
+								</Button>
+							</div>
+						</Card>
+					)}
+				</Section>
+			) : null
+		}
 
 		{
 			vertical.vertical === "package" ? (
