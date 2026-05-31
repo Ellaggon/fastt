@@ -345,7 +345,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				return card
 			}
 
-			fetch(`/api/internal/variants-summary?productId=${encodeURIComponent(productId)}`, {
+			fetch(`/api/internal/rooms-summary?productId=${encodeURIComponent(productId)}`, {
 				headers: { accept: "application/json" },
 			})
 				.then(async (response) => {

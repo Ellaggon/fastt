@@ -23,10 +23,6 @@ export const routes = {
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}`,
 	productRoomProfile: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/profile`,
-	productRoomCapacity: (productId: string, roomId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/capacity`,
-	productRoomSubtype: (productId: string, roomId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/subtype`,
 	productRoomAvailability: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/availability`,
 	productRoomInventory: (productId: string, roomId: string) =>
@@ -48,10 +44,6 @@ export const routes = {
 	productDetail: (productId: string) => `/product/${encodeURIComponent(String(productId))}`,
 	productPreview: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/preview`,
-	productVariants: (productId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants`,
-	variantDetail: (productId: string, variantId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/variants/${encodeURIComponent(String(variantId))}`,
 }
 
 export type Routes = typeof routes

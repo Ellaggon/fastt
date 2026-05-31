@@ -42,7 +42,7 @@ const semanticRoots = [
 const semanticFiles = [
 	...semanticRoots.flatMap((root) => walkFiles(join(process.cwd(), root), [".astro", ".ts"])),
 	"src/lib/backoffice-governance.ts",
-	"src/pages/api/internal/variant-summary.ts",
+	"src/pages/api/internal/room-summary.ts",
 	"src/pages/api/pricing/base-rate.ts",
 ].sort()
 

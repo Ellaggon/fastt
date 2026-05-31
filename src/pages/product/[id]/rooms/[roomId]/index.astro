@@ -661,7 +661,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const hydrationStart = performance.now()
 			fetch(
-				`/api/internal/variant-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
+				`/api/internal/room-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
 				{ headers: { accept: "application/json" } }
 			)
 				.then(async (response) => {
@@ -707,7 +707,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					}
 
 					const refreshed = await fetch(
-						`/api/internal/variant-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
+						`/api/internal/room-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
 						{ headers: { accept: "application/json" } }
 					)
 					if (refreshed.ok) {

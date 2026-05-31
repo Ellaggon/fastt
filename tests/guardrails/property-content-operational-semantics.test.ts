@@ -123,17 +123,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const files = [
 			"src/pages/product/[id]/rooms/new.astro",
 			"src/pages/product/[id]/rooms/[roomId]/index.astro",
-			"src/pages/product/[id]/rooms/[roomId]/capacity.astro",
 			"src/pages/product/[id]/rooms/[roomId]/inventory.astro",
-			"src/pages/product/[id]/rooms/[roomId]/subtype.astro",
 			"src/pages/product/[id]/rooms/[roomId]/availability.astro",
-			"src/pages/product/[id]/variants.astro",
-			"src/pages/product/[id]/variants/[variantId].astro",
-			"src/pages/product/[id]/variants/new.astro",
-			"src/pages/product/[id]/variants/[variantId]/capacity.astro",
-			"src/pages/product/[id]/variants/[variantId]/inventory.astro",
-			"src/pages/product/[id]/variants/[variantId]/subtype.astro",
-			"src/pages/product/[id]/variants/[variantId]/availability.astro",
 		]
 		const bannedCopy = [/Precios/, /Sin pricing configurado/, /pricing por variante/i, /Producto ·/]
 
@@ -164,19 +155,14 @@ describe("Guardrail: Property Content operational semantics", () => {
 					owner: "Property Content",
 				}),
 				expect.objectContaining({
-					pattern: "/product/:id/variants/**",
-					status: "legacy",
-					owner: "Physical Inventory Context",
+					pattern: "/api/internal/rooms-summary",
+					status: "canonical",
+					owner: "Property Content",
 				}),
 				expect.objectContaining({
-					pattern: "/api/internal/variants-summary",
-					status: "transitional",
-					owner: "Physical Inventory Context",
-				}),
-				expect.objectContaining({
-					pattern: "/api/internal/variant-summary",
-					status: "transitional",
-					owner: "Physical Inventory Context",
+					pattern: "/api/internal/room-summary",
+					status: "canonical",
+					owner: "Property Content",
 				}),
 			])
 		)
@@ -291,7 +277,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const roomsSurface = read("src/pages/product/[id]/rooms.astro")
 		const publicRooms = read("src/components/productUI/RoomSection.astro")
 		const roomModal = read("src/components/productUI/RoomModal.astro")
-		const variantsSummary = read("src/pages/api/internal/variants-summary.ts")
+		const roomsSummary = read("src/pages/api/internal/rooms-summary.ts")
 
 		expect(roomsSurface).toContain("Experiencia de descanso")
 		expect(roomsSurface).toContain("Tarifas")
@@ -299,7 +285,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(roomsSurface).toContain("Siguiente paso recomendado")
 		expect(roomsSurface).not.toContain("Inventario base")
 		expect(roomsSurface).not.toContain("Detalle interno")
-		expect(roomsSurface).toContain("/api/internal/variants-summary")
+		expect(roomsSurface).toContain("/api/internal/rooms-summary")
 		expect(roomsSurface).not.toContain("RatePlan")
 		expect(roomsSurface).not.toContain("DailyInventory")
 		expect(publicRooms).toContain("Dónde dormirás")
@@ -307,9 +293,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(roomModal).toContain("Dónde dormirás")
 		expect(roomModal).toContain("Notas para huéspedes")
 
-		expect(variantsSummary).toContain("photos:")
-		expect(variantsSummary).toContain("tariffs:")
-		expect(variantsSummary).toContain("inventory:")
-		expect(variantsSummary).toContain("RatePlanTemplate")
+		expect(roomsSummary).toContain("photos:")
+		expect(roomsSummary).toContain("tariffs:")
+		expect(roomsSummary).toContain("inventory:")
+		expect(roomsSummary).toContain("RatePlanTemplate")
 	})
 })

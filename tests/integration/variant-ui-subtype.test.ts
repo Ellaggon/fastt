@@ -70,7 +70,7 @@ async function readJson(res: Response) {
 }
 
 describe("integration/variants UI Step 3 (subtype room type) - simulated", () => {
-	it("happy flow: create -> capacity -> subtype => 200 and next URL is /review", async () => {
+	it("happy flow: create -> capacity -> subtype => 200 and next URL is ", async () => {
 		const token = "t_ui_sub_ok"
 		const email = "ui-sub-ok@example.com"
 		const providerId = "prov_ui_sub_ok"
@@ -129,10 +129,10 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			} as any)
 			expect(subRes.status).toBe(200)
 
-			const next = `/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(
+			const next = `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(
 				variantId
-			)}/review`
-			expect(next).toContain("/review")
+			)}`
+			expect(next).toContain("")
 		})
 	})
 

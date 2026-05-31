@@ -198,11 +198,13 @@ const taskQueue = [
 ].filter(Boolean)
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Inventario base">
+<WorkspaceLayout title="Contenido del alojamiento · Disponibilidad y cupos">
 	<section class="space-y-8 text-slate-100">
 		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Inventario operativo</h1>
-			<p class="text-sm text-slate-400">Abre o cierra ventas y ajusta cupos por día o por rango.</p>
+			<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad y cupos</h1>
+			<p class="text-sm text-slate-400">
+				Ajusta cupos físicos por día o por rango para esta habitación.
+			</p>
 			<div class="flex flex-wrap items-center gap-2">
 				<Badge variant={inventoryReadiness === "LISTO_PARA_VENDER" ? "success" : "warning"}>
 					{inventoryReadiness === "LISTO_PARA_VENDER" ? "Listo para vender" : "Requiere revisión"}

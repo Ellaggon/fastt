@@ -51,10 +51,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				<Button href={routes.rateRestrictions()} variant="secondary">Restrictions</Button>
 				{
 					productId && variantId ? (
-						<Button
-							href={`/product/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/inventory`}
-							variant="secondary"
-						>
+						<Button href={routes.productRoomInventory(productId, variantId)} variant="secondary">
 							Volver al calendario
 						</Button>
 					) : (
