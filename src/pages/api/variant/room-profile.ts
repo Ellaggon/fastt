@@ -36,6 +36,7 @@ const roomProfileSchema = z.object({
 	variantId: z.string().trim().optional(),
 	name: z.string().trim().min(1),
 	description: z.string().trim().optional(),
+	roomCode: z.string().trim().optional(),
 	roomTypeId: z.string().trim().optional(),
 	minOccupancy: requiredPositiveNumber,
 	maxOccupancy: requiredPositiveNumber,
@@ -86,6 +87,7 @@ export const POST: APIRoute = async ({ request }) => {
 			variantId: form.get("variantId") ? String(form.get("variantId")) : undefined,
 			name: form.get("name"),
 			description: form.get("description") ? String(form.get("description")) : undefined,
+			roomCode: form.get("roomCode") ? String(form.get("roomCode")) : undefined,
 			roomTypeId: form.get("roomTypeId") ? String(form.get("roomTypeId")) : undefined,
 			minOccupancy: form.get("minOccupancy"),
 			maxOccupancy: form.get("maxOccupancy"),
@@ -140,6 +142,30 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		let variantId = String(parsed.variantId ?? "").trim()
+		const roomCodeRaw = String(parsed.roomCode ?? "").trim()
+		const roomCode = roomCodeRaw ? roomCodeRaw.toUpperCase() : null
+		if (roomCode) {
+			const roomCodeMatches = await db
+				.select({ id: Variant.id, externalCode: Variant.externalCode })
+				.from(Variant)
+				.where(eq(Variant.productId, parsed.productId))
+				.all()
+			const duplicateRoomCode = roomCodeMatches.find((row) => {
+				const rowId = String(row.id ?? "").trim()
+				const existingCode = String(row.externalCode ?? "")
+					.trim()
+					.toUpperCase()
+				return rowId !== variantId && existingCode === roomCode
+			})
+			if (duplicateRoomCode) {
+				return new Response(
+					JSON.stringify({
+						error: "Ya existe una habitación con ese código interno en este alojamiento.",
+					}),
+					{ status: 400, headers: { "Content-Type": "application/json" } }
+				)
+			}
+		}
 		if (variantId) {
 			const existing = await variantManagementRepository.getVariantById(variantId)
 			if (!existing || existing.productId !== parsed.productId) {
@@ -163,6 +189,7 @@ export const POST: APIRoute = async ({ request }) => {
 				.set({
 					name: parsed.name,
 					description: parsed.description ?? null,
+					externalCode: roomCode,
 				})
 				.where(eq(Variant.id, variantId))
 		} else {
@@ -180,6 +207,9 @@ export const POST: APIRoute = async ({ request }) => {
 				}
 			)
 			variantId = result.variantId
+			if (roomCode) {
+				await db.update(Variant).set({ externalCode: roomCode }).where(eq(Variant.id, variantId))
+			}
 		}
 
 		const profileExists = await db

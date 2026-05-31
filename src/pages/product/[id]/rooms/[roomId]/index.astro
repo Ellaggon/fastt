@@ -10,13 +10,17 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import {
-	BadgeCheck,
+	ArrowLeft,
+	BedDouble,
 	CalendarDays,
 	Camera,
-	CircleAlert,
 	ClipboardCheck,
+	CircleCheck,
+	DoorOpen,
+	Eye,
 	Hotel,
 	ImagePlus,
+	ListChecks,
 	RefreshCw,
 	Sparkles,
 } from "@lucide/astro"
@@ -28,217 +32,361 @@ const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
-const variantId = String(Astro.params.roomId ?? "")
+const roomId = String(Astro.params.roomId ?? "")
 
 if (!productId) return Astro.redirect("/product/create")
-if (!variantId) return Astro.redirect(routes.productRoomsForProduct(productId))
+if (!roomId) return Astro.redirect(routes.productRoomsForProduct(productId))
 
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect("/product/create")
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const tabs = [
+	{ id: "perfil", label: "Perfil", icon: DoorOpen },
+	{ id: "fotos", label: "Fotos", icon: Camera },
+	{ id: "preview", label: "Preview huésped", icon: Eye },
+	{ id: "disponibilidad", label: "Disponibilidad", icon: CalendarDays },
+	{ id: "publicacion", label: "Publicación", icon: ClipboardCheck },
+]
 ---
 
 <WorkspaceLayout title="Contenido del alojamiento · Habitación">
 	<section class="space-y-8">
-		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
-			<div class="flex flex-wrap items-start justify-between gap-4">
-				<div class="space-y-2">
-					<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
-						<Hotel class="h-4 w-4" />
-						Alojamiento · Habitación
-					</p>
-					<h1 id="variantTitle" class="text-3xl font-semibold text-slate-100">
-						Cargando habitación...
-					</h1>
-					<p class="text-sm text-slate-400">
-						Revisa cómo se ve esta habitación para el huésped y completa lo necesario para que pueda
-						venderse con confianza.
-					</p>
-				</div>
-				<div class="flex flex-wrap items-center gap-3">
-					<Button
-						href={routes.productRoomAvailability(productId, variantId)}
+		<header class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-sm">
+			<div class="grid gap-0 lg:grid-cols-[1fr_340px]">
+				<div class="space-y-5 p-5 md:p-6">
+					<a
+						href={routes.productRoomsForProduct(productId)}
 						data-astro-prefetch
-						className="bg-slate-800 text-white hover:bg-slate-700"
+						class="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-100"
 					>
-						<CalendarDays class="mr-2 h-4 w-4" />
-						Disponibilidad
-					</Button>
-					<Badge id="variantStatusBadge" variant="neutral">Cargando...</Badge>
-					<Button
-						id="evaluateHeaderBtn"
-						type="button"
-						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-					>
-						<RefreshCw class="mr-2 h-4 w-4" />
-						Actualizar estado
-					</Button>
-				</div>
-			</div>
-		</header>
-
-		<Section
-			title="Preparación"
-			description="Estado de los bloques que hacen que la habitación sea clara, vendible y confiable para huéspedes."
-		>
-			<Card class="space-y-6 border-slate-700 bg-slate-900 text-white">
-				<div class="space-y-4">
-					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-						<div id="variantProgressBar" class="h-full w-0 bg-[#1E3A8A]"></div>
+						<ArrowLeft class="h-4 w-4" />
+						Volver a habitaciones
+					</a>
+					<div class="space-y-2">
+						<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
+							<Hotel class="h-4 w-4" />
+							Alojamiento · Habitación
+						</p>
+						<h1 id="roomTitle" class="text-3xl font-semibold text-slate-100">
+							Cargando habitación...
+						</h1>
+						<p class="max-w-3xl text-sm leading-6 text-slate-400">
+							Administra la ficha como la verá el huésped: perfil, fotos, preview, disponibilidad y
+							publicación en un solo workspace.
+						</p>
 					</div>
-					<div class="grid gap-4 text-sm md:grid-cols-3">
-						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="flex items-center gap-2 text-slate-300">
-								<BadgeCheck class="h-4 w-4" />
-								Listo
-							</p>
-							<p id="variantProgressCompleted" class="text-xl font-semibold text-white">—/4</p>
-						</div>
-						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="flex items-center gap-2 text-slate-300">
-								<CircleAlert class="h-4 w-4" />
-								Pendiente
-							</p>
-							<p id="variantProgressPending" class="text-xl font-semibold text-white">—</p>
-						</div>
-						<div class="min-h-[90px] rounded-lg border border-slate-700 p-3">
-							<p class="flex items-center gap-2 text-slate-300">
-								<Sparkles class="h-4 w-4" />
-								Progreso
-							</p>
-							<p id="variantProgressPercent" class="text-xl font-semibold text-white">—%</p>
-						</div>
-					</div>
-				</div>
-			</Card>
-		</Section>
-
-		<Section
-			title="Próximos pasos"
-			description="Completa los bloques principales sin mezclar descripción, disponibilidad y tarifas."
-		>
-			<div id="variantBlocks" class="grid gap-4 md:grid-cols-2">
-				{
-					Array.from({ length: 4 }).map(() => (
-						<Card class="min-h-[180px] space-y-4 bg-slate-100">
-							<div class="flex items-start justify-between gap-3">
-								<div class="space-y-2">
-									<div class="h-6 w-32 animate-pulse rounded bg-slate-200" />
-									<div class="h-4 w-52 animate-pulse rounded bg-slate-200" />
-								</div>
-								<div class="h-6 w-24 animate-pulse rounded-full bg-slate-200" />
-							</div>
-							<div class="flex justify-end">
-								<div class="h-10 w-36 animate-pulse rounded bg-slate-200" />
-							</div>
-						</Card>
-					))
-				}
-			</div>
-		</Section>
-
-		<Section title="Resumen para gestión" description="Lectura rápida de lo que ya está listo.">
-			<div id="variantSummary" class="grid gap-4 md:grid-cols-2">
-				{
-					Array.from({ length: 4 }).map(() => (
-						<Card class="min-h-[126px] space-y-2 bg-slate-100">
-							<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
-							<div class="h-4 w-full animate-pulse rounded bg-slate-200" />
-							<div class="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
-						</Card>
-					))
-				}
-			</div>
-		</Section>
-
-		<Section
-			title="Fotos de la habitación"
-			description="Las fotos deben ayudar al huésped a entender dónde dormirá, el baño y la distribución."
-		>
-			<Card class="min-h-[220px] space-y-4 bg-slate-100">
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<p class="flex items-center gap-2 text-sm text-slate-600">
-						<Camera class="h-4 w-4" />
-						Sube, ordena y guarda imágenes reales de esta habitación.
-					</p>
-					<div class="flex items-center gap-2">
-						<input id="variantImageFiles" type="file" accept="image/*" multiple class="hidden" />
-						<Button id="variantImageUploadBtn" type="button" variant="outline"
-							><ImagePlus class="mr-2 h-4 w-4" />Subir imágenes</Button
-						>
+					<div class="flex flex-wrap items-center gap-2">
+						<Badge id="roomStatusBadge" variant="neutral">Cargando...</Badge>
 						<Button
-							id="variantImageSaveBtn"
+							id="evaluateHeaderBtn"
 							type="button"
 							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 						>
-							Guardar galería
+							<RefreshCw class="mr-2 h-4 w-4" />
+							Actualizar publicación
+						</Button>
+						<Button
+							href={routes.productRoomProfile(productId, roomId)}
+							data-astro-prefetch
+							variant="secondary"
+						>
+							Editar perfil
 						</Button>
 					</div>
 				</div>
-				<p id="variantImageFeedback" class="text-sm text-slate-600"></p>
-				<div id="variantImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{
-						Array.from({ length: 3 }).map(() => (
-							<div class="min-h-[160px] animate-pulse rounded-lg border border-slate-200 bg-white" />
-						))
-					}
-				</div>
-			</Card>
-		</Section>
+				<aside
+					class="border-t border-slate-800 bg-slate-900/80 p-5 lg:border-l lg:border-t-0 md:p-6"
+				>
+					<p class="flex items-center gap-2 text-sm font-semibold text-slate-100">
+						<Sparkles class="h-4 w-4 text-blue-300" />
+						Readiness de habitación
+					</p>
+					<div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-700">
+						<div id="roomProgressBar" class="h-full w-0 bg-blue-500"></div>
+					</div>
+					<div class="mt-4 grid grid-cols-3 gap-2 text-sm">
+						<div class="rounded-lg border border-slate-700 p-3">
+							<p class="text-xs text-slate-400">Listo</p>
+							<p id="roomProgressCompleted" class="mt-1 text-lg font-semibold text-white">—/3</p>
+						</div>
+						<div class="rounded-lg border border-slate-700 p-3">
+							<p class="text-xs text-slate-400">Pendiente</p>
+							<p id="roomProgressPending" class="mt-1 text-lg font-semibold text-white">—</p>
+						</div>
+						<div class="rounded-lg border border-slate-700 p-3">
+							<p class="text-xs text-slate-400">Progreso</p>
+							<p id="roomProgressPercent" class="mt-1 text-lg font-semibold text-white">—%</p>
+						</div>
+					</div>
+				</aside>
+			</div>
+		</header>
 
-		<Section
-			title="Revisión antes de publicar"
-			description="Pendientes que afectan la confianza del huésped."
+		<nav
+			class="sticky top-0 z-10 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-sm"
+			aria-label="Secciones de habitación"
 		>
-			<Card class="min-h-[248px] space-y-4 bg-slate-100">
-				<div class="flex items-center justify-between gap-3">
-					<div class="space-y-1">
-						<h2 class="flex items-center gap-2 text-xl font-semibold text-slate-900">
-							<ClipboardCheck class="h-5 w-5" />
-							Estado de publicación
-						</h2>
-						<p id="readinessStateText" class="text-sm text-slate-600">Estado actual: Cargando...</p>
-					</div>
-					<Badge id="readinessStateBadge" variant="neutral">Cargando</Badge>
-				</div>
+			<div class="flex min-w-max gap-2">
+				{
+					tabs.map((tab, index) => {
+						const Icon = tab.icon
+						return (
+							<button
+								type="button"
+								data-room-tab={tab.id}
+								aria-selected={index === 0 ? "true" : "false"}
+								class={`inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition ${
+									index === 0
+										? "bg-white text-slate-950"
+										: "text-slate-300 hover:bg-slate-800 hover:text-white"
+								}`}
+							>
+								<Icon class="h-4 w-4" />
+								{tab.label}
+							</button>
+						)
+					})
+				}
+			</div>
+		</nav>
 
-				<div class="grid gap-4 md:grid-cols-2">
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Necesario para publicar</p>
-						<ul id="blockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
-							<li class="list-none text-slate-500">Cargando validaciones...</li>
-						</ul>
-					</div>
-					<div class="space-y-2">
-						<p class="text-sm font-semibold text-slate-900">Mejoras recomendadas</p>
-						<ul id="nonBlockingErrorsList" class="list-disc space-y-1 pl-5 text-sm text-slate-700">
-							<li class="list-none text-slate-500">Cargando validaciones...</li>
-						</ul>
-					</div>
-				</div>
-
-				<p id="readinessFeedback" class="text-sm text-slate-600"></p>
-
-				<div class="flex justify-end">
-					<Button
-						id="reevaluateBtn"
-						type="button"
-						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+		<div class="space-y-8">
+			<section data-room-panel="perfil" class="space-y-6">
+				<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
+					<Section
+						title="Perfil para huéspedes"
+						description="La información esencial que ayuda a decidir si esta habitación es adecuada."
 					>
-						<RefreshCw class="mr-2 h-4 w-4" />
-						Actualizar revisión
-					</Button>
+						<div id="profileCards" class="grid gap-4 md:grid-cols-2">
+							{
+								Array.from({ length: 4 }).map(() => (
+									<Card class="min-h-[140px] space-y-3 bg-slate-100">
+										<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+										<div class="h-5 w-40 animate-pulse rounded bg-slate-200" />
+										<div class="h-4 w-full animate-pulse rounded bg-slate-200" />
+									</Card>
+								))
+							}
+						</div>
+					</Section>
+					<Card class="h-fit space-y-4 bg-slate-100">
+						<div class="flex items-center gap-3">
+							<div
+								class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800"
+							>
+								<BedDouble class="h-5 w-5" />
+							</div>
+							<div>
+								<h2 class="font-semibold text-slate-900">Siguiente edición</h2>
+								<p class="text-sm text-slate-600">Actualiza camas, baño, ocupación y notas.</p>
+							</div>
+						</div>
+						<Button
+							href={routes.productRoomProfile(productId, roomId)}
+							data-astro-prefetch
+							className="w-full bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+						>
+							Editar perfil completo
+						</Button>
+					</Card>
 				</div>
-			</Card>
-		</Section>
+			</section>
+
+			<section data-room-panel="fotos" class="hidden space-y-6">
+				<Section
+					title="Fotos de la habitación"
+					description="Ordena las imágenes como aparecerían en la experiencia del huésped."
+				>
+					<Card class="space-y-5 bg-slate-100">
+						<div class="flex flex-wrap items-center justify-between gap-3">
+							<p class="flex items-center gap-2 text-sm text-slate-600">
+								<Camera class="h-4 w-4" />
+								Muestra cama, baño, vista y distribución real.
+							</p>
+							<div class="flex flex-wrap items-center gap-2">
+								<input id="roomImageFiles" type="file" accept="image/*" multiple class="hidden" />
+								<Button id="roomImageUploadBtn" type="button" variant="outline">
+									<ImagePlus class="mr-2 h-4 w-4" />
+									Subir imágenes
+								</Button>
+								<Button
+									id="roomImageSaveBtn"
+									type="button"
+									className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+								>
+									Guardar galería
+								</Button>
+							</div>
+						</div>
+						<p id="roomImageFeedback" class="text-sm text-slate-600"></p>
+						<div id="roomImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+							{
+								Array.from({ length: 3 }).map(() => (
+									<div class="min-h-[180px] animate-pulse rounded-xl border border-slate-200 bg-white" />
+								))
+							}
+						</div>
+					</Card>
+				</Section>
+			</section>
+
+			<section data-room-panel="preview" class="hidden space-y-6">
+				<Section
+					title="Preview huésped"
+					description="Vista editorial de cómo se entenderá esta habitación antes de reservar."
+				>
+					<Card class="overflow-hidden bg-white p-0">
+						<div class="grid gap-0 lg:grid-cols-[1fr_0.9fr]">
+							<div id="guestPreviewMedia" class="min-h-[340px] bg-slate-200"></div>
+							<div class="space-y-6 p-6">
+								<div class="space-y-2">
+									<p class="text-sm font-medium text-slate-500">Dónde dormirás</p>
+									<h2 id="previewTitle" class="text-2xl font-semibold text-slate-950">
+										Cargando habitación...
+									</h2>
+									<p id="previewDescription" class="text-sm leading-6 text-slate-600"></p>
+								</div>
+								<div id="previewHighlights" class="grid gap-3 sm:grid-cols-2"></div>
+								<div>
+									<h3 class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+										<BedDouble class="h-4 w-4" />
+										Descanso
+									</h3>
+									<div id="previewSleepAreas" class="mt-3 grid gap-3"></div>
+								</div>
+								<div>
+									<h3 class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+										<ListChecks class="h-4 w-4" />
+										Comodidades
+									</h3>
+									<div id="previewAmenities" class="mt-3 flex flex-wrap gap-2"></div>
+								</div>
+								<p
+									id="previewNotes"
+									class="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600"
+								>
+								</p>
+							</div>
+						</div>
+					</Card>
+				</Section>
+			</section>
+
+			<section data-room-panel="disponibilidad" class="hidden space-y-6">
+				<Section
+					title="Disponibilidad y cupos"
+					description="Handoff operativo: cupos físicos y cobertura diaria para esta habitación."
+				>
+					<div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+						<div id="availabilitySummaryCards" class="grid gap-4 md:grid-cols-2"></div>
+						<Card class="h-fit space-y-4 bg-slate-100">
+							<h2 class="text-lg font-semibold text-slate-900">Operación diaria</h2>
+							<p class="text-sm leading-6 text-slate-600">
+								La edición de cupos vive en disponibilidad. Esta ficha solo resume si la habitación
+								está preparada para publicarse.
+							</p>
+							<Button
+								href={routes.productRoomInventory(productId, roomId)}
+								data-astro-prefetch
+								className="w-full bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+							>
+								Editar disponibilidad y cupos
+							</Button>
+							<Button
+								href={routes.productRoomAvailability(productId, roomId)}
+								data-astro-prefetch
+								variant="secondary"
+								className="w-full"
+							>
+								Consultar disponibilidad
+							</Button>
+						</Card>
+					</div>
+				</Section>
+			</section>
+
+			<section data-room-panel="publicacion" class="hidden space-y-6">
+				<Section
+					title="Publicación"
+					description="Revisa bloqueos y recomendaciones antes de mostrar esta habitación a huéspedes."
+				>
+					<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
+						<Card class="space-y-5 bg-slate-100">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div>
+									<h2 class="flex items-center gap-2 text-xl font-semibold text-slate-900">
+										<ClipboardCheck class="h-5 w-5" />
+										Estado de publicación
+									</h2>
+									<p id="readinessStateText" class="mt-1 text-sm text-slate-600">
+										Estado actual: Cargando...
+									</p>
+								</div>
+								<Badge id="readinessStateBadge" variant="neutral">Cargando</Badge>
+							</div>
+
+							<div class="grid gap-4 md:grid-cols-2">
+								<div class="space-y-2">
+									<p class="text-sm font-semibold text-slate-900">Necesario para publicar</p>
+									<ul
+										id="blockingErrorsList"
+										class="list-disc space-y-1 pl-5 text-sm text-slate-700"
+									>
+										<li class="list-none text-slate-500">Cargando validaciones...</li>
+									</ul>
+								</div>
+								<div class="space-y-2">
+									<p class="text-sm font-semibold text-slate-900">Mejoras recomendadas</p>
+									<ul
+										id="nonBlockingErrorsList"
+										class="list-disc space-y-1 pl-5 text-sm text-slate-700"
+									>
+										<li class="list-none text-slate-500">Cargando validaciones...</li>
+									</ul>
+								</div>
+							</div>
+
+							<p id="readinessFeedback" class="text-sm text-slate-600"></p>
+
+							<div class="flex justify-end">
+								<Button
+									id="reevaluateBtn"
+									type="button"
+									className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+								>
+									<RefreshCw class="mr-2 h-4 w-4" />
+									Actualizar revisión
+								</Button>
+							</div>
+						</Card>
+						<Card class="h-fit space-y-4 bg-white">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800"
+								>
+									<CircleCheck class="h-5 w-5" />
+								</div>
+								<div>
+									<h2 class="font-semibold text-slate-900">Publicación con confianza</h2>
+									<p class="text-sm text-slate-600">
+										Completa perfil, fotos, tarifas y disponibilidad antes de publicar.
+									</p>
+								</div>
+							</div>
+						</Card>
+					</div>
+				</Section>
+			</section>
+		</div>
 	</section>
 
-	<script is:inline define:vars={{ productId, variantId }}>
+	<script is:inline define:vars={{ productId, roomId }}>
 		;(function () {
 			const shellStart = performance.now()
 			const logShellVisible = () => {
 				console.debug("shell visible", {
-					page: "variant-detail",
+					page: "room-workspace",
 					durationMs: Number((performance.now() - shellStart).toFixed(1)),
 				})
 			}
@@ -248,31 +396,118 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
 			}
 
-			if (!productId || !variantId) return
+			if (!productId || !roomId) return
 
+			const feedback = document.getElementById("readinessFeedback")
 			const reevaluateBtn = document.getElementById("reevaluateBtn")
 			const evaluateHeaderBtn = document.getElementById("evaluateHeaderBtn")
-			const feedback = document.getElementById("readinessFeedback")
-			const variantImageFiles = document.getElementById("variantImageFiles")
-			const variantImageUploadBtn = document.getElementById("variantImageUploadBtn")
-			const variantImageSaveBtn = document.getElementById("variantImageSaveBtn")
-			const variantImageFeedback = document.getElementById("variantImageFeedback")
-			const variantImageGrid = document.getElementById("variantImageGrid")
-			let variantImages = []
+			const roomImageFiles = document.getElementById("roomImageFiles")
+			const roomImageUploadBtn = document.getElementById("roomImageUploadBtn")
+			const roomImageSaveBtn = document.getElementById("roomImageSaveBtn")
+			const roomImageFeedback = document.getElementById("roomImageFeedback")
+			const roomImageGrid = document.getElementById("roomImageGrid")
+			let roomImages = []
+
+			const safeText = (value, fallback = "") => {
+				const normalized = String(value ?? "").trim()
+				return normalized || fallback
+			}
+
+			const setText = (id, value) => {
+				const element = document.getElementById(id)
+				if (element) element.textContent = String(value)
+			}
+
+			const tabButtons = Array.from(document.querySelectorAll("[data-room-tab]"))
+			const panels = Array.from(document.querySelectorAll("[data-room-panel]"))
+			const showTab = (id) => {
+				for (const button of tabButtons) {
+					const active = button.getAttribute("data-room-tab") === id
+					button.setAttribute("aria-selected", active ? "true" : "false")
+					button.className = `inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition ${
+						active
+							? "bg-white text-slate-950"
+							: "text-slate-300 hover:bg-slate-800 hover:text-white"
+					}`
+				}
+				for (const panel of panels) {
+					panel.classList.toggle("hidden", panel.getAttribute("data-room-panel") !== id)
+				}
+			}
+			for (const button of tabButtons) {
+				button.addEventListener("click", () =>
+					showTab(String(button.getAttribute("data-room-tab")))
+				)
+			}
+
+			const statusClass = (tone) => {
+				if (tone === "success") return "border-green-200 bg-green-100 text-green-800"
+				if (tone === "info") return "border-blue-200 bg-blue-100 text-blue-800"
+				return "border-orange-200 bg-orange-100 text-orange-800"
+			}
+
+			const metricCard = (label, value, icon, tone = "neutral") => {
+				const article = document.createElement("article")
+				const toneClass =
+					tone === "ok"
+						? "border-emerald-200 bg-emerald-50"
+						: tone === "warn"
+							? "border-amber-200 bg-amber-50"
+							: "border-slate-200 bg-white"
+				article.className = `rounded-2xl border p-5 ${toneClass}`
+				const title = document.createElement("p")
+				title.className = "text-xs font-semibold uppercase tracking-wide text-slate-500"
+				title.textContent = label
+				const body = document.createElement("p")
+				body.className = "mt-2 text-base font-semibold text-slate-950"
+				body.textContent = value
+				const hint = document.createElement("p")
+				hint.className = "mt-2 text-sm text-slate-600"
+				hint.textContent = icon
+				article.append(title, body, hint)
+				return article
+			}
+
+			const renderProfileCards = (payload) => {
+				const container = document.getElementById("profileCards")
+				if (!container) return
+				container.innerHTML = ""
+				const preview = payload?.guestPreview ?? {}
+				container.append(
+					metricCard(
+						"Ocupación",
+						safeText(preview.occupancySummary, "Capacidad por confirmar"),
+						String(payload?.summary?.capacity ?? "Define límites de ocupación."),
+						payload?.blocks?.capacity?.complete ? "ok" : "warn"
+					),
+					metricCard(
+						"Camas",
+						safeText(preview.sleepSummary, "Camas por confirmar"),
+						"Se mostrará en la sección Dónde dormirás.",
+						payload?.blocks?.profile?.complete ? "ok" : "warn"
+					),
+					metricCard(
+						"Baño",
+						safeText(preview.bathroomSummary, "Baño por confirmar"),
+						safeText(preview.sizeSummary || preview.viewSummary, "Completa detalles físicos."),
+						payload?.blocks?.profile?.complete ? "ok" : "warn"
+					),
+					metricCard(
+						"Comodidades",
+						`${Array.isArray(preview.amenityLabels) ? preview.amenityLabels.length : 0} seleccionadas`,
+						"Propias de esta habitación.",
+						Array.isArray(preview.amenityLabels) && preview.amenityLabels.length > 0 ? "ok" : "warn"
+					)
+				)
+			}
 
 			const getErrorAction = (code) => {
 				const value = String(code || "")
 					.trim()
 					.toLowerCase()
-				if (value === "missing_capacity") {
+				if (value === "missing_capacity" || value === "missing_subtype") {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
-						label: "Completar perfil",
-					}
-				}
-				if (value === "missing_subtype") {
-					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}/profile`,
 						label: "Completar perfil",
 					}
 				}
@@ -282,15 +517,12 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					value === "effective_pricing_missing" ||
 					value === "pricing_invalid"
 				) {
-					return {
-						href: "/rates/plans/manage",
-						label: "Abrir tarifas",
-					}
+					return { href: "/rates/plans/manage", label: "Abrir tarifas" }
 				}
 				if (value === "inventory_missing") {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
-						label: "Configurar disponibilidad",
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}/inventory`,
+						label: "Editar disponibilidad",
 					}
 				}
 				return null
@@ -309,7 +541,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				for (const item of items) {
 					const li = document.createElement("li")
 					const code = String(item?.code || "")
-					const message = String(item?.message || code || "Error")
+					const message = safeText(item?.message, code || "Pendiente")
 					const action = getErrorAction(code)
 					li.className = "space-x-2"
 					const text = document.createElement("span")
@@ -327,242 +559,245 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				}
 			}
 
-			const blockCard = (label, summary, complete, href, ctaLabel) => {
-				const wrapper = document.createElement("article")
-				wrapper.className =
-					"space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-				const top = document.createElement("div")
-				top.className = "flex items-start justify-between gap-3"
-				const text = document.createElement("div")
-				text.className = "space-y-1"
-				const title = document.createElement("h2")
-				title.className = "text-xl font-semibold text-slate-900"
-				title.textContent = label
-				const desc = document.createElement("p")
-				desc.className = "text-sm text-slate-600"
-				desc.textContent = summary
-				text.append(title, desc)
-				const badge = document.createElement("span")
-				badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-					complete
-						? "bg-emerald-50 text-emerald-800 border-emerald-200"
-						: "bg-amber-50 text-amber-800 border-amber-200"
-				}`
-				badge.textContent = complete ? "Listo" : "Pendiente"
-				top.append(text, badge)
-				const actions = document.createElement("div")
-				actions.className = "flex justify-end"
-				const link = document.createElement("a")
-				link.href = href
-				link.textContent = ctaLabel
-				link.className =
-					"inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
-				link.setAttribute("data-astro-prefetch", "")
-				actions.append(link)
-				wrapper.append(top, actions)
-				return wrapper
-			}
-
-			const summaryCard = (label, summary) => {
-				const card = document.createElement("article")
-				card.className = "space-y-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-				const title = document.createElement("p")
-				title.className = "text-sm font-semibold text-slate-900"
-				title.textContent = label
-				const text = document.createElement("p")
-				text.className = "text-sm text-slate-600"
-				text.textContent = summary
-				card.append(title, text)
-				return card
-			}
-
-			const renderVariantImages = () => {
-				if (!variantImageGrid) return
-				variantImageGrid.innerHTML = ""
-				if (!Array.isArray(variantImages) || variantImages.length === 0) {
+			const renderRoomImages = () => {
+				if (!roomImageGrid) return
+				roomImageGrid.innerHTML = ""
+				if (!Array.isArray(roomImages) || roomImages.length === 0) {
 					const empty = document.createElement("div")
 					empty.className =
 						"col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600"
 					empty.textContent =
 						"Aún no hay fotos. Agrega al menos una imagen clara de la cama y el baño."
-					variantImageGrid.appendChild(empty)
+					roomImageGrid.appendChild(empty)
 					return
 				}
-				variantImages.forEach((image, index) => {
+				roomImages.forEach((image, index) => {
 					const card = document.createElement("article")
-					card.className = "space-y-3 rounded-lg border border-slate-200 bg-white p-3"
+					card.className = "space-y-3 rounded-xl border border-slate-200 bg-white p-3"
 					const preview = document.createElement("img")
 					preview.src = String(image.url)
-					preview.alt = `Imagen ${index + 1}`
-					preview.className = "h-28 w-full rounded object-cover"
-					const badges = document.createElement("div")
-					badges.className = "flex flex-wrap items-center gap-2"
-					if (index === 0) {
-						const primary = document.createElement("span")
-						primary.className =
-							"inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
-						primary.textContent = "Principal"
-						badges.appendChild(primary)
-					}
-					const existent = document.createElement("span")
-					existent.className =
-						"inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
-					existent.textContent = "Foto de habitación"
-					badges.appendChild(existent)
+					preview.alt = `Foto de habitación ${index + 1}`
+					preview.className = "h-36 w-full rounded-lg object-cover"
+					const meta = document.createElement("div")
+					meta.className = "flex flex-wrap items-center gap-2"
+					const order = document.createElement("span")
+					order.className =
+						"inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+					order.textContent = index === 0 ? "Principal" : `Foto ${index + 1}`
+					meta.appendChild(order)
 					const actions = document.createElement("div")
-					actions.className = "flex items-center justify-between gap-2"
-					const up = document.createElement("button")
-					up.type = "button"
-					up.className =
-						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
-					up.textContent = "Mover arriba"
-					up.disabled = index === 0
-					up.addEventListener("click", () => {
-						if (index === 0) return
-						const next = variantImages.slice()
-						const temp = next[index - 1]
-						next[index - 1] = next[index]
-						next[index] = temp
-						variantImages = next
-						renderVariantImages()
-					})
-					const down = document.createElement("button")
-					down.type = "button"
-					down.className =
-						"inline-flex h-8 items-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
-					down.textContent = "Mover abajo"
-					down.disabled = index === variantImages.length - 1
-					down.addEventListener("click", () => {
-						if (index === variantImages.length - 1) return
-						const next = variantImages.slice()
-						const temp = next[index + 1]
-						next[index + 1] = next[index]
-						next[index] = temp
-						variantImages = next
-						renderVariantImages()
-					})
-					const remove = document.createElement("button")
-					remove.type = "button"
-					remove.className =
-						"inline-flex h-8 items-center rounded border border-red-200 bg-red-50 px-2 text-xs text-red-700"
-					remove.textContent = "Eliminar"
-					remove.addEventListener("click", () => {
-						variantImages = variantImages.filter((_, idx) => idx !== index)
-						renderVariantImages()
-					})
-					actions.append(up, down, remove)
-					card.append(preview, badges, actions)
-					variantImageGrid.appendChild(card)
+					actions.className = "grid grid-cols-3 gap-2"
+					const makeButton = (label, disabled, onClick, tone = "neutral") => {
+						const button = document.createElement("button")
+						button.type = "button"
+						button.disabled = disabled
+						button.className =
+							tone === "danger"
+								? "inline-flex h-8 items-center justify-center rounded border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-40"
+								: "inline-flex h-8 items-center justify-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
+						button.textContent = label
+						button.addEventListener("click", onClick)
+						return button
+					}
+					actions.append(
+						makeButton("Arriba", index === 0, () => {
+							const next = roomImages.slice()
+							const temp = next[index - 1]
+							next[index - 1] = next[index]
+							next[index] = temp
+							roomImages = next
+							renderRoomImages()
+						}),
+						makeButton("Abajo", index === roomImages.length - 1, () => {
+							const next = roomImages.slice()
+							const temp = next[index + 1]
+							next[index + 1] = next[index]
+							next[index] = temp
+							roomImages = next
+							renderRoomImages()
+						}),
+						makeButton(
+							"Eliminar",
+							false,
+							() => {
+								roomImages = roomImages.filter((_, idx) => idx !== index)
+								renderRoomImages()
+							},
+							"danger"
+						)
+					)
+					card.append(preview, meta, actions)
+					roomImageGrid.appendChild(card)
 				})
 			}
 
-			const hydrate = (payload) => {
-				const variantTitle = document.getElementById("variantTitle")
-				const variantStatusBadge = document.getElementById("variantStatusBadge")
-				const progressBar = document.getElementById("variantProgressBar")
-				const progressCompleted = document.getElementById("variantProgressCompleted")
-				const progressPending = document.getElementById("variantProgressPending")
-				const progressPercent = document.getElementById("variantProgressPercent")
-				const blocksContainer = document.getElementById("variantBlocks")
-				const summaryContainer = document.getElementById("variantSummary")
-				const readinessStateText = document.getElementById("readinessStateText")
-				const readinessStateBadge = document.getElementById("readinessStateBadge")
-				const blockingList = document.getElementById("blockingErrorsList")
-				const nonBlockingList = document.getElementById("nonBlockingErrorsList")
+			const renderGuestPreview = (payload) => {
+				const preview = payload?.guestPreview ?? {}
+				setText("previewTitle", safeText(preview.roomName, payload?.variant?.name ?? "Habitación"))
+				setText("previewDescription", safeText(preview.description, "Descripción por completar."))
+				const media = document.getElementById("guestPreviewMedia")
+				if (media) {
+					media.innerHTML = ""
+					const cover = safeText(preview.coverUrl, "")
+					if (cover) {
+						const image = document.createElement("img")
+						image.src = cover
+						image.alt = `Foto principal de ${safeText(preview.roomName, "habitación")}`
+						image.className = "h-full min-h-[340px] w-full object-cover"
+						media.appendChild(image)
+					} else {
+						media.className =
+							"flex min-h-[340px] items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-500"
+						media.textContent = "Agrega una foto principal para completar el preview."
+					}
+				}
 
-				if (variantTitle) variantTitle.textContent = String(payload?.variant?.name ?? "Habitación")
-				if (variantStatusBadge) {
-					variantStatusBadge.textContent = String(payload?.variant?.statusLabel ?? "Borrador")
-					variantStatusBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-						payload?.variant?.statusVariant === "success"
-							? "bg-green-100 text-green-800 border-green-200"
-							: payload?.variant?.statusVariant === "info"
-								? "bg-blue-100 text-blue-800 border-blue-200"
-								: "bg-orange-100 text-orange-800 border-orange-200"
-					}`
+				const highlights = document.getElementById("previewHighlights")
+				if (highlights) {
+					highlights.innerHTML = ""
+					highlights.append(
+						metricCard(
+							"Capacidad",
+							safeText(preview.occupancySummary, "Por confirmar"),
+							"",
+							"neutral"
+						),
+						metricCard("Baño", safeText(preview.bathroomSummary, "Por confirmar"), "", "neutral"),
+						metricCard("Tamaño", safeText(preview.sizeSummary, "Sin especificar"), "", "neutral"),
+						metricCard("Vista", safeText(preview.viewSummary, "Sin especificar"), "", "neutral")
+					)
+				}
+
+				const sleepAreas = document.getElementById("previewSleepAreas")
+				if (sleepAreas) {
+					sleepAreas.innerHTML = ""
+					const areas = Array.isArray(preview.sleepAreas) ? preview.sleepAreas : []
+					if (!areas.length) {
+						const empty = document.createElement("p")
+						empty.className =
+							"rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600"
+						empty.textContent = "Completa las camas para mostrar dónde dormirá el huésped."
+						sleepAreas.appendChild(empty)
+					} else {
+						for (const area of areas) {
+							const card = document.createElement("article")
+							card.className = "rounded-xl border border-slate-200 bg-slate-50 p-4"
+							const title = document.createElement("p")
+							title.className = "font-semibold text-slate-900"
+							title.textContent = safeText(area?.label, "Dormitorio")
+							const summary = document.createElement("p")
+							summary.className = "mt-1 text-sm text-slate-600"
+							summary.textContent = safeText(area?.summary, "Camas por confirmar")
+							card.append(title, summary)
+							sleepAreas.appendChild(card)
+						}
+					}
+				}
+
+				const amenities = document.getElementById("previewAmenities")
+				if (amenities) {
+					amenities.innerHTML = ""
+					const labels = Array.isArray(preview.amenityLabels) ? preview.amenityLabels : []
+					if (!labels.length) {
+						const empty = document.createElement("p")
+						empty.className = "text-sm text-slate-500"
+						empty.textContent = "Sin comodidades propias seleccionadas."
+						amenities.appendChild(empty)
+					} else {
+						for (const label of labels.slice(0, 12)) {
+							const pill = document.createElement("span")
+							pill.className =
+								"inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700"
+							pill.textContent = String(label)
+							amenities.appendChild(pill)
+						}
+					}
+				}
+
+				const notes = document.getElementById("previewNotes")
+				if (notes) {
+					const noteText = safeText(preview.guestFacingNotes, "")
+					notes.textContent =
+						noteText ||
+						"Agrega notas visibles para huéspedes si hay algo importante que deban saber."
+				}
+			}
+
+			const renderAvailability = (payload) => {
+				const container = document.getElementById("availabilitySummaryCards")
+				if (!container) return
+				container.innerHTML = ""
+				container.append(
+					metricCard(
+						"Cobertura diaria",
+						String(payload?.summary?.inventory ?? "Sin disponibilidad"),
+						"Se gestiona desde disponibilidad y cupos.",
+						payload?.blocks?.inventory?.complete ? "ok" : "warn"
+					),
+					metricCard(
+						"Tarifas",
+						String(payload?.summary?.pricing ?? "Sin tarifas"),
+						"Las tarifas viven en Pricing y Rate Plans.",
+						payload?.blocks?.pricing?.complete ? "ok" : "warn"
+					)
+				)
+			}
+
+			const hydrate = (payload) => {
+				setText("roomTitle", safeText(payload?.variant?.name, "Habitación"))
+				const statusBadge = document.getElementById("roomStatusBadge")
+				if (statusBadge) {
+					statusBadge.textContent = safeText(payload?.variant?.statusLabel, "Borrador")
+					statusBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(payload?.variant?.statusVariant)}`
 				}
 
 				const percent = Number(payload?.progress?.progressPercent ?? 0)
+				const progressBar = document.getElementById("roomProgressBar")
 				if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
-				if (progressCompleted)
-					progressCompleted.textContent = `${Number(payload?.progress?.completedBlocks ?? 0)}/${Number(payload?.progress?.totalBlocks ?? 3)}`
-				if (progressPending)
-					progressPending.textContent = String(Number(payload?.progress?.pendingBlocks ?? 0))
-				if (progressPercent) progressPercent.textContent = `${percent}%`
+				setText(
+					"roomProgressCompleted",
+					`${Number(payload?.progress?.completedBlocks ?? 0)}/${Number(payload?.progress?.totalBlocks ?? 3)}`
+				)
+				setText("roomProgressPending", Number(payload?.progress?.pendingBlocks ?? 0))
+				setText("roomProgressPercent", `${percent}%`)
 
-				if (blocksContainer) {
-					blocksContainer.innerHTML = ""
-					blocksContainer.append(
-						blockCard(
-							"Perfil para huéspedes",
-							String(payload?.blocks?.profile?.summary ?? "Sin información"),
-							Boolean(payload?.blocks?.profile?.complete),
-							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
-							"Editar perfil"
-						),
-						blockCard(
-							"Tarifas",
-							String(payload?.blocks?.pricing?.summary ?? "Sin información"),
-							Boolean(payload?.blocks?.pricing?.complete),
-							"/rates/plans/manage",
-							"Abrir tarifas"
-						),
-						blockCard(
-							"Disponibilidad",
-							String(payload?.blocks?.inventory?.summary ?? "Sin información"),
-							Boolean(payload?.blocks?.inventory?.complete),
-							`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
-							"Editar disponibilidad"
-						)
-					)
-				}
+				roomImages = Array.isArray(payload?.variant?.images) ? payload.variant.images.slice() : []
+				renderProfileCards(payload)
+				renderRoomImages()
+				renderGuestPreview(payload)
+				renderAvailability(payload)
 
-				if (summaryContainer) {
-					summaryContainer.innerHTML = ""
-					summaryContainer.append(
-						summaryCard(
-							"Perfil para huéspedes",
-							String(payload?.summary?.profile ?? "Sin información")
-						),
-						summaryCard("Tarifas", String(payload?.summary?.pricing ?? "Sin información")),
-						summaryCard("Disponibilidad", String(payload?.summary?.inventory ?? "Sin información"))
-					)
+				setText(
+					"readinessStateText",
+					`Estado actual: ${safeText(payload?.readiness?.stateLabel, "Borrador")}`
+				)
+				const readinessBadge = document.getElementById("readinessStateBadge")
+				if (readinessBadge) {
+					readinessBadge.textContent = safeText(payload?.readiness?.stateLabel, "Borrador")
+					readinessBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(payload?.readiness?.stateVariant)}`
 				}
-				variantImages = Array.isArray(payload?.variant?.images)
-					? payload.variant.images.slice()
-					: []
-				renderVariantImages()
-
-				if (readinessStateText)
-					readinessStateText.textContent = `Estado actual: ${String(payload?.readiness?.stateLabel ?? "Borrador")}`
-				if (readinessStateBadge) {
-					readinessStateBadge.textContent = String(payload?.readiness?.stateLabel ?? "Borrador")
-					readinessStateBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-						payload?.readiness?.stateVariant === "success"
-							? "bg-green-100 text-green-800 border-green-200"
-							: "bg-orange-100 text-orange-800 border-orange-200"
-					}`
-				}
-				renderErrors(blockingList, payload?.readiness?.blockingErrors ?? [], "Sin bloqueantes.")
 				renderErrors(
-					nonBlockingList,
+					document.getElementById("blockingErrorsList"),
+					payload?.readiness?.blockingErrors ?? [],
+					"Sin bloqueantes."
+				)
+				renderErrors(
+					document.getElementById("nonBlockingErrorsList"),
 					payload?.readiness?.nonBlockingErrors ?? [],
 					"Sin pendientes adicionales."
 				)
 			}
 
-			variantImageUploadBtn?.addEventListener("click", () => {
-				if (variantImageFiles instanceof HTMLInputElement) {
-					variantImageFiles.click()
-				}
+			roomImageUploadBtn?.addEventListener("click", () => {
+				if (roomImageFiles instanceof HTMLInputElement) roomImageFiles.click()
 			})
 
-			variantImageFiles?.addEventListener("change", async (event) => {
+			roomImageFiles?.addEventListener("change", async (event) => {
 				const input = event.currentTarget
 				if (!(input instanceof HTMLInputElement)) return
 				const files = Array.from(input.files ?? [])
 				if (files.length === 0) return
-				if (variantImageFeedback) variantImageFeedback.textContent = "Subiendo imágenes..."
+				if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
 				try {
 					const signData = new FormData()
 					files.forEach((file) => signData.append("file", file))
@@ -573,12 +808,10 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					})
 					const signPayload = await signResponse.json().catch(() => ({}))
 					if (!signResponse.ok || !Array.isArray(signPayload?.urls)) {
-						if (variantImageFeedback) {
-							variantImageFeedback.textContent = "No se pudieron preparar las cargas."
-						}
+						if (roomImageFeedback)
+							roomImageFeedback.textContent = "No se pudieron preparar las cargas."
 						return
 					}
-
 					for (const [index, file] of files.entries()) {
 						const target = signPayload.urls[index]
 						if (!target?.signedUrl || !target?.publicUrl || !target?.key) continue
@@ -587,40 +820,34 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 							headers: { "Content-Type": file.type || "application/octet-stream" },
 							body: file,
 						})
-						if (!uploadResponse.ok) {
-							throw new Error(`upload_failed_${uploadResponse.status}`)
-						}
-						variantImages.push({
+						if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
+						roomImages.push({
 							id: `local-${crypto.randomUUID()}`,
 							url: String(target.publicUrl),
 							objectKey: String(target.key),
-							order: variantImages.length,
-							isPrimary: variantImages.length === 0,
+							order: roomImages.length,
+							isPrimary: roomImages.length === 0,
 						})
 					}
-					renderVariantImages()
-					if (variantImageFeedback) {
-						variantImageFeedback.textContent =
-							"Imágenes cargadas. Guarda la galería para persistir."
+					renderRoomImages()
+					if (roomImageFeedback) {
+						roomImageFeedback.textContent = "Imágenes cargadas. Guarda la galería para persistir."
 					}
 				} catch (error) {
-					if (variantImageFeedback) {
-						variantImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
-					}
+					if (roomImageFeedback)
+						roomImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
 				} finally {
 					input.value = ""
 				}
 			})
 
-			variantImageSaveBtn?.addEventListener("click", async () => {
-				if (variantImageSaveBtn instanceof HTMLButtonElement) {
-					variantImageSaveBtn.disabled = true
-				}
-				if (variantImageFeedback) variantImageFeedback.textContent = "Guardando galería..."
+			roomImageSaveBtn?.addEventListener("click", async () => {
+				if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
+				if (roomImageFeedback) roomImageFeedback.textContent = "Guardando galería..."
 				try {
 					const formData = new FormData()
-					formData.set("variantId", variantId)
-					for (const image of variantImages) {
+					formData.set("variantId", roomId)
+					for (const image of roomImages) {
 						formData.append("imageUrl", String(image.url))
 						const objectKey =
 							image?.objectKey ??
@@ -633,51 +860,45 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 							})()
 						formData.append("imageObjectKey", String(objectKey ?? ""))
 					}
-					const response = await fetch("/api/variant/images", {
-						method: "POST",
-						body: formData,
-					})
+					const response = await fetch("/api/variant/images", { method: "POST", body: formData })
 					const payload = await response.json().catch(() => ({}))
 					if (!response.ok) {
-						if (variantImageFeedback) {
-							variantImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
+						if (roomImageFeedback) {
+							roomImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
 						}
 						return
 					}
-					variantImages = Array.isArray(payload?.images) ? payload.images.slice() : variantImages
-					renderVariantImages()
-					if (variantImageFeedback)
-						variantImageFeedback.textContent = "Galería guardada correctamente."
+					roomImages = Array.isArray(payload?.images) ? payload.images.slice() : roomImages
+					renderRoomImages()
+					if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
 				} catch (error) {
-					if (variantImageFeedback) {
-						variantImageFeedback.textContent = `Error de red: ${String(error)}`
-					}
+					if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
 				} finally {
-					if (variantImageSaveBtn instanceof HTMLButtonElement) {
-						variantImageSaveBtn.disabled = false
-					}
+					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = false
 				}
 			})
 
-			const hydrationStart = performance.now()
-			fetch(
-				`/api/internal/room-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
-				{ headers: { accept: "application/json" } }
-			)
-				.then(async (response) => {
-					if (!response.ok) throw new Error(`variant_summary_${response.status}`)
-					return await response.json()
-				})
-				.then((payload) => {
+			const loadRoom = async () => {
+				const hydrationStart = performance.now()
+				try {
+					const response = await fetch(
+						`/api/internal/room-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(roomId)}`,
+						{ headers: { accept: "application/json" } }
+					)
+					if (!response.ok) throw new Error(`room_summary_${response.status}`)
+					const payload = await response.json()
 					hydrate(payload)
 					console.debug("data hydrated", {
-						page: "variant-detail",
+						page: "room-workspace",
 						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
 					})
-				})
-				.catch(() => {
-					if (feedback) feedback.textContent = "No se pudo cargar el resumen de la habitación."
-				})
+					return payload
+				} catch (error) {
+					if (feedback)
+						feedback.textContent = `No se pudo cargar la ficha de habitación: ${String(error)}`
+					return null
+				}
+			}
 
 			const setBusy = (isBusy) => {
 				if (reevaluateBtn) reevaluateBtn.disabled = isBusy
@@ -686,35 +907,22 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const evaluateReadiness = async () => {
 				setBusy(true)
-				if (feedback) feedback.textContent = "Evaluando estado..."
+				if (feedback) feedback.textContent = "Evaluando publicación..."
 				try {
 					const form = new FormData()
-					form.set("variantId", String(variantId || ""))
+					form.set("variantId", String(roomId || ""))
 					const res = await fetch("/api/variant/evaluate", { method: "POST", body: form })
-
 					if (res.status === 401) {
 						window.location.href = "/SignInPage"
 						return
 					}
 					if (!res.ok) {
 						const txt = await res.text()
-						if (feedback)
-							feedback.textContent =
-								res.status >= 500
-									? "No se pudo evaluar en este momento."
-									: txt || "Error de evaluación."
+						if (feedback) feedback.textContent = txt || "No se pudo evaluar en este momento."
 						return
 					}
-
-					const refreshed = await fetch(
-						`/api/internal/room-summary?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
-						{ headers: { accept: "application/json" } }
-					)
-					if (refreshed.ok) {
-						const payload = await refreshed.json()
-						hydrate(payload)
-					}
-					if (feedback) feedback.textContent = "Validación actualizada correctamente."
+					await loadRoom()
+					if (feedback) feedback.textContent = "Revisión actualizada correctamente."
 				} catch (error) {
 					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
 				} finally {
@@ -724,6 +932,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			evaluateHeaderBtn?.addEventListener("click", evaluateReadiness)
 			reevaluateBtn?.addEventListener("click", evaluateReadiness)
+			void loadRoom()
 		})()
 	</script>
 </WorkspaceLayout>

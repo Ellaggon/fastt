@@ -119,6 +119,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				kind: Variant.kind,
 				name: Variant.name,
 				description: Variant.description,
+				externalCode: Variant.externalCode,
 				status: Variant.status,
 				isActive: Variant.isActive,
 			})

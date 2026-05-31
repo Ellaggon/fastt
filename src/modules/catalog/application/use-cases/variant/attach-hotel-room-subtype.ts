@@ -42,12 +42,6 @@ export async function attachHotelRoomSubtype(
 		return { variantId: parsed.variantId }
 	}
 
-	const dup = await deps.repo.existsHotelRoomSubtypeForProductRoomType({
-		productId: v.productId,
-		roomTypeId,
-	})
-	if (dup) throw new Error("A hotel_room variant already exists for this roomTypeId")
-
 	await deps.repo.attachHotelRoomSubtype({ variantId: parsed.variantId, roomTypeId })
 	return { variantId: parsed.variantId }
 }

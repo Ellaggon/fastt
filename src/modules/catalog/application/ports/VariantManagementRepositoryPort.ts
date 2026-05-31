@@ -36,6 +36,7 @@ export interface VariantManagementRepositoryPort {
 		kind?: string | null
 		name: string
 		description?: string | null
+		externalCode?: string | null
 		status?: string | null
 		isActive: boolean
 	} | null>

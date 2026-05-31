@@ -1,4 +1,5 @@
 ---
+import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -437,84 +438,11 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 					description="Vista de habitaciones, camas, baño, fotos y comodidades como aparecerán en la ficha pública."
 				>
 					{guestRoomPreviews.length ? (
-						<div class="grid gap-4 lg:grid-cols-2">
-							{guestRoomPreviews.map((preview) => (
-								<Card className="overflow-hidden bg-white p-0 text-slate-800">
-									<img
-										src={preview.imageUrl}
-										alt={preview.roomName}
-										class="h-56 w-full object-cover"
-									/>
-									<div class="space-y-5 p-5">
-										<div>
-											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-												{preview.roomTypeName || "Habitación"}
-											</p>
-											<h3 class="mt-1 text-lg font-semibold text-slate-950">{preview.roomName}</h3>
-											<p class="mt-1 text-sm text-slate-500">
-												{[preview.sizeSummary, preview.viewSummary].filter(Boolean).join(" · ") ||
-													"Detalle de habitación"}
-											</p>
-										</div>
-
-										<div class="grid gap-3 text-sm leading-6 text-slate-700">
-											<div>
-												<p class="font-semibold text-slate-900">Dónde dormirás</p>
-												{preview.sleepAreas.length ? (
-													<div class="mt-2 grid gap-2">
-														{preview.sleepAreas.map((area) => (
-															<p class="rounded-lg bg-slate-50 px-3 py-2">
-																<span class="font-medium text-slate-900">{area.label}:</span>{" "}
-																{area.summary}
-															</p>
-														))}
-													</div>
-												) : (
-													<p class="mt-1 text-slate-500">Camas por confirmar.</p>
-												)}
-											</div>
-											<div class="grid gap-2 sm:grid-cols-2">
-												<p class="rounded-lg bg-slate-50 px-3 py-2">
-													<span class="font-medium text-slate-900">Baño:</span>{" "}
-													{preview.bathroomSummary}
-												</p>
-												<p class="rounded-lg bg-slate-50 px-3 py-2">
-													<span class="font-medium text-slate-900">Capacidad:</span>{" "}
-													{preview.occupancySummary}
-												</p>
-											</div>
-										</div>
-
-										{preview.amenityLabels.length ? (
-											<div>
-												<p class="text-sm font-semibold text-slate-900">Comodidades visibles</p>
-												<div class="mt-2 flex flex-wrap gap-2">
-													{preview.amenityLabels.slice(0, 8).map((label) => (
-														<span class="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
-															{label}
-														</span>
-													))}
-													{preview.amenityLabels.length > 8 ? (
-														<span class="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-															+{preview.amenityLabels.length - 8}
-														</span>
-													) : null}
-												</div>
-											</div>
-										) : null}
-
-										{preview.guestFacingNotes ? (
-											<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-												<p class="text-sm font-semibold text-slate-900">Notas para huéspedes</p>
-												<p class="mt-1 text-sm leading-6 text-slate-600">
-													{preview.guestFacingNotes}
-												</p>
-											</div>
-										) : null}
-									</div>
-								</Card>
-							))}
-						</div>
+						<GuestRoomPreviewCards
+							previews={guestRoomPreviews}
+							cardClass="border-slate-200 bg-white text-slate-800"
+							gridClass="grid gap-4 lg:grid-cols-2"
+						/>
 					) : (
 						<Card className="border-amber-200 bg-amber-50 text-amber-950">
 							<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>

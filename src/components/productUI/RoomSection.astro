@@ -1,5 +1,6 @@
 ---
 const { offers, searchState, productId, amenities, hotelRoom, productFallbackImage } = Astro.props
+import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import { Bath, BedDouble, User } from "@lucide/astro"
@@ -194,65 +195,11 @@ function occupancyCount(room: any): number | null {
 				</div>
 			</div>
 
-			<div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-				{guestRoomPreviews.map((preview) => (
-					<article class="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
-						<button
-							type="button"
-							data-open-modal={`room-${preview.variantId}`}
-							class="block w-full text-left"
-						>
-							<img src={preview.imageUrl} alt={preview.roomName} class="h-44 w-full object-cover" />
-						</button>
-						<div class="space-y-4 p-4">
-							<div>
-								<p class="text-base font-semibold text-neutral-900">{preview.roomName}</p>
-								<p class="mt-1 text-sm text-neutral-500">
-									{[preview.roomTypeName, preview.sizeSummary, preview.viewSummary]
-										.filter(Boolean)
-										.join(" · ") || "Perfil de habitación"}
-								</p>
-							</div>
-
-							<div class="grid gap-2 text-sm text-neutral-700">
-								<div class="flex items-start gap-2">
-									<BedDouble class="mt-0.5 h-4 w-4 text-neutral-500" />
-									<span>{preview.sleepSummary}</span>
-								</div>
-								<div class="flex items-start gap-2">
-									<Bath class="mt-0.5 h-4 w-4 text-neutral-500" />
-									<span>{preview.bathroomSummary}</span>
-								</div>
-								<div class="flex items-start gap-2">
-									<User class="mt-0.5 h-4 w-4 text-neutral-500" />
-									<span>{preview.occupancySummary}</span>
-								</div>
-							</div>
-
-							{preview.amenityLabels.length ? (
-								<div class="flex flex-wrap gap-2">
-									{preview.amenityLabels.slice(0, 5).map((label) => (
-										<span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-neutral-700 ring-1 ring-neutral-200">
-											{label}
-										</span>
-									))}
-									{preview.amenityLabels.length > 5 ? (
-										<span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-neutral-500 ring-1 ring-neutral-200">
-											+{preview.amenityLabels.length - 5}
-										</span>
-									) : null}
-								</div>
-							) : null}
-
-							{preview.guestFacingNotes ? (
-								<p class="rounded-xl bg-white p-3 text-sm leading-6 text-neutral-600 ring-1 ring-neutral-200">
-									{preview.guestFacingNotes}
-								</p>
-							) : null}
-						</div>
-					</article>
-				))}
-			</div>
+			<GuestRoomPreviewCards
+				previews={guestRoomPreviews}
+				cardClass="border-neutral-200 bg-neutral-50 text-neutral-800"
+				enableModal={true}
+			/>
 		</section>
 	) : null
 }
