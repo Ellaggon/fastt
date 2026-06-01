@@ -104,6 +104,18 @@ const introTitle =
 const introCopy =
 	"Define lo que el huésped verá antes de reservar: nombre, capacidad, camas, baño, vista, comodidades y notas importantes."
 const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id, bedType.name]))
+const guideSteps = [
+	{
+		id: "nombre-tipo",
+		label: "Nombre y tipo",
+		summary: "Identidad visible e identificador interno.",
+	},
+	{ id: "capacidad", label: "Capacidad", summary: "Cuántos huéspedes pueden alojarse." },
+	{ id: "dormir", label: "Dónde dormirán", summary: "Camas y ambientes de descanso." },
+	{ id: "bano-espacio", label: "Baño y espacio", summary: "Baño, tamaño, vista y balcón." },
+	{ id: "comodidades", label: "Comodidades", summary: "Amenities propias de la habitación." },
+	{ id: "preview", label: "Preview", summary: "Revisión final antes de guardar." },
+]
 ---
 
 <Card class="bg-slate-100">
@@ -125,6 +137,57 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 							<p class="font-semibold">{introTitle}</p>
 							<p class="mt-1 leading-6">{introCopy}</p>
 						</div>
+					</div>
+				</div>
+
+				<div
+					class="rounded-2xl border border-slate-200 bg-white p-4"
+					aria-label="Guía de configuración de habitación"
+				>
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+								<Sparkles class="h-4 w-4 text-blue-800" />
+								Setup guiado de habitación
+							</p>
+							<p class="mt-1 text-sm leading-6 text-slate-600">
+								Completa la ficha como un recorrido: primero identidad, luego capacidad, descanso,
+								baño, comodidades y preview.
+							</p>
+						</div>
+						<span
+							id="roomGuideProgress"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+						>
+							0/6 listo
+						</span>
+					</div>
+					<div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+						<div id="roomGuideProgressBar" class="h-full w-0 bg-blue-700"></div>
+					</div>
+					<div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+						{
+							guideSteps.map((step, index) => (
+								<button
+									type="button"
+									data-guide-nav={step.id}
+									class="roomGuideNav rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+								>
+									<span class="flex items-center justify-between gap-3">
+										<span class="text-sm font-semibold text-slate-900">
+											{index + 1}. {step.label}
+										</span>
+										<span
+											data-guide-state={step.id}
+											class="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500"
+										>
+											Pendiente
+										</span>
+									</span>
+									<span class="mt-1 block text-xs leading-5 text-slate-600">{step.summary}</span>
+								</button>
+							))
+						}
 					</div>
 				</div>
 
@@ -156,7 +219,7 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 							<span
 								class="mt-3 block rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-700"
 							>
-								Preview: dormitorio cómodo para dos.
+								Impacto: capacidad 2, baño privado y cama queen.
 							</span>
 						</button>
 						<button
@@ -174,7 +237,7 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 							<span
 								class="mt-3 block rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-700"
 							>
-								Preview: descanso claro para familia o grupo.
+								Impacto: capacidad 4, cama doble y camas simples.
 							</span>
 						</button>
 						<button
@@ -192,272 +255,321 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 							<span
 								class="mt-3 block rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-700"
 							>
-								Preview: opción simple y económica.
+								Impacto: capacidad 1, cama simple y baño compartido.
 							</span>
 						</button>
 					</div>
+					<div
+						id="presetImpact"
+						class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm leading-6 text-slate-600"
+					>
+						Selecciona un preset para ver qué campos se completarán antes de guardar.
+					</div>
 				</div>
 
-				<FormSection title="Cómo verá el huésped la habitación" class="text-neutral-800">
-					<div class="grid gap-4 md:grid-cols-2">
-						<FormField label="Nombre de la habitación" htmlFor="name" required>
-							<Input
-								id="name"
-								name="name"
-								value={initial.name}
-								required
-								minlength="1"
-								placeholder="Suite jardín, Habitación familiar..."
+				<div id="nombre-tipo" data-guide-section="nombre-tipo" class="scroll-mt-24">
+					<FormSection title="Nombre y tipo" class="text-neutral-800">
+						<p class="-mt-2 mb-4 text-sm leading-6 text-slate-600">
+							Define cómo reconocerán esta habitación el huésped y tu operación interna.
+						</p>
+						<div class="grid gap-4 md:grid-cols-2">
+							<FormField label="Nombre de la habitación" htmlFor="name" required>
+								<Input
+									id="name"
+									name="name"
+									value={initial.name}
+									required
+									minlength="1"
+									placeholder="Suite jardín, Habitación familiar..."
+								/>
+							</FormField>
+							<FormField
+								label="Código interno"
+								htmlFor="roomCode"
+								description="Identificador operativo para recepción, reportes o channel managers. No se muestra al huésped."
+							>
+								<Input
+									id="roomCode"
+									name="roomCode"
+									value={initial.roomCode}
+									placeholder="STD-101, DLX-KING, FAM-02..."
+								/>
+							</FormField>
+							<FormField label="Tipo de habitación" htmlFor="roomTypeId">
+								<Select id="roomTypeId" name="roomTypeId" value={initial.roomTypeId}>
+									<option value="">Selecciona una opción</option>
+									{
+										roomTypes.map((roomType) => (
+											<option value={roomType.id}>
+												{roomType.name}
+												{roomType.maxOccupancy != null ? ` · hasta ${roomType.maxOccupancy}` : ""}
+											</option>
+										))
+									}
+								</Select>
+							</FormField>
+						</div>
+						<FormField label="Descripción breve para huésped" htmlFor="description">
+							<Textarea
+								id="description"
+								name="description"
+								value={initial.description}
+								rows="3"
+								placeholder="Describe el ambiente, la luz, la vista o para quién es ideal."
 							/>
 						</FormField>
-						<FormField
-							label="Código interno"
-							htmlFor="roomCode"
-							description="Identificador operativo para recepción, reportes o channel managers. No se muestra al huésped."
-						>
-							<Input
-								id="roomCode"
-								name="roomCode"
-								value={initial.roomCode}
-								placeholder="STD-101, DLX-KING, FAM-02..."
+						<FormField label="Notas visibles para huésped" htmlFor="guestFacingNotes">
+							<Textarea
+								id="guestFacingNotes"
+								name="guestFacingNotes"
+								value={initial.guestFacingNotes}
+								rows="3"
+								placeholder="Ej. Vista al jardín, acceso por escalera, ideal para parejas."
 							/>
 						</FormField>
-						<FormField label="Tipo de habitación" htmlFor="roomTypeId">
-							<Select id="roomTypeId" name="roomTypeId" value={initial.roomTypeId}>
-								<option value="">Selecciona una opción</option>
-								{
-									roomTypes.map((roomType) => (
-										<option value={roomType.id}>
-											{roomType.name}
-											{roomType.maxOccupancy != null ? ` · hasta ${roomType.maxOccupancy}` : ""}
-										</option>
-									))
-								}
-							</Select>
-						</FormField>
-					</div>
-					<FormField label="Descripción breve para huésped" htmlFor="description">
-						<Textarea
-							id="description"
-							name="description"
-							value={initial.description}
-							rows="3"
-							placeholder="Describe el ambiente, la luz, la vista o para quién es ideal."
-						/>
-					</FormField>
-					<FormField label="Notas visibles para huésped" htmlFor="guestFacingNotes">
-						<Textarea
-							id="guestFacingNotes"
-							name="guestFacingNotes"
-							value={initial.guestFacingNotes}
-							rows="3"
-							placeholder="Ej. Vista al jardín, acceso por escalera, ideal para parejas."
-						/>
-					</FormField>
-				</FormSection>
+					</FormSection>
+				</div>
 
-				<FormSection title="Capacidad de estancia" class="text-neutral-800">
-					<div class="grid gap-4 md:grid-cols-4">
-						<FormField label="Mínimo huéspedes" htmlFor="minOccupancy" required>
-							<Input
-								id="minOccupancy"
-								name="minOccupancy"
-								type="number"
-								min="1"
-								step="1"
-								value={initial.minOccupancy}
-								required
-							/>
-						</FormField>
-						<FormField label="Máximo huéspedes" htmlFor="maxOccupancy" required>
-							<Input
-								id="maxOccupancy"
-								name="maxOccupancy"
-								type="number"
-								min="1"
-								step="1"
-								value={initial.maxOccupancy}
-								required
-							/>
-						</FormField>
-						<FormField label="Máximo adultos" htmlFor="maxAdults">
-							<Input
-								id="maxAdults"
-								name="maxAdults"
-								type="number"
-								min="0"
-								step="1"
-								value={initial.maxAdults}
-							/>
-						</FormField>
-						<FormField label="Máximo niños" htmlFor="maxChildren">
-							<Input
-								id="maxChildren"
-								name="maxChildren"
-								type="number"
-								min="0"
-								step="1"
-								value={initial.maxChildren}
-							/>
-						</FormField>
-					</div>
-				</FormSection>
+				<div id="capacidad" data-guide-section="capacidad" class="scroll-mt-24">
+					<FormSection title="Capacidad" class="text-neutral-800">
+						<p class="-mt-2 mb-4 text-sm leading-6 text-slate-600">
+							Indica el rango real de huéspedes. Esto alimenta búsqueda, disponibilidad y claridad
+							de reserva.
+						</p>
+						<div class="grid gap-4 md:grid-cols-4">
+							<FormField label="Mínimo huéspedes" htmlFor="minOccupancy" required>
+								<Input
+									id="minOccupancy"
+									name="minOccupancy"
+									type="number"
+									min="1"
+									step="1"
+									value={initial.minOccupancy}
+									required
+								/>
+							</FormField>
+							<FormField label="Máximo huéspedes" htmlFor="maxOccupancy" required>
+								<Input
+									id="maxOccupancy"
+									name="maxOccupancy"
+									type="number"
+									min="1"
+									step="1"
+									value={initial.maxOccupancy}
+									required
+								/>
+							</FormField>
+							<FormField label="Máximo adultos" htmlFor="maxAdults">
+								<Input
+									id="maxAdults"
+									name="maxAdults"
+									type="number"
+									min="0"
+									step="1"
+									value={initial.maxAdults}
+								/>
+							</FormField>
+							<FormField label="Máximo niños" htmlFor="maxChildren">
+								<Input
+									id="maxChildren"
+									name="maxChildren"
+									type="number"
+									min="0"
+									step="1"
+									value={initial.maxChildren}
+								/>
+							</FormField>
+						</div>
+					</FormSection>
+				</div>
 
-				<FormSection title="Espacio, baño y vista" class="text-neutral-800">
-					<div class="grid gap-4 md:grid-cols-4">
-						<FormField
-							label="Unidades disponibles de esta configuración"
-							htmlFor="totalRooms"
-							description="Cuántas habitaciones físicas comparten este mismo perfil de camas, baño y comodidades."
-							required
-						>
-							<Input
-								id="totalRooms"
-								name="totalRooms"
-								type="number"
-								min="1"
-								step="1"
-								value={initial.totalRooms}
-								required
-							/>
-						</FormField>
-						<FormField label="Tamaño aprox. (m²)" htmlFor="sizeM2">
-							<Input
-								id="sizeM2"
-								name="sizeM2"
-								type="number"
-								min="0"
-								step="1"
-								value={initial.sizeM2}
-							/>
-						</FormField>
-						<FormField label="Vista" htmlFor="viewType">
-							<Input
-								id="viewType"
-								name="viewType"
-								value={initial.viewType}
-								placeholder="Mar, jardín, ciudad..."
-							/>
-						</FormField>
-						<FormField label="Balcón" htmlFor="hasBalcony">
-							<Select id="hasBalcony" name="hasBalcony" value={initial.hasBalcony}>
-								<option value="unknown">Sin especificar</option>
-								<option value="true">Sí</option>
-								<option value="false">No</option>
-							</Select>
-						</FormField>
-					</div>
-					<div class="grid gap-4 md:grid-cols-2">
-						<FormField label="Cantidad de baños" htmlFor="bathroomCount">
-							<Input
-								id="bathroomCount"
-								name="bathroomCount"
-								type="number"
-								min="0"
-								step="1"
-								value={initial.bathroomCount}
-							/>
-						</FormField>
-						<FormField label="Tipo de baño" htmlFor="bathroomType">
-							<Select id="bathroomType" name="bathroomType" value={initial.bathroomType}>
-								<option value="unknown">Sin especificar</option>
-								<option value="private">Privado</option>
-								<option value="ensuite">En suite</option>
-								<option value="dedicated">Dedicado fuera de la habitación</option>
-								<option value="shared">Compartido</option>
-							</Select>
-						</FormField>
-					</div>
-				</FormSection>
-
-				<FormSection title="Dónde dormirán" class="text-neutral-800">
-					<div class="space-y-3" id="bedRows">
-						{
-							bedRows.map((bed, index) => (
-								<div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[2fr_1fr_2fr_auto]">
-									<FormField label="Tipo" htmlFor={`bedType_${index}`} required>
-										<Select
-											id={`bedType_${index}`}
-											name="bedType"
-											value={String(bed.bedType ?? "")}
-											required
+				<div id="dormir" data-guide-section="dormir" class="scroll-mt-24">
+					<FormSection title="Dónde dormirán" class="text-neutral-800">
+						<p class="-mt-2 mb-4 text-sm leading-6 text-slate-600">
+							Configura camas por ambiente para que el huésped entienda exactamente dónde dormirá.
+						</p>
+						<div class="space-y-3" id="bedRows">
+							{
+								bedRows.map((bed, index) => (
+									<div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[2fr_1fr_2fr_auto]">
+										<FormField label="Tipo" htmlFor={`bedType_${index}`} required>
+											<Select
+												id={`bedType_${index}`}
+												name="bedType"
+												value={String(bed.bedType ?? "")}
+												required
+											>
+												{BED_TYPES.map((bedType) => (
+													<option value={bedType.id}>{bedType.name}</option>
+												))}
+											</Select>
+										</FormField>
+										<FormField label="Cantidad" htmlFor={`bedCount_${index}`} required>
+											<Input
+												id={`bedCount_${index}`}
+												name="bedCount"
+												type="number"
+												min="1"
+												step="1"
+												value={String(bed.count ?? 1)}
+												required
+											/>
+										</FormField>
+										<FormField label="Ambiente" htmlFor={`bedRoomLabel_${index}`}>
+											<Input
+												id={`bedRoomLabel_${index}`}
+												name="bedRoomLabel"
+												value={String(bed.roomLabel ?? "")}
+												placeholder="Dormitorio principal"
+											/>
+										</FormField>
+										<button
+											type="button"
+											class="removeBedRow mt-7 inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+											aria-label="Eliminar cama"
 										>
-											{BED_TYPES.map((bedType) => (
-												<option value={bedType.id}>{bedType.name}</option>
-											))}
-										</Select>
-									</FormField>
-									<FormField label="Cantidad" htmlFor={`bedCount_${index}`} required>
-										<Input
-											id={`bedCount_${index}`}
-											name="bedCount"
-											type="number"
-											min="1"
-											step="1"
-											value={String(bed.count ?? 1)}
-											required
-										/>
-									</FormField>
-									<FormField label="Ambiente" htmlFor={`bedRoomLabel_${index}`}>
-										<Input
-											id={`bedRoomLabel_${index}`}
-											name="bedRoomLabel"
-											value={String(bed.roomLabel ?? "")}
-											placeholder="Dormitorio principal"
-										/>
-									</FormField>
-									<button
-										type="button"
-										class="removeBedRow mt-7 inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
-										aria-label="Eliminar cama"
-									>
-										Quitar
-									</button>
-								</div>
-							))
-						}
-					</div>
-					<Button id="addBedRow" type="button" variant="secondary">Agregar cama</Button>
-				</FormSection>
-
-				<FormSection title="Comodidades propias de la habitación" class="text-neutral-800">
-					{
-						amenities.length > 0 ? (
-							<div class="grid gap-4 md:grid-cols-2">
-								{Object.entries(groupedAmenities).map(([category, items]) => (
-									<div class="rounded-lg border border-slate-200 bg-white p-4">
-										<p class="mb-3 text-sm font-semibold text-slate-900">{category}</p>
-										<div class="space-y-2">
-											{items.map((amenity) => (
-												<label class="flex items-center gap-2 text-sm text-slate-700">
-													<input
-														type="checkbox"
-														name="amenityId"
-														value={amenity.id}
-														checked={selectedAmenitySet.has(String(amenity.id))}
-														class="h-4 w-4 rounded border-slate-300 text-blue-700"
-													/>
-													<span>{amenity.name}</span>
-												</label>
-											))}
-										</div>
+											Quitar
+										</button>
 									</div>
-								))}
-							</div>
-						) : (
-							<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
-								<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
-									<ClipboardList class="h-4 w-4" />
-									Aún no hay comodidades configuradas
-								</p>
-								<p class="mt-1 text-sm leading-6 text-slate-600">
-									Guarda la habitación ahora. Luego podrás sumar Wi-Fi, minibar, climatización u
-									otras comodidades visibles para huéspedes.
-								</p>
-							</div>
-						)
-					}
-				</FormSection>
+								))
+							}
+						</div>
+						<Button id="addBedRow" type="button" variant="secondary">Agregar cama</Button>
+					</FormSection>
+				</div>
+
+				<div id="bano-espacio" data-guide-section="bano-espacio" class="scroll-mt-24">
+					<FormSection title="Baño y espacio" class="text-neutral-800">
+						<p class="-mt-2 mb-4 text-sm leading-6 text-slate-600">
+							Explica condiciones físicas que suelen definir la confianza del huésped: baño, tamaño,
+							vista y balcón.
+						</p>
+						<div class="grid gap-4 md:grid-cols-4">
+							<FormField
+								label="Unidades disponibles de esta configuración"
+								htmlFor="totalRooms"
+								description="Cuántas habitaciones físicas comparten este mismo perfil de camas, baño y comodidades."
+								required
+							>
+								<Input
+									id="totalRooms"
+									name="totalRooms"
+									type="number"
+									min="1"
+									step="1"
+									value={initial.totalRooms}
+									required
+								/>
+							</FormField>
+							<FormField label="Tamaño aprox. (m²)" htmlFor="sizeM2">
+								<Input
+									id="sizeM2"
+									name="sizeM2"
+									type="number"
+									min="0"
+									step="1"
+									value={initial.sizeM2}
+								/>
+							</FormField>
+							<FormField label="Vista" htmlFor="viewType">
+								<Input
+									id="viewType"
+									name="viewType"
+									value={initial.viewType}
+									placeholder="Mar, jardín, ciudad..."
+								/>
+							</FormField>
+							<FormField label="Balcón" htmlFor="hasBalcony">
+								<Select id="hasBalcony" name="hasBalcony" value={initial.hasBalcony}>
+									<option value="unknown">Sin especificar</option>
+									<option value="true">Sí</option>
+									<option value="false">No</option>
+								</Select>
+							</FormField>
+						</div>
+						<div class="grid gap-4 md:grid-cols-2">
+							<FormField label="Cantidad de baños" htmlFor="bathroomCount">
+								<Input
+									id="bathroomCount"
+									name="bathroomCount"
+									type="number"
+									min="0"
+									step="1"
+									value={initial.bathroomCount}
+								/>
+							</FormField>
+							<FormField label="Tipo de baño" htmlFor="bathroomType">
+								<Select id="bathroomType" name="bathroomType" value={initial.bathroomType}>
+									<option value="unknown">Sin especificar</option>
+									<option value="private">Privado</option>
+									<option value="ensuite">En suite</option>
+									<option value="dedicated">Dedicado fuera de la habitación</option>
+									<option value="shared">Compartido</option>
+								</Select>
+							</FormField>
+						</div>
+					</FormSection>
+				</div>
+
+				<div id="comodidades" data-guide-section="comodidades" class="scroll-mt-24">
+					<FormSection title="Comodidades" class="text-neutral-800">
+						<p class="-mt-2 mb-4 text-sm leading-6 text-slate-600">
+							Selecciona solo amenities propias de esta habitación. Servicios generales del
+							alojamiento viven fuera de esta ficha.
+						</p>
+						{
+							amenities.length > 0 ? (
+								<div class="grid gap-4 md:grid-cols-2">
+									{Object.entries(groupedAmenities).map(([category, items]) => (
+										<div class="rounded-lg border border-slate-200 bg-white p-4">
+											<p class="mb-3 text-sm font-semibold text-slate-900">{category}</p>
+											<div class="space-y-2">
+												{items.map((amenity) => (
+													<label class="flex items-center gap-2 text-sm text-slate-700">
+														<input
+															type="checkbox"
+															name="amenityId"
+															value={amenity.id}
+															checked={selectedAmenitySet.has(String(amenity.id))}
+															class="h-4 w-4 rounded border-slate-300 text-blue-700"
+														/>
+														<span>{amenity.name}</span>
+													</label>
+												))}
+											</div>
+										</div>
+									))}
+								</div>
+							) : (
+								<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+									<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+										<ClipboardList class="h-4 w-4" />
+										Aún no hay comodidades configuradas
+									</p>
+									<p class="mt-1 text-sm leading-6 text-slate-600">
+										Guarda la habitación ahora. Luego podrás sumar Wi-Fi, minibar, climatización u
+										otras comodidades visibles para huéspedes.
+									</p>
+								</div>
+							)
+						}
+					</FormSection>
+				</div>
+
+				<div
+					id="preview"
+					data-guide-section="preview"
+					class="scroll-mt-24 rounded-2xl border border-blue-200 bg-blue-50 p-5"
+				>
+					<p class="flex items-center gap-2 text-sm font-semibold text-blue-950">
+						<BedDouble class="h-4 w-4" />
+						Preview
+					</p>
+					<p class="mt-1 text-sm leading-6 text-blue-950">
+						Revisa la tarjeta lateral “Preview huésped”. Si nombre, capacidad, camas, baño y notas
+						se entienden sin explicación extra, la habitación está lista para guardar.
+					</p>
+				</div>
 
 				<p id="roomProfileFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 
@@ -612,6 +724,11 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 	const previewBeds = document.getElementById("roomEditorPreviewBeds")
 	const previewAmenities = document.getElementById("roomEditorPreviewAmenities")
 	const previewNotes = document.getElementById("roomEditorPreviewNotes")
+	const guideProgress = document.getElementById("roomGuideProgress")
+	const guideProgressBar = document.getElementById("roomGuideProgressBar")
+	const guideNavButtons = Array.from(document.querySelectorAll("[data-guide-nav]"))
+	const guideStateBadges = Array.from(document.querySelectorAll("[data-guide-state]"))
+	const presetImpact = document.getElementById("presetImpact")
 
 	const bathroomLabels = {
 		unknown: "Baño por confirmar",
@@ -740,6 +857,52 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 			.filter(Boolean)
 	}
 
+	function hasPositiveNumber(name) {
+		const value = Number(getField(name))
+		return Number.isFinite(value) && value > 0
+	}
+
+	function computeGuideState() {
+		const nameReady = Boolean(getField("name")) && Boolean(getField("roomTypeId"))
+		const capacityReady = hasPositiveNumber("minOccupancy") && hasPositiveNumber("maxOccupancy")
+		const sleepReady = collectBeds().length > 0
+		const bathReady = hasPositiveNumber("bathroomCount") && Boolean(getField("bathroomType"))
+		const amenitiesReady = collectAmenityLabels().length > 0
+		const previewReady = nameReady && capacityReady && sleepReady && bathReady
+		return {
+			"nombre-tipo": nameReady,
+			"capacidad": capacityReady,
+			"dormir": sleepReady,
+			"bano-espacio": bathReady,
+			"comodidades": amenitiesReady,
+			"preview": previewReady,
+		}
+	}
+
+	function renderGuideProgress() {
+		const state = computeGuideState()
+		const entries = Object.entries(state)
+		const completed = entries.filter(([, ready]) => ready).length
+		const total = entries.length
+		const percent = Math.round((completed / total) * 100)
+		if (guideProgress) guideProgress.textContent = `${completed}/${total} listo`
+		if (guideProgressBar) guideProgressBar.style.width = `${percent}%`
+		for (const badge of guideStateBadges) {
+			const id = badge.getAttribute("data-guide-state")
+			const ready = Boolean(state[id])
+			badge.textContent = ready ? "Listo" : "Pendiente"
+			badge.className = ready
+				? "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+				: "rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500"
+		}
+		for (const button of guideNavButtons) {
+			const id = button.getAttribute("data-guide-nav")
+			const ready = Boolean(state[id])
+			button.classList.toggle("border-emerald-300", ready)
+			button.classList.toggle("bg-emerald-50", ready)
+		}
+	}
+
 	function renderEditorPreview() {
 		const name = getField("name")
 		const description = getField("description")
@@ -790,6 +953,7 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 					.join("")
 			}
 		}
+		renderGuideProgress()
 	}
 
 	function applyPreset(name) {
@@ -844,7 +1008,19 @@ const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id,
 		for (const bed of preset.beds) addBedPresetRow(bed.bedType, bed.count, bed.roomLabel)
 		bindRemoveButtons()
 		renderEditorPreview()
+		if (presetImpact) {
+			presetImpact.textContent = `Preset aplicado: ${preset.maxOccupancy} huésped(es), ${preset.beds
+				.map((bed) => `${bed.count} ${bedTypeLabels?.[bed.bedType] ?? bed.bedType}`)
+				.join(" + ")}, ${bathroomLabels[preset.bathroomType] ?? "baño definido"}.`
+		}
 		setState("success", "Configuración rápida aplicada. Revisa y ajusta antes de guardar.")
+	}
+
+	for (const button of guideNavButtons) {
+		button.addEventListener("click", () => {
+			const target = document.getElementById(String(button.getAttribute("data-guide-nav") ?? ""))
+			target?.scrollIntoView({ behavior: "smooth", block: "start" })
+		})
 	}
 
 	addBedRow?.addEventListener("click", () => {

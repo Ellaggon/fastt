@@ -7,6 +7,9 @@ interface Props {
 	cardClass?: string
 	gridClass?: string
 	enableModal?: boolean
+	containerId?: string
+	statusLabel?: string
+	emptyText?: string
 }
 
 const {
@@ -14,142 +17,370 @@ const {
 	cardClass = "border-neutral-200 bg-white text-neutral-800",
 	gridClass = "grid gap-4 md:grid-cols-2 xl:grid-cols-3",
 	enableModal = false,
+	containerId,
+	statusLabel = "",
+	emptyText = "",
 } = Astro.props
 ---
 
-<div class={gridClass}>
+<div id={containerId} class={gridClass}>
 	{
-		previews.map((preview) => {
-			const gallery = preview.gallery ?? []
-			const thumbnailGallery = gallery.slice(0, 4)
-			return (
-				<article class={`overflow-hidden rounded-2xl border ${cardClass}`}>
-					<div class="relative bg-neutral-100">
-						{enableModal ? (
-							<button
-								type="button"
-								data-open-modal={`room-${preview.variantId}`}
-								class="block w-full text-left"
-							>
+		previews.length ? (
+			previews.map((preview) => {
+				const gallery = preview.gallery ?? []
+				const thumbnailGallery = gallery.slice(0, 4)
+				return (
+					<article class={`overflow-hidden rounded-2xl border ${cardClass}`}>
+						<div class="relative bg-neutral-100">
+							{enableModal ? (
+								<button
+									type="button"
+									data-open-modal={`room-${preview.variantId}`}
+									class="block w-full text-left"
+								>
+									<img
+										src={preview.imageUrl}
+										alt={preview.roomName}
+										class="h-52 w-full object-cover"
+									/>
+								</button>
+							) : (
 								<img
 									src={preview.imageUrl}
 									alt={preview.roomName}
 									class="h-52 w-full object-cover"
 								/>
-							</button>
-						) : (
-							<img src={preview.imageUrl} alt={preview.roomName} class="h-52 w-full object-cover" />
-						)}
-						{gallery.length > 1 ? (
-							<div class="absolute right-3 bottom-3 rounded-full bg-black/65 px-3 py-1 text-xs font-semibold text-white">
-								{gallery.length} fotos
-							</div>
-						) : null}
-					</div>
-
-					<div class="space-y-5 p-4 md:p-5">
-						<div>
-							<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-								{preview.roomTypeName || "Habitación"}
-							</p>
-							<h3 class="mt-1 text-lg font-semibold text-neutral-950">{preview.roomName}</h3>
-							<p class="mt-1 text-sm text-neutral-500">
-								{[preview.sizeSummary, preview.viewSummary].filter(Boolean).join(" · ") ||
-									"Detalle de habitación"}
-							</p>
+							)}
+							{gallery.length > 1 ? (
+								<div class="absolute right-3 bottom-3 rounded-full bg-black/65 px-3 py-1 text-xs font-semibold text-white">
+									{gallery.length} fotos
+								</div>
+							) : null}
 						</div>
 
-						{thumbnailGallery.length > 1 ? (
-							<div class="grid grid-cols-4 gap-2">
-								{thumbnailGallery.map((image) => (
-									<img
-										src={image.url}
-										alt={`${preview.roomName} foto`}
-										class="h-16 rounded-lg object-cover"
-									/>
-								))}
-							</div>
-						) : null}
-
-						<div class="grid gap-3 text-sm leading-6 text-neutral-700">
+						<div class="space-y-5 p-4 md:p-5">
 							<div>
-								<p class="flex items-center gap-2 font-semibold text-neutral-900">
-									<BedDouble class="h-4 w-4 text-neutral-500" />
-									Dónde dormirás
-								</p>
-								{preview.sleepAreas.length ? (
-									<div class="mt-2 grid gap-2">
-										{preview.sleepAreas.map((area) => (
-											<p class="rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-												<span class="font-medium text-neutral-900">{area.label}:</span>{" "}
-												{area.summary}
-											</p>
-										))}
-									</div>
-								) : (
-									<p class="mt-1 rounded-lg bg-neutral-50 px-3 py-2 text-neutral-500 ring-1 ring-neutral-200">
-										Camas por confirmar.
-									</p>
-								)}
-							</div>
-
-							<div class="grid gap-2 sm:grid-cols-2">
-								<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-									<Bath class="h-4 w-4 text-neutral-500" />
-									<span>{preview.bathroomSummary}</span>
-								</p>
-								<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-									<User class="h-4 w-4 text-neutral-500" />
-									<span>{preview.occupancySummary}</span>
-								</p>
-								{preview.sizeSummary ? (
-									<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-										<Ruler class="h-4 w-4 text-neutral-500" />
-										<span>{preview.sizeSummary}</span>
+								{statusLabel ? (
+									<p class="mb-2 inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
+										{statusLabel}
 									</p>
 								) : null}
-								{gallery.length ? (
-									<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-										<Images class="h-4 w-4 text-neutral-500" />
-										<span>
-											{gallery.length} foto{gallery.length === 1 ? "" : "s"}
-										</span>
-									</p>
-								) : null}
+								<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+									{preview.roomTypeName || "Habitación"}
+								</p>
+								<h3 class="mt-1 text-lg font-semibold text-neutral-950">{preview.roomName}</h3>
+								<p class="mt-1 text-sm text-neutral-500">
+									{[preview.sizeSummary, preview.viewSummary].filter(Boolean).join(" · ") ||
+										"Detalle de habitación"}
+								</p>
 							</div>
-						</div>
 
-						{preview.amenityGroups.length ? (
-							<div>
-								<p class="text-sm font-semibold text-neutral-900">Comodidades de la habitación</p>
-								<div class="mt-3 grid gap-3">
-									{preview.amenityGroups.map((group) => (
-										<div class="rounded-xl border border-neutral-200 bg-white p-3">
-											<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-												{group.category}
-											</p>
-											<div class="mt-2 flex flex-wrap gap-2">
-												{group.labels.map((label) => (
-													<span class="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-														{label}
-													</span>
-												))}
-											</div>
-										</div>
+							{thumbnailGallery.length > 1 ? (
+								<div class="grid grid-cols-4 gap-2">
+									{thumbnailGallery.map((image) => (
+										<img
+											src={image.url}
+											alt={`${preview.roomName} foto`}
+											class="h-16 rounded-lg object-cover"
+										/>
 									))}
 								</div>
-							</div>
-						) : null}
+							) : null}
 
-						{preview.guestFacingNotes ? (
-							<div class="rounded-xl border border-neutral-200 bg-white p-4">
-								<p class="text-sm font-semibold text-neutral-900">Notas para huéspedes</p>
-								<p class="mt-2 text-sm leading-6 text-neutral-600">{preview.guestFacingNotes}</p>
+							<div class="grid gap-3 text-sm leading-6 text-neutral-700">
+								<div>
+									<p class="flex items-center gap-2 font-semibold text-neutral-900">
+										<BedDouble class="h-4 w-4 text-neutral-500" />
+										Dónde dormirás
+									</p>
+									{preview.sleepAreas.length ? (
+										<div class="mt-2 grid gap-2">
+											{preview.sleepAreas.map((area) => (
+												<p class="rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
+													<span class="font-medium text-neutral-900">{area.label}:</span>{" "}
+													{area.summary}
+												</p>
+											))}
+										</div>
+									) : (
+										<p class="mt-1 rounded-lg bg-neutral-50 px-3 py-2 text-neutral-500 ring-1 ring-neutral-200">
+											Camas por confirmar.
+										</p>
+									)}
+								</div>
+
+								<div class="grid gap-2 sm:grid-cols-2">
+									<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
+										<Bath class="h-4 w-4 text-neutral-500" />
+										<span>{preview.bathroomSummary}</span>
+									</p>
+									<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
+										<User class="h-4 w-4 text-neutral-500" />
+										<span>{preview.occupancySummary}</span>
+									</p>
+									{preview.sizeSummary ? (
+										<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
+											<Ruler class="h-4 w-4 text-neutral-500" />
+											<span>{preview.sizeSummary}</span>
+										</p>
+									) : null}
+									{gallery.length ? (
+										<p class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
+											<Images class="h-4 w-4 text-neutral-500" />
+											<span>
+												{gallery.length} foto{gallery.length === 1 ? "" : "s"}
+											</span>
+										</p>
+									) : null}
+								</div>
 							</div>
-						) : null}
-					</div>
-				</article>
-			)
-		})
+
+							{preview.amenityGroups.length ? (
+								<div>
+									<p class="text-sm font-semibold text-neutral-900">Comodidades de la habitación</p>
+									<div class="mt-3 grid gap-3">
+										{preview.amenityGroups.map((group) => (
+											<div class="rounded-xl border border-neutral-200 bg-white p-3">
+												<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+													{group.category}
+												</p>
+												<div class="mt-2 flex flex-wrap gap-2">
+													{group.labels.map((label) => (
+														<span class="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+															{label}
+														</span>
+													))}
+												</div>
+											</div>
+										))}
+									</div>
+								</div>
+							) : null}
+
+							{preview.guestFacingNotes ? (
+								<div class="rounded-xl border border-neutral-200 bg-white p-4">
+									<p class="text-sm font-semibold text-neutral-900">Notas para huéspedes</p>
+									<p class="mt-2 text-sm leading-6 text-neutral-600">{preview.guestFacingNotes}</p>
+								</div>
+							) : null}
+						</div>
+					</article>
+				)
+			})
+		) : emptyText ? (
+			<div class="rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-sm text-neutral-600">
+				{emptyText}
+			</div>
+		) : null
 	}
 </div>
+
+<script is:inline>
+	;(function () {
+		const escapeText = (value, fallback = "") => {
+			const normalized = String(value ?? "").trim()
+			return normalized || fallback
+		}
+
+		const create = (tag, className, text) => {
+			const element = document.createElement(tag)
+			if (className) element.className = className
+			if (text != null) element.textContent = String(text)
+			return element
+		}
+
+		const metric = (icon, text) => {
+			const item = create(
+				"p",
+				"flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200"
+			)
+			const iconSpan = create("span", "text-neutral-500", icon)
+			iconSpan.setAttribute("aria-hidden", "true")
+			item.append(iconSpan, create("span", "", text))
+			return item
+		}
+
+		window.renderGuestRoomPreviewCards = function renderGuestRoomPreviewCards(
+			container,
+			previews,
+			options = {}
+		) {
+			const target = typeof container === "string" ? document.getElementById(container) : container
+			if (!target) return
+			const cardClass = escapeText(
+				options.cardClass,
+				"border-neutral-200 bg-white text-neutral-800"
+			)
+			const statusLabel = escapeText(options.statusLabel)
+			const emptyText = escapeText(options.emptyText, "Vista de habitación pendiente.")
+			target.innerHTML = ""
+
+			const items = Array.isArray(previews) ? previews : []
+			if (!items.length) {
+				target.append(
+					create(
+						"div",
+						"rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-sm text-neutral-600",
+						emptyText
+					)
+				)
+				return
+			}
+
+			for (const preview of items) {
+				const gallery = Array.isArray(preview?.gallery) ? preview.gallery : []
+				const thumbnailGallery = gallery.slice(0, 4)
+				const article = create("article", `overflow-hidden rounded-2xl border ${cardClass}`)
+
+				const media = create("div", "relative bg-neutral-100")
+				const image = document.createElement("img")
+				image.src = escapeText(preview?.imageUrl, "https://placehold.co/1200x800?text=Habitacion")
+				image.alt = escapeText(preview?.roomName, "Habitación")
+				image.className = "h-52 w-full object-cover"
+				media.append(image)
+				if (gallery.length > 1) {
+					const count = create(
+						"div",
+						"absolute right-3 bottom-3 rounded-full bg-black/65 px-3 py-1 text-xs font-semibold text-white",
+						`${gallery.length} fotos`
+					)
+					media.append(count)
+				}
+				article.append(media)
+
+				const body = create("div", "space-y-5 p-4 md:p-5")
+				const titleBlock = create("div")
+				if (statusLabel) {
+					titleBlock.append(
+						create(
+							"p",
+							"mb-2 inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800",
+							statusLabel
+						)
+					)
+				}
+				titleBlock.append(
+					create(
+						"p",
+						"text-xs font-semibold tracking-wide text-neutral-500 uppercase",
+						escapeText(preview?.roomTypeName, "Habitación")
+					),
+					create(
+						"h3",
+						"mt-1 text-lg font-semibold text-neutral-950",
+						escapeText(preview?.roomName, "Habitación")
+					)
+				)
+				const meta = [preview?.sizeSummary, preview?.viewSummary].filter(Boolean).join(" · ")
+				titleBlock.append(
+					create("p", "mt-1 text-sm text-neutral-500", meta || "Detalle de habitación")
+				)
+				body.append(titleBlock)
+
+				if (thumbnailGallery.length > 1) {
+					const thumbs = create("div", "grid grid-cols-4 gap-2")
+					for (const item of thumbnailGallery) {
+						const thumb = document.createElement("img")
+						thumb.src = escapeText(item?.url)
+						thumb.alt = `${escapeText(preview?.roomName, "Habitación")} foto`
+						thumb.className = "h-16 rounded-lg object-cover"
+						thumbs.append(thumb)
+					}
+					body.append(thumbs)
+				}
+
+				const details = create("div", "grid gap-3 text-sm leading-6 text-neutral-700")
+				const sleep = create("div")
+				const sleepTitle = create("p", "flex items-center gap-2 font-semibold text-neutral-900")
+				sleepTitle.append(
+					create("span", "text-neutral-500", "🛏"),
+					create("span", "", "Dónde dormirás")
+				)
+				sleep.append(sleepTitle)
+				const sleepAreas = Array.isArray(preview?.sleepAreas) ? preview.sleepAreas : []
+				if (sleepAreas.length) {
+					const list = create("div", "mt-2 grid gap-2")
+					for (const area of sleepAreas) {
+						const row = create("p", "rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200")
+						const label = create(
+							"span",
+							"font-medium text-neutral-900",
+							`${escapeText(area?.label, "Dormitorio")}: `
+						)
+						row.append(
+							label,
+							document.createTextNode(escapeText(area?.summary, "Camas por confirmar"))
+						)
+						list.append(row)
+					}
+					sleep.append(list)
+				} else {
+					sleep.append(
+						create(
+							"p",
+							"mt-1 rounded-lg bg-neutral-50 px-3 py-2 text-neutral-500 ring-1 ring-neutral-200",
+							"Camas por confirmar."
+						)
+					)
+				}
+				details.append(sleep)
+
+				const metrics = create("div", "grid gap-2 sm:grid-cols-2")
+				metrics.append(
+					metric("🛁", escapeText(preview?.bathroomSummary, "Baño por confirmar")),
+					metric("👤", escapeText(preview?.occupancySummary, "Capacidad por confirmar"))
+				)
+				if (preview?.sizeSummary) metrics.append(metric("↔", preview.sizeSummary))
+				if (gallery.length)
+					metrics.append(metric("▦", `${gallery.length} foto${gallery.length === 1 ? "" : "s"}`))
+				details.append(metrics)
+				body.append(details)
+
+				const amenityGroups = Array.isArray(preview?.amenityGroups) ? preview.amenityGroups : []
+				if (amenityGroups.length) {
+					const amenities = create("div")
+					amenities.append(
+						create("p", "text-sm font-semibold text-neutral-900", "Comodidades de la habitación")
+					)
+					const groups = create("div", "mt-3 grid gap-3")
+					for (const group of amenityGroups) {
+						const groupCard = create("div", "rounded-xl border border-neutral-200 bg-white p-3")
+						groupCard.append(
+							create(
+								"p",
+								"text-xs font-semibold tracking-wide text-neutral-500 uppercase",
+								escapeText(group?.category, "Comodidades")
+							)
+						)
+						const labels = create("div", "mt-2 flex flex-wrap gap-2")
+						for (const label of Array.isArray(group?.labels) ? group.labels : []) {
+							labels.append(
+								create(
+									"span",
+									"rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700",
+									label
+								)
+							)
+						}
+						groupCard.append(labels)
+						groups.append(groupCard)
+					}
+					amenities.append(groups)
+					body.append(amenities)
+				}
+
+				if (preview?.guestFacingNotes) {
+					const notes = create("div", "rounded-xl border border-neutral-200 bg-white p-4")
+					notes.append(
+						create("p", "text-sm font-semibold text-neutral-900", "Notas para huéspedes"),
+						create("p", "mt-2 text-sm leading-6 text-neutral-600", preview.guestFacingNotes)
+					)
+					body.append(notes)
+				}
+
+				article.append(body)
+				target.append(article)
+			}
+		}
+	})()
+</script>

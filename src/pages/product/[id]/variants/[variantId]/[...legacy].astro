@@ -1,0 +1,22 @@
+---
+const productId = String(Astro.params.id ?? "")
+const variantId = String(Astro.params.variantId ?? "")
+const legacyPath = String(Astro.params.legacy ?? "")
+	.trim()
+	.toLowerCase()
+
+if (!productId) return Astro.redirect("/product")
+if (!variantId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/rooms`)
+
+const roomDetailPath = `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}`
+const targetPath =
+	legacyPath === "capacity" || legacyPath === "subtype" || legacyPath === "profile"
+		? `${roomDetailPath}/profile`
+		: legacyPath === "inventory"
+			? `${roomDetailPath}/inventory`
+			: legacyPath === "availability"
+				? `${roomDetailPath}#disponibilidad`
+				: roomDetailPath
+
+return Astro.redirect(targetPath)
+---

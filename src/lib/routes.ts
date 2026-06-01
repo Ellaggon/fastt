@@ -24,7 +24,7 @@ export const routes = {
 	productRoomProfile: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/profile`,
 	productRoomAvailability: (productId: string, roomId: string) =>
-		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/availability`,
+		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}#disponibilidad`,
 	productRoomInventory: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/inventory`,
 	bookingList: () => "/booking",

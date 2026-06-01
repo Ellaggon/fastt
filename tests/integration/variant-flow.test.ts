@@ -10,7 +10,7 @@ import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 import { POST as updateVariantStatusPost } from "@/pages/api/variant/status"
 
 import { variantManagementRepository } from "@/container"
-import { db, VariantCapacity, Variant, eq } from "astro:db"
+import { db, Image, VariantCapacity, eq } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -76,6 +76,18 @@ async function readJson(res: Response) {
 	}
 }
 
+async function insertVariantImage(variantId: string) {
+	await db.insert(Image).values({
+		id: `img_${crypto.randomUUID()}`,
+		entityType: "variant",
+		entityId: variantId,
+		objectKey: `rooms/${variantId}/main.jpg`,
+		url: `https://example.com/rooms/${variantId}/main.jpg`,
+		order: 0,
+		isPrimary: true,
+	})
+}
+
 describe("integration/variant (CAPA 3)", () => {
 	it("full flow: create -> capacity -> subtype -> evaluate => ready", async () => {
 		const token = "t_a"
@@ -139,6 +151,7 @@ describe("integration/variant (CAPA 3)", () => {
 				}),
 			} as any)
 			expect(subRes.status).toBe(200)
+			await insertVariantImage(variantId)
 
 			const evalFd = new FormData()
 			evalFd.set("variantId", variantId)
@@ -152,6 +165,7 @@ describe("integration/variant (CAPA 3)", () => {
 			expect(Array.isArray(ev.validationErrors)).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "inventory_missing")).toBe(true)
+			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(false)
 
 			const v = await variantManagementRepository.getVariantById(variantId)
 			expect(v?.status).toBe("ready")
@@ -212,6 +226,7 @@ describe("integration/variant (CAPA 3)", () => {
 			const ev = (await readJson(evalRes)) as any
 			expect(ev.state).toBe("draft")
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_capacity")).toBe(true)
+			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "inventory_missing")).toBe(true)
 		})
@@ -258,6 +273,7 @@ describe("integration/variant (CAPA 3)", () => {
 				request: makeAuthedFormRequest({ path: "/api/variant/capacity", token, form: capFd }),
 			} as any)
 			expect(capRes.status).toBe(200)
+			await insertVariantImage(variantId)
 
 			const evalFd = new FormData()
 			evalFd.set("variantId", variantId)
@@ -267,6 +283,7 @@ describe("integration/variant (CAPA 3)", () => {
 			const ev = (await readJson(evalRes)) as any
 			expect(ev.state).toBe("ready")
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_subtype")).toBe(false)
+			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(false)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "inventory_missing")).toBe(true)
 		})

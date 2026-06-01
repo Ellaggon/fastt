@@ -72,4 +72,5 @@ export interface VariantManagementRepositoryPort {
 	}): Promise<void>
 
 	countDailyInventoryDays(variantId: string): Promise<number>
+	countVariantImages(variantId: string): Promise<number>
 }

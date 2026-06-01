@@ -31,6 +31,7 @@ const blockingCodes = new Set([
 	"pricing_invalid",
 	"effective_pricing_missing",
 	"inventory_missing",
+	"missing_room_photo",
 ])
 const readinessInventoryMinDays = 30
 const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
@@ -248,14 +249,35 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}, new Map())
 	).map(([category, labels]) => ({ category, labels }))
 	const roomAmenityCount = availableAmenities.length
+	const gallery = variantImages.map((image) => ({
+		id: String(image.id),
+		url: String(image.url),
+		objectKey:
+			ensureObjectKey({
+				objectKey: image.objectKey ? String(image.objectKey) : null,
+				url: String(image.url),
+				context: "room-summary",
+				imageId: String(image.id),
+			}) ?? null,
+		order: Number(image.order ?? 0),
+		isPrimary: Boolean(image.isPrimary),
+	}))
+	const photoComplete = gallery.length > 0
+	const photoSummary = photoComplete
+		? `${gallery.length} foto(s) · principal para Dónde dormirás`
+		: "Falta una foto principal para Dónde dormirás"
 
 	const pricingComplete = Boolean(
 		aggregate.baseRate && aggregate.defaultRatePlan && effectivePricingDays > 0
 	)
 	const inventoryComplete = dailyInventoryDays >= readinessInventoryMinDays
+	const inventorySummary = inventoryComplete
+		? `${dailyInventoryDays} día(s) con disponibilidad diaria`
+		: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`
 	const profileComplete = Boolean(aggregate.capacity && roomProfile && roomBeds.length > 0)
 	const blocks = [
 		{ key: "profile", complete: profileComplete },
+		{ key: "photos", complete: photoComplete },
 		{ key: "pricing", complete: pricingComplete },
 		{ key: "inventory", complete: inventoryComplete },
 	]
@@ -276,6 +298,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 		syntheticBlockingErrors.push({
 			code: "inventory_missing",
 			message: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+		})
+	}
+	if (!photoComplete && !errors.some((error) => error.code === "missing_room_photo")) {
+		syntheticBlockingErrors.push({
+			code: "missing_room_photo",
+			message: "Agrega una foto principal de la habitación para Dónde dormirás",
 		})
 	}
 	const allErrors = [...errors, ...syntheticBlockingErrors]
@@ -311,19 +339,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			]
 				.filter(Boolean)
 				.join(", ") || "Ficha incompleta"
-	const gallery = variantImages.map((image) => ({
-		id: String(image.id),
-		url: String(image.url),
-		objectKey:
-			ensureObjectKey({
-				objectKey: image.objectKey ? String(image.objectKey) : null,
-				url: String(image.url),
-				context: "room-summary",
-				imageId: String(image.id),
-			}) ?? null,
-		order: Number(image.order ?? 0),
-		isPrimary: Boolean(image.isPrimary),
-	}))
 	const sleepAreas = Array.from(
 		roomBeds.reduce<Map<string, Array<{ bedType: string; count: number; label: string }>>>(
 			(acc, bed) => {
@@ -356,6 +371,86 @@ export const GET: APIRoute = async ({ request, url }) => {
 			? `${aggregate.capacity.maxOccupancy} huésped${aggregate.capacity.maxOccupancy === 1 ? "" : "es"}`
 			: `${aggregate.capacity.minOccupancy}-${aggregate.capacity.maxOccupancy} huéspedes`
 		: "Capacidad por confirmar"
+	const bedsComplete = roomBeds.length > 0
+	const bathroomComplete = roomProfile?.bathroomCount != null
+	const amenitiesComplete = roomAmenityCount > 0
+	const amenitiesSummary = amenitiesComplete
+		? `${roomAmenityCount} comodidad(es) propias de la habitación`
+		: "Agrega comodidades visibles para el huésped"
+	const policiesComplete = true
+	const policiesSummary =
+		"Se gobiernan en Booking Policies y rate plans; Rooms solo confirma el handoff."
+	const guestReadinessItems = [
+		{
+			key: "profile",
+			label: "Perfil",
+			complete: profileComplete,
+			summary: profileSummary,
+			actionLabel: "Completar perfil",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+		},
+		{
+			key: "beds",
+			label: "Camas",
+			complete: bedsComplete,
+			summary: bedSummary,
+			actionLabel: "Editar camas",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+		},
+		{
+			key: "bathroom",
+			label: "Baño",
+			complete: bathroomComplete,
+			summary: bathroomSummary,
+			actionLabel: "Editar baño",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+		},
+		{
+			key: "photos",
+			label: "Fotos",
+			complete: photoComplete,
+			summary: photoSummary,
+			actionLabel: "Agregar fotos",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}#fotos`,
+		},
+		{
+			key: "amenities",
+			label: "Comodidades",
+			complete: amenitiesComplete,
+			summary: amenitiesSummary,
+			actionLabel: "Editar comodidades",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/profile`,
+		},
+	]
+	const sellReadinessItems = [
+		{
+			key: "pricing",
+			label: "Tarifas",
+			complete: pricingComplete,
+			summary: pricingSummary,
+			actionLabel: "Abrir tarifas",
+			actionHref: "/rates/plans/manage",
+		},
+		{
+			key: "inventory",
+			label: "Disponibilidad",
+			complete: inventoryComplete,
+			summary: inventorySummary,
+			actionLabel: "Editar disponibilidad",
+			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
+		},
+		{
+			key: "policies",
+			label: "Políticas",
+			complete: policiesComplete,
+			summary: policiesSummary,
+			actionLabel: "Abrir Booking Policies",
+			actionHref: "/provider/policies",
+			externalOwner: true,
+		},
+	]
+	const guestReadinessComplete = guestReadinessItems.every((item) => item.complete)
+	const sellReadinessComplete = sellReadinessItems.every((item) => item.complete)
 
 	logEndpoint()
 	return new Response(
@@ -408,6 +503,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 					complete: profileComplete,
 					summary: profileSummary,
 				},
+				photos: {
+					complete: photoComplete,
+					summary: photoSummary,
+					count: gallery.length,
+				},
 				capacity: {
 					complete: capacityComplete,
 					summary: aggregate.capacity
@@ -432,9 +532,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				},
 				inventory: {
 					complete: inventoryComplete,
-					summary: inventoryComplete
-						? `${dailyInventoryDays} día(s) con disponibilidad diaria`
-						: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+					summary: inventorySummary,
 				},
 			},
 			summary: {
@@ -445,10 +543,27 @@ export const GET: APIRoute = async ({ request, url }) => {
 				subtype: aggregate.subtype
 					? `Tipo de habitación: ${aggregate.subtype.roomTypeId}`
 					: "Sin tipo de habitación registrado",
+				photos: photoSummary,
 				pricing: pricingSummary,
-				inventory: inventoryComplete
-					? `${dailyInventoryDays} día(s) con disponibilidad diaria`
-					: `Disponibilidad diaria pendiente (${dailyInventoryDays}/${readinessInventoryMinDays})`,
+				inventory: inventorySummary,
+			},
+			readinessSplit: {
+				guest: {
+					title: "Ficha huésped completa",
+					description: "Perfil, camas, baño, fotos y comodidades que verá el huésped.",
+					complete: guestReadinessComplete,
+					completedItems: guestReadinessItems.filter((item) => item.complete).length,
+					totalItems: guestReadinessItems.length,
+					items: guestReadinessItems,
+				},
+				sell: {
+					title: "Lista para vender",
+					description: "Tarifas, disponibilidad y políticas se validan como handoff comercial.",
+					complete: sellReadinessComplete,
+					completedItems: sellReadinessItems.filter((item) => item.complete).length,
+					totalItems: sellReadinessItems.length,
+					items: sellReadinessItems,
+				},
 			},
 			readiness: {
 				state: readinessState,

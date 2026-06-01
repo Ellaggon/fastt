@@ -8,6 +8,7 @@ import { POST as createVariantPost } from "@/pages/api/variant/create"
 import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
+import { db, Image } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -72,6 +73,18 @@ function makeAuthedGetRequest(params: { path: string; token?: string }): Request
 async function readJson(res: Response) {
 	const txt = await res.text()
 	return txt ? JSON.parse(txt) : null
+}
+
+async function insertVariantImage(variantId: string) {
+	await db.insert(Image).values({
+		id: `img_${crypto.randomUUID()}`,
+		entityType: "variant",
+		entityId: variantId,
+		objectKey: `rooms/${variantId}/main.jpg`,
+		url: `https://example.com/rooms/${variantId}/main.jpg`,
+		order: 0,
+		isPrimary: true,
+	})
 }
 
 function continueSetupUrl(pid: string, variant: any): string {
@@ -286,6 +299,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 					form: sub,
 				}),
 			} as any)
+			await insertVariantImage(variantId)
 
 			const evalFd2 = new FormData()
 			evalFd2.set("variantId", variantId)
