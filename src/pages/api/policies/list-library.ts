@@ -1,19 +1,12 @@
 import type { APIRoute } from "astro"
-import { db, and, eq, inArray, Policy, PolicyGroup } from "astro:db"
+import { db, eq, inArray, Policy, PolicyGroup } from "astro:db"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyGroupIds } from "@/lib/policies/policyOwnership"
 
-// Minimal provider-only endpoint for CAPA 6 UX validation.
-// Lists active policies with their categories for selection/assignment.
 export const GET: APIRoute = async ({ request }) => {
 	const { providerId } = await requireProvider(request)
-	const ownedGroupIds = await getOwnedPolicyGroupIds(providerId)
-	if (!ownedGroupIds.length) {
-		return new Response(JSON.stringify([]), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
-	}
+	const ownedGroupIds = await getOwnedPolicyGroupIds(providerId, { activeOnly: false })
+	if (!ownedGroupIds.length) return Response.json([])
 
 	const rows = await db
 		.select({
@@ -30,13 +23,12 @@ export const GET: APIRoute = async ({ request }) => {
 			payoutBasis: (Policy as any).payoutBasis,
 			localTimezone: (Policy as any).localTimezone,
 			legalOverrideFlags: (Policy as any).legalOverrideFlags,
+			effectiveFrom: Policy.effectiveFrom,
+			effectiveTo: Policy.effectiveTo,
 		})
 		.from(Policy)
 		.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
-		.where(and(eq(Policy.status, "active"), inArray(Policy.groupId, ownedGroupIds)))
+		.where(inArray(Policy.groupId, ownedGroupIds))
 
-	return new Response(JSON.stringify(rows), {
-		status: 200,
-		headers: { "Content-Type": "application/json" },
-	})
+	return Response.json(rows)
 }

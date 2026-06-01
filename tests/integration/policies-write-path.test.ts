@@ -94,7 +94,11 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		).rejects.toBeInstanceOf(PolicyValidationError)
 
 		// Variant assignment
-		const created2 = await createPolicyCapa6({ category: "Payment", description: "Pay in advance" })
+		const created2 = await createPolicyCapa6({
+			category: "Payment",
+			description: "Pay in advance",
+			rules: { paymentType: "pay_at_property" },
+		})
 		await assignPolicyCapa6({
 			policyId: created2.policyId,
 			scope: "variant",

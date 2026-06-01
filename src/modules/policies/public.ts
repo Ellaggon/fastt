@@ -21,6 +21,7 @@ export * from "./application/mappers/restrictions.mapper"
 export * from "./application/mappers/mapResolvedPoliciesToUI"
 export * from "./application/mappers/derivePolicySummary"
 export * from "./application/errors/policyValidationError"
+export * from "./application/schemas/policy-write/policyContentSchema"
 export type {
 	PolicyResolutionDTO,
 	PolicyResolutionCoverage,
@@ -43,6 +44,7 @@ export * from "./application/services/RestrictionService"
 // CAPA 6 write path (isolated)
 export * from "./application/use-cases/capa6/create-policy"
 export * from "./application/use-cases/capa6/create-policy-version"
+export * from "./application/use-cases/capa6/change-policy-library-status"
 export * from "./application/use-cases/capa6/assign-policy"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-snapshot"
@@ -95,6 +97,14 @@ export async function assignPolicyCapa6(
 ) {
 	const { assignPolicyCapa6UseCase } = await import("@/container/policies-write.container")
 	return assignPolicyCapa6UseCase(params)
+}
+
+export async function changePolicyLibraryStatusCapa6(
+	params: import("./application/use-cases/capa6/change-policy-library-status").ChangePolicyLibraryStatusInput
+) {
+	const { changePolicyLibraryStatusCapa6UseCase } =
+		await import("@/container/policies-write.container")
+	return changePolicyLibraryStatusCapa6UseCase(params)
 }
 
 export async function replacePolicyAssignmentCapa6(

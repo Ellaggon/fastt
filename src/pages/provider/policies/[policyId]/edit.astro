@@ -21,10 +21,29 @@ if (policyRes.status === 404) return new Response("Policy not found", { status: 
 if (!policyRes.ok) return new Response("Failed to load policy", { status: 500 })
 
 const policy = (await policyRes.json()) as any
-const category = String(policy.category ?? policy.policyType ?? "").trim()
+const category = String(policy.group?.category ?? policy.category ?? policy.policyType ?? "").trim()
+const policyRules = Array.isArray(policy.rules)
+	? policy.rules
+	: Array.isArray(policy.policyRules)
+		? policy.policyRules
+		: []
+const cancellationTiers = Array.isArray(policy.tiers)
+	? policy.tiers
+	: Array.isArray(policy.cancellationTiers)
+		? policy.cancellationTiers
+		: []
+const policyMetadata = {
+	policyPresetKey: policy.policy?.policyPresetKey ?? policy.policyPresetKey ?? undefined,
+	stayLengthType: policy.policy?.stayLengthType ?? policy.stayLengthType ?? undefined,
+	gracePeriod: policy.policy?.gracePeriod ?? policy.gracePeriod ?? undefined,
+	refundBasis: policy.policy?.refundBasis ?? policy.refundBasis ?? undefined,
+	payoutBasis: policy.policy?.payoutBasis ?? policy.payoutBasis ?? undefined,
+	localTimezone: policy.policy?.localTimezone ?? policy.localTimezone ?? undefined,
+	legalOverrideFlags: policy.policy?.legalOverrideFlags ?? policy.legalOverrideFlags ?? undefined,
+}
 
 const rules: Record<string, unknown> = {}
-for (const r of (policy.policyRules ?? []) as any[]) {
+for (const r of policyRules as any[]) {
 	if (!r?.ruleKey) continue
 	rules[String(r.ruleKey)] = r.ruleValue
 }
@@ -104,8 +123,8 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 					</p>
 					<div id="tiers" class="space-y-2">
 						{
-							(policy.cancellationTiers ?? []).length ? (
-								(policy.cancellationTiers ?? []).map((t: any) => (
+							cancellationTiers.length ? (
+								cancellationTiers.map((t: any) => (
 									<div class="tier-row flex items-end gap-2">
 										<div class="flex-1 space-y-1">
 											<label class="block text-sm">Días antes de la llegada</label>
@@ -123,7 +142,7 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 												name="penaltyPercent"
 												type="number"
 												min="0"
-												max="1000"
+												max="100"
 												class="w-full border p-2"
 												value={t.penaltyAmount}
 											/>
@@ -150,7 +169,7 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 											name="penaltyPercent"
 											type="number"
 											min="0"
-											max="1000"
+											max="100"
 											class="w-full border p-2"
 										/>
 									</div>
@@ -299,7 +318,7 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 	</main>
 </WorkspaceLayout>
 
-<script define:vars={{ category, policyId }}>
+<script define:vars={{ category, policyId, policyMetadata }}>
 	// @ts-nocheck
 	const form = document.getElementById("editForm")
 	const paymentTypeSel = document.getElementById("paymentType")
@@ -392,8 +411,8 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 			}
 			if (paymentType === "prepayment") {
 				const pct = readNumber(form?.querySelector("input[name='prepaymentPercentage']"))
-				if (pct == null || pct < 0 || pct > 100) {
-					setFieldError("err-prepaymentPercentage", "Required (0-100)")
+				if (pct == null || pct <= 0 || pct > 100) {
+					setFieldError("err-prepaymentPercentage", "Required (1-100)")
 					ok = false
 				}
 			}
@@ -481,11 +500,51 @@ for (const r of (policy.policyRules ?? []) as any[]) {
 		const res = await fetch("/api/policies/create-version", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ previousPolicyId, description, rules, cancellationTiers }),
+			body: JSON.stringify({
+				previousPolicyId,
+				description,
+				status: "draft",
+				...policyMetadata,
+				rules,
+				cancellationTiers,
+			}),
 		})
 
 		if (!res.ok) {
-			setClientError("Failed to save new version")
+			let payload = null
+			try {
+				payload = await res.json()
+			} catch (_) {}
+			const details = Array.isArray(payload?.details) ? payload.details : []
+			for (const issue of details) {
+				const path = Array.isArray(issue?.path) ? issue.path : []
+				const field = String(path[path.length - 1] || "")
+				const message = String(issue?.message || issue?.code || "Invalid")
+				const id =
+					field === "penaltyType"
+						? "err-noShowPenaltyType"
+						: field === "penaltyAmount"
+							? "err-noShowPenaltyAmount"
+							: field === "paymentType"
+								? "err-paymentType"
+								: field === "prepaymentPercentage"
+									? "err-prepaymentPercentage"
+									: field === "checkInFrom"
+										? "err-checkInFrom"
+										: field === "checkInUntil"
+											? "err-checkInUntil"
+											: field === "checkOutUntil"
+												? "err-checkOutUntil"
+												: field === "cancellationTiers"
+													? "err-cancellationTiers"
+													: ""
+				if (id) setFieldError(id, message)
+			}
+			setClientError(
+				payload?.error === "validation_error"
+					? "Please fix the highlighted fields."
+					: "Failed to save new version"
+			)
 			return
 		}
 

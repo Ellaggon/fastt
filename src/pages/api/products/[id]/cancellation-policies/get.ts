@@ -1,4 +1,10 @@
 import type { APIRoute } from "astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { productRepository } from "@/container"
+import {
+	legacyCancellationPolicyError,
+	legacyCancellationPolicyJson,
+} from "@/lib/policies/legacyCancellationPolicyApi"
 import {
 	CancellationTier,
 	Policy,
@@ -10,9 +16,16 @@ import {
 	eq,
 } from "astro:db"
 
-export const GET: APIRoute = async ({ params }) => {
+const SUCCESSOR_API = "/api/policies/[id]"
+
+export const GET: APIRoute = async ({ params, request }) => {
+	const { providerId } = await requireProvider(request)
 	const productId = params.id
-	if (!productId) return new Response("Missing id", { status: 400 })
+	if (!productId) return legacyCancellationPolicyError("Missing id", 400, SUCCESSOR_API)
+	const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+	if (!owned) {
+		return legacyCancellationPolicyError("Not found", 404, SUCCESSOR_API)
+	}
 
 	const assignments = await db
 		.select()
@@ -21,10 +34,7 @@ export const GET: APIRoute = async ({ params }) => {
 		.all()
 
 	if (!assignments.length) {
-		return new Response(JSON.stringify({ policies: [] }), {
-			status: 200,
-			headers: { "Content-Type": "application/json", "Deprecation": "true" },
-		})
+		return legacyCancellationPolicyJson({ policies: [] }, SUCCESSOR_API, { status: 200 })
 	}
 
 	const policies: any[] = []
@@ -65,8 +75,5 @@ export const GET: APIRoute = async ({ params }) => {
 		})
 	}
 
-	return new Response(JSON.stringify({ policies }), {
-		status: 200,
-		headers: { "Content-Type": "application/json", "Deprecation": "true" },
-	})
+	return legacyCancellationPolicyJson({ policies }, SUCCESSOR_API, { status: 200 })
 }

@@ -14,6 +14,8 @@ import type { PolicyCategory } from "../../domain/policy.category"
 import type {
 	PolicyCommandRepositoryPortCapa6,
 	CancellationTierInput,
+	PolicyLibraryStatus,
+	PolicyProfessionalMetadata,
 } from "../../application/ports/PolicyCommandRepositoryPortCapa6"
 
 export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPortCapa6 {
@@ -30,6 +32,18 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			category: grp.category,
 			status: String((row as any).status),
 			version: Number((row as any).version),
+			policyPresetKey:
+				(row as any).policyPresetKey == null ? null : String((row as any).policyPresetKey),
+			stayLengthType:
+				(row as any).stayLengthType == null ? null : String((row as any).stayLengthType),
+			gracePeriod: (row as any).gracePeriod == null ? null : Number((row as any).gracePeriod),
+			refundBasis: (row as any).refundBasis == null ? null : String((row as any).refundBasis),
+			payoutBasis: (row as any).payoutBasis == null ? null : String((row as any).payoutBasis),
+			localTimezone: (row as any).localTimezone == null ? null : String((row as any).localTimezone),
+			legalOverrideFlags: ((row as any).legalOverrideFlags ?? null) as Record<
+				string,
+				boolean
+			> | null,
 			effectiveFrom: row.effectiveFrom == null ? null : String(row.effectiveFrom),
 			effectiveTo: row.effectiveTo == null ? null : String(row.effectiveTo),
 		}
@@ -38,7 +52,12 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 	async getPolicyGroupById(groupId: string) {
 		const row = await db.select().from(PolicyGroup).where(eq(PolicyGroup.id, groupId)).get()
 		if (!row) return null
-		return { id: String(row.id), category: String((row as any).category) as PolicyCategory }
+		return {
+			id: String(row.id),
+			category: String((row as any).category) as PolicyCategory,
+			ownerProviderId:
+				(row as any).ownerProviderId == null ? null : String((row as any).ownerProviderId),
+		}
 	}
 
 	async getMaxPolicyVersionByGroupId(groupId: string): Promise<number> {
@@ -53,9 +72,13 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		return Number.isFinite(v) ? v : 0
 	}
 
-	async createPolicyGroup(params: { category: PolicyCategory }) {
+	async createPolicyGroup(params: { category: PolicyCategory; ownerProviderId?: string | null }) {
 		const groupId = randomUUID()
-		await db.insert(PolicyGroup).values({ id: groupId, category: params.category } as any)
+		await db.insert(PolicyGroup).values({
+			id: groupId,
+			category: params.category,
+			ownerProviderId: params.ownerProviderId ?? null,
+		} as any)
 		return { groupId }
 	}
 
@@ -63,9 +86,10 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		groupId: string
 		description: string
 		version: number
-		status: "active"
+		status: PolicyLibraryStatus
 		effectiveFromIso?: string | null
 		effectiveToIso?: string | null
+		metadata?: PolicyProfessionalMetadata
 	}) {
 		const policyId = randomUUID()
 		await db.insert(Policy).values({
@@ -74,10 +98,25 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			description: params.description ?? "",
 			version: params.version,
 			status: params.status,
+			policyPresetKey: params.metadata?.policyPresetKey ?? null,
+			stayLengthType: params.metadata?.stayLengthType ?? null,
+			gracePeriod: params.metadata?.gracePeriod ?? null,
+			refundBasis: params.metadata?.refundBasis ?? null,
+			payoutBasis: params.metadata?.payoutBasis ?? null,
+			localTimezone: params.metadata?.localTimezone ?? null,
+			legalOverrideFlags: params.metadata?.legalOverrideFlags ?? null,
 			effectiveFrom: params.effectiveFromIso ?? null,
 			effectiveTo: params.effectiveToIso ?? null,
 		} as any)
 		return { policyId }
+	}
+
+	async updatePolicyStatus(params: { policyId: string; status: PolicyLibraryStatus }) {
+		await db
+			.update(Policy)
+			.set({ status: params.status } as any)
+			.where(eq(Policy.id, params.policyId))
+		return { policyId: params.policyId, status: params.status }
 	}
 
 	async replacePolicyRules(params: {
@@ -135,7 +174,11 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 	}
 
 	async createAuditLog(params: {
-		eventType: "policy_version_created" | "assignment_replaced"
+		eventType:
+			| "policy_version_created"
+			| "assignment_replaced"
+			| "policy_published"
+			| "policy_archived"
 		actorUserId?: string | null
 		policyId?: string | null
 		policyGroupId?: string | null
