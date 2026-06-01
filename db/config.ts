@@ -350,6 +350,7 @@ const PolicyGroup = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		category: column.text(),
+		ownerProviderId: column.text({ optional: true }),
 	},
 })
 const Policy = defineTable({
@@ -358,7 +359,14 @@ const Policy = defineTable({
 		groupId: column.text({ references: () => PolicyGroup.columns.id }),
 		description: column.text(),
 		version: column.number(),
-		status: column.text({ default: "draft" }), // draft | active | archived
+		status: column.text({ default: "draft" }), // draft | template | active | archived
+		policyPresetKey: column.text({ optional: true }),
+		stayLengthType: column.text({ optional: true }),
+		gracePeriod: column.number({ optional: true }),
+		refundBasis: column.text({ optional: true }),
+		payoutBasis: column.text({ optional: true }),
+		localTimezone: column.text({ optional: true }),
+		legalOverrideFlags: column.json({ optional: true }),
 		effectiveFrom: column.text({ optional: true }),
 		effectiveTo: column.text({ optional: true }),
 	},
@@ -389,25 +397,6 @@ const PolicyRule = defineTable({
 		ruleKey: column.text({ optional: true }),
 		ruleValue: column.json({ optional: true }),
 	},
-})
-// Legacy compatibility for remote migration history.
-// Keep deprecated until remote schema fully converges.
-const EffectivePolicy = defineTable({
-	deprecated: true,
-	columns: {
-		id: column.text({ primaryKey: true }),
-		entityType: column.text(),
-		entityId: column.text(),
-		category: column.text(),
-		effectivePolicyId: column.text(),
-		effectiveGroupId: column.text(),
-		description: column.text({ optional: true }),
-		rules: column.text({ optional: true }),
-		cancellationTiers: column.text({ optional: true }),
-		priority: column.number(),
-		computedAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["category", "entityId", "entityType"], unique: true }],
 })
 const PolicyAuditLog = defineTable({
 	columns: {
@@ -1128,7 +1117,6 @@ export default defineDb({
 		PolicyAssignment,
 		CancellationTier,
 		PolicyRule,
-		EffectivePolicy,
 		PolicyAuditLog,
 
 		// 5 inventory

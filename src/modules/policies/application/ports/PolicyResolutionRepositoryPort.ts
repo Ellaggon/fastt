@@ -20,6 +20,13 @@ export type PolicySnapshot = {
 	description: string
 	version: number
 	status: "active"
+	policyPresetKey?: string | null
+	stayLengthType?: string | null
+	gracePeriod?: number | null
+	refundBasis?: string | null
+	payoutBasis?: string | null
+	localTimezone?: string | null
+	legalOverrideFlags?: Record<string, boolean> | null
 	effectiveFrom?: string | null
 	effectiveTo?: string | null
 }

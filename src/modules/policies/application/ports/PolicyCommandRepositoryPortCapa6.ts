@@ -1,36 +1,58 @@
 import type { PolicyCategory } from "../../domain/policy.category"
+import type { CancellationTierInput } from "../schemas/policy-write/policyContentSchema"
 
-export type CancellationTierInput = {
-	daysBeforeArrival: number
-	penaltyType: "percentage" | "nights"
-	penaltyAmount: number
+export type { CancellationTierInput } from "../schemas/policy-write/policyContentSchema"
+
+export type PolicyLibraryStatus = "draft" | "template" | "active" | "archived"
+export type PolicyProfessionalMetadata = {
+	policyPresetKey?: string | null
+	stayLengthType?: string | null
+	gracePeriod?: number | null
+	refundBasis?: string | null
+	payoutBasis?: string | null
+	localTimezone?: string | null
+	legalOverrideFlags?: Record<string, boolean> | null
 }
 
 export interface PolicyCommandRepositoryPortCapa6 {
-	getPolicyById(policyId: string): Promise<{
-		id: string
-		groupId: string
-		category: PolicyCategory
-		status: string
-		version: number
-		effectiveFrom: string | null
-		effectiveTo: string | null
-	} | null>
+	getPolicyById(policyId: string): Promise<
+		| ({
+				id: string
+				groupId: string
+				category: PolicyCategory
+				status: string
+				version: number
+				effectiveFrom: string | null
+				effectiveTo: string | null
+		  } & PolicyProfessionalMetadata)
+		| null
+	>
 
-	getPolicyGroupById(groupId: string): Promise<{ id: string; category: PolicyCategory } | null>
+	getPolicyGroupById(
+		groupId: string
+	): Promise<{ id: string; category: PolicyCategory; ownerProviderId: string | null } | null>
 
 	getMaxPolicyVersionByGroupId(groupId: string): Promise<number>
 
-	createPolicyGroup(params: { category: PolicyCategory }): Promise<{ groupId: string }>
+	createPolicyGroup(params: {
+		category: PolicyCategory
+		ownerProviderId?: string | null
+	}): Promise<{ groupId: string }>
 
 	createPolicyVersion(params: {
 		groupId: string
 		description: string
 		version: number
-		status: "active"
+		status: PolicyLibraryStatus
 		effectiveFromIso?: string | null
 		effectiveToIso?: string | null
+		metadata?: PolicyProfessionalMetadata
 	}): Promise<{ policyId: string }>
+
+	updatePolicyStatus(params: {
+		policyId: string
+		status: PolicyLibraryStatus
+	}): Promise<{ policyId: string; status: PolicyLibraryStatus }>
 
 	replacePolicyRules(params: {
 		policyId: string
@@ -52,7 +74,11 @@ export interface PolicyCommandRepositoryPortCapa6 {
 	>
 
 	createAuditLog(params: {
-		eventType: "policy_version_created" | "assignment_replaced"
+		eventType:
+			| "policy_version_created"
+			| "assignment_replaced"
+			| "policy_published"
+			| "policy_archived"
 		actorUserId?: string | null
 		policyId?: string | null
 		policyGroupId?: string | null

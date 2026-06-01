@@ -64,7 +64,11 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		} as any)
 
 		const p1 = await createPolicyCapa6({ category: "Other", description: "Terms" })
-		const p2 = await createPolicyCapa6({ category: "Payment", description: "Pay now" })
+		const p2 = await createPolicyCapa6({
+			category: "Payment",
+			description: "Pay now",
+			rules: { paymentType: "pay_at_property" },
+		})
 		await assignPolicyCapa6({
 			policyId: p1.policyId,
 			scope: "product",

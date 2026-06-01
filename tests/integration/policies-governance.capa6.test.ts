@@ -67,7 +67,7 @@ describe("integration/policies governance CAPA6", () => {
 			createPolicyVersionCapa6({
 				previousPolicyId: v1.policyId,
 				description: "Window overlapping",
-				rules: { paymentType: "prepayment" },
+				rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
 				effectiveFrom: "2030-01-05",
 				effectiveTo: "2030-01-12",
 				actorUserId: "user_gov",

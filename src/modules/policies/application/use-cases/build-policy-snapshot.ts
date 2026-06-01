@@ -9,6 +9,47 @@ export type HoldPolicyItemSnapshot = {
 	version: number
 	description: string
 	resolvedFromScope: string
+	source?: {
+		policyId: string
+		groupId: string
+		version: number
+		resolvedFromScope: string
+		policyPresetKey: string | null
+	}
+	metadata?: {
+		policyPresetKey: string | null
+		stayLengthType: string | null
+		gracePeriod: number | null
+		refundBasis: string | null
+		payoutBasis: string | null
+		localTimezone: string | null
+		legalOverrideFlags: Record<string, boolean> | null
+	}
+	calculation?: {
+		localTimezone: string
+		cancellation: {
+			refundTiers: Array<{
+				daysBeforeArrival: number
+				deadlineLocal: string
+				penaltyType: string
+				penaltyAmount: number | null
+				refundPercent: number | null
+				refundBasis: string | null
+			}>
+			freeCancellationDeadlineLocal: string | null
+		} | null
+		payment: {
+			paymentType: string | null
+			paymentDueLocal: string | null
+			prepaymentPercentage: number | null
+			payoutBasis: string | null
+		} | null
+		noShow: {
+			chargeType: string | null
+			chargeAmount: number | null
+			chargeBasis: string | null
+		} | null
+	}
 	rules: unknown[]
 	cancellationTiers: unknown[]
 }
@@ -147,8 +188,117 @@ function normalizeCategory(category: string): SnapshotCategory | null {
 	return null
 }
 
-function toSnapshotItem(
-	entry: ResolveEffectivePoliciesResult["policies"][number]
+function dateOnlyMinusDays(dateOnly: string, days: number): string {
+	const parsed = new Date(`${String(dateOnly).slice(0, 10)}T00:00:00.000Z`)
+	if (Number.isNaN(parsed.getTime())) return String(dateOnly).slice(0, 10)
+	parsed.setUTCDate(parsed.getUTCDate() - Math.max(0, Number(days) || 0))
+	return parsed.toISOString().slice(0, 10)
+}
+
+function localDeadline(dateOnly: string, daysBeforeArrival: number, timezone: string): string {
+	return `${dateOnlyMinusDays(dateOnly, daysBeforeArrival)}T00:00:00[${timezone}]`
+}
+
+function rulesMap(rules: unknown[]): Record<string, unknown> {
+	const out: Record<string, unknown> = {}
+	for (const rule of Array.isArray(rules) ? rules : []) {
+		const key = String((rule as any)?.ruleKey ?? "").trim()
+		if (!key) continue
+		out[key] = (rule as any).ruleValue
+	}
+	return out
+}
+
+function numberOrNull(value: unknown): number | null {
+	if (value == null || value === "") return null
+	const n = Number(value)
+	return Number.isFinite(n) ? n : null
+}
+
+function buildCalculation(params: {
+	category: SnapshotCategory
+	policy: ResolveEffectivePoliciesResult["policies"][number]["policy"]
+	checkIn: string
+}): HoldPolicyItemSnapshot["calculation"] {
+	const localTimezone = String(params.policy.localTimezone ?? "property_local")
+	const metadataRefundBasis =
+		params.policy.refundBasis == null ? null : String(params.policy.refundBasis)
+	const metadataPayoutBasis =
+		params.policy.payoutBasis == null ? null : String(params.policy.payoutBasis)
+	const mappedRules = rulesMap(Array.isArray(params.policy.rules) ? params.policy.rules : [])
+
+	if (params.category === "cancellation") {
+		const refundTiers = (
+			Array.isArray(params.policy.cancellationTiers) ? params.policy.cancellationTiers : []
+		)
+			.map((tier: any) => {
+				const daysBeforeArrival = Number(tier.daysBeforeArrival ?? 0)
+				const penaltyType = String(tier.penaltyType ?? "")
+				const penaltyAmount = numberOrNull(tier.penaltyAmount)
+				const refundPercent =
+					penaltyType === "percentage" && penaltyAmount != null
+						? Math.max(0, Math.min(100, 100 - penaltyAmount))
+						: null
+				return {
+					daysBeforeArrival,
+					deadlineLocal: localDeadline(params.checkIn, daysBeforeArrival, localTimezone),
+					penaltyType,
+					penaltyAmount,
+					refundPercent,
+					refundBasis: metadataRefundBasis,
+				}
+			})
+			.sort((a, b) => b.daysBeforeArrival - a.daysBeforeArrival)
+		const freeTier = refundTiers.find((tier) => Number(tier.refundPercent ?? -1) >= 100)
+		return {
+			localTimezone,
+			cancellation: {
+				refundTiers,
+				freeCancellationDeadlineLocal: freeTier?.deadlineLocal ?? null,
+			},
+			payment: null,
+			noShow: null,
+		}
+	}
+
+	if (params.category === "payment") {
+		const paymentType = String(mappedRules.paymentType ?? "") || null
+		const prepaymentDays = numberOrNull(mappedRules.prepaymentDaysBeforeArrival) ?? 0
+		return {
+			localTimezone,
+			cancellation: null,
+			payment: {
+				paymentType,
+				paymentDueLocal:
+					paymentType === "prepayment"
+						? localDeadline(params.checkIn, prepaymentDays, localTimezone)
+						: null,
+				prepaymentPercentage: numberOrNull(mappedRules.prepaymentPercentage),
+				payoutBasis: metadataPayoutBasis,
+			},
+			noShow: null,
+		}
+	}
+
+	if (params.category === "no_show") {
+		return {
+			localTimezone,
+			cancellation: null,
+			payment: null,
+			noShow: {
+				chargeType: String(mappedRules.penaltyType ?? "") || null,
+				chargeAmount: numberOrNull(mappedRules.penaltyAmount),
+				chargeBasis: metadataRefundBasis,
+			},
+		}
+	}
+
+	return { localTimezone, cancellation: null, payment: null, noShow: null }
+}
+
+export function buildPolicyItemSnapshot(
+	entry: ResolveEffectivePoliciesResult["policies"][number],
+	checkIn: string
 ): HoldPolicyItemSnapshot {
 	const normalized = normalizeCategory(entry.category)
 	if (!normalized) {
@@ -161,6 +311,33 @@ function toSnapshotItem(
 		version: Number(entry.policy.version ?? 0),
 		description: String(entry.policy.description ?? ""),
 		resolvedFromScope: String(entry.resolvedFromScope ?? "global"),
+		source: {
+			policyId: String(entry.policy.id),
+			groupId: String(entry.policy.groupId),
+			version: Number(entry.policy.version ?? 0),
+			resolvedFromScope: String(entry.resolvedFromScope ?? "global"),
+			policyPresetKey:
+				entry.policy.policyPresetKey == null ? null : String(entry.policy.policyPresetKey),
+		},
+		metadata: {
+			policyPresetKey:
+				entry.policy.policyPresetKey == null ? null : String(entry.policy.policyPresetKey),
+			stayLengthType:
+				entry.policy.stayLengthType == null ? null : String(entry.policy.stayLengthType),
+			gracePeriod: entry.policy.gracePeriod == null ? null : Number(entry.policy.gracePeriod),
+			refundBasis: entry.policy.refundBasis == null ? null : String(entry.policy.refundBasis),
+			payoutBasis: entry.policy.payoutBasis == null ? null : String(entry.policy.payoutBasis),
+			localTimezone: entry.policy.localTimezone == null ? null : String(entry.policy.localTimezone),
+			legalOverrideFlags: (entry.policy.legalOverrideFlags ?? null) as Record<
+				string,
+				boolean
+			> | null,
+		},
+		calculation: buildCalculation({
+			category: normalized,
+			policy: entry.policy,
+			checkIn,
+		}),
 		rules: Array.isArray(entry.policy.rules) ? entry.policy.rules : [],
 		cancellationTiers: Array.isArray(entry.policy.cancellationTiers)
 			? entry.policy.cancellationTiers
@@ -185,7 +362,7 @@ export function buildPolicySnapshot(params: {
 	for (const entry of params.resolvedPolicies.policies) {
 		const normalized = normalizeCategory(entry.category)
 		if (!normalized) continue
-		byCategory[normalized] = toSnapshotItem(entry)
+		byCategory[normalized] = buildPolicyItemSnapshot(entry, params.checkIn)
 	}
 
 	const policyVersionIds = Object.values(byCategory)

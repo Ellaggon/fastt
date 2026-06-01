@@ -9,8 +9,10 @@ import { routes } from "@/lib/routes"
 import { createPolicyCapa6, PolicyValidationError } from "@/modules/policies/public"
 import { z } from "zod"
 
+let providerId = ""
 try {
-	await requireProvider(Astro.request)
+	const provider = await requireProvider(Astro.request)
+	providerId = provider.providerId
 } catch (e: any) {
 	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
 	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
@@ -20,12 +22,8 @@ try {
 let error: string | null = null
 let fieldErrors: Record<string, string> = {}
 
-function requireField(value: unknown, field: string, message = "Required") {
+function requiredText(value: unknown): string {
 	const normalized = String(value ?? "").trim()
-	if (!normalized) {
-		fieldErrors[field] = message
-		throw new Error("ui_validation_error")
-	}
 	return normalized
 }
 
@@ -36,105 +34,95 @@ function parseOptionalNumber(value: unknown): number | null {
 	return Number.isFinite(parsed) ? parsed : null
 }
 
-function assertTimeOrder(start: string, end: string, field: string) {
-	if (start && end && start !== "00:00" && end !== "00:00" && end < start) {
-		fieldErrors[field] = "Must be later than check-in start"
-		throw new Error("ui_validation_error")
+function parseLegalOverrideFlags(value: unknown): Record<string, boolean> | undefined {
+	const raw = String(value ?? "").trim()
+	if (!raw) return undefined
+	try {
+		const parsed = JSON.parse(raw)
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined
+	} catch {
+		return undefined
 	}
+}
+
+function policyIssueField(path: string[]): string {
+	return path[path.length - 1] ?? "form"
+}
+
+function policyInputFromForm(form: FormData) {
+	const description = requiredText(form.get("name"))
+	const category = requiredText(form.get("category"))
+	const status = requiredText(form.get("libraryStatus")) || "draft"
+	const gracePeriod = parseOptionalNumber(form.get("gracePeriod"))
+	const legalOverrideFlags = parseLegalOverrideFlags(form.get("legalOverrideFlags"))
+	const base = {
+		category,
+		description,
+		status,
+		ownerProviderId: providerId,
+		policyPresetKey: requiredText(form.get("policyPresetKey")) || undefined,
+		stayLengthType: requiredText(form.get("stayLengthType")) || "any",
+		gracePeriod: gracePeriod ?? undefined,
+		refundBasis: requiredText(form.get("refundBasis")) || undefined,
+		payoutBasis: requiredText(form.get("payoutBasis")) || undefined,
+		localTimezone: requiredText(form.get("localTimezone")) || undefined,
+		legalOverrideFlags,
+	}
+
+	if (category === "Cancellation") {
+		const days = form.getAll("daysBeforeArrival").map((v) => String(v).trim())
+		const penalties = form.getAll("penaltyPercent").map((v) => String(v).trim())
+		return {
+			...base,
+			cancellationTiers: days
+				.map((d, i) => ({
+					daysBeforeArrival: Number(d),
+					penaltyType: "percentage" as const,
+					penaltyAmount: Number(penalties[i]),
+				}))
+				.filter((t) => Number.isFinite(t.daysBeforeArrival) && Number.isFinite(t.penaltyAmount)),
+		}
+	}
+
+	if (category === "Payment") {
+		const paymentType = requiredText(form.get("paymentType"))
+		const rules: Record<string, unknown> = { paymentType }
+		const prepaymentPercentage = parseOptionalNumber(form.get("prepaymentPercentage"))
+		const prepaymentDaysBeforeArrival = parseOptionalNumber(form.get("prepaymentDaysBeforeArrival"))
+		if (prepaymentPercentage != null) rules.prepaymentPercentage = prepaymentPercentage
+		if (prepaymentDaysBeforeArrival != null)
+			rules.prepaymentDaysBeforeArrival = prepaymentDaysBeforeArrival
+		return { ...base, rules }
+	}
+
+	if (category === "CheckIn") {
+		return {
+			...base,
+			rules: {
+				checkInFrom: requiredText(form.get("checkInFrom")),
+				checkInUntil: requiredText(form.get("checkInUntil")),
+				checkOutUntil: requiredText(form.get("checkOutUntil")),
+			},
+		}
+	}
+
+	if (category === "NoShow") {
+		const penaltyType = requiredText(form.get("noShowPenaltyType"))
+		const penaltyAmount = parseOptionalNumber(form.get("noShowPenaltyAmount"))
+		const rules: Record<string, unknown> = { penaltyType }
+		if (penaltyAmount != null) rules.penaltyAmount = penaltyAmount
+		return { ...base, rules }
+	}
+
+	return base
 }
 
 if (Astro.request.method === "POST") {
 	try {
 		const form = await Astro.request.formData()
-		const name = requireField(form.get("name"), "description", "Policy name is required")
-		const category = requireField(form.get("category"), "category", "Choose a policy category")
+		await createPolicyCapa6(policyInputFromForm(form) as any)
 
-		if (category === "Cancellation") {
-			const days = form.getAll("daysBeforeArrival").map((v) => String(v).trim())
-			const penalties = form.getAll("penaltyPercent").map((v) => String(v).trim())
-			const tiers = days
-				.map((d, i) => ({
-					daysBeforeArrival: d === "" ? NaN : Number(d),
-					penaltyType: "percentage" as const,
-					penaltyAmount: penalties[i] === "" ? NaN : Number(penalties[i]),
-				}))
-				.filter((t) => !Number.isNaN(t.daysBeforeArrival) && !Number.isNaN(t.penaltyAmount))
-
-			if (!tiers.length) {
-				fieldErrors["cancellationTiers"] = "Add at least one cancellation tier"
-				throw new Error("ui_validation_error")
-			}
-			if (tiers.some((tier) => tier.penaltyAmount < 0 || tier.penaltyAmount > 100)) {
-				fieldErrors["cancellationTiers"] = "Cancellation percentages must be between 0 and 100"
-				throw new Error("ui_validation_error")
-			}
-
-			await createPolicyCapa6({
-				category: "Cancellation",
-				description: name,
-				cancellationTiers: tiers,
-			})
-		} else if (category === "Payment") {
-			const paymentType = requireField(form.get("paymentType"), "paymentType")
-			const prepaymentPercentage = parseOptionalNumber(form.get("prepaymentPercentage"))
-			const prepaymentDaysBeforeArrival = parseOptionalNumber(
-				form.get("prepaymentDaysBeforeArrival")
-			)
-
-			if (!["pay_at_property", "prepayment"].includes(paymentType)) {
-				fieldErrors["paymentType"] = "Choose pay at property or prepayment"
-				throw new Error("ui_validation_error")
-			}
-
-			const rules: Record<string, unknown> = { paymentType }
-			if (paymentType === "prepayment") {
-				if (
-					prepaymentPercentage == null ||
-					prepaymentPercentage <= 0 ||
-					prepaymentPercentage > 100
-				) {
-					fieldErrors["prepaymentPercentage"] = "Prepayment must be between 1 and 100"
-					throw new Error("ui_validation_error")
-				}
-				rules.prepaymentPercentage = prepaymentPercentage
-				rules.prepaymentDaysBeforeArrival = prepaymentDaysBeforeArrival
-			}
-
-			await createPolicyCapa6({ category: "Payment" as any, description: name, rules })
-		} else if (category === "CheckIn") {
-			const checkInFrom = requireField(form.get("checkInFrom"), "checkInFrom")
-			const checkInUntil = requireField(form.get("checkInUntil"), "checkInUntil")
-			const checkOutUntil = requireField(form.get("checkOutUntil"), "checkOutUntil")
-			assertTimeOrder(checkInFrom, checkInUntil, "checkInUntil")
-
-			await createPolicyCapa6({
-				category: "CheckIn" as any,
-				description: name,
-				rules: { checkInFrom, checkInUntil, checkOutUntil },
-			})
-		} else if (category === "NoShow") {
-			const penaltyType = requireField(form.get("noShowPenaltyType"), "noShowPenaltyType")
-			const penaltyAmount = parseOptionalNumber(form.get("noShowPenaltyAmount"))
-			if (!["first_night", "full", "percentage"].includes(penaltyType)) {
-				fieldErrors["noShowPenaltyType"] = "Choose a no-show penalty"
-				throw new Error("ui_validation_error")
-			}
-			const rules: Record<string, unknown> = { penaltyType }
-			if (penaltyType === "percentage") {
-				if (penaltyAmount == null || penaltyAmount < 0 || penaltyAmount > 100) {
-					fieldErrors["noShowPenaltyAmount"] = "Percentage must be between 0 and 100"
-					throw new Error("ui_validation_error")
-				}
-				rules.penaltyAmount = penaltyAmount
-			}
-
-			await createPolicyCapa6({ category: "NoShow" as any, description: name, rules })
-		} else {
-			error = `Unsupported category: ${category}`
-			throw new Error("ui_validation_error")
-		}
-
-		return Astro.redirect(`${routes.providerPolicies()}?success=created`)
+		return Astro.redirect(`${routes.providerPolicies()}?success=draft`)
 	} catch (e: any) {
 		if (String(e?.message || e) === "ui_validation_error") {
 			if (!error) error = "Please fix the highlighted fields."
@@ -147,7 +135,7 @@ if (Astro.request.method === "POST") {
 		} else if (e instanceof PolicyValidationError) {
 			error = "Validation error"
 			for (const issue of e.issues) {
-				const key = issue.path.join(".") || "form"
+				const key = policyIssueField(issue.path)
 				fieldErrors[key] = issue.message ?? issue.code ?? "Invalid"
 			}
 		} else {
@@ -262,7 +250,91 @@ if (Astro.request.method === "POST") {
 							</p>
 							<p class="text-sm text-red-700" id="err-category">{fieldErrors["category"]}</p>
 						</label>
+
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Estado de biblioteca</span>
+							<select
+								name="libraryStatus"
+								id="libraryStatus"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="draft" selected>Draft</option>
+								<option value="template">Template</option>
+							</select>
+							<p class="text-xs text-slate-500">
+								Publica la policy cuando esté lista; recién ahí podrá asignarse a producto o rate
+								plan.
+							</p>
+						</label>
 					</div>
+
+					<input type="hidden" name="policyPresetKey" id="policyPresetKey" />
+					<input type="hidden" name="legalOverrideFlags" id="legalOverrideFlags" />
+
+					<section class="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-3">
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Stay length</span>
+							<select
+								name="stayLengthType"
+								id="stayLengthType"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="any">Any stay</option>
+								<option value="short_stay">Short stay</option>
+								<option value="long_stay">Long stay</option>
+								<option value="monthly">Monthly</option>
+							</select>
+						</label>
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Grace period</span>
+							<input
+								name="gracePeriod"
+								id="gracePeriod"
+								type="number"
+								min="0"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							/>
+						</label>
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Local timezone</span>
+							<input
+								name="localTimezone"
+								id="localTimezone"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								placeholder="property_local"
+							/>
+						</label>
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Refund basis</span>
+							<select
+								name="refundBasis"
+								id="refundBasis"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="">Select...</option>
+								<option value="total_booking">Total booking</option>
+								<option value="room_rate">Room rate</option>
+								<option value="first_night">First night</option>
+								<option value="deposit">Deposit</option>
+								<option value="provider_policy">Provider policy</option>
+								<option value="none">None</option>
+							</select>
+						</label>
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Payout basis</span>
+							<select
+								name="payoutBasis"
+								id="payoutBasis"
+								class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							>
+								<option value="">Select...</option>
+								<option value="gross">Gross</option>
+								<option value="net">Net</option>
+								<option value="collected">Collected</option>
+								<option value="provider_policy">Provider policy</option>
+							</select>
+						</label>
+					</section>
 
 					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
 						<p class="font-semibold" id="categoryMeaningTitle">Selecciona una categoría</p>
@@ -560,6 +632,13 @@ if (Astro.request.method === "POST") {
 			const template = data.template || {}
 			setInput("name", template.name || "")
 			setInput("category", category)
+			setInput("policyPresetKey", template.key || "")
+			setInput("stayLengthType", template.stayLengthType || "any")
+			setInput("gracePeriod", template.gracePeriod ?? "")
+			setInput("refundBasis", template.refundBasis || "")
+			setInput("payoutBasis", template.payoutBasis || "")
+			setInput("localTimezone", template.localTimezone || "property_local")
+			setInput("legalOverrideFlags", JSON.stringify(template.legalOverrideFlags || {}))
 			if (category === "Cancellation") resetTiers(template.cancellationTiers || [])
 			if (category === "Payment") {
 				setInput("paymentType", template.rules?.paymentType || "")

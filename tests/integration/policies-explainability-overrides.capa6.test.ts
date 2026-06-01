@@ -82,7 +82,11 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 		})
 
 		// Inherited (product-level)
-		const p1 = await createPolicyCapa6({ category: "Payment", description: "Pay at property" })
+		const p1 = await createPolicyCapa6({
+			category: "Payment",
+			description: "Pay at property",
+			rules: { paymentType: "pay_at_property" },
+		})
 		await assignPolicyCapa6({
 			policyId: p1.policyId,
 			scope: "product",
@@ -96,7 +100,11 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 		expect(inheritedPayment?.policy.id).toBe(p1.policyId)
 
 		// Override at rate plan
-		const p2 = await createPolicyCapa6({ category: "Payment", description: "Prepayment required" })
+		const p2 = await createPolicyCapa6({
+			category: "Payment",
+			description: "Prepayment required",
+			rules: { paymentType: "prepayment", prepaymentPercentage: 100 },
+		})
 		await assignPolicyCapa6({
 			policyId: p2.policyId,
 			scope: "rate_plan",
@@ -110,7 +118,11 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 		expect(overriddenPayment?.policy.id).toBe(p2.policyId)
 
 		// Change: replace assignment without deleting history
-		const p3 = await createPolicyCapa6({ category: "Payment", description: "Deposit 20%" })
+		const p3 = await createPolicyCapa6({
+			category: "Payment",
+			description: "Deposit 20%",
+			rules: { paymentType: "prepayment", prepaymentPercentage: 20 },
+		})
 		const replaced = await replacePolicyAssignmentCapa6({
 			policyId: p3.policyId,
 			scope: "rate_plan",

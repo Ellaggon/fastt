@@ -207,7 +207,7 @@ describe("integration/rule-policy snapshot consistency", () => {
 		const ratePlanPayment = await createPolicyCapa6({
 			category: "Payment",
 			description: "Payment RatePlan",
-			rules: { paymentType: "prepayment" },
+			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
 		})
 		await assignPolicyCapa6({
 			policyId: productPayment.policyId,
@@ -270,7 +270,7 @@ describe("integration/rule-policy snapshot consistency", () => {
 		await createPolicyVersionCapa6({
 			previousPolicyId: paymentPolicyId,
 			description: "Pay at property v2",
-			rules: { paymentType: "prepayment" },
+			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
 			effectiveFrom: "2030-07-11T00:00:00.000Z",
 		})
 

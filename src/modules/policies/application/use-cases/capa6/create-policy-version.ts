@@ -4,6 +4,7 @@ import {
 } from "../../schemas/policy-write/createPolicySchema"
 import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
+import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
 
 export type CreatePolicyVersionInput = Omit<CreatePolicyInput, "category"> & {
 	previousPolicyId: string
@@ -46,44 +47,6 @@ function assertNonOverlappingRange(params: {
 	}
 }
 
-function assertCancellationTierConsistency(
-	tiers: Array<{
-		daysBeforeArrival: number
-		penaltyType: "percentage" | "nights"
-		penaltyAmount: number
-	}>
-) {
-	const byDay = new Set<number>()
-	for (const tier of tiers) {
-		if (byDay.has(tier.daysBeforeArrival)) {
-			throw new PolicyValidationError([
-				{ path: ["cancellationTiers"], code: "duplicate_days_before_arrival" },
-			])
-		}
-		byDay.add(tier.daysBeforeArrival)
-		if (tier.penaltyType === "percentage" && (tier.penaltyAmount < 0 || tier.penaltyAmount > 100)) {
-			throw new PolicyValidationError([
-				{ path: ["cancellationTiers"], code: "invalid_percentage_penalty" },
-			])
-		}
-	}
-
-	const sorted = [...tiers].sort((a, b) => b.daysBeforeArrival - a.daysBeforeArrival)
-	let prevPenalty = -Infinity
-	for (const tier of sorted) {
-		if (tier.penaltyAmount < prevPenalty) {
-			throw new PolicyValidationError([
-				{
-					path: ["cancellationTiers"],
-					code: "non_monotonic_penalty",
-					message: "Penalty must not decrease as arrival gets closer",
-				},
-			])
-		}
-		prevPenalty = tier.penaltyAmount
-	}
-}
-
 // Booking.com style versioning:
 // - Never edit an existing policy row
 // - Always create a new active version in the same group
@@ -115,13 +78,11 @@ export async function createPolicyVersionCapa6(
 	const maxV = await deps.commandRepo.getMaxPolicyVersionByGroupId(groupId)
 	const version = Number(maxV) + 1
 
-	// Validate cancellation structure if category demands it.
-	if (
-		category === "Cancellation" &&
-		(!parsed.cancellationTiers || parsed.cancellationTiers.length === 0)
-	) {
-		throw new PolicyValidationError([{ path: ["cancellationTiers"], code: "required" }])
-	}
+	const content = validatePolicyContentForCategory({
+		category,
+		rules: parsed.rules,
+		cancellationTiers: parsed.cancellationTiers,
+	})
 
 	const effectiveFromIso = normalizeDateIso(parsed.effectiveFrom)
 	const effectiveToIso = normalizeDateIso(parsed.effectiveTo)
@@ -149,20 +110,36 @@ export async function createPolicyVersionCapa6(
 		groupId,
 		description: parsed.description ?? "",
 		version,
-		status: "active",
+		status: parsed.status,
 		effectiveFromIso,
 		effectiveToIso,
+		metadata: {
+			policyPresetKey:
+				input.policyPresetKey === undefined ? prev.policyPresetKey : parsed.policyPresetKey,
+			stayLengthType:
+				input.stayLengthType === undefined ? prev.stayLengthType : parsed.stayLengthType,
+			gracePeriod: input.gracePeriod === undefined ? prev.gracePeriod : parsed.gracePeriod,
+			refundBasis: input.refundBasis === undefined ? prev.refundBasis : parsed.refundBasis,
+			payoutBasis: input.payoutBasis === undefined ? prev.payoutBasis : parsed.payoutBasis,
+			localTimezone: input.localTimezone === undefined ? prev.localTimezone : parsed.localTimezone,
+			legalOverrideFlags:
+				input.legalOverrideFlags === undefined
+					? prev.legalOverrideFlags
+					: parsed.legalOverrideFlags,
+		},
 	})
 
-	const rulesArray = parsed.rules
-		? Object.entries(parsed.rules).map(([ruleKey, ruleValue]) => ({ ruleKey, ruleValue }))
+	const rulesArray = content.rules
+		? Object.entries(content.rules).map(([ruleKey, ruleValue]) => ({ ruleKey, ruleValue }))
 		: []
 
 	await deps.commandRepo.replacePolicyRules({ policyId, rules: rulesArray })
 
-	if (category === "Cancellation" && parsed.cancellationTiers) {
-		assertCancellationTierConsistency(parsed.cancellationTiers)
-		await deps.commandRepo.replaceCancellationTiers({ policyId, tiers: parsed.cancellationTiers })
+	if (category === "Cancellation" && content.cancellationTiers) {
+		await deps.commandRepo.replaceCancellationTiers({
+			policyId,
+			tiers: content.cancellationTiers,
+		})
 	}
 
 	await deps.commandRepo.createAuditLog({

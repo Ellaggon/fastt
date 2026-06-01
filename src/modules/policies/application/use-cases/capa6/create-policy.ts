@@ -4,6 +4,7 @@ import {
 } from "../../schemas/policy-write/createPolicySchema"
 import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
+import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
 
 // CAPA 6 write path: create an ACTIVE policy version (no draft flow yet).
 export async function createPolicyCapa6(
@@ -12,7 +13,7 @@ export async function createPolicyCapa6(
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
 	const parsed = createPolicySchema.parse(input)
 
-	let groupId: string
+	let groupId = ""
 	let version: number
 	let category = parsed.category
 
@@ -23,17 +24,21 @@ export async function createPolicyCapa6(
 		version = Number(prev.version) + 1
 		category = prev.category
 	} else {
-		const created = await deps.commandRepo.createPolicyGroup({ category: parsed.category })
-		groupId = created.groupId
 		version = 1
 	}
 
-	// Validate cancellation structure if category demands it.
-	if (
-		category === "Cancellation" &&
-		(!parsed.cancellationTiers || parsed.cancellationTiers.length === 0)
-	) {
-		throw new PolicyValidationError([{ path: ["cancellationTiers"], code: "required" }])
+	const content = validatePolicyContentForCategory({
+		category,
+		rules: parsed.rules,
+		cancellationTiers: parsed.cancellationTiers,
+	})
+
+	if (!parsed.previousPolicyId) {
+		const created = await deps.commandRepo.createPolicyGroup({
+			category: parsed.category,
+			ownerProviderId: parsed.ownerProviderId ?? null,
+		})
+		groupId = created.groupId
 	}
 
 	const effectiveFromIso = parsed.effectiveFrom
@@ -45,19 +50,31 @@ export async function createPolicyCapa6(
 		groupId,
 		description: parsed.description ?? "",
 		version,
-		status: "active",
+		status: parsed.status,
 		effectiveFromIso,
 		effectiveToIso,
+		metadata: {
+			policyPresetKey: parsed.policyPresetKey ?? null,
+			stayLengthType: parsed.stayLengthType ?? null,
+			gracePeriod: parsed.gracePeriod ?? null,
+			refundBasis: parsed.refundBasis ?? null,
+			payoutBasis: parsed.payoutBasis ?? null,
+			localTimezone: parsed.localTimezone ?? null,
+			legalOverrideFlags: parsed.legalOverrideFlags ?? null,
+		},
 	})
 
-	const rulesArray = parsed.rules
-		? Object.entries(parsed.rules).map(([ruleKey, ruleValue]) => ({ ruleKey, ruleValue }))
+	const rulesArray = content.rules
+		? Object.entries(content.rules).map(([ruleKey, ruleValue]) => ({ ruleKey, ruleValue }))
 		: []
 
 	await deps.commandRepo.replacePolicyRules({ policyId, rules: rulesArray })
 
-	if (category === "Cancellation" && parsed.cancellationTiers) {
-		await deps.commandRepo.replaceCancellationTiers({ policyId, tiers: parsed.cancellationTiers })
+	if (category === "Cancellation" && content.cancellationTiers) {
+		await deps.commandRepo.replaceCancellationTiers({
+			policyId,
+			tiers: content.cancellationTiers,
+		})
 	}
 
 	return { policyId, groupId, category, version }

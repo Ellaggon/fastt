@@ -254,6 +254,34 @@ describe("integration/hold policy snapshot", () => {
 		expect(holdSnapshot.meta.checkOut).toBe(checkOut)
 		expect(holdSnapshot.meta.channel).toBe("web")
 		expect(holdSnapshot.payment?.description).toBe("Pay at property")
+		expect(holdSnapshot.payment?.source).toEqual(
+			expect.objectContaining({
+				policyId: paymentPolicy.policyId,
+				version: 1,
+				resolvedFromScope: "rate_plan",
+			})
+		)
+		expect(holdSnapshot.payment?.calculation?.payment).toEqual(
+			expect.objectContaining({
+				paymentType: "pay_at_property",
+				paymentDueLocal: null,
+			})
+		)
+		expect(holdSnapshot.cancellation?.calculation?.cancellation?.refundTiers).toEqual([
+			expect.objectContaining({
+				daysBeforeArrival: 1,
+				deadlineLocal: "2030-01-31T00:00:00[property_local]",
+				penaltyType: "percentage",
+				penaltyAmount: 100,
+				refundPercent: 0,
+			}),
+		])
+		expect(holdSnapshot.no_show?.calculation?.noShow).toEqual(
+			expect.objectContaining({
+				chargeType: "first_night",
+				chargeAmount: null,
+			})
+		)
 		expect(holdSnapshot.ruleBasedContractSnapshot).toBeTruthy()
 		expect(holdSnapshot.contractComparisonJson).toBeTruthy()
 		expect(holdSnapshot.contractComparisonJson?.isConsistent).toBe(true)
@@ -265,7 +293,7 @@ describe("integration/hold policy snapshot", () => {
 		await createPolicyVersionCapa6({
 			previousPolicyId: paymentPolicy.policyId,
 			description: "Prepayment required",
-			rules: { paymentType: "prepayment" },
+			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
 		})
 
 		const booking = await createBookingFromHold(

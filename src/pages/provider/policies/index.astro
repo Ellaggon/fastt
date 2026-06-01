@@ -15,7 +15,7 @@ try {
 	throw e
 }
 
-const res = await fetch(new URL("/api/policies/list-active", Astro.url), {
+const res = await fetch(new URL("/api/policies/list-library", Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
 })
 const policies = res.ok ? ((await res.json()) as any[]) : []
@@ -30,11 +30,11 @@ for (const p of policies) {
 	byCategory[c].push(p)
 }
 
-// Keep only the latest active version per group within each category (provider UX).
+// Keep only the latest version per group/status within each category (provider UX).
 for (const c of categories) {
 	const latestByGroup = new Map<string, any>()
 	for (const p of byCategory[c]) {
-		const gid = String(p.groupId ?? "")
+		const gid = `${String(p.groupId ?? "")}:${String(p.status ?? "")}`
 		const prev = latestByGroup.get(gid)
 		if (!prev || Number(p.version ?? 0) > Number(prev.version ?? 0)) {
 			latestByGroup.set(gid, p)
@@ -73,9 +73,9 @@ for (const c of categories) {
 					<p class="mt-1 text-xs text-slate-400">Contrato de reserva</p>
 				</Card>
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Policies activas</p>
+					<p class="text-xs uppercase tracking-wide text-slate-500">Library items</p>
 					<p class="mt-2 text-2xl font-semibold">{policies.length}</p>
-					<p class="mt-1 text-xs text-slate-400">Última versión por grupo abajo</p>
+					<p class="mt-1 text-xs text-slate-400">Drafts, templates, active y archived</p>
 				</Card>
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
 					<p class="text-xs uppercase tracking-wide text-slate-500">Payment</p>
@@ -94,19 +94,14 @@ for (const c of categories) {
 				<p class="mt-1 text-sm">
 					Booking Policies define obligaciones contractuales. Pricing define descuentos, promociones
 					y overrides. Reglas para huéspedes define comportamiento del huésped y uso de la
-					propiedad.
+					propiedad. Crear una policy la deja en biblioteca; publicar y asignar son pasos separados.
 				</p>
 			</Card>
 
 			{
-				success === "created" && (
+				(success === "created" || success === "draft") && (
 					<div class="rounded-lg border border-green-200 bg-green-50 p-3 text-green-900">
-						<strong>OK:</strong> Política creada.
-						<div class="text-sm">
-							<a class="underline" href="/rates/plans/manage">
-								Asignar a un rate plan
-							</a>
-						</div>
+						<strong>OK:</strong> Política guardada en library. Publícala antes de asignarla.
 					</div>
 				)
 			}
@@ -153,19 +148,49 @@ for (const c of categories) {
 												<div>
 													<p class="text-base font-semibold text-slate-900">{p.description}</p>
 													<p class="mt-1 text-sm text-slate-600">
-														Version {p.version} · Group {p.groupId}
+														Version {p.version} · {p.status} · Group {p.groupId}
 													</p>
 													<p class="mt-1 text-xs text-slate-500">
 														ID <code>{p.id}</code>
 													</p>
 												</div>
-												<Button
-													href={`/provider/policies/${p.id}/edit`}
-													variant="secondary"
-													size="sm"
-												>
-													Crear nueva versión
-												</Button>
+												<div class="flex flex-wrap items-center gap-2">
+													{p.status !== "active" && p.status !== "archived" && (
+														<button
+															type="button"
+															class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
+															data-policy-action="publish"
+															data-policy-id={p.id}
+														>
+															Publicar
+														</button>
+													)}
+													{p.status === "active" && (
+														<a
+															href="/rates/plans/manage"
+															class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
+														>
+															Asignar
+														</a>
+													)}
+													{p.status !== "archived" && (
+														<button
+															type="button"
+															class="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+															data-policy-action="archive"
+															data-policy-id={p.id}
+														>
+															Archivar
+														</button>
+													)}
+													<Button
+														href={`/provider/policies/${p.id}/edit`}
+														variant="secondary"
+														size="sm"
+													>
+														Crear nueva versión
+													</Button>
+												</div>
 											</div>
 										</Card>
 									))}
@@ -177,3 +202,20 @@ for (const c of categories) {
 		</div>
 	</main>
 </WorkspaceLayout>
+
+<script>
+	document.addEventListener("click", async (event) => {
+		const target = event.target instanceof HTMLElement ? event.target : null
+		const button = target?.closest("[data-policy-action]")
+		if (!(button instanceof HTMLElement)) return
+		const action = button.dataset.policyAction
+		const policyId = button.dataset.policyId
+		if (!action || !policyId) return
+		button.setAttribute("disabled", "true")
+		const res = await fetch(`/api/policies/${encodeURIComponent(policyId)}/${action}`, {
+			method: "POST",
+		})
+		if (res.ok) window.location.reload()
+		else button.removeAttribute("disabled")
+	})
+</script>
