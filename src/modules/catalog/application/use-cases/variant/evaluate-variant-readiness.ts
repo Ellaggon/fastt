@@ -29,6 +29,20 @@ export async function evaluateVariantReadiness(
 		allErrors.push(e)
 	}
 
+	const requiresRoomPhoto =
+		String(v.kind ?? "")
+			.trim()
+			.toLowerCase() === "hotel_room"
+	const imageCount = requiresRoomPhoto ? await deps.repo.countVariantImages(parsed.variantId) : 0
+	if (requiresRoomPhoto && imageCount < 1) {
+		const e = {
+			code: "missing_room_photo",
+			message: "At least one room photo is required for guest-ready publication",
+		}
+		blockingErrors.push(e)
+		allErrors.push(e)
+	}
+
 	// CAPA 4.6:
 	// Room type is optional for now to avoid blocking environments without seed data.
 	// Keep subtype out of blocking readiness until reference data setup is enforced.

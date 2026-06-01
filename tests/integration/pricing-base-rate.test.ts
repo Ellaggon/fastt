@@ -15,7 +15,7 @@ import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 
-import { and, asc, db, eq, RatePlanOccupancyPolicy } from "astro:db"
+import { and, asc, db, eq, Image, RatePlanOccupancyPolicy } from "astro:db"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -73,6 +73,18 @@ function makeAuthedFormRequest(params: { path: string; token?: string; form: For
 async function readJson(res: Response) {
 	const txt = await res.text()
 	return txt ? JSON.parse(txt) : null
+}
+
+async function insertVariantImage(variantId: string) {
+	await db.insert(Image).values({
+		id: `img_${crypto.randomUUID()}`,
+		entityType: "variant",
+		entityId: variantId,
+		objectKey: `rooms/${variantId}/main.jpg`,
+		url: `https://example.com/rooms/${variantId}/main.jpg`,
+		order: 0,
+		isPrimary: true,
+	})
 }
 
 async function seedRatePlanFixture(params?: { ownerEmail?: string }) {
@@ -328,6 +340,7 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 					} as any)
 				).status
 			).toBe(200)
+			await insertVariantImage(variantId)
 
 			const ratePlanTemplateId = `rpt_br_ready_${crypto.randomUUID()}`
 			const ratePlanId = `rp_br_ready_${crypto.randomUUID()}`

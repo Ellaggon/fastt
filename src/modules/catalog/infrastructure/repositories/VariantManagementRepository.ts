@@ -8,9 +8,11 @@ import {
 	RoomType,
 	RatePlan,
 	DailyInventory,
+	Image,
 	eq,
 	and,
 	count,
+	inArray,
 } from "astro:db"
 import type {
 	VariantLifecycleStatus,
@@ -317,6 +319,15 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ value: count() })
 			.from(DailyInventory)
 			.where(eq(DailyInventory.variantId, variantId))
+			.get()
+		return Number(row?.value ?? 0)
+	}
+
+	async countVariantImages(variantId: string): Promise<number> {
+		const row = await db
+			.select({ value: count() })
+			.from(Image)
+			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 			.get()
 		return Number(row?.value ?? 0)
 	}
