@@ -14,9 +14,11 @@ import type {
 } from "../../application/ports/PolicyQueryRepositoryPortCapa6"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
+import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 export class PolicyQueryRepositoryCapa6 implements PolicyQueryRepositoryPortCapa6 {
 	async getPolicyDetailById(policyId: string): Promise<PolicyDetailCapa6 | null> {
+		await ensurePolicySchemaCompatibility()
 		const id = String(policyId ?? "").trim()
 		if (!id) return null
 

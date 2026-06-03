@@ -3,6 +3,7 @@ import { db, and, eq, isNull, PolicyAssignment, Product, Variant, RatePlan } fro
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
 import type { PolicyAssignmentRepositoryPortCapa6 } from "../../application/ports/PolicyAssignmentRepositoryPortCapa6"
+import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentRepositoryPortCapa6 {
 	async scopeExists(params: { scope: PolicyScope; scopeId: string }): Promise<boolean> {
@@ -42,6 +43,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		scopeId: string
 		channel: string | null
 	} | null> {
+		await ensurePolicySchemaCompatibility()
 		const channelCond =
 			params.channel == null
 				? isNull(PolicyAssignment.channel)
@@ -85,6 +87,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		scopeId: string
 		channel: string | null
 	}): Promise<{ assignmentId: string }> {
+		await ensurePolicySchemaCompatibility()
 		const assignmentId = randomUUID()
 		await db.insert(PolicyAssignment).values({
 			id: assignmentId,

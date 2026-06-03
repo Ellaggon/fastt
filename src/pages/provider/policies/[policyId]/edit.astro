@@ -22,6 +22,9 @@ if (!policyRes.ok) return new Response("Failed to load policy", { status: 500 })
 
 const policy = (await policyRes.json()) as any
 const category = String(policy.group?.category ?? policy.category ?? policy.policyType ?? "").trim()
+const policyGroupId = String(
+	policy.group?.id ?? policy.policy?.groupId ?? policy.groupId ?? ""
+).trim()
 const policyRules = Array.isArray(policy.rules)
 	? policy.rules
 	: Array.isArray(policy.policyRules)
@@ -69,6 +72,12 @@ for (const r of policyRules as any[]) {
 						class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200"
 					>
 						Policy Library
+					</a>
+					<a
+						href={`/provider/policies/groups/${encodeURIComponent(policyGroupId)}/audit`}
+						class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200"
+					>
+						Auditoría
 					</a>
 					<a
 						href="/rates/plans/manage"

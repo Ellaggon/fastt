@@ -21,6 +21,10 @@ export async function assignPolicyCapa6(
 	if (String(policy.status) !== "active") {
 		throw new PolicyValidationError([{ path: ["policyId"], code: "policy_not_active" }])
 	}
+	const group = await deps.commandRepo.getPolicyGroupById(policy.groupId)
+	if (!group || !String(group.ownerProviderId ?? "").trim()) {
+		throw new PolicyValidationError([{ path: ["policyId"], code: "owner_provider_required" }])
+	}
 
 	// Validate scope existence.
 	const exists = await deps.assignmentRepo.scopeExists({
@@ -46,6 +50,25 @@ export async function assignPolicyCapa6(
 		scope: parsed.scope,
 		scopeId: parsed.scopeId,
 		channel,
+	})
+
+	await deps.commandRepo.createAuditLog({
+		eventType: "assignment_created",
+		actorUserId: (input as any).actorUserId ?? null,
+		policyId: policy.id,
+		policyGroupId: policy.groupId,
+		assignmentId,
+		scope: parsed.scope,
+		scopeId: parsed.scopeId,
+		channel,
+		before: null,
+		after: {
+			assignmentId,
+			policyGroupId: policy.groupId,
+			scope: parsed.scope,
+			scopeId: parsed.scopeId,
+			channel,
+		},
 	})
 
 	return { assignmentId, scope: parsed.scope, scopeId: parsed.scopeId }

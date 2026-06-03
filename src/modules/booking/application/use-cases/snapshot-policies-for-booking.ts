@@ -2,7 +2,7 @@ import { randomUUID } from "crypto"
 
 import type { BookingPolicySnapshotRepositoryPort } from "../ports/BookingPolicySnapshotRepositoryPort"
 import { BookingValidationError } from "../errors/bookingValidationError"
-import { buildPolicyItemSnapshot } from "@/modules/policies/public"
+import { buildPolicyItemSnapshot, type PolicyExceptionRule } from "@/modules/policies/public"
 
 export type SnapshotPoliciesForBookingInput = {
 	bookingId: string
@@ -48,6 +48,23 @@ export async function snapshotPoliciesForBooking(
 				resolvedFromScope: string
 			}>
 		}>
+		resolvePolicyExceptionRules?: (ctx: {
+			productId: string
+			variantId?: string
+			ratePlanId?: string
+			channel?: string
+			checkIn?: string
+			checkOut?: string
+		}) => Promise<PolicyExceptionRule[]>
+		auditPolicySnapshot?: (event: {
+			eventType: "policy_snapshot_created" | "policy_override_resolved"
+			policyId?: string | null
+			policyGroupId?: string | null
+			scope?: string | null
+			scopeId?: string | null
+			channel?: string | null
+			after?: unknown
+		}) => Promise<void>
 	},
 	input: SnapshotPoliciesForBookingInput
 ) {
@@ -82,6 +99,16 @@ export async function snapshotPoliciesForBooking(
 		// We keep it explicit by storing no rows (immutable empty snapshot).
 		return { created: 0 }
 	}
+	const exceptionRules = deps.resolvePolicyExceptionRules
+		? await deps.resolvePolicyExceptionRules({
+				productId,
+				variantId,
+				ratePlanId,
+				channel,
+				checkIn: input.checkIn,
+				checkOut: input.checkOut,
+			})
+		: []
 
 	const now = new Date()
 	const rows = resolved.policies.map((p) => {
@@ -89,7 +116,8 @@ export async function snapshotPoliciesForBooking(
 			try {
 				return buildPolicyItemSnapshot(
 					p as any,
-					input.checkIn ?? new Date().toISOString().slice(0, 10)
+					input.checkIn ?? new Date().toISOString().slice(0, 10),
+					exceptionRules
 				)
 			} catch {
 				return null
@@ -114,11 +142,46 @@ export async function snapshotPoliciesForBooking(
 				},
 				metadata: enriched?.metadata ?? null,
 				calculation: enriched?.calculation ?? null,
+				appliedOverrides: enriched?.appliedOverrides ?? [],
 			},
 			createdAt: now,
 		}
 	})
 
 	await deps.repo.insertMany(rows)
+	if (deps.auditPolicySnapshot) {
+		await deps.auditPolicySnapshot({
+			eventType: "policy_snapshot_created",
+			scope: "booking",
+			scopeId: bookingId,
+			channel: channel ?? null,
+			after: {
+				bookingId,
+				productId,
+				variantId,
+				ratePlanId,
+				policyVersionIds: rows.map((row) => row.policyId).filter(Boolean),
+			},
+		})
+		for (const row of rows) {
+			const snapshot = row.policySnapshotJson as any
+			for (const override of snapshot?.appliedOverrides ?? []) {
+				await deps.auditPolicySnapshot({
+					eventType: "policy_override_resolved",
+					policyId: row.policyId,
+					policyGroupId: snapshot?.source?.groupId ?? snapshot?.policy?.groupId ?? null,
+					scope: "booking",
+					scopeId: bookingId,
+					channel: channel ?? null,
+					after: {
+						overrideId: override.id,
+						overrideType: override.type,
+						category: row.category,
+						reason: override.reason,
+					},
+				})
+			}
+		}
+	}
 	return { created: rows.length }
 }

@@ -20,7 +20,11 @@ describe("policies/capa6 invariants (unit)", () => {
 				effectiveFrom: null,
 				effectiveTo: null,
 			})),
-			getPolicyGroupById: vi.fn(async () => ({ id: "grp_1", category: "Payment" })),
+			getPolicyGroupById: vi.fn(async () => ({
+				id: "grp_1",
+				category: "Payment",
+				ownerProviderId: "prov_1",
+			})),
 			getMaxPolicyVersionByGroupId: vi.fn(async () => 1),
 			listActivePoliciesByGroupId: vi.fn(async () => [
 				{
@@ -63,7 +67,11 @@ describe("policies/capa6 invariants (unit)", () => {
 				effectiveFrom: null,
 				effectiveTo: null,
 			})),
-			getPolicyGroupById: vi.fn(async () => ({ id: "grp_cancel", category: "Cancellation" })),
+			getPolicyGroupById: vi.fn(async () => ({
+				id: "grp_cancel",
+				category: "Cancellation",
+				ownerProviderId: "prov_1",
+			})),
 			getMaxPolicyVersionByGroupId: vi.fn(async () => 1),
 			listActivePoliciesByGroupId: vi.fn(async () => []),
 			createPolicyVersion: vi.fn(async () => ({ policyId: "pol_new" })),
@@ -97,6 +105,11 @@ describe("policies/capa6 invariants (unit)", () => {
 				version: 2,
 				effectiveFrom: null,
 				effectiveTo: null,
+			})),
+			getPolicyGroupById: vi.fn(async () => ({
+				id: "grp_1",
+				category: "Payment",
+				ownerProviderId: "prov_1",
 			})),
 			createAuditLog: vi.fn(async () => undefined),
 		} as any

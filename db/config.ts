@@ -400,6 +400,27 @@ const PolicyRule = defineTable({
 		ruleValue: column.json({ optional: true }),
 	},
 })
+const PolicyExceptionRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		type: column.text(), // major_disruptive_event | rebooking_refund | host_cancellation | local_law | support_manual_override
+		scope: column.text({ default: "global" }),
+		scopeId: column.text({ optional: true }),
+		category: column.text({ optional: true }),
+		priority: column.number({ default: 100 }),
+		isActive: column.boolean({ default: true }),
+		effectiveFrom: column.text({ optional: true }),
+		effectiveTo: column.text({ optional: true }),
+		reason: column.text({ optional: true }),
+		actionJson: column.json(),
+		createdAt: column.date({ default: NOW }),
+		createdBy: column.text({ optional: true }),
+	},
+	indexes: [
+		{ on: ["scope", "scopeId", "category", "type", "isActive"] },
+		{ on: ["effectiveFrom", "effectiveTo"] },
+	],
+})
 const PolicyAuditLog = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -896,6 +917,64 @@ const RefundHandoffRecord = defineTable({
 		{ on: ["openedAt"] },
 	],
 })
+const RefundQuote = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		bookingId: column.text(),
+		providerId: column.text(),
+		status: column.text(), // quoted | requires_manual_review | expired | superseded
+		reason: column.text(),
+		currency: column.text(),
+		grossAmount: column.number(),
+		refundAmount: column.number(),
+		nonRefundableAmount: column.number(),
+		taxFeeRefundAmount: column.number(),
+		payoutImpactAmount: column.number(),
+		paymentDueLocal: column.text({ optional: true }),
+		cancellationDeadlineLocal: column.text({ optional: true }),
+		refundPercent: column.number({ optional: true }),
+		policySnapshotJson: column.json(),
+		linesJson: column.json(),
+		calculationSnapshotJson: column.json(),
+		idempotencyKey: column.text(),
+		quotedAt: column.date(),
+		expiresAt: column.date({ optional: true }),
+		createdBy: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "status"] },
+		{ on: ["idempotencyKey"] },
+		{ on: ["quotedAt"] },
+	],
+})
+const RefundLedger = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		refundQuoteId: column.text(),
+		bookingId: column.text(),
+		providerId: column.text(),
+		status: column.text(), // recorded | reversed | voided
+		currency: column.text(),
+		refundAmount: column.number(),
+		payoutImpactAmount: column.number(),
+		paymentTransactionId: column.text({ optional: true }),
+		externalReference: column.text({ optional: true }),
+		basis: column.text(),
+		calculationSnapshotJson: column.json(),
+		appliedAt: column.date(),
+		appliedBy: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["bookingId"] },
+		{ on: ["providerId", "status"] },
+		{ on: ["refundQuoteId"] },
+		{ on: ["paymentTransactionId"] },
+		{ on: ["appliedAt"] },
+	],
+})
 const FinancialReviewEvent = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -1116,6 +1195,7 @@ export default defineDb({
 		PolicyAssignment,
 		CancellationTier,
 		PolicyRule,
+		PolicyExceptionRule,
 		PolicyAuditLog,
 
 		// 5 inventory
@@ -1151,6 +1231,8 @@ export default defineDb({
 		FinancialExceptionRecord,
 		FinancialReference,
 		RefundHandoffRecord,
+		RefundQuote,
+		RefundLedger,
 		FinancialReviewEvent,
 		PaymentTransaction,
 		FinancialSettlementRecord,

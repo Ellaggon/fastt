@@ -1,0 +1,5 @@
+---
+const groupId = String(Astro.params.groupId ?? "").trim()
+if (!groupId) return Astro.redirect("/provider/policies/audit")
+return Astro.redirect(`/provider/policies/audit?policyGroupId=${encodeURIComponent(groupId)}`)
+---

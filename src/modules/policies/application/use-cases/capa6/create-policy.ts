@@ -5,20 +5,21 @@ import {
 import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
 import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
+import { applyPolicyPresetDefaults } from "../../presets/applyPolicyPreset"
 
-// CAPA 6 write path: create an ACTIVE policy version (no draft flow yet).
+// CAPA 6 write path: create a library policy version.
 export async function createPolicyCapa6(
 	deps: { commandRepo: PolicyCommandRepositoryPortCapa6 },
 	input: CreatePolicyInput
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
-	const parsed = createPolicySchema.parse(input)
+	const parsedInput = createPolicySchema.parse(input)
 
 	let groupId = ""
 	let version: number
-	let category = parsed.category
+	let category = parsedInput.category
 
-	if (parsed.previousPolicyId) {
-		const prev = await deps.commandRepo.getPolicyById(parsed.previousPolicyId)
+	if (parsedInput.previousPolicyId) {
+		const prev = await deps.commandRepo.getPolicyById(parsedInput.previousPolicyId)
 		if (!prev) throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "not_found" }])
 		groupId = prev.groupId
 		version = Number(prev.version) + 1
@@ -26,6 +27,8 @@ export async function createPolicyCapa6(
 	} else {
 		version = 1
 	}
+
+	const parsed = applyPolicyPresetDefaults({ input, parsed: parsedInput, category })
 
 	const content = validatePolicyContentForCategory({
 		category,
@@ -79,6 +82,24 @@ export async function createPolicyCapa6(
 			tiers: content.cancellationTiers,
 		})
 	}
+
+	await deps.commandRepo.createAuditLog({
+		eventType: parsed.previousPolicyId ? "policy_version_created" : "policy_created",
+		actorUserId: (input as any).actorUserId ?? null,
+		policyId,
+		policyGroupId: groupId,
+		before: parsed.previousPolicyId ? { previousPolicyId: parsed.previousPolicyId } : null,
+		after: {
+			policyId,
+			groupId,
+			category,
+			version,
+			status: parsed.status,
+			effectiveFrom: effectiveFromIso,
+			effectiveTo: effectiveToIso,
+			policyPresetKey: parsed.policyPresetKey ?? null,
+		},
+	})
 
 	return { policyId, groupId, category, version }
 }
