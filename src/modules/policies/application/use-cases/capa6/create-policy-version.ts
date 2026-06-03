@@ -5,6 +5,7 @@ import {
 import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
 import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
+import { applyPolicyPresetDefaults } from "../../presets/applyPolicyPreset"
 
 export type CreatePolicyVersionInput = Omit<CreatePolicyInput, "category"> & {
 	previousPolicyId: string
@@ -56,17 +57,17 @@ export async function createPolicyVersionCapa6(
 	input: CreatePolicyVersionInput
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
 	// Reuse the existing schema for payload shape, but enforce previousPolicyId as required.
-	const parsed = createPolicySchema.parse({
+	const parsedInput = createPolicySchema.parse({
 		...input,
 		// placeholder; will be replaced by derived category
 		category: "Other" as any,
 	})
 
-	if (!parsed.previousPolicyId) {
+	if (!parsedInput.previousPolicyId) {
 		throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "required" }])
 	}
 
-	const prev = await deps.commandRepo.getPolicyById(parsed.previousPolicyId)
+	const prev = await deps.commandRepo.getPolicyById(parsedInput.previousPolicyId)
 	if (!prev) throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "not_found" }])
 
 	const groupId = prev.groupId
@@ -77,6 +78,7 @@ export async function createPolicyVersionCapa6(
 	const category = group.category
 	const maxV = await deps.commandRepo.getMaxPolicyVersionByGroupId(groupId)
 	const version = Number(maxV) + 1
+	const parsed = applyPolicyPresetDefaults({ input, parsed: parsedInput, category })
 
 	const content = validatePolicyContentForCategory({
 		category,

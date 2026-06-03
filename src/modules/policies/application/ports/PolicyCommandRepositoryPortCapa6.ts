@@ -75,10 +75,14 @@ export interface PolicyCommandRepositoryPortCapa6 {
 
 	createAuditLog(params: {
 		eventType:
+			| "policy_created"
 			| "policy_version_created"
 			| "assignment_replaced"
+			| "assignment_created"
 			| "policy_published"
 			| "policy_archived"
+			| "policy_override_resolved"
+			| "policy_snapshot_created"
 		actorUserId?: string | null
 		policyId?: string | null
 		policyGroupId?: string | null

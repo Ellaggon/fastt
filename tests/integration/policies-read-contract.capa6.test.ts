@@ -119,21 +119,28 @@ describe("integration/policies read contract (CAPA6)", () => {
 			expect(response.status).toBe(200)
 			const body = await readJson<any>(response)
 			expect(body.policy.id).toBe(created.policyId)
-			expect(body.policy.policyPresetKey).toBe("flex_24h")
+			expect(body.policy.policyPresetKey).toBe("flexible")
 			expect(body.policy.stayLengthType).toBe("short_stay")
 			expect(body.policy.gracePeriod).toBe(24)
 			expect(body.policy.refundBasis).toBe("total_booking")
 			expect(body.policy.payoutBasis).toBe("collected")
 			expect(body.policy.localTimezone).toBe("America/Santiago")
 			expect(body.policy.legalOverrideFlags).toEqual({ localLawOverridesPreset: true })
-			expect(body.policyPresetKey).toBe("flex_24h")
+			expect(body.policyPresetKey).toBe("flexible")
 			expect(body.group.id).toBe(created.groupId)
 			expect(body.group.category).toBe("Cancellation")
 			expect(body.category).toBe("Cancellation")
 			expect(body.tiers).toHaveLength(2)
 			expect(body.cancellationTiers).toHaveLength(2)
-			expect(body.rules).toEqual([])
-			expect(body.policyRules).toEqual([])
+			expect(body.rules).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						ruleKey: "cancellationPreset",
+						ruleValue: "flexible",
+					}),
+				])
+			)
+			expect(body.policyRules).toEqual(body.rules)
 			expect(body.assignments).toEqual([
 				expect.objectContaining({
 					id: assigned.assignmentId,

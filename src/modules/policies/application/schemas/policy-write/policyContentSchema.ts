@@ -71,6 +71,22 @@ function validateCancellationTiers(tiers: CancellationTierInput[] | undefined) {
 	return tiers
 }
 
+function validateCancellationRules(rules: Record<string, unknown> | undefined) {
+	const input = rulesRecord(rules)
+	const normalized: Record<string, unknown> = {}
+	for (const key of [
+		"cancellationPreset",
+		"freeCancellationUntilDaysBeforeArrival",
+		"gracePeriodHoursAfterBooking",
+		"refundBasis",
+		"refundTiers",
+		"minStayNights",
+	]) {
+		if (input[key] !== undefined) normalized[key] = input[key]
+	}
+	return Object.keys(normalized).length ? normalized : undefined
+}
+
 function validatePaymentRules(rules: Record<string, unknown> | undefined) {
 	const input = rulesRecord(rules)
 	const paymentType = textRule(input, "paymentType")
@@ -190,7 +206,10 @@ export function validatePolicyContentForCategory(params: {
 } {
 	switch (params.category) {
 		case "Cancellation":
-			return { cancellationTiers: validateCancellationTiers(params.cancellationTiers) }
+			return {
+				rules: validateCancellationRules(params.rules),
+				cancellationTiers: validateCancellationTiers(params.cancellationTiers),
+			}
 		case "Payment":
 			return { rules: validatePaymentRules(params.rules) }
 		case "CheckIn":

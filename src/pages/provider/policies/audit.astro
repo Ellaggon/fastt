@@ -8,8 +8,9 @@ import Section from "@/components/ui/Section.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { ensurePolicyGroupOwnerProviderIdColumn } from "@/lib/policies/policySchemaCompat"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
-import { db, eq, inArray, PolicyAuditLog, Product, RatePlan, Variant } from "astro:db"
+import { db, eq, inArray, PolicyAuditLog, PolicyGroup, Product, RatePlan, Variant } from "astro:db"
 
 try {
 	await requireProvider(Astro.request)
@@ -20,8 +21,10 @@ try {
 }
 
 const { providerId } = await requireProvider(Astro.request)
+await ensurePolicyGroupOwnerProviderIdColumn()
 
 const qPolicyId = String(Astro.url.searchParams.get("policyId") ?? "").trim()
+const qPolicyGroupId = String(Astro.url.searchParams.get("policyGroupId") ?? "").trim()
 const qRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const qEventType = String(Astro.url.searchParams.get("eventType") ?? "").trim()
 
@@ -46,6 +49,12 @@ const ratePlans = variantIds.length
 			.where(inArray(RatePlan.variantId, variantIds))
 			.all()
 	: []
+const policyGroups = await db
+	.select({ id: PolicyGroup.id, category: PolicyGroup.category })
+	.from(PolicyGroup)
+	.where(eq(PolicyGroup.ownerProviderId, providerId))
+	.all()
+const policyGroupIds = policyGroups.map((row) => String(row.id)).filter(Boolean)
 
 const variantToProduct = new Map(variants.map((row) => [String(row.id), String(row.productId)]))
 const ratePlanToVariant = new Map(ratePlans.map((row) => [String(row.id), String(row.variantId)]))
@@ -76,10 +85,14 @@ const auditRows = rawAuditRows
 		if (scope === "product") return productIds.includes(scopeId)
 		if (scope === "variant") return variantIds.includes(scopeId)
 		if (scope === "rate_plan") return ratePlans.some((rp) => String(rp.id) === scopeId)
-		if (!scope) return true
+		if (!scope || scope === "booking") {
+			const groupId = String(row.policyGroupId ?? "")
+			return groupId ? policyGroupIds.includes(groupId) : false
+		}
 		return false
 	})
 	.filter((row) => (!qPolicyId ? true : String(row.policyId ?? "") === qPolicyId))
+	.filter((row) => (!qPolicyGroupId ? true : String(row.policyGroupId ?? "") === qPolicyGroupId))
 	.filter((row) => (!qEventType ? true : String(row.eventType ?? "") === qEventType))
 	.filter((row) => {
 		if (!qRatePlanId) return true
@@ -201,12 +214,20 @@ const eventTypes = Array.from(
 
 		<Section
 			title="Registro de auditoría"
-			description="Eventos de creación de versiones y reemplazo de asignaciones."
+			description="Eventos de creación, publicación, archivo, asignación, overrides y snapshots."
 		>
 			<Card className="space-y-6 bg-white">
 				<form method="GET" class="grid gap-4 md:grid-cols-4">
 					<FormField label="ID de política (avanzado)" htmlFor="policyId">
 						<Input id="policyId" name="policyId" value={qPolicyId} placeholder="UUID de política" />
+					</FormField>
+					<FormField label="ID de grupo (avanzado)" htmlFor="policyGroupId">
+						<Input
+							id="policyGroupId"
+							name="policyGroupId"
+							value={qPolicyGroupId}
+							placeholder="UUID de grupo"
+						/>
 					</FormField>
 					<FormField label="ID de tarifa (avanzado)" htmlFor="ratePlanId">
 						<Input

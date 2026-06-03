@@ -4,7 +4,11 @@ import { z } from "zod"
 import type { InventoryHoldRepositoryPort } from "../ports/InventoryHoldRepositoryPort"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
-import { buildPolicySnapshot, type ResolveEffectivePoliciesResult } from "@/modules/policies/public"
+import {
+	buildPolicySnapshot,
+	type PolicyExceptionRule,
+	type ResolveEffectivePoliciesResult,
+} from "@/modules/policies/public"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
 import {
@@ -83,6 +87,23 @@ export async function createInventoryHold(
 			requiredCategories?: string[]
 			onMissingCategory?: "return_null" | "throw_error"
 		}) => Promise<ResolveEffectiveRulesResult>
+		resolvePolicyExceptionRules?: (ctx: {
+			productId: string
+			variantId?: string
+			ratePlanId?: string
+			checkIn?: string
+			checkOut?: string
+			channel?: string
+		}) => Promise<PolicyExceptionRule[]>
+		auditPolicySnapshot?: (event: {
+			eventType: "policy_snapshot_created" | "policy_override_resolved"
+			policyId?: string | null
+			policyGroupId?: string | null
+			scope?: string | null
+			scopeId?: string | null
+			channel?: string | null
+			after?: unknown
+		}) => Promise<void>
 		buildGuestExpectationsSnapshot?: (productId: string) => Promise<unknown | null>
 		policyContext: {
 			productId: string
@@ -174,6 +195,17 @@ export async function createInventoryHold(
 				resolvedAt: now,
 			})
 		: { contractTerms: [], hardConstraintEvidence: [] }
+	const policyExceptionRules = deps.resolvePolicyExceptionRules
+		? await deps.resolvePolicyExceptionRules({
+				productId: deps.policyContext.productId,
+				variantId: parsed.variantId,
+				ratePlanId: policyRatePlanId,
+				checkIn: parsed.dateRange.from,
+				checkOut: parsed.dateRange.to,
+				channel:
+					deps.policyContext.channel == null ? undefined : String(deps.policyContext.channel),
+			})
+		: []
 
 	const policySnapshot = buildPolicySnapshot({
 		resolvedPolicies,
@@ -181,7 +213,47 @@ export async function createInventoryHold(
 		checkOut: parsed.dateRange.to,
 		channel: deps.policyContext.channel,
 		resolvedAt: now,
+		exceptionRules: policyExceptionRules,
 	})
+	if (deps.auditPolicySnapshot) {
+		await deps.auditPolicySnapshot({
+			eventType: "policy_snapshot_created",
+			scope: "rate_plan",
+			scopeId: policyRatePlanId,
+			channel: deps.policyContext.channel ?? null,
+			after: {
+				productId: deps.policyContext.productId,
+				variantId: parsed.variantId,
+				ratePlanId: policyRatePlanId,
+				checkIn: parsed.dateRange.from,
+				checkOut: parsed.dateRange.to,
+				policyVersionIds: policySnapshot.meta.policyVersionIds,
+			},
+		})
+		for (const item of [
+			policySnapshot.cancellation,
+			policySnapshot.payment,
+			policySnapshot.no_show,
+			policySnapshot.check_in,
+		]) {
+			for (const override of item?.appliedOverrides ?? []) {
+				await deps.auditPolicySnapshot({
+					eventType: "policy_override_resolved",
+					policyId: item?.policyId ?? null,
+					policyGroupId: item?.groupId ?? null,
+					scope: "rate_plan",
+					scopeId: policyRatePlanId,
+					channel: deps.policyContext.channel ?? null,
+					after: {
+						overrideId: override.id,
+						overrideType: override.type,
+						category: item?.category ?? null,
+						reason: override.reason,
+					},
+				})
+			}
+		}
+	}
 	policySnapshot.ruleSnapshotJson = ruleSnapshot
 	const guestExpectationsSnapshot = deps.buildGuestExpectationsSnapshot
 		? await deps.buildGuestExpectationsSnapshot(deps.policyContext.productId)

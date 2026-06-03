@@ -53,6 +53,10 @@ export async function replacePolicyAssignmentCapa6(
 	if (String(policy.status) !== "active") {
 		throw new PolicyValidationError([{ path: ["policyId"], code: "policy_not_active" }])
 	}
+	const group = await deps.commandRepo.getPolicyGroupById(policy.groupId)
+	if (!group || !String(group.ownerProviderId ?? "").trim()) {
+		throw new PolicyValidationError([{ path: ["policyId"], code: "owner_provider_required" }])
+	}
 	if (
 		policy.effectiveFrom &&
 		policy.effectiveTo &&

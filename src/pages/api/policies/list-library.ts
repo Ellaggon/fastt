@@ -2,9 +2,11 @@ import type { APIRoute } from "astro"
 import { db, eq, inArray, Policy, PolicyGroup } from "astro:db"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyGroupIds } from "@/lib/policies/policyOwnership"
+import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 export const GET: APIRoute = async ({ request }) => {
 	const { providerId } = await requireProvider(request)
+	await ensurePolicySchemaCompatibility()
 	const ownedGroupIds = await getOwnedPolicyGroupIds(providerId, { activeOnly: false })
 	if (!ownedGroupIds.length) return Response.json([])
 

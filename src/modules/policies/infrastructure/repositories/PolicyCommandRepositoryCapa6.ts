@@ -17,9 +17,11 @@ import type {
 	PolicyLibraryStatus,
 	PolicyProfessionalMetadata,
 } from "../../application/ports/PolicyCommandRepositoryPortCapa6"
+import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPortCapa6 {
 	async getPolicyById(policyId: string) {
+		await ensurePolicySchemaCompatibility()
 		const row = await db.select().from(Policy).where(eq(Policy.id, policyId)).get()
 		if (!row) return null
 
@@ -50,6 +52,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 	}
 
 	async getPolicyGroupById(groupId: string) {
+		await ensurePolicySchemaCompatibility()
 		const row = await db.select().from(PolicyGroup).where(eq(PolicyGroup.id, groupId)).get()
 		if (!row) return null
 		return {
@@ -72,6 +75,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 	}
 
 	async createPolicyGroup(params: { category: PolicyCategory; ownerProviderId: string }) {
+		await ensurePolicySchemaCompatibility()
 		const groupId = randomUUID()
 		await db.insert(PolicyGroup).values({
 			id: groupId,
@@ -90,6 +94,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		effectiveToIso?: string | null
 		metadata?: PolicyProfessionalMetadata
 	}) {
+		await ensurePolicySchemaCompatibility()
 		const policyId = randomUUID()
 		await db.insert(Policy).values({
 			id: policyId,
@@ -174,10 +179,14 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 
 	async createAuditLog(params: {
 		eventType:
+			| "policy_created"
 			| "policy_version_created"
 			| "assignment_replaced"
+			| "assignment_created"
 			| "policy_published"
 			| "policy_archived"
+			| "policy_override_resolved"
+			| "policy_snapshot_created"
 		actorUserId?: string | null
 		policyId?: string | null
 		policyGroupId?: string | null
