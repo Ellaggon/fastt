@@ -197,8 +197,6 @@ const saleStatusVariant =
 											data-intent-id={preset.id}
 											data-name={preset.name}
 											data-description={preset.description}
-											data-payment-type={preset.paymentType}
-											data-refundable={String(preset.refundable)}
 											data-type={preset.type}
 											data-value={String(preset.value)}
 											data-min-nights={String(preset.minNights ?? "")}
@@ -237,20 +235,6 @@ const saleStatusVariant =
 							name="description"
 							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
 								?.description ?? ratePlanIntentPresets[0].description}
-						/>
-						<input
-							type="hidden"
-							name="paymentType"
-							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
-								?.paymentType ?? ratePlanIntentPresets[0].paymentType}
-						/>
-						<input
-							type="hidden"
-							name="refundable"
-							value={String(
-								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.refundable ??
-									ratePlanIntentPresets[0].refundable
-							)}
 						/>
 						<input
 							type="hidden"
@@ -316,8 +300,6 @@ const saleStatusVariant =
 		})
 		setEditHiddenValue(form, "name", card.dataset.name)
 		setEditHiddenValue(form, "description", card.dataset.description)
-		setEditHiddenValue(form, "paymentType", card.dataset.paymentType)
-		setEditHiddenValue(form, "refundable", card.dataset.refundable)
 		setEditHiddenValue(form, "type", card.dataset.type)
 		setEditHiddenValue(form, "value", card.dataset.value)
 		setEditHiddenValue(form, "minNights", card.dataset.minNights)
@@ -340,8 +322,6 @@ const saleStatusVariant =
 					id: form.dataset.ratePlanId,
 					name: String(formData.get("name") || ""),
 					description: String(formData.get("description") || ""),
-					paymentType: String(formData.get("paymentType") || ""),
-					refundable: String(formData.get("refundable") || "") === "true",
 					type: String(formData.get("type") || "package"),
 					value: Number(formData.get("value") || 0),
 					minNights: Number(formData.get("minNights") || 0) || undefined,

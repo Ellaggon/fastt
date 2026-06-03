@@ -20,14 +20,12 @@ import type {
 	PolicySnapshot,
 	ScopeNode,
 } from "../../application/ports/PolicyResolutionRepositoryPort"
-import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 export class PolicyResolutionRepository implements PolicyResolutionRepositoryPort {
 	async listActiveAssignments(params: {
 		scopeChain: ScopeNode[]
 		channels: Array<string | null>
 	}): Promise<PolicyAssignmentSnapshot[]> {
-		await ensurePolicySchemaCompatibility()
 		const pairs = params.scopeChain.filter((n) => n.scopeId)
 		if (!pairs.length) return []
 
@@ -68,7 +66,6 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 		groupIds: string[]
 		asOfDate: string
 	}): Promise<Record<string, PolicySnapshot>> {
-		await ensurePolicySchemaCompatibility()
 		const groupIds = params.groupIds.filter(Boolean)
 		if (!groupIds.length) return {}
 

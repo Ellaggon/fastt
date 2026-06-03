@@ -13,8 +13,6 @@ export const PUT: APIRoute = async ({ request }) => {
 			isActive?: boolean
 			name?: string
 			description?: string | null
-			paymentType?: string
-			refundable?: boolean
 			type?: string
 			value?: number
 			minNights?: number
@@ -66,8 +64,6 @@ export const PUT: APIRoute = async ({ request }) => {
 			template: {
 				name: String(body.name ?? ""),
 				description: body.description ?? null,
-				paymentType: String(body.paymentType ?? ""),
-				refundable: Boolean(body.refundable),
 			},
 			priceRule,
 			restrictions: specResult.spec.restrictions.items.map((item) => ({

@@ -18,7 +18,7 @@ const allowedStatuses = new Set([
 	"cancelled",
 	"unknown",
 ])
-const allowedSources = new Set(["import", "operator_entry", "financial_shadow_bridge"])
+const allowedSources = new Set(["import", "operator_entry"])
 
 export const GET: APIRoute = async ({ request }) => {
 	const auth = await requireFinancialProvider(request)

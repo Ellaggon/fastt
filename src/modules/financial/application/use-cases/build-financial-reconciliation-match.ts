@@ -8,14 +8,10 @@ import type {
 } from "../../domain/reconciliation-match"
 import type {
 	FinancialOperationBookingRow,
-	FinancialShadowEvidenceRow,
+	FinancialEvidenceRow,
 	BookingTaxFeeSnapshotRow,
 } from "./build-financial-operation-review"
-import {
-	buildFinancialOperationReview,
-	readFinancialShadowAmount,
-	readFinancialShadowReference,
-} from "./build-financial-operation-review"
+import { buildFinancialOperationReview } from "./build-financial-operation-review"
 
 export type DuplicateExternalReferenceSignal = {
 	code: "duplicate_external_reference"
@@ -50,13 +46,11 @@ export type FinancialReconciliationMatchDraft = {
 		amount: number | null
 		currency: string | null
 		transactions: PaymentTransaction[]
-		shadowCompatibilityReferences: string[]
 	}
 	settlement: {
 		amount: number | null
 		currency: string | null
 		records: FinancialSettlementRecord[]
-		shadowCompatibilityReferences: string[]
 	}
 	references: FinancialReference[]
 	reviewStatus?: "unreviewed" | "reviewed" | null
@@ -73,11 +67,6 @@ export type FinancialReconciliationMatchDraft = {
 		| "missing_capture_reference"
 		| "refund_without_matching_cancellation"
 	>
-	compatibility: {
-		usesFinancialShadowEvidence: boolean
-		shadowPaymentAmount: number | null
-		shadowSettlementAmount: number | null
-	}
 }
 
 function roundMoney(value: number): number {
@@ -185,7 +174,7 @@ function deriveStatus(params: {
 
 export function buildFinancialReconciliationMatch(params: {
 	group: FinancialOperationBookingRow[]
-	shadowRows: FinancialShadowEvidenceRow[]
+	financialEvidenceRows: FinancialEvidenceRow[]
 	taxRows: BookingTaxFeeSnapshotRow[]
 	providerId: string
 	paymentTransactions: PaymentTransaction[]
@@ -194,7 +183,7 @@ export function buildFinancialReconciliationMatch(params: {
 }): FinancialReconciliationMatchDraft {
 	const review = buildFinancialOperationReview({
 		group: params.group,
-		shadowRows: params.shadowRows,
+		financialEvidenceRows: params.financialEvidenceRows,
 		taxRows: params.taxRows,
 		providerId: params.providerId,
 	})
@@ -219,18 +208,6 @@ export function buildFinancialReconciliationMatch(params: {
 		settlementAmount,
 		differenceAmount,
 	})
-	const shadowPaymentRows = params.shadowRows.filter((row) => row.type === "payment_intent")
-	const shadowSettlementRows = params.shadowRows.filter((row) => row.type === "settlement_record")
-	const shadowPaymentAmount = sumAmounts(
-		shadowPaymentRows
-			.map((row) => ({ amount: readFinancialShadowAmount(row.payload) ?? Number.NaN }))
-			.filter((row) => Number.isFinite(row.amount))
-	)
-	const shadowSettlementAmount = sumAmounts(
-		shadowSettlementRows
-			.map((row) => ({ amount: readFinancialShadowAmount(row.payload) ?? Number.NaN }))
-			.filter((row) => Number.isFinite(row.amount))
-	)
 	const queues: FinancialReconciliationMatchDraft["queues"] = []
 	const mismatchReasons: ReconciliationMismatchReason[] = []
 	if (
@@ -298,25 +275,14 @@ export function buildFinancialReconciliationMatch(params: {
 			amount: paymentAmount,
 			currency: paymentCurrency,
 			transactions: paymentTransactions,
-			shadowCompatibilityReferences: shadowPaymentRows
-				.map((row) => readFinancialShadowReference(row.payload))
-				.filter(Boolean) as string[],
 		},
 		settlement: {
 			amount: settlementAmount,
 			currency: settlementCurrency,
 			records: params.settlementRecords,
-			shadowCompatibilityReferences: shadowSettlementRows
-				.map((row) => readFinancialShadowReference(row.payload))
-				.filter(Boolean) as string[],
 		},
 		references: params.references,
 		queues,
-		compatibility: {
-			usesFinancialShadowEvidence: shadowPaymentRows.length > 0 || shadowSettlementRows.length > 0,
-			shadowPaymentAmount,
-			shadowSettlementAmount,
-		},
 	}
 }
 

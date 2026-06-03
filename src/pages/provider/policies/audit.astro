@@ -8,7 +8,6 @@ import Section from "@/components/ui/Section.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { ensurePolicyGroupOwnerProviderIdColumn } from "@/lib/policies/policySchemaCompat"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { db, eq, inArray, PolicyAuditLog, PolicyGroup, Product, RatePlan, Variant } from "astro:db"
 
@@ -21,7 +20,6 @@ try {
 }
 
 const { providerId } = await requireProvider(Astro.request)
-await ensurePolicyGroupOwnerProviderIdColumn()
 
 const qPolicyId = String(Astro.url.searchParams.get("policyId") ?? "").trim()
 const qPolicyGroupId = String(Astro.url.searchParams.get("policyGroupId") ?? "").trim()

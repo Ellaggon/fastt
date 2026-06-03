@@ -88,7 +88,6 @@ export let Booking: any
 export let BookingRoomDetail: any
 export let BookingPolicySnapshot: any
 export let BookingTaxFee: any
-export let FinancialShadowRecord: any
 
 async function init() {
 	// Ensure local folder exists
@@ -224,7 +223,6 @@ async function init() {
 	BookingRoomDetail = drizzleTables.BookingRoomDetail
 	BookingPolicySnapshot = drizzleTables.BookingPolicySnapshot
 	BookingTaxFee = drizzleTables.BookingTaxFee
-	FinancialShadowRecord = drizzleTables.FinancialShadowRecord
 }
 
 // Top-level await so imports are ready before tests execute.

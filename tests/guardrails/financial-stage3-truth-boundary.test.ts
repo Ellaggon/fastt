@@ -37,17 +37,11 @@ describe("Guardrail: Stage 3 truth boundary before Provider Finance", () => {
 			"BookingRoomDetailSnapshotAggregation",
 		]
 		const compatibilityOnly = [
-			"FinancialShadowRecord",
 			"FinancialReference",
 			"FinancialReviewEvent",
-			"LegacyPaymentIntentShadow",
-			"LegacySettlementShadow",
-			"LegacyRefundShadow",
 			"Payment",
 			"ProviderPayout",
 			"ProviderPayoutBooking",
-			"netPayoutEstimate",
-			"commissionTotal",
 		]
 		const violations = [
 			...requiredTruth.flatMap((token) =>
@@ -63,27 +57,21 @@ describe("Guardrail: Stage 3 truth boundary before Provider Finance", () => {
 		expect(violations).toEqual([])
 	})
 
-	it("keeps legacy shadow aliases deprecated and out of Stage 3 truth naming", () => {
+	it("keeps deleted legacy shadow aliases out of the source tree", () => {
 		const files = [
 			"src/modules/financial/domain/payment-intent.ts",
 			"src/modules/financial/domain/settlement-record.ts",
 			"src/modules/financial/domain/refund-record.ts",
 		]
-		const violations = files.flatMap((file) => {
-			const source = read(file)
-			return [
-				source.includes("@deprecated") ? null : `${file}: legacy alias must be deprecated`,
-				source.includes("Compatibility alias only")
-					? null
-					: `${file}: legacy alias must reject truth-source semantics`,
-			].filter(Boolean)
-		})
+		const violations = files.flatMap((file) =>
+			existsSync(join(process.cwd(), file)) ? [`${file}: deleted legacy alias came back`] : []
+		)
 		expect(violations).toEqual([])
 	})
 
-	it("keeps Stage 3 reconciliation truth away from shadow payout/payable fields", () => {
+	it("keeps Stage 3 reconciliation truth away from legacy payout/payable fields", () => {
 		const builder = read(stage3Builder)
-		const forbidden = [/netPayoutEstimate/, /commissionTotal/, /readFinancialShadowCommission/]
+		const forbidden = [/netPayoutEstimate/, /commissionTotal/, /readFinancial.*Shadow/]
 		const violations = forbidden.flatMap((pattern) =>
 			pattern.test(builder)
 				? [
@@ -94,20 +82,19 @@ describe("Guardrail: Stage 3 truth boundary before Provider Finance", () => {
 		expect(violations).toEqual([])
 	})
 
-	it("marks operation review payout estimates as compatibility visibility only", () => {
+	it("keeps operation review free of shadow payout estimates", () => {
 		const source = read(operationBuilder)
 		const violations = [
-			source.includes("Compatibility visibility only")
-				? null
-				: `${operationBuilder}: shadow payout estimates must be marked compatibility-only`,
-			source.includes("Provider Finance must create its own payable snapshots")
-				? null
-				: `${operationBuilder}: must reject Provider Finance payable truth semantics`,
+			/netPayoutEstimate|commissionTotal|financial_shadow|FinancialShadow|readFinancial.*Shadow/.test(
+				source
+			)
+				? `${operationBuilder}: deleted shadow payout compatibility came back`
+				: null,
 		].filter(Boolean)
 		expect(violations).toEqual([])
 	})
 
-	it("blocks future Provider Finance code from starting on legacy/shadow compatibility sources", () => {
+	it("blocks future Provider Finance code from starting on legacy compatibility sources", () => {
 		const candidateFiles = listExistingFiles(["src"]).filter((file) =>
 			/provider[-/]?finance|providerFinance|ProviderFinance|payable|statement|payout/i.test(file)
 		)
@@ -117,10 +104,6 @@ describe("Guardrail: Stage 3 truth boundary before Provider Finance", () => {
 			"src/modules/financial/domain/stage3-truth-boundary.ts",
 		])
 		const forbidden = [
-			/FinancialShadowRecord/,
-			/LegacySettlementShadow/,
-			/LegacyPaymentIntentShadow/,
-			/LegacyRefundShadow/,
 			/netPayoutEstimate/,
 			/commissionTotal/,
 			/ProviderPayout/,

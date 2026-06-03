@@ -7,7 +7,6 @@ import {
 	db,
 	desc,
 	eq,
-	FinancialShadowRecord,
 	inArray,
 	Product,
 	sql,
@@ -107,7 +106,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const [
-		shadowRows,
 		taxRows,
 		paymentTransactions,
 		settlementRecords,
@@ -117,16 +115,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 		unmatchedSettlementRecords,
 		duplicateRaw,
 	] = await Promise.all([
-		db
-			.select({
-				bookingId: FinancialShadowRecord.bookingId,
-				type: FinancialShadowRecord.type,
-				payload: FinancialShadowRecord.payload,
-				createdAt: FinancialShadowRecord.createdAt,
-			})
-			.from(FinancialShadowRecord)
-			.where(inArray(FinancialShadowRecord.bookingId, bookingIds))
-			.all(),
 		db
 			.select({
 				bookingId: BookingTaxFee.bookingId,
@@ -163,8 +151,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		paymentTransactionRepository.findDuplicateExternalReferences(auth.providerId),
 	])
 
+	const financialEvidenceRows: Array<{
+		bookingId: string
+		type: string
+		payload: unknown
+		createdAt: unknown
+	}> = []
 	const grouped = groupBy(rows, (row) => String(row.bookingId))
-	const shadowByBooking = groupBy(shadowRows, (row) => String(row.bookingId))
+	const financialEvidenceByBooking = groupBy(financialEvidenceRows, (row) => String(row.bookingId))
 	const taxByBooking = groupBy(taxRows, (row) => String(row.bookingId))
 	const paymentByBooking = groupBy(paymentTransactions, (row) => row.bookingId)
 	const settlementByBooking = groupBy(settlementRecords, (row) => row.bookingId)
@@ -179,7 +173,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const bookingId = String(group[0]?.bookingId ?? "")
 		const match = buildFinancialReconciliationMatch({
 			group,
-			shadowRows: shadowByBooking.get(bookingId) ?? [],
+			financialEvidenceRows: financialEvidenceByBooking.get(bookingId) ?? [],
 			taxRows: taxByBooking.get(bookingId) ?? [],
 			providerId: auth.providerId,
 			paymentTransactions: paymentByBooking.get(bookingId) ?? [],

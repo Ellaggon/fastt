@@ -4,11 +4,6 @@
 // Domain contracts
 export * from "./domain/stage3-truth-boundary"
 
-// Stage 2 shadow compatibility contracts. These remain public for existing booking confirmation
-// and legacy visibility reads, but they are not Stage 3 truth sources for Provider Finance.
-export * from "./domain/payment-intent"
-export * from "./domain/settlement-record"
-export * from "./domain/refund-record"
 export * from "./domain/refund-quote"
 export * from "./domain/refund-ledger"
 export * from "./domain/financial-exception-record"
@@ -25,15 +20,12 @@ export * from "./domain/payout-record"
 export * from "./domain/provider-statement"
 
 // Application ports
-export * from "./application/ports/FinancialRepositoryPort"
-export * from "./application/ports/FinancialEventPublisherPort"
 export * from "./application/ports/FinancialWorkflowRepositoryPort"
 export * from "./application/ports/FinancialStage3RepositoryPort"
 export * from "./application/ports/ProviderFinanceRepositoryPort"
 export * from "./application/ports/RefundCalculationRepositoryPort"
 
 // Application use-cases
-export * from "./application/use-cases/register-financial-shadow-write"
 export * from "./application/use-cases/detect-financial-exceptions"
 export * from "./application/use-cases/build-financial-operation-review"
 export * from "./application/use-cases/build-financial-review-overlay"

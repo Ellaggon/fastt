@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -8,7 +10,7 @@ import {
 
 const financialReferenceDomain = "src/modules/financial/domain/financial-reference.ts"
 const reviewEventDomain = "src/modules/financial/domain/financial-review-event.ts"
-const shadowDomains = [
+const deletedShadowDomains = [
 	"src/modules/financial/domain/payment-intent.ts",
 	"src/modules/financial/domain/settlement-record.ts",
 	"src/modules/financial/domain/refund-record.ts",
@@ -70,21 +72,18 @@ describe("Guardrail: Stage 3 readiness semantic freeze", () => {
 		expect(violations).toEqual([])
 	})
 
-	it("freezes legacy shadow models so they cannot become PSP lifecycle foundations", () => {
-		const violations = shadowDomains.flatMap((file) => {
-			const source = read(file)
-			return [
-				source.includes("Stage 2 shadow compatibility only")
-					? null
-					: `${file}: must document shadow compatibility only`,
-				source.includes("NOT") || source.includes("not ")
-					? null
-					: `${file}: must reject execution/source-of-truth semantics`,
-				/"completed"|"captured"|"settled"|"refunded"/.test(source)
-					? `${file}: shadow status cannot imply financial finality`
-					: null,
-			].filter(Boolean)
-		})
+	it("keeps deleted legacy shadow models out of PSP lifecycle foundations", () => {
+		const source = financialSourceWithoutTests()
+		const violations = [
+			...deletedShadowDomains.flatMap((file) =>
+				existsSync(join(process.cwd(), file)) ? [`${file}: deleted shadow model came back`] : []
+			),
+			/LegacyPaymentIntentShadow|LegacySettlementShadow|LegacyRefundShadow|FinancialShadowRecord/.test(
+				source
+			)
+				? "legacy shadow source names came back into financial runtime"
+				: null,
+		].filter(Boolean)
 		expect(violations).toEqual([])
 	})
 

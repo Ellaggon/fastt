@@ -524,10 +524,6 @@ const RatePlanTemplate = defineTable({
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
 		description: column.text({ optional: true }),
-		// Deprecated merchandising hints. CAPA 6 Payment/Cancellation policies are the
-		// contractual source for payment/refund behavior and booking snapshots.
-		paymentType: column.text(),
-		refundable: column.boolean(),
 		createdAt: column.date({ default: NOW }),
 	},
 })
@@ -829,17 +825,6 @@ const BookingTaxFee = defineTable({
 
 // 8. Financial operations
 
-const FinancialShadowRecord = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		bookingId: column.text(),
-		type: column.text(), // payment_intent | settlement_record
-		payload: column.json(),
-		idempotencyKey: column.text({ unique: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["bookingId", "type"] }],
-})
 const FinancialExceptionRecord = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -1227,7 +1212,6 @@ export default defineDb({
 		BookingTaxFee,
 
 		// 8 finance
-		FinancialShadowRecord,
 		FinancialExceptionRecord,
 		FinancialReference,
 		RefundHandoffRecord,

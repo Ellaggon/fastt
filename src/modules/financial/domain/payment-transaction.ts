@@ -22,7 +22,7 @@ export const PAYMENT_TRANSACTION_STATUSES = [
 
 export type PaymentTransactionType = (typeof PAYMENT_TRANSACTION_TYPES)[number]
 export type PaymentTransactionStatus = (typeof PAYMENT_TRANSACTION_STATUSES)[number]
-export type PaymentTransactionSource = "import" | "operator_entry" | "financial_shadow_bridge"
+export type PaymentTransactionSource = "import" | "operator_entry"
 
 export type PaymentTransaction = {
 	id: string

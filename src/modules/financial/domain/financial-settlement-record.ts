@@ -2,12 +2,10 @@
  * Stage 3 settlement evidence visibility.
  *
  * FinancialSettlementRecord is intentionally not named SettlementRecord to avoid colliding with
- * LegacySettlementShadow. It is not payout execution and not accounting finality.
+ * This record is settlement evidence visibility. It is not payout execution and not
+ * accounting finality.
  */
-export type FinancialSettlementRecordSource =
-	| "import"
-	| "operator_entry"
-	| "financial_shadow_bridge"
+export type FinancialSettlementRecordSource = "import" | "operator_entry"
 
 export type FinancialSettlementRecord = {
 	id: string

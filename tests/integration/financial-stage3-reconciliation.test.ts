@@ -90,7 +90,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 	it("matches contract/payment/settlement using aggregated multi-room snapshots", () => {
 		const match = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [{ bookingId: "booking_stage3_1", totalAmount: 20, breakdownJson: {} }],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment()],
@@ -104,14 +104,14 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 		expect(match.contract.multiRoomAllocationCount).toBe(2)
 	})
 
-	it("detects missing settlement without using shadow evidence as source of truth", () => {
+	it("detects missing settlement without using compatibility evidence as source of truth", () => {
 		const match = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [
+			financialEvidenceRows: [
 				{
 					bookingId: "booking_stage3_1",
 					type: "settlement_record",
-					payload: { grossAmount: 200, id: "legacy" },
+					payload: { grossAmount: 200, id: "external" },
 				},
 			],
 			taxRows: [],
@@ -121,14 +121,13 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 			references: [],
 		})
 		expect(match.status).toBe("missing_settlement")
-		expect(match.compatibility.usesFinancialShadowEvidence).toBe(true)
-		expect(match.compatibility.shadowSettlementAmount).toBe(200)
+		expect(match.settlement.records).toEqual([])
 	})
 
 	it("detects amount and currency mismatch from persisted Stage 3 records", () => {
 		const amountMismatch = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment({ amount: 207 })],
@@ -140,7 +139,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 
 		const currencyMismatch = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment({ currency: "BOB" })],
@@ -153,7 +152,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 	it("explains payment, settlement, capture, and refund/cancellation diagnostics", () => {
 		const missingCapture = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment({ type: "authorization" })],
@@ -165,7 +164,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 
 		const amountMismatch = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment({ amount: 190 })],
@@ -178,7 +177,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 
 		const refundMismatch = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [
@@ -193,7 +192,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 	it("builds deterministic comparison fingerprints from snapshots and persisted evidence", () => {
 		const first = buildFinancialReconciliationMatch({
 			group: baseGroup,
-			shadowRows: [],
+			financialEvidenceRows: [],
 			taxRows: [],
 			providerId: "provider_stage3",
 			paymentTransactions: [payment()],
@@ -202,7 +201,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 		})
 		const second = buildFinancialReconciliationMatch({
 			group: [...baseGroup].reverse(),
-			shadowRows: [
+			financialEvidenceRows: [
 				{ bookingId: "booking_stage3_1", type: "payment_intent", payload: { amount: 200 } },
 			],
 			taxRows: [],

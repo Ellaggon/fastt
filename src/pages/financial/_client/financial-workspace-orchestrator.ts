@@ -142,7 +142,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 			currency: row.currency,
 			contractTotal: row.amount,
 			variantName: "Unmatched payment",
-			financialEvidence: { paymentIntentShadow: "evidence_visible" },
+			financialEvidence: { paymentEvidence: "evidence_visible" },
 		})
 		merged.push(issue)
 	}
@@ -154,7 +154,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 			currency: row.currency,
 			contractTotal: row.amount,
 			variantName: "Unmatched settlement",
-			financialEvidence: { paymentIntentShadow: "evidence_visible" },
+			financialEvidence: { paymentEvidence: "evidence_visible" },
 		})
 		merged.push(issue)
 	}

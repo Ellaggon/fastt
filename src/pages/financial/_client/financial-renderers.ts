@@ -104,7 +104,7 @@ export function renderFinancialRowHtml(params: {
 		<td class="px-3 py-3 text-slate-700">
 			<div class="max-w-xs text-sm font-semibold text-slate-950">${deps.escapeHtml(row.blocker)}</div>
 			<div class="mt-2 text-xs leading-5 text-slate-500">${deps.escapeHtml(row.evidenceSummary)}</div>
-			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(renderHumanFreshness(operation?.transactions?.financialEvidence?.paymentIntentShadow || row.staleState || "not_visible"))}</div>
+			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(renderHumanFreshness(operation?.transactions?.financialEvidence?.paymentEvidence || row.staleState || "not_visible"))}</div>
 		</td>
 		<td class="px-3 py-3 text-slate-700">
 			<div class="flex flex-wrap gap-1">${ownerMarkup}</div>
