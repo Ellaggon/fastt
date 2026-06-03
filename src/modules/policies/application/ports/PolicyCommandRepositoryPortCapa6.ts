@@ -30,13 +30,13 @@ export interface PolicyCommandRepositoryPortCapa6 {
 
 	getPolicyGroupById(
 		groupId: string
-	): Promise<{ id: string; category: PolicyCategory; ownerProviderId: string | null } | null>
+	): Promise<{ id: string; category: PolicyCategory; ownerProviderId: string } | null>
 
 	getMaxPolicyVersionByGroupId(groupId: string): Promise<number>
 
 	createPolicyGroup(params: {
 		category: PolicyCategory
-		ownerProviderId?: string | null
+		ownerProviderId: string
 	}): Promise<{ groupId: string }>
 
 	createPolicyVersion(params: {

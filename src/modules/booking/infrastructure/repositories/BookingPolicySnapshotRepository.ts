@@ -34,10 +34,6 @@ export class BookingPolicySnapshotRepository implements BookingPolicySnapshotRep
 				await tx.insert(BookingPolicySnapshot).values({
 					id: r.id,
 					bookingId: r.bookingId,
-					// Legacy fields left blank for CAPA 6 snapshot rows.
-					policyType: r.category,
-					description: "",
-					cancellationJson: null,
 					category: r.category,
 					policyId: r.policyId,
 					policySnapshotJson: r.policySnapshotJson as any,

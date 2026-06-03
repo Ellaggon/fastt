@@ -69,6 +69,7 @@ async function createRequiredRatePlanPolicies(params: {
 	effectiveTo?: string
 }) {
 	const payment = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Payment",
 		description: params.paymentDescription ?? "Pay at property",
 		rules: params.paymentRules ?? { paymentType: "pay_at_property" },
@@ -76,16 +77,19 @@ async function createRequiredRatePlanPolicies(params: {
 		effectiveTo: params.effectiveTo,
 	})
 	const cancellation = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Cancellation",
 		description: "Flexible cancellation",
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	})
 	const checkIn = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "CheckIn",
 		description: "Standard check-in",
 		rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 	})
 	const noShow = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "NoShow",
 		description: "No-show first night",
 		rules: { penaltyType: "first_night" },
@@ -200,11 +204,13 @@ describe("integration/rule-policy snapshot consistency", () => {
 	it("remains consistent with multiple assignments and deterministic winner selection", async () => {
 		const ctx = await setupContext("multiple")
 		const productPayment = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Payment Product",
 			rules: { paymentType: "pay_at_property" },
 		})
 		const ratePlanPayment = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Payment RatePlan",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },
@@ -222,16 +228,19 @@ describe("integration/rule-policy snapshot consistency", () => {
 			channel: ctx.channel,
 		})
 		const cancellation = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Cancellation",
 			description: "Flexible cancellation",
 			cancellationTiers: [{ daysBeforeArrival: 2, penaltyType: "percentage", penaltyAmount: 100 }],
 		})
 		const checkIn = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "CheckIn",
 			description: "Standard check-in",
 			rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 		})
 		const noShow = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "NoShow",
 			description: "No-show first night",
 			rules: { penaltyType: "first_night" },

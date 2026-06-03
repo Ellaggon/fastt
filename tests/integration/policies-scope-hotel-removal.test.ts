@@ -13,7 +13,9 @@ describe("integration/policies CAPA 6 Step 3 (remove hotel scope)", () => {
 		const assignmentId = `pa_${crypto.randomUUID()}`
 
 		// Seed PolicyGroup + Policy
-		await db.insert(PolicyGroup).values({ id: groupId, category: "HouseRules" })
+		await db
+			.insert(PolicyGroup)
+			.values({ id: groupId, category: "HouseRules", ownerProviderId: "prov_test" } as any)
 		await db.insert(Policy).values({
 			id: policyId,
 			groupId,
@@ -28,6 +30,7 @@ describe("integration/policies CAPA 6 Step 3 (remove hotel scope)", () => {
 		await db.insert(PolicyAssignment).values({
 			id: assignmentId,
 			policyGroupId: groupId,
+			category: "HouseRules",
 			scope: "hotel",
 			scopeId: productId,
 			channel: null,

@@ -25,6 +25,7 @@ export interface SearchVariant {
 export interface SearchRatePlan {
 	id: string
 	name: string
+	/** @deprecated Display hint only. Use resolved CAPA 6 policies for contractual refund terms. */
 	refundable: boolean
 	isDefault: boolean
 	pricing: SearchPricing

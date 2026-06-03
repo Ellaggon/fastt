@@ -18,6 +18,7 @@ import {
 describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 	it("create policy OK + cancellation requires tiers", async () => {
 		const created = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Other",
 			description: "General terms",
 			rules: { text: "Hello" },
@@ -29,6 +30,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 		await expect(
 			createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "Cancellation",
 				description: "Cancellation",
 				// missing tiers
@@ -78,6 +80,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		})
 
 		const { policyId } = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Other",
 			description: "General terms",
 			rules: { text: "Hello" },
@@ -95,6 +98,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 		// Variant assignment
 		const created2 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay in advance",
 			rules: { paymentType: "pay_at_property" },
@@ -110,6 +114,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 		// Rate plan assignment
 		const created3 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Smoking",
 			description: "No smoking at all",
 		})
@@ -124,7 +129,11 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 	})
 
 	it("invalid scopeId => validation_error", async () => {
-		const { policyId } = await createPolicyCapa6({ category: "Other", description: "X" })
+		const { policyId } = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
+			category: "Other",
+			description: "X",
+		})
 		await expect(
 			assignPolicyCapa6({ policyId, scope: "product", scopeId: "missing", channel: null })
 		).rejects.toBeInstanceOf(PolicyValidationError)

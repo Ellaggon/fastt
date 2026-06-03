@@ -51,6 +51,7 @@ describe.skip("legacy/policies governance required categories", () => {
 		})
 
 		const paymentA = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Legacy Payment A",
 			rules: { paymentType: "pay_at_property" },
@@ -63,6 +64,7 @@ describe.skip("legacy/policies governance required categories", () => {
 		})
 
 		const paymentB = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Legacy Payment B",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },

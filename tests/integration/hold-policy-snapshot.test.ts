@@ -166,21 +166,25 @@ describe("integration/hold policy snapshot", () => {
 		}
 
 		const paymentPolicy = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
 		})
 		const cancellationPolicy = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Cancellation",
 			description: "Flexible cancellation",
 			cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 		} as any)
 		const checkInPolicy = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "CheckIn",
 			description: "Standard check-in",
 			rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 		} as any)
 		const noShowPolicy = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "NoShow",
 			description: "No-show first night",
 			rules: { penaltyType: "first_night" },
@@ -319,7 +323,7 @@ describe("integration/hold policy snapshot", () => {
 			(row: any) => String(row.category) === "payment"
 		) as any
 		expect(paymentRow).toBeTruthy()
-		expect(String(paymentRow.description)).toBe("Pay at property")
+		expect(String(paymentRow.policySnapshotJson?.description)).toBe("Pay at property")
 		expect(String(paymentRow.policyId)).toBe(String(holdSnapshot.payment?.policyId ?? ""))
 		expect(paymentRow.policySnapshotJson).toEqual(holdSnapshot.payment)
 
@@ -384,11 +388,13 @@ describe("integration/hold policy snapshot", () => {
 			}
 
 			const paymentPolicy = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "Payment",
 				description: "Pay at property",
 				rules: { paymentType: "pay_at_property" },
 			})
 			const cancellationPolicy = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "Cancellation",
 				description: "Flexible cancellation",
 				cancellationTiers: [
@@ -396,11 +402,13 @@ describe("integration/hold policy snapshot", () => {
 				],
 			} as any)
 			const checkInPolicy = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "CheckIn",
 				description: "Standard check-in",
 				rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 			} as any)
 			const noShowPolicy = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "NoShow",
 				description: "No-show first night",
 				rules: { penaltyType: "first_night" },
@@ -563,6 +571,7 @@ describe("integration/hold policy snapshot", () => {
 
 		const createPolicySetForRatePlan = async (ratePlanId: string, paymentDescription: string) => {
 			const cancellation = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "Cancellation",
 				description: "Flexible cancellation",
 				cancellationTiers: [
@@ -570,16 +579,19 @@ describe("integration/hold policy snapshot", () => {
 				],
 			} as any)
 			const payment = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "Payment",
 				description: paymentDescription,
 				rules: { paymentType: "pay_at_property" },
 			} as any)
 			const checkIn = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "CheckIn",
 				description: "Standard check-in",
 				rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 			} as any)
 			const noShow = await createPolicyCapa6({
+				ownerProviderId: "prov_test",
 				category: "NoShow",
 				description: "No-show first night",
 				rules: { penaltyType: "first_night" },

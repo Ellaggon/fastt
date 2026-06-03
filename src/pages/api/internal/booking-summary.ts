@@ -263,8 +263,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const policyRows = await db
 			.select({
 				id: BookingPolicySnapshot.id,
-				policyType: BookingPolicySnapshot.policyType,
-				description: BookingPolicySnapshot.description,
 				category: BookingPolicySnapshot.category,
 				policyId: BookingPolicySnapshot.policyId,
 				policySnapshotJson: BookingPolicySnapshot.policySnapshotJson,
@@ -420,14 +418,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 					line: line.lineJson ?? null,
 					createdAt: line.createdAt ?? null,
 				})),
-				policies: policyRows.map((line) => ({
-					id: line.id,
-					policyType: line.policyType ?? line.category ?? "policy",
-					description: line.description ?? null,
-					policyId: line.policyId ?? null,
-					snapshot: line.policySnapshotJson ?? null,
-					createdAt: line.createdAt ?? null,
-				})),
+				policies: policyRows.map((line) => {
+					const snapshot = (line.policySnapshotJson ?? null) as any
+					return {
+						id: line.id,
+						policyType: line.category ?? snapshot?.category ?? "policy",
+						description: snapshot?.description ?? null,
+						policyId: line.policyId ?? null,
+						snapshot,
+						createdAt: line.createdAt ?? null,
+					}
+				}),
 				modifications: {
 					state: "not_automated",
 					label: "No modification workflow captured",

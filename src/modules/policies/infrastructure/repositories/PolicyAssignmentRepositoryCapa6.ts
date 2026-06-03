@@ -1,15 +1,5 @@
 import { randomUUID } from "crypto"
-import {
-	db,
-	and,
-	eq,
-	isNull,
-	PolicyAssignment,
-	PolicyGroup,
-	Product,
-	Variant,
-	RatePlan,
-} from "astro:db"
+import { db, and, eq, isNull, PolicyAssignment, Product, Variant, RatePlan } from "astro:db"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
 import type { PolicyAssignmentRepositoryPortCapa6 } from "../../application/ports/PolicyAssignmentRepositoryPortCapa6"
@@ -66,14 +56,13 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				channel: PolicyAssignment.channel,
 			})
 			.from(PolicyAssignment)
-			.innerJoin(PolicyGroup, eq(PolicyAssignment.policyGroupId, PolicyGroup.id))
 			.where(
 				and(
 					eq(PolicyAssignment.isActive, true),
 					eq(PolicyAssignment.scope, params.scope),
 					eq(PolicyAssignment.scopeId, params.scopeId),
 					channelCond,
-					eq(PolicyGroup.category, params.category)
+					eq((PolicyAssignment as any).category, params.category)
 				)
 			)
 			.get()
@@ -91,6 +80,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 
 	async createAssignment(params: {
 		policyGroupId: string
+		category: PolicyCategory
 		scope: PolicyScope
 		scopeId: string
 		channel: string | null
@@ -99,6 +89,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		await db.insert(PolicyAssignment).values({
 			id: assignmentId,
 			policyGroupId: params.policyGroupId,
+			category: params.category,
 			scope: params.scope,
 			scopeId: params.scopeId,
 			channel: params.channel ?? null,

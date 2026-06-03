@@ -30,6 +30,7 @@ describe("integration/policies governance CAPA6", () => {
 		await upsertProduct({ id: productId, name: "Gov Product", productType: "Hotel", destinationId })
 
 		const v1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
@@ -77,6 +78,7 @@ describe("integration/policies governance CAPA6", () => {
 
 	it("validates cancellation tier coherence", async () => {
 		const c1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Cancellation",
 			description: "Base cancellation",
 			cancellationTiers: [
@@ -133,6 +135,7 @@ describe("integration/policies governance CAPA6", () => {
 		})
 
 		const paymentA = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Payment A",
 			rules: { paymentType: "pay_at_property" },
@@ -145,6 +148,7 @@ describe("integration/policies governance CAPA6", () => {
 		})
 
 		const paymentB = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Payment B",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 50 },

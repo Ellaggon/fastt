@@ -55,8 +55,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		return {
 			id: String(row.id),
 			category: String((row as any).category) as PolicyCategory,
-			ownerProviderId:
-				(row as any).ownerProviderId == null ? null : String((row as any).ownerProviderId),
+			ownerProviderId: String((row as any).ownerProviderId),
 		}
 	}
 
@@ -72,12 +71,12 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		return Number.isFinite(v) ? v : 0
 	}
 
-	async createPolicyGroup(params: { category: PolicyCategory; ownerProviderId?: string | null }) {
+	async createPolicyGroup(params: { category: PolicyCategory; ownerProviderId: string }) {
 		const groupId = randomUUID()
 		await db.insert(PolicyGroup).values({
 			id: groupId,
 			category: params.category,
-			ownerProviderId: params.ownerProviderId ?? null,
+			ownerProviderId: params.ownerProviderId,
 		} as any)
 		return { groupId }
 	}

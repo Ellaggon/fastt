@@ -150,6 +150,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 	if (cachedReusablePolicies) return cachedReusablePolicies
 
 	const cancellation = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Cancellation",
 		description: "Synthetic cancellation",
 		effectiveFrom: "2026-01-01",
@@ -157,6 +158,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	} as any)
 	const payment = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Payment",
 		description: "Synthetic payment",
 		effectiveFrom: "2026-01-01",
@@ -164,6 +166,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		rules: { paymentType: "prepaid" },
 	} as any)
 	const checkIn = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "CheckIn",
 		description: "Synthetic check-in",
 		effectiveFrom: "2026-01-01",
@@ -171,6 +174,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		rules: { checkInFrom: "15:00", checkInUntil: "23:59", checkOutUntil: "11:00" },
 	} as any)
 	const noShow = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "NoShow",
 		description: "Synthetic no-show",
 		effectiveFrom: "2026-01-01",
