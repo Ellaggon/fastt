@@ -27,6 +27,7 @@ describe("integration/policies effective date filtering", () => {
 		})
 
 		const created = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },

@@ -88,6 +88,7 @@ describe("integration/policies read contract (CAPA6)", () => {
 		})
 
 		const created = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Cancellation",
 			description: "Flexible read contract",
 			policyPresetKey: "flex_24h",

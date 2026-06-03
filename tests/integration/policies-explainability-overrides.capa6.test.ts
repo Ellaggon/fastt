@@ -83,6 +83,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 
 		// Inherited (product-level)
 		const p1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
@@ -101,6 +102,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 
 		// Override at rate plan
 		const p2 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Prepayment required",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 100 },
@@ -119,6 +121,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 
 		// Change: replace assignment without deleting history
 		const p3 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Deposit 20%",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 20 },

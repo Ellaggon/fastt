@@ -174,6 +174,7 @@ async function seedBookingReadyVariant(params: {
 	} as any)
 
 	const cancellation = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Cancellation",
 		description: "Flexible cancellation",
 		effectiveFrom: "2026-01-01",
@@ -181,6 +182,7 @@ async function seedBookingReadyVariant(params: {
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	} as any)
 	const payment = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "Payment",
 		description: "Pay at property",
 		effectiveFrom: "2026-01-01",
@@ -188,6 +190,7 @@ async function seedBookingReadyVariant(params: {
 		rules: { paymentType: "pay_at_property" },
 	} as any)
 	const checkIn = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "CheckIn",
 		description: "Standard check-in",
 		effectiveFrom: "2026-01-01",
@@ -195,6 +198,7 @@ async function seedBookingReadyVariant(params: {
 		rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 	} as any)
 	const noShow = await createPolicyCapa6({
+		ownerProviderId: "prov_test",
 		category: "NoShow",
 		description: "No-show first night",
 		effectiveFrom: "2026-01-01",
