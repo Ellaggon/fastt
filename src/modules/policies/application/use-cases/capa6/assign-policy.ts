@@ -42,6 +42,7 @@ export async function assignPolicyCapa6(
 
 	const { assignmentId } = await deps.assignmentRepo.createAssignment({
 		policyGroupId: policy.groupId,
+		category: policy.category,
 		scope: parsed.scope,
 		scopeId: parsed.scopeId,
 		channel,

@@ -5,7 +5,6 @@ import { ProviderRepository } from "../modules/catalog/infrastructure/repositori
 import { ProviderV2Repository } from "../modules/catalog/infrastructure/repositories/ProviderV2Repository"
 import { ProductRepository } from "../modules/catalog/infrastructure/repositories/ProductRepository"
 import { TaxFeeRepository } from "../modules/catalog/infrastructure/repositories/TaxFeeRepository"
-import { CancellationPolicyRepository } from "../modules/catalog/infrastructure/repositories/CancellationPolicyRepository"
 import { ProductServiceRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceRepository"
 import { ProductImageRepository } from "../modules/catalog/infrastructure/repositories/ProductImageRepository"
 import { ImageUploadRepository } from "../modules/catalog/infrastructure/repositories/ImageUploadRepository"
@@ -27,7 +26,6 @@ import {
 	createGetProductByIdQuery,
 	createListProductServiceConfigsQuery,
 	createGetProductServiceConfigQuery,
-	createListActiveCancellationPoliciesQuery,
 	createSearchDestinationsQuery,
 	createListMarketplaceHotelsByDestinationQuery,
 	createGetProductAggregateQuery,
@@ -43,7 +41,6 @@ export const providerRepository = new ProviderRepository()
 export const providerV2Repository = new ProviderV2Repository()
 export const productRepository = new ProductRepository(r2)
 export const taxFeeRepository = new TaxFeeRepository()
-export const cancellationPolicyRepository = new CancellationPolicyRepository()
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
 export const imageUploadRepository = new ImageUploadRepository()
@@ -89,10 +86,6 @@ export const listProductServiceConfigs = createListProductServiceConfigsQuery({
 export const getProductServiceConfig = createGetProductServiceConfigQuery({
 	repo: productServiceQueryRepository,
 })
-export const listActiveCancellationPolicies = createListActiveCancellationPoliciesQuery({
-	repo: cancellationPolicyRepository,
-})
-
 export const searchDestinations = createSearchDestinationsQuery({
 	repo: destinationQueryRepository,
 })

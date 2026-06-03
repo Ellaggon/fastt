@@ -3,18 +3,14 @@
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
 // Application use-cases
-export * from "./application/use-cases/create-cancellation-policy"
 export * from "./application/use-cases/create-provider"
 export * from "./application/use-cases/create-product-subtype"
 export * from "./application/use-cases/create-tax"
 export * from "./application/use-cases/delete-product"
 export * from "./application/use-cases/delete-product-service"
 export * from "./application/use-cases/delete-tax"
-export * from "./application/use-cases/get-cancellation-policies"
 export * from "./application/use-cases/get-taxes"
 export * from "./application/use-cases/sync-product-services"
-export * from "./application/use-cases/toggle-cancellation-policy-assignment"
-export * from "./application/use-cases/update-cancellation-policy"
 export * from "./application/use-cases/update-product-service"
 export * from "./application/use-cases/update-product-subtype"
 export * from "./application/use-cases/update-tax"
@@ -45,7 +41,6 @@ export * from "./application/use-cases/variant/evaluate-variant-readiness"
 export * from "./application/use-cases/variant/update-variant-status"
 
 // Application ports (types/interfaces)
-export * from "./application/ports/CancellationPolicyRepositoryPort"
 export * from "./application/ports/HotelAmenityQueryRepositoryPort"
 export * from "./application/ports/VariantRoomProfileRepositoryPort"
 export * from "./application/ports/ImageQueryRepositoryPort"
@@ -136,11 +131,6 @@ export async function listProductServiceConfigs(productId: string) {
 export async function getProductServiceConfig(params: { productId: string; serviceId: string }) {
 	const { getProductServiceConfig } = await import("@/container")
 	return getProductServiceConfig(params)
-}
-
-export async function listActiveCancellationPolicies() {
-	const { listActiveCancellationPolicies } = await import("@/container")
-	return listActiveCancellationPolicies()
 }
 
 export async function searchDestinations(params: { q: string; limit: number }) {

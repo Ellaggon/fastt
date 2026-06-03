@@ -67,6 +67,7 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 		} as any)
 
 		const created = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Other",
 			description: "Initial terms",
 			rules: { foo: "bar" },
@@ -158,8 +159,13 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 			source: "web",
 		} as any)
 
-		const p1 = await createPolicyCapa6({ category: "Other", description: "Terms" })
+		const p1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
+			category: "Other",
+			description: "Terms",
+		})
 		const p2 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay now",
 			rules: { paymentType: "pay_at_property" },

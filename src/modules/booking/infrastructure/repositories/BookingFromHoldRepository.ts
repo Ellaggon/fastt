@@ -444,9 +444,6 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				.map((row) => ({
 					id: crypto.randomUUID(),
 					bookingId,
-					policyType: row.category,
-					description: row.description,
-					cancellationJson: null,
 					category: row.category,
 					policyId: row.policyId,
 					policySnapshotJson: row,

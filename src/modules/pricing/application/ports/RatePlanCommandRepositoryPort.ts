@@ -3,7 +3,9 @@ export interface CreateRatePlanCommand {
 		id: string
 		name: string
 		description: string | null
+		/** @deprecated UI/package hint only. Contractual payment terms live in CAPA 6 policies. */
 		paymentType: string
+		/** @deprecated UI/package hint only. Contractual refund terms live in CAPA 6 policies. */
 		refundable: boolean
 		createdAt: Date
 	}
@@ -46,7 +48,9 @@ export interface RatePlanCommandRepositoryPort {
 		template: {
 			name: string
 			description: string | null
+			/** @deprecated UI/package hint only. Contractual payment terms live in CAPA 6 policies. */
 			paymentType: string
+			/** @deprecated UI/package hint only. Contractual refund terms live in CAPA 6 policies. */
 			refundable: boolean
 		}
 		priceRule: null | {

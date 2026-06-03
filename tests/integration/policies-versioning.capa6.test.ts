@@ -26,6 +26,7 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 		await upsertProduct({ id: productId, name: "Ver Product", productType: "Hotel", destinationId })
 
 		const v1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Payment",
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
@@ -91,6 +92,7 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 		})
 
 		const v1 = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
 			category: "Other",
 			description: "Terms v1",
 			rules: { foo: "bar" },

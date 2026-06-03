@@ -19,6 +19,7 @@ export interface PolicyAssignmentRepositoryPortCapa6 {
 
 	createAssignment(params: {
 		policyGroupId: string
+		category: PolicyCategory
 		scope: PolicyScope
 		scopeId: string
 		channel: string | null

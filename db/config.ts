@@ -350,7 +350,7 @@ const PolicyGroup = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		category: column.text(),
-		ownerProviderId: column.text({ optional: true }),
+		ownerProviderId: column.text(),
 	},
 })
 const Policy = defineTable({
@@ -375,11 +375,13 @@ const PolicyAssignment = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		policyGroupId: column.text({ references: () => PolicyGroup.columns.id }),
+		category: column.text(),
 		scope: column.text(),
 		scopeId: column.text(),
 		channel: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
 	},
+	indexes: [{ on: ["scope", "scopeId", "category", "channel", "isActive"] }],
 })
 const CancellationTier = defineTable({
 	columns: {
@@ -501,7 +503,9 @@ const RatePlanTemplate = defineTable({
 		id: column.text({ primaryKey: true }),
 		name: column.text(),
 		description: column.text({ optional: true }),
-		paymentType: column.text(), // 'prepaid', 'at_property'
+		// Deprecated merchandising hints. CAPA 6 Payment/Cancellation policies are the
+		// contractual source for payment/refund behavior and booking snapshots.
+		paymentType: column.text(),
 		refundable: column.boolean(),
 		createdAt: column.date({ default: NOW }),
 	},
@@ -779,14 +783,9 @@ const BookingPolicySnapshot = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		bookingId: column.text(),
-		policyType: column.text(),
-		description: column.text(),
-		cancellationJson: column.json({ optional: true }),
-		// CAPA 6 (Booking snapshot): canonical immutable policy snapshot at booking time.
-		// Keep legacy columns above for backward compatibility.
-		category: column.text({ optional: true }),
+		category: column.text(),
 		policyId: column.text({ optional: true }),
-		policySnapshotJson: column.json({ optional: true }),
+		policySnapshotJson: column.json(),
 		createdAt: column.date({ optional: true }),
 	},
 })
