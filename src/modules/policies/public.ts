@@ -53,6 +53,12 @@ export * from "./application/use-cases/build-policy-snapshot"
 export * from "./application/use-cases/recompute-effective-restrictions"
 export * from "./application/use-cases/rate-plan-policies-surface"
 export type { ResolveEffectivePoliciesResult } from "./application/use-cases/resolve-effective-policies"
+export type {
+	PolicyExceptionRuleCreateInput,
+	PolicyExceptionRuleListFilter,
+	PolicyExceptionRuleContextFilter,
+	PolicyExceptionRuleRepositoryPort,
+} from "./application/ports/PolicyExceptionRuleRepositoryPort"
 
 // Application queries (factories for DI wiring)
 // NOTE: We intentionally do NOT export legacy query factories or cache/compiler-related ports here.

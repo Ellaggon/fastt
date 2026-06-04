@@ -44,114 +44,6 @@ export type HoldPolicySnapshot = {
 	payment: HoldPolicyItemSnapshot | null
 	no_show: HoldPolicyItemSnapshot | null
 	check_in: HoldPolicyItemSnapshot | null
-	// Contractual/operational rules derived from policies only.
-	ruleSnapshotJson?: {
-		contractTerms: Array<{
-			ruleId: string
-			version: number
-			category: string
-			content: unknown
-			source: "policy"
-			timestamp: string
-		}>
-		hardConstraintEvidence: Array<{
-			ruleId: string
-			version: number
-			category: string
-			source: "policy"
-			timestamp: string
-		}>
-	}
-	// Non-contractual validation trace for dual-mode policy/rule migration.
-	// This field is optional and debug-only.
-	ruleValidationJson?: {
-		isConsistent: boolean
-		mismatches: Array<{
-			category: "cancellation" | "payment" | "no_show" | "check_in"
-			type: "missing" | "value_mismatch" | "structure_mismatch"
-			details: string
-		}>
-		comparedAt: string
-	}
-	// Shadow contract generated from rules. Non-authoritative during migration.
-	ruleBasedContractSnapshot?: {
-		cancellation: {
-			category: string
-			ruleId: string
-			version: number
-			description: string
-			source: "policy"
-			rules: Record<string, unknown>
-			cancellationTiers: Array<{
-				daysBeforeArrival: number
-				penaltyType: string
-				penaltyAmount: number | null
-			}>
-		} | null
-		payment: {
-			category: string
-			ruleId: string
-			version: number
-			description: string
-			source: "policy"
-			rules: Record<string, unknown>
-			cancellationTiers: Array<{
-				daysBeforeArrival: number
-				penaltyType: string
-				penaltyAmount: number | null
-			}>
-		} | null
-		no_show: {
-			category: string
-			ruleId: string
-			version: number
-			description: string
-			source: "policy"
-			rules: Record<string, unknown>
-			cancellationTiers: Array<{
-				daysBeforeArrival: number
-				penaltyType: string
-				penaltyAmount: number | null
-			}>
-		} | null
-		check_in: {
-			category: string
-			ruleId: string
-			version: number
-			description: string
-			source: "policy"
-			rules: Record<string, unknown>
-			cancellationTiers: Array<{
-				daysBeforeArrival: number
-				penaltyType: string
-				penaltyAmount: number | null
-			}>
-		} | null
-		meta: {
-			resolvedAt: string
-			checkIn: string
-			checkOut: string
-			channel: string | null
-		}
-	}
-	// Shadow diff between authoritative policy contract and rule-derived contract.
-	contractComparisonJson?: {
-		isConsistent: boolean
-		diffs: Array<{
-			category: "cancellation" | "payment" | "no_show" | "check_in"
-			diffKind:
-				| "missing_category"
-				| "penalty_diff"
-				| "cancellation_window_diff"
-				| "payment_timing_diff"
-				| "no_show_rule_diff"
-				| "structure_diff"
-			details: string
-			policyValue: unknown
-			ruleValue: unknown
-		}>
-		comparedAt: string
-	}
 	meta: {
 		policyVersionIds: string[]
 		resolvedAt: string
@@ -187,8 +79,6 @@ export function buildPolicyItemSnapshot(
 		policy: entry.policy,
 		checkIn,
 		exceptionRules,
-		resolvedFromScope: entry.resolvedFromScope,
-		scopeId: (entry as any).scopeId ?? null,
 	})
 	return {
 		category: normalized,

@@ -2,7 +2,6 @@ import type { APIRoute } from "astro"
 import { z } from "zod"
 
 import {
-	evaluateRulesUiReadiness,
 	resolveRulesUiFlagValue,
 	resolveRulesUiRollout,
 	RULES_UI_ROLLOUT_COOKIE,
@@ -11,10 +10,8 @@ import {
 	recordRulesUiDecisionTrace,
 	recordRulesUiEvaluation,
 	recordRulesUiFallback,
-	recordRulesUiMismatch,
 } from "@/lib/observability/rules-ui-validation"
 import {
-	buildPolicySnapshot,
 	isPolicyResolutionDTO,
 	mapResolvedPoliciesToUI,
 	normalizePolicyResolutionResult,
@@ -22,12 +19,6 @@ import {
 } from "@/modules/policies/public"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { logger } from "@/lib/observability/logger"
-import {
-	buildRuleSnapshot,
-	comparePolicyAndRuleSnapshots,
-	mapRuleSnapshotToPolicyCards,
-	resolveEffectiveRules,
-} from "@/modules/rules/public"
 
 const querySchema = z.object({
 	productId: z.string().min(1).optional(),
@@ -172,169 +163,51 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 			rolloutBucket: rollout.bucket,
 		})
 		if (rollout.enabled) {
-			try {
-				const resolvedRules = await resolveEffectiveRules({
-					productId,
-					variantId,
-					ratePlanId,
+			recordRulesUiDecisionTrace({
+				endpoint: "api.policies.resolve",
+				inputContext: {
+					hotelId: productId,
+					ratePlanId: ratePlanId ?? null,
+					supplierId: null,
+					variantId: variantId ?? null,
+					channel: input.channel ?? "web",
+					occupancy: null,
 					checkIn: input.checkIn,
 					checkOut: input.checkOut,
-					channel: input.channel ?? "web",
-					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					onMissingCategory: "return_null",
-				})
-				const ruleSnapshot = buildRuleSnapshot({ resolvedRules })
-				const compared = comparePolicyAndRuleSnapshots(
-					buildPolicySnapshot({
-						resolvedPolicies: resolvedForComparison,
-						checkIn: input.checkIn,
-						checkOut: input.checkOut,
-						channel: input.channel ?? "web",
-					}),
-					ruleSnapshot
-				)
-				if (!compared.isConsistent) {
-					recordRulesUiMismatch({
-						endpoint: "api.policies.resolve",
-						hotelId: productId,
-						supplierId: null,
-						ratePlanId: ratePlanId ?? null,
-						sessionHash: rollout.rolloutHash,
-						input: {
-							checkIn: input.checkIn,
-							checkOut: input.checkOut,
-							variantId: variantId ?? null,
-							channel: input.channel ?? "web",
-						},
-						mismatches: compared.mismatches,
-						policySnapshot: buildPolicySnapshot({
-							resolvedPolicies: resolvedForComparison,
-							checkIn: input.checkIn,
-							checkOut: input.checkOut,
-							channel: input.channel ?? "web",
-						}),
-						ruleSnapshot,
-					})
-				}
-				const readiness = evaluateRulesUiReadiness({
-					hasRuleSnapshot:
-						Array.isArray(ruleSnapshot.contractTerms) && ruleSnapshot.contractTerms.length > 0,
-					hasMapperError: false,
-					hasMismatch: !compared.isConsistent,
-				})
-				recordRulesUiDecisionTrace({
-					endpoint: "api.policies.resolve",
-					inputContext: {
-						hotelId: productId,
-						ratePlanId: ratePlanId ?? null,
-						supplierId: null,
-						variantId: variantId ?? null,
-						channel: input.channel ?? "web",
-						occupancy: null,
-						checkIn: input.checkIn,
-						checkOut: input.checkOut,
+				},
+				policiesResolved: resolvedForComparison.policies.map((item) => ({
+					category: String(item?.category ?? ""),
+					resolvedFromScope: String(item?.resolvedFromScope ?? ""),
+					policyId: String(item?.policy?.id ?? ""),
+					version: Number(item?.policy?.version ?? 0),
+				})),
+				requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
+				policiesByCategory: resolvedForComparison.policies.reduce(
+					(acc, item) => {
+						const key = String(item?.category ?? "").trim()
+						if (!key) return acc
+						acc[key] = Number(acc[key] ?? 0) + 1
+						return acc
 					},
-					policiesResolved: resolvedForComparison.policies.map((item) => ({
-						category: String(item?.category ?? ""),
-						resolvedFromScope: String(item?.resolvedFromScope ?? ""),
-						policyId: String(item?.policy?.id ?? ""),
-						version: Number(item?.policy?.version ?? 0),
-					})),
-					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					policiesByCategory: resolvedForComparison.policies.reduce(
-						(acc, item) => {
-							const key = String(item?.category ?? "").trim()
-							if (!key) return acc
-							acc[key] = Number(acc[key] ?? 0) + 1
-							return acc
-						},
-						{} as Record<string, number>
-					),
-					rulesFound: Array.isArray(resolvedRules?.allRules) ? resolvedRules.allRules.length : 0,
-					rulesMatched: Array.isArray(ruleSnapshot?.contractTerms)
-						? ruleSnapshot.contractTerms.length
-						: 0,
-					rulesEvaluated: Array.isArray(resolvedRules?.allRules)
-						? resolvedRules.allRules.map((rule) => ({
-								category: String(rule?.group?.category ?? ""),
-								code: String(rule?.group?.code ?? ""),
-								layer: String(rule?.group?.layer ?? ""),
-								source: String(rule?.source ?? ""),
-								resolvedFromScope: String(rule?.resolvedFromScope ?? ""),
-								version: Number(rule?.version?.version ?? 0),
-							}))
-						: [],
-					finalOutput: {
-						policiesCount: Array.isArray(policies) ? policies.length : 0,
-						comparisonConsistent: Boolean(compared?.isConsistent),
-					},
-					fallbackReason: readiness.useRulesUi ? null : (readiness.fallbackReason ?? "unknown"),
-				})
-				if (readiness.useRulesUi) {
-					policies = mapRuleSnapshotToPolicyCards(ruleSnapshot) as any
-				} else {
-					recordRulesUiFallback({
-						endpoint: "api.policies.resolve",
-						hotelId: productId,
-						supplierId: null,
-						ratePlanId: ratePlanId ?? null,
-						sessionHash: rollout.rolloutHash,
-						reason: readiness.fallbackReason ?? "unknown",
-					})
-				}
-			} catch (rulesError) {
-				recordRulesUiDecisionTrace({
-					endpoint: "api.policies.resolve",
-					inputContext: {
-						hotelId: productId,
-						ratePlanId: ratePlanId ?? null,
-						supplierId: null,
-						variantId: variantId ?? null,
-						channel: input.channel ?? "web",
-						occupancy: null,
-						checkIn: input.checkIn,
-						checkOut: input.checkOut,
-					},
-					policiesResolved: resolvedForComparison.policies.map((item) => ({
-						category: String(item?.category ?? ""),
-						resolvedFromScope: String(item?.resolvedFromScope ?? ""),
-						policyId: String(item?.policy?.id ?? ""),
-						version: Number(item?.policy?.version ?? 0),
-					})),
-					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					policiesByCategory: resolvedForComparison.policies.reduce(
-						(acc, item) => {
-							const key = String(item?.category ?? "").trim()
-							if (!key) return acc
-							acc[key] = Number(acc[key] ?? 0) + 1
-							return acc
-						},
-						{} as Record<string, number>
-					),
-					rulesFound: 0,
-					rulesMatched: 0,
-					rulesEvaluated: [],
-					finalOutput: {
-						policiesCount: Array.isArray(policies) ? policies.length : 0,
-						error: "mapper_error",
-					},
-					fallbackReason: "mapper_error",
-				})
-				recordRulesUiFallback({
-					endpoint: "api.policies.resolve",
-					hotelId: productId,
-					supplierId: null,
-					ratePlanId: ratePlanId ?? null,
-					sessionHash: rollout.rolloutHash,
-					reason: "mapper_error",
-				})
-				console.warn("rules_ui_mapper_error", {
-					endpoint: "api.policies.resolve",
-					hotelId: productId,
-					ratePlanId: ratePlanId ?? null,
-					error: rulesError,
-				})
-			}
+					{} as Record<string, number>
+				),
+				rulesFound: 0,
+				rulesMatched: 0,
+				rulesEvaluated: [],
+				finalOutput: {
+					policiesCount: Array.isArray(policies) ? policies.length : 0,
+					canonicalSource: "policy",
+				},
+				fallbackReason: "canonical_policy_source",
+			})
+			recordRulesUiFallback({
+				endpoint: "api.policies.resolve",
+				hotelId: productId,
+				supplierId: null,
+				ratePlanId: ratePlanId ?? null,
+				sessionHash: rollout.rolloutHash,
+				reason: "canonical_policy_source",
+			})
 		}
 		return new Response(
 			JSON.stringify({

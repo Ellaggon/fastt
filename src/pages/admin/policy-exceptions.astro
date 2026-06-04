@@ -1,0 +1,261 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
+import { POLICY_EXCEPTION_RULE_TYPES } from "@/modules/policies/public"
+
+const ADMIN_EMAILS = ["ellaggon@proton.me"]
+const user = await getUserFromRequest(Astro.request)
+if (!user?.email) return Astro.redirect("/SignInPage")
+
+const isAdmin = ADMIN_EMAILS.includes(user.email)
+const items = isAdmin ? await listPolicyExceptionRulesUseCase({ limit: 250 }) : []
+const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
+const categories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+const scopes = [
+	{ value: "global", label: "Global" },
+	{ value: "product", label: "Producto" },
+	{ value: "variant", label: "Variante" },
+	{ value: "rate_plan", label: "Rate plan" },
+]
+---
+
+<InternalAdminLayout title="Admin · Policy exceptions">
+	<section class="min-h-screen text-slate-200">
+		<div class="mx-auto max-w-7xl space-y-6 px-6">
+			<header class="space-y-2">
+				<h1 class="text-2xl font-semibold text-white">Overrides de políticas</h1>
+				<p class="text-sm text-slate-300">
+					Excepciones legales y operativas aplicadas al snapshot contractual.
+				</p>
+			</header>
+
+			{
+				!isAdmin ? (
+					<Card class="bg-slate-100">
+						<p class="text-xl font-semibold text-slate-900">Forbidden</p>
+					</Card>
+				) : (
+					<>
+						<Card class="bg-slate-100">
+							<form id="policy-exception-form" class="grid gap-4 lg:grid-cols-4">
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Tipo</span>
+									<select name="type" required class="w-full rounded border border-slate-300 p-2">
+										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
+											<option value={type}>{type}</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Scope</span>
+									<select
+										name="scope"
+										id="exceptionScope"
+										class="w-full rounded border border-slate-300 p-2"
+									>
+										{scopes.map((scope) => (
+											<option value={scope.value}>{scope.label}</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Scope ID</span>
+									<input
+										name="scopeId"
+										id="exceptionScopeId"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="productId / variantId / ratePlanId"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Categoría</span>
+									<select name="category" class="w-full rounded border border-slate-300 p-2">
+										<option value="">Todas</option>
+										{categories.map((category) => (
+											<option value={category}>{category}</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Refund %</span>
+									<input
+										name="refundOverridePercent"
+										type="number"
+										min="0"
+										max="100"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Payout basis</span>
+									<input
+										name="payoutOverrideBasis"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="platform_absorbs / provider_absorbs"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Payout %</span>
+									<input
+										name="payoutOverridePercent"
+										type="number"
+										min="0"
+										max="100"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Prioridad</span>
+									<input
+										name="priority"
+										type="number"
+										value="100"
+										min="1"
+										max="1000"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Desde</span>
+									<input
+										name="effectiveFrom"
+										type="date"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Hasta</span>
+									<input
+										name="effectiveTo"
+										type="date"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="flex items-center gap-2 pt-6 text-sm font-semibold text-slate-700">
+									<input name="waiveNoShowCharge" type="checkbox" />
+									Waive no-show
+								</label>
+								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+									<span class="font-semibold">Motivo</span>
+									<input
+										name="reason"
+										class="w-full rounded border border-slate-300 p-2"
+										required
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+									<span class="font-semibold">Nota</span>
+									<input name="note" class="w-full rounded border border-slate-300 p-2" />
+								</label>
+								<div class="flex items-end gap-3 lg:col-span-4">
+									<Button type="submit" variant="primary">
+										Crear override
+									</Button>
+									<p id="policy-exception-feedback" class="text-sm text-slate-700" />
+								</div>
+							</form>
+						</Card>
+
+						<Card class="bg-slate-100">
+							<div class="overflow-x-auto">
+								<table class="min-w-full divide-y divide-slate-200">
+									<thead>
+										<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+											<th class="px-3 py-2">Tipo</th>
+											<th class="px-3 py-2">Scope</th>
+											<th class="px-3 py-2">Categoría</th>
+											<th class="px-3 py-2">Acción</th>
+											<th class="px-3 py-2">Estado</th>
+											<th class="px-3 py-2">Acciones</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-200">
+										{items.map((item) => (
+											<tr>
+												<td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+													{item.type}
+													<p class="text-xs font-normal text-slate-500">
+														{item.createdAt ? fmt.format(new Date(item.createdAt)) : ""}
+													</p>
+												</td>
+												<td class="px-3 py-3 align-top text-sm text-slate-700">
+													{item.scope || "global"}
+													<p class="text-xs text-slate-500">{item.scopeId || "all"}</p>
+												</td>
+												<td class="px-3 py-3 align-top text-sm text-slate-700">
+													{item.category || "Todas"}
+												</td>
+												<td class="px-3 py-3 align-top text-xs text-slate-700">
+													<pre class="max-w-xs rounded bg-slate-200 p-2 whitespace-pre-wrap">
+														{JSON.stringify(item.action, null, 2)}
+													</pre>
+													<p class="mt-2">{item.reason}</p>
+												</td>
+												<td class="px-3 py-3 align-top">
+													{item.isActive === false ? (
+														<Badge variant="error">Inactivo</Badge>
+													) : (
+														<Badge variant="success">Activo</Badge>
+													)}
+												</td>
+												<td class="px-3 py-3 align-top">
+													<Button
+														type="button"
+														variant="secondary"
+														data-toggle-exception={item.id}
+														data-next-active={item.isActive === false ? "true" : "false"}
+													>
+														{item.isActive === false ? "Activar" : "Desactivar"}
+													</Button>
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+								{items.length === 0 && (
+									<p class="px-3 py-6 text-sm text-slate-600">No hay overrides creados.</p>
+								)}
+							</div>
+						</Card>
+					</>
+				)
+			}
+		</div>
+	</section>
+</InternalAdminLayout>
+
+<script>
+	const form = document.getElementById("policy-exception-form")
+	const feedback = document.getElementById("policy-exception-feedback")
+	form?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		const response = await fetch("/api/admin/policies/exceptions", {
+			method: "POST",
+			body: new FormData(form),
+		})
+		if (!feedback) return
+		if (response.ok) {
+			feedback.textContent = "Override creado."
+			location.reload()
+		} else {
+			const payload = await response.json().catch(() => ({}))
+			feedback.textContent = payload?.error || "No se pudo crear el override."
+		}
+	})
+	document.querySelectorAll("[data-toggle-exception]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const id = button.getAttribute("data-toggle-exception")
+			const isActive = button.getAttribute("data-next-active") === "true"
+			const response = await fetch(`/api/admin/policies/exceptions/${id}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ isActive }),
+			})
+			if (response.ok) location.reload()
+		})
+	})
+</script>

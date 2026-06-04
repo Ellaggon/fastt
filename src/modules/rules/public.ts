@@ -6,10 +6,7 @@ export * from "./domain/rule.entities"
 export * from "./domain/rule.catalog"
 export * from "./application/adapters/policy-to-rule.adapter"
 export * from "./application/mappers/map-rules-to-policy-view-model"
-export * from "./application/use-cases/build-rule-based-contract-snapshot"
 export * from "./application/use-cases/build-rule-snapshot"
-export * from "./application/use-cases/compare-policy-contract-vs-rule-contract"
-export * from "./application/use-cases/compare-policy-and-rule-snapshots"
 export type {
 	ResolveEffectiveRulesInput,
 	ResolveEffectiveRulesResult,

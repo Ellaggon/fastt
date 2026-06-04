@@ -160,4 +160,27 @@ describe("policies/policy exception rules", () => {
 
 		expect(resolved.map((rule) => rule.id)).toEqual(["match"])
 	})
+
+	it("accepts repository-prefiltered scoped exceptions when snapshot context has no scope", () => {
+		const resolved = resolvePolicyExceptionOverrides(
+			[
+				{
+					id: "rate_plan_override",
+					type: "major_disruptive_event",
+					scope: "rate_plan",
+					scopeId: "rp_1",
+					category: "Cancellation",
+					priority: 1,
+					isActive: true,
+					action: { refundOverridePercent: 100 },
+				},
+			],
+			{
+				category: "Cancellation",
+				asOfDate: "2030-02-10",
+			}
+		)
+
+		expect(resolved.map((rule) => rule.id)).toEqual(["rate_plan_override"])
+	})
 })
