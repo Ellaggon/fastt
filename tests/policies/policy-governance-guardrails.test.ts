@@ -25,6 +25,20 @@ function commandRepo(overrides: Record<string, unknown> = {}) {
 }
 
 describe("policies/governance guardrails", () => {
+	it("blocks active policy creation without owner provider", async () => {
+		const repo = commandRepo()
+
+		await expect(
+			createPolicyCapa6({ commandRepo: repo }, {
+				category: "Payment",
+				description: "Unowned payment policy",
+				rules: { paymentType: "pay_at_property" },
+			} as any)
+		).rejects.toBeInstanceOf(PolicyValidationError)
+		expect(repo.createPolicyGroup).not.toHaveBeenCalled()
+		expect(repo.createPolicyVersion).not.toHaveBeenCalled()
+	})
+
 	it("blocks assigning an active policy when its group has no owner provider", async () => {
 		const repo = commandRepo({
 			getPolicyById: vi.fn(async () => ({

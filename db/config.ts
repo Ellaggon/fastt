@@ -930,7 +930,7 @@ const RefundQuote = defineTable({
 	indexes: [
 		{ on: ["bookingId"] },
 		{ on: ["providerId", "status"] },
-		{ on: ["idempotencyKey"] },
+		{ on: ["idempotencyKey"], unique: true },
 		{ on: ["quotedAt"] },
 	],
 })
@@ -955,7 +955,7 @@ const RefundLedger = defineTable({
 	indexes: [
 		{ on: ["bookingId"] },
 		{ on: ["providerId", "status"] },
-		{ on: ["refundQuoteId"] },
+		{ on: ["refundQuoteId"], unique: true },
 		{ on: ["paymentTransactionId"] },
 		{ on: ["appliedAt"] },
 	],

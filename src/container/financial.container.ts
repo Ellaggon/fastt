@@ -9,11 +9,13 @@ import { ProviderFinancialProfileRepository } from "@/modules/financial/infrastr
 import { ProviderPayableSnapshotRepository } from "@/modules/financial/infrastructure/repositories/ProviderPayableSnapshotRepository"
 import { ProviderStatementRepository } from "@/modules/financial/infrastructure/repositories/ProviderStatementRepository"
 import { ReconciliationMatchRepository } from "@/modules/financial/infrastructure/repositories/ReconciliationMatchRepository"
+import { RefundCalculationRepository } from "@/modules/financial/infrastructure/repositories/RefundCalculationRepository"
 import { RefundHandoffRepository } from "@/modules/financial/infrastructure/repositories/RefundHandoffRepository"
 
 export const financialExceptionRepository = new FinancialExceptionRepository()
 export const financialReferenceRepository = new FinancialReferenceRepository()
 export const refundHandoffRepository = new RefundHandoffRepository()
+export const refundCalculationRepository = new RefundCalculationRepository()
 export const financialReviewEventRepository = new FinancialReviewEventRepository()
 export const paymentTransactionRepository = new PaymentTransactionRepository()
 export const financialSettlementRecordRepository = new FinancialSettlementRecordRepository()

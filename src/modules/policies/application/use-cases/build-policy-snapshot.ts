@@ -68,6 +68,7 @@ function normalizeCategory(category: string): SnapshotCategory | null {
 export function buildPolicyItemSnapshot(
 	entry: ResolveEffectivePoliciesResult["policies"][number],
 	checkIn: string,
+	checkOut?: string | null,
 	exceptionRules?: PolicyExceptionRule[]
 ): HoldPolicyItemSnapshot {
 	const normalized = normalizeCategory(entry.category)
@@ -78,6 +79,7 @@ export function buildPolicyItemSnapshot(
 		category: normalized,
 		policy: entry.policy,
 		checkIn,
+		checkOut,
 		exceptionRules,
 	})
 	return {
@@ -136,7 +138,12 @@ export function buildPolicySnapshot(params: {
 	for (const entry of params.resolvedPolicies.policies) {
 		const normalized = normalizeCategory(entry.category)
 		if (!normalized) continue
-		byCategory[normalized] = buildPolicyItemSnapshot(entry, params.checkIn, params.exceptionRules)
+		byCategory[normalized] = buildPolicyItemSnapshot(
+			entry,
+			params.checkIn,
+			params.checkOut,
+			params.exceptionRules
+		)
 	}
 
 	const policyVersionIds = Object.values(byCategory)

@@ -18,6 +18,10 @@ export type RefundQuotePolicySnapshot = {
 	refundBasis: string | null
 	taxesFeesBasis: string | null
 	payoutBasis: string | null
+	hostPayoutPercent: number | null
+	hostPayoutAmount: number | null
+	hostCancellationFeeAmount: number
+	rebookingCreditAmount: number
 	appliedOverrideIds: string[]
 }
 

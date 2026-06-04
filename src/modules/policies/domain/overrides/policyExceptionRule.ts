@@ -14,6 +14,10 @@ export type PolicyExceptionRuleAction = {
 	payoutOverridePercent?: number | null
 	waiveNoShowCharge?: boolean | null
 	forceRefundBasis?: string | null
+	hostCancellationFeeAmount?: number | null
+	hostCancellationFeePercent?: number | null
+	rebookingCreditAmount?: number | null
+	rebookingCreditPercent?: number | null
 	note?: string | null
 }
 

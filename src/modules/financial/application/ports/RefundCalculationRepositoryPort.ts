@@ -8,6 +8,7 @@ export type RefundCalculationRepositoryPort = {
 	}>
 	findQuoteById(id: string): Promise<RefundQuote | null>
 	findQuotesByBookingId(bookingId: string): Promise<RefundQuote[]>
+	findLedgerByQuoteId(refundQuoteId: string): Promise<RefundLedger | null>
 	recordLedgerEntry(entry: RefundLedger): Promise<RefundLedger>
 	findLedgerByBookingId(bookingId: string): Promise<RefundLedger[]>
 }

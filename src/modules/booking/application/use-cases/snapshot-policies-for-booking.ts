@@ -117,6 +117,7 @@ export async function snapshotPoliciesForBooking(
 				return buildPolicyItemSnapshot(
 					p as any,
 					input.checkIn ?? new Date().toISOString().slice(0, 10),
+					input.checkOut ?? null,
 					exceptionRules
 				)
 			} catch {

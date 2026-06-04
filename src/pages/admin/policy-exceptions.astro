@@ -233,6 +233,7 @@ const scopes = [
 	const feedback = document.getElementById("policy-exception-feedback")
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()
+		if (!(form instanceof HTMLFormElement)) return
 		const response = await fetch("/api/admin/policies/exceptions", {
 			method: "POST",
 			body: new FormData(form),

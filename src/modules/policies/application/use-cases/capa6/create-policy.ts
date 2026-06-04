@@ -38,7 +38,9 @@ export async function createPolicyCapa6(
 
 	if (!parsed.previousPolicyId) {
 		if (!parsed.ownerProviderId) {
-			throw new PolicyValidationError([{ path: ["ownerProviderId"], code: "required" }])
+			throw new PolicyValidationError([
+				{ path: ["ownerProviderId"], code: "owner_provider_required" },
+			])
 		}
 		const created = await deps.commandRepo.createPolicyGroup({
 			category: parsed.category,
