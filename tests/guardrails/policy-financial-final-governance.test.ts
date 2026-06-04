@@ -104,7 +104,7 @@ describe("Guardrail: final policy and refund governance", () => {
 		expect(useCase).toContain("findQuoteById")
 		expect(useCase).toContain("REFUND_QUOTE_NOT_FOUND")
 		expect(repo).toContain("findLedgerByQuoteId")
-		expect(repo).toContain("db.insert(RefundLedgerTable)")
+		expect(repo).toMatch(/db\s*\.\s*insert\s*\(\s*RefundLedgerTable\s*\)/)
 		expect(dbConfig).toContain('{ on: ["refundQuoteId"], unique: true }')
 		expect(migration).toContain("idx_refund_ledger_quote_unique")
 	})
