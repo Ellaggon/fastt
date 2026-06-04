@@ -9,15 +9,6 @@ import {
 	type PolicyExceptionRule,
 	type ResolveEffectivePoliciesResult,
 } from "@/modules/policies/public"
-import { logger } from "@/lib/observability/logger"
-import { incrementCounter } from "@/lib/observability/metrics"
-import {
-	buildRuleBasedContractSnapshot,
-	buildRuleSnapshot,
-	comparePolicyContractVsRuleContract,
-	comparePolicyAndRuleSnapshots,
-	type ResolveEffectiveRulesResult,
-} from "@/modules/rules/public"
 
 const createInventoryHoldSchema = z.object({
 	variantId: z.string().min(1),
@@ -77,16 +68,6 @@ export async function createInventoryHold(
 			requiredCategories?: string[]
 			onMissingCategory?: "return_null" | "throw_error"
 		}) => Promise<ResolveEffectivePoliciesResult>
-		resolveEffectiveRules?: (ctx: {
-			productId: string
-			variantId?: string
-			ratePlanId?: string
-			checkIn?: string
-			checkOut?: string
-			channel?: string
-			requiredCategories?: string[]
-			onMissingCategory?: "return_null" | "throw_error"
-		}) => Promise<ResolveEffectiveRulesResult>
 		resolvePolicyExceptionRules?: (ctx: {
 			productId: string
 			variantId?: string
@@ -178,23 +159,6 @@ export async function createInventoryHold(
 		checkOut: parsed.dateRange.to,
 		channel: deps.policyContext.channel == null ? undefined : String(deps.policyContext.channel),
 	})
-	const ruleResolution = deps.resolveEffectiveRules
-		? await deps.resolveEffectiveRules({
-				productId: deps.policyContext.productId,
-				variantId: parsed.variantId,
-				ratePlanId: policyRatePlanId,
-				checkIn: parsed.dateRange.from,
-				checkOut: parsed.dateRange.to,
-				channel:
-					deps.policyContext.channel == null ? undefined : String(deps.policyContext.channel),
-			})
-		: null
-	const ruleSnapshot = ruleResolution
-		? buildRuleSnapshot({
-				resolvedRules: ruleResolution,
-				resolvedAt: now,
-			})
-		: { contractTerms: [], hardConstraintEvidence: [] }
 	const policyExceptionRules = deps.resolvePolicyExceptionRules
 		? await deps.resolvePolicyExceptionRules({
 				productId: deps.policyContext.productId,
@@ -254,146 +218,9 @@ export async function createInventoryHold(
 			}
 		}
 	}
-	policySnapshot.ruleSnapshotJson = ruleSnapshot
 	const guestExpectationsSnapshot = deps.buildGuestExpectationsSnapshot
 		? await deps.buildGuestExpectationsSnapshot(deps.policyContext.productId)
 		: null
-	const ruleBasedContractSnapshot = buildRuleBasedContractSnapshot({
-		ruleSnapshot,
-		checkIn: parsed.dateRange.from,
-		checkOut: parsed.dateRange.to,
-		channel: deps.policyContext.channel,
-		resolvedAt: now,
-	})
-	policySnapshot.ruleBasedContractSnapshot = ruleBasedContractSnapshot
-
-	const contractComparison = comparePolicyContractVsRuleContract(
-		policySnapshot,
-		ruleBasedContractSnapshot
-	)
-	policySnapshot.contractComparisonJson = {
-		isConsistent: contractComparison.isConsistent,
-		diffs: contractComparison.diffs,
-		comparedAt: now.toISOString(),
-	}
-	if (contractComparison.isConsistent) {
-		incrementCounter("contract.match_total", { source: "hold_shadow" })
-		logger.info("contract.match", {
-			holdId,
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			checkIn: parsed.dateRange.from,
-			checkOut: parsed.dateRange.to,
-			diffCount: 0,
-		})
-	} else {
-		incrementCounter("contract.mismatch_total", { source: "hold_shadow" })
-		logger.warn("contract.mismatch", {
-			holdId,
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			checkIn: parsed.dateRange.from,
-			checkOut: parsed.dateRange.to,
-			diffCount: contractComparison.diffs.length,
-			diffs: contractComparison.diffs,
-		})
-	}
-
-	const comparison = comparePolicyAndRuleSnapshots(policySnapshot, ruleSnapshot)
-	const expectedPolicyCategories = [
-		policySnapshot.cancellation,
-		policySnapshot.payment,
-		policySnapshot.no_show,
-		policySnapshot.check_in,
-	].filter(Boolean).length
-	const mismatchCategoryCount = new Set(comparison.mismatches.map((mismatch) => mismatch.category))
-		.size
-	const fullMismatch =
-		!comparison.isConsistent &&
-		(expectedPolicyCategories === 0 || mismatchCategoryCount >= expectedPolicyCategories)
-	if (comparison.isConsistent) {
-		incrementCounter("rules.validation.match")
-	} else if (fullMismatch) {
-		incrementCounter("rules.validation.full_mismatch")
-	} else {
-		incrementCounter("rules.validation.partial_mismatch")
-	}
-	if (process.env.RULE_SNAPSHOT_VALIDATION_DEBUG === "1") {
-		policySnapshot.ruleValidationJson = {
-			isConsistent: comparison.isConsistent,
-			mismatches: comparison.mismatches,
-			comparedAt: now.toISOString(),
-		}
-	}
-
-	if (ruleSnapshot.contractTerms.length === 0) {
-		logger.warn("inventory.hold.rule_snapshot_empty_contract_terms", {
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			checkIn: parsed.dateRange.from,
-			checkOut: parsed.dateRange.to,
-		})
-	}
-
-	const normalizeCategory = (value: string): string =>
-		String(value ?? "")
-			.trim()
-			.toLowerCase()
-			.replace(/[^a-z0-9]/g, "")
-	const policyCategorySet = new Set<string>()
-	if (policySnapshot.cancellation) policyCategorySet.add("cancellation")
-	if (policySnapshot.payment) policyCategorySet.add("payment")
-	if (policySnapshot.no_show) policyCategorySet.add("noshow")
-	if (policySnapshot.check_in) policyCategorySet.add("checkin")
-
-	const contractCategorySet = new Set(
-		ruleSnapshot.contractTerms.map((term) => normalizeCategory(term.category))
-	)
-	const missingInRuleSnapshot = [...policyCategorySet]
-		.filter((cat) => !contractCategorySet.has(cat))
-		.sort((a, b) => a.localeCompare(b))
-	const additionalInRuleSnapshot = [...contractCategorySet]
-		.filter((cat) => !policyCategorySet.has(cat))
-		.sort((a, b) => a.localeCompare(b))
-
-	if (missingInRuleSnapshot.length > 0 || additionalInRuleSnapshot.length > 0) {
-		logger.warn("inventory.hold.rule_snapshot_mismatch", {
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			missingInRuleSnapshot,
-			additionalInRuleSnapshot,
-		})
-	}
-
-	if (!comparison.isConsistent) {
-		logger.warn("inventory.hold.rule_validation_mismatch", {
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			isConsistent: false,
-			classification: fullMismatch ? "full_mismatch" : "partial_mismatch",
-			mismatches: comparison.mismatches,
-		})
-	} else {
-		logger.info("inventory.hold.rule_validation_match", {
-			productId: deps.policyContext.productId,
-			variantId: parsed.variantId,
-			ratePlanId: policyRatePlanId,
-			isConsistent: true,
-		})
-	}
-
-	logger.info("inventory.hold.rule_snapshot", {
-		productId: deps.policyContext.productId,
-		variantId: parsed.variantId,
-		ratePlanId: policyRatePlanId,
-		contractTermsCount: ruleSnapshot.contractTerms.length,
-		hardConstraintEvidenceCount: ruleSnapshot.hardConstraintEvidence.length,
-	})
 	const created = await deps.repo.holdInventory({
 		holdId,
 		variantId: parsed.variantId,

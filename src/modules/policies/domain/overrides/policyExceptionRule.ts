@@ -78,6 +78,7 @@ function matchesScope(rule: PolicyExceptionRule, context: PolicyExceptionRuleCon
 	const ruleScope = String(rule.scope ?? "global").trim()
 	const ruleScopeId = rule.scopeId == null ? null : String(rule.scopeId).trim()
 	if (!ruleScope || ruleScope === "global") return true
+	if (!String(context.scope ?? "").trim() && !String(context.scopeId ?? "").trim()) return true
 	if (ruleScope !== String(context.scope ?? "").trim()) return false
 	if (!ruleScopeId) return true
 	return ruleScopeId === String(context.scopeId ?? "").trim()

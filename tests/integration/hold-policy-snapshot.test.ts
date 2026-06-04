@@ -19,7 +19,6 @@ import {
 	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { resolveEffectiveRules } from "@/modules/rules/public"
 import {
 	createInventoryHold,
 	recomputeEffectiveAvailabilityRange,
@@ -214,7 +213,6 @@ describe("integration/hold policy snapshot", () => {
 						asOfDate: String(ctx.checkIn ?? "2030-01-01"),
 						warnings: [],
 					}).dto,
-				resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
 				buildGuestExpectationsSnapshot: (id) => buildGuestStayExpectationsSnapshot(id),
 				policyContext: {
 					productId,
@@ -286,10 +284,9 @@ describe("integration/hold policy snapshot", () => {
 				chargeAmount: null,
 			})
 		)
-		expect(holdSnapshot.ruleBasedContractSnapshot).toBeTruthy()
-		expect(holdSnapshot.contractComparisonJson).toBeTruthy()
-		expect(holdSnapshot.contractComparisonJson?.isConsistent).toBe(true)
-		expect(JSON.stringify(holdSnapshot.ruleSnapshotJson)).not.toContain("house_rule")
+		expect((holdSnapshot as any).ruleBasedContractSnapshot).toBeUndefined()
+		expect((holdSnapshot as any).contractComparisonJson).toBeUndefined()
+		expect((holdSnapshot as any).ruleSnapshotJson).toBeUndefined()
 		const guestSnapshot = holdRow?.guestExpectationsSnapshotJson as any
 		expect(guestSnapshot?.source).toBe("house_rule")
 		expect(guestSnapshot?.rules?.[0]?.summary).toContain("22:00")
@@ -333,143 +330,6 @@ describe("integration/hold policy snapshot", () => {
 			.where(and(eq(Hold.id, hold.holdId), eq(Hold.variantId, variantId)))
 			.get()
 		expect(holdRowAfter?.policySnapshotJson).toEqual(holdSnapshot)
-	})
-
-	it("stores rule validation trace in snapshot when debug flag is enabled", async () => {
-		const previousDebug = process.env.RULE_SNAPSHOT_VALIDATION_DEBUG
-		process.env.RULE_SNAPSHOT_VALIDATION_DEBUG = "1"
-		try {
-			const destinationId = `dest_hps_dbg_${crypto.randomUUID()}`
-			const productId = `prod_hps_dbg_${crypto.randomUUID()}`
-			const variantId = `var_hps_dbg_${crypto.randomUUID()}`
-			const templateId = `rpt_hps_dbg_${crypto.randomUUID()}`
-			const ratePlanId = `rp_hps_dbg_${crypto.randomUUID()}`
-			const checkIn = "2030-02-21"
-			const checkOut = "2030-02-23"
-
-			await upsertDestination({
-				id: destinationId,
-				name: "HPS Debug Dest",
-				type: "city",
-				country: "CL",
-				slug: `hps-dbg-${destinationId}`,
-			})
-			await upsertProduct({
-				id: productId,
-				name: "HPS Debug Product",
-				productType: "Hotel",
-				destinationId,
-			})
-			await upsertVariant({ id: variantId, productId, kind: "hotel_room", name: "Room" })
-			await upsertRatePlanTemplate({
-				id: templateId,
-				name: "Default",
-				paymentType: "pay_at_property",
-				refundable: true,
-			})
-			await upsertRatePlan({
-				id: ratePlanId,
-				templateId,
-				variantId,
-				isActive: true,
-				isDefault: true,
-			})
-
-			for (const date of [...stayDates(checkIn, checkOut), checkOut]) {
-				await db.insert(DailyInventory).values({
-					id: `di_hps_dbg_${crypto.randomUUID()}`,
-					variantId,
-					date,
-					totalInventory: 5,
-					reservedCount: 0,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				} as any)
-			}
-
-			const paymentPolicy = await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "Payment",
-				description: "Pay at property",
-				rules: { paymentType: "pay_at_property" },
-			})
-			const cancellationPolicy = await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "Cancellation",
-				description: "Flexible cancellation",
-				cancellationTiers: [
-					{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 },
-				],
-			} as any)
-			const checkInPolicy = await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "CheckIn",
-				description: "Standard check-in",
-				rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
-			} as any)
-			const noShowPolicy = await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "NoShow",
-				description: "No-show first night",
-				rules: { penaltyType: "first_night" },
-			} as any)
-			for (const policy of [paymentPolicy, cancellationPolicy, checkInPolicy, noShowPolicy]) {
-				await assignPolicyCapa6({
-					policyId: policy.policyId,
-					scope: "rate_plan",
-					scopeId: ratePlanId,
-					channel: "web",
-				})
-			}
-
-			const hold = await createInventoryHold(
-				{
-					repo: inventoryHoldRepository,
-					resolveEffectivePolicies: async (ctx) =>
-						normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
-							asOfDate: String(ctx.checkIn ?? "2030-01-01"),
-							warnings: [],
-						}).dto,
-					resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
-					policyContext: {
-						productId,
-						ratePlanId,
-						channel: "web",
-					},
-					resolvePricingSnapshot: async () => ({
-						ratePlanId,
-						currency: "USD",
-						occupancy: 1,
-						from: checkIn,
-						to: checkOut,
-						nights: 2,
-						totalPrice: 200,
-						days: [
-							{ date: "2030-02-21", price: 100 },
-							{ date: "2030-02-22", price: 100 },
-						],
-					}),
-				},
-				{
-					variantId,
-					dateRange: { from: checkIn, to: checkOut },
-					rooms: 1,
-					sessionId: `sess_dbg_${crypto.randomUUID()}`,
-				}
-			)
-
-			const holdRow = await db
-				.select({ policySnapshotJson: Hold.policySnapshotJson })
-				.from(Hold)
-				.where(eq(Hold.id, hold.holdId))
-				.get()
-			const snapshot = holdRow?.policySnapshotJson as HoldPolicySnapshot
-			expect(snapshot.ruleValidationJson).toBeTruthy()
-			expect(snapshot.ruleValidationJson?.isConsistent).toBe(true)
-		} finally {
-			if (previousDebug === undefined) delete process.env.RULE_SNAPSHOT_VALIDATION_DEBUG
-			else process.env.RULE_SNAPSHOT_VALIDATION_DEBUG = previousDebug
-		}
 	})
 
 	it("enforces ratePlan context and keeps hold->booking contract aligned to selected rate plan", async () => {

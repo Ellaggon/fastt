@@ -83,6 +83,7 @@ export let Policy: any
 export let PolicyAssignment: any
 export let CancellationTier: any
 export let PolicyRule: any
+export let PolicyExceptionRule: any
 export let PolicyAuditLog: any
 export let Booking: any
 export let BookingRoomDetail: any
@@ -218,6 +219,7 @@ async function init() {
 	PolicyAssignment = drizzleTables.PolicyAssignment
 	CancellationTier = drizzleTables.CancellationTier
 	PolicyRule = drizzleTables.PolicyRule
+	PolicyExceptionRule = drizzleTables.PolicyExceptionRule
 	PolicyAuditLog = drizzleTables.PolicyAuditLog
 	Booking = drizzleTables.Booking
 	BookingRoomDetail = drizzleTables.BookingRoomDetail

@@ -9,9 +9,9 @@ import {
 	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { resolveEffectiveRules } from "@/modules/rules/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
+import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
 import {
 	buildOccupancyKey,
 	evaluateStaySellabilityFromView,
@@ -485,9 +485,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								asOfDate: String(ctx.checkIn ?? new Date().toISOString().slice(0, 10)),
 								warnings: [],
 							}).dto,
-						resolveEffectiveRules: (ctx) => resolveEffectiveRules(ctx),
 						buildGuestExpectationsSnapshot: (productId) =>
 							buildGuestStayExpectationsSnapshot(productId),
+						resolvePolicyExceptionRules: (ctx) => resolvePolicyExceptionRulesUseCase(ctx),
 						policyContext: {
 							productId: variant.productId,
 							ratePlanId: parsed.ratePlanId,

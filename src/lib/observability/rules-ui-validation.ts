@@ -243,7 +243,12 @@ export function recordRulesUiFallback(params: {
 	supplierId?: string | null
 	ratePlanId?: string | null
 	sessionHash: string
-	reason: "missing_rule_snapshot" | "mapper_error" | "mismatch_detected" | "unknown"
+	reason:
+		| "missing_rule_snapshot"
+		| "mapper_error"
+		| "mismatch_detected"
+		| "canonical_policy_source"
+		| "unknown"
 	timestamp?: Date
 }): void {
 	runSafe("recordRulesUiFallback", () => {
