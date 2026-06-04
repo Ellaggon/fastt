@@ -2,13 +2,11 @@ import type { APIRoute } from "astro"
 import { db, and, eq, inArray, Policy, PolicyGroup } from "astro:db"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyGroupIds } from "@/lib/policies/policyOwnership"
-import { ensurePolicySchemaCompatibility } from "@/lib/policies/policySchemaCompat"
 
 // Minimal provider-only endpoint for CAPA 6 UX validation.
 // Lists active policies with their categories for selection/assignment.
 export const GET: APIRoute = async ({ request }) => {
 	const { providerId } = await requireProvider(request)
-	await ensurePolicySchemaCompatibility()
 	const ownedGroupIds = await getOwnedPolicyGroupIds(providerId)
 	if (!ownedGroupIds.length) {
 		return new Response(JSON.stringify([]), {

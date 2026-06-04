@@ -62,9 +62,10 @@ describe("Guardrail: financial Stage 3.3 closure hardening", () => {
 		const forbidden = [
 			/netPayoutEstimate/,
 			/commissionTotal/,
-			/readFinancialShadowCommission/,
+			/readFinancial.*Shadow/,
 			/LegacySettlementShadow/,
 			/FinancialShadowRecord/,
+			/financial_shadow/,
 		]
 		const candidateFiles = financialSourceFiles.filter(
 			(file) =>

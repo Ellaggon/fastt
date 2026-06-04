@@ -38,8 +38,6 @@ export async function createRatePlan(
 			id: templateId,
 			name: body.name,
 			description: body.description ?? null,
-			paymentType: body.paymentType,
-			refundable: Boolean(body.refundable),
 			createdAt: now,
 		},
 		ratePlan: {

@@ -20,7 +20,7 @@ export type DetectFinancialExceptionsInput = {
 	bookingId: string
 	providerId: string
 	evidenceAlignmentState: string
-	financialEvidence: { refundEvidence?: string; settlementShadow?: string }
+	financialEvidence: { refundEvidence?: string; settlementEvidence?: string }
 	paymentIntentCount: number
 	settlementRecordCount: number
 	hasPaymentReference: boolean
@@ -59,10 +59,9 @@ export function detectFinancialExceptions(
 			...base,
 			code: "reconciliation_unknown",
 			severity: "attention",
-			reason:
-				"Financial shadow records exist but do not provide enough evidence alignment for the contract.",
+			reason: "Financial evidence exists but does not provide enough alignment for the contract.",
 			nextOwner: "financial_operations",
-			basis: "financial_shadow_record",
+			basis: "financial_evidence",
 		})
 	}
 	if (input.paymentIntentCount > 0 && !input.hasPaymentReference) {
@@ -72,7 +71,7 @@ export function detectFinancialExceptions(
 			severity: "attention",
 			reason: "Payment evidence is visible but no stable transaction reference was captured.",
 			nextOwner: "external_finance",
-			basis: "financial_shadow_record",
+			basis: "financial_evidence",
 		})
 	}
 	if (input.settlementRecordCount > 0 && !input.hasSettlementReference) {
@@ -82,7 +81,7 @@ export function detectFinancialExceptions(
 			severity: "attention",
 			reason: "Settlement visibility exists without a stable settlement reference.",
 			nextOwner: "external_finance",
-			basis: "financial_shadow_record",
+			basis: "financial_evidence",
 		})
 	}
 	if (

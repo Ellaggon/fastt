@@ -7,7 +7,6 @@ import {
 	db,
 	desc,
 	eq,
-	FinancialShadowRecord,
 	Product,
 	sql,
 	Variant,
@@ -72,34 +71,29 @@ export const POST: APIRoute = async ({ request }) => {
 			.all()
 		if (!rows.length) return json({ error: "not_found" }, 404)
 
-		const [shadowRows, taxRows, paymentTransactions, settlementRecords, references] =
-			await Promise.all([
-				db
-					.select({
-						bookingId: FinancialShadowRecord.bookingId,
-						type: FinancialShadowRecord.type,
-						payload: FinancialShadowRecord.payload,
-						createdAt: FinancialShadowRecord.createdAt,
-					})
-					.from(FinancialShadowRecord)
-					.where(eq(FinancialShadowRecord.bookingId, bookingId))
-					.all(),
-				db
-					.select({
-						bookingId: BookingTaxFee.bookingId,
-						totalAmount: BookingTaxFee.totalAmount,
-						breakdownJson: BookingTaxFee.breakdownJson,
-					})
-					.from(BookingTaxFee)
-					.where(eq(BookingTaxFee.bookingId, bookingId))
-					.all(),
-				paymentTransactionRepository.findByBookingId(bookingId),
-				financialSettlementRecordRepository.findByBookingId(bookingId),
-				financialReferenceRepository.findByBookingId(bookingId),
-			])
+		const [taxRows, paymentTransactions, settlementRecords, references] = await Promise.all([
+			db
+				.select({
+					bookingId: BookingTaxFee.bookingId,
+					totalAmount: BookingTaxFee.totalAmount,
+					breakdownJson: BookingTaxFee.breakdownJson,
+				})
+				.from(BookingTaxFee)
+				.where(eq(BookingTaxFee.bookingId, bookingId))
+				.all(),
+			paymentTransactionRepository.findByBookingId(bookingId),
+			financialSettlementRecordRepository.findByBookingId(bookingId),
+			financialReferenceRepository.findByBookingId(bookingId),
+		])
+		const financialEvidenceRows: Array<{
+			bookingId: string
+			type: string
+			payload: unknown
+			createdAt: unknown
+		}> = []
 		const match = buildFinancialReconciliationMatch({
 			group: rows,
-			shadowRows,
+			financialEvidenceRows,
 			taxRows,
 			providerId: auth.providerId,
 			paymentTransactions: paymentTransactions.filter((row) => row.providerId === auth.providerId),

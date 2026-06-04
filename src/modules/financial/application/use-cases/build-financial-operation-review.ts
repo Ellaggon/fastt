@@ -10,21 +10,21 @@ export type FinancialEvidenceAlignmentState =
 	| "evidence_matched"
 	| "evidence_unknown"
 
-export type PaymentIntentEvidence = "not_visible" | "payment_intent_shadow_visible"
-export type RecordedPaymentEvidence = "not_visible" | "payment_recorded_shadow_visible"
+export type PaymentIntentEvidence = "not_visible" | "payment_evidence_visible"
+export type RecordedPaymentEvidence = "not_visible" | "payment_recorded_evidence_visible"
 export type RefundEvidence =
 	| "not_applicable"
 	| "refund_handoff_required"
 	| "refund_evidence_visible"
-export type SettlementEvidence = "not_visible" | "settlement_shadow_visible"
-export type RecordedSettlementEvidence = "not_visible" | "settlement_recorded_shadow_visible"
+export type SettlementEvidence = "not_visible" | "settlement_evidence_visible"
+export type RecordedSettlementEvidence = "not_visible" | "settlement_recorded_evidence_visible"
 
 export type FinancialEvidenceVisibility = {
-	paymentIntentShadow: PaymentIntentEvidence
-	recordedPaymentShadow: RecordedPaymentEvidence
+	paymentEvidence: PaymentIntentEvidence
+	recordedPaymentEvidence: RecordedPaymentEvidence
 	refundEvidence: RefundEvidence
-	settlementShadow: SettlementEvidence
-	recordedSettlementShadow: RecordedSettlementEvidence
+	settlementEvidence: SettlementEvidence
+	recordedSettlementEvidence: RecordedSettlementEvidence
 }
 
 export type FinancialOperationBookingRow = {
@@ -49,7 +49,7 @@ export type FinancialOperationBookingRow = {
 	variantName: unknown
 }
 
-export type FinancialShadowEvidenceRow = {
+export type FinancialEvidenceRow = {
 	bookingId: string
 	type: string
 	payload: unknown
@@ -73,13 +73,13 @@ export function dateOnly(value: unknown): string | null {
 	return parsed.toISOString().slice(0, 10)
 }
 
-export function readFinancialShadowAmount(payload: unknown): number | null {
+export function readFinancialEvidenceAmount(payload: unknown): number | null {
 	if (!payload || typeof payload !== "object") return null
 	const value = Number((payload as any).amount ?? (payload as any).grossAmount ?? NaN)
 	return Number.isFinite(value) ? value : null
 }
 
-export function readFinancialShadowReference(payload: unknown): string | null {
+export function readFinancialEvidenceReference(payload: unknown): string | null {
 	if (!payload || typeof payload !== "object") return null
 	for (const key of ["transactionId", "captureId", "authorizationId", "id", "idempotencyKey"]) {
 		const value = String((payload as any)[key] ?? "").trim()
@@ -88,7 +88,7 @@ export function readFinancialShadowReference(payload: unknown): string | null {
 	return null
 }
 
-export function readFinancialShadowStatus(payload: unknown): string {
+export function readFinancialEvidenceStatus(payload: unknown): string {
 	if (!payload || typeof payload !== "object") return "unknown"
 	return (
 		String((payload as any).status ?? "unknown")
@@ -97,24 +97,18 @@ export function readFinancialShadowStatus(payload: unknown): string {
 	)
 }
 
-export function readFinancialShadowCommission(payload: unknown): number {
-	if (!payload || typeof payload !== "object") return 0
-	const value = Number((payload as any).commissionAmount ?? 0)
-	return Number.isFinite(value) ? value : 0
-}
-
 function hasRecorded(rows: Array<{ payload: unknown }>): boolean {
-	return rows.some((row) => readFinancialShadowStatus(row.payload) === "recorded")
+	return rows.some((row) => readFinancialEvidenceStatus(row.payload) === "recorded")
 }
 
 function allRecorded(rows: Array<{ payload: unknown }>): boolean {
 	return (
-		rows.length > 0 && rows.every((row) => readFinancialShadowStatus(row.payload) === "recorded")
+		rows.length > 0 && rows.every((row) => readFinancialEvidenceStatus(row.payload) === "recorded")
 	)
 }
 
 function anyRecorded(rows: Array<{ payload: unknown }>): boolean {
-	return rows.some((row) => readFinancialShadowStatus(row.payload) === "recorded")
+	return rows.some((row) => readFinancialEvidenceStatus(row.payload) === "recorded")
 }
 
 export function daysSince(value: unknown): number | null {
@@ -139,16 +133,18 @@ export function deriveFinancialEvidenceVisibility(params: {
 	const isCancelled = params.status.toLowerCase() === "cancelled"
 
 	return {
-		paymentIntentShadow: hasPaymentIntent ? "payment_intent_shadow_visible" : "not_visible",
-		recordedPaymentShadow: hasRecordedPayment ? "payment_recorded_shadow_visible" : "not_visible",
+		paymentEvidence: hasPaymentIntent ? "payment_evidence_visible" : "not_visible",
+		recordedPaymentEvidence: hasRecordedPayment
+			? "payment_recorded_evidence_visible"
+			: "not_visible",
 		refundEvidence: hasRefundSnapshot
 			? "refund_evidence_visible"
 			: isCancelled
 				? "refund_handoff_required"
 				: "not_applicable",
-		settlementShadow: hasSettlement ? "settlement_shadow_visible" : "not_visible",
-		recordedSettlementShadow: hasRecordedSettlement
-			? "settlement_recorded_shadow_visible"
+		settlementEvidence: hasSettlement ? "settlement_evidence_visible" : "not_visible",
+		recordedSettlementEvidence: hasRecordedSettlement
+			? "settlement_recorded_evidence_visible"
 			: "not_visible",
 	}
 }
@@ -163,14 +159,15 @@ export function deriveFinancialEvidenceAlignmentState(params: {
 	const isCancelled = params.status.toLowerCase() === "cancelled"
 	if (isCancelled && params.refundRecords.length === 0) return "handoff_pending"
 
-	const hasFinancialShadow = params.paymentIntents.length > 0 || params.settlementRecords.length > 0
-	if (!hasFinancialShadow) return "snapshot_ready"
+	const hasFinancialEvidence =
+		params.paymentIntents.length > 0 || params.settlementRecords.length > 0
+	if (!hasFinancialEvidence) return "snapshot_ready"
 
 	const paymentMatches = params.paymentIntents.some(
-		(row) => readFinancialShadowAmount(row.payload) === params.contractTotal
+		(row) => readFinancialEvidenceAmount(row.payload) === params.contractTotal
 	)
 	const settlementMatches = params.settlementRecords.some(
-		(row) => readFinancialShadowAmount(row.payload) === params.contractTotal
+		(row) => readFinancialEvidenceAmount(row.payload) === params.contractTotal
 	)
 	if (
 		paymentMatches &&
@@ -193,7 +190,7 @@ export function deriveFinancialEvidenceAlignmentState(params: {
 
 export function buildFinancialOperationReview(params: {
 	group: FinancialOperationBookingRow[]
-	shadowRows: FinancialShadowEvidenceRow[]
+	financialEvidenceRows: FinancialEvidenceRow[]
 	taxRows: BookingTaxFeeSnapshotRow[]
 	providerId: string
 }) {
@@ -207,15 +204,11 @@ export function buildFinancialOperationReview(params: {
 	const detailTotal = params.group.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
 	const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal
 	const taxesTotal = params.group.reduce((sum, row) => sum + Number(row.detailTaxes ?? 0), 0)
-	const paymentIntents = params.shadowRows.filter((row) => row.type === "payment_intent")
-	const settlementRecords = params.shadowRows.filter((row) => row.type === "settlement_record")
-	const refundRecords = params.shadowRows.filter((row) => row.type === "refund_record")
-	// Compatibility visibility only. Provider Finance must create its own payable snapshots from
-	// Stage 3 truth sources rather than treating shadow commission/net payout values as final.
-	const commissionTotal = settlementRecords.reduce(
-		(sum, row) => sum + readFinancialShadowCommission(row.payload),
-		0
+	const paymentIntents = params.financialEvidenceRows.filter((row) => row.type === "payment_intent")
+	const settlementRecords = params.financialEvidenceRows.filter(
+		(row) => row.type === "settlement_record"
 	)
+	const refundRecords = params.financialEvidenceRows.filter((row) => row.type === "refund_record")
 	const evidenceAlignmentState = deriveFinancialEvidenceAlignmentState({
 		status: String(first.status ?? "draft"),
 		contractTotal,
@@ -235,13 +228,13 @@ export function buildFinancialOperationReview(params: {
 		refundSnapshot,
 	})
 	const paymentReferences = paymentIntents
-		.map((row) => readFinancialShadowReference(row.payload))
+		.map((row) => readFinancialEvidenceReference(row.payload))
 		.filter(Boolean)
 	const settlementReferences = settlementRecords
-		.map((row) => readFinancialShadowReference(row.payload))
+		.map((row) => readFinancialEvidenceReference(row.payload))
 		.filter(Boolean)
 	const refundReferences = refundRecords
-		.map((row) => readFinancialShadowReference(row.payload))
+		.map((row) => readFinancialEvidenceReference(row.payload))
 		.filter(Boolean)
 	const hasRoomSnapshots = params.group.some(
 		(row) => row.productNameSnapshot != null && row.variantNameSnapshot != null
@@ -277,8 +270,6 @@ export function buildFinancialOperationReview(params: {
 		currency,
 		contractTotal,
 		taxesTotal,
-		commissionTotal,
-		netPayoutEstimate: Math.max(0, contractTotal - commissionTotal),
 		confirmedAt: first.confirmedAt ?? null,
 		stay: {
 			checkIn: dateOnly(first.checkInDate),
@@ -296,7 +287,9 @@ export function buildFinancialOperationReview(params: {
 			settlementRecords: settlementRecords.length,
 			refundRecords: refundRecords.length,
 			statuses: [
-				...new Set(params.shadowRows.map((row) => readFinancialShadowStatus(row.payload))),
+				...new Set(
+					params.financialEvidenceRows.map((row) => readFinancialEvidenceStatus(row.payload))
+				),
 			],
 			financialEvidence,
 			references: {
@@ -313,9 +306,9 @@ export function buildFinancialOperationReview(params: {
 			references: refundReferences,
 		},
 		providerSettlementEvidence: {
-			state: financialEvidence.recordedSettlementShadow,
-			basis: "financial_shadow_record",
-			settlementEvidence: financialEvidence.settlementShadow,
+			state: financialEvidence.recordedSettlementEvidence,
+			basis: "financial_evidence",
+			settlementEvidence: financialEvidence.settlementEvidence,
 			references: settlementReferences,
 		},
 		invoice: {
@@ -330,13 +323,13 @@ export function buildFinancialOperationReview(params: {
 		evidenceAlignment: {
 			state: evidenceAlignmentState,
 			visibility: "evidence_alignment_visibility",
-			basis: "snapshot_and_financial_shadow_evidence",
+			basis: "snapshot_and_financial_evidence",
 			owner: "Payments & Finance",
 			context:
 				evidenceAlignmentState === "handoff_pending"
 					? "refund_handoff_visibility"
-					: financialEvidence.settlementShadow === "settlement_shadow_visible"
-						? "settlement_shadow_context_visible"
+					: financialEvidence.settlementEvidence === "settlement_evidence_visible"
+						? "settlement_evidence_context_visible"
 						: "snapshot_visibility",
 		},
 		snapshotIntegrity: {

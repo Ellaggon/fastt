@@ -32,12 +32,12 @@ const bannedRuntimeCalls = new Set([
 ])
 
 const requiredFinancialStates = [
-	"payment_intent_shadow_visible",
-	"payment_recorded_shadow_visible",
+	"payment_evidence_visible",
+	"payment_recorded_evidence_visible",
 	"refund_handoff_required",
 	"refund_evidence_visible",
-	"settlement_shadow_visible",
-	"settlement_recorded_shadow_visible",
+	"settlement_evidence_visible",
+	"settlement_recorded_evidence_visible",
 	"evidence_alignment_visibility",
 ]
 
@@ -119,7 +119,6 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 
 	it("keeps contract value visibility multi-room snapshot aware", () => {
 		const source = read(financialReviewBuilder)
-		const confirmSource = read("src/pages/api/booking/confirm.ts")
 		const violations = [
 			source.includes("const detailTotal = group.reduce")
 				? `${financialReviewBuilder}: contract total must use params.group.reduce explicitly`
@@ -133,17 +132,6 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			source.includes("const contractTotal = Number(first.detailTotalPrice")
 				? `${financialReviewBuilder}: contract total must not use only the first room detail`
 				: null,
-			confirmSource.includes("const bookingDetails = await db") &&
-			confirmSource.includes(".where(eq(BookingRoomDetail.bookingId, result.bookingId))") &&
-			confirmSource.includes(".all()")
-				? null
-				: "src/pages/api/booking/confirm.ts: financial shadow write must read all room snapshots",
-			confirmSource.includes("const roomTotal = bookingDetails.reduce")
-				? null
-				: "src/pages/api/booking/confirm.ts: financial shadow write must aggregate multi-room totals",
-			confirmSource.includes("const finalTotal = roomTotal > 0 ? roomTotal : fallbackFinal")
-				? null
-				: "src/pages/api/booking/confirm.ts: financial shadow write must prefer room snapshot totals",
 		].filter(Boolean)
 
 		expect(
@@ -167,7 +155,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			"hasRefundReference",
 			"multiRoomAllocationCount",
 			"refund_handoff_visibility",
-			"settlement_shadow_context_visible",
+			"settlement_evidence_context_visible",
 			"visibility_not_psp_orchestration",
 			"evidence_matched",
 			"evidence_partial",
@@ -195,7 +183,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 					? [`Financial Operations uses fake lifecycle naming ${signal}`]
 					: []
 			),
-			page.includes("operation?.transactions?.financialEvidence?.paymentIntentShadow")
+			page.includes("operation?.transactions?.financialEvidence?.paymentEvidence")
 				? null
 				: `${financialPage}: transaction column must render financial evidence semantics`,
 			page.includes("operation?.operationalException?.all")

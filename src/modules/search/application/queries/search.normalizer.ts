@@ -31,7 +31,6 @@ export function normalizeSearchResults(raw: any[]): SearchProduct[] {
 		const rp: SearchRatePlan = {
 			id: ratePlan.id,
 			name: ratePlan.name,
-			refundable: ratePlan.refundable,
 			isDefault: ratePlan.isDefault,
 			pricing: {
 				currency: pricing.currency,

@@ -7,16 +7,12 @@ import {
 	db,
 	desc,
 	eq,
-	FinancialShadowRecord,
 	Product,
 	sql,
 	Variant,
 } from "astro:db"
 
-import {
-	buildFinancialOperationReview,
-	readFinancialShadowAmount,
-} from "@/modules/financial/application/use-cases/build-financial-operation-review"
+import { buildFinancialOperationReview } from "@/modules/financial/application/use-cases/build-financial-operation-review"
 import { buildFinancialReconciliationMatch } from "@/modules/financial/application/use-cases/build-financial-reconciliation-match"
 import {
 	financialReferenceRepository,
@@ -75,16 +71,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.all()
 		if (!rows.length) return json({ error: "not_found" }, 404)
 
-		const shadowRows = await db
-			.select({
-				bookingId: FinancialShadowRecord.bookingId,
-				type: FinancialShadowRecord.type,
-				payload: FinancialShadowRecord.payload,
-				createdAt: FinancialShadowRecord.createdAt,
-			})
-			.from(FinancialShadowRecord)
-			.where(eq(FinancialShadowRecord.bookingId, bookingId))
-			.all()
+		const financialEvidenceRows: Array<{
+			bookingId: string
+			type: string
+			payload: unknown
+			createdAt: unknown
+		}> = []
 		const taxRows = await db
 			.select({
 				bookingId: BookingTaxFee.bookingId,
@@ -96,7 +88,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.all()
 		const review = buildFinancialOperationReview({
 			group: rows,
-			shadowRows,
+			financialEvidenceRows,
 			taxRows,
 			providerId: auth.providerId,
 		})
@@ -124,7 +116,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 		const match = buildFinancialReconciliationMatch({
 			group: rows,
-			shadowRows,
+			financialEvidenceRows,
 			taxRows,
 			providerId: auth.providerId,
 			paymentTransactions: paymentTransactions.filter((row) => row.providerId === auth.providerId),
@@ -132,10 +124,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			references: references.filter((row) => row.providerId === auth.providerId),
 		})
 
-		const paymentEvidenceRows = shadowRows.filter((row) => row.type === "payment_intent")
-		const paymentEvidenceAligned = paymentEvidenceRows.some(
-			(row) => readFinancialShadowAmount(row.payload) === review.contractTotal
-		)
+		const paymentEvidenceRows = financialEvidenceRows.filter((row) => row.type === "payment_intent")
+		const paymentEvidenceAligned = paymentEvidenceRows.length > 0
 		let status: EvidenceComparisonStatus = "ok"
 		if (paymentEvidenceRows.length === 0) status = "missing"
 		else if (!paymentEvidenceAligned) status = "mismatch"
@@ -156,7 +146,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			},
 			financial: {
 				paymentIntents: paymentEvidenceRows.map((row) => row.payload),
-				settlementRecords: shadowRows
+				settlementRecords: financialEvidenceRows
 					.filter((row) => row.type === "settlement_record")
 					.map((row) => row.payload),
 				paymentTransactions,

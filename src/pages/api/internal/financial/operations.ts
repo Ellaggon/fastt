@@ -7,7 +7,6 @@ import {
 	db,
 	desc,
 	eq,
-	FinancialShadowRecord,
 	inArray,
 	Product,
 	sql,
@@ -85,31 +84,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.all()
 
 		const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
-		let shadowRows: Array<{
+		const financialEvidenceRows: Array<{
 			bookingId: string
 			type: string
 			payload: unknown
 			createdAt: unknown
 		}> = []
-		if (bookingIds.length) {
-			try {
-				shadowRows = await db
-					.select({
-						bookingId: FinancialShadowRecord.bookingId,
-						type: FinancialShadowRecord.type,
-						payload: FinancialShadowRecord.payload,
-						createdAt: FinancialShadowRecord.createdAt,
-					})
-					.from(FinancialShadowRecord)
-					.where(inArray(FinancialShadowRecord.bookingId, bookingIds))
-					.all()
-			} catch (error) {
-				console.warn("financial_shadow_lookup_degraded", {
-					providerId,
-					error: error instanceof Error ? error.message : "unknown",
-				})
-			}
-		}
 		let taxRows: Array<{
 			bookingId: string
 			totalAmount: unknown
@@ -134,11 +114,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 			}
 		}
 
-		const shadowByBooking = new Map<string, typeof shadowRows>()
-		for (const row of shadowRows) {
-			const bucket = shadowByBooking.get(row.bookingId) ?? []
+		const financialEvidenceByBooking = new Map<string, typeof financialEvidenceRows>()
+		for (const row of financialEvidenceRows) {
+			const bucket = financialEvidenceByBooking.get(row.bookingId) ?? []
 			bucket.push(row)
-			shadowByBooking.set(row.bookingId, bucket)
+			financialEvidenceByBooking.set(row.bookingId, bucket)
 		}
 		const taxByBooking = new Map<string, typeof taxRows>()
 		for (const row of taxRows) {
@@ -158,7 +138,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const first = group[0]
 			return buildFinancialOperationReview({
 				group,
-				shadowRows: shadowByBooking.get(first.bookingId) ?? [],
+				financialEvidenceRows: financialEvidenceByBooking.get(first.bookingId) ?? [],
 				taxRows: taxByBooking.get(first.bookingId) ?? [],
 				providerId,
 			})
@@ -198,9 +178,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			openExceptions: items.filter((item) => item.operationalException.hasOpenException).length,
 			contractValue: Number(items.reduce((sum, item) => sum + item.contractTotal, 0).toFixed(2)),
 			taxesVisible: Number(items.reduce((sum, item) => sum + item.taxesTotal, 0).toFixed(2)),
-			commissionVisible: Number(
-				items.reduce((sum, item) => sum + item.commissionTotal, 0).toFixed(2)
-			),
 			refundHandoffPending: items.filter(
 				(item) => item.evidenceAlignment.state === "handoff_pending"
 			).length,

@@ -19,14 +19,10 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			}
 
 			/* ---------------- TEMPLATE ---------------- */
-			// paymentType/refundable are retained only as merchandising hints for rate-plan UI.
-			// CAPA 6 policies are the contractual source persisted in holds/bookings.
 			await tx.insert(RatePlanTemplate).values({
 				id: cmd.template.id,
 				name: cmd.template.name,
 				description: cmd.template.description,
-				paymentType: cmd.template.paymentType,
-				refundable: cmd.template.refundable,
 				createdAt: cmd.template.createdAt,
 			})
 
@@ -77,8 +73,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 		template: {
 			name: string
 			description: string | null
-			paymentType: string
-			refundable: boolean
 		}
 		priceRule: null | {
 			id: string
@@ -118,9 +112,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				.set({
 					name: params.template.name,
 					description: params.template.description ?? null,
-					// Deprecated merchandising hints; do not use as contractual terms.
-					paymentType: params.template.paymentType,
-					refundable: Boolean(params.template.refundable),
 				})
 				.where(eq(RatePlanTemplate.id, ratePlan.templateId))
 

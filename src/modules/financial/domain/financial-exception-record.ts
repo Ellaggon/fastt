@@ -23,7 +23,7 @@ export type FinancialExceptionCode = (typeof FINANCIAL_EXCEPTION_CODES)[number]
 export type FinancialExceptionSeverity = "review" | "attention"
 export type FinancialExceptionBasis =
 	| "contract_snapshot"
-	| "financial_shadow_record"
+	| "financial_evidence"
 	| "refund_handoff"
 	| "legacy_fallback"
 export type FinancialNextOwner =
@@ -37,7 +37,7 @@ export type FinancialExceptionSource =
 	| "derived_queue"
 	| "operator_review"
 	| "refund_handoff"
-	| "shadow_record"
+	| "financial_evidence"
 
 export type FinancialExceptionRecord = {
 	id: string

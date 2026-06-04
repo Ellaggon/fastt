@@ -10,7 +10,6 @@ import {
 	RatePlan,
 	Variant,
 } from "astro:db"
-import { ensurePolicySchemaCompatibility } from "./policySchemaCompat"
 
 export type OwnedPolicyScopeIds = {
 	productIds: string[]
@@ -74,7 +73,6 @@ export async function getOwnedPolicyGroupIds(
 	providerId: string,
 	opts: { activeOnly?: boolean } = {}
 ): Promise<string[]> {
-	await ensurePolicySchemaCompatibility()
 	const owned = await getOwnedPolicyScopeIds(providerId)
 	const scopePredicates = [
 		owned.productIds.length

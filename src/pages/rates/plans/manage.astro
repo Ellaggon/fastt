@@ -187,8 +187,6 @@ const variantChoices = Array.from(
 										data-intent-id={preset.id}
 										data-name={preset.name}
 										data-description={preset.description}
-										data-payment-type={preset.paymentType}
-										data-refundable={String(preset.refundable)}
 										data-type={preset.type}
 										data-value={String(preset.value)}
 										data-min-nights={String(preset.minNights ?? "")}
@@ -241,16 +239,6 @@ const variantChoices = Array.from(
 								type="hidden"
 								name="description"
 								value={ratePlanIntentPresets[0].description}
-							/>
-							<input
-								type="hidden"
-								name="paymentType"
-								value={ratePlanIntentPresets[0].paymentType}
-							/>
-							<input
-								type="hidden"
-								name="refundable"
-								value={String(ratePlanIntentPresets[0].refundable)}
 							/>
 							<input type="hidden" name="type" value={ratePlanIntentPresets[0].type} />
 							<input type="hidden" name="value" value={String(ratePlanIntentPresets[0].value)} />
@@ -321,8 +309,6 @@ const variantChoices = Array.from(
 		})
 		setHiddenValue(form, "name", card.dataset.name)
 		setHiddenValue(form, "description", card.dataset.description)
-		setHiddenValue(form, "paymentType", card.dataset.paymentType)
-		setHiddenValue(form, "refundable", card.dataset.refundable)
 		setHiddenValue(form, "type", card.dataset.type)
 		setHiddenValue(form, "value", card.dataset.value)
 		setHiddenValue(form, "minNights", card.dataset.minNights)
@@ -351,8 +337,6 @@ const variantChoices = Array.from(
 			variantId: String(formData.get("variantId") || ""),
 			name: String(formData.get("name") || ""),
 			description: String(formData.get("description") || ""),
-			paymentType: String(formData.get("paymentType") || ""),
-			refundable: String(formData.get("refundable") || "") === "true",
 			type: String(formData.get("type") || "package"),
 			value: Number(formData.get("value") || 0),
 			minNights: Number(formData.get("minNights") || 0) || undefined,

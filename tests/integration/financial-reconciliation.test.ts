@@ -7,7 +7,6 @@ import {
 	db,
 	EffectivePricingV2,
 	eq,
-	FinancialShadowRecord,
 	InventoryLock,
 	RatePlan,
 	RatePlanTemplate,
@@ -311,16 +310,10 @@ async function createHold(params: {
 	return holdId
 }
 
-async function confirmBooking(params: {
-	token: string
-	holdId: string
-	enableFinancialShadow: boolean
-}) {
+async function confirmBooking(params: { token: string; holdId: string }) {
 	const confirmForm = new FormData()
 	confirmForm.set("holdId", params.holdId)
-	const path = params.enableFinancialShadow
-		? "/api/booking/confirm?FINANCIAL_SHADOW_WRITE=1"
-		: "/api/booking/confirm?FINANCIAL_SHADOW_WRITE=0"
+	const path = "/api/booking/confirm"
 	const res = await bookingConfirmPost({
 		request: makeAuthedFormRequest({ path, token: params.token, form: confirmForm }),
 	} as any)
@@ -342,7 +335,7 @@ async function callReconciliation(bookingId: string, token: string) {
 }
 
 describe("integration/financial reconciliation", () => {
-	it("Case 1: returns ok on happy path with financial shadow write enabled", async () => {
+	it("Case 1: does not create legacy financial evidence during booking confirm", async () => {
 		const token = "t_finrec_happy"
 		const email = "finrec-happy@example.com"
 		const providerId = `prov_finrec_happy_${crypto.randomUUID()}`
@@ -364,22 +357,20 @@ describe("integration/financial reconciliation", () => {
 
 		await withSupabaseAuthStub({ [token]: { id: "u_finrec_happy", email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
-			const bookingId = await confirmBooking({ token, holdId, enableFinancialShadow: true })
+			const bookingId = await confirmBooking({ token, holdId })
 			const payload = await callReconciliation(bookingId, token)
 
-			expect(payload.reconciliation.status).toBe("ok")
+			expect(payload.reconciliation.status).toBe("missing")
+			expect(payload.match.status).toBe("missing_payment")
 			expect(payload.booking.bookingId).toBe(bookingId)
 			expect(Number(payload.booking.finalTotal)).toBeGreaterThan(0)
 			expect(payload.booking.currency).toBe("USD")
-			expect(payload.financial.paymentIntents.length).toBe(1)
-			expect(payload.financial.settlementRecords.length).toBe(1)
-			expect(Number(payload.financial.paymentIntents[0].amount)).toBe(
-				Number(payload.booking.finalTotal)
-			)
+			expect(payload.financial.paymentIntents.length).toBe(0)
+			expect(payload.financial.settlementRecords.length).toBe(0)
 		})
 	})
 
-	it("Case 2: returns missing when shadow write is disabled", async () => {
+	it("Case 2: returns missing when no external financial evidence exists", async () => {
 		const token = "t_finrec_missing"
 		const email = "finrec-missing@example.com"
 		const providerId = `prov_finrec_missing_${crypto.randomUUID()}`
@@ -401,72 +392,17 @@ describe("integration/financial reconciliation", () => {
 
 		await withSupabaseAuthStub({ [token]: { id: "u_finrec_missing", email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
-			const bookingId = await confirmBooking({ token, holdId, enableFinancialShadow: false })
+			const bookingId = await confirmBooking({ token, holdId })
 			const payload = await callReconciliation(bookingId, token)
 
 			expect(payload.reconciliation.status).toBe("missing")
+			expect(payload.match.status).toBe("missing_payment")
 			expect(payload.financial.paymentIntents.length).toBe(0)
 			expect(payload.financial.settlementRecords.length).toBe(0)
 		})
 	})
 
-	it("Case 3: returns mismatch when financial amount diverges from booking total", async () => {
-		const token = "t_finrec_mismatch"
-		const email = "finrec-mismatch@example.com"
-		const providerId = `prov_finrec_mismatch_${crypto.randomUUID()}`
-		const productId = `prod_finrec_mismatch_${crypto.randomUUID()}`
-		const variantId = `var_finrec_mismatch_${crypto.randomUUID()}`
-		const ratePlanId = `rp_finrec_mismatch_${crypto.randomUUID()}`
-		const checkIn = "2026-08-10"
-		const checkOut = "2026-08-12"
-
-		await seedBookingReadyVariant({
-			productId,
-			providerId,
-			ownerEmail: email,
-			variantId,
-			ratePlanId,
-			totalUnits: 2,
-			dates: ["2026-08-10", "2026-08-11", "2026-08-12"],
-		})
-
-		await withSupabaseAuthStub({ [token]: { id: "u_finrec_mismatch", email } }, async () => {
-			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
-			const bookingId = await confirmBooking({ token, holdId, enableFinancialShadow: true })
-
-			const paymentRow = await db
-				.select({
-					id: FinancialShadowRecord.id,
-					payload: FinancialShadowRecord.payload,
-				})
-				.from(FinancialShadowRecord)
-				.where(
-					and(
-						eq(FinancialShadowRecord.bookingId, bookingId),
-						eq(FinancialShadowRecord.type, "payment_intent")
-					)
-				)
-				.get()
-			expect(paymentRow).toBeTruthy()
-			const payload = (paymentRow?.payload ?? {}) as Record<string, unknown>
-
-			await db
-				.update(FinancialShadowRecord)
-				.set({
-					payload: {
-						...payload,
-						amount: Number(payload.amount ?? 0) + 7.25,
-					},
-				} as any)
-				.where(eq(FinancialShadowRecord.id, String(paymentRow?.id)))
-				.run()
-
-			const evidenceComparison = await callReconciliation(bookingId, token)
-			expect(evidenceComparison.reconciliation.status).toBe("mismatch")
-		})
-	})
-
-	it("Case 4: remains idempotent on double booking confirm and keeps reconciliation ok", async () => {
+	it("Case 3: remains idempotent on double booking confirm without legacy financial rows", async () => {
 		const token = "t_finrec_idempotent"
 		const email = "finrec-idempotent@example.com"
 		const providerId = `prov_finrec_idempotent_${crypto.randomUUID()}`
@@ -490,7 +426,7 @@ describe("integration/financial reconciliation", () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const confirmForm = new FormData()
 			confirmForm.set("holdId", holdId)
-			const path = "/api/booking/confirm?FINANCIAL_SHADOW_WRITE=1"
+			const path = "/api/booking/confirm"
 			const confirmOnce = async () =>
 				bookingConfirmPost({
 					request: makeAuthedFormRequest({ path, token, form: confirmForm }),
@@ -514,25 +450,12 @@ describe("integration/financial reconciliation", () => {
 			expect(lockRows.length).toBe(2)
 			expect(lockRows.every((row: any) => String(row.bookingId ?? "") === bookingId)).toBe(true)
 
-			const financialRows = await db
-				.select({
-					id: FinancialShadowRecord.id,
-					type: FinancialShadowRecord.type,
-					idempotencyKey: FinancialShadowRecord.idempotencyKey,
-				})
-				.from(FinancialShadowRecord)
-				.where(eq(FinancialShadowRecord.bookingId, bookingId))
-				.all()
-			expect(financialRows.filter((row) => row.type === "payment_intent")).toHaveLength(1)
-			expect(financialRows.filter((row) => row.type === "settlement_record")).toHaveLength(1)
-			const uniqueKeys = new Set(financialRows.map((row) => String(row.idempotencyKey ?? "")))
-			expect(uniqueKeys.size).toBe(financialRows.length)
-
 			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
 			expect(bookingRows).toHaveLength(1)
 
 			const evidenceComparison = await callReconciliation(bookingId, token)
-			expect(evidenceComparison.reconciliation.status).toBe("ok")
+			expect(evidenceComparison.reconciliation.status).toBe("missing")
+			expect(evidenceComparison.match.status).toBe("missing_payment")
 		})
 	})
 })

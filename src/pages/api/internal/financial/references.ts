@@ -20,12 +20,7 @@ const allowedTypes = new Set([
 	"settlement_evidence",
 	"invoice_reference",
 ])
-const allowedSources = new Set([
-	"operator_entry",
-	"financial_shadow_record",
-	"legacy_payload",
-	"import",
-])
+const allowedSources = new Set(["operator_entry", "legacy_payload", "import"])
 const allowedBasis = new Set([
 	"financial_evidence",
 	"external_reference",
