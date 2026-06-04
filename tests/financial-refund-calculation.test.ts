@@ -54,7 +54,7 @@ function policySnapshot(): HoldPolicySnapshot {
 							penaltyAmount: 50,
 							refundPercent: 50,
 							refundBasis: "nightly_rate",
-							taxesFeesBasis: "refund_basis",
+							taxesFeesBasis: "pro_rated",
 							payoutImpact: {
 								payoutBasis: "host_payout",
 								hostPayoutPercent: 50,
@@ -63,11 +63,21 @@ function policySnapshot(): HoldPolicySnapshot {
 						},
 					],
 					freeCancellationDeadlineLocal: null,
-					taxesFeesBasis: "refund_basis",
+					taxesFeesBasis: "pro_rated",
 					payoutImpact: {
 						payoutBasis: "host_payout",
 						hostPayoutPercent: 50,
 						platformAbsorbsRefund: false,
+					},
+					stayLength: {
+						nights: 2,
+						type: "short_stay",
+						thresholdNights: 28,
+						isLongStay: false,
+					},
+					gracePeriod: {
+						hoursAfterBooking: 24,
+						requiresDaysBeforeArrival: 2,
 					},
 				},
 				payment: null,
@@ -147,10 +157,81 @@ describe("financial/refund calculation engine", () => {
 				sourcePolicyVersion: 3,
 				sourcePolicyPresetKey: "moderate",
 				deadlineLocal: "2030-02-03T00:00:00[America/Santiago]",
-				taxesFeesBasis: "refund_basis",
+				taxesFeesBasis: "pro_rated",
 				payoutBasis: "host_payout",
+				hostPayoutPercent: 50,
+				hostPayoutAmount: 600,
+				hostCancellationFeeAmount: 0,
+				rebookingCreditAmount: 0,
 			})
 		)
+	})
+
+	it("applies the real post-booking grace period before the normal tier", () => {
+		const quote = buildRefundQuote({
+			bookingId: "booking_grace",
+			providerId: "provider_1",
+			reason: "guest_cancelled",
+			currency: "USD",
+			grossAmount: 1200,
+			bookedAt: new Date("2030-01-31T10:00:00.000Z"),
+			cancelledAt: new Date("2030-02-01T09:00:00.000Z"),
+			policySnapshot: policySnapshot(),
+		})
+
+		expect(quote.refundPercent).toBe(100)
+		expect(quote.refundAmount).toBe(1200)
+		expect((quote.calculationSnapshotJson as any).gracePeriod).toEqual(
+			expect.objectContaining({ applied: true })
+		)
+		expect(quote.policySnapshot.deadlineLocal).toBe("grace_period")
+	})
+
+	it("separates host cancellation fee and rebooking credit overrides", () => {
+		const snapshot = policySnapshot()
+		snapshot.cancellation!.appliedOverrides = [
+			{
+				id: "per_rebook",
+				type: "rebooking_refund",
+				reason: "Guest accepted rebooking credit",
+				priority: 1,
+				source: "PolicyExceptionRule",
+				action: { rebookingCreditPercent: 20 },
+			},
+		]
+		const rebookingQuote = buildRefundQuote({
+			bookingId: "booking_rebooking",
+			providerId: "provider_1",
+			reason: "guest_cancelled",
+			currency: "USD",
+			grossAmount: 1000,
+			cancelledAt: new Date("2030-02-01T12:00:00.000Z"),
+			policySnapshot: snapshot,
+		})
+		expect(rebookingQuote.policySnapshot.rebookingCreditAmount).toBe(200)
+		expect((rebookingQuote.calculationSnapshotJson as any).rebookingCreditAmount).toBe(200)
+
+		snapshot.cancellation!.appliedOverrides = [
+			{
+				id: "per_host_cancel",
+				type: "host_cancellation",
+				reason: "Host cancelled",
+				priority: 1,
+				source: "PolicyExceptionRule",
+				action: { hostCancellationFeeAmount: 75 },
+			},
+		]
+		const hostCancelQuote = buildRefundQuote({
+			bookingId: "booking_host_cancel",
+			providerId: "provider_1",
+			reason: "host_cancelled",
+			currency: "USD",
+			grossAmount: 1000,
+			cancelledAt: new Date("2030-02-01T12:00:00.000Z"),
+			policySnapshot: snapshot,
+		})
+		expect(hostCancelQuote.policySnapshot.hostCancellationFeeAmount).toBe(75)
+		expect((hostCancelQuote.calculationSnapshotJson as any).hostCancellationFeeAmount).toBe(75)
 	})
 
 	it("records a RefundLedger entry from a quoted RefundQuote", () => {
@@ -225,7 +306,12 @@ describe("financial/refund calculation engine", () => {
 			async findQuotesByBookingId(bookingId) {
 				return [...quotes.values()].filter((quote) => quote.bookingId === bookingId)
 			},
+			async findLedgerByQuoteId(refundQuoteId) {
+				return ledgers.find((entry) => entry.refundQuoteId === refundQuoteId) ?? null
+			},
 			async recordLedgerEntry(entry) {
+				const existing = ledgers.find((row) => row.refundQuoteId === entry.refundQuoteId)
+				if (existing) return existing
 				ledgers.push(entry)
 				return entry
 			},
@@ -273,5 +359,38 @@ describe("financial/refund calculation engine", () => {
 		expect(duplicate.quote.id).toBe(saved.quote.id)
 		expect(ledger.refundQuoteId).toBe(saved.quote.id)
 		expect(await repo.findLedgerByBookingId("booking_4")).toHaveLength(1)
+	})
+
+	it("rejects refund ledger recording when the quote was not persisted first", async () => {
+		const repo: RefundCalculationRepositoryPort = {
+			async saveQuoteIfAbsentByIdempotencyKey(quote) {
+				return { quote, created: true }
+			},
+			async findQuoteById() {
+				return null
+			},
+			async findQuotesByBookingId() {
+				return []
+			},
+			async findLedgerByQuoteId() {
+				return null
+			},
+			async recordLedgerEntry() {
+				throw new Error("should not record without quote")
+			},
+			async findLedgerByBookingId() {
+				return []
+			},
+		}
+
+		await expect(
+			recordRefundLedgerFromQuote(
+				{ repo },
+				{
+					refundQuoteId: "missing_quote",
+					appliedAt: new Date("2030-02-01T13:00:00.000Z"),
+				}
+			)
+		).rejects.toThrow("REFUND_QUOTE_NOT_FOUND")
 	})
 })

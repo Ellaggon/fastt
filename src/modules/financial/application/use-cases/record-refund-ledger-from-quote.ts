@@ -13,6 +13,8 @@ export async function recordRefundLedgerFromQuote(
 ) {
 	const quote = await deps.repo.findQuoteById(String(input.refundQuoteId ?? "").trim())
 	if (!quote) throw new Error("REFUND_QUOTE_NOT_FOUND")
+	const existing = await deps.repo.findLedgerByQuoteId(quote.id)
+	if (existing) return existing
 	const entry = buildRefundLedgerEntry({
 		quote,
 		paymentTransactionId: input.paymentTransactionId,

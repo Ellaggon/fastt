@@ -21,6 +21,7 @@ describe("policies/policy preset catalog", () => {
 			expect(preset?.rules).toEqual(
 				expect.objectContaining({
 					cancellationPreset: key,
+					stayLengthThresholdNights: 28,
 					refundTiers: expect.any(Array),
 				})
 			)
@@ -28,6 +29,22 @@ describe("policies/policy preset catalog", () => {
 		}
 
 		expect(POLICY_PRESET_CATALOG.filter((item) => item.category === "Cancellation")).toHaveLength(7)
+		expect(resolvePolicyPreset("long_term", "Cancellation")?.rules).toEqual(
+			expect.objectContaining({
+				minStayNights: 28,
+				stayLengthType: "long_stay",
+				taxRefundProration: "same_as_room_refund",
+				hostPayoutBasis: "collected_less_refund",
+			})
+		)
+		expect(resolvePolicyPreset("flexible", "Cancellation")?.rules).toEqual(
+			expect.objectContaining({
+				maxStayNights: 27,
+				gracePeriodHoursAfterBooking: 24,
+				gracePeriodRequiresDaysBeforeArrival: 2,
+				taxesFeesBasis: "pro_rated",
+			})
+		)
 	})
 
 	it("creates a policy from a preset without hand-written rules or descriptions", async () => {

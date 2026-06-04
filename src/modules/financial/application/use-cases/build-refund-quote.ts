@@ -16,6 +16,7 @@ export type BuildRefundQuoteInput = {
 	currency: string
 	grossAmount: number
 	cancelledAt: Date
+	bookedAt?: Date | null
 	policySnapshot: HoldPolicySnapshot
 	lines?: RefundQuoteMoneyLine[]
 	id?: string
@@ -40,6 +41,12 @@ function deadlineTime(value: string | null): number {
 	const isoish = value.replace(/\[[^\]]+\]$/, "Z")
 	const time = new Date(isoish).getTime()
 	return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY
+}
+
+function dateOnlyTime(value: string | null | undefined): number | null {
+	if (!value) return null
+	const time = new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`).getTime()
+	return Number.isFinite(time) ? time : null
 }
 
 function selectCancellationTier(
@@ -75,6 +82,37 @@ function defaultLines(input: BuildRefundQuoteInput): RefundQuoteMoneyLine[] {
 	]
 }
 
+function daysBeforeArrival(policySnapshot: HoldPolicySnapshot, cancelledAt: Date): number | null {
+	const checkInTime = dateOnlyTime(policySnapshot.meta?.checkIn)
+	if (checkInTime == null) return null
+	return Math.ceil((checkInTime - cancelledAt.getTime()) / 86_400_000)
+}
+
+function isWithinGracePeriod(input: BuildRefundQuoteInput): boolean {
+	const cancellation = input.policySnapshot.cancellation?.calculation?.cancellation
+	const grace = cancellation?.gracePeriod
+	const hours = Number(grace?.hoursAfterBooking ?? 0)
+	if (!hours || hours <= 0 || !input.bookedAt) return false
+	const elapsedHours = (input.cancelledAt.getTime() - input.bookedAt.getTime()) / 3_600_000
+	if (elapsedHours < 0 || elapsedHours > hours) return false
+	const requiredDays = grace?.requiresDaysBeforeArrival
+	if (requiredDays == null) return true
+	const days = daysBeforeArrival(input.policySnapshot, input.cancelledAt)
+	return days == null ? false : days >= requiredDays
+}
+
+function moneyFromAmountOrPercent(params: {
+	amount?: unknown
+	percent?: unknown
+	grossAmount: number
+}): number {
+	const amount = Number(params.amount ?? NaN)
+	if (Number.isFinite(amount)) return roundMoney(Math.max(0, amount))
+	const percent = clampPercent(params.percent)
+	if (percent == null) return 0
+	return roundMoney((params.grossAmount * percent) / 100)
+}
+
 export function buildRefundQuote(input: BuildRefundQuoteInput): RefundQuote {
 	const bookingId = String(input.bookingId ?? "").trim()
 	const providerId = String(input.providerId ?? "").trim()
@@ -86,7 +124,8 @@ export function buildRefundQuote(input: BuildRefundQuoteInput): RefundQuote {
 	if (!currency) throw new Error("currency is required")
 
 	const tier = selectCancellationTier(input.policySnapshot, input.cancelledAt)
-	const refundPercent = clampPercent(tier?.refundPercent)
+	const graceApplies = isWithinGracePeriod(input)
+	const refundPercent = graceApplies ? 100 : clampPercent(tier?.refundPercent)
 	const effectiveRefundPercent = refundPercent ?? 0
 	const taxesFeesBasis =
 		tier?.taxesFeesBasis ??
@@ -94,10 +133,14 @@ export function buildRefundQuote(input: BuildRefundQuoteInput): RefundQuote {
 		"manual_review"
 	const payoutImpact =
 		tier?.payoutImpact ?? input.policySnapshot.cancellation?.calculation?.cancellation?.payoutImpact
+	const appliedOverride = input.policySnapshot.cancellation?.appliedOverrides?.[0] ?? null
 	const lines: RefundQuoteLine[] = defaultLines(input).map((line) => {
 		const refundable =
 			line.refundable !== false &&
-			(line.type === "base" || taxesFeesBasis === "refund_basis" || line.type === "adjustment")
+			(line.type === "base" ||
+				taxesFeesBasis === "refund_basis" ||
+				taxesFeesBasis === "pro_rated" ||
+				line.type === "adjustment")
 		const lineRefundPercent = refundable ? effectiveRefundPercent : 0
 		return {
 			type: line.type,
@@ -112,8 +155,26 @@ export function buildRefundQuote(input: BuildRefundQuoteInput): RefundQuote {
 	const refundAmount = roundMoney(lines.reduce((sum, line) => sum + line.refundAmount, 0))
 	const grossAmount = roundMoney(input.grossAmount)
 	const payoutPercent = clampPercent(payoutImpact?.hostPayoutPercent)
+	const hostPayoutAmount =
+		payoutPercent == null ? null : roundMoney((grossAmount * Math.max(0, payoutPercent)) / 100)
 	const payoutImpactAmount =
 		payoutPercent == null ? 0 : roundMoney((grossAmount * Math.max(0, 100 - payoutPercent)) / 100)
+	const hostCancellationFeeAmount =
+		appliedOverride?.type === "host_cancellation"
+			? moneyFromAmountOrPercent({
+					amount: appliedOverride.action.hostCancellationFeeAmount,
+					percent: appliedOverride.action.hostCancellationFeePercent,
+					grossAmount,
+				})
+			: 0
+	const rebookingCreditAmount =
+		appliedOverride?.type === "rebooking_refund"
+			? moneyFromAmountOrPercent({
+					amount: appliedOverride.action.rebookingCreditAmount,
+					percent: appliedOverride.action.rebookingCreditPercent,
+					grossAmount,
+				})
+			: 0
 	const cancellation = input.policySnapshot.cancellation
 	const payment = input.policySnapshot.payment
 	const status = refundPercent == null ? "requires_manual_review" : "quoted"
@@ -141,15 +202,31 @@ export function buildRefundQuote(input: BuildRefundQuoteInput): RefundQuote {
 			sourcePolicyId: cancellation?.source?.policyId ?? cancellation?.policyId ?? null,
 			sourcePolicyVersion: cancellation?.source?.version ?? cancellation?.version ?? null,
 			sourcePolicyPresetKey: cancellation?.source?.policyPresetKey ?? null,
-			deadlineLocal: tier?.deadlineLocal ?? null,
+			deadlineLocal: graceApplies ? "grace_period" : (tier?.deadlineLocal ?? null),
 			refundBasis: tier?.refundBasis ?? null,
 			taxesFeesBasis,
 			payoutBasis: payoutImpact?.payoutBasis ?? null,
+			hostPayoutPercent: payoutPercent,
+			hostPayoutAmount,
+			hostCancellationFeeAmount,
+			rebookingCreditAmount,
 			appliedOverrideIds: cancellation?.appliedOverrides?.map((override) => override.id) ?? [],
 		},
 		lines,
 		calculationSnapshotJson: {
 			selectedCancellationTier: tier,
+			gracePeriod: {
+				applied: graceApplies,
+				bookedAt: input.bookedAt?.toISOString() ?? null,
+				cancelledAt: input.cancelledAt.toISOString(),
+			},
+			hostPayout: {
+				hostPayoutPercent: payoutPercent,
+				hostPayoutAmount,
+				payoutImpactAmount,
+			},
+			hostCancellationFeeAmount,
+			rebookingCreditAmount,
 			cancellationCalculation: cancellation?.calculation ?? null,
 			paymentCalculation: payment?.calculation ?? null,
 			noShowCalculation: input.policySnapshot.no_show?.calculation ?? null,

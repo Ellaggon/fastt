@@ -17,6 +17,8 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 		"ProviderPayableSnapshot",
 		"PayoutRecord",
 		"ProviderStatement",
+		"RefundQuote",
+		"RefundLedger",
 	])
 
 	it("allows Stage 2 workflow writes only to financial workflow tables", () => {

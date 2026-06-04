@@ -24,7 +24,7 @@ export type PolicyCalculationSnapshot = {
 			penaltyAmount: number | null
 			refundPercent: number | null
 			refundBasis: string | null
-			taxesFeesBasis: "refund_basis" | "non_refundable" | "manual_review"
+			taxesFeesBasis: "refund_basis" | "pro_rated" | "non_refundable" | "manual_review"
 			payoutImpact: {
 				payoutBasis: string | null
 				hostPayoutPercent: number | null
@@ -32,11 +32,21 @@ export type PolicyCalculationSnapshot = {
 			}
 		}>
 		freeCancellationDeadlineLocal: string | null
-		taxesFeesBasis: "refund_basis" | "non_refundable" | "manual_review"
+		taxesFeesBasis: "refund_basis" | "pro_rated" | "non_refundable" | "manual_review"
 		payoutImpact: {
 			payoutBasis: string | null
 			hostPayoutPercent: number | null
 			platformAbsorbsRefund: boolean
+		}
+		stayLength: {
+			nights: number | null
+			type: string | null
+			thresholdNights: number
+			isLongStay: boolean | null
+		}
+		gracePeriod: {
+			hoursAfterBooking: number
+			requiresDaysBeforeArrival: number | null
 		}
 	} | null
 	payment: {
@@ -73,6 +83,15 @@ function localDeadline(dateOnly: string, daysBeforeArrival: number, timezone: st
 	return `${dateOnlyMinusDays(dateOnly, daysBeforeArrival)}T00:00:00[${timezone}]`
 }
 
+function nightsBetween(from: string, to?: string | null): number | null {
+	const start = new Date(`${String(from).slice(0, 10)}T00:00:00.000Z`)
+	const end = new Date(`${String(to ?? "").slice(0, 10)}T00:00:00.000Z`)
+	if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+		return null
+	}
+	return Math.round((end.getTime() - start.getTime()) / 86_400_000)
+}
+
 function rulesMap(rules: unknown[]): Record<string, unknown> {
 	const out: Record<string, unknown> = {}
 	for (const rule of Array.isArray(rules) ? rules : []) {
@@ -105,7 +124,16 @@ function overrideSnapshot(override: AppliedPolicyExceptionRule | null) {
 	}
 }
 
-function taxesFeesBasis(refundBasis: string | null, refundPercent: number | null) {
+function taxesFeesBasis(
+	refundBasis: string | null,
+	refundPercent: number | null,
+	configured?: unknown
+) {
+	const configuredBasis = String(configured ?? "").trim()
+	if (configuredBasis === "pro_rated") return "pro_rated" as const
+	if (configuredBasis === "refund_basis") return "refund_basis" as const
+	if (configuredBasis === "non_refundable") return "non_refundable" as const
+	if (configuredBasis === "manual_review") return "manual_review" as const
 	if (refundBasis == null) return "manual_review" as const
 	if (Number(refundPercent ?? 0) <= 0) return "non_refundable" as const
 	return "refund_basis" as const
@@ -131,6 +159,7 @@ export function buildPolicyCalculationSnapshot(params: {
 	category: PolicyCalculationCategory
 	policy: ResolveEffectivePoliciesResult["policies"][number]["policy"]
 	checkIn: string
+	checkOut?: string | null
 	exceptionRules?: PolicyExceptionRule[]
 	resolvedFromScope?: string | null
 	scopeId?: string | null
@@ -155,6 +184,22 @@ export function buildPolicyCalculationSnapshot(params: {
 		override?.action.payoutOverrideBasis == null
 			? null
 			: String(override.action.payoutOverrideBasis)
+	const configuredTaxesFeesBasis = mappedRules.taxesFeesBasis
+	const stayNights = nightsBetween(params.checkIn, params.checkOut)
+	const thresholdNights = Number(mappedRules.stayLengthThresholdNights ?? 28)
+	const stayLengthType =
+		params.policy.stayLengthType == null ? null : String(params.policy.stayLengthType)
+	const graceHours = Number(
+		params.policy.gracePeriod ?? mappedRules.gracePeriodHoursAfterBooking ?? 0
+	)
+	const graceRequiresDaysBeforeArrivalRaw =
+		mappedRules.gracePeriodRequiresDaysBeforeArrival == null
+			? null
+			: Number(mappedRules.gracePeriodRequiresDaysBeforeArrival)
+	const graceRequiresDaysBeforeArrival =
+		graceRequiresDaysBeforeArrivalRaw != null && Number.isFinite(graceRequiresDaysBeforeArrivalRaw)
+			? Math.max(0, graceRequiresDaysBeforeArrivalRaw)
+			: null
 
 	if (params.category === "cancellation") {
 		const refundTiers = (
@@ -186,7 +231,11 @@ export function buildPolicyCalculationSnapshot(params: {
 							: Math.max(0, Math.min(100, 100 - overridePercent)),
 					refundPercent: effectiveRefundPercent,
 					refundBasis,
-					taxesFeesBasis: taxesFeesBasis(refundBasis, effectiveRefundPercent),
+					taxesFeesBasis: taxesFeesBasis(
+						refundBasis,
+						effectiveRefundPercent,
+						configuredTaxesFeesBasis
+					),
 					payoutImpact: effectivePayoutImpact,
 				}
 			})
@@ -209,6 +258,16 @@ export function buildPolicyCalculationSnapshot(params: {
 							payoutOverridePercent,
 							override,
 						}),
+					stayLength: {
+						nights: stayNights,
+						type: stayLengthType,
+						thresholdNights: Number.isFinite(thresholdNights) ? thresholdNights : 28,
+						isLongStay: stayNights == null ? null : stayNights >= 28,
+					},
+					gracePeriod: {
+						hoursAfterBooking: Number.isFinite(graceHours) ? Math.max(0, graceHours) : 0,
+						requiresDaysBeforeArrival: graceRequiresDaysBeforeArrival,
+					},
 				},
 				payment: null,
 				noShow: null,

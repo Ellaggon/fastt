@@ -29,6 +29,10 @@ const createSchema = z.object({
 			payoutOverridePercent: z.coerce.number().min(0).max(100).optional().nullable(),
 			waiveNoShowCharge: z.coerce.boolean().optional().nullable(),
 			forceRefundBasis: z.string().trim().optional().nullable(),
+			hostCancellationFeeAmount: z.coerce.number().min(0).optional().nullable(),
+			hostCancellationFeePercent: z.coerce.number().min(0).max(100).optional().nullable(),
+			rebookingCreditAmount: z.coerce.number().min(0).optional().nullable(),
+			rebookingCreditPercent: z.coerce.number().min(0).max(100).optional().nullable(),
 			note: z.string().trim().optional().nullable(),
 		})
 		.default({}),
@@ -63,6 +67,10 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 		payoutOverridePercent: form.get("payoutOverridePercent") || undefined,
 		waiveNoShowCharge: form.get("waiveNoShowCharge") === "on",
 		forceRefundBasis: form.get("forceRefundBasis") || undefined,
+		hostCancellationFeeAmount: form.get("hostCancellationFeeAmount") || undefined,
+		hostCancellationFeePercent: form.get("hostCancellationFeePercent") || undefined,
+		rebookingCreditAmount: form.get("rebookingCreditAmount") || undefined,
+		rebookingCreditPercent: form.get("rebookingCreditPercent") || undefined,
 		note: form.get("note") || undefined,
 	}
 	return {
