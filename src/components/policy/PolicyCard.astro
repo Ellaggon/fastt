@@ -13,21 +13,22 @@ export type Props = {
 const { category, description, version = 0, source = "global", state = "missing" } = Astro.props
 
 const sourceLabel = (() => {
-	if (state === "missing") return "No policy assigned"
-	if (source === "rate_plan") return "Overridden at rate plan"
-	if (source === "variant") return "Inherited from variant"
-	if (source === "product") return "Inherited from product"
-	return "Default (global)"
+	if (state === "missing") return "Sin condición asignada"
+	if (source === "rate_plan") return "Definida en tarifa"
+	if (source === "variant") return "Heredada desde variante"
+	if (source === "product") return "Heredada desde producto"
+	return "Predeterminada global"
 })()
 
 const badge = (() => {
-	if (state === "missing") return { label: "Default", className: "bg-neutral-100 text-neutral-800" }
-	if (source === "rate_plan") return { label: "Override", className: "bg-green-100 text-green-900" }
+	if (state === "missing")
+		return { label: "Predeterminada", className: "bg-neutral-100 text-neutral-800" }
+	if (source === "rate_plan") return { label: "Definida", className: "bg-green-100 text-green-900" }
 	if (source === "variant")
-		return { label: "Inherited (Variant)", className: "bg-yellow-100 text-yellow-900" }
+		return { label: "Heredada (variante)", className: "bg-yellow-100 text-yellow-900" }
 	if (source === "product")
-		return { label: "Inherited (Product)", className: "bg-blue-100 text-blue-900" }
-	return { label: "Default", className: "bg-neutral-100 text-neutral-800" }
+		return { label: "Heredada (producto)", className: "bg-blue-100 text-blue-900" }
+	return { label: "Predeterminada", className: "bg-neutral-100 text-neutral-800" }
 })()
 
 const lines = String(description ?? "")
@@ -41,7 +42,7 @@ const lines = String(description ?? "")
 		<div class="space-y-1">
 			<h3 class="font-semibold">{category}</h3>
 			<p class="text-xs text-neutral-600">
-				{sourceLabel} | Version: {version ? `v${version}` : "—"}
+				{sourceLabel} | Versión: {version ? `v${version}` : "—"}
 			</p>
 		</div>
 		<span class={`text-xs px-2 py-1 rounded ${badge.className}`}>{badge.label}</span>
@@ -49,7 +50,7 @@ const lines = String(description ?? "")
 
 	{
 		state === "missing" ? (
-			<p class="text-sm text-neutral-700">No policy assigned.</p>
+			<p class="text-sm text-neutral-700">Sin condición asignada.</p>
 		) : lines.length ? (
 			<ul class="list-disc space-y-1 pl-5 text-sm text-neutral-700">
 				{lines.map((l) => (
@@ -57,7 +58,7 @@ const lines = String(description ?? "")
 				))}
 			</ul>
 		) : (
-			<p class="text-sm text-neutral-700">No details.</p>
+			<p class="text-sm text-neutral-700">Sin detalles.</p>
 		)
 	}
 </article>

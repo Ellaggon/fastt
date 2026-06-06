@@ -4,6 +4,30 @@ type SupabaseConfig = {
 	serviceRoleKey?: string
 }
 
+function describeSupabaseFetchError(error: unknown): string {
+	if (error instanceof Error && error.message) return error.message
+	return "Supabase request failed"
+}
+
+async function fetchSupabase(
+	input: string,
+	init: RequestInit,
+	context: string
+): Promise<Response | null> {
+	try {
+		return await fetch(input, init)
+	} catch (error) {
+		console.error(
+			JSON.stringify({
+				type: "supabase_fetch_failed",
+				context,
+				error: describeSupabaseFetchError(error),
+			})
+		)
+		return null
+	}
+}
+
 export function getSupabaseConfig(): SupabaseConfig | null {
 	const rawUrl = process.env.SUPABASE_URL
 	const rawAnonKey = process.env.SUPABASE_ANON_KEY
@@ -68,15 +92,20 @@ export async function fetchSupabaseUser(accessToken: string): Promise<SupabaseUs
 	if (!cfg) return null
 	if (!accessToken) return null
 
-	const resp = await fetch(`${cfg.url}/auth/v1/user`, {
-		method: "GET",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-			// Use anon key for standard auth flows. Service role must be reserved for admin operations only.
-			apikey: cfg.anonKey,
+	const resp = await fetchSupabase(
+		`${cfg.url}/auth/v1/user`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				// Use anon key for standard auth flows. Service role must be reserved for admin operations only.
+				apikey: cfg.anonKey,
+			},
 		},
-	})
+		"fetch_user"
+	)
 
+	if (!resp) return null
 	if (!resp.ok) return null
 	const json = (await resp.json()) as { id?: unknown; email?: unknown }
 
@@ -101,14 +130,22 @@ export async function signInWithPassword(params: {
 	const cfg = getSupabaseConfig()
 	if (!cfg) return { ok: false, error: "Supabase not configured", status: 500 }
 
-	const resp = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"apikey": getAuthApiKey(cfg),
+	const resp = await fetchSupabase(
+		`${cfg.url}/auth/v1/token?grant_type=password`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"apikey": getAuthApiKey(cfg),
+			},
+			body: JSON.stringify({ email: params.email, password: params.password }),
 		},
-		body: JSON.stringify({ email: params.email, password: params.password }),
-	})
+		"sign_in"
+	)
+
+	if (!resp) {
+		return { ok: false, error: "Supabase auth service unavailable", status: 503 }
+	}
 
 	if (!resp.ok) {
 		const txt = await resp.text().catch(() => "")
@@ -141,14 +178,22 @@ export async function signUp(params: {
 			? `${cfg.url}/auth/v1/signup?redirect_to=${encodeURIComponent(params.redirectTo)}`
 			: `${cfg.url}/auth/v1/signup`
 
-	const resp = await fetch(signupUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"apikey": getAuthApiKey(cfg),
+	const resp = await fetchSupabase(
+		signupUrl,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"apikey": getAuthApiKey(cfg),
+			},
+			body: JSON.stringify({ email: params.email, password: params.password }),
 		},
-		body: JSON.stringify({ email: params.email, password: params.password }),
-	})
+		"sign_up"
+	)
+
+	if (!resp) {
+		return { ok: false, error: "Supabase auth service unavailable", status: 503 }
+	}
 
 	if (!resp.ok) {
 		const txt = await resp.text().catch(() => "")

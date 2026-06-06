@@ -14,44 +14,145 @@ if (!user?.email) return Astro.redirect("/SignInPage")
 const isAdmin = ADMIN_EMAILS.includes(user.email)
 const items = isAdmin ? await listPolicyExceptionRulesUseCase({ limit: 250 }) : []
 const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
-const categories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+const categories = [
+	{ value: "Cancellation", label: "Cancelación" },
+	{ value: "Payment", label: "Pago" },
+	{ value: "CheckIn", label: "Ingreso / salida" },
+	{ value: "NoShow", label: "No presentación" },
+]
 const scopes = [
 	{ value: "global", label: "Global" },
 	{ value: "product", label: "Producto" },
 	{ value: "variant", label: "Variante" },
-	{ value: "rate_plan", label: "Rate plan" },
+	{ value: "rate_plan", label: "Tarifa" },
 ]
+const exceptionTypeLabels: Record<string, string> = {
+	major_disruptive_event: "Evento disruptivo mayor",
+	rebooking_refund: "Reubicación / reembolso",
+	host_cancellation: "Cancelación del proveedor",
+	local_law: "Ley local",
+	support_manual_override: "Ajuste manual de soporte",
+}
+const categoryLabels = Object.fromEntries(
+	categories.map((category) => [category.value, category.label])
+)
+const scopeLabels = Object.fromEntries(scopes.map((scope) => [scope.value, scope.label]))
+
+function percent(value: unknown): string | null {
+	const n = Number(value)
+	return Number.isFinite(n) ? `${n}%` : null
+}
+
+function money(value: unknown): string | null {
+	const n = Number(value)
+	return Number.isFinite(n) ? `${n}` : null
+}
+
+function basisLabel(value: unknown): string {
+	const labels: Record<string, string> = {
+		platform_absorbs: "la plataforma absorbe el ajuste",
+		provider_absorbs: "el proveedor absorbe el ajuste",
+		total_booking: "reserva completa",
+		room_rate: "tarifa base",
+		first_night: "primera noche",
+		deposit: "depósito",
+		none: "sin base de reembolso",
+	}
+	return labels[String(value ?? "").trim()] ?? String(value ?? "sin definir")
+}
+
+function effectiveWindow(item: any): string {
+	const from = item.effectiveFrom ? fmt.format(new Date(item.effectiveFrom)) : "desde ahora"
+	const to = item.effectiveTo ? fmt.format(new Date(item.effectiveTo)) : "sin fecha de cierre"
+	return `${from} → ${to}`
+}
+
+function impactCopy(item: any) {
+	const action = item.action ?? {}
+	const refund = percent(action.refundOverridePercent)
+	const payout = percent(action.payoutOverridePercent)
+	const rebookingAmount = money(action.rebookingCreditAmount)
+	const rebookingPercent = percent(action.rebookingCreditPercent)
+	const hostFeeAmount = money(action.hostCancellationFeeAmount)
+	const hostFeePercent = percent(action.hostCancellationFeePercent)
+	const noShowWaived = action.waiveNoShowCharge === true
+	return {
+		guest:
+			[
+				refund ? `recibe reembolso forzado de ${refund}` : null,
+				noShowWaived ? "no paga cargo de no presentación" : null,
+				rebookingAmount ? `recibe crédito de reubicación ${rebookingAmount}` : null,
+				rebookingPercent ? `recibe crédito de reubicación ${rebookingPercent}` : null,
+			]
+				.filter(Boolean)
+				.join(" · ") || "sin cambio directo visible; aplica la condición vigente",
+		provider:
+			[
+				payout ? `pago al proveedor ajustado a ${payout}` : null,
+				action.payoutOverrideBasis ? `base: ${basisLabel(action.payoutOverrideBasis)}` : null,
+				hostFeeAmount ? `cargo por cancelación del proveedor ${hostFeeAmount}` : null,
+				hostFeePercent ? `cargo por cancelación del proveedor ${hostFeePercent}` : null,
+			]
+				.filter(Boolean)
+				.join(" · ") || "sin ajuste directo de pago al proveedor",
+		platform:
+			[
+				action.forceRefundBasis
+					? `fuerza base de reembolso: ${basisLabel(action.forceRefundBasis)}`
+					: null,
+				action.payoutOverrideBasis === "platform_absorbs" ? "plataforma absorbe diferencia" : null,
+				item.priority ? `prioridad ${item.priority}` : null,
+			]
+				.filter(Boolean)
+				.join(" · ") || "mantiene cálculo estándar y trazabilidad",
+		evidence:
+			[item.reason, action.note]
+				.map((value) => String(value ?? "").trim())
+				.filter(Boolean)
+				.join(" · ") || "sin evidencia cargada",
+	}
+}
 ---
 
-<InternalAdminLayout title="Admin · Policy exceptions">
+<InternalAdminLayout title="Admin · Excepciones de condiciones">
 	<section class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-6 px-6">
 			<header class="space-y-2">
-				<h1 class="text-2xl font-semibold text-white">Overrides de políticas</h1>
+				<h1 class="text-2xl font-semibold text-white">Excepciones de condiciones</h1>
 				<p class="text-sm text-slate-300">
-					Excepciones legales y operativas aplicadas al snapshot contractual.
+					Excepciones legales y operativas aplicadas antes del cálculo final de reembolso, pago al
+					proveedor, no presentación e instantáneas contractuales. Mantiene potencia técnica, pero
+					cada excepción debe explicar impacto, vigencia y evidencia.
 				</p>
 			</header>
 
 			{
 				!isAdmin ? (
 					<Card class="bg-slate-100">
-						<p class="text-xl font-semibold text-slate-900">Forbidden</p>
+						<p class="text-xl font-semibold text-slate-900">Acceso denegado</p>
 					</Card>
 				) : (
 					<>
 						<Card class="bg-slate-100">
+							<div class="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+								<p class="font-semibold">Cómo usar excepciones</p>
+								<p class="mt-1">
+									Una excepción cambia el contrato resuelto para un caso legal, operativo o de
+									soporte. Debe indicar a quién afecta: huésped, proveedor o plataforma; desde
+									cuándo aplica; y qué evidencia o motivo justifica el cambio.
+								</p>
+							</div>
 							<form id="policy-exception-form" class="grid gap-4 lg:grid-cols-4">
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Tipo</span>
+									<span class="font-semibold">Tipo de excepción</span>
 									<select name="type" required class="w-full rounded border border-slate-300 p-2">
 										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
-											<option value={type}>{type}</option>
+											<option value={type}>{exceptionTypeLabels[type] ?? type}</option>
 										))}
 									</select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Scope</span>
+									<span class="font-semibold">Ámbito</span>
 									<select
 										name="scope"
 										id="exceptionScope"
@@ -63,12 +164,12 @@ const scopes = [
 									</select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Scope ID</span>
+									<span class="font-semibold">ID de ámbito</span>
 									<input
 										name="scopeId"
 										id="exceptionScopeId"
 										class="w-full rounded border border-slate-300 p-2"
-										placeholder="productId / variantId / ratePlanId"
+										placeholder="ID de producto / variante / tarifa"
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
@@ -76,12 +177,12 @@ const scopes = [
 									<select name="category" class="w-full rounded border border-slate-300 p-2">
 										<option value="">Todas</option>
 										{categories.map((category) => (
-											<option value={category}>{category}</option>
+											<option value={category.value}>{category.label}</option>
 										))}
 									</select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Refund %</span>
+									<span class="font-semibold">Reembolso %</span>
 									<input
 										name="refundOverridePercent"
 										type="number"
@@ -89,17 +190,23 @@ const scopes = [
 										max="100"
 										class="w-full rounded border border-slate-300 p-2"
 									/>
+									<span class="block text-xs text-slate-500">
+										Impacto huésped: fuerza el porcentaje reembolsable.
+									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Payout basis</span>
+									<span class="font-semibold">Base de pago al proveedor</span>
 									<input
 										name="payoutOverrideBasis"
 										class="w-full rounded border border-slate-300 p-2"
 										placeholder="platform_absorbs / provider_absorbs"
 									/>
+									<span class="block text-xs text-slate-500">
+										Impacto plataforma/proveedor: define quién absorbe el ajuste.
+									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Payout %</span>
+									<span class="font-semibold">Pago proveedor %</span>
 									<input
 										name="payoutOverridePercent"
 										type="number"
@@ -107,6 +214,9 @@ const scopes = [
 										max="100"
 										class="w-full rounded border border-slate-300 p-2"
 									/>
+									<span class="block text-xs text-slate-500">
+										Impacto proveedor: reemplaza el pago calculado.
+									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Prioridad</span>
@@ -137,23 +247,74 @@ const scopes = [
 								</label>
 								<label class="flex items-center gap-2 pt-6 text-sm font-semibold text-slate-700">
 									<input name="waiveNoShowCharge" type="checkbox" />
-									Waive no-show
+									Eximir cargo de no presentación
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Forzar base de reembolso</span>
+									<input
+										name="forceRefundBasis"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="total_booking / room_rate / first_night / deposit"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Cargo por cancelación del proveedor</span>
+									<input
+										name="hostCancellationFeeAmount"
+										type="number"
+										min="0"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Cargo por cancelación del proveedor %</span>
+									<input
+										name="hostCancellationFeePercent"
+										type="number"
+										min="0"
+										max="100"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Crédito reubicación</span>
+									<input
+										name="rebookingCreditAmount"
+										type="number"
+										min="0"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Crédito reubicación %</span>
+									<input
+										name="rebookingCreditPercent"
+										type="number"
+										min="0"
+										max="100"
+										class="w-full rounded border border-slate-300 p-2"
+									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Motivo</span>
+									<span class="font-semibold">Motivo operativo/legal</span>
 									<input
 										name="reason"
 										class="w-full rounded border border-slate-300 p-2"
 										required
+										placeholder="Ej. evento disruptivo confirmado por soporte"
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Nota</span>
-									<input name="note" class="w-full rounded border border-slate-300 p-2" />
+									<span class="font-semibold">Evidencia / nota interna</span>
+									<input
+										name="note"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="URL, ticket, resolución legal o referencia de soporte"
+									/>
 								</label>
 								<div class="flex items-end gap-3 lg:col-span-4">
 									<Button type="submit" variant="primary">
-										Crear override
+										Crear excepción
 									</Button>
 									<p id="policy-exception-feedback" class="text-sm text-slate-700" />
 								</div>
@@ -166,58 +327,91 @@ const scopes = [
 									<thead>
 										<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
 											<th class="px-3 py-2">Tipo</th>
-											<th class="px-3 py-2">Scope</th>
+											<th class="px-3 py-2">Ámbito</th>
 											<th class="px-3 py-2">Categoría</th>
-											<th class="px-3 py-2">Acción</th>
+											<th class="px-3 py-2">Impacto explicado</th>
 											<th class="px-3 py-2">Estado</th>
 											<th class="px-3 py-2">Acciones</th>
 										</tr>
 									</thead>
 									<tbody class="divide-y divide-slate-200">
-										{items.map((item) => (
-											<tr>
-												<td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
-													{item.type}
-													<p class="text-xs font-normal text-slate-500">
-														{item.createdAt ? fmt.format(new Date(item.createdAt)) : ""}
-													</p>
-												</td>
-												<td class="px-3 py-3 align-top text-sm text-slate-700">
-													{item.scope || "global"}
-													<p class="text-xs text-slate-500">{item.scopeId || "all"}</p>
-												</td>
-												<td class="px-3 py-3 align-top text-sm text-slate-700">
-													{item.category || "Todas"}
-												</td>
-												<td class="px-3 py-3 align-top text-xs text-slate-700">
-													<pre class="max-w-xs rounded bg-slate-200 p-2 whitespace-pre-wrap">
-														{JSON.stringify(item.action, null, 2)}
-													</pre>
-													<p class="mt-2">{item.reason}</p>
-												</td>
-												<td class="px-3 py-3 align-top">
-													{item.isActive === false ? (
-														<Badge variant="error">Inactivo</Badge>
-													) : (
-														<Badge variant="success">Activo</Badge>
-													)}
-												</td>
-												<td class="px-3 py-3 align-top">
-													<Button
-														type="button"
-														variant="secondary"
-														data-toggle-exception={item.id}
-														data-next-active={item.isActive === false ? "true" : "false"}
-													>
-														{item.isActive === false ? "Activar" : "Desactivar"}
-													</Button>
-												</td>
-											</tr>
-										))}
+										{items.map((item) => {
+											const impact = impactCopy(item)
+											return (
+												<tr>
+													<td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
+														{exceptionTypeLabels[item.type] ?? item.type}
+														<p class="text-xs font-normal text-slate-500">
+															Creada:{" "}
+															{item.createdAt ? fmt.format(new Date(item.createdAt)) : "sin fecha"}
+														</p>
+														<p class="mt-1 text-xs font-normal text-slate-500">
+															ID técnico: <code>{item.id}</code>
+														</p>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{scopeLabels[item.scope || "global"] ?? item.scope ?? "Global"}
+														<p class="text-xs text-slate-500">{item.scopeId || "todos"}</p>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{categoryLabels[item.category || ""] ?? "Todas"}
+													</td>
+													<td class="px-3 py-3 align-top text-xs text-slate-700">
+														<div class="grid max-w-2xl gap-2 md:grid-cols-2">
+															<div class="rounded bg-slate-200 p-2">
+																<p class="font-semibold text-slate-900">Huésped</p>
+																<p>{impact.guest}</p>
+															</div>
+															<div class="rounded bg-slate-200 p-2">
+																<p class="font-semibold text-slate-900">Proveedor</p>
+																<p>{impact.provider}</p>
+															</div>
+															<div class="rounded bg-slate-200 p-2">
+																<p class="font-semibold text-slate-900">Plataforma</p>
+																<p>{impact.platform}</p>
+															</div>
+															<div class="rounded bg-slate-200 p-2">
+																<p class="font-semibold text-slate-900">Vigencia</p>
+																<p>{effectiveWindow(item)}</p>
+															</div>
+															<div class="rounded bg-amber-50 p-2 md:col-span-2">
+																<p class="font-semibold text-amber-950">Evidencia</p>
+																<p class="text-amber-900">{impact.evidence}</p>
+															</div>
+														</div>
+														<details class="mt-2">
+															<summary class="cursor-pointer text-xs font-semibold text-slate-600">
+																Ver acción técnica JSON
+															</summary>
+															<pre class="mt-2 max-w-xl rounded bg-slate-900 p-2 whitespace-pre-wrap text-slate-100">
+																{JSON.stringify(item.action, null, 2)}
+															</pre>
+														</details>
+													</td>
+													<td class="px-3 py-3 align-top">
+														{item.isActive === false ? (
+															<Badge variant="error">Inactivo</Badge>
+														) : (
+															<Badge variant="success">Activo</Badge>
+														)}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<Button
+															type="button"
+															variant="secondary"
+															data-toggle-exception={item.id}
+															data-next-active={item.isActive === false ? "true" : "false"}
+														>
+															{item.isActive === false ? "Activar" : "Desactivar"}
+														</Button>
+													</td>
+												</tr>
+											)
+										})}
 									</tbody>
 								</table>
 								{items.length === 0 && (
-									<p class="px-3 py-6 text-sm text-slate-600">No hay overrides creados.</p>
+									<p class="px-3 py-6 text-sm text-slate-600">No hay excepciones creadas.</p>
 								)}
 							</div>
 						</Card>
@@ -240,11 +434,11 @@ const scopes = [
 		})
 		if (!feedback) return
 		if (response.ok) {
-			feedback.textContent = "Override creado."
+			feedback.textContent = "Excepción creada."
 			location.reload()
 		} else {
 			const payload = await response.json().catch(() => ({}))
-			feedback.textContent = payload?.error || "No se pudo crear el override."
+			feedback.textContent = payload?.error || "No se pudo crear la excepción."
 		}
 	})
 	document.querySelectorAll("[data-toggle-exception]").forEach((button) => {

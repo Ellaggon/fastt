@@ -327,8 +327,8 @@ const tabs = [
 										<div>
 											<p class="text-sm font-semibold text-slate-950">Lista para vender</p>
 											<p class="mt-1 text-xs leading-5 text-slate-500">
-												Tarifas, disponibilidad y políticas viven en sus dominios. Rooms solo
-												muestra si el handoff está claro.
+												Tarifas, disponibilidad y condiciones viven en sus dominios. Habitaciones
+												solo muestra si el traspaso está claro.
 											</p>
 										</div>
 										<Badge id="sellReadinessBadge" variant="neutral">Cargando</Badge>
@@ -385,8 +385,8 @@ const tabs = [
 								<div>
 									<h2 class="font-semibold text-slate-900">Publicación con confianza</h2>
 									<p class="text-sm text-slate-600">
-										Rooms se encarga de la experiencia de estancia. Pricing, disponibilidad y
-										Booking Policies conservan la responsabilidad comercial.
+										Habitaciones se encarga de la experiencia de estancia. Precios, disponibilidad y
+										condiciones conservan la responsabilidad comercial.
 									</p>
 								</div>
 							</div>
@@ -801,7 +801,7 @@ const tabs = [
 					metricCard(
 						"Tarifas",
 						String(payload?.summary?.pricing ?? "Sin tarifas"),
-						"Las tarifas viven en Pricing y Rate Plans.",
+						"Las tarifas viven en Precios y Tarifas.",
 						payload?.blocks?.pricing?.complete ? "ok" : "warn"
 					)
 				)
