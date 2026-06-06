@@ -11,7 +11,6 @@ export const DASHBOARD_CRITICAL_ROUTES = {
 		"/provider/policies",
 		"/provider/policies/:policyId/edit",
 		"/provider/policies/audit",
-		"/provider/policies/rate-plans",
 	],
 	nonBreakableCompatibility: ["/product", "/product/:id", "/product/:id/rooms"],
 } as const

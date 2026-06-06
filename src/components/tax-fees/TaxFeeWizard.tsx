@@ -690,7 +690,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					<aside className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm">
 						<div className="mb-4 flex items-center justify-between">
 							<div>
-								<p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+								<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
 									Definitions
 								</p>
 								<h2 className="mt-2 text-2xl font-semibold text-neutral-950">
@@ -737,7 +737,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<div key={definition.id} className="rounded-3xl border border-neutral-200 p-4">
 										<div className="flex items-start justify-between gap-4">
 											<div>
-												<p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+												<p className="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
 													{definition.kind}
 												</p>
 												<h3 className="mt-1 text-lg font-semibold text-neutral-950">
@@ -921,7 +921,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										value={draft.value}
 										onChange={(event) => updateDraft({ value: event.target.value })}
 										placeholder={draft.calculationType === "percentage" ? "10" : "25.00"}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
@@ -931,7 +931,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										<select
 											value={draft.currency}
 											onChange={(event) => updateDraft({ currency: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										>
 											<option value="USD">USD</option>
 											<option value="EUR">EUR</option>
@@ -1035,7 +1035,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 														? "rp_123"
 														: "provider_id"
 										}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
@@ -1047,7 +1047,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										value={draft.productId}
 										onChange={(event) => updateDraft({ productId: event.target.value })}
 										placeholder="prod_123"
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
@@ -1057,7 +1057,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										value={draft.channel}
 										onChange={(event) => updateDraft({ channel: event.target.value })}
 										placeholder="web"
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 							</div>
@@ -1080,7 +1080,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<input
 										value={draft.name}
 										onChange={(event) => updateDraft({ name: event.target.value, code: "" })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
@@ -1093,7 +1093,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										onChange={(event) =>
 											updateDraft({ appliesPer: event.target.value as AppliesPer })
 										}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									>
 										{APPLIES_PER_OPTIONS.map((option) => (
 											<option key={option.value} value={option.value}>
@@ -1117,7 +1117,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveFrom}
 										onChange={(event) => updateDraft({ effectiveFrom: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
@@ -1131,7 +1131,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveTo}
 										onChange={(event) => updateDraft({ effectiveTo: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 							</div>
@@ -1166,29 +1166,29 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										step="0.01"
 										value={draft.base}
 										onChange={(event) => updateDraft({ base: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Check-in</span>
+									<span className="text-sm font-medium text-neutral-700">Ingreso</span>
 									<input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkIn}
 										onChange={(event) => updateDraft({ checkIn: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Check-out</span>
+									<span className="text-sm font-medium text-neutral-700">Salida</span>
 									<input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkOut}
 										onChange={(event) => updateDraft({ checkOut: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<div className="grid gap-4 sm:grid-cols-2">
@@ -1199,7 +1199,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											min="0"
 											value={draft.adults}
 											onChange={(event) => updateDraft({ adults: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										/>
 									</label>
 									<label className="flex flex-col gap-2">
@@ -1209,7 +1209,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											min="0"
 											value={draft.children}
 											onChange={(event) => updateDraft({ children: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 outline-none transition focus:border-emerald-600"
+											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										/>
 									</label>
 								</div>

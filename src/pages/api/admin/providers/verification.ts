@@ -1,11 +1,9 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { invalidateProvider } from "@/lib/cache/invalidation"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { setProviderVerificationV2 } from "@/modules/catalog/public"
-
-const ADMIN_EMAILS = ["ellaggon@proton.me"]
 
 async function readPayload(request: Request): Promise<{
 	providerId: string
@@ -33,14 +31,7 @@ async function readPayload(request: Request): Promise<{
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.email) {
-			return new Response("Unauthorized", { status: 401 })
-		}
-
-		if (!ADMIN_EMAILS.includes(user.email)) {
-			return new Response("Forbidden", { status: 403 })
-		}
+		const { user } = await requireInternalAdmin(request)
 
 		const payload = await readPayload(request)
 		if (!payload.providerId) {
@@ -81,6 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (e) {
+		if (e instanceof Response) return e
 		if (e instanceof ValidationError) {
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,

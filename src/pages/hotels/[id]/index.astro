@@ -179,8 +179,32 @@ const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, r: any) 
 	return acc
 }, {})
 
+const policyCategories = Object.values(POLICY_UI_GROUPS).flat()
+
+function buildPolicyCardsFromResolved(
+	resolved: Awaited<ReturnType<typeof resolveEffectivePolicies>>
+) {
+	const mapped = mapResolvedPoliciesToUI(resolved) as any[]
+	const byCategory = mapped.reduce((acc: Record<string, any>, policy: any) => {
+		acc[String(policy.category ?? "")] = policy
+		return acc
+	}, {})
+	return policyCategories.map((category) => {
+		const policy = byCategory[category] ?? null
+		const source = String(policy?.resolvedFromScope ?? "global")
+		return {
+			category,
+			label: POLICY_CATEGORY_ORDER[category] ?? category,
+			description: String(policy?.description ?? ""),
+			version: Number(policy?.version ?? 0),
+			source,
+			state: policy ? (source === "rate_plan" ? "override" : "inherited") : "missing",
+		}
+	})
+}
+
 // CAPA 6: resolve policies using the same scope context the user is actually shopping with.
-// For rate-plan scoped policies, we need a concrete {variantId, ratePlanId}. Pick the cheapest offer context.
+// The general hotel section is only a summary; each reservable rate below shows its own contract truth.
 let policyVariantId: string | undefined = undefined
 let policyRatePlanId: string | undefined = undefined
 let minOfferPrice = Number.POSITIVE_INFINITY
@@ -200,6 +224,8 @@ const resolvedPolicies = await resolveEffectivePolicies({
 	productId,
 	variantId: policyVariantId,
 	ratePlanId: policyRatePlanId,
+	checkIn: searchState.checkIn,
+	checkOut: searchState.checkOut,
 	channel: "web",
 	featureContext: {
 		request: Astro.request,
@@ -221,6 +247,50 @@ const policiesByCategory = policies.reduce((acc: Record<string, any[]>, p: any) 
 	acc[p.category].push(p)
 	return acc
 }, {})
+
+const ratePlanPolicyEntries = await Promise.all(
+	offersWithImages.flatMap((offer: any) =>
+		(offer.ratePlans ?? []).map(async (ratePlan: any) => {
+			const ratePlanId = String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
+			const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "").trim()
+			if (!ratePlanId || !variantId) return null
+			const resolved = await resolveEffectivePolicies({
+				productId,
+				variantId,
+				ratePlanId,
+				checkIn: searchState.checkIn,
+				checkOut: searchState.checkOut,
+				channel: "web",
+				requiredCategories: policyCategories,
+				featureContext: {
+					request: Astro.request,
+					query: url.searchParams,
+				},
+			})
+			const cards = buildPolicyCardsFromResolved(resolved)
+			const missingCount = cards.filter((card) => card.state === "missing").length
+			const definedCount = cards.length - missingCount
+			return [
+				ratePlanId,
+				{
+					ratePlanId,
+					variantId,
+					status: missingCount === 0 ? "complete" : definedCount > 0 ? "partial" : "missing",
+					summary:
+						missingCount === 0
+							? "Condiciones completas para esta tarifa."
+							: definedCount > 0
+								? `${definedCount}/${cards.length} condiciones definidas para esta tarifa.`
+								: "Esta tarifa aún no tiene condiciones contractuales completas.",
+					cards,
+				},
+			] as const
+		})
+	)
+)
+const policiesByRatePlanId = Object.fromEntries(
+	ratePlanPolicyEntries.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+)
 
 const offerVariantRefs = offers.map((o) => resolveVariantRef(o.variant))
 const hotelRoom = await resolveHotelType(offerVariantRefs)
@@ -311,7 +381,7 @@ try {
 								<button>Ubicación</button>
 							</div>
 							<div class="tab-button p-2" data-tab="policies">
-								<button>Políticas</button>
+								<button>Condiciones</button>
 							</div>
 						</article>
 
@@ -395,6 +465,7 @@ try {
 							searchState={searchState}
 							productId={productId}
 							offers={offersWithImages}
+							policiesByRatePlanId={policiesByRatePlanId}
 							productFallbackImage={
 								images[0]?.url || "https://placehold.co/800x600?text=Sin+imagen"
 							}
@@ -409,8 +480,12 @@ try {
 							id="policies"
 						>
 							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
-								Políticas de Alojamiento
+								Resumen de condiciones
 							</h3>
+							<p class="text-sm leading-6 text-neutral-700">
+								Este bloque resume el alojamiento. La verdad contractual se muestra junto a cada
+								tarifa reservable y se guarda desde la tarifa seleccionada.
+							</p>
 							<div class="space-y-8">
 								{Object.values(POLICY_UI_GROUPS)
 									.flat()
@@ -505,6 +580,7 @@ try {
 		searchState={searchState}
 		productId={productId}
 		offers={offersWithImages}
+		policiesByRatePlanId={policiesByRatePlanId}
 		productFallbackImage={images[0]?.url || "https://placehold.co/1200x800?text=Sin+imagen"}
 		productFallbackGallery={images.map((image: any) => String(image?.url ?? "")).filter(Boolean)}
 		amenities={amenities}

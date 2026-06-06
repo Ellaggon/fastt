@@ -156,7 +156,8 @@ try {
 	})
 	mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
 } catch (error) {
-	policyResolutionError = error instanceof Error ? error.message : "Could not resolve policies"
+	policyResolutionError =
+		error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
 }
 
 const policyCategorySet = new Set(
@@ -412,7 +413,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 						<div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
 							<p class="text-sm font-semibold text-slate-900">Confianza de reserva</p>
 							<p class="text-sm leading-6 text-slate-600">
-								Los viajeros deben entender cancelación, pagos, no-show y check-in antes de
+								Los viajeros deben entender cancelación, pagos, no presentación e ingreso antes de
 								reservar.
 							</p>
 							<div class="flex flex-wrap gap-2">

@@ -377,7 +377,7 @@ export const SERVICE_ATTRIBUTES: Record<string, ServiceAttributeDefinition[]> = 
 		},
 		{
 			key: "pets_policy",
-			label: "Política de mascotas",
+			label: "Condición de mascotas",
 			type: "select",
 			options: [
 				{ value: "allowed", label: "Permitidas" },

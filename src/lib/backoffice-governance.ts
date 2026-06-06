@@ -455,7 +455,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
-		rationale: "Provider-facing BFF for one room workspace and guest-facing readiness.",
+		rationale: "BFF del espacio de habitación y preparación visible para huéspedes.",
 	},
 	{
 		pattern: "/api/internal/variants-summary",
@@ -877,7 +877,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				status: "transitional",
 				level: 2,
 				summary:
-					"Preparación contractual por tarifa: cancelación, pagos, no presentación, check-in y check-out.",
+					"12 tarifas: 9 listas, 3 incompletas. Cancelación, pagos, no presentación, ingreso y salida.",
 			},
 		],
 		planned: ["Pricing por ocupación", "Historial de auditoría"],

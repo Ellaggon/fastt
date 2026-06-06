@@ -3,10 +3,8 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { db, desc, Provider, ProviderVerification } from "astro:db"
-
-const ADMIN_EMAILS = ["ellaggon@proton.me"]
 
 type VerificationState = "pending" | "approved" | "rejected"
 type ProviderRow = {
@@ -19,10 +17,14 @@ type ProviderRow = {
 	verificationUpdatedAt: Date | null
 }
 
-const user = await getUserFromRequest(Astro.request)
-if (!user?.email) return Astro.redirect("/SignInPage")
-
-const isAdmin = ADMIN_EMAILS.includes(user.email)
+let isAdmin = false
+try {
+	await requireInternalAdmin(Astro.request)
+	isAdmin = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	isAdmin = false
+}
 const filter =
 	String(Astro.url.searchParams.get("filter") ?? "all") === "pending" ? "pending" : "all"
 

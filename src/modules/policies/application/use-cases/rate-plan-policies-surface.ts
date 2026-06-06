@@ -1,9 +1,6 @@
 import {
-	createPolicyCapa6,
-	createPolicyVersionCapa6,
 	derivePolicySummaryFromResolvedPolicies,
 	mapResolvedPoliciesToUI,
-	replacePolicyAssignmentCapa6,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { logger } from "@/lib/observability/logger"
@@ -20,8 +17,6 @@ export const POLICY_CATEGORY_ORDER: Record<string, string> = {
 	CheckIn: "Ingreso",
 	NoShow: "No presentación",
 }
-
-type Category = (typeof REQUIRED_POLICY_CATEGORIES)[number]
 
 type SurfaceRatePlan = {
 	id: string
@@ -72,18 +67,6 @@ export function resolvePolicyDateRange(url: URL): { checkIn: string; checkOut: s
 	return { checkIn, checkOut }
 }
 
-function normalizeCategory(input: string): Category | null {
-	if (
-		input === "Cancellation" ||
-		input === "Payment" ||
-		input === "CheckIn" ||
-		input === "NoShow"
-	) {
-		return input
-	}
-	return null
-}
-
 function asPolicyResolutionDTO(params: {
 	value: Awaited<ReturnType<typeof resolveEffectivePolicies>>
 	asOfDate: string
@@ -110,15 +93,11 @@ export async function handleRatePlanPoliciesPost(params: {
 
 	try {
 		const body = (await params.request.json()) as {
-			intent: "save_category" | "preview"
+			intent: "preview"
 			ratePlanId: string
 			channel?: string | null
 			checkIn: string
 			checkOut: string
-			category?: string
-			existingPolicyId?: string | null
-			description?: string
-			payload?: Record<string, unknown>
 		}
 
 		const ratePlanId = String(body.ratePlanId ?? "").trim()
@@ -153,113 +132,14 @@ export async function handleRatePlanPoliciesPost(params: {
 			derivedVariantId: ownerContext.variantId,
 		})
 
-		if (body.intent === "preview") {
-			const previewRaw = await resolveEffectivePolicies({
-				productId: ownerContext.productId,
-				variantId: ownerContext.variantId,
-				ratePlanId,
-				checkIn: requestCheckIn,
-				checkOut: requestCheckOut,
-				channel,
-				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
-				onMissingCategory: "return_null",
-				requestId: params.requestId,
-				featureContext: {
-					request: params.request,
-					query: new URL(params.request.url).searchParams,
-				},
-			})
-			const previewResult = asPolicyResolutionDTO({
-				value: previewRaw,
-				asOfDate: requestCheckIn,
-			})
-			if (previewResult.missingCategories.length > 0) {
-				logger.warn("policies.contract.missing_categories", {
-					requestId: params.requestId ?? null,
-					ratePlanId,
-					channel,
-					endpoint: "ratePlanPolicies.preview",
-					missingCategories: previewResult.missingCategories,
-				})
-				logPolicyContractMismatch({
-					requestId: String(params.requestId ?? "policy-surface-anon"),
-					domain: "policies",
-					endpoint: "ratePlanPolicies.preview",
-					productId: ownerContext.productId,
-					variantId: ownerContext.variantId,
-					ratePlanId,
-					missingCategories: previewResult.missingCategories,
-				})
-			}
-			return new Response(
-				JSON.stringify({
-					success: true,
-					missingCategories: previewResult.missingCategories,
-					policySummary: derivePolicySummaryFromResolvedPolicies(previewResult),
-					policies: mapResolvedPoliciesToUI(previewResult),
-				}),
-				{ status: 200, headers: { "Content-Type": "application/json" } }
-			)
-		}
-
-		const category = normalizeCategory(String(body.category ?? ""))
-		if (!category) {
-			return new Response(JSON.stringify({ error: "invalid_category" }), {
-				status: 400,
+		if (body.intent !== "preview") {
+			return new Response(JSON.stringify({ error: "unsupported_intent" }), {
+				status: 410,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 
-		const planName =
-			params.ratePlans.find((plan) => String(plan.id) === ratePlanId)?.name ?? "Tarifa"
-		const description = String(
-			body.description ?? `${POLICY_CATEGORY_ORDER[category]} · ${planName}`
-		).trim()
-		const payload = body.payload ?? {}
-
-		let createdPolicyId = ""
-		const existingPolicyId = String(body.existingPolicyId ?? "").trim()
-		if (existingPolicyId) {
-			const versioned = await createPolicyVersionCapa6({
-				previousPolicyId: existingPolicyId,
-				description,
-				rules: category === "Cancellation" ? undefined : (payload as Record<string, unknown>),
-				cancellationTiers:
-					category === "Cancellation"
-						? ((payload.tiers as Array<Record<string, unknown>> | undefined) ?? []).map((tier) => ({
-								daysBeforeArrival: Number(tier.daysBeforeArrival ?? 0),
-								penaltyType: String(tier.penaltyType ?? "percentage") as "percentage" | "nights",
-								penaltyAmount: Number(tier.penaltyAmount ?? 0),
-							}))
-						: undefined,
-				actorUserId: params.userId,
-			})
-			createdPolicyId = versioned.policyId
-		} else {
-			const created = await createPolicyCapa6({
-				category,
-				description,
-				rules: category === "Cancellation" ? undefined : (payload as Record<string, unknown>),
-				cancellationTiers:
-					category === "Cancellation"
-						? ((payload.tiers as Array<Record<string, unknown>> | undefined) ?? []).map((tier) => ({
-								daysBeforeArrival: Number(tier.daysBeforeArrival ?? 0),
-								penaltyType: String(tier.penaltyType ?? "percentage") as "percentage" | "nights",
-								penaltyAmount: Number(tier.penaltyAmount ?? 0),
-							}))
-						: undefined,
-			})
-			createdPolicyId = created.policyId
-		}
-
-		await replacePolicyAssignmentCapa6({
-			policyId: createdPolicyId,
-			scope: "rate_plan",
-			scopeId: ratePlanId,
-			channel,
-		})
-
-		const latestPreviewRaw = await resolveEffectivePolicies({
+		const previewRaw = await resolveEffectivePolicies({
 			productId: ownerContext.productId,
 			variantId: ownerContext.variantId,
 			ratePlanId,
@@ -274,35 +154,34 @@ export async function handleRatePlanPoliciesPost(params: {
 				query: new URL(params.request.url).searchParams,
 			},
 		})
-		const latestPreviewResult = asPolicyResolutionDTO({
-			value: latestPreviewRaw,
+		const previewResult = asPolicyResolutionDTO({
+			value: previewRaw,
 			asOfDate: requestCheckIn,
 		})
-		if (latestPreviewResult.missingCategories.length > 0) {
+		if (previewResult.missingCategories.length > 0) {
 			logger.warn("policies.contract.missing_categories", {
 				requestId: params.requestId ?? null,
 				ratePlanId,
 				channel,
-				endpoint: "ratePlanPolicies.save_category",
-				missingCategories: latestPreviewResult.missingCategories,
+				endpoint: "ratePlanPolicies.preview",
+				missingCategories: previewResult.missingCategories,
 			})
 			logPolicyContractMismatch({
 				requestId: String(params.requestId ?? "policy-surface-anon"),
 				domain: "policies",
-				endpoint: "ratePlanPolicies.save_category",
+				endpoint: "ratePlanPolicies.preview",
 				productId: ownerContext.productId,
 				variantId: ownerContext.variantId,
 				ratePlanId,
-				missingCategories: latestPreviewResult.missingCategories,
+				missingCategories: previewResult.missingCategories,
 			})
 		}
 		return new Response(
 			JSON.stringify({
 				success: true,
-				policyId: createdPolicyId,
-				missingCategories: latestPreviewResult.missingCategories,
-				policySummary: derivePolicySummaryFromResolvedPolicies(latestPreviewResult),
-				policies: mapResolvedPoliciesToUI(latestPreviewResult),
+				missingCategories: previewResult.missingCategories,
+				policySummary: derivePolicySummaryFromResolvedPolicies(previewResult),
+				policies: mapResolvedPoliciesToUI(previewResult),
 			}),
 			{ status: 200, headers: { "Content-Type": "application/json" } }
 		)

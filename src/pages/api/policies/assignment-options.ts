@@ -29,7 +29,7 @@ const presetLabels: Record<string, string> = {
 	moderate: "Moderada",
 	limited: "Limitada",
 	firm: "Firme",
-	strict_legacy: "Estricta legacy",
+	strict: "Estricta",
 	long_term: "Larga estadía",
 	non_refundable: "No reembolsable",
 	pay_at_property: "Pago en propiedad",
