@@ -524,7 +524,7 @@ const taskQueue = [
 				},
 				MISSING_PRICE: {
 					label: "Cobertura comercial pendiente",
-					action: "Abrir Rate Plans",
+					action: "Abrir Tarifas",
 				},
 				MIN_STAY_NOT_MET: {
 					label: "Estadía mínima no cumplida",
@@ -841,7 +841,7 @@ const taskQueue = [
 			state.selectionPrimaryReason = primaryReason
 			const reasonToAction = {
 				MISSING_AVAILABILITY: "Recalcular disponibilidad",
-				MISSING_PRICE: "Abrir Rate Plans para cobertura comercial",
+				MISSING_PRICE: "Abrir Tarifas para cobertura comercial",
 				MIN_STAY_NOT_MET: "Revisar reglas de estadía mínima",
 				NO_CAPACITY: "Actualizar cupo",
 				OCCUPANCY_EXCEEDED: "Revisar capacidad de la habitación",
@@ -860,7 +860,7 @@ const taskQueue = [
 				if (reviewCount > 0) {
 					selectionResolveBtn.textContent =
 						primaryReason === "MISSING_PRICE"
-							? "Abrir Rate Plans"
+							? "Abrir Tarifas"
 							: selected.length === 1
 								? "Recalcular este día"
 								: "Resolver"

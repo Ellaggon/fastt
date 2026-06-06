@@ -379,7 +379,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		: "Agrega comodidades visibles para el huésped"
 	const policiesComplete = true
 	const policiesSummary =
-		"Se gobiernan en Booking Policies y rate plans; Rooms solo confirma el handoff."
+		"Se gobiernan en Condiciones y tarifas; Habitaciones solo confirma el traspaso."
 	const guestReadinessItems = [
 		{
 			key: "profile",
@@ -441,10 +441,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 		},
 		{
 			key: "policies",
-			label: "Políticas",
+			label: "Condiciones",
 			complete: policiesComplete,
 			summary: policiesSummary,
-			actionLabel: "Abrir Booking Policies",
+			actionLabel: "Abrir Condiciones",
 			actionHref: "/provider/policies",
 			externalOwner: true,
 		},
@@ -558,7 +558,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				},
 				sell: {
 					title: "Lista para vender",
-					description: "Tarifas, disponibilidad y políticas se validan como handoff comercial.",
+					description: "Tarifas, disponibilidad y condiciones se validan como traspaso comercial.",
 					complete: sellReadinessComplete,
 					completedItems: sellReadinessItems.filter((item) => item.complete).length,
 					totalItems: sellReadinessItems.length,

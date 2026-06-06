@@ -17,8 +17,8 @@ const policyRes = await fetch(new URL(`/api/policies/${policyId}`, Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
 })
 
-if (policyRes.status === 404) return new Response("Policy not found", { status: 404 })
-if (!policyRes.ok) return new Response("Failed to load policy", { status: 500 })
+if (policyRes.status === 404) return new Response("Condición no encontrada", { status: 404 })
+if (!policyRes.ok) return new Response("No se pudo cargar la condición", { status: 500 })
 
 const policy = (await policyRes.json()) as any
 const category = String(policy.group?.category ?? policy.category ?? policy.policyType ?? "").trim()
@@ -52,18 +52,18 @@ for (const r of policyRules as any[]) {
 }
 ---
 
-<WorkspaceLayout title="Edit Booking Policy">
+<WorkspaceLayout title="Editar condición">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
 					<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-						Rooms & Rates · Booking Contract
+						Habitaciones y tarifas · Contrato de reserva
 					</p>
-					<h1 class="text-3xl font-semibold text-slate-100">Editar Booking Policy</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Editar condición</h1>
 					<p class="max-w-4xl text-sm leading-6 text-slate-300">
-						Editar una policy crea una nueva versión contractual. Las reservas existentes se
-						mantienen protegidas porque consumen snapshots inmutables.
+						Editar una condición crea una nueva versión contractual. Las reservas existentes se
+						mantienen protegidas porque consumen instantáneas contractuales inmutables.
 					</p>
 				</div>
 				<nav class="flex items-center gap-2">
@@ -71,7 +71,7 @@ for (const r of policyRules as any[]) {
 						href="/provider/policies"
 						class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200"
 					>
-						Policy Library
+						Biblioteca
 					</a>
 					<a
 						href={`/provider/policies/groups/${encodeURIComponent(policyGroupId)}/audit`}
@@ -83,16 +83,16 @@ for (const r of policyRules as any[]) {
 						href="/rates/plans/manage"
 						class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
 					>
-						Rate Plans
+						Tarifas
 					</a>
 				</nav>
 			</header>
 
 			<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
-				<p class="font-semibold">Policy ownership</p>
+				<p class="font-semibold">Responsabilidad contractual</p>
 				<p class="mt-1">
-					Booking Policies definen contrato huésped-proveedor: cancelación, pago, no-show y
-					check-in/out. Las promociones o descuentos pertenecen a Pricing; las reglas de
+					Las condiciones definen contrato huésped-proveedor: cancelación, pago, no presentación y
+					check-in/out. Las promociones o descuentos pertenecen a precios; las reglas de
 					comportamiento pertenecen a Reglas para huéspedes.
 				</p>
 			</div>
@@ -126,7 +126,7 @@ for (const r of policyRules as any[]) {
 					class:list={["space-y-2", category === "Cancellation" ? "" : "hidden"]}
 					id="cancellationFields"
 				>
-					<h2 class="font-semibold">Cancellation</h2>
+					<h2 class="font-semibold">Cancelación</h2>
 					<p class="text-sm text-slate-400">
 						Define ventanas de penalidad antes de llegada. Esto no debe usarse como descuento.
 					</p>
@@ -197,24 +197,24 @@ for (const r of policyRules as any[]) {
 					class:list={["space-y-2", category === "Payment" ? "" : "hidden"]}
 					id="paymentFields"
 				>
-					<h2 class="font-semibold">Payment</h2>
+					<h2 class="font-semibold">Pago</h2>
 					<div class="space-y-1">
-						<label class="block text-sm">Payment type</label>
+						<label class="block text-sm">Tipo de pago</label>
 						<select name="paymentType" id="paymentType" class="w-full border p-2">
-							<option value="">Select…</option>
+							<option value="">Seleccionar…</option>
 							<option
 								value="pay_at_property"
 								selected={String(rules.paymentType ?? "") === "pay_at_property"}
-								>Pay at property</option
+								>Pago en propiedad</option
 							>
 							<option value="prepayment" selected={String(rules.paymentType ?? "") === "prepayment"}
-								>Prepayment</option
+								>Prepago</option
 							>
 						</select>
 						<p class="text-sm" id="err-paymentType"></p>
 					</div>
 					<div class="space-y-1" id="prepaymentFields">
-						<label class="block text-sm">Prepayment percentage</label>
+						<label class="block text-sm">Porcentaje de prepago</label>
 						<input
 							name="prepaymentPercentage"
 							type="number"
@@ -224,7 +224,7 @@ for (const r of policyRules as any[]) {
 							value={String(rules.prepaymentPercentage ?? "")}
 						/>
 						<p class="text-sm" id="err-prepaymentPercentage"></p>
-						<label class="block text-sm">Days before arrival (optional)</label>
+						<label class="block text-sm">Días antes de llegada (opcional)</label>
 						<input
 							name="prepaymentDaysBeforeArrival"
 							type="number"
@@ -239,13 +239,13 @@ for (const r of policyRules as any[]) {
 					class:list={["space-y-2", category === "CheckIn" ? "" : "hidden"]}
 					id="checkinFields"
 				>
-					<h2 class="font-semibold">Check-in / Check-out</h2>
+					<h2 class="font-semibold">Ingreso / salida</h2>
 					<p class="text-sm text-slate-400">
 						Define el compromiso operativo comunicado al huésped antes de reservar.
 					</p>
 					<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
 						<div class="space-y-1">
-							<label class="block text-sm">Check-in from</label>
+							<label class="block text-sm">Ingreso desde</label>
 							<input
 								name="checkInFrom"
 								type="time"
@@ -255,7 +255,7 @@ for (const r of policyRules as any[]) {
 							<p class="text-sm" id="err-checkInFrom"></p>
 						</div>
 						<div class="space-y-1">
-							<label class="block text-sm">Check-in until</label>
+							<label class="block text-sm">Ingreso hasta</label>
 							<input
 								name="checkInUntil"
 								type="time"
@@ -265,7 +265,7 @@ for (const r of policyRules as any[]) {
 							<p class="text-sm" id="err-checkInUntil"></p>
 						</div>
 						<div class="space-y-1">
-							<label class="block text-sm">Check-out until</label>
+							<label class="block text-sm">Salida hasta</label>
 							<input
 								name="checkOutUntil"
 								type="time"
@@ -281,29 +281,29 @@ for (const r of policyRules as any[]) {
 					class:list={["space-y-2", category === "NoShow" ? "" : "hidden"]}
 					id="noshowFields"
 				>
-					<h2 class="font-semibold">No-show</h2>
+					<h2 class="font-semibold">No presentación</h2>
 					<p class="text-sm text-slate-400">
 						Define qué ocurre si el huésped no llega; no reemplaza cancelación voluntaria.
 					</p>
 					<div class="space-y-1">
-						<label class="block text-sm">Penalty type</label>
+						<label class="block text-sm">Tipo de penalidad</label>
 						<select name="noShowPenaltyType" id="noShowPenaltyType" class="w-full border p-2">
-							<option value="">Select…</option>
+							<option value="">Seleccionar…</option>
 							<option
 								value="first_night"
-								selected={String(rules.penaltyType ?? "") === "first_night"}>First night</option
+								selected={String(rules.penaltyType ?? "") === "first_night"}>Primera noche</option
 							>
 							<option value="full" selected={String(rules.penaltyType ?? "") === "full"}
-								>Full stay</option
+								>Estadía completa</option
 							>
 							<option value="percentage" selected={String(rules.penaltyType ?? "") === "percentage"}
-								>Percentage</option
+								>Porcentaje</option
 							>
 						</select>
 						<p class="text-sm" id="err-noShowPenaltyType"></p>
 					</div>
 					<div class="space-y-1" id="noshowAmountRow">
-						<label class="block text-sm">Penalty amount (%)</label>
+						<label class="block text-sm">Penalidad (%)</label>
 						<input
 							name="noShowPenaltyAmount"
 							type="number"
@@ -321,7 +321,7 @@ for (const r of policyRules as any[]) {
 					<span id="clientErrorText"></span>
 				</div>
 
-				<button type="submit" class="border px-4 py-2">Save new version</button>
+				<button type="submit" class="border px-4 py-2">Guardar nueva versión</button>
 			</form>
 		</div>
 	</main>
@@ -400,14 +400,14 @@ for (const r of policyRules as any[]) {
 
 		const desc = String(form?.querySelector("input[name='description']")?.value || "").trim()
 		if (!desc || desc.length < 2) {
-			setFieldError("err-description", "Required (min 2 chars)")
+			setFieldError("err-description", "Requerido (mínimo 2 caracteres)")
 			ok = false
 		}
 
 		if (category === "Cancellation") {
 			const rows = Array.from(document.querySelectorAll("#tiers .tier-row"))
 			if (!rows.length) {
-				setFieldError("err-cancellationTiers", "At least 1 tier is required")
+				setFieldError("err-cancellationTiers", "Se requiere al menos 1 tramo")
 				ok = false
 			}
 		}
@@ -415,13 +415,13 @@ for (const r of policyRules as any[]) {
 		if (category === "Payment") {
 			const paymentType = String(paymentTypeSel?.value || "").trim()
 			if (!paymentType) {
-				setFieldError("err-paymentType", "Required")
+				setFieldError("err-paymentType", "Requerido")
 				ok = false
 			}
 			if (paymentType === "prepayment") {
 				const pct = readNumber(form?.querySelector("input[name='prepaymentPercentage']"))
 				if (pct == null || pct <= 0 || pct > 100) {
-					setFieldError("err-prepaymentPercentage", "Required (1-100)")
+					setFieldError("err-prepaymentPercentage", "Requerido (1-100)")
 					ok = false
 				}
 			}
@@ -434,15 +434,15 @@ for (const r of policyRules as any[]) {
 				form?.querySelector("input[name='checkOutUntil']")?.value || ""
 			).trim()
 			if (!cinFrom) {
-				setFieldError("err-checkInFrom", "Required")
+				setFieldError("err-checkInFrom", "Requerido")
 				ok = false
 			}
 			if (!cinUntil) {
-				setFieldError("err-checkInUntil", "Required")
+				setFieldError("err-checkInUntil", "Requerido")
 				ok = false
 			}
 			if (!coutUntil) {
-				setFieldError("err-checkOutUntil", "Required")
+				setFieldError("err-checkOutUntil", "Requerido")
 				ok = false
 			}
 		}
@@ -450,19 +450,19 @@ for (const r of policyRules as any[]) {
 		if (category === "NoShow") {
 			const t = String(noShowPenaltyTypeSel?.value || "").trim()
 			if (!t) {
-				setFieldError("err-noShowPenaltyType", "Required")
+				setFieldError("err-noShowPenaltyType", "Requerido")
 				ok = false
 			}
 			if (t === "percentage") {
 				const amt = readNumber(form?.querySelector("input[name='noShowPenaltyAmount']"))
 				if (amt == null || amt < 0 || amt > 100) {
-					setFieldError("err-noShowPenaltyAmount", "Required (0-100)")
+					setFieldError("err-noShowPenaltyAmount", "Requerido (0-100)")
 					ok = false
 				}
 			}
 		}
 
-		if (!ok) setClientError("Please fix the highlighted fields.")
+		if (!ok) setClientError("Corrige los campos marcados.")
 		return ok
 	}
 
@@ -551,8 +551,8 @@ for (const r of policyRules as any[]) {
 			}
 			setClientError(
 				payload?.error === "validation_error"
-					? "Please fix the highlighted fields."
-					: "Failed to save new version"
+					? "Corrige los campos marcados."
+					: "No se pudo guardar la nueva versión"
 			)
 			return
 		}

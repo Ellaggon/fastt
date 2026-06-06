@@ -1,9 +1,8 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
-import { POLICY_PRESETS } from "@/data/policy/policy-presets"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { routes } from "@/lib/routes"
 import { createPolicyCapa6, PolicyValidationError } from "@/modules/policies/public"
@@ -23,8 +22,7 @@ let error: string | null = null
 let fieldErrors: Record<string, string> = {}
 
 function requiredText(value: unknown): string {
-	const normalized = String(value ?? "").trim()
-	return normalized
+	return String(value ?? "").trim()
 }
 
 function parseOptionalNumber(value: unknown): number | null {
@@ -46,7 +44,15 @@ function parseLegalOverrideFlags(value: unknown): Record<string, boolean> | unde
 }
 
 function policyIssueField(path: string[]): string {
-	return path[path.length - 1] ?? "form"
+	const last = path[path.length - 1] ?? "form"
+	if (last === "paymentType") return "paymentType"
+	if (last === "prepaymentPercentage") return "prepaymentPercentage"
+	if (last === "checkInFrom") return "checkInFrom"
+	if (last === "checkInUntil") return "checkInUntil"
+	if (last === "checkOutUntil") return "checkOutUntil"
+	if (last === "penaltyType") return "noShowPenaltyType"
+	if (last === "penaltyAmount") return "noShowPenaltyAmount"
+	return last
 }
 
 function policyInputFromForm(form: FormData) {
@@ -121,232 +127,249 @@ if (Astro.request.method === "POST") {
 	try {
 		const form = await Astro.request.formData()
 		await createPolicyCapa6(policyInputFromForm(form) as any)
-
 		return Astro.redirect(`${routes.providerPolicies()}?success=draft`)
 	} catch (e: any) {
-		if (String(e?.message || e) === "ui_validation_error") {
-			if (!error) error = "Please fix the highlighted fields."
-		} else if (e instanceof z.ZodError) {
-			error = "Validation error"
-			for (const issue of e.issues) {
-				const key = issue.path.join(".") || "form"
-				fieldErrors[key] = issue.message
-			}
+		if (e instanceof z.ZodError) {
+			error = "Error de validación"
+			for (const issue of e.issues) fieldErrors[issue.path.join(".") || "form"] = issue.message
 		} else if (e instanceof PolicyValidationError) {
-			error = "Validation error"
+			error = "Error de validación"
 			for (const issue of e.issues) {
 				const key = policyIssueField(issue.path)
-				fieldErrors[key] = issue.message ?? issue.code ?? "Invalid"
+				fieldErrors[key] = issue.message ?? issue.code ?? "Inválido"
 			}
 		} else {
 			error = String(e?.message || e)
 		}
 	}
 }
+
+const categoryLabels: Record<string, string> = {
+	Cancellation: "Cancelación",
+	Payment: "Pago",
+	CheckIn: "Check-in / check-out",
+	NoShow: "No presentación",
+}
+const categoryDescriptions: Record<string, string> = {
+	Cancellation: "Ventanas de reembolso, penalidades y trato de impuestos/cargos.",
+	Payment: "Cuándo paga el huésped y si existe prepago antes de llegar.",
+	CheckIn: "Horarios operativos de llegada y salida visibles antes de reservar.",
+	NoShow: "Cargo aplicable cuando el huésped no llega y no canceló.",
+}
+const presetLabels: Record<string, string> = {
+	flexible: "Flexible",
+	moderate: "Moderada",
+	limited: "Limitada",
+	firm: "Firme",
+	strict_legacy: "Estricta legacy",
+	long_term: "Larga estadía",
+	non_refundable: "No reembolsable",
+	pay_at_property: "Pago en propiedad",
+	prepayment_full: "Prepago total",
+	deposit_50: "Depósito 50%",
+	standard_check_in: "Check-in estándar",
+	late_arrival: "Llegada tardía",
+	no_show_first_night: "No presentación: primera noche",
+	no_show_full_stay: "No presentación: estadía completa",
+	no_show_percentage_100: "No presentación: 100%",
+}
+const presetDescriptions: Record<string, string> = {
+	flexible: "Cancelación gratis hasta 1 día antes.",
+	moderate: "Cancelación gratis hasta 5 días antes.",
+	limited: "Gratis hasta 7 días antes; luego penalidad parcial/completa.",
+	firm: "Gratis hasta 30 días antes; luego penalidad escalonada.",
+	strict_legacy: "Plantilla estricta heredada, úsala con cuidado.",
+	long_term: "Para estadías de 28 noches o más.",
+	non_refundable: "Sin reembolso por cancelación.",
+	pay_at_property: "El huésped paga en la propiedad.",
+	prepayment_full: "El huésped prepaga 100%.",
+	deposit_50: "El huésped prepaga 50%.",
+	standard_check_in: "Llegada 15:00-22:00; salida 11:00.",
+	late_arrival: "Permite llegada hasta medianoche.",
+	no_show_first_night: "No presentación cobra primera noche.",
+	no_show_full_stay: "No presentación cobra estadía completa.",
+	no_show_percentage_100: "No presentación cobra 100%.",
+}
+
+function presetCopy(preset: any) {
+	return {
+		...preset,
+		displayName: presetLabels[preset.key] ?? preset.name,
+		displayDescription: presetDescriptions[preset.key] ?? preset.description,
+		categoryLabel: categoryLabels[preset.category] ?? preset.category,
+	}
+}
+
+const presetsByCategory = POLICY_PRESET_CATALOG.reduce(
+	(acc, preset) => {
+		acc[preset.category] ??= []
+		acc[preset.category].push(presetCopy(preset))
+		return acc
+	},
+	{} as Record<string, any[]>
+)
 ---
 
-<WorkspaceLayout title="Create Booking Policy">
+<WorkspaceLayout title="Crear condición">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Rooms & Rates · Booking Contract
+					Habitaciones y tarifas · Constructor de condiciones
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Crear Booking Policy</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Crear condición</h1>
 				<p class="max-w-4xl text-sm leading-6 text-slate-300">
-					Define condiciones contractuales de reserva: cancelación, pago, no-show y check-in/out.
-					Las promociones viven en Pricing; las policies explican obligaciones contractuales.
+					Construye una condición en lenguaje humano, revisa ejemplos calculables y decide si queda
+					como borrador o se publica para asignarla a tarifas.
 				</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button href={routes.providerPolicies()} variant="secondary">Policy Library</Button>
-				<Button href={routes.ratePlansList()} variant="primary">Rate Plans</Button>
+				<Button href={routes.providerPolicies()} variant="secondary">Biblioteca</Button>
+				<Button href={routes.ratePlansList()} variant="primary">Tarifas</Button>
 			</div>
 		</header>
 
 		{
 			error && (
 				<Card className="border-red-200 bg-red-50 text-red-900">
-					<p class="text-sm font-semibold">No se pudo crear la política</p>
+					<p class="text-sm font-semibold">No se pudo crear la condición</p>
 					<p class="mt-1 text-sm">{error}</p>
 				</Card>
 			)
 		}
 
-		<Section
-			title="Templates de contrato"
-			description="Usa una plantilla para cargar una semántica profesional. Puedes ajustar los campos antes de guardar."
-		>
-			<div class="grid gap-3 lg:grid-cols-2">
-				{
-					Object.entries(POLICY_PRESETS).map(([category, templates]) => (
-						<Card className="bg-white text-slate-800">
-							<p class="text-sm font-semibold tracking-wide text-slate-500 uppercase">{category}</p>
-							<div class="mt-3 space-y-3">
-								{templates.map((template) => (
-									<button
-										type="button"
-										class="block w-full rounded-lg border border-slate-200 p-3 text-left hover:border-blue-300 hover:bg-blue-50"
-										data-policy-template={JSON.stringify({ category, template })}
-									>
-										<span class="block font-semibold text-slate-900">{template.name}</span>
-										<span class="mt-1 block text-sm text-slate-600">{template.description}</span>
-										<span class="mt-2 block text-xs text-slate-500">
-											Guest: {template.guestFacing}
-										</span>
-									</button>
-								))}
-							</div>
-						</Card>
-					))
-				}
-			</div>
-		</Section>
+		<Card className="bg-white text-slate-900">
+			<form method="POST" id="policyCreateForm" class="space-y-8" novalidate>
+				<input type="hidden" name="libraryStatus" id="libraryStatus" value="draft" />
+				<input type="hidden" name="policyPresetKey" id="policyPresetKey" />
 
-		<Section
-			title="Crear política"
-			description="Guarda una policy versionada. Asignarla a un rate plan ocurre desde Rate Plans o el wizard de condiciones."
-		>
-			<Card className="bg-white text-slate-800">
-				<form method="POST" class="space-y-6" id="policyCreateForm" novalidate>
-					<div
-						id="clientErrorBox"
-						class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-red-900"
-					>
-						<strong>Error:</strong>
-						<span id="clientErrorText"></span>
+				<div
+					id="clientErrorBox"
+					class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+				>
+					<strong>Error:</strong>
+					<span id="clientErrorText"></span>
+				</div>
+
+				<nav class="grid gap-2 text-sm md:grid-cols-4" aria-label="Pasos del builder">
+					<div class="rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-950">
+						<p class="font-semibold">1. Categoría y plantilla</p>
+						<p class="text-xs">Elige la base OTA.</p>
+					</div>
+					<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+						<p class="font-semibold">2. Campos humanos</p>
+						<p class="text-xs text-slate-600">Ajusta lo visible.</p>
+					</div>
+					<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+						<p class="font-semibold">3. Vista previa</p>
+						<p class="text-xs text-slate-600">Ejemplos calculables.</p>
+					</div>
+					<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+						<p class="font-semibold">4. Guardar</p>
+						<p class="text-xs text-slate-600">Borrador o publicar.</p>
+					</div>
+				</nav>
+
+				<section class="space-y-4" id="stepCategoryPreset">
+					<div>
+						<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 1</p>
+						<h2 class="text-xl font-semibold">Categoría y plantilla</h2>
+						<p class="mt-1 text-sm text-slate-600">
+							La plantilla carga reglas estructuradas. Puedes editar los campos humanos en el paso
+							siguiente.
+						</p>
 					</div>
 
-					<div class="grid gap-4 lg:grid-cols-2">
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Nombre operativo</span>
-							<input
-								name="name"
-								minlength="2"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								placeholder="Flexible 24h · Web"
-							/>
-							<p class="text-xs text-slate-500">
-								Visible para proveedores; el copy huésped se deriva desde la categoría y reglas.
-							</p>
-							<p class="text-sm text-red-700" id="err-name">{fieldErrors["description"]}</p>
-						</label>
-
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Categoría contractual</span>
-							<select
-								name="category"
-								id="category"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								<option value="">Seleccionar...</option>
-								<option value="Cancellation">Cancellation</option>
-								<option value="Payment">Payment</option>
-								<option value="CheckIn">Check-in / Check-out</option>
-								<option value="NoShow">No-show</option>
-							</select>
-							<p class="text-xs text-slate-500">
-								Policies no modifican descuentos ni precios: definen obligaciones de reserva.
-							</p>
-							<p class="text-sm text-red-700" id="err-category">{fieldErrors["category"]}</p>
-						</label>
-
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Estado de biblioteca</span>
-							<select
-								name="libraryStatus"
-								id="libraryStatus"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								<option value="draft" selected>Draft</option>
-								<option value="template">Template</option>
-							</select>
-							<p class="text-xs text-slate-500">
-								Publica la policy cuando esté lista; recién ahí podrá asignarse a producto o rate
-								plan.
-							</p>
-						</label>
+					<div class="grid gap-3 md:grid-cols-4">
+						{
+							Object.entries(categoryLabels).map(([value, label]) => (
+								<button
+									type="button"
+									class="rounded-md border border-slate-200 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+									data-category-choice={value}
+								>
+									<span class="block font-semibold">{label}</span>
+									<span class="mt-1 block text-xs leading-5 text-slate-600">
+										{categoryDescriptions[value]}
+									</span>
+								</button>
+							))
+						}
 					</div>
 
-					<input type="hidden" name="policyPresetKey" id="policyPresetKey" />
-					<input type="hidden" name="legalOverrideFlags" id="legalOverrideFlags" />
+					<label class="block space-y-1 text-sm">
+						<span class="font-medium text-slate-700">Categoría contractual</span>
+						<select
+							name="category"
+							id="category"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+						>
+							<option value="">Seleccionar...</option>
+							{
+								Object.entries(categoryLabels).map(([value, label]) => (
+									<option value={value}>{label}</option>
+								))
+							}
+						</select>
+						<p class="text-sm text-red-700" id="err-category">{fieldErrors["category"]}</p>
+					</label>
 
-					<section class="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-3">
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Stay length</span>
-							<select
-								name="stayLengthType"
-								id="stayLengthType"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								<option value="any">Any stay</option>
-								<option value="short_stay">Short stay</option>
-								<option value="long_stay">Long stay</option>
-								<option value="monthly">Monthly</option>
-							</select>
-						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Grace period</span>
-							<input
-								name="gracePeriod"
-								id="gracePeriod"
-								type="number"
-								min="0"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							/>
-						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Local timezone</span>
-							<input
-								name="localTimezone"
-								id="localTimezone"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								placeholder="property_local"
-							/>
-						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Refund basis</span>
-							<select
-								name="refundBasis"
-								id="refundBasis"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								<option value="">Select...</option>
-								<option value="total_booking">Total booking</option>
-								<option value="room_rate">Room rate</option>
-								<option value="first_night">First night</option>
-								<option value="deposit">Deposit</option>
-								<option value="provider_policy">Provider policy</option>
-								<option value="none">None</option>
-							</select>
-						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Payout basis</span>
-							<select
-								name="payoutBasis"
-								id="payoutBasis"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								<option value="">Select...</option>
-								<option value="gross">Gross</option>
-								<option value="net">Net</option>
-								<option value="collected">Collected</option>
-								<option value="provider_policy">Provider policy</option>
-							</select>
-						</label>
-					</section>
-
-					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
-						<p class="font-semibold" id="categoryMeaningTitle">Selecciona una categoría</p>
-						<p class="mt-1" id="categoryMeaningGuest">Guest-facing: pendiente.</p>
-						<p class="mt-1" id="categoryMeaningOps">Operational meaning: pendiente.</p>
+					<div class="space-y-3">
+						<p class="text-sm font-semibold text-slate-700">Plantillas disponibles</p>
+						<div id="presetGrid" class="grid gap-3 lg:grid-cols-2">
+							{
+								Object.entries(presetsByCategory).flatMap(([category, presets]) =>
+									presets.map((preset) => (
+										<button
+											type="button"
+											class="hidden rounded-md border border-slate-200 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+											data-policy-template={JSON.stringify({ category, template: preset })}
+											data-preset-category={category}
+										>
+											<span class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												{preset.categoryLabel}
+											</span>
+											<span class="mt-1 block font-semibold text-slate-900">
+												{preset.displayName}
+											</span>
+											<span class="mt-1 block text-sm text-slate-600">
+												{preset.displayDescription}
+											</span>
+										</button>
+									))
+								)
+							}
+						</div>
 					</div>
+				</section>
+
+				<section class="space-y-4" id="stepHumanFields">
+					<div>
+						<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 2</p>
+						<h2 class="text-xl font-semibold">Campos humanos por categoría</h2>
+					</div>
+
+					<label class="block space-y-1 text-sm">
+						<span class="font-medium text-slate-700">Nombre humano</span>
+						<input
+							name="name"
+							id="policyName"
+							minlength="2"
+							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+							placeholder="Flexible 24h · Web"
+						/>
+						<p class="text-xs text-slate-500">
+							Nombre operativo para la biblioteca; no se muestra como ID al huésped.
+						</p>
+						<p class="text-sm text-red-700" id="err-name">
+							{fieldErrors["description"] || fieldErrors["name"]}
+						</p>
+					</label>
 
 					<section class="space-y-3" id="cancellationFields">
-						<h2 class="font-semibold text-slate-900">Cancellation</h2>
-						<p class="text-sm text-slate-600">
-							Define penalidades por ventana antes de llegada. Esto es contrato, no promoción.
-						</p>
+						<div class="rounded-md border-l-4 border-blue-500 bg-blue-50 p-3 text-sm text-blue-950">
+							Define ventanas: mientras más cerca de la llegada, mayor puede ser la penalidad.
+						</div>
 						<div id="tiers" class="space-y-2">
 							<div class="tier-row grid gap-2 md:grid-cols-[1fr_1fr_auto]">
 								<label class="space-y-1 text-sm">
@@ -359,7 +382,7 @@ if (Astro.request.method === "POST") {
 									/>
 								</label>
 								<label class="space-y-1 text-sm">
-									<span>Penalidad (%)</span>
+									<span>Penalidad para el huésped (%)</span>
 									<input
 										name="penaltyPercent"
 										type="number"
@@ -390,27 +413,22 @@ if (Astro.request.method === "POST") {
 					</section>
 
 					<section class="hidden space-y-3" id="paymentFields">
-						<h2 class="font-semibold text-slate-900">Payment</h2>
-						<p class="text-sm text-slate-600">
-							Define cuándo y cómo se espera el pago. Los depósitos dedicados llegarán en una fase
-							posterior.
-						</p>
 						<label class="space-y-1 text-sm">
-							<span>Tipo de pago</span>
+							<span>¿Cómo paga el huésped?</span>
 							<select
 								name="paymentType"
 								id="paymentType"
 								class="w-full rounded-lg border border-slate-300 px-3 py-2"
 							>
 								<option value="">Seleccionar...</option>
-								<option value="pay_at_property">Pay at property</option>
-								<option value="prepayment">Prepayment</option>
+								<option value="pay_at_property">Paga en la propiedad</option>
+								<option value="prepayment">Prepaga antes de llegar</option>
 							</select>
 							<p class="text-sm text-red-700" id="err-paymentType">{fieldErrors["paymentType"]}</p>
 						</label>
 						<div class="grid gap-2 md:grid-cols-2" id="prepaymentFields">
 							<label class="space-y-1 text-sm">
-								<span>Prepayment percentage</span>
+								<span>Porcentaje de prepago</span>
 								<input
 									name="prepaymentPercentage"
 									type="number"
@@ -435,13 +453,9 @@ if (Astro.request.method === "POST") {
 					</section>
 
 					<section class="hidden space-y-3" id="checkinFields">
-						<h2 class="font-semibold text-slate-900">Check-in / Check-out</h2>
-						<p class="text-sm text-slate-600">
-							Define ventanas operativas que se comunican al huésped antes de reservar.
-						</p>
 						<div class="grid gap-2 md:grid-cols-3">
 							<label class="space-y-1 text-sm">
-								<span>Check-in desde</span>
+								<span>Ingreso desde</span>
 								<input
 									name="checkInFrom"
 									type="time"
@@ -452,7 +466,7 @@ if (Astro.request.method === "POST") {
 								</p>
 							</label>
 							<label class="space-y-1 text-sm">
-								<span>Check-in hasta</span>
+								<span>Ingreso hasta</span>
 								<input
 									name="checkInUntil"
 									type="time"
@@ -463,7 +477,7 @@ if (Astro.request.method === "POST") {
 								</p>
 							</label>
 							<label class="space-y-1 text-sm">
-								<span>Check-out hasta</span>
+								<span>Salida hasta</span>
 								<input
 									name="checkOutUntil"
 									type="time"
@@ -477,28 +491,24 @@ if (Astro.request.method === "POST") {
 					</section>
 
 					<section class="hidden space-y-3" id="noshowFields">
-						<h2 class="font-semibold text-slate-900">No-show</h2>
-						<p class="text-sm text-slate-600">
-							Define la penalidad si el huésped no llega. No reemplaza la política de cancelación.
-						</p>
 						<label class="space-y-1 text-sm">
-							<span>Penalty type</span>
+							<span>¿Qué se cobra si el huésped no llega?</span>
 							<select
 								name="noShowPenaltyType"
 								id="noShowPenaltyType"
 								class="w-full rounded-lg border border-slate-300 px-3 py-2"
 							>
 								<option value="">Seleccionar...</option>
-								<option value="first_night">First night</option>
-								<option value="full">Full stay</option>
-								<option value="percentage">Percentage</option>
+								<option value="first_night">Primera noche</option>
+								<option value="full">Estadía completa</option>
+								<option value="percentage">Porcentaje</option>
 							</select>
 							<p class="text-sm text-red-700" id="err-noShowPenaltyType">
 								{fieldErrors["noShowPenaltyType"]}
 							</p>
 						</label>
 						<label class="space-y-1 text-sm" id="noshowAmountRow">
-							<span>Penalty amount (%)</span>
+							<span>Porcentaje a cobrar</span>
 							<input
 								name="noShowPenaltyAmount"
 								type="number"
@@ -512,81 +522,228 @@ if (Astro.request.method === "POST") {
 						</label>
 					</section>
 
+					<details class="rounded-md border border-slate-200 p-4">
+						<summary class="cursor-pointer text-sm font-semibold text-slate-700">Avanzado</summary>
+						<div class="mt-4 grid gap-3 md:grid-cols-3">
+							<label class="space-y-1 text-sm">
+								<span>Duración de estadía</span>
+								<select
+									name="stayLengthType"
+									id="stayLengthType"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								>
+									<option value="any">Cualquier estadía</option>
+									<option value="short_stay">Estadía corta</option>
+									<option value="long_stay">Estadía larga</option>
+									<option value="monthly">Mensual</option>
+								</select>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Periodo de gracia (horas)</span>
+								<input
+									name="gracePeriod"
+									id="gracePeriod"
+									type="number"
+									min="0"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Zona horaria local</span>
+								<input
+									name="localTimezone"
+									id="localTimezone"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									placeholder="property_local"
+								/>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Base de reembolso</span>
+								<select
+									name="refundBasis"
+									id="refundBasis"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								>
+									<option value="">Seleccionar...</option>
+									<option value="total_booking">Reserva total</option>
+									<option value="room_rate">Tarifa de habitación</option>
+									<option value="first_night">Primera noche</option>
+									<option value="deposit">Depósito</option>
+									<option value="provider_policy">Condición del proveedor</option>
+									<option value="none">Ninguna</option>
+								</select>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span>Base de pago al proveedor</span>
+								<select
+									name="payoutBasis"
+									id="payoutBasis"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+								>
+									<option value="">Seleccionar...</option>
+									<option value="gross">Bruto</option>
+									<option value="net">Neto</option>
+									<option value="collected">Cobrado</option>
+									<option value="provider_policy">Condición del proveedor</option>
+								</select>
+							</label>
+							<label class="space-y-1 text-sm md:col-span-3">
+								<span>Excepciones legales JSON</span>
+								<textarea
+									name="legalOverrideFlags"
+									id="legalOverrideFlags"
+									rows="3"
+									class="w-full rounded-lg border border-slate-300 px-3 py-2"
+									placeholder='{"requiresManualReview":true}'></textarea>
+							</label>
+						</div>
+					</details>
+				</section>
+
+				<section class="space-y-4" id="stepPreview">
+					<div>
+						<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 3</p>
+						<h2 class="text-xl font-semibold">Vista previa con ejemplos calculables</h2>
+						<p class="mt-1 text-sm text-slate-600">
+							Estos ejemplos son una vista previa del contrato. El cálculo final ocurre en backend
+							con snapshot, fechas y monto real.
+						</p>
+					</div>
+					<div class="grid gap-3 md:grid-cols-2" id="previewExamples">
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Cancelación hoy
+							</p>
+							<p class="mt-2 text-sm" id="previewCancelToday">Selecciona categoría y plantilla.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Cancelación 7 días antes
+							</p>
+							<p class="mt-2 text-sm" id="previewCancelWeek">Completa los campos humanos.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">28+ noches</p>
+							<p class="mt-2 text-sm" id="previewLongStay">Resumen pendiente.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Impuestos/cargos
+							</p>
+							<p class="mt-2 text-sm" id="previewTaxesFees">Impacto pendiente.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Cobro del proveedor
+							</p>
+							<p class="mt-2 text-sm" id="previewProviderPayout">Pendiente.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								No presentación
+							</p>
+							<p class="mt-2 text-sm" id="previewNoShow">Pendiente.</p>
+						</div>
+						<div class="rounded-md border border-slate-200 p-4 md:col-span-2">
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Pago pendiente
+							</p>
+							<p class="mt-2 text-sm" id="previewPaymentDue">Pendiente.</p>
+						</div>
+					</div>
+				</section>
+
+				<section class="space-y-4" id="stepSave">
+					<div>
+						<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 4</p>
+						<h2 class="text-xl font-semibold">Guardar borrador o publicar</h2>
+						<p class="mt-1 text-sm text-slate-600">
+							Guardar como borrador permite seguir editando. Publicar crea una condición activa
+							lista para asignación.
+						</p>
+					</div>
 					<div class="flex flex-wrap items-center gap-2">
-						<Button type="submit" variant="primary">Crear policy</Button>
+						<button
+							type="submit"
+							class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+							data-submit-status="draft"
+						>
+							Guardar borrador
+						</button>
+						<button
+							type="submit"
+							class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+							data-submit-status="active"
+						>
+							Publicar
+						</button>
 						<Button href={routes.providerPolicies()} variant="secondary">Cancelar</Button>
 					</div>
-				</form>
-			</Card>
-		</Section>
+				</section>
+			</form>
+		</Card>
 	</div>
 </WorkspaceLayout>
 
-<script define:vars={{ policyPresets: POLICY_PRESETS }}>
+<script define:vars={{ presetsByCategory }}>
 	const form = document.getElementById("policyCreateForm")
 	const categorySel = document.getElementById("category")
 	const paymentTypeSel = document.getElementById("paymentType")
 	const noShowPenaltyTypeSel = document.getElementById("noShowPenaltyType")
 	const clientErrorBox = document.getElementById("clientErrorBox")
 	const clientErrorText = document.getElementById("clientErrorText")
+	const libraryStatusInput = document.getElementById("libraryStatus")
 	const sections = {
 		Cancellation: document.getElementById("cancellationFields"),
 		Payment: document.getElementById("paymentFields"),
 		CheckIn: document.getElementById("checkinFields"),
 		NoShow: document.getElementById("noshowFields"),
 	}
-	const meanings = {
-		Cancellation: {
-			title: "Cancellation contract",
-			guest: "Guest-facing: explains refund windows and penalties before booking.",
-			ops: "Operational meaning: determines cancellation handling and booking snapshots.",
-		},
-		Payment: {
-			title: "Payment terms",
-			guest: "Guest-facing: explains whether payment happens at the property or before arrival.",
-			ops: "Operational meaning: tells finance and provider teams what collection expectation exists.",
-		},
-		CheckIn: {
-			title: "Arrival and departure terms",
-			guest: "Guest-facing: sets arrival and departure expectations.",
-			ops: "Operational meaning: aligns front-desk or self-check-in readiness.",
-		},
-		NoShow: {
-			title: "No-show handling",
-			guest: "Guest-facing: explains the consequence of not arriving.",
-			ops: "Operational meaning: separates no-show treatment from voluntary cancellation.",
-		},
-	}
 
-	function setText(id, value) {
-		const el = document.getElementById(id)
-		if (el) el.textContent = value || ""
-	}
-
-	function setClientError(msg) {
+	function setClientError(message) {
 		if (!clientErrorBox || !clientErrorText) return
-		if (!msg) {
-			clientErrorText.textContent = ""
-			clientErrorBox.classList.add("hidden")
-			return
-		}
-		clientErrorText.textContent = msg
-		clientErrorBox.classList.remove("hidden")
+		clientErrorText.textContent = message || ""
+		clientErrorBox.classList.toggle("hidden", !message)
+	}
+
+	function inputByName(name) {
+		return form?.querySelector(`[name="${name}"]`)
+	}
+
+	function inputValue(name) {
+		return String(inputByName(name)?.value || "").trim()
+	}
+
+	function setInput(name, value) {
+		const input = inputByName(name)
+		if (input) input.value = value == null ? "" : String(value)
+	}
+
+	function selectedCategory() {
+		return String(categorySel?.value || "")
+	}
+
+	function updatePresetVisibility() {
+		const category = selectedCategory()
+		document.querySelectorAll("[data-policy-template]").forEach((button) => {
+			button.classList.toggle("hidden", button.getAttribute("data-preset-category") !== category)
+		})
+		document.querySelectorAll("[data-category-choice]").forEach((button) => {
+			const active = button.getAttribute("data-category-choice") === category
+			button.classList.toggle("border-blue-500", active)
+			button.classList.toggle("bg-blue-50", active)
+		})
 	}
 
 	function updateCategoryUI() {
-		const category = categorySel?.value || ""
+		const category = selectedCategory()
 		for (const [key, section] of Object.entries(sections)) {
 			section?.classList.toggle("hidden", key !== category)
 		}
-		const meaning = meanings[category] || {
-			title: "Selecciona una categoría",
-			guest: "Guest-facing: pendiente.",
-			ops: "Operational meaning: pendiente.",
-		}
-		setText("categoryMeaningTitle", meaning.title)
-		setText("categoryMeaningGuest", meaning.guest)
-		setText("categoryMeaningOps", meaning.ops)
+		updatePresetVisibility()
+		updatePaymentUI()
+		updateNoShowUI()
+		updatePreview()
 	}
 
 	function updatePaymentUI() {
@@ -599,9 +756,12 @@ if (Astro.request.method === "POST") {
 		row?.classList.toggle("hidden", noShowPenaltyTypeSel?.value !== "percentage")
 	}
 
-	function setInput(name, value) {
-		const input = form?.querySelector(`[name="${name}"]`)
-		if (input) input.value = value == null ? "" : String(value)
+	function escapeHtml(value) {
+		return String(value ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
 	}
 
 	function resetTiers(tiers) {
@@ -614,31 +774,174 @@ if (Astro.request.method === "POST") {
 			row.innerHTML = `
 				<label class="space-y-1 text-sm">
 					<span>Días antes de llegada</span>
-					<input name="daysBeforeArrival" type="number" min="0" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${tier.daysBeforeArrival ?? ""}" />
+					<input name="daysBeforeArrival" type="number" min="0" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${escapeHtml(tier.daysBeforeArrival ?? "")}" />
 				</label>
 				<label class="space-y-1 text-sm">
-					<span>Penalidad (%)</span>
-					<input name="penaltyPercent" type="number" min="0" max="100" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${tier.penaltyAmount ?? ""}" />
+					<span>Penalidad para el huésped (%)</span>
+					<input name="penaltyPercent" type="number" min="0" max="100" class="w-full rounded-lg border border-slate-300 px-3 py-2" value="${escapeHtml(tier.penaltyAmount ?? "")}" />
 				</label>
 				<button type="button" class="self-end rounded-lg border border-slate-300 px-3 py-2 text-sm" data-remove-tier>Quitar</button>`
 			container.appendChild(row)
 		}
 	}
 
+	function cancellationTiers() {
+		const rows = Array.from(document.querySelectorAll("#tiers .tier-row"))
+		return rows
+			.map((row) => ({
+				days: Number(row.querySelector('[name="daysBeforeArrival"]')?.value || NaN),
+				penalty: Number(row.querySelector('[name="penaltyPercent"]')?.value || NaN),
+			}))
+			.filter((tier) => Number.isFinite(tier.days) && Number.isFinite(tier.penalty))
+			.sort((a, b) => b.days - a.days)
+	}
+
+	function setPreview(values) {
+		const defaults = {
+			cancelToday: "Se resolverá con la condición de Cancelación asignada.",
+			cancelWeek: "Se resolverá con la condición de Cancelación asignada.",
+			longStay: "No cambia estadías largas desde esta categoría.",
+			taxesFees: "Se calculan según la condición de Cancelación y bases fiscales asignadas.",
+			providerPayout: "Se calcula según la base contractual asignada.",
+			noShow: "Se resolverá con la condición No presentación asignada.",
+			paymentDue: "Se resolverá con la condición Pago asignada.",
+			...values,
+		}
+		document.getElementById("previewCancelToday").textContent = defaults.cancelToday
+		document.getElementById("previewCancelWeek").textContent = defaults.cancelWeek
+		document.getElementById("previewLongStay").textContent = defaults.longStay
+		document.getElementById("previewTaxesFees").textContent = defaults.taxesFees
+		document.getElementById("previewProviderPayout").textContent = defaults.providerPayout
+		document.getElementById("previewNoShow").textContent = defaults.noShow
+		document.getElementById("previewPaymentDue").textContent = defaults.paymentDue
+	}
+
+	function penaltyAtDays(tiers, daysBeforeArrival) {
+		const sorted = [...tiers].sort((a, b) => Number(b.days) - Number(a.days))
+		const match = sorted.find((tier) => Number(daysBeforeArrival) >= Number(tier.days))
+		return match ? Number(match.penalty) : null
+	}
+
+	function refundFromPenalty(penalty) {
+		if (!Number.isFinite(penalty)) return "sin tramo definido; revisa antes de vender."
+		return `${Math.max(0, 100 - Number(penalty))}% de reembolso / ${Number(penalty)}% de penalidad.`
+	}
+
+	function basisCopy(value) {
+		const map = {
+			total_booking: "reserva completa",
+			room_rate: "tarifa base",
+			first_night: "primera noche",
+			deposit: "depósito",
+			provider_policy: "condición del proveedor",
+			none: "sin reembolso",
+			gross: "monto bruto",
+			net: "monto neto",
+			collected: "monto cobrado",
+		}
+		return map[String(value || "")] || String(value || "sin definir")
+	}
+
+	function updatePreview() {
+		const category = selectedCategory()
+		if (!category) {
+			setPreview({
+				cancelToday: "Selecciona categoría y plantilla.",
+				cancelWeek: "Completa los campos humanos.",
+				longStay: "Resumen pendiente.",
+				taxesFees: "Impacto pendiente.",
+				providerPayout: "Pendiente.",
+				noShow: "Pendiente.",
+				paymentDue: "Pendiente.",
+			})
+			return
+		}
+		if (category === "Cancellation") {
+			const tiers = cancellationTiers()
+			const todayPenalty = penaltyAtDays(tiers, 0)
+			const weekPenalty = penaltyAtDays(tiers, 7)
+			const longStay = inputValue("stayLengthType") === "long_stay"
+			const refundBasis = inputValue("refundBasis")
+			const payoutBasis = inputValue("payoutBasis")
+			setPreview({
+				cancelToday: refundFromPenalty(todayPenalty),
+				cancelWeek: refundFromPenalty(weekPenalty),
+				longStay: longStay
+					? "Usa contrato de larga estadía desde 28 noches."
+					: "Mantiene contrato de estadía corta; asigna una plantilla de larga estadía si aplica.",
+				taxesFees:
+					refundBasis === "none"
+						? "No se reembolsan automáticamente."
+						: "Se prorratean según el reembolso de la reserva.",
+				providerPayout: `Cobro del proveedor calculado sobre ${basisCopy(payoutBasis)}.`,
+			})
+			return
+		}
+		if (category === "Payment") {
+			const paymentType = inputValue("paymentType")
+			const pct = inputValue("prepaymentPercentage")
+			const days = inputValue("prepaymentDaysBeforeArrival") || "0"
+			setPreview({
+				providerPayout:
+					paymentType === "prepayment"
+						? `Proveedor queda sujeto a cobro anticipado de ${pct || "100"}%.`
+						: "Proveedor cobra en propiedad según su operación.",
+				paymentDue:
+					paymentType === "prepayment"
+						? `${pct || "100"}% pendiente ${days === "0" ? "al reservar" : `${days} día(s) antes de la llegada`}.`
+						: "Sin pago pendiente en plataforma; el huésped paga en propiedad.",
+			})
+			return
+		}
+		if (category === "CheckIn") {
+			const from = inputValue("checkInFrom") || "15:00"
+			const until = inputValue("checkInUntil") || "22:00"
+			const out = inputValue("checkOutUntil") || "11:00"
+			setPreview({
+				providerPayout: "Sin cargo directo; afecta operación y mensajes previos a la llegada.",
+				paymentDue: `Llegada entre ${from} y ${until}; salida hasta ${out}.`,
+			})
+			return
+		}
+		const noShowType = inputValue("noShowPenaltyType")
+		const amount = inputValue("noShowPenaltyAmount")
+		setPreview({
+			providerPayout:
+				noShowType === "full"
+					? "Proveedor conserva la estadía completa si el huésped no llega."
+					: noShowType === "first_night"
+						? "Proveedor conserva la primera noche si el huésped no llega."
+						: `Proveedor conserva ${amount || "100"}% si el huésped no llega.`,
+			noShow:
+				noShowType === "first_night"
+					? "Si no llega: se cobra la primera noche."
+					: noShowType === "full"
+						? "Si no llega: se cobra la estadía completa."
+						: `Si no llega: se cobra ${amount || "100"}%.`,
+		})
+	}
+
+	document.querySelectorAll("[data-category-choice]").forEach((button) => {
+		button.addEventListener("click", () => {
+			setInput("category", button.getAttribute("data-category-choice") || "")
+			updateCategoryUI()
+		})
+	})
+
 	document.querySelectorAll("[data-policy-template]").forEach((button) => {
 		button.addEventListener("click", () => {
 			const data = JSON.parse(button.getAttribute("data-policy-template") || "{}")
 			const category = String(data.category || "")
 			const template = data.template || {}
-			setInput("name", template.name || "")
 			setInput("category", category)
+			setInput("name", template.displayName || template.name || "")
 			setInput("policyPresetKey", template.key || "")
 			setInput("stayLengthType", template.stayLengthType || "any")
 			setInput("gracePeriod", template.gracePeriod ?? "")
 			setInput("refundBasis", template.refundBasis || "")
 			setInput("payoutBasis", template.payoutBasis || "")
 			setInput("localTimezone", template.localTimezone || "property_local")
-			setInput("legalOverrideFlags", JSON.stringify(template.legalOverrideFlags || {}))
+			setInput("legalOverrideFlags", JSON.stringify(template.legalOverrideFlags || {}, null, 2))
 			if (category === "Cancellation") resetTiers(template.cancellationTiers || [])
 			if (category === "Payment") {
 				setInput("paymentType", template.rules?.paymentType || "")
@@ -655,8 +958,6 @@ if (Astro.request.method === "POST") {
 				setInput("noShowPenaltyAmount", template.rules?.penaltyAmount || "")
 			}
 			updateCategoryUI()
-			updatePaymentUI()
-			updateNoShowUI()
 		})
 	})
 
@@ -678,33 +979,75 @@ if (Astro.request.method === "POST") {
 		const rows = document.querySelectorAll("#tiers .tier-row")
 		if (rows.length <= 1) return
 		target.closest(".tier-row")?.remove()
+		updatePreview()
 	})
 
 	function validate() {
-		setClientError("")
-		let ok = true
-		const category = categorySel?.value || ""
-		const name = form?.querySelector('[name="name"]')?.value?.trim() || ""
-		if (name.length < 2) ok = false
-		if (!category) ok = false
-		if (category === "Payment" && !paymentTypeSel?.value) ok = false
+		const category = selectedCategory()
+		const name = inputValue("name")
+		if (name.length < 2) return "Escribe un nombre humano para la condición."
+		if (!category) return "Selecciona una categoría contractual."
+		if (category === "Cancellation" && cancellationTiers().length === 0) {
+			return "Agrega al menos un tramo de cancelación."
+		}
+		if (category === "Payment" && !inputValue("paymentType"))
+			return "Selecciona cómo paga el huésped."
+		if (category === "Payment" && inputValue("paymentType") === "prepayment") {
+			const pct = Number(inputValue("prepaymentPercentage"))
+			if (!Number.isFinite(pct) || pct <= 0 || pct > 100)
+				return "El prepago debe estar entre 1 y 100%."
+		}
 		if (category === "CheckIn") {
 			for (const key of ["checkInFrom", "checkInUntil", "checkOutUntil"]) {
-				if (!form?.querySelector(`[name="${key}"]`)?.value) ok = false
+				if (!inputValue(key)) return "Completa las horas de check-in y check-out."
 			}
 		}
-		if (category === "NoShow" && !noShowPenaltyTypeSel?.value) ok = false
-		if (!ok) setClientError("Completa los campos requeridos para esta categoría.")
-		return ok
+		if (category === "NoShow" && !inputValue("noShowPenaltyType")) {
+			return "Selecciona el cargo de no presentación."
+		}
+		if (category === "NoShow" && inputValue("noShowPenaltyType") === "percentage") {
+			const pct = Number(inputValue("noShowPenaltyAmount"))
+			if (!Number.isFinite(pct) || pct < 0 || pct > 100)
+				return "El porcentaje debe estar entre 0 y 100%."
+		}
+		return ""
 	}
 
-	categorySel?.addEventListener("change", updateCategoryUI)
-	paymentTypeSel?.addEventListener("change", updatePaymentUI)
-	noShowPenaltyTypeSel?.addEventListener("change", updateNoShowUI)
-	form?.addEventListener("submit", (event) => {
-		if (!validate()) event.preventDefault()
+	document.addEventListener("input", (event) => {
+		if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
+			updatePreview()
+		}
 	})
+	categorySel?.addEventListener("change", updateCategoryUI)
+	paymentTypeSel?.addEventListener("change", () => {
+		updatePaymentUI()
+		updatePreview()
+	})
+	noShowPenaltyTypeSel?.addEventListener("change", () => {
+		updateNoShowUI()
+		updatePreview()
+	})
+
+	form?.addEventListener("submit", (event) => {
+		const submitter = event.submitter
+		const nextStatus = submitter?.getAttribute("data-submit-status") || "draft"
+		const validationError = validate()
+		if (validationError) {
+			event.preventDefault()
+			setClientError(validationError)
+			return
+		}
+		if (libraryStatusInput) libraryStatusInput.value = nextStatus
+		const message =
+			nextStatus === "active"
+				? "Vas a publicar esta condición. Quedará activa para asignación. ¿Continuar?"
+				: "Vas a guardar esta condición como borrador. ¿Continuar?"
+		if (!window.confirm(message)) {
+			event.preventDefault()
+			return
+		}
+		setClientError("")
+	})
+
 	updateCategoryUI()
-	updatePaymentUI()
-	updateNoShowUI()
 </script>

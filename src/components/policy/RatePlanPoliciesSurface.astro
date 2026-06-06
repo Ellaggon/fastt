@@ -2,6 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Section from "@/components/ui/Section.astro"
 import { POLICY_CATEGORY_ORDER } from "@/modules/policies/public"
 
@@ -76,12 +77,12 @@ const {
 							</div>
 						</div>
 						<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Precio</p>
+							<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Precio</p>
 							<p class="mt-1 text-sm text-slate-700">{plan.priceLabel}</p>
 						</div>
 					</div>
 					<div class="rounded-lg border border-slate-200 p-3" data-role="missing-categories">
-						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 							Cobertura de condiciones
 						</p>
 						<p class="mt-1 text-sm font-medium text-slate-900" data-role="coverage-badge">
@@ -122,20 +123,34 @@ const {
 							</li>
 						</ul>
 					</div>
-					<Button
-						type="button"
-						variant="primary"
-						size="sm"
-						class="wizard-open-btn w-full justify-center"
-						data-rate-plan-id={plan.ratePlanId}
-					>
-						{plan.coverageCount === 4 ? "Editar condiciones" : "Completar condiciones"}
-					</Button>
+					<div class="grid gap-2 sm:grid-cols-2">
+						<Button
+							type="button"
+							variant="primary"
+							size="sm"
+							class="policy-assignment-open w-full justify-center"
+							data-assignment-scope="rate_plan"
+							data-assignment-scope-id={plan.ratePlanId}
+						>
+							Asignar condición
+						</Button>
+						<Button
+							type="button"
+							variant="secondary"
+							size="sm"
+							class="wizard-open-btn w-full justify-center"
+							data-rate-plan-id={plan.ratePlanId}
+						>
+							{plan.coverageCount === 4 ? "Editar condiciones" : "Completar condiciones"}
+						</Button>
+					</div>
 				</Card>
 			))
 		}
 	</div>
 </Section>
+
+<PolicyAssignmentFlow defaultScope="rate_plan" />
 
 <div id="policyWizardOverlay" class="fixed inset-0 z-50 hidden bg-slate-950/65 p-4">
 	<div
@@ -143,7 +158,7 @@ const {
 	>
 		<div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
 			<div>
-				<h2 class="text-lg font-semibold text-slate-900">Completar políticas de tarifa</h2>
+				<h2 class="text-lg font-semibold text-slate-900">Completar condiciones de tarifa</h2>
 				<p class="text-sm text-slate-600">Configura condiciones de reserva sin salir de Tarifas.</p>
 			</div>
 			<button
@@ -192,7 +207,7 @@ const {
 							>
 							<input
 								id="wizDescription"
-								placeholder="Nombre comercial de la política"
+								placeholder="Nombre comercial de la condición"
 								class="mt-3 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400"
 							/>
 						</details>
@@ -210,8 +225,7 @@ const {
 						<div id="catPayment" class="hidden space-y-2">
 							<div class="flex gap-3 text-sm text-slate-700">
 								<label
-									><input type="radio" name="paymentMode" value="pay_at_property" checked /> Pago en
-									hotel</label
+									><input type="radio" name="paymentMode" value="pay_at_property" checked /> Pago en propiedad</label
 								>
 								<label><input type="radio" name="paymentMode" value="prepayment" /> Prepago</label>
 							</div>
@@ -492,7 +506,7 @@ const {
 							`<li class="rounded border border-slate-200 bg-white px-3 py-2"><strong>${escapeHtml(categoryLabel(policy.category))}</strong>: ${escapeHtml(policy.description || "")}</li>`
 					)
 					.join("")
-			: `<li class="rounded border border-amber-200 bg-amber-50 px-3 py-2">Sin políticas resueltas para este contexto.</li>`
+			: `<li class="rounded border border-amber-200 bg-amber-50 px-3 py-2">Sin condiciones resueltas para este contexto.</li>`
 		renderCoverage()
 	}
 

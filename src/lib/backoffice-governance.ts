@@ -134,11 +134,11 @@ export const backofficeShells: BackofficeShellClassification[] = [
 export const operationalContextMetadata: Record<OperationalContext, OperationalContextMetadata> = {
 	"public-marketplace": {
 		label: "Public Marketplace",
-		description: "Consumer-facing discovery and conversion surfaces.",
+		description: "Guest discovery and conversion surfaces.",
 	},
 	"provider-workspace": {
 		label: "Provider Workspace",
-		description: "Provider-owned content and physical product setup.",
+		description: "Provider-managed content and physical configuration surfaces.",
 	},
 	"enterprise-operations": {
 		label: "Enterprise Operations",
@@ -146,7 +146,7 @@ export const operationalContextMetadata: Record<OperationalContext, OperationalC
 	},
 	"internal-admin": {
 		label: "Internal Admin",
-		description: "Platform-only administration and governance.",
+		description: "Platform-only administration and governance surfaces.",
 	},
 	"internal-ops": {
 		label: "Internal Ops",
@@ -165,27 +165,27 @@ export const operationalContextMetadata: Record<OperationalContext, OperationalC
 export const governanceStatusMetadata: Record<GovernanceStatus, GovernanceStatusMetadata> = {
 	"canonical": {
 		label: "Operational",
-		description: "Canonical workspace surface for current operations.",
+		description: "Canonical surface for the current operation.",
 		tone: "green",
 	},
 	"transitional": {
 		label: "Transitional",
-		description: "Real surface with governed scope; not yet the final enterprise module.",
+		description: "Real governed surface; not yet the final enterprise module.",
 		tone: "amber",
 	},
 	"legacy": {
 		label: "Legacy",
-		description: "Isolated compatibility surface; not primary navigation.",
+		description: "Superficie aislada de compatibilidad; no pertenece a la navegación primaria.",
 		tone: "slate",
 	},
 	"internal-only": {
-		label: "Internal Only",
-		description: "Hidden from provider workspace navigation.",
+		label: "Solo interno",
+		description: "Oculto de la navegación del proveedor.",
 		tone: "slate",
 	},
 	"public": {
-		label: "Public",
-		description: "Consumer or authentication surface.",
+		label: "Público",
+		description: "Superficie pública o de autenticación.",
 		tone: "slate",
 	},
 	"planned": {
@@ -263,7 +263,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Canonical room creation, detail, profile, gallery and availability handoff routes for accommodations.",
+			"Rutas canónicas de creación, detalle, perfil, galería y disponibilidad de habitaciones para alojamientos.",
 	},
 	{
 		pattern: "/product/**",
@@ -278,22 +278,21 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "RatePlan-first commercial pricing and policy surfaces.",
+		rationale: "Superficies comerciales centradas en tarifas, precios y condiciones.",
 	},
 	{
 		pattern: "/rates/restrictions",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale:
-			"Operational sellability domain over existing restriction rules and search evaluation.",
+		rationale: "Official sellability domain for restriction rules and search evaluation.",
 	},
 	{
 		pattern: "/pricing",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Calendar-first daily pricing operation over rate-plan ownership.",
+		rationale: "Operación diaria de precios desde calendario sobre responsabilidad de tarifas.",
 	},
 	{
 		pattern: "/pricing/rules",
@@ -301,14 +300,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Legacy deep link redirected into /pricing#pricing-automation; do not expose as primary navigation.",
+			"Enlace legacy redirigido a /pricing#pricing-automation; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/pricing/calendar",
 		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Deprecated calendar surface; do not expose in primary navigation.",
+		rationale: "Superficie de calendario deprecada; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/inventory/bulk",
@@ -316,7 +315,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Secondary bulk inventory tool; daily physical inventory ownership lives in /inventory.",
+			"Contextual advanced workflow for bulk physical inventory operations; daily operation lives in /inventory.",
 	},
 	{
 		pattern: "/inventory",
@@ -324,14 +323,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Calendar-first physical inventory operation; variant-first ownership is legitimate here.",
+			"Operación de inventario físico desde calendario; la responsabilidad por habitación vive aquí.",
 	},
 	{
 		pattern: "/booking/**",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Reservations",
-		rationale: "Snapshot-driven reservation lifecycle.",
+		rationale: "Ciclo de vida de reservas basado en instantáneas contractuales.",
 	},
 	{
 		pattern: "/financial/**",
@@ -339,7 +338,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Payments & Finance",
 		rationale:
-			"Snapshot-safe financial operations and reconciliation visibility; not an accounting or PSP engine.",
+			"Operación financiera y conciliación con instantáneas seguras; no es contabilidad ni pasarela de pago.",
 	},
 	{
 		pattern: "/provider/policies/audit",
@@ -347,7 +346,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "governance",
 		owner: "Administration & Governance",
 		rationale:
-			"Policy auditability is governance and traceability, not daily Rooms & Rates operation.",
+			"La auditoría de condiciones es gobernanza y trazabilidad, no operación diaria de tarifas.",
 	},
 	{
 		pattern: "/provider/house-rules",
@@ -363,35 +362,36 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Booking policy management belongs under Rooms & Rates as rate-plan booking conditions.",
+			"La gestión de condiciones pertenece a Habitaciones y tarifas como contrato de reserva por tarifa.",
 	},
 	{
 		pattern: "/provider/tax-fees",
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Payments & Finance",
-		rationale: "Taxes and fees are financial-commercial setup, not generic provider settings.",
+		rationale:
+			"Impuestos y cargos son configuración financiera-comercial, no ajustes genéricos del proveedor.",
 	},
 	{
 		pattern: "/analytics/**",
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Analytics & Performance",
-		rationale: "Placeholder reporting surfaces; visible as transitional operations.",
+		rationale: "Superficies iniciales de reporte; visibles como operación transicional.",
 	},
 	{
 		pattern: "/system/integrations",
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Connectivity",
-		rationale: "Connectivity placeholder; not a generic System bucket.",
+		rationale: "Superficie inicial de conectividad; no es un contenedor genérico de sistema.",
 	},
 	{
 		pattern: "/provider",
 		status: "transitional",
 		context: "governance",
 		owner: "Administration & Governance",
-		rationale: "Provider organization settings.",
+		rationale: "Configuración de organización del proveedor.",
 	},
 	{
 		pattern: "/provider/profile",
@@ -412,14 +412,15 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "transitional",
 		context: "governance",
 		owner: "Administration & Governance",
-		rationale: "Provider verification belongs to governance, not operational System.",
+		rationale: "La verificación del proveedor pertenece a gobernanza, no a operación de sistema.",
 	},
 	{
 		pattern: "/admin/**",
 		status: "internal-only",
 		context: "internal-admin",
 		owner: "Internal Admin",
-		rationale: "Platform governance/admin surface; not provider workspace navigation.",
+		rationale:
+			"Superficie administrativa de plataforma; no pertenece a la navegación del proveedor.",
 	},
 	{
 		pattern: "/api/internal/dashboard-summary",
@@ -594,7 +595,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Payments & Finance",
-		rationale: "Provider-facing BFF for settlement evidence visibility; not payout execution.",
+		rationale:
+			"BFF visible para proveedor con evidencia de liquidación; no ejecuta pagos al proveedor.",
 	},
 	{
 		pattern: "/api/internal/financial/provider-finance",
@@ -602,7 +604,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Payments & Finance",
 		rationale:
-			"Provider-facing BFF read model for provider finance visibility; not payout execution or accounting.",
+			"BFF visible para proveedor con lectura financiera; no ejecuta pagos al proveedor ni contabilidad.",
 	},
 	{
 		pattern: "/api/internal/financial/**",
@@ -687,7 +689,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Commercial policy APIs.",
+		rationale: "APIs comerciales de condiciones.",
 	},
 	{
 		pattern: "/api/provider/tax-fees/**",
@@ -874,7 +876,8 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.providerPolicies(),
 				status: "transitional",
 				level: 2,
-				summary: "Cancelación, pagos, no-show, check-in y check-out.",
+				summary:
+					"Preparación contractual por tarifa: cancelación, pagos, no presentación, check-in y check-out.",
 			},
 		],
 		planned: ["Pricing por ocupación", "Historial de auditoría"],
@@ -885,7 +888,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Operación de reservas",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Coordinación del ciclo de vida de reservas con snapshots de contrato, precios, inventario y pagos en sus dominios.",
+			"Coordinación del ciclo de vida de reservas con instantáneas contractuales, precios, inventario y pagos en sus dominios.",
 		maturity: "operational",
 		items: [
 			{
@@ -943,7 +946,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.financialOperations(),
 				status: "canonical",
 				summary:
-					"Snapshots de contrato, visibilidad de pagos, reembolsos, comisiones y conciliación.",
+					"Instantáneas contractuales, visibilidad de pagos, reembolsos, comisiones y conciliación.",
 			},
 			{
 				label: "Impuestos y cargos",
@@ -1035,34 +1038,34 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 
 export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
 	{
-		title: "Commercial product and pricing layer",
+		title: "Capa comercial de producto y precios",
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"RatePlan-first ownership for commercial products, price coverage, pricing automation, and commercial handoffs.",
+			"Responsabilidad centrada en tarifas para productos comerciales, cobertura de precios, automatización de precios y traspasos comerciales.",
 		surfaces: [
 			{
 				label: "Tarifas",
 				href: routes.ratePlansList(),
 				status: "canonical",
-				owner: "Rooms & Rates",
-				description: "Explicit rate-plan maintenance surface for commercial products.",
+				owner: "Habitaciones y tarifas",
+				description: "Superficie explícita para mantener tarifas comerciales.",
 			},
 			{
 				label: "Calendario de precios",
 				href: routes.pricing(),
 				status: "canonical",
-				owner: "Rooms & Rates",
-				description: "Calendar-first daily pricing coverage, gaps, and quick price edits.",
+				owner: "Habitaciones y tarifas",
+				description: "Cobertura diaria de precios, brechas y edición rápida desde calendario.",
 			},
 		],
 	},
 	{
-		title: "Physical inventory layer",
+		title: "Capa de inventario físico",
 		ownership: "physical",
 		status: "operational",
 		intent:
-			"Variant-first physical inventory ownership for room types, availability, and unit capacity.",
+			"Responsabilidad de inventario físico por habitación, disponibilidad y capacidad de unidades.",
 		surfaces: [
 			{
 				label: "Catálogo y habitaciones",
@@ -1076,82 +1079,82 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Inventario",
 				href: routes.inventory(),
 				status: "canonical",
-				owner: "Rooms & Rates",
-				description: "Calendar-first physical capacity, availability, and unit counts by variant.",
+				owner: "Habitaciones y tarifas",
+				description: "Capacidad física, disponibilidad y unidades por habitación desde calendario.",
 			},
 			{
-				label: "Bulk Inventory",
+				label: "Inventario masivo",
 				href: routes.inventoryBulk(),
 				status: "transitional",
-				owner: "Rooms & Rates",
+				owner: "Habitaciones y tarifas",
 				description:
-					"Contextual advanced workflow for exceptional physical-capacity operations launched from Inventory.",
+					"Flujo avanzado contextual para operaciones excepcionales de capacidad física desde Inventario.",
 			},
 		],
 	},
 	{
-		title: "Sellability and booking conditions",
+		title: "Venta y condiciones de reserva",
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"Restrictions own sellability while booking policies own reservation contract terms; neither is a pricing engine.",
+			"Restricciones controla la venta; Condiciones controla los términos contractuales de reserva. Ninguno es motor de precios.",
 		surfaces: [
 			{
 				label: "Restricciones de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
-				owner: "Rooms & Rates",
+				owner: "Habitaciones y tarifas",
 				description:
-					"Official sellability domain for LOS, CTA/CTD, stop-sell, and booking-window controls.",
+					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell y ventanas de reserva.",
 			},
 			{
 				label: "Condiciones",
 				href: routes.providerPolicies(),
 				status: "transitional",
-				owner: "Rooms & Rates",
+				owner: "Habitaciones y tarifas",
 				description:
-					"Booking contract library for cancellation, payment, no-show, and check-in/out terms.",
+					"Biblioteca contractual para cancelación, pago, no presentación, ingreso y salida.",
 			},
 			{
-				label: "Taxes & Fees",
+				label: "Impuestos y cargos",
 				href: routes.providerTaxFees(),
 				status: "transitional",
-				owner: "Payments & Finance",
-				description: "Financial-commercial charges surfaced as a governed cross-owner dependency.",
+				owner: "Pagos y finanzas",
+				description: "Cargos financieros y comerciales como dependencia gobernada entre áreas.",
 			},
 		],
 	},
 	{
-		title: "ARI maturity roadmap",
+		title: "Hoja de ruta de madurez de tarifas e inventario",
 		ownership: "planned",
 		status: "planned",
 		intent:
-			"Roadmap markers only. These are not active workspaces until real ownership and routes exist.",
+			"Marcadores de hoja de ruta. No son espacios activos hasta tener responsabilidad y rutas reales.",
 		surfaces: [
 			{
-				label: "Occupancy Pricing",
+				label: "Precios por ocupación",
 				status: "planned",
-				owner: "Rooms & Rates",
-				description: "Future occupancy pricing management over rate-plan semantics.",
+				owner: "Habitaciones y tarifas",
+				description: "Gestión futura de precios por ocupación sobre tarifas.",
 			},
 			{
-				label: "Audit History",
+				label: "Historial de auditoría",
 				status: "planned",
-				owner: "Rooms & Rates",
-				description: "Future ARI audit history surface.",
+				owner: "Habitaciones y tarifas",
+				description: "Superficie futura de auditoría de tarifas e inventario.",
 			},
 		],
 	},
 ] as const
 
 export const plannedEnterpriseModules = [
-	"Revenue Management",
+	"Gestión de ingresos",
 	"Marketing",
-	"Guest Relations / CRM",
-	"Opportunities",
-	"Support Operations",
-	"Observability Console",
-	"Administration RBAC",
+	"Relación con huéspedes / CRM",
+	"Oportunidades",
+	"Operación de soporte",
+	"Consola de observabilidad",
+	"Administración RBAC",
 ] as const
 
 export function getBackofficeRouteClassification(
@@ -1191,7 +1194,7 @@ export function getGovernanceStatusMetadata(
 	if (!status) {
 		return {
 			label: "Workspace",
-			description: "Governance status unavailable for this surface.",
+			description: "Estado de gobernanza no disponible para esta superficie.",
 			tone: "slate",
 		}
 	}

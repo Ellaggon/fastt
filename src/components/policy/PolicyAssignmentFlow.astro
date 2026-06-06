@@ -1,0 +1,624 @@
+---
+type Props = {
+	defaultScope?: "product" | "variant" | "rate_plan"
+	defaultScopeId?: string
+}
+
+const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
+---
+
+<div
+	id="policyAssignmentOverlay"
+	class="fixed inset-0 z-[70] hidden bg-slate-950/70 p-4"
+	data-default-scope={defaultScope}
+	data-default-scope-id={defaultScopeId}
+>
+	<div
+		class="mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl"
+	>
+		<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+			<div>
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+					Asignación profesional
+				</p>
+				<h2 class="mt-1 text-xl font-semibold">Asignar condición</h2>
+				<p class="mt-1 text-sm text-slate-600">
+					Usa una condición publicada o crea una desde una plantilla. Revisa el impacto antes de
+					confirmar.
+				</p>
+			</div>
+			<button
+				type="button"
+				id="policyAssignmentClose"
+				class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+			>
+				Cerrar
+			</button>
+		</div>
+
+		<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+			<div class="grid gap-4 md:grid-cols-[1fr_320px]">
+				<form id="policyAssignmentForm" class="space-y-5">
+					<section class="rounded-lg border border-slate-200 p-4">
+						<p class="text-sm font-semibold text-slate-900">1. Origen</p>
+						<div class="mt-3 grid gap-2 sm:grid-cols-2">
+							<label class="rounded-lg border border-slate-200 p-3 text-sm">
+								<input type="radio" name="assignmentMode" value="existing" checked />
+								<span class="ml-2 font-medium">Usar condición existente</span>
+								<span class="mt-1 block text-slate-500">Selecciona una condición publicada.</span>
+							</label>
+							<label class="rounded-lg border border-slate-200 p-3 text-sm">
+								<input type="radio" name="assignmentMode" value="preset" />
+								<span class="ml-2 font-medium">Crear desde plantilla</span>
+								<span class="mt-1 block text-slate-500">Crea y asigna una condición publicada.</span
+								>
+							</label>
+						</div>
+					</section>
+
+					<section class="rounded-lg border border-slate-200 p-4">
+						<p class="text-sm font-semibold text-slate-900">2. Condición</p>
+						<div id="assignmentExistingFields" class="mt-3 space-y-3">
+							<label class="block text-sm font-medium text-slate-700" for="assignmentPolicyId">
+								Condición publicada
+							</label>
+							<select
+								id="assignmentPolicyId"
+								class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							></select>
+						</div>
+						<div id="assignmentPresetFields" class="mt-3 hidden grid gap-3 sm:grid-cols-2">
+							<label class="block text-sm font-medium text-slate-700">
+								Categoría
+								<select
+									id="assignmentCategory"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								>
+									<option value="Cancellation">Cancelación</option>
+									<option value="Payment">Pago</option>
+									<option value="CheckIn">Ingreso y salida</option>
+									<option value="NoShow">No presentación</option>
+								</select>
+							</label>
+							<label class="block text-sm font-medium text-slate-700">
+								Plantilla
+								<select
+									id="assignmentPreset"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								></select>
+							</label>
+							<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
+								Nombre visible en biblioteca
+								<input
+									id="assignmentDescription"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+									placeholder="Ej. Cancelación flexible para tarifa estándar"
+								/>
+							</label>
+						</div>
+					</section>
+
+					<section class="rounded-lg border border-slate-200 p-4">
+						<p class="text-sm font-semibold text-slate-900">3. Alcance</p>
+						<div class="mt-3 grid gap-3 sm:grid-cols-2">
+							<label class="block text-sm font-medium text-slate-700">
+								Aplicar a
+								<select
+									id="assignmentScope"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								>
+									<option value="rate_plan">Tarifa</option>
+									<option value="variant">Habitación</option>
+									<option value="product">Producto</option>
+								</select>
+							</label>
+							<label class="block text-sm font-medium text-slate-700">
+								Selecciona destino
+								<select
+									id="assignmentScopeId"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								></select>
+							</label>
+							<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
+								Canal
+								<select
+									id="assignmentChannel"
+									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								>
+									<option value="">Todos los canales</option>
+									<option value="web">Web</option>
+									<option value="mobile">Móvil</option>
+									<option value="b2b">B2B</option>
+									<option value="direct">Directo</option>
+								</select>
+							</label>
+						</div>
+					</section>
+				</form>
+
+				<aside class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+					<p class="text-sm font-semibold text-slate-900">Impacto antes de confirmar</p>
+					<div id="assignmentImpact" class="space-y-2 text-sm text-slate-700">
+						Cargando opciones...
+					</div>
+					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+						<p class="text-sm font-semibold text-blue-950">Vista previa tipo OTA</p>
+						<p class="mt-1 text-xs text-blue-900">
+							Consecuencias visibles para operar sin leer reglas técnicas.
+						</p>
+						<div id="assignmentAirbnbPreview" class="mt-3 space-y-2 text-sm text-blue-950"></div>
+					</div>
+					<div id="assignmentStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
+				</aside>
+			</div>
+		</div>
+
+		<div
+			class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-6 py-4"
+		>
+			<p class="text-sm text-slate-600">
+				La asignación reemplaza la condición activa de la misma categoría para este alcance y canal.
+			</p>
+			<button
+				type="button"
+				id="policyAssignmentSubmit"
+				class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+			>
+				Confirmar asignación
+			</button>
+		</div>
+	</div>
+</div>
+
+<script>
+	// @ts-nocheck
+	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
+	const assignmentClose = document.getElementById("policyAssignmentClose")
+	const assignmentSubmit = document.getElementById("policyAssignmentSubmit")
+	const existingFields = document.getElementById("assignmentExistingFields")
+	const presetFields = document.getElementById("assignmentPresetFields")
+	const policySelect = document.getElementById("assignmentPolicyId")
+	const categorySelect = document.getElementById("assignmentCategory")
+	const presetSelect = document.getElementById("assignmentPreset")
+	const descriptionInput = document.getElementById("assignmentDescription")
+	const scopeSelect = document.getElementById("assignmentScope")
+	const scopeIdSelect = document.getElementById("assignmentScopeId")
+	const channelSelect = document.getElementById("assignmentChannel")
+	const impactBox = document.getElementById("assignmentImpact")
+	const airbnbPreviewBox = document.getElementById("assignmentAirbnbPreview")
+	const statusBox = document.getElementById("assignmentStatus")
+
+	const assignmentState = {
+		loaded: false,
+		loading: false,
+		options: { policies: [], presets: [], scopes: { product: [], variant: [], rate_plan: [] } },
+	}
+
+	function assignmentEscape(value) {
+		return String(value ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+	}
+
+	function selectedMode() {
+		return document.querySelector('input[name="assignmentMode"]:checked')?.value || "existing"
+	}
+
+	function scopeLabel(scope) {
+		if (scope === "product") return "Producto"
+		if (scope === "variant") return "Habitación"
+		return "Tarifa"
+	}
+
+	function categoryLabel(category) {
+		if (category === "Cancellation") return "Cancelación"
+		if (category === "Payment") return "Pago"
+		if (category === "CheckIn") return "Ingreso y salida"
+		if (category === "NoShow") return "No presentación"
+		return category || "Condición"
+	}
+
+	function asNumber(value, fallback = null) {
+		const n = Number(value)
+		return Number.isFinite(n) ? n : fallback
+	}
+
+	function basisLabel(value) {
+		const labels = {
+			total_booking: "reserva completa",
+			room_rate: "tarifa base",
+			first_night: "primera noche",
+			deposit: "depósito",
+			provider_policy: "condición del proveedor",
+			none: "sin reembolso",
+			gross: "monto bruto",
+			net: "monto neto",
+			collected: "monto cobrado",
+		}
+		return labels[String(value || "")] || String(value || "sin definir")
+	}
+
+	function selectedContract() {
+		const selected = currentSelection()
+		const contract = selected.mode === "existing" ? selected.policy : selected.preset
+		return {
+			...selected,
+			contract: contract || {},
+			rules: contract?.rules || {},
+			tiers: contract?.cancellationTiers || [],
+		}
+	}
+
+	function penaltyAtDays(tiers, daysBeforeArrival) {
+		const sorted = [...(tiers || [])].sort(
+			(a, b) => Number(b.daysBeforeArrival ?? 0) - Number(a.daysBeforeArrival ?? 0)
+		)
+		const match = sorted.find(
+			(tier) => Number(daysBeforeArrival) >= Number(tier.daysBeforeArrival ?? 0)
+		)
+		if (!match) return null
+		const amount = asNumber(match.penaltyAmount, 0)
+		if (String(match.penaltyType || "percentage") === "nights")
+			return `${amount} noche${amount === 1 ? "" : "s"}`
+		return `${amount}%`
+	}
+
+	function refundTextFromPenalty(penalty) {
+		if (!penalty) return "sin tramo definido; se requiere revisar antes de vender"
+		if (penalty.endsWith("%")) {
+			const pct = asNumber(penalty.replace("%", ""), 0)
+			const refund = Math.max(0, 100 - pct)
+			return `${refund}% de reembolso / ${pct}% de penalidad`
+		}
+		return `penalidad de ${penalty}`
+	}
+
+	function noShowText(rules) {
+		const type = String(rules.penaltyType || "")
+		const amount = asNumber(rules.penaltyAmount, 100)
+		if (type === "first_night") return "cobra la primera noche si el huésped no llega"
+		if (type === "full") return "cobra la estadía completa si el huésped no llega"
+		if (type === "percentage") return `cobra ${amount}% si el huésped no llega`
+		return "sin regla de no presentación en esta condición; se resuelve con la condición No presentación asignada"
+	}
+
+	function paymentDueText(rules) {
+		const paymentType = String(rules.paymentType || "")
+		if (paymentType === "pay_at_property")
+			return "sin pago pendiente en plataforma; el huésped paga en propiedad"
+		if (paymentType === "prepayment") {
+			const pct = asNumber(rules.prepaymentPercentage, 100)
+			const days = asNumber(rules.prepaymentDaysBeforeArrival, 0)
+			return `${pct}% pendiente de cobro ${days === 0 ? "al reservar" : `${days} día(s) antes de la llegada`}`
+		}
+		return "sin regla de pago en esta condición; se resuelve con la condición Pago asignada"
+	}
+
+	function renderAirbnbPreview() {
+		if (!airbnbPreviewBox) return
+		const selected = selectedContract()
+		const category = String(selected.category || selected.contract?.category || "")
+		const rules = selected.rules || {}
+		const tiers = selected.tiers || []
+		const todayPenalty = category === "Cancellation" ? penaltyAtDays(tiers, 0) : null
+		const weekPenalty = category === "Cancellation" ? penaltyAtDays(tiers, 7) : null
+		const longStay =
+			String(selected.contract?.stayLengthType || rules.stayLengthType || "") === "long_stay" ||
+			asNumber(rules.minStayNights, 0) >= 28
+		const taxesBasis = String(rules.taxesFeesBasis || rules.taxRefundProration || "")
+		const hostBasis = String(rules.hostPayoutBasis || selected.contract?.payoutBasis || "")
+		const items = [
+			{
+				label: "Cancelación hoy",
+				value:
+					category === "Cancellation"
+						? refundTextFromPenalty(todayPenalty)
+						: "se resolverá con la condición de Cancelación asignada",
+			},
+			{
+				label: "Cancelación 7 días antes",
+				value:
+					category === "Cancellation"
+						? refundTextFromPenalty(weekPenalty)
+						: "se resolverá con la condición de Cancelación asignada",
+			},
+			{
+				label: "28+ noches",
+				value:
+					category === "Cancellation"
+						? longStay
+							? "usa contrato de larga estadía desde 28 noches"
+							: "mantiene contrato de estadía corta; conviene asignar una condición de larga estadía si aplica"
+						: "no cambia estadías largas desde esta categoría",
+			},
+			{
+				label: "Impuestos/cargos",
+				value:
+					category === "Cancellation"
+						? taxesBasis === "non_refundable" || taxesBasis === "none"
+							? "no se reembolsan automáticamente"
+							: "se prorratean según el reembolso de la reserva"
+						: "se calculan según la condición de Cancelación y bases fiscales asignadas",
+			},
+			{
+				label: "Cobro del proveedor",
+				value:
+					category === "Cancellation"
+						? hostBasis === "gross"
+							? "el proveedor conserva base bruta según penalidad"
+							: `se calcula sobre ${basisLabel(hostBasis)}`
+						: `se calcula según ${basisLabel(selected.contract?.payoutBasis)}`,
+			},
+			{
+				label: "No presentación",
+				value:
+					category === "NoShow"
+						? noShowText(rules)
+						: "se resolverá con la condición No presentación asignada",
+			},
+			{
+				label: "Pago pendiente",
+				value:
+					category === "Payment"
+						? paymentDueText(rules)
+						: "se resolverá con la condición Pago asignada",
+			},
+		]
+		airbnbPreviewBox.innerHTML = items
+			.map(
+				(item) => `
+					<div class="rounded-md border border-blue-200 bg-white/70 p-2">
+						<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">${assignmentEscape(item.label)}</p>
+						<p class="mt-1">${assignmentEscape(item.value)}</p>
+					</div>
+				`
+			)
+			.join("")
+	}
+
+	function showStatus(kind, message) {
+		if (!statusBox) return
+		statusBox.classList.remove("hidden")
+		statusBox.className =
+			kind === "ok"
+				? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+				: "rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+		statusBox.textContent = message
+	}
+
+	async function loadAssignmentOptions() {
+		if (assignmentState.loaded || assignmentState.loading) return
+		assignmentState.loading = true
+		const response = await fetch("/api/policies/assignment-options")
+		const payload = await response.json().catch(() => null)
+		assignmentState.loading = false
+		if (!response.ok || !payload) {
+			showStatus("error", "No se pudieron cargar las opciones de asignación.")
+			return
+		}
+		assignmentState.options = payload
+		assignmentState.loaded = true
+		renderPolicyOptions()
+		renderPresetOptions()
+		renderScopeOptions()
+		renderImpact()
+	}
+
+	function renderPolicyOptions() {
+		const policies = assignmentState.options.policies || []
+		if (!policySelect) return
+		policySelect.innerHTML = policies.length
+			? policies
+					.map(
+						(policy) =>
+							`<option value="${assignmentEscape(policy.id)}" data-category="${assignmentEscape(policy.category)}">${assignmentEscape(policy.label)}</option>`
+					)
+					.join("")
+			: '<option value="">No hay condiciones publicadas</option>'
+	}
+
+	function renderPresetOptions() {
+		if (!presetSelect || !categorySelect) return
+		const category = categorySelect.value
+		const presets = (assignmentState.options.presets || []).filter(
+			(preset) => String(preset.category) === category
+		)
+		presetSelect.innerHTML = presets.length
+			? presets
+					.map(
+						(preset) =>
+							`<option value="${assignmentEscape(preset.key)}" data-description="${assignmentEscape(preset.description)}">${assignmentEscape(preset.label)}</option>`
+					)
+					.join("")
+			: '<option value="">Sin plantillas para esta categoría</option>'
+	}
+
+	function renderScopeOptions(preferredId = "") {
+		if (!scopeSelect || !scopeIdSelect) return
+		const scope = scopeSelect.value
+		const items = assignmentState.options.scopes?.[scope] || []
+		scopeIdSelect.innerHTML = items.length
+			? items
+					.map(
+						(item) =>
+							`<option value="${assignmentEscape(item.id)}">${assignmentEscape(item.label)}${item.helper ? ` · ${assignmentEscape(item.helper)}` : ""}</option>`
+					)
+					.join("")
+			: '<option value="">Sin destinos disponibles</option>'
+		if (preferredId && items.some((item) => String(item.id) === String(preferredId))) {
+			scopeIdSelect.value = preferredId
+		}
+	}
+
+	function currentSelection() {
+		const mode = selectedMode()
+		const policy = (assignmentState.options.policies || []).find(
+			(item) => String(item.id) === String(policySelect?.value || "")
+		)
+		const preset = (assignmentState.options.presets || []).find(
+			(item) => String(item.key) === String(presetSelect?.value || "")
+		)
+		const scope = scopeSelect?.value || "rate_plan"
+		const scopeId = scopeIdSelect?.value || ""
+		const scopeOption = (assignmentState.options.scopes?.[scope] || []).find(
+			(item) => String(item.id) === String(scopeId)
+		)
+		const category = mode === "existing" ? policy?.category : categorySelect?.value
+		return { mode, policy, preset, scope, scopeId, scopeOption, category }
+	}
+
+	function renderImpact() {
+		if (!impactBox) return
+		const selected = currentSelection()
+		const channel = channelSelect?.value || "todos los canales"
+		const source =
+			selected.mode === "existing"
+				? selected.policy?.label || "Selecciona una condición publicada"
+				: selected.preset?.label || "Selecciona una plantilla"
+		const destination = selected.scopeOption
+			? `${scopeLabel(selected.scope)}: ${selected.scopeOption.label}`
+			: `${scopeLabel(selected.scope)} sin seleccionar`
+		impactBox.innerHTML = `
+			<div class="rounded-lg border border-slate-200 bg-white p-3">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Origen</p>
+				<p class="mt-1 font-medium text-slate-900">${assignmentEscape(source)}</p>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-3">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Destino</p>
+				<p class="mt-1 font-medium text-slate-900">${assignmentEscape(destination)}</p>
+				<p class="mt-1 text-xs text-slate-500">Canal: ${assignmentEscape(channel)}</p>
+			</div>
+			<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
+				<p class="font-medium">Impacto contractual</p>
+				<p class="mt-1">Reemplazará la condición activa de ${assignmentEscape(categoryLabel(selected.category))} para este alcance y canal, manteniendo historial y auditoría.</p>
+			</div>
+		`
+		renderAirbnbPreview()
+	}
+
+	function setMode(mode) {
+		document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
+			input.checked = input.value === mode
+		})
+		existingFields?.classList.toggle("hidden", mode !== "existing")
+		presetFields?.classList.toggle("hidden", mode !== "preset")
+		renderImpact()
+	}
+
+	async function openAssignmentFlow(trigger) {
+		await loadAssignmentOptions()
+		const defaultScope =
+			trigger?.dataset.assignmentScope || assignmentOverlay?.dataset.defaultScope || "rate_plan"
+		const defaultScopeId =
+			trigger?.dataset.assignmentScopeId || assignmentOverlay?.dataset.defaultScopeId || ""
+		const defaultPolicyId = trigger?.dataset.assignmentPolicyId || ""
+		const defaultCategory = trigger?.dataset.assignmentCategory || ""
+		const defaultMode =
+			trigger?.dataset.assignmentMode || (defaultPolicyId ? "existing" : "existing")
+
+		if (scopeSelect) scopeSelect.value = defaultScope
+		renderScopeOptions(defaultScopeId)
+		if (defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
+		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
+		renderPresetOptions()
+		setMode(defaultMode)
+		statusBox?.classList.add("hidden")
+		assignmentOverlay?.classList.remove("hidden")
+		renderImpact()
+	}
+
+	function closeAssignmentFlow() {
+		assignmentOverlay?.classList.add("hidden")
+	}
+
+	async function submitAssignment() {
+		const selected = currentSelection()
+		if (!selected.scopeId) {
+			showStatus("error", "Selecciona un destino válido.")
+			return
+		}
+		if (selected.mode === "existing" && !selected.policy?.id) {
+			showStatus("error", "Selecciona una condición publicada.")
+			return
+		}
+		if (selected.mode === "preset" && !selected.preset?.key) {
+			showStatus("error", "Selecciona una plantilla.")
+			return
+		}
+
+		const sourceLabel =
+			selected.mode === "existing" ? selected.policy.label : `${selected.preset.label} nuevo`
+		const confirmText = `Vas a asignar "${sourceLabel}" a ${scopeLabel(selected.scope)} "${selected.scopeOption?.label || selected.scopeId}". Esto reemplaza la condición activa de la misma categoría para el canal seleccionado.`
+		if (!window.confirm(confirmText)) return
+
+		assignmentSubmit.disabled = true
+		const body =
+			selected.mode === "existing"
+				? {
+						mode: "existing",
+						policyId: selected.policy.id,
+						scope: selected.scope,
+						scopeId: selected.scopeId,
+						channel: channelSelect?.value || null,
+					}
+				: {
+						mode: "preset",
+						category: categorySelect?.value,
+						policyPresetKey: selected.preset.key,
+						description:
+							descriptionInput?.value ||
+							`${categoryLabel(categorySelect?.value)} ${selected.preset.label}`,
+						scope: selected.scope,
+						scopeId: selected.scopeId,
+						channel: channelSelect?.value || null,
+					}
+		const response = await fetch("/api/policies/assign", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		})
+		const payload = await response.json().catch(() => ({}))
+		assignmentSubmit.disabled = false
+		if (!response.ok) {
+			showStatus("error", `No se pudo asignar: ${payload?.error || "error"}`)
+			return
+		}
+		showStatus(
+			"ok",
+			payload?.replaced
+				? "Condición asignada. Se reemplazó una asignación activa."
+				: "Condición asignada. No había asignación previa para este alcance."
+		)
+		window.setTimeout(() => window.location.reload(), 700)
+	}
+
+	document.addEventListener("click", (event) => {
+		const target = event.target instanceof HTMLElement ? event.target : null
+		const trigger = target?.closest(".policy-assignment-open")
+		if (trigger instanceof HTMLElement) {
+			openAssignmentFlow(trigger)
+		}
+	})
+	assignmentClose?.addEventListener("click", closeAssignmentFlow)
+	assignmentOverlay?.addEventListener("click", (event) => {
+		if (event.target === assignmentOverlay) closeAssignmentFlow()
+	})
+	document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
+		input.addEventListener("change", () => setMode(input.value))
+	})
+	categorySelect?.addEventListener("change", () => {
+		renderPresetOptions()
+		renderImpact()
+	})
+	presetSelect?.addEventListener("change", renderImpact)
+	policySelect?.addEventListener("change", renderImpact)
+	scopeSelect?.addEventListener("change", () => {
+		renderScopeOptions()
+		renderImpact()
+	})
+	scopeIdSelect?.addEventListener("change", renderImpact)
+	channelSelect?.addEventListener("change", renderImpact)
+	assignmentSubmit?.addEventListener("click", submitAssignment)
+</script>

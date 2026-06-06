@@ -1,8 +1,9 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
+import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { routes } from "@/lib/routes"
 
@@ -18,201 +19,602 @@ try {
 const res = await fetch(new URL("/api/policies/list-library", Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
 })
-const policies = res.ok ? ((await res.json()) as any[]) : []
+const policyGroups = res.ok ? ((await res.json()) as any[]) : []
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
 
-const categories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
-const byCategory: Record<string, any[]> = {}
-for (const c of categories) byCategory[c] = []
-for (const p of policies) {
-	const c = String(p.category ?? "")
-	if (!byCategory[c]) continue
-	byCategory[c].push(p)
+const categoryLabels: Record<string, string> = {
+	Cancellation: "Cancelación",
+	Payment: "Pago",
+	CheckIn: "Ingreso / salida",
+	NoShow: "No presentación",
+}
+const statusLabels: Record<string, string> = {
+	active: "Publicada",
+	draft: "Borrador",
+	template: "Plantilla",
+	archived: "Archivada",
+}
+const statusClasses: Record<string, string> = {
+	active: "border-emerald-200 bg-emerald-50 text-emerald-800",
+	draft: "border-amber-200 bg-amber-50 text-amber-800",
+	template: "border-blue-200 bg-blue-50 text-blue-800",
+	archived: "border-slate-200 bg-slate-100 text-slate-600",
+}
+const presetLabels: Record<string, string> = {
+	flexible: "Flexible",
+	moderate: "Moderada",
+	limited: "Limitada",
+	firm: "Firme",
+	strict_legacy: "Estricta legacy",
+	long_term: "Larga estadía",
+	non_refundable: "No reembolsable",
+	pay_at_property: "Pago en propiedad",
+	prepayment_full: "Prepago total",
+	deposit_50: "Depósito 50%",
+	standard_check_in: "Check-in estándar",
+	late_arrival: "Llegada tardía",
+	no_show_first_night: "No presentación: primera noche",
+	no_show_full_stay: "No presentación: estadía completa",
+	no_show_percentage_100: "No presentación: 100%",
+}
+const scopeLabels: Record<string, string> = {
+	global: "Global",
+	product: "Producto",
+	variant: "Habitación",
+	rate_plan: "Tarifa",
+}
+const presetByKey = new Map(POLICY_PRESET_CATALOG.map((preset) => [preset.key, preset]))
+
+function statusLabel(value: unknown) {
+	const status = String(value ?? "").trim()
+	return (statusLabels[status] ?? status) || "Sin estado"
 }
 
-// Keep only the latest version per group/status within each category (provider UX).
-for (const c of categories) {
-	const latestByGroup = new Map<string, any>()
-	for (const p of byCategory[c]) {
-		const gid = `${String(p.groupId ?? "")}:${String(p.status ?? "")}`
-		const prev = latestByGroup.get(gid)
-		if (!prev || Number(p.version ?? 0) > Number(prev.version ?? 0)) {
-			latestByGroup.set(gid, p)
-		}
-	}
-	byCategory[c] = Array.from(latestByGroup.values()).sort((a, b) =>
-		String(a.description ?? "").localeCompare(String(b.description ?? ""))
-	)
+function statusClass(value: unknown) {
+	return statusClasses[String(value ?? "").trim()] ?? "border-slate-200 bg-slate-100 text-slate-700"
 }
+
+function ruleMap(policy: any): Record<string, unknown> {
+	const out: Record<string, unknown> = {}
+	for (const rule of Array.isArray(policy?.rules) ? policy.rules : []) {
+		const key = String(rule?.ruleKey ?? "").trim()
+		if (key) out[key] = rule?.ruleValue
+	}
+	return out
+}
+
+function numberValue(value: unknown): number | null {
+	const n = Number(value)
+	return Number.isFinite(n) ? n : null
+}
+
+function formatBasis(value: unknown) {
+	const key = String(value ?? "").trim()
+	const labels: Record<string, string> = {
+		total_booking: "reserva completa",
+		room_rate: "tarifa base",
+		first_night: "primera noche",
+		deposit: "depósito",
+		provider_policy: "condición del proveedor",
+		none: "sin base monetaria",
+		gross: "bruto",
+		net: "neto",
+		collected: "cobrado",
+	}
+	return (labels[key] ?? key) || "sin definir"
+}
+
+function presetLabel(policy: any) {
+	const key = String(policy?.policyPresetKey ?? "").trim()
+	return presetLabels[key] ?? presetByKey.get(key as any)?.name ?? "Personalizada"
+}
+
+function humanName(group: any) {
+	const latest = group?.latest ?? {}
+	const description = String(latest.description ?? "").trim()
+	if (description) return description
+	const preset = presetLabel(latest)
+	const category = categoryLabels[String(group?.group?.category ?? "")] ?? "Condición"
+	return preset === "Personalizada" ? `${category} sin nombre` : `${category} ${preset}`
+}
+
+function cancellationGuestSummary(policy: any) {
+	const tiers: any[] = Array.isArray(policy?.tiers) ? policy.tiers : []
+	const freeTier = tiers.find((tier: any) => {
+		const amount = numberValue(tier?.penaltyAmount)
+		return String(tier?.penaltyType ?? "") === "percentage" && amount != null && amount <= 0
+	})
+	if (freeTier) {
+		const days = Number(freeTier.daysBeforeArrival ?? 0)
+		return days > 0
+			? `El huésped puede cancelar sin penalidad hasta ${days} día${days === 1 ? "" : "s"} antes de la llegada.`
+			: "El huésped puede cancelar sin penalidad hasta el día de llegada."
+	}
+	const maxPenalty = Math.max(
+		0,
+		...tiers
+			.filter((tier: any) => String(tier?.penaltyType ?? "") === "percentage")
+			.map((tier: any) => Number(tier?.penaltyAmount ?? 0))
+	)
+	if (maxPenalty >= 100)
+		return "El huésped asume una penalidad completa según la ventana aplicable."
+	return "El huésped recibe un reembolso según las ventanas contractuales configuradas."
+}
+
+function guestSummary(group: any) {
+	const policy = group?.latest ?? {}
+	const category = String(group?.group?.category ?? "")
+	const rules = ruleMap(policy)
+	if (category === "Cancellation") return cancellationGuestSummary(policy)
+	if (category === "Payment") {
+		const paymentType = String(rules.paymentType ?? "").trim()
+		const pct = numberValue(rules.prepaymentPercentage)
+		if (paymentType === "pay_at_property") return "El huésped paga en la propiedad."
+		if (paymentType === "prepayment" && pct != null)
+			return `El huésped prepaga ${pct}% antes de la llegada.`
+		if (paymentType === "prepayment") return "El huésped debe realizar prepago antes de la llegada."
+		return "El pago se rige por la condición asignada a la tarifa."
+	}
+	if (category === "NoShow") {
+		const penaltyType = String(rules.penaltyType ?? "").trim()
+		const amount = numberValue(rules.penaltyAmount)
+		if (penaltyType === "first_night") return "Si el huésped no llega, se cobra la primera noche."
+		if (penaltyType === "full") return "Si el huésped no llega, se cobra la estadía completa."
+		if (penaltyType === "percentage" && amount != null) {
+			return `Si el huésped no llega, se cobra ${amount}% según contrato.`
+		}
+		return "La no presentación se cobra según la condición asignada."
+	}
+	if (category === "CheckIn") {
+		const from = String(rules.checkInFrom ?? "").trim()
+		const until = String(rules.checkInUntil ?? "").trim()
+		const out = String(rules.checkOutUntil ?? "").trim()
+		if (from && until && out) return `Llegada entre ${from} y ${until}; salida hasta ${out}.`
+		return "El huésped ve ventanas de llegada y salida configuradas."
+	}
+	return "Resumen visible para huésped pendiente de definir."
+}
+
+function financialImpact(group: any) {
+	const policy = group?.latest ?? {}
+	const category = String(group?.group?.category ?? "")
+	const rules = ruleMap(policy)
+	if (category === "Cancellation") {
+		const tiers: any[] = Array.isArray(policy?.tiers) ? policy.tiers : []
+		const percentagePenalties = tiers
+			.filter((tier: any) => String(tier?.penaltyType ?? "") === "percentage")
+			.map((tier: any) => Number(tier?.penaltyAmount ?? 0))
+			.filter(Number.isFinite)
+		const maxPenalty = percentagePenalties.length ? Math.max(...percentagePenalties) : null
+		const basis = formatBasis(policy.refundBasis)
+		const payout = formatBasis(policy.payoutBasis)
+		return `${tiers.length || 0} tramo${tiers.length === 1 ? "" : "s"} calculable${maxPenalty == null ? "" : ` · penalidad máxima ${maxPenalty}%`} · reembolso sobre ${basis} · pago proveedor ${payout}.`
+	}
+	if (category === "Payment") {
+		const paymentType = String(rules.paymentType ?? "").trim()
+		const pct = numberValue(rules.prepaymentPercentage)
+		if (paymentType === "pay_at_property")
+			return "Sin cobro anticipado; el flujo financiero ocurre en propiedad."
+		if (paymentType === "prepayment")
+			return `Cobro anticipado${pct == null ? "" : ` de ${pct}%`} antes de la llegada.`
+		return "Impacto de cobro pendiente de completar."
+	}
+	if (category === "NoShow") {
+		const penaltyType = String(rules.penaltyType ?? "").trim()
+		const amount = numberValue(rules.penaltyAmount)
+		if (penaltyType === "first_night") return "Cargo resoluble: primera noche."
+		if (penaltyType === "full") return "Cargo resoluble: estadía completa."
+		if (penaltyType === "percentage" && amount != null)
+			return `Cargo resoluble: ${amount}% de la base contractual.`
+		return "Cargo de no presentación pendiente de completar."
+	}
+	if (category === "CheckIn")
+		return "Sin cargo directo; afecta operación y comunicación al huésped."
+	return "Impacto financiero pendiente de clasificar."
+}
+
+function usageSummary(group: any) {
+	const active = Array.isArray(group?.activeAssignments) ? group.activeAssignments : []
+	if (!active.length) return "Sin asignaciones activas"
+	const counts = new Map<string, number>()
+	for (const assignment of active) {
+		const scope = String(assignment?.scope ?? "")
+		counts.set(scope, (counts.get(scope) ?? 0) + 1)
+	}
+	return Array.from(counts.entries())
+		.map(([scope, count]) => `${count} ${scopeLabels[scope] ?? scope}${count === 1 ? "" : "s"}`)
+		.join(" · ")
+}
+
+function latestVersionLabel(group: any) {
+	const latest = group?.latest
+	if (!latest) return "Sin versiones"
+	return `v${Number(latest.version ?? 0)} · ${statusLabel(latest.status)}`
+}
+
+function technicalDetails(group: any) {
+	return {
+		groupId: group?.group?.id ?? null,
+		category:
+			categoryLabels[String(group?.group?.category ?? "")] ?? group?.group?.category ?? null,
+		latestPolicyId: group?.latest?.id ?? null,
+		latestVersion: group?.latest?.version ?? null,
+		status: statusLabel(group?.latest?.status),
+		preset: presetLabel(group?.latest),
+		assignments: Array.isArray(group?.assignments)
+			? group.assignments.map((assignment: any) => ({
+					id: assignment.id,
+					scope: scopeLabels[String(assignment.scope ?? "")] ?? assignment.scope,
+					scopeId: assignment.scopeId,
+					channel: assignment.channel ?? "default",
+					isActive: Boolean(assignment.isActive),
+				}))
+			: [],
+		versions: Array.isArray(group?.versions)
+			? group.versions.map((version: any) => ({
+					id: version.id,
+					version: version.version,
+					status: statusLabel(version.status),
+					effectiveFrom: version.effectiveFrom,
+					effectiveTo: version.effectiveTo,
+				}))
+			: [],
+	}
+}
+
+function jsonForHtml(value: unknown) {
+	return JSON.stringify(value).replace(/</g, "\\u003c")
+}
+
+const cards = policyGroups.map((group) => ({
+	...group,
+	card: {
+		name: humanName(group),
+		category:
+			categoryLabels[String(group?.group?.category ?? "")] ?? String(group?.group?.category ?? ""),
+		preset: presetLabel(group?.latest),
+		status: statusLabel(group?.latest?.status),
+		statusClass: statusClass(group?.latest?.status),
+		usage: usageSummary(group),
+		latestVersion: latestVersionLabel(group),
+		guestSummary: guestSummary(group),
+		financialImpact: financialImpact(group),
+		technical: technicalDetails(group),
+	},
+}))
+
+const activeCount = cards.filter((group) => String(group.latest?.status ?? "") === "active").length
+const assignedCount = cards.filter((group) => (group.activeAssignments?.length ?? 0) > 0).length
+const draftCount = cards.filter((group) => String(group.latest?.status ?? "") === "draft").length
 ---
 
-<WorkspaceLayout title="Booking Policies">
+<WorkspaceLayout title="Condiciones">
 	<main class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
 					<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-						Rooms & Rates · Booking Contract
+						Habitaciones y tarifas · Centro operativo
 					</p>
-					<h1 class="text-3xl font-semibold text-slate-100">Booking Policies</h1>
+					<h1 class="text-3xl font-semibold text-slate-100">Condiciones</h1>
 					<p class="max-w-4xl text-sm leading-6 text-slate-300">
-						Biblioteca de condiciones contractuales para rate plans: cancelación, pago, no-show y
-						check-in/out. Las promociones y descuentos viven en Pricing.
+						Biblioteca operativa por grupo contractual. Cada tarjeta muestra estado, uso, versión
+						vigente, resumen para huésped e impacto financiero antes de publicar o asignar a
+						tarifas.
 					</p>
 				</div>
 				<div class="flex items-center gap-2">
-					<Button href={routes.ratePlansList()} variant="secondary">Rate Plans</Button>
-					<Button href="/provider/policies/new" variant="primary">Crear policy</Button>
+					<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
+					<Button href="/provider/policies/new" variant="primary">Crear condición</Button>
 				</div>
 			</header>
 
 			<div class="grid gap-4 md:grid-cols-4">
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Categorías</p>
-					<p class="mt-2 text-2xl font-semibold">4</p>
-					<p class="mt-1 text-xs text-slate-400">Contrato de reserva</p>
+					<p class="text-xs uppercase tracking-wide text-slate-500">Grupos</p>
+					<p class="mt-2 text-2xl font-semibold">{cards.length}</p>
+					<p class="mt-1 text-xs text-slate-400">Biblioteca contractual</p>
 				</Card>
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Library items</p>
-					<p class="mt-2 text-2xl font-semibold">{policies.length}</p>
-					<p class="mt-1 text-xs text-slate-400">Drafts, templates, active y archived</p>
+					<p class="text-xs uppercase tracking-wide text-slate-500">Publicadas</p>
+					<p class="mt-2 text-2xl font-semibold">{activeCount}</p>
+					<p class="mt-1 text-xs text-slate-400">Listas para asignar</p>
 				</Card>
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Payment</p>
-					<p class="mt-2 text-2xl font-semibold">{byCategory.Payment.length}</p>
-					<p class="mt-1 text-xs text-slate-400">Términos de cobro</p>
+					<p class="text-xs uppercase tracking-wide text-slate-500">Asignadas</p>
+					<p class="mt-2 text-2xl font-semibold">{assignedCount}</p>
+					<p class="mt-1 text-xs text-slate-400">Con uso activo</p>
 				</Card>
 				<Card className="border-slate-800 bg-slate-950 text-slate-100">
-					<p class="text-xs uppercase tracking-wide text-slate-500">Cancellation</p>
-					<p class="mt-2 text-2xl font-semibold">{byCategory.Cancellation.length}</p>
-					<p class="mt-1 text-xs text-slate-400">Ventanas y penalidades</p>
+					<p class="text-xs uppercase tracking-wide text-slate-500">Borradores</p>
+					<p class="mt-2 text-2xl font-semibold">{draftCount}</p>
+					<p class="mt-1 text-xs text-slate-400">Pendientes de publicación</p>
 				</Card>
 			</div>
-
-			<Card className="border-blue-200 bg-blue-50 text-blue-950">
-				<p class="text-sm font-semibold">Separación operacional</p>
-				<p class="mt-1 text-sm">
-					Booking Policies define obligaciones contractuales. Pricing define descuentos, promociones
-					y overrides. Reglas para huéspedes define comportamiento del huésped y uso de la
-					propiedad. Crear una policy la deja en biblioteca; publicar y asignar son pasos separados.
-				</p>
-			</Card>
 
 			{
 				(success === "created" || success === "draft") && (
 					<div class="rounded-lg border border-green-200 bg-green-50 p-3 text-green-900">
-						<strong>OK:</strong> Política guardada en library. Publícala antes de asignarla.
+						<strong>OK:</strong> Condición guardada en biblioteca. Publícala antes de asignarla.
 					</div>
 				)
 			}
 			{
 				success === "updated" && (
 					<div class="rounded-lg border border-green-200 bg-green-50 p-3 text-green-900">
-						<strong>OK:</strong> Se creó una nueva versión de política.
+						<strong>OK:</strong> Se creó una nueva versión de la condición.
 					</div>
 				)
 			}
 
 			{
 				!res.ok ? (
-					<p>No se pudieron cargar las políticas.</p>
-				) : policies.length === 0 ? (
-					<p>Aún no hay booking policies.</p>
-				) : null
-			}
-
-			{
-				res.ok &&
-					categories.map((cat) => (
-						<Section
-							title={cat}
-							description={
-								cat === "Cancellation"
-									? "Ventanas de cancelación y penalidades guest-facing."
-									: cat === "Payment"
-										? "Términos de pago, prepago y cobro operativo."
-										: cat === "NoShow"
-											? "Tratamiento contractual si el huésped no llega."
-											: "Ventanas de llegada y salida comunicadas al huésped."
-							}
-						>
-							{byCategory[cat].length === 0 ? (
-								<Card className="bg-white text-slate-700">
-									<p class="text-sm">No hay booking policies en esta categoría.</p>
-								</Card>
-							) : (
-								<div class="space-y-3">
-									{byCategory[cat].map((p) => (
-										<Card className="bg-white text-slate-800">
-											<div class="flex flex-wrap items-start justify-between gap-4">
-												<div>
-													<p class="text-base font-semibold text-slate-900">{p.description}</p>
-													<p class="mt-1 text-sm text-slate-600">
-														Version {p.version} · {p.status} · Group {p.groupId}
-													</p>
-													<p class="mt-1 text-xs text-slate-500">
-														ID <code>{p.id}</code>
-													</p>
-												</div>
-												<div class="flex flex-wrap items-center gap-2">
-													{p.status !== "active" && p.status !== "archived" && (
-														<button
-															type="button"
-															class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-															data-policy-action="publish"
-															data-policy-id={p.id}
-														>
-															Publicar
-														</button>
-													)}
-													{p.status === "active" && (
-														<a
-															href="/rates/plans/manage"
-															class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
-														>
-															Asignar
-														</a>
-													)}
-													{p.status !== "archived" && (
-														<button
-															type="button"
-															class="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-															data-policy-action="archive"
-															data-policy-id={p.id}
-														>
-															Archivar
-														</button>
-													)}
-													<Button
-														href={`/provider/policies/${p.id}/edit`}
-														variant="secondary"
-														size="sm"
-													>
-														Crear nueva versión
-													</Button>
-													<Button
-														href={`/provider/policies/groups/${encodeURIComponent(p.groupId)}/audit`}
-														variant="secondary"
-														size="sm"
-													>
-														Auditoría
-													</Button>
-												</div>
+					<Card className="border-red-200 bg-red-50 text-red-900">
+						<p>No se pudieron cargar las condiciones.</p>
+					</Card>
+				) : cards.length === 0 ? (
+					<Card className="border-slate-800 bg-slate-950 text-slate-100">
+						<div class="flex flex-wrap items-center justify-between gap-4">
+							<div>
+								<p class="text-lg font-semibold">Aún no hay condiciones</p>
+								<p class="mt-1 text-sm text-slate-400">
+									Crea el primer grupo contractual desde una plantilla y publícalo cuando esté
+									listo.
+								</p>
+							</div>
+							<Button href="/provider/policies/new" variant="primary">
+								Crear condición
+							</Button>
+						</div>
+					</Card>
+				) : (
+					<div class="grid gap-4 lg:grid-cols-2">
+						{cards.map((group) => {
+							const latest = group.latest ?? {}
+							const canPublish =
+								String(latest.status ?? "") !== "active" &&
+								String(latest.status ?? "") !== "archived"
+							const canArchive = String(latest.status ?? "") !== "archived"
+							return (
+								<article class="rounded-lg border border-slate-200 bg-white p-5 text-slate-800 shadow-sm">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div class="min-w-0 space-y-2">
+											<div class="flex flex-wrap items-center gap-2">
+												<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+													{group.card.category}
+												</span>
+												<span
+													class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${group.card.statusClass}`}
+												>
+													{group.card.status}
+												</span>
 											</div>
-										</Card>
-									))}
-								</div>
-							)}
-						</Section>
-					))
+											<h2 class="text-lg leading-tight font-semibold text-slate-950">
+												{group.card.name}
+											</h2>
+										</div>
+										<p class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+											{group.card.latestVersion}
+										</p>
+									</div>
+
+									<dl class="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-2">
+										<div class="border-l-2 border-slate-200 pl-3">
+											<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Plantilla
+											</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">{group.card.preset}</dd>
+										</div>
+										<div class="border-l-2 border-slate-200 pl-3">
+											<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Uso
+											</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">{group.card.usage}</dd>
+										</div>
+									</dl>
+
+									<div class="mt-4 space-y-3">
+										<div>
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Resumen para huésped
+											</p>
+											<p class="mt-1 text-sm leading-6 text-slate-700">{group.card.guestSummary}</p>
+										</div>
+										<div>
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Impacto financiero
+											</p>
+											<p class="mt-1 text-sm leading-6 text-slate-700">
+												{group.card.financialImpact}
+											</p>
+										</div>
+									</div>
+
+									<div class="mt-5 flex flex-wrap items-center gap-2">
+										<button
+											type="button"
+											class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+											data-policy-view={jsonForHtml(group.card.technical)}
+										>
+											Ver
+										</button>
+										{canPublish && (
+											<button
+												type="button"
+												class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+												data-policy-action="publish"
+												data-policy-id={latest.id}
+											>
+												Publicar
+											</button>
+										)}
+										<button
+											type="button"
+											class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+											class:list={[
+												"policy-assignment-open",
+												String(latest.status ?? "") !== "active" && "cursor-not-allowed opacity-60",
+											]}
+											data-assignment-policy-id={
+												String(latest.status ?? "") === "active" ? latest.id : ""
+											}
+											data-assignment-category={group.group.category}
+											disabled={String(latest.status ?? "") !== "active"}
+										>
+											Asignar
+										</button>
+										{canArchive && (
+											<button
+												type="button"
+												class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+												data-policy-action="archive"
+												data-policy-id={latest.id}
+											>
+												Archivar
+											</button>
+										)}
+										<Button
+											href={`/provider/policies/${latest.id}/edit`}
+											variant="secondary"
+											size="sm"
+										>
+											Nueva versión
+										</Button>
+										<Button
+											href={`/provider/policies/groups/${encodeURIComponent(group.group.id)}/audit`}
+											variant="secondary"
+											size="sm"
+										>
+											Auditoría
+										</Button>
+									</div>
+								</article>
+							)
+						})}
+					</div>
+				)
 			}
 		</div>
+
+		<aside
+			id="policyTechnicalDrawer"
+			class="fixed inset-y-0 right-0 z-50 hidden w-full max-w-lg border-l border-slate-800 bg-slate-950 p-6 text-slate-100 shadow-2xl"
+			aria-hidden="true"
+		>
+			<div class="flex items-start justify-between gap-4">
+				<div>
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+						Detalle técnico
+					</p>
+					<h2 class="mt-1 text-xl font-semibold">Condición</h2>
+				</div>
+				<button
+					type="button"
+					id="policyTechnicalDrawerClose"
+					class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+				>
+					Cerrar
+				</button>
+			</div>
+			<div id="policyTechnicalDrawerBody" class="mt-6 space-y-4 text-sm text-slate-300"></div>
+		</aside>
+		<div id="policyTechnicalDrawerBackdrop" class="fixed inset-0 z-40 hidden bg-slate-950/60"></div>
+		<PolicyAssignmentFlow />
 	</main>
 </WorkspaceLayout>
 
 <script>
+	const drawer = document.getElementById("policyTechnicalDrawer")
+	const drawerBody = document.getElementById("policyTechnicalDrawerBody")
+	const drawerClose = document.getElementById("policyTechnicalDrawerClose")
+	const drawerBackdrop = document.getElementById("policyTechnicalDrawerBackdrop")
+
+	function escapeHtml(value: unknown) {
+		return String(value ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+			.replaceAll("'", "&#039;")
+	}
+
+	function renderList(items: unknown[], renderItem: (item: any) => string, emptyLabel: string) {
+		if (!Array.isArray(items) || items.length === 0) {
+			return `<p class="rounded-lg border border-slate-800 bg-slate-900 p-3 text-slate-400">${escapeHtml(emptyLabel)}</p>`
+		}
+		return `<ul class="space-y-2">${items.map((item) => `<li class="rounded-lg border border-slate-800 bg-slate-900 p-3">${renderItem(item)}</li>`).join("")}</ul>`
+	}
+
+	function openTechnicalDrawer(details: any) {
+		if (!drawer || !drawerBody || !drawerBackdrop) return
+		drawerBody.innerHTML = `
+			<section class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Identificadores</p>
+				<div class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+					<p><span class="text-slate-500">Grupo:</span> <code>${escapeHtml(details.groupId)}</code></p>
+					<p><span class="text-slate-500">Condición:</span> <code>${escapeHtml(details.latestPolicyId)}</code></p>
+				</div>
+			</section>
+			<section class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen</p>
+				<div class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+					<p>Categoría: ${escapeHtml(details.category)}</p>
+					<p>Plantilla: ${escapeHtml(details.preset)}</p>
+					<p>Estado: ${escapeHtml(details.status)}</p>
+					<p>Última versión: v${escapeHtml(details.latestVersion)}</p>
+				</div>
+			</section>
+			<section class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Asignaciones</p>
+				${renderList(
+					details.assignments,
+					(item: any) => `
+						<p><span class="text-slate-500">ID:</span> <code>${escapeHtml(item.id)}</code></p>
+						<p>${escapeHtml(item.scope)} · <code>${escapeHtml(item.scopeId)}</code> · ${escapeHtml(item.channel)}</p>
+						<p>${item.isActive ? "Activa" : "Inactiva"}</p>
+					`,
+					"Sin asignaciones"
+				)}
+			</section>
+			<section class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Versiones</p>
+				${renderList(
+					details.versions,
+					(item: any) => `
+						<p><span class="text-slate-500">ID:</span> <code>${escapeHtml(item.id)}</code></p>
+						<p>v${escapeHtml(item.version)} · ${escapeHtml(item.status)}</p>
+						<p>${escapeHtml(item.effectiveFrom || "sin inicio")} → ${escapeHtml(item.effectiveTo || "sin fin")}</p>
+					`,
+					"Sin versiones"
+				)}
+			</section>
+		`
+		drawer.classList.remove("hidden")
+		drawerBackdrop.classList.remove("hidden")
+		drawer.setAttribute("aria-hidden", "false")
+	}
+
+	function closeTechnicalDrawer() {
+		drawer?.classList.add("hidden")
+		drawerBackdrop?.classList.add("hidden")
+		drawer?.setAttribute("aria-hidden", "true")
+	}
+
+	drawerClose?.addEventListener("click", closeTechnicalDrawer)
+	drawerBackdrop?.addEventListener("click", closeTechnicalDrawer)
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") closeTechnicalDrawer()
+	})
+
 	document.addEventListener("click", async (event) => {
 		const target = event.target instanceof HTMLElement ? event.target : null
+		const viewButton = target?.closest("[data-policy-view]")
+		if (viewButton instanceof HTMLElement) {
+			const details = JSON.parse(viewButton.dataset.policyView || "{}")
+			openTechnicalDrawer(details)
+			return
+		}
+
 		const button = target?.closest("[data-policy-action]")
 		if (!(button instanceof HTMLElement)) return
 		const action = button.dataset.policyAction
