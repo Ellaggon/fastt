@@ -15,17 +15,12 @@ export const FINANCIAL_EXCEPTION_CODES = [
 	"missing_settlement_reference",
 	"missing_refund_reference",
 	"incomplete_contract_snapshot",
-	"legacy_snapshot_compatibility",
 	"multi_room_review",
 ] as const
 
 export type FinancialExceptionCode = (typeof FINANCIAL_EXCEPTION_CODES)[number]
 export type FinancialExceptionSeverity = "review" | "attention"
-export type FinancialExceptionBasis =
-	| "contract_snapshot"
-	| "financial_evidence"
-	| "refund_handoff"
-	| "legacy_fallback"
+export type FinancialExceptionBasis = "contract_snapshot" | "financial_evidence" | "refund_handoff"
 export type FinancialNextOwner =
 	| "financial_operations"
 	| "reservations"

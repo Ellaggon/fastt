@@ -12,7 +12,7 @@ export class BookingTaxFeeRepository implements BookingTaxFeeRepositoryPort {
 				await tx.insert(BookingTaxFee).values({
 					id: row.id,
 					bookingId: row.bookingId,
-					lineJson: row.lineJson ?? null,
+					name: row.name ?? null,
 					breakdownJson: row.breakdownJson,
 					totalAmount: row.totalAmount,
 					createdAt: row.createdAt,
@@ -30,7 +30,7 @@ export class BookingTaxFeeRepository implements BookingTaxFeeRepositoryPort {
 		return rows.map((row) => ({
 			id: row.id,
 			bookingId: row.bookingId,
-			lineJson: row.lineJson ?? null,
+			name: row.name ?? null,
 			breakdownJson: row.breakdownJson,
 			totalAmount: Number(row.totalAmount ?? 0),
 			createdAt: row.createdAt ?? new Date(0),

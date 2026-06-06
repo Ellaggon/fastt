@@ -1,5 +1,4 @@
 import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
-import type { LegacyPolicyResolutionResult } from "../adapters/policyResolutionAdapter"
 
 type SnapshotPolicy = PolicyResolutionDTO["policies"][number]
 
@@ -124,9 +123,7 @@ function describePayment(policy: SnapshotPolicy | null): string {
 	return "Pago según política"
 }
 
-export function derivePolicySummaryFromResolvedPolicies(
-	resolved: PolicyResolutionDTO | LegacyPolicyResolutionResult
-): string {
+export function derivePolicySummaryFromResolvedPolicies(resolved: PolicyResolutionDTO): string {
 	const policies = Array.isArray(resolved?.policies) ? resolved.policies : []
 	const cancellation = findCategory(policies, (category) => category.includes("cancel"))
 	const payment = findCategory(policies, (category) => category === "payment")

@@ -244,7 +244,7 @@ export function buildFinancialOperationReview(params: {
 	const hasSettlementReference = settlementReferences.length > 0
 	const hasRefundReference = refundReferences.length > 0 || refundSnapshot != null
 	const multiRoomAllocationCount = params.group.filter((row) => row.detailId != null).length
-	const snapshotVersion = first.contractSnapshotVersion ?? "legacy_snapshot_compatibility"
+	const snapshotVersion = first.contractSnapshotVersion ?? "missing_contract_snapshot_version"
 	const exceptions: DetectedFinancialException[] = detectFinancialExceptions({
 		bookingId: first.bookingId,
 		providerId: String(first.providerIdSnapshot ?? params.providerId),
@@ -276,7 +276,7 @@ export function buildFinancialOperationReview(params: {
 			checkOut: dateOnly(first.checkOutDate),
 		},
 		contract: {
-			version: first.contractSnapshotVersion ?? "legacy_snapshot_compatibility",
+			version: first.contractSnapshotVersion ?? "missing_contract_snapshot_version",
 			productName: first.productNameSnapshot ?? first.productName ?? null,
 			variantName: first.variantNameSnapshot ?? first.variantName ?? null,
 			ratePlanName: first.ratePlanNameSnapshot ?? null,

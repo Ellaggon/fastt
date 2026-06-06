@@ -12,13 +12,6 @@ export type {
 	PolicySnapshot,
 } from "./application/ports/PolicyResolutionRepositoryPort"
 
-export {
-	mapDTOToLegacy,
-	mapLegacyToDTO,
-	normalizePolicyResolutionResult,
-} from "./application/adapters/policyResolutionAdapter"
-export type { LegacyPolicyResolutionResult } from "./application/adapters/policyResolutionAdapter"
-
 export { createPolicyVersionCapa6 } from "./application/use-cases/capa6/create-policy-version"
 export { changePolicyLibraryStatusCapa6 } from "./application/use-cases/capa6/change-policy-library-status"
 export { replacePolicyAssignmentCapa6 } from "./application/use-cases/capa6/replace-policy-assignment"

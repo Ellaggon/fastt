@@ -468,7 +468,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					(taxLines.length > 0 ? taxLines : [null]).map((line) => ({
 						id: crypto.randomUUID(),
 						bookingId,
-						lineJson: line,
+						name: line?.name ?? "Taxes and fees snapshot",
 						breakdownJson: taxBreakdown,
 						totalAmount: finalTotal,
 						createdAt: now,

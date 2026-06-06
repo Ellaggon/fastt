@@ -5,7 +5,10 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { loadRefundCancellationContext } from "@/lib/financial/refundCancellationContext"
 import { refundCalculationRepository } from "@/container/financial.container"
-import { createRefundQuoteBeforeCancellation } from "@/modules/financial/public"
+import {
+	buildPolicyFinancialPreviewFromSnapshot,
+	createRefundQuoteBeforeCancellation,
+} from "@/modules/financial/public"
 
 const schema = z.object({
 	bookingId: z.string().trim().min(1),
@@ -67,7 +70,22 @@ export const POST: APIRoute = async ({ request }) => {
 				expiresAt: new Date(cancelledAt.getTime() + 15 * 60 * 1000),
 			}
 		)
-		return json({ quote: saved.quote, created: saved.created }, saved.created ? 201 : 200)
+		const financialPreview = buildPolicyFinancialPreviewFromSnapshot({
+			providerId: auth.providerId,
+			bookingId: context.booking.id,
+			snapshot: context.policySnapshot,
+			currency: context.booking.currency,
+			grossAmount: context.booking.grossAmount,
+			cancelledAt,
+			bookedAt: context.booking.bookedAt,
+			reason: parsed.reason,
+			lines: context.lines,
+			idPrefix: `refund-preview:${auth.providerId}:${context.booking.id}`,
+		})
+		return json(
+			{ quote: saved.quote, created: saved.created, financialPreview },
+			saved.created ? 201 : 200
+		)
 	} catch (error) {
 		if (error instanceof Response) return error
 		if (error instanceof z.ZodError)

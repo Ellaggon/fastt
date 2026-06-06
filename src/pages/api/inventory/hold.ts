@@ -5,10 +5,7 @@ import { and, db, EffectivePricingV2, eq, gte, lt, SearchUnitView } from "astro:
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
-import {
-	normalizePolicyResolutionResult,
-	resolveEffectivePolicies,
-} from "@/modules/policies/public"
+import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
@@ -480,11 +477,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				return createInventoryHold(
 					{
 						repo: inventoryHoldRepository,
-						resolveEffectivePolicies: async (ctx) =>
-							normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
-								asOfDate: String(ctx.checkIn ?? new Date().toISOString().slice(0, 10)),
-								warnings: [],
-							}).dto,
+						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
 						buildGuestExpectationsSnapshot: (productId) =>
 							buildGuestStayExpectationsSnapshot(productId),
 						resolvePolicyExceptionRules: (ctx) => resolvePolicyExceptionRulesUseCase(ctx),

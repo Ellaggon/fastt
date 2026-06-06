@@ -107,16 +107,6 @@ export function detectFinancialExceptions(
 			basis: "contract_snapshot",
 		})
 	}
-	if (input.snapshotVersion === "legacy_snapshot_compatibility" || !input.hasRoomSnapshots) {
-		exceptions.push({
-			...base,
-			code: "legacy_snapshot_compatibility",
-			severity: "review",
-			reason: "This record still depends on legacy snapshot compatibility or live label fallback.",
-			nextOwner: "reservations",
-			basis: "legacy_fallback",
-		})
-	}
 	if (input.multiRoomAllocationCount > 1) {
 		exceptions.push({
 			...base,

@@ -1,7 +1,7 @@
 export type BookingTaxFeeRow = {
 	id: string
 	bookingId: string
-	lineJson: unknown | null
+	name: string | null
 	breakdownJson: unknown
 	totalAmount: number
 	createdAt: Date

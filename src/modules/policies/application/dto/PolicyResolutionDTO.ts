@@ -27,3 +27,16 @@ export type PolicyResolutionDTO = {
 	asOfDate: string
 	warnings: string[]
 }
+
+export function isPolicyResolutionDTO(value: unknown): value is PolicyResolutionDTO {
+	const candidate = value as PolicyResolutionDTO | null
+	if (!candidate || typeof candidate !== "object") return false
+	if (candidate.version !== "v2") return false
+	if (!Array.isArray(candidate.policies)) return false
+	if (!Array.isArray(candidate.missingCategories)) return false
+	if (!candidate.coverage || typeof candidate.coverage !== "object") return false
+	if (typeof candidate.coverage.hasFullCoverage !== "boolean") return false
+	if (typeof candidate.asOfDate !== "string") return false
+	if (!Array.isArray(candidate.warnings)) return false
+	return true
+}

@@ -1,8 +1,5 @@
 import { logger } from "@/lib/observability/logger"
-import {
-	normalizePolicyResolutionResult,
-	resolveEffectivePolicies,
-} from "@/modules/policies/public"
+import { resolveEffectivePolicies } from "@/modules/policies/public"
 import type { EffectiveRule } from "../../domain/rule.entities"
 import { mapResolvedPoliciesToRules } from "../adapters/policy-to-rule.adapter"
 
@@ -75,7 +72,7 @@ export function createResolveEffectiveRulesUseCase() {
 			}
 		}
 
-		const resolvedPoliciesRaw = await resolveEffectivePolicies({
+		const resolvedPolicies = await resolveEffectivePolicies({
 			productId,
 			variantId: input.variantId,
 			ratePlanId: input.ratePlanId,
@@ -85,10 +82,6 @@ export function createResolveEffectiveRulesUseCase() {
 			requiredCategories: input.requiredCategories,
 			onMissingCategory: input.onMissingCategory,
 		})
-		const resolvedPolicies = normalizePolicyResolutionResult(resolvedPoliciesRaw, {
-			asOfDate: input.checkIn ?? new Date().toISOString().slice(0, 10),
-			warnings: [],
-		}).dto
 
 		const policyRules = mapResolvedPoliciesToRules({
 			resolved: resolvedPolicies,

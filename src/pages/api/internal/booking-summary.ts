@@ -253,7 +253,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 				name: BookingTaxFee.name,
 				totalAmount: BookingTaxFee.totalAmount,
 				breakdownJson: BookingTaxFee.breakdownJson,
-				lineJson: BookingTaxFee.lineJson,
 				createdAt: BookingTaxFee.createdAt,
 			})
 			.from(BookingTaxFee)
@@ -407,7 +406,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 									derivedStatesAreNotPersistedOperations: true,
 								},
 					contractSnapshotVersion:
-						booking.contractSnapshotVersion ?? "legacy_snapshot_compatibility",
+						booking.contractSnapshotVersion ?? "missing_contract_snapshot_version",
 				},
 				allocations,
 				taxes: taxLines.map((line) => ({
@@ -415,7 +414,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					name: line.name ?? "Taxes and fees snapshot",
 					totalAmount: Number(line.totalAmount ?? 0),
 					breakdown: line.breakdownJson ?? null,
-					line: line.lineJson ?? null,
 					createdAt: line.createdAt ?? null,
 				})),
 				policies: policyRows.map((line) => {

@@ -14,7 +14,6 @@ import {
 import {
 	isPolicyResolutionDTO,
 	mapResolvedPoliciesToUI,
-	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
@@ -147,10 +146,6 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 				query: url.searchParams,
 			},
 		})
-		const resolvedForComparison = normalizePolicyResolutionResult(resolved, {
-			asOfDate: input.checkIn,
-			warnings: [],
-		}).dto
 		let policies = mapResolvedPoliciesToUI(resolved)
 		recordRulesUiEvaluation({
 			endpoint: "api.policies.resolve",
@@ -175,15 +170,15 @@ export const GET: APIRoute = async ({ request, url, cookies }) => {
 					checkIn: input.checkIn,
 					checkOut: input.checkOut,
 				},
-				policiesResolved: resolvedForComparison.policies.map((item) => ({
+				policiesResolved: resolved.policies.map((item) => ({
 					category: String(item?.category ?? ""),
 					resolvedFromScope: String(item?.resolvedFromScope ?? ""),
 					policyId: String(item?.policy?.id ?? ""),
 					version: Number(item?.policy?.version ?? 0),
 				})),
 				requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-				policiesByCategory: resolvedForComparison.policies.reduce(
-					(acc, item) => {
+				policiesByCategory: resolved.policies.reduce(
+					(acc: Record<string, number>, item) => {
 						const key = String(item?.category ?? "").trim()
 						if (!key) return acc
 						acc[key] = Number(acc[key] ?? 0) + 1

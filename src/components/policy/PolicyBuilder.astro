@@ -47,7 +47,7 @@ const isVersionMode = mode === "version"
 const categoryLabels: Record<string, string> = {
 	Cancellation: "Cancelación",
 	Payment: "Pago",
-	CheckIn: "Ingreso / salida",
+	CheckIn: "Ingreso/salida",
 	NoShow: "No presentación",
 }
 const categoryDescriptions: Record<string, string> = {
@@ -168,26 +168,47 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 			<span id="clientErrorText"></span>
 		</div>
 
-		<nav class="grid gap-2 text-sm md:grid-cols-4" aria-label="Pasos para crear una condición">
-			<div class="rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-950">
+		<nav
+			class="grid gap-2 text-sm md:grid-cols-4"
+			aria-label="Pasos para crear una condición"
+			data-policy-builder-steps
+		>
+			<button
+				type="button"
+				class="rounded-md border border-blue-200 bg-blue-50 p-3 text-left text-blue-950"
+				data-wizard-step="0"
+				aria-current="step"
+			>
 				<p class="font-semibold">1. Categoría y plantilla</p>
 				<p class="text-xs">Elige la base OTA.</p>
-			</div>
-			<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+			</button>
+			<button
+				type="button"
+				class="rounded-md border border-slate-200 bg-slate-50 p-3 text-left"
+				data-wizard-step="1"
+			>
 				<p class="font-semibold">2. Campos humanos</p>
 				<p class="text-xs text-slate-600">Ajusta lo visible.</p>
-			</div>
-			<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+			</button>
+			<button
+				type="button"
+				class="rounded-md border border-slate-200 bg-slate-50 p-3 text-left"
+				data-wizard-step="2"
+			>
 				<p class="font-semibold">3. Vista previa</p>
 				<p class="text-xs text-slate-600">Ejemplos calculables.</p>
-			</div>
-			<div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+			</button>
+			<button
+				type="button"
+				class="rounded-md border border-slate-200 bg-slate-50 p-3 text-left"
+				data-wizard-step="3"
+			>
 				<p class="font-semibold">4. Guardar</p>
 				<p class="text-xs text-slate-600">Borrador o publicar.</p>
-			</div>
+			</button>
 		</nav>
 
-		<section class="space-y-4" id="stepCategoryPreset">
+		<section class="space-y-4" id="stepCategoryPreset" data-wizard-panel="0">
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 1</p>
 				<h2 class="text-xl font-semibold">Categoría y plantilla</h2>
@@ -312,7 +333,7 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 			</div>
 		</section>
 
-		<section class="space-y-4" id="stepHumanFields">
+		<section class="hidden space-y-4" id="stepHumanFields" data-wizard-panel="1">
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 2</p>
 				<h2 class="text-xl font-semibold">Campos humanos por categoría</h2>
@@ -532,8 +553,10 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 				</label>
 			</section>
 
-			<details class="rounded-md border border-slate-200 p-4">
-				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Avanzado</summary>
+			<details class="rounded-md border border-slate-200 p-4" data-technical-advanced>
+				<summary class="cursor-pointer text-sm font-semibold text-slate-700">
+					Avanzado técnico
+				</summary>
 				<div class="mt-4 grid gap-3 md:grid-cols-3">
 					<label class="space-y-1 text-sm">
 						<span>Duración de estadía</span>
@@ -631,7 +654,7 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 						</select>
 					</label>
 					<label class="space-y-1 text-sm md:col-span-3">
-						<span>Excepciones legales JSON</span>
+						<span>Marcadores de excepción legal</span>
 						<textarea
 							name="legalOverrideFlags"
 							id="legalOverrideFlags"
@@ -640,63 +663,35 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 							placeholder='{"requiresManualReview":true}'
 							>{legalOverrideText(initialValues.legalOverrideFlags)}</textarea
 						>
+						<p class="text-xs text-slate-500">
+							Uso interno para soporte/admin. No se muestra al proveedor en el flujo normal ni al
+							huésped.
+						</p>
 					</label>
 				</div>
 			</details>
 		</section>
 
-		<section class="space-y-4" id="stepPreview">
+		<section class="hidden space-y-4" id="stepPreview" data-wizard-panel="2">
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 3</p>
 				<h2 class="text-xl font-semibold">Vista previa con ejemplos calculables</h2>
 				<p class="mt-1 text-sm text-slate-600">
-					Estos ejemplos son una vista previa del contrato. El cálculo final ocurre en backend con
-					snapshot, fechas y monto real.
+					Estos ejemplos salen del backend con snapshot y quote financiero real para evitar
+					diferencias entre interfaz y contrato.
 				</p>
 			</div>
-			<div class="grid gap-3 md:grid-cols-2" id="previewExamples">
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						Cancelación hoy
+			<div class="grid gap-3 md:grid-cols-2" id="previewExamples" data-builder-preview-grid>
+				<div class="rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-950 md:col-span-2">
+					<p class="text-sm font-semibold">Preview backend obligatorio</p>
+					<p class="mt-1 text-sm" id="previewBackendStatus">
+						Completa los pasos anteriores para calcular el preview real.
 					</p>
-					<p class="mt-2 text-sm" id="previewCancelToday">Selecciona categoría y plantilla.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						Cancelación 7 días antes
-					</p>
-					<p class="mt-2 text-sm" id="previewCancelWeek">Completa los campos humanos.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">28+ noches</p>
-					<p class="mt-2 text-sm" id="previewLongStay">Resumen pendiente.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						Impuestos/cargos
-					</p>
-					<p class="mt-2 text-sm" id="previewTaxesFees">Impacto pendiente.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						Cobro del proveedor
-					</p>
-					<p class="mt-2 text-sm" id="previewProviderPayout">Pendiente.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						No presentación
-					</p>
-					<p class="mt-2 text-sm" id="previewNoShow">Pendiente.</p>
-				</div>
-				<div class="rounded-md border border-slate-200 p-4 md:col-span-2">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pago pendiente</p>
-					<p class="mt-2 text-sm" id="previewPaymentDue">Pendiente.</p>
 				</div>
 			</div>
 		</section>
 
-		<section class="space-y-4" id="stepSave">
+		<section class="hidden space-y-4" id="stepSave" data-wizard-panel="3">
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Paso 4</p>
 				<h2 class="text-xl font-semibold">
@@ -728,6 +723,24 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 				<Button href={routes.providerPolicies()} variant="secondary">Cancelar</Button>
 			</div>
 		</section>
+
+		<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+			<button
+				type="button"
+				class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+				id="policyBuilderBack"
+				disabled
+			>
+				Anterior
+			</button>
+			<button
+				type="button"
+				class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+				id="policyBuilderNext"
+			>
+				Siguiente
+			</button>
+		</div>
 	</form>
 </Card>
 
@@ -739,7 +752,14 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 	const clientErrorBox = document.getElementById("clientErrorBox")
 	const clientErrorText = document.getElementById("clientErrorText")
 	const libraryStatusInput = document.getElementById("libraryStatus")
+	const backButton = document.getElementById("policyBuilderBack")
+	const nextButton = document.getElementById("policyBuilderNext")
+	const previewStatus = document.getElementById("previewBackendStatus")
+	const previewGrid = document.getElementById("previewExamples")
 	const isVersionMode = mode === "version"
+	let currentStep = 0
+	let previewReady = false
+	let previewRequestSeq = 0
 	const sections = {
 		Cancellation: document.getElementById("cancellationFields"),
 		Payment: document.getElementById("paymentFields"),
@@ -790,7 +810,7 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 		updatePresetVisibility()
 		updatePaymentUI()
 		updateNoShowUI()
-		updatePreview()
+		invalidatePreview()
 	}
 
 	function updatePaymentUI() {
@@ -843,129 +863,12 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 			.sort((a, b) => b.days - a.days)
 	}
 
-	function setPreview(values) {
-		const defaults = {
-			cancelToday: "Se resolverá con la condición de Cancelación asignada.",
-			cancelWeek: "Se resolverá con la condición de Cancelación asignada.",
-			longStay: "No cambia estadías largas desde esta categoría.",
-			taxesFees: "Se calculan según la condición de Cancelación y bases fiscales asignadas.",
-			providerPayout: "Se calcula según la base contractual asignada.",
-			noShow: "Se resolverá con la condición No presentación asignada.",
-			paymentDue: "Se resolverá con la condición Pago asignada.",
-			...values,
+	function invalidatePreview() {
+		previewReady = false
+		if (previewStatus) {
+			previewStatus.textContent =
+				"Hay cambios pendientes. Vuelve a calcular la vista previa desde backend."
 		}
-		document.getElementById("previewCancelToday").textContent = defaults.cancelToday
-		document.getElementById("previewCancelWeek").textContent = defaults.cancelWeek
-		document.getElementById("previewLongStay").textContent = defaults.longStay
-		document.getElementById("previewTaxesFees").textContent = defaults.taxesFees
-		document.getElementById("previewProviderPayout").textContent = defaults.providerPayout
-		document.getElementById("previewNoShow").textContent = defaults.noShow
-		document.getElementById("previewPaymentDue").textContent = defaults.paymentDue
-	}
-
-	function penaltyAtDays(tiers, daysBeforeArrival) {
-		const sorted = [...tiers].sort((a, b) => Number(b.days) - Number(a.days))
-		const match = sorted.find((tier) => Number(daysBeforeArrival) >= Number(tier.days))
-		return match ? Number(match.penalty) : null
-	}
-
-	function refundFromPenalty(penalty) {
-		if (!Number.isFinite(penalty)) return "sin tramo definido; revisa antes de vender."
-		return `${Math.max(0, 100 - Number(penalty))}% de reembolso / ${Number(penalty)}% de penalidad.`
-	}
-
-	function basisCopy(value) {
-		const map = {
-			total_booking: "reserva completa",
-			room_rate: "tarifa base",
-			first_night: "primera noche",
-			deposit: "depósito",
-			provider_policy: "condición del proveedor",
-			none: "sin reembolso",
-			gross: "monto bruto",
-			net: "monto neto",
-			collected: "monto cobrado",
-		}
-		return map[String(value || "")] || String(value || "sin definir")
-	}
-
-	function updatePreview() {
-		const category = selectedCategory()
-		if (!category) {
-			setPreview({
-				cancelToday: "Selecciona categoría y plantilla.",
-				cancelWeek: "Completa los campos humanos.",
-				longStay: "Resumen pendiente.",
-				taxesFees: "Impacto pendiente.",
-				providerPayout: "Pendiente.",
-				noShow: "Pendiente.",
-				paymentDue: "Pendiente.",
-			})
-			return
-		}
-		if (category === "Cancellation") {
-			const tiers = cancellationTiers()
-			const todayPenalty = penaltyAtDays(tiers, 0)
-			const weekPenalty = penaltyAtDays(tiers, 7)
-			const longStay = inputValue("stayLengthType") === "long_stay"
-			const refundBasis = inputValue("refundBasis")
-			const payoutBasis = inputValue("payoutBasis")
-			setPreview({
-				cancelToday: refundFromPenalty(todayPenalty),
-				cancelWeek: refundFromPenalty(weekPenalty),
-				longStay: longStay
-					? "Usa contrato de larga estadía desde 28 noches."
-					: "Mantiene contrato de estadía corta; asigna una plantilla de larga estadía si aplica.",
-				taxesFees:
-					refundBasis === "none"
-						? "No se reembolsan automáticamente."
-						: "Se prorratean según el reembolso de la reserva.",
-				providerPayout: `Cobro del proveedor calculado sobre ${basisCopy(payoutBasis)}.`,
-			})
-			return
-		}
-		if (category === "Payment") {
-			const paymentType = inputValue("paymentType")
-			const pct = inputValue("prepaymentPercentage")
-			const days = inputValue("prepaymentDaysBeforeArrival") || "0"
-			setPreview({
-				providerPayout:
-					paymentType === "prepayment"
-						? `Proveedor queda sujeto a cobro anticipado de ${pct || "100"}%.`
-						: "Proveedor cobra en propiedad según su operación.",
-				paymentDue:
-					paymentType === "prepayment"
-						? `${pct || "100"}% pendiente ${days === "0" ? "al reservar" : `${days} día(s) antes de la llegada`}.`
-						: "Sin pago pendiente en plataforma; el huésped paga en propiedad.",
-			})
-			return
-		}
-		if (category === "CheckIn") {
-			const from = inputValue("checkInFrom") || "15:00"
-			const until = inputValue("checkInUntil") || "22:00"
-			const out = inputValue("checkOutUntil") || "11:00"
-			setPreview({
-				providerPayout: "Sin cargo directo; afecta operación y mensajes previos a la llegada.",
-				paymentDue: `Llegada entre ${from} y ${until}; salida hasta ${out}.`,
-			})
-			return
-		}
-		const noShowType = inputValue("noShowPenaltyType")
-		const amount = inputValue("noShowPenaltyAmount")
-		setPreview({
-			providerPayout:
-				noShowType === "full"
-					? "Proveedor conserva la estadía completa si el huésped no llega."
-					: noShowType === "first_night"
-						? "Proveedor conserva la primera noche si el huésped no llega."
-						: `Proveedor conserva ${amount || "100"}% si el huésped no llega.`,
-			noShow:
-				noShowType === "first_night"
-					? "Si no llega: se cobra la primera noche."
-					: noShowType === "full"
-						? "Si no llega: se cobra la estadía completa."
-						: `Si no llega: se cobra ${amount || "100"}%.`,
-		})
 	}
 
 	document.querySelectorAll("[data-category-choice]").forEach((button) => {
@@ -1031,7 +934,7 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 		const rows = document.querySelectorAll("#tiers .tier-row")
 		if (rows.length <= 1) return
 		target.closest(".tier-row")?.remove()
-		updatePreview()
+		invalidatePreview()
 	})
 
 	function validate() {
@@ -1136,6 +1039,94 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 		}
 	}
 
+	function previewPayload() {
+		const payload = versionPayload("draft")
+		return {
+			mode: "draft",
+			category: selectedCategory(),
+			description: payload.description,
+			policyPresetKey: payload.policyPresetKey,
+			stayLengthType: payload.stayLengthType,
+			gracePeriod: payload.gracePeriod ?? null,
+			refundBasis: payload.refundBasis ?? null,
+			payoutBasis: payload.payoutBasis ?? null,
+			localTimezone: payload.localTimezone ?? null,
+			legalOverrideFlags: payload.legalOverrideFlags ?? null,
+			rules: payload.rules,
+			cancellationTiers: payload.cancellationTiers,
+			scope: "rate_plan",
+			scopeId: "",
+			channel: null,
+		}
+	}
+
+	function renderPreviewCards(items) {
+		if (!previewGrid) return
+		const cards = Array.isArray(items) ? items : []
+		previewGrid.innerHTML = cards.length
+			? cards
+					.map(
+						(item) => `
+							<div class="rounded-md border border-slate-200 p-4">
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(item.label)}</p>
+								<p class="mt-2 text-sm font-medium text-slate-900">${escapeHtml(item.value)}</p>
+								${item.detail ? `<p class="mt-2 text-xs leading-5 text-slate-600">${escapeHtml(item.detail)}</p>` : ""}
+							</div>
+						`
+					)
+					.join("")
+			: `<div class="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-900 md:col-span-2">
+					<p class="text-sm font-semibold">El backend no devolvió ejemplos suficientes.</p>
+					<p class="mt-1 text-sm">Revisa los campos humanos antes de continuar.</p>
+				</div>`
+	}
+
+	async function renderBackendPreview() {
+		const validationError = validate()
+		if (validationError) {
+			setClientError(validationError)
+			return false
+		}
+		setClientError("")
+		const seq = ++previewRequestSeq
+		previewReady = false
+		if (previewStatus) previewStatus.textContent = "Calculando con /api/policies/preview..."
+		try {
+			const response = await fetch("/api/policies/preview", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(previewPayload()),
+			})
+			const payload = await response.json().catch(() => null)
+			if (seq !== previewRequestSeq) return false
+			if (!response.ok || !payload?.success) {
+				previewReady = false
+				if (previewStatus) {
+					previewStatus.textContent = `No se pudo calcular el preview real: ${payload?.error || "error"}`
+				}
+				renderPreviewCards([])
+				return false
+			}
+			renderPreviewCards(payload.preview)
+			previewReady = Array.isArray(payload.preview) && payload.preview.length >= 7
+			if (previewStatus) {
+				previewStatus.textContent = previewReady
+					? "Preview calculado con snapshot y refund quote real."
+					: "Preview incompleto: falta respuesta calculable del backend."
+			}
+			return previewReady
+		} catch (_) {
+			if (seq !== previewRequestSeq) return false
+			previewReady = false
+			if (previewStatus) {
+				previewStatus.textContent =
+					"No se pudo contactar el backend para calcular la vista previa obligatoria."
+			}
+			renderPreviewCards([])
+			return false
+		}
+	}
+
 	function applyApiErrors(payload) {
 		const map = {
 			description: "err-name",
@@ -1159,24 +1150,83 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 		}
 	}
 
+	function setStep(step) {
+		currentStep = Math.max(0, Math.min(3, Number(step) || 0))
+		document.querySelectorAll("[data-wizard-panel]").forEach((panel) => {
+			panel.classList.toggle(
+				"hidden",
+				panel.getAttribute("data-wizard-panel") !== String(currentStep)
+			)
+		})
+		document.querySelectorAll("[data-wizard-step]").forEach((button) => {
+			const active = button.getAttribute("data-wizard-step") === String(currentStep)
+			button.classList.toggle("border-blue-200", active)
+			button.classList.toggle("bg-blue-50", active)
+			button.classList.toggle("text-blue-950", active)
+			button.classList.toggle("border-slate-200", !active)
+			button.classList.toggle("bg-slate-50", !active)
+			if (active) button.setAttribute("aria-current", "step")
+			else button.removeAttribute("aria-current")
+		})
+		if (backButton) backButton.disabled = currentStep === 0
+		if (nextButton) {
+			nextButton.classList.toggle("hidden", currentStep === 3)
+			nextButton.textContent = currentStep === 2 ? "Continuar a guardar" : "Siguiente"
+		}
+	}
+
+	async function goNext() {
+		const validationError = validate()
+		if (validationError) {
+			setClientError(validationError)
+			return
+		}
+		setClientError("")
+		if (currentStep === 1) {
+			setStep(2)
+			await renderBackendPreview()
+			return
+		}
+		if (currentStep === 2 && !previewReady) {
+			const ok = await renderBackendPreview()
+			if (!ok) {
+				setClientError("Calcula y revisa la vista previa obligatoria antes de guardar.")
+				return
+			}
+		}
+		setStep(currentStep + 1)
+	}
+
 	document.addEventListener("input", (event) => {
 		if (
 			event.target instanceof HTMLInputElement ||
 			event.target instanceof HTMLSelectElement ||
 			event.target instanceof HTMLTextAreaElement
 		) {
-			updatePreview()
+			invalidatePreview()
 		}
 	})
 	categorySel?.addEventListener("change", updateCategoryUI)
 	paymentTypeSel?.addEventListener("change", () => {
 		updatePaymentUI()
-		updatePreview()
+		invalidatePreview()
 	})
 	noShowPenaltyTypeSel?.addEventListener("change", () => {
 		updateNoShowUI()
-		updatePreview()
+		invalidatePreview()
 	})
+	document.querySelectorAll("[data-wizard-step]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const next = Number(button.getAttribute("data-wizard-step") || 0)
+			if (next > currentStep) {
+				await goNext()
+				return
+			}
+			setStep(next)
+		})
+	})
+	backButton?.addEventListener("click", () => setStep(currentStep - 1))
+	nextButton?.addEventListener("click", goNext)
 
 	form?.addEventListener("submit", async (event) => {
 		const submitter = event.submitter
@@ -1185,6 +1235,17 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 		if (validationError) {
 			event.preventDefault()
 			setClientError(validationError)
+			return
+		}
+		if (!previewReady) {
+			event.preventDefault()
+			setStep(2)
+			const ok = await renderBackendPreview()
+			if (!ok) {
+				setClientError("Calcula y revisa la vista previa obligatoria antes de guardar.")
+				return
+			}
+			setStep(3)
 			return
 		}
 		if (libraryStatusInput) libraryStatusInput.value = nextStatus
@@ -1226,4 +1287,5 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 	})
 
 	updateCategoryUI()
+	setStep(0)
 </script>

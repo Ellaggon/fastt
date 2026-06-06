@@ -33,6 +33,21 @@ const createSchema = z
 			rebookingCreditAmount: z.coerce.number().min(0).optional().nullable(),
 			rebookingCreditPercent: z.coerce.number().min(0).max(100).optional().nullable(),
 			note: z.string().trim().min(8),
+			evidenceAttachments: z
+				.array(
+					z.object({
+						type: z.enum(["url", "ticket", "file_reference", "legal_reference"]),
+						label: z.string().trim().min(2),
+						value: z.string().trim().min(3),
+					})
+				)
+				.optional(),
+			approval: z
+				.object({
+					status: z.enum(["pending", "approved"]).default("pending"),
+					reason: z.string().trim().optional().nullable(),
+				})
+				.optional(),
 		}),
 	})
 	.superRefine((value, ctx) => {
@@ -51,6 +66,9 @@ const createSchema = z
 			}
 		}
 		const action = value.action ?? {}
+		const hasEvidence =
+			(Array.isArray(action.evidenceAttachments) && action.evidenceAttachments.length > 0) ||
+			String(action.note ?? "").trim().length >= 8
 		const hasImpact = [
 			action.refundOverridePercent,
 			action.payoutOverrideBasis,
@@ -67,6 +85,13 @@ const createSchema = z
 				code: "custom",
 				path: ["action"],
 				message: "impact_required",
+			})
+		}
+		if (!hasEvidence) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["action", "evidenceAttachments"],
+				message: "evidence_required",
 			})
 		}
 	})
@@ -99,6 +124,27 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 		rebookingCreditAmount: form.get("rebookingCreditAmount") || undefined,
 		rebookingCreditPercent: form.get("rebookingCreditPercent") || undefined,
 		note: form.get("note") || undefined,
+		evidenceAttachments: [
+			{
+				type: "ticket",
+				label: "Referencia de soporte",
+				value: form.get("evidenceReference") || undefined,
+			},
+			{
+				type: "url",
+				label: "URL de evidencia",
+				value: form.get("evidenceUrl") || undefined,
+			},
+			{
+				type: "file_reference",
+				label: "Archivo adjunto",
+				value: form.get("evidenceFileName") || undefined,
+			},
+		].filter((item) => String(item.value ?? "").trim()),
+		approval: {
+			status: form.get("approvalStatus") || "pending",
+			reason: form.get("approvalReason") || form.get("note") || undefined,
+		},
 	}
 	return {
 		type: form.get("type"),

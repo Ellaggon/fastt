@@ -131,7 +131,7 @@ describe("integration/booking tax/fee snapshot", () => {
 		expect(rows.length).toBe(1)
 		expect(rows[0].totalAmount).toBe(110)
 		expect(rows[0].breakdownJson).toEqual(breakdown)
-		expect(rows[0].lineJson).toEqual(line)
+		expect(rows[0].name).toBe(line.name)
 	})
 
 	it("stores mixed included/excluded tax breakdown for realistic booking", async () => {

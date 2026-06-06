@@ -24,7 +24,7 @@ export async function snapshotTaxFeesForBooking(
 			? lines.map((line) => ({
 					id: crypto.randomUUID(),
 					bookingId,
-					lineJson: line,
+					name: line.name,
 					breakdownJson,
 					totalAmount,
 					createdAt: now,
@@ -33,7 +33,7 @@ export async function snapshotTaxFeesForBooking(
 					{
 						id: crypto.randomUUID(),
 						bookingId,
-						lineJson: null,
+						name: "Taxes and fees snapshot",
 						breakdownJson,
 						totalAmount,
 						createdAt: now,

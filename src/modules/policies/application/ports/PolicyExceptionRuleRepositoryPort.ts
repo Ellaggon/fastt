@@ -40,7 +40,13 @@ export type PolicyExceptionRuleContextFilter = {
 export interface PolicyExceptionRuleRepositoryPort {
 	list(filter?: PolicyExceptionRuleListFilter): Promise<PolicyExceptionRule[]>
 	listApplicable(ctx: PolicyExceptionRuleContextFilter): Promise<PolicyExceptionRule[]>
+	findById(id: string): Promise<PolicyExceptionRule | null>
 	create(input: PolicyExceptionRuleCreateInput): Promise<PolicyExceptionRule>
+	updateAction(params: {
+		id: string
+		action: PolicyExceptionRuleAction
+		isActive?: boolean | null
+	}): Promise<PolicyExceptionRule | null>
 	setActive(params: {
 		id: string
 		isActive: boolean

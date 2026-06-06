@@ -107,9 +107,9 @@ export const backofficeShells: BackofficeShellClassification[] = [
 	},
 	{
 		shell: "DashboardLayout",
-		status: "legacy",
-		context: "internal-admin",
-		rule: "Legacy shell kept only as isolated debt; no page may import it.",
+		status: "canonical",
+		context: "enterprise-operations",
+		rule: "Compatibility alias that renders WorkspaceLayout; it must not own separate navigation.",
 	},
 	{
 		shell: "UILayout",
@@ -877,7 +877,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				status: "transitional",
 				level: 2,
 				summary:
-					"12 tarifas: 9 listas, 3 incompletas. Cancelación, pagos, no presentación, ingreso y salida.",
+					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
 			},
 		],
 		planned: ["Pricing por ocupación", "Historial de auditoría"],

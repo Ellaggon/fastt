@@ -812,9 +812,6 @@ const BookingTaxFee = defineTable({
 		id: column.text({ primaryKey: true }),
 		// Keep as plain text for now to avoid FK-related remote reset failures during CAPA 7 rollout.
 		bookingId: column.text(),
-		// Legacy snapshot line kept for backward compatibility.
-		lineJson: column.json({ optional: true }),
-		// New additive snapshot label kept separate from legacy lineJson.
 		name: column.text({ optional: true }),
 		breakdownJson: column.json(),
 		totalAmount: column.number(),

@@ -1,7 +1,6 @@
 export const FEATURE_FLAG_DEFAULTS = {
 	NEW_DASHBOARD_ARCH: false,
 	SEARCH_V2_ENABLED: false,
-	POLICY_DTO_V2_ENABLED: false,
 	SEARCH_SHADOW_COMPARE: false,
 	SEARCH_POLICY_BLOCKER_ENABLED: false,
 } as const
@@ -141,7 +140,6 @@ export function getFeatureFlags(context?: FeatureFlagContext): Record<FeatureFla
 	return {
 		NEW_DASHBOARD_ARCH: getFeatureFlag("NEW_DASHBOARD_ARCH", context),
 		SEARCH_V2_ENABLED: getFeatureFlag("SEARCH_V2_ENABLED", context),
-		POLICY_DTO_V2_ENABLED: getFeatureFlag("POLICY_DTO_V2_ENABLED", context),
 		SEARCH_SHADOW_COMPARE: getFeatureFlag("SEARCH_SHADOW_COMPARE", context),
 		SEARCH_POLICY_BLOCKER_ENABLED: getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED", context),
 	}

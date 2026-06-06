@@ -3,9 +3,7 @@ import {
 	logPolicyContractMismatch,
 	logPolicyContractPathUsed,
 } from "@/lib/observability/migration-logger"
-import { getFeatureFlag, type FeatureFlagContext } from "@/config/featureFlags"
-import { mapDTOToLegacy } from "../adapters/policyResolutionAdapter"
-import type { LegacyPolicyResolutionResult } from "../adapters/policyResolutionAdapter"
+import type { FeatureFlagContext } from "@/config/featureFlags"
 import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
 import type { PolicyScope } from "../../domain/policy.scope"
 import type {
@@ -28,7 +26,6 @@ export type ScopeContext = {
 	includeTrace?: boolean
 	requestId?: string
 	featureContext?: FeatureFlagContext
-	dtoV2Enabled?: boolean
 	endpoint?: string
 }
 
@@ -211,12 +208,8 @@ export async function resolveEffectivePolicies(
 export async function resolveEffectivePoliciesByContract(
 	deps: { repo: PolicyResolutionRepositoryPort },
 	ctx: ScopeContext
-): Promise<PolicyResolutionDTO | LegacyPolicyResolutionResult> {
+): Promise<PolicyResolutionDTO> {
 	const dto = await resolveEffectivePolicies(deps, ctx)
-	const dtoEnabled =
-		typeof ctx.dtoV2Enabled === "boolean"
-			? ctx.dtoV2Enabled
-			: getFeatureFlag("POLICY_DTO_V2_ENABLED", ctx.featureContext)
 	let endpoint = String(ctx.endpoint ?? "").trim()
 	if (!endpoint && ctx.featureContext?.request) {
 		try {
@@ -230,11 +223,8 @@ export async function resolveEffectivePoliciesByContract(
 		requestId: String(ctx.requestId ?? "policy-anon"),
 		domain: "policies",
 		endpoint,
-		contract: dtoEnabled ? "v2" : "legacy",
+		contract: "v2",
 		ratePlanId: String(ctx.ratePlanId ?? "").trim() || null,
 	})
-	if (!dtoEnabled) {
-		return mapDTOToLegacy(dto)
-	}
 	return dto
 }

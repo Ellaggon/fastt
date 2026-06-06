@@ -127,7 +127,7 @@ export function queueMatchesRow(params: {
 		])
 	}
 	if (queue === "snapshot_gaps") {
-		return hasAnyCode(item, ["incomplete_contract_snapshot", "legacy_snapshot_compatibility"])
+		return hasAnyCode(item, ["incomplete_contract_snapshot"])
 	}
 	return hasAnyCode(item, [queue])
 }

@@ -1,18 +1,13 @@
 import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
-import type { LegacyPolicyResolutionResult } from "../adapters/policyResolutionAdapter"
 
 /**
  * UI adapter for the canonical resolver output.
- *
- * During migration, we keep the minimal UI shape it needs: { category, description }.
  *
  * IMPORTANT:
  * - No business logic here; only structural mapping.
  * - Do not mutate or re-resolve anything.
  */
-export function mapResolvedPoliciesToUI(
-	resolved: PolicyResolutionDTO | LegacyPolicyResolutionResult
-): Array<{
+export function mapResolvedPoliciesToUI(resolved: PolicyResolutionDTO): Array<{
 	category: string
 	description: string
 	version: number

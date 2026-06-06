@@ -23,7 +23,6 @@ type FinancialExceptionCode =
 	| "missing_settlement_reference"
 	| "missing_refund_reference"
 	| "incomplete_contract_snapshot"
-	| "legacy_snapshot_compatibility"
 	| "multi_room_review"
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -169,7 +168,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		).length
 		const snapshotGapCount = items.filter((item) =>
 			item.operationalException.all.some((entry) =>
-				["incomplete_contract_snapshot", "legacy_snapshot_compatibility"].includes(entry.code)
+				["incomplete_contract_snapshot"].includes(entry.code)
 			)
 		).length
 
