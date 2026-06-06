@@ -1,15 +1,17 @@
 ---
 import { productRepository } from "@/container"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 
-const ADMIN_EMAILS = ["ellaggon@proton.me"]
-
-const user = await getUserFromRequest(Astro.request)
-if (!user) return Astro.redirect("/SignInPage")
-
-const isAdmin = ADMIN_EMAILS.includes(user.email)
+let isAdmin = false
+try {
+	await requireInternalAdmin(Astro.request)
+	isAdmin = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	isAdmin = false
+}
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/admin/providers")

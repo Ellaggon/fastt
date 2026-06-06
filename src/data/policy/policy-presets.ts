@@ -6,7 +6,7 @@ export type PolicyPresetKey =
 	| "moderate"
 	| "limited"
 	| "firm"
-	| "strict_legacy"
+	| "strict"
 	| "long_term"
 	| "non_refundable"
 	| "pay_at_property"
@@ -56,9 +56,9 @@ export const POLICY_PRESET_CATALOG = [
 	cancellationPreset({
 		key: "flexible",
 		name: "Flexible",
-		description: "Free cancellation until 24 hours before check-in.",
-		guestFacing: "Guests can cancel up to 1 day before arrival without a penalty.",
-		operationalMeaning: "OTA-style flexible rate for broad public availability.",
+		description: "Cancelación sin penalidad hasta 24 horas antes del ingreso.",
+		guestFacing: "El huésped puede cancelar hasta 1 día antes de la llegada sin penalidad.",
+		operationalMeaning: "Condición flexible tipo OTA para disponibilidad pública amplia.",
 		stayLengthType: "short_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
@@ -87,10 +87,11 @@ export const POLICY_PRESET_CATALOG = [
 	}),
 	cancellationPreset({
 		key: "moderate",
-		name: "Moderate",
-		description: "Free cancellation until 5 days before check-in, then full penalty.",
-		guestFacing: "Guests can cancel up to 5 days before arrival without a penalty.",
-		operationalMeaning: "Balanced OTA default for standard refundable rates.",
+		name: "Moderada",
+		description:
+			"Cancelación sin penalidad hasta 5 días antes del ingreso; luego penalidad completa.",
+		guestFacing: "El huésped puede cancelar hasta 5 días antes de la llegada sin penalidad.",
+		operationalMeaning: "Condición OTA equilibrada para tarifas reembolsables estándar.",
 		stayLengthType: "short_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
@@ -119,11 +120,13 @@ export const POLICY_PRESET_CATALOG = [
 	}),
 	cancellationPreset({
 		key: "limited",
-		name: "Limited",
-		description: "Free cancellation until 7 days before check-in, then partial and full penalties.",
+		name: "Limitada",
+		description:
+			"Cancelación sin penalidad hasta 7 días antes del ingreso; luego penalidad parcial o completa.",
 		guestFacing:
-			"Guests can cancel up to 7 days before arrival without a penalty; later cancellation is partially refundable.",
-		operationalMeaning: "OTA-style limited flexibility for dates that need stronger protection.",
+			"El huésped puede cancelar hasta 7 días antes de la llegada sin penalidad; después aplica reembolso parcial.",
+		operationalMeaning:
+			"Flexibilidad limitada tipo OTA para fechas que necesitan mayor protección.",
 		stayLengthType: "short_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
@@ -154,12 +157,12 @@ export const POLICY_PRESET_CATALOG = [
 	}),
 	cancellationPreset({
 		key: "firm",
-		name: "Firm",
+		name: "Firme",
 		description:
-			"Free cancellation until 30 days before check-in, then partial and full penalties.",
+			"Cancelación sin penalidad hasta 30 días antes del ingreso; luego penalidad escalonada.",
 		guestFacing:
-			"Guests can cancel up to 30 days before arrival without a penalty; later cancellation is partially refundable.",
-		operationalMeaning: "Firm OTA contract for high-demand or scarce inventory.",
+			"El huésped puede cancelar hasta 30 días antes de la llegada sin penalidad; después aplica reembolso parcial.",
+		operationalMeaning: "Condición firme para fechas de alta demanda o inventario escaso.",
 		stayLengthType: "short_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
@@ -189,19 +192,19 @@ export const POLICY_PRESET_CATALOG = [
 		],
 	}),
 	cancellationPreset({
-		key: "strict_legacy",
-		name: "Strict / legacy",
-		description: "Strict legacy cancellation with only early partial refund.",
-		guestFacing:
-			"Guests receive a partial refund only when cancellation happens well before arrival.",
-		operationalMeaning: "Legacy strict preset retained for compatibility with older OTA contracts.",
+		key: "strict",
+		name: "Estricta",
+		description:
+			"Cancelación estricta con reembolso parcial solo si se cancela con mucha anticipación.",
+		guestFacing: "El huésped recibe reembolso parcial solo si cancela con mucha anticipación.",
+		operationalMeaning: "Plantilla estricta para tarifas de alta protección contractual.",
 		stayLengthType: "short_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
-		legalOverrideFlags: { strictLegacyDisclosureRequired: true },
+		legalOverrideFlags: { strictDisclosureRequired: true },
 		rules: {
-			cancellationPreset: "strict_legacy",
+			cancellationPreset: "strict",
 			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
@@ -224,11 +227,11 @@ export const POLICY_PRESET_CATALOG = [
 	}),
 	cancellationPreset({
 		key: "long_term",
-		name: "Long-term",
-		description: "Long-stay cancellation with 30-day free window and staged penalties.",
+		name: "Larga estadía",
+		description: "Cancelación para estadías largas con ventana sin penalidad de 30 días.",
 		guestFacing:
-			"Guests booking longer stays can cancel up to 30 days before arrival without a penalty.",
-		operationalMeaning: "Long-stay OTA contract for monthly or extended lodging inventory.",
+			"El huésped con estadía larga puede cancelar hasta 30 días antes de la llegada sin penalidad.",
+		operationalMeaning: "Condición OTA para estadías mensuales o extendidas.",
 		stayLengthType: "long_stay",
 		gracePeriod: 24,
 		refundBasis: "total_booking",
@@ -257,11 +260,11 @@ export const POLICY_PRESET_CATALOG = [
 	}),
 	cancellationPreset({
 		key: "non_refundable",
-		name: "Non-refundable",
-		description: "Cancellation always carries a full penalty.",
-		guestFacing: "If guests cancel, the booking is non-refundable.",
+		name: "No reembolsable",
+		description: "La cancelación siempre aplica penalidad completa.",
+		guestFacing: "Si el huésped cancela, la reserva no es reembolsable.",
 		operationalMeaning:
-			"Use only when rate-plan packaging clearly discloses the non-refundable contract.",
+			"Usar solo cuando la tarifa informa claramente que la reserva no es reembolsable.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "none",
@@ -284,10 +287,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "pay_at_property",
 		category: "Payment",
-		name: "Pay at property",
-		description: "Guests pay at the property.",
-		guestFacing: "Payment is collected by the property according to its local process.",
-		operationalMeaning: "No platform prepayment is required before arrival.",
+		name: "Pago en propiedad",
+		description: "El huésped paga en la propiedad.",
+		guestFacing: "El pago lo cobra la propiedad según su proceso local.",
+		operationalMeaning: "No se requiere prepago de plataforma antes de la llegada.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "provider_policy",
@@ -299,10 +302,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "prepayment_full",
 		category: "Payment",
-		name: "Full prepayment",
-		description: "Guests must prepay 100% before arrival.",
-		guestFacing: "The full booking amount is due before arrival.",
-		operationalMeaning: "Use with stricter cancellation policies or high-demand periods.",
+		name: "Prepago total",
+		description: "El huésped debe prepagarlo todo antes de llegar.",
+		guestFacing: "El monto completo de la reserva vence antes de la llegada.",
+		operationalMeaning: "Usar con condiciones más estrictas o periodos de alta demanda.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "total_booking",
@@ -318,10 +321,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "deposit_50",
 		category: "Payment",
-		name: "50% deposit",
-		description: "Guests prepay a 50% deposit before arrival.",
-		guestFacing: "A 50% prepayment is required to secure the reservation.",
-		operationalMeaning: "Stores the payment contract as structured payment terms.",
+		name: "Depósito 50%",
+		description: "El huésped prepaga un depósito del 50% antes de llegar.",
+		guestFacing: "Se requiere un prepago del 50% para asegurar la reserva.",
+		operationalMeaning: "Guarda el contrato de pago como términos estructurados.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "deposit",
@@ -337,10 +340,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "standard_check_in",
 		category: "CheckIn",
-		name: "Standard check-in",
-		description: "Check-in from 15:00, check-out until 11:00.",
-		guestFacing: "Check-in starts at 15:00 and check-out is until 11:00.",
-		operationalMeaning: "Default operational window for most lodging providers.",
+		name: "Ingreso estándar",
+		description: "Ingreso desde 15:00 y salida hasta 11:00.",
+		guestFacing: "El ingreso comienza a las 15:00 y la salida es hasta las 11:00.",
+		operationalMeaning: "Ventana operativa predeterminada para la mayoría de alojamientos.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "none",
@@ -352,10 +355,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "late_arrival",
 		category: "CheckIn",
-		name: "Late-arrival friendly",
-		description: "Check-in from 15:00 until 00:00, check-out until 11:00.",
-		guestFacing: "Guests may arrive later, until midnight.",
-		operationalMeaning: "Use only when reception or self check-in can support late arrivals.",
+		name: "Llegada tardía",
+		description: "Ingreso desde 15:00 hasta 00:00 y salida hasta 11:00.",
+		guestFacing: "El huésped puede llegar más tarde, hasta medianoche.",
+		operationalMeaning: "Usar solo cuando recepción o autoingreso soportan llegadas tardías.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "none",
@@ -367,10 +370,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "no_show_first_night",
 		category: "NoShow",
-		name: "First-night no-show",
-		description: "If the guest does not arrive, the first night is charged.",
-		guestFacing: "If guests do not arrive, the first night is charged.",
-		operationalMeaning: "Balanced default for flexible and moderate rates.",
+		name: "No presentación: primera noche",
+		description: "Si el huésped no llega, se cobra la primera noche.",
+		guestFacing: "Si el huésped no llega, se cobra la primera noche.",
+		operationalMeaning: "Predeterminado equilibrado para tarifas flexibles y moderadas.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "first_night",
@@ -382,10 +385,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "no_show_full_stay",
 		category: "NoShow",
-		name: "Full-stay no-show",
-		description: "If the guest does not arrive, the full stay is charged.",
-		guestFacing: "If guests do not arrive, the full booking amount is charged.",
-		operationalMeaning: "Use for stricter or non-refundable rate plans.",
+		name: "No presentación: estadía completa",
+		description: "Si el huésped no llega, se cobra la estadía completa.",
+		guestFacing: "Si el huésped no llega, se cobra el monto completo de la reserva.",
+		operationalMeaning: "Usar para tarifas más estrictas o no reembolsables.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "total_booking",
@@ -397,10 +400,10 @@ export const POLICY_PRESET_CATALOG = [
 	{
 		key: "no_show_percentage_100",
 		category: "NoShow",
-		name: "100% no-show",
-		description: "If the guest does not arrive, 100% of the booking is charged.",
-		guestFacing: "If guests do not arrive, 100% of the booking amount is charged.",
-		operationalMeaning: "Equivalent to a full penalty while keeping percentage semantics.",
+		name: "No presentación: 100%",
+		description: "Si el huésped no llega, se cobra el 100% de la reserva.",
+		guestFacing: "Si el huésped no llega, se cobra el 100% del monto de la reserva.",
+		operationalMeaning: "Equivale a penalidad completa conservando semántica porcentual.",
 		stayLengthType: "any",
 		gracePeriod: 0,
 		refundBasis: "total_booking",
@@ -420,7 +423,7 @@ export const POLICY_PRESETS = POLICY_PRESET_CATALOG.reduce(
 	{} as Record<PolicyCategory, PolicyPreset[]>
 )
 
-const LEGACY_PRESET_ALIASES: Record<string, PolicyPresetKey> = {
+const INTERNAL_PRESET_ALIASES: Record<string, PolicyPresetKey> = {
 	flex_24h: "flexible",
 	moderate_7d: "moderate",
 	standard: "standard_check_in",
@@ -435,7 +438,7 @@ export function resolvePolicyPreset(
 ): PolicyPreset | null {
 	const normalized = String(key ?? "").trim()
 	if (!normalized) return null
-	const canonicalKey = LEGACY_PRESET_ALIASES[normalized] ?? normalized
+	const canonicalKey = INTERNAL_PRESET_ALIASES[normalized] ?? normalized
 	const preset =
 		POLICY_PRESET_CATALOG.find(
 			(item) => item.key === canonicalKey && (!category || item.category === category)

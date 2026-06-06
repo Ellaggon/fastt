@@ -191,8 +191,10 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	const assignmentState = {
 		loaded: false,
 		loading: false,
+		previewReady: false,
 		options: { policies: [], presets: [], scopes: { product: [], variant: [], rate_plan: [] } },
 	}
+	let previewRequestSeq = 0
 
 	function assignmentEscape(value) {
 		return String(value ?? "")
@@ -218,164 +220,6 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		if (category === "CheckIn") return "Ingreso y salida"
 		if (category === "NoShow") return "No presentación"
 		return category || "Condición"
-	}
-
-	function asNumber(value, fallback = null) {
-		const n = Number(value)
-		return Number.isFinite(n) ? n : fallback
-	}
-
-	function basisLabel(value) {
-		const labels = {
-			total_booking: "reserva completa",
-			room_rate: "tarifa base",
-			first_night: "primera noche",
-			deposit: "depósito",
-			provider_policy: "condición del proveedor",
-			none: "sin reembolso",
-			gross: "monto bruto",
-			net: "monto neto",
-			collected: "monto cobrado",
-		}
-		return labels[String(value || "")] || String(value || "sin definir")
-	}
-
-	function selectedContract() {
-		const selected = currentSelection()
-		const contract = selected.mode === "existing" ? selected.policy : selected.preset
-		return {
-			...selected,
-			contract: contract || {},
-			rules: contract?.rules || {},
-			tiers: contract?.cancellationTiers || [],
-		}
-	}
-
-	function penaltyAtDays(tiers, daysBeforeArrival) {
-		const sorted = [...(tiers || [])].sort(
-			(a, b) => Number(b.daysBeforeArrival ?? 0) - Number(a.daysBeforeArrival ?? 0)
-		)
-		const match = sorted.find(
-			(tier) => Number(daysBeforeArrival) >= Number(tier.daysBeforeArrival ?? 0)
-		)
-		if (!match) return null
-		const amount = asNumber(match.penaltyAmount, 0)
-		if (String(match.penaltyType || "percentage") === "nights")
-			return `${amount} noche${amount === 1 ? "" : "s"}`
-		return `${amount}%`
-	}
-
-	function refundTextFromPenalty(penalty) {
-		if (!penalty) return "sin tramo definido; se requiere revisar antes de vender"
-		if (penalty.endsWith("%")) {
-			const pct = asNumber(penalty.replace("%", ""), 0)
-			const refund = Math.max(0, 100 - pct)
-			return `${refund}% de reembolso / ${pct}% de penalidad`
-		}
-		return `penalidad de ${penalty}`
-	}
-
-	function noShowText(rules) {
-		const type = String(rules.penaltyType || "")
-		const amount = asNumber(rules.penaltyAmount, 100)
-		if (type === "first_night") return "cobra la primera noche si el huésped no llega"
-		if (type === "full") return "cobra la estadía completa si el huésped no llega"
-		if (type === "percentage") return `cobra ${amount}% si el huésped no llega`
-		return "sin regla de no presentación en esta condición; se resuelve con la condición No presentación asignada"
-	}
-
-	function paymentDueText(rules) {
-		const paymentType = String(rules.paymentType || "")
-		if (paymentType === "pay_at_property")
-			return "sin pago pendiente en plataforma; el huésped paga en propiedad"
-		if (paymentType === "prepayment") {
-			const pct = asNumber(rules.prepaymentPercentage, 100)
-			const days = asNumber(rules.prepaymentDaysBeforeArrival, 0)
-			return `${pct}% pendiente de cobro ${days === 0 ? "al reservar" : `${days} día(s) antes de la llegada`}`
-		}
-		return "sin regla de pago en esta condición; se resuelve con la condición Pago asignada"
-	}
-
-	function renderAirbnbPreview() {
-		if (!airbnbPreviewBox) return
-		const selected = selectedContract()
-		const category = String(selected.category || selected.contract?.category || "")
-		const rules = selected.rules || {}
-		const tiers = selected.tiers || []
-		const todayPenalty = category === "Cancellation" ? penaltyAtDays(tiers, 0) : null
-		const weekPenalty = category === "Cancellation" ? penaltyAtDays(tiers, 7) : null
-		const longStay =
-			String(selected.contract?.stayLengthType || rules.stayLengthType || "") === "long_stay" ||
-			asNumber(rules.minStayNights, 0) >= 28
-		const taxesBasis = String(rules.taxesFeesBasis || rules.taxRefundProration || "")
-		const hostBasis = String(rules.hostPayoutBasis || selected.contract?.payoutBasis || "")
-		const items = [
-			{
-				label: "Cancelación hoy",
-				value:
-					category === "Cancellation"
-						? refundTextFromPenalty(todayPenalty)
-						: "se resolverá con la condición de Cancelación asignada",
-			},
-			{
-				label: "Cancelación 7 días antes",
-				value:
-					category === "Cancellation"
-						? refundTextFromPenalty(weekPenalty)
-						: "se resolverá con la condición de Cancelación asignada",
-			},
-			{
-				label: "28+ noches",
-				value:
-					category === "Cancellation"
-						? longStay
-							? "usa contrato de larga estadía desde 28 noches"
-							: "mantiene contrato de estadía corta; conviene asignar una condición de larga estadía si aplica"
-						: "no cambia estadías largas desde esta categoría",
-			},
-			{
-				label: "Impuestos/cargos",
-				value:
-					category === "Cancellation"
-						? taxesBasis === "non_refundable" || taxesBasis === "none"
-							? "no se reembolsan automáticamente"
-							: "se prorratean según el reembolso de la reserva"
-						: "se calculan según la condición de Cancelación y bases fiscales asignadas",
-			},
-			{
-				label: "Cobro del proveedor",
-				value:
-					category === "Cancellation"
-						? hostBasis === "gross"
-							? "el proveedor conserva base bruta según penalidad"
-							: `se calcula sobre ${basisLabel(hostBasis)}`
-						: `se calcula según ${basisLabel(selected.contract?.payoutBasis)}`,
-			},
-			{
-				label: "No presentación",
-				value:
-					category === "NoShow"
-						? noShowText(rules)
-						: "se resolverá con la condición No presentación asignada",
-			},
-			{
-				label: "Pago pendiente",
-				value:
-					category === "Payment"
-						? paymentDueText(rules)
-						: "se resolverá con la condición Pago asignada",
-			},
-		]
-		airbnbPreviewBox.innerHTML = items
-			.map(
-				(item) => `
-					<div class="rounded-md border border-blue-200 bg-white/70 p-2">
-						<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">${assignmentEscape(item.label)}</p>
-						<p class="mt-1">${assignmentEscape(item.value)}</p>
-					</div>
-				`
-			)
-			.join("")
 	}
 
 	function showStatus(kind, message) {
@@ -469,6 +313,89 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		return { mode, policy, preset, scope, scopeId, scopeOption, category }
 	}
 
+	function previewPayload(selected = currentSelection()) {
+		return selected.mode === "existing"
+			? {
+					mode: "existing",
+					policyId: selected.policy?.id || "",
+					scope: selected.scope,
+					scopeId: selected.scopeId,
+					channel: channelSelect?.value || null,
+				}
+			: {
+					mode: "preset",
+					category: categorySelect?.value,
+					policyPresetKey: selected.preset?.key || "",
+					scope: selected.scope,
+					scopeId: selected.scopeId,
+					channel: channelSelect?.value || null,
+				}
+	}
+
+	async function renderBackendPreview() {
+		if (!airbnbPreviewBox) return false
+		const selected = currentSelection()
+		assignmentState.previewReady = false
+		if (!selected.scopeId) {
+			airbnbPreviewBox.innerHTML =
+				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona un destino para calcular el preview real.</div>'
+			return false
+		}
+		if (selected.mode === "existing" && !selected.policy?.id) {
+			airbnbPreviewBox.innerHTML =
+				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona una condición publicada para calcular el preview real.</div>'
+			return false
+		}
+		if (selected.mode === "preset" && !selected.preset?.key) {
+			airbnbPreviewBox.innerHTML =
+				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona una plantilla para calcular el preview real.</div>'
+			return false
+		}
+
+		const seq = ++previewRequestSeq
+		airbnbPreviewBox.innerHTML =
+			'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Calculando preview con snapshot y refund quote real...</div>'
+		try {
+			const response = await fetch("/api/policies/preview", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(previewPayload(selected)),
+			})
+			const payload = await response.json().catch(() => null)
+			if (seq !== previewRequestSeq) return false
+			if (!response.ok || !payload?.success) {
+				airbnbPreviewBox.innerHTML = `
+					<div class="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-800">
+						No se pudo calcular el preview real: ${assignmentEscape(payload?.error || "error")}
+					</div>
+				`
+				return false
+			}
+			const items = Array.isArray(payload.preview) ? payload.preview : []
+			airbnbPreviewBox.innerHTML = items
+				.map(
+					(item) => `
+						<div class="rounded-md border border-blue-200 bg-white/70 p-2">
+							<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">${assignmentEscape(item.label)}</p>
+							<p class="mt-1">${assignmentEscape(item.value)}</p>
+							${item.detail ? `<p class="mt-1 text-xs text-blue-800">${assignmentEscape(item.detail)}</p>` : ""}
+						</div>
+					`
+				)
+				.join("")
+			assignmentState.previewReady = items.length >= 7
+			return assignmentState.previewReady
+		} catch (error) {
+			if (seq !== previewRequestSeq) return false
+			airbnbPreviewBox.innerHTML = `
+				<div class="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-800">
+					No se pudo contactar el backend para calcular el preview obligatorio.
+				</div>
+			`
+			return false
+		}
+	}
+
 	function renderImpact() {
 		if (!impactBox) return
 		const selected = currentSelection()
@@ -495,7 +422,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 				<p class="mt-1">Reemplazará la condición activa de ${assignmentEscape(categoryLabel(selected.category))} para este alcance y canal, manteniendo historial y auditoría.</p>
 			</div>
 		`
-		renderAirbnbPreview()
+		renderBackendPreview()
 	}
 
 	function setMode(mode) {
@@ -546,6 +473,13 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		if (selected.mode === "preset" && !selected.preset?.key) {
 			showStatus("error", "Selecciona una plantilla.")
 			return
+		}
+		if (!assignmentState.previewReady) {
+			const previewReady = await renderBackendPreview()
+			if (!previewReady) {
+				showStatus("error", "Calcula y revisa el preview obligatorio antes de confirmar.")
+				return
+			}
 		}
 
 		const sourceLabel =

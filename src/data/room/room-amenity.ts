@@ -111,7 +111,7 @@ export const AMENITY_ROOMS = [
 	// // 🔒 --- Services ---
 	// { id: "room_service", name: "Servicio a la habitación", category: "Servicios" },
 	// { id: "daily_housekeeping", name: "Limpieza diaria", category: "Servicios" },
-	// { id: "express_checkin", name: "Check-in exprés", category: "Servicios" },
-	// { id: "express_checkout", name: "Check-out exprés", category: "Servicios" },
+	// { id: "express_checkin", name: "Ingreso exprés", category: "Servicios" },
+	// { id: "express_checkout", name: "Salida exprés", category: "Servicios" },
 	// { id: "wake_up_service", name: "Servicio de despertador", category: "Servicios" },
 ]

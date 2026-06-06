@@ -10,7 +10,7 @@ describe("policies/policy preset catalog", () => {
 			"moderate",
 			"limited",
 			"firm",
-			"strict_legacy",
+			"strict",
 			"long_term",
 			"non_refundable",
 		]

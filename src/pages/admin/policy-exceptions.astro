@@ -3,16 +3,39 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
 import { POLICY_EXCEPTION_RULE_TYPES } from "@/modules/policies/public"
+import { asc, db, Product, Provider, RatePlan, RatePlanTemplate, Variant, eq } from "astro:db"
 
-const ADMIN_EMAILS = ["ellaggon@proton.me"]
-const user = await getUserFromRequest(Astro.request)
-if (!user?.email) return Astro.redirect("/SignInPage")
-
-const isAdmin = ADMIN_EMAILS.includes(user.email)
+let isAdmin = false
+try {
+	await requireInternalAdmin(Astro.request)
+	isAdmin = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	isAdmin = false
+}
 const items = isAdmin ? await listPolicyExceptionRulesUseCase({ limit: 250 }) : []
+const scopeRows = isAdmin
+	? await db
+			.select({
+				productId: Product.id,
+				productName: Product.name,
+				providerName: Provider.displayName,
+				variantId: Variant.id,
+				variantName: Variant.name,
+				ratePlanId: RatePlan.id,
+				ratePlanName: RatePlanTemplate.name,
+			})
+			.from(Product)
+			.leftJoin(Provider, eq(Provider.id, Product.providerId))
+			.leftJoin(Variant, eq(Variant.productId, Product.id))
+			.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+			.leftJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
+			.orderBy(asc(Product.name), asc(Variant.name), asc(RatePlanTemplate.name))
+			.all()
+	: []
 const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
 const categories = [
 	{ value: "Cancellation", label: "Cancelación" },
@@ -37,6 +60,25 @@ const categoryLabels = Object.fromEntries(
 	categories.map((category) => [category.value, category.label])
 )
 const scopeLabels = Object.fromEntries(scopes.map((scope) => [scope.value, scope.label]))
+const productOptions = new Map<string, string>()
+const variantOptions = new Map<string, string>()
+const ratePlanOptions = new Map<string, string>()
+for (const row of scopeRows) {
+	const provider = String(row.providerName ?? "Proveedor")
+	const productId = String(row.productId ?? "")
+	const productName = String(row.productName ?? productId)
+	if (productId) productOptions.set(productId, `${provider} / ${productName}`)
+	const variantId = String(row.variantId ?? "")
+	if (variantId)
+		variantOptions.set(variantId, `${productName} / ${String(row.variantName ?? variantId)}`)
+	const ratePlanId = String(row.ratePlanId ?? "")
+	if (ratePlanId) {
+		ratePlanOptions.set(
+			ratePlanId,
+			`${productName} / ${String(row.variantName ?? "Habitación")} / ${String(row.ratePlanName ?? ratePlanId)}`
+		)
+	}
+}
 
 function percent(value: unknown): string | null {
 	const n = Number(value)
@@ -151,26 +193,33 @@ function impactCopy(item: any) {
 										))}
 									</select>
 								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Ámbito</span>
+								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+									<span class="font-semibold">Alcance real</span>
 									<select
-										name="scope"
-										id="exceptionScope"
+										name="scopeTarget"
+										required
 										class="w-full rounded border border-slate-300 p-2"
 									>
-										{scopes.map((scope) => (
-											<option value={scope.value}>{scope.label}</option>
-										))}
+										<option value="global::">Global: toda la plataforma</option>
+										<optgroup label="Productos">
+											{Array.from(productOptions.entries()).map(([id, label]) => (
+												<option value={`product::${id}`}>{label}</option>
+											))}
+										</optgroup>
+										<optgroup label="Habitaciones">
+											{Array.from(variantOptions.entries()).map(([id, label]) => (
+												<option value={`variant::${id}`}>{label}</option>
+											))}
+										</optgroup>
+										<optgroup label="Tarifas">
+											{Array.from(ratePlanOptions.entries()).map(([id, label]) => (
+												<option value={`rate_plan::${id}`}>{label}</option>
+											))}
+										</optgroup>
 									</select>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">ID de ámbito</span>
-									<input
-										name="scopeId"
-										id="exceptionScopeId"
-										class="w-full rounded border border-slate-300 p-2"
-										placeholder="ID de producto / variante / tarifa"
-									/>
+									<span class="block text-xs text-slate-500">
+										Elige el objeto real afectado. Los IDs quedan solo como detalle técnico.
+									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Categoría</span>
@@ -234,6 +283,7 @@ function impactCopy(item: any) {
 									<input
 										name="effectiveFrom"
 										type="date"
+										required
 										class="w-full rounded border border-slate-300 p-2"
 									/>
 								</label>
@@ -301,17 +351,37 @@ function impactCopy(item: any) {
 										name="reason"
 										class="w-full rounded border border-slate-300 p-2"
 										required
+										minlength="10"
 										placeholder="Ej. evento disruptivo confirmado por soporte"
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Evidencia / nota interna</span>
+									<span class="font-semibold">Evidencia obligatoria</span>
 									<input
 										name="note"
 										class="w-full rounded border border-slate-300 p-2"
+										required
+										minlength="8"
 										placeholder="URL, ticket, resolución legal o referencia de soporte"
 									/>
 								</label>
+								<div class="rounded-lg border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
+									<p class="font-semibold text-slate-900">Impacto previsto</p>
+									<div class="mt-3 grid gap-3 md:grid-cols-3">
+										<div>
+											<p class="text-xs font-semibold text-slate-500 uppercase">Huésped</p>
+											<p data-impact-guest>Completa reembolso, no-show o reubicación.</p>
+										</div>
+										<div>
+											<p class="text-xs font-semibold text-slate-500 uppercase">Proveedor</p>
+											<p data-impact-provider>Completa payout o cargo al proveedor.</p>
+										</div>
+										<div>
+											<p class="text-xs font-semibold text-slate-500 uppercase">Plataforma</p>
+											<p data-impact-platform>Completa base, evidencia y prioridad.</p>
+										</div>
+									</div>
+								</div>
 								<div class="flex items-end gap-3 lg:col-span-4">
 									<Button type="submit" variant="primary">
 										Crear excepción
@@ -425,6 +495,63 @@ function impactCopy(item: any) {
 <script>
 	const form = document.getElementById("policy-exception-form")
 	const feedback = document.getElementById("policy-exception-feedback")
+	const impactGuest = document.querySelector("[data-impact-guest]")
+	const impactProvider = document.querySelector("[data-impact-provider]")
+	const impactPlatform = document.querySelector("[data-impact-platform]")
+	function fieldValue(name: string) {
+		if (!(form instanceof HTMLFormElement)) return ""
+		const field = form.elements.namedItem(name)
+		if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) {
+			if (field instanceof HTMLInputElement && field.type === "checkbox") {
+				return field.checked ? "true" : ""
+			}
+			return String(field.value || "").trim()
+		}
+		return ""
+	}
+	function updateImpactPreview() {
+		const refund = fieldValue("refundOverridePercent")
+		const payout = fieldValue("payoutOverridePercent")
+		const payoutBasis = fieldValue("payoutOverrideBasis")
+		const forceRefundBasis = fieldValue("forceRefundBasis")
+		const noShow = fieldValue("waiveNoShowCharge")
+		const hostFee =
+			fieldValue("hostCancellationFeeAmount") || fieldValue("hostCancellationFeePercent")
+		const rebooking = fieldValue("rebookingCreditAmount") || fieldValue("rebookingCreditPercent")
+		const priority = fieldValue("priority")
+		if (impactGuest) {
+			impactGuest.textContent =
+				[
+					refund ? `reembolso forzado ${refund}%` : "",
+					noShow ? "sin cargo no-show" : "",
+					rebooking ? "crédito de reubicación activo" : "",
+				]
+					.filter(Boolean)
+					.join(" · ") || "Sin impacto de huésped seleccionado."
+		}
+		if (impactProvider) {
+			impactProvider.textContent =
+				[
+					payout ? `payout forzado ${payout}%` : "",
+					payoutBasis ? `base ${payoutBasis}` : "",
+					hostFee ? "cargo al proveedor configurado" : "",
+				]
+					.filter(Boolean)
+					.join(" · ") || "Sin impacto de proveedor seleccionado."
+		}
+		if (impactPlatform) {
+			impactPlatform.textContent =
+				[
+					forceRefundBasis ? `base de reembolso ${forceRefundBasis}` : "",
+					payoutBasis === "platform_absorbs" ? "plataforma absorbe diferencia" : "",
+					priority ? `prioridad ${priority}` : "",
+				]
+					.filter(Boolean)
+					.join(" · ") || "Sin impacto de plataforma seleccionado."
+		}
+	}
+	form?.addEventListener("input", updateImpactPreview)
+	updateImpactPreview()
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()
 		if (!(form instanceof HTMLFormElement)) return

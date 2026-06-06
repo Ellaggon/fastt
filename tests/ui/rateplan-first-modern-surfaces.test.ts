@@ -50,18 +50,77 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(source).not.toContain("variantId: ownerContext.variantId")
 	})
 
-	it("wizard de policies envía solo ratePlanId en preview/save_category", () => {
+	it("condiciones de tarifa solo permite usar existente o crear desde plantilla", () => {
 		const source = read("src/components/policy/RatePlanPoliciesSurface.astro")
-		const previewBlockMatch = source.match(/intent:\s*"preview"[\s\S]*?}\),\s*\n\t\t}\)/)
-		const saveBlockMatch = source.match(/intent:\s*"save_category"[\s\S]*?}\),\s*\n\t\t}\)/)
 
-		expect(previewBlockMatch?.[0]).toContain("ratePlanId: state.plan.ratePlanId")
-		expect(previewBlockMatch?.[0]).not.toContain("variantId:")
-		expect(previewBlockMatch?.[0]).not.toContain("productId:")
+		expect(source).toContain("Usar condición existente")
+		expect(source).toContain("Crear desde plantilla")
+		expect(source).toContain('data-assignment-mode="existing"')
+		expect(source).toContain('data-assignment-mode="preset"')
+		expect(source).toContain("<PolicyAssignmentFlow")
+		expect(source).not.toContain("policyWizardOverlay")
+		expect(source).not.toContain("wizCategoryForm")
+		expect(source).not.toContain('intent: "save_category"')
+		expect(source).not.toContain("daysBeforeArrival")
+		expect(source).not.toContain("paymentMode")
+	})
 
-		expect(saveBlockMatch?.[0]).toContain("ratePlanId: state.plan.ratePlanId")
-		expect(saveBlockMatch?.[0]).not.toContain("variantId:")
-		expect(saveBlockMatch?.[0]).not.toContain("productId:")
+	it("preview de asignacion de condiciones usa backend real obligatorio", () => {
+		const source = read("src/components/policy/PolicyAssignmentFlow.astro")
+		const endpoint = read("src/pages/api/policies/preview.ts")
+
+		expect(source).toContain('fetch("/api/policies/preview"')
+		expect(source).toContain("assignmentState.previewReady")
+		expect(source).toContain("Calcula y revisa el preview obligatorio antes de confirmar")
+		expect(source).not.toContain("renderAirbnbPreview")
+		expect(source).not.toContain("penaltyAtDays")
+		expect(source).not.toContain("refundTextFromPenalty")
+		expect(endpoint).toContain("buildPolicySnapshot")
+		expect(endpoint).toContain("buildRefundQuote")
+		expect(endpoint).toContain('key: "cancel_today"')
+		expect(endpoint).toContain('key: "cancel_7_days"')
+		expect(endpoint).toContain('key: "long_stay_28"')
+		expect(endpoint).toContain('key: "taxes_fees"')
+		expect(endpoint).toContain('key: "provider_payout"')
+		expect(endpoint).toContain('key: "no_show"')
+		expect(endpoint).toContain('key: "payment_due"')
+	})
+
+	it("pagina publica muestra condiciones junto a cada tarifa reservable", () => {
+		const hotelPage = read("src/pages/hotels/[id]/index.astro")
+		const roomSection = read("src/components/productUI/RoomSection.astro")
+		const roomModal = read("src/components/productUI/RoomModal.astro")
+
+		expect(hotelPage).toContain("policiesByRatePlanId")
+		expect(hotelPage).toContain("requiredCategories: policyCategories")
+		expect(hotelPage).toContain("La verdad contractual se muestra junto a cada")
+		expect(roomSection).toContain("Verdad contractual de esta tarifa")
+		expect(roomSection).toContain("data-select-rateplan-id")
+		expect(roomSection).toContain("ratePlanId,")
+		expect(roomSection).toContain("occupancyDetail")
+		expect(roomSection).not.toContain("Condiciones asignadas a esta tarifa")
+		expect(roomModal).toContain("Verdad contractual de esta tarifa")
+		expect(roomModal).toContain("data-select-rateplan-id")
+	})
+
+	it("overrides admin usa RBAC central, scope real, evidencia e impacto", () => {
+		const page = read("src/pages/admin/policy-exceptions.astro")
+		const createEndpoint = read("src/pages/api/internal/policies/exceptions.ts")
+		const updateEndpoint = read("src/pages/api/internal/policies/exceptions/[id].ts")
+
+		expect(page).toContain("requireInternalAdmin")
+		expect(page).toContain('name="scopeTarget"')
+		expect(page).toContain("Evidencia obligatoria")
+		expect(page).toContain("Impacto previsto")
+		expect(page).toContain("data-impact-guest")
+		expect(page).not.toContain("ADMIN_EMAILS")
+		expect(createEndpoint).toContain("requireInternalAdmin")
+		expect(createEndpoint).toContain("scopeTarget")
+		expect(createEndpoint).toContain("impact_required")
+		expect(createEndpoint).toContain("effectiveFrom")
+		expect(createEndpoint).toContain("note: z.string().trim().min(8)")
+		expect(updateEndpoint).toContain("requireInternalAdmin")
+		expect(updateEndpoint).not.toContain("ADMIN_EMAILS")
 	})
 
 	it("no existen superficies legacy variant-first de pricing", () => {
@@ -76,5 +135,27 @@ describe("ui/rateplan-first modern surfaces", () => {
 		for (const page of pages) {
 			expect(existsSync(resolve(process.cwd(), page))).toBe(false)
 		}
+	})
+
+	it("condiciones no expone rutas ni presets legacy visibles", () => {
+		const policyBuilder = read("src/components/policy/PolicyBuilder.astro")
+		const policyIndex = read("src/pages/provider/policies/index.astro")
+		const assignmentOptions = read("src/pages/api/policies/assignment-options.ts")
+		const presets = read("src/data/policy/policy-presets.ts")
+		const criticalRoutes = read("src/lib/dashboard-critical-routes.ts")
+
+		expect(existsSync(resolve(process.cwd(), "src/pages/provider/policies/rate-plans.astro"))).toBe(
+			false
+		)
+		expect(criticalRoutes).not.toContain("/provider/policies/rate-plans")
+		expect(policyBuilder).not.toContain("strict_legacy")
+		expect(policyBuilder).not.toContain("heredada")
+		expect(policyIndex).not.toContain("strict_legacy")
+		expect(policyIndex).not.toContain("heredada")
+		expect(assignmentOptions).not.toContain("strict_legacy")
+		expect(assignmentOptions).not.toContain("heredada")
+		expect(presets).toContain('key: "strict"')
+		expect(presets).not.toContain('key: "strict_legacy"')
+		expect(presets).not.toContain("Estricta heredada")
 	})
 })

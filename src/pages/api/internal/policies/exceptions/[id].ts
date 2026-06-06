@@ -1,24 +1,13 @@
 import type { APIRoute } from "astro"
 
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { setPolicyExceptionRuleActiveUseCase } from "@/container/policy-exceptions.container"
-
-const ADMIN_EMAILS = ["ellaggon@proton.me"]
 
 function json(payload: unknown, status = 200): Response {
 	return new Response(JSON.stringify(payload), {
 		status,
 		headers: { "Content-Type": "application/json" },
 	})
-}
-
-async function requireAdmin(request: Request) {
-	const user = await getUserFromRequest(request)
-	if (!user?.email) return { ok: false as const, response: json({ error: "Unauthorized" }, 401) }
-	if (!ADMIN_EMAILS.includes(user.email)) {
-		return { ok: false as const, response: json({ error: "Forbidden" }, 403) }
-	}
-	return { ok: true as const, email: user.email }
 }
 
 async function readIsActive(request: Request): Promise<boolean | null> {
@@ -38,8 +27,13 @@ async function readIsActive(request: Request): Promise<boolean | null> {
 }
 
 export const PATCH: APIRoute = async ({ request, params }) => {
-	const auth = await requireAdmin(request)
-	if (!auth.ok) return auth.response
+	let auth: Awaited<ReturnType<typeof requireInternalAdmin>>
+	try {
+		auth = await requireInternalAdmin(request)
+	} catch (response) {
+		if (response instanceof Response) return response
+		throw response
+	}
 	const id = String(params.id ?? "").trim()
 	if (!id) return json({ error: "id_required" }, 400)
 	const isActive = await readIsActive(request)
@@ -47,7 +41,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 	const item = await setPolicyExceptionRuleActiveUseCase({
 		id,
 		isActive,
-		actorUserId: auth.email,
+		actorUserId: auth.user.email,
 	})
 	if (!item) return json({ error: "not_found" }, 404)
 	return json({ item })

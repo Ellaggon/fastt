@@ -1,5 +1,13 @@
 ---
-const { offers, searchState, productId, amenities, hotelRoom, productFallbackImage } = Astro.props
+const {
+	offers,
+	searchState,
+	productId,
+	amenities,
+	hotelRoom,
+	productFallbackImage,
+	policiesByRatePlanId = {},
+} = Astro.props
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
@@ -48,6 +56,22 @@ function bathroomCount(room: any): number | null {
 function occupancyCount(room: any): number | null {
 	const value = Number(room?.maxOccupancy ?? room?.maxOccupancyOverride)
 	return Number.isFinite(value) ? value : null
+}
+
+function ratePlanIdOf(ratePlan: any): string {
+	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
+}
+
+function policyStatusLabel(status: string): string {
+	if (status === "complete") return "Condiciones completas"
+	if (status === "partial") return "Condiciones incompletas"
+	return "Condiciones pendientes"
+}
+
+function policyStatusClass(status: string): string {
+	if (status === "complete") return "border-emerald-200 bg-emerald-50 text-emerald-900"
+	if (status === "partial") return "border-amber-200 bg-amber-50 text-amber-900"
+	return "border-rose-200 bg-rose-50 text-rose-900"
 }
 ---
 
@@ -112,7 +136,7 @@ function occupancyCount(room: any): number | null {
 					value={searchState.checkIn}
 					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
 				>
-					<span id="checkinText">Check-in</span>
+					<span id="checkinText">Ingreso</span>
 				</button>
 			</div>
 
@@ -138,7 +162,7 @@ function occupancyCount(room: any): number | null {
 					value={searchState.checkOut}
 					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
 				>
-					<span id="checkoutText">Check-out</span>
+					<span id="checkoutText">Salida</span>
 				</button>
 			</div>
 		</div>
@@ -317,27 +341,59 @@ function occupancyCount(room: any): number | null {
 							<div class="mt-4 space-y-3">
 								{ratePlans.map((rp: any) => {
 									const finalPrice = rp.finalPrice ?? rp.price ?? 0
+									const ratePlanId = ratePlanIdOf(rp)
+									const contract = policiesByRatePlanId[ratePlanId] ?? null
+									const visibleCards = (contract?.cards ?? []).slice(0, 4)
 
 									return (
 										<div
-											class="flex items-center justify-between rounded-lg border bg-white px-3 py-2"
-											data-rateplan-id={rp.id}
+											class="space-y-3 rounded-lg border bg-white px-3 py-3"
+											data-rateplan-id={ratePlanId}
 										>
-											<div>
-												<p class="text-sm font-medium text-neutral-800">{rp.name ?? "Tarifa"}</p>
-												<p class="text-xs text-neutral-500">Condiciones según política asignada</p>
+											<div class="flex items-start justify-between gap-3">
+												<div>
+													<p class="text-sm font-medium text-neutral-800">{rp.name ?? "Tarifa"}</p>
+													<p class="mt-1 text-xs text-neutral-500">
+														Verdad contractual de esta tarifa
+													</p>
+												</div>
+
+												<div class="text-right">
+													<p class="text-sm font-semibold text-neutral-900">${finalPrice}</p>
+
+													<button
+														type="button"
+														data-select-variant-id={variant.id}
+														data-select-rateplan-id={ratePlanId}
+														class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+													>
+														Reservar
+													</button>
+												</div>
 											</div>
 
-											<div class="text-right">
-												<p class="text-sm font-semibold text-neutral-900">${finalPrice}</p>
+											<div
+												class={`rounded-md border px-3 py-2 text-xs ${policyStatusClass(String(contract?.status ?? "missing"))}`}
+											>
+												<p class="font-semibold">
+													{policyStatusLabel(String(contract?.status ?? "missing"))}
+												</p>
+												<p class="mt-1">
+													{contract?.summary ?? "Sin condiciones para esta tarifa."}
+												</p>
+											</div>
 
-												<button
-													type="button"
-													data-select-variant-id={variant.id}
-													class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
-												>
-													Reservar
-												</button>
+											<div class="grid gap-2 text-xs text-neutral-700">
+												{visibleCards.map((card: any) => (
+													<div class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
+														<p class="font-semibold text-neutral-900">{card.label}</p>
+														<p class="mt-1">
+															{card.state === "missing"
+																? "Pendiente para esta tarifa."
+																: card.description || "Condición definida sin texto visible."}
+														</p>
+													</div>
+												))}
 											</div>
 										</div>
 									)
@@ -356,6 +412,7 @@ function occupancyCount(room: any): number | null {
 								<button
 									type="button"
 									data-select-variant-id={variant.id}
+									data-select-rateplan-id={ratePlanIdOf(ratePlans[0])}
 									class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
 								>
 									Reservar
@@ -375,6 +432,7 @@ function occupancyCount(room: any): number | null {
 		productId,
 		selectedVariantIdFromQuery: String(searchState?.selectedVariantId ?? ""),
 		defaultVariantId: String(variants[0]?.id ?? ""),
+		defaultRatePlanId: String((offers ?? [])[0]?.ratePlans?.[0]?.ratePlanId ?? ""),
 	}}
 >
 	if (!productId) {
@@ -392,6 +450,7 @@ function occupancyCount(room: any): number | null {
 	const confirmBookingBtn = document.getElementById("confirmBookingBtn")
 
 	let selectedVariantId = String(selectedVariantIdFromQuery || defaultVariantId || "").trim()
+	let selectedRatePlanId = String(defaultRatePlanId || "").trim()
 	let latestHoldId = ""
 
 	function parseIsoDate(iso) {
@@ -407,6 +466,10 @@ function occupancyCount(room: any): number | null {
 
 	function getSelectedVariantId() {
 		return String(selectedVariantId ?? "").trim()
+	}
+
+	function getSelectedRatePlanId() {
+		return String(selectedRatePlanId ?? "").trim()
 	}
 
 	function getDateRange() {
@@ -465,8 +528,7 @@ function occupancyCount(room: any): number | null {
 	document.getElementById("searchBtn")?.addEventListener("click", async () => {
 		const dateRange = getDateRange()
 		if (!dateRange.from || !dateRange.to) {
-			if (summaryText)
-				summaryText.textContent = "Selecciona check-in y check-out antes de consultar."
+			if (summaryText) summaryText.textContent = "Selecciona ingreso y salida antes de consultar."
 			return
 		}
 
@@ -513,19 +575,26 @@ function occupancyCount(room: any): number | null {
 		trigger.addEventListener("click", async (event) => {
 			const target = event.currentTarget
 			const variantId = String(target?.dataset?.selectVariantId ?? "").trim()
+			const ratePlanId = String(target?.dataset?.selectRateplanId ?? "").trim()
 			if (!variantId) return
 			selectedVariantId = variantId
+			if (ratePlanId) selectedRatePlanId = ratePlanId
 			await handleReserve()
 		})
 	}
 
 	async function handleReserve() {
 		const variantId = getSelectedVariantId()
-		const occupancy = updateGuestsLabel()
+		const ratePlanId = getSelectedRatePlanId()
+		updateGuestsLabel()
 		const dateRange = getDateRange()
-		if (!variantId || !dateRange.from || !dateRange.to) return
+		if (!variantId || !ratePlanId || !dateRange.from || !dateRange.to) {
+			if (holdStatusText)
+				holdStatusText.textContent = "Selecciona una tarifa con condiciones antes de reservar."
+			return
+		}
 
-		console.debug("ui_hold_triggered", { variantId })
+		console.debug("ui_hold_triggered", { variantId, ratePlanId })
 		if (holdStatusText) holdStatusText.textContent = "Creando hold..."
 		if (reserveBtn) reserveBtn.disabled = true
 		try {
@@ -534,8 +603,14 @@ function occupancyCount(room: any): number | null {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					variantId,
+					ratePlanId,
 					dateRange,
-					occupancy: Math.max(1, occupancy),
+					occupancyDetail: {
+						adults: Math.max(1, Number(adultsInput?.value ?? 1) || 1),
+						children: Math.max(0, Number(childrenInput?.value ?? 0) || 0),
+						infants: 0,
+					},
+					rooms: 1,
 				}),
 			})
 			const payload = await response.json().catch(() => ({}))
