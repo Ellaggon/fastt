@@ -2,8 +2,15 @@
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { enterpriseNavigation } from "@/lib/backoffice-governance"
-import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
+import {
+	enterpriseNavigation,
+	filterEnterpriseNavigationForDisclosure,
+	type SidebarDisclosureMode,
+} from "@/lib/backoffice-governance"
+import {
+	getProviderSidebarData,
+	type ProviderSidebarReadiness,
+} from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
 
 interface Props {
@@ -23,22 +30,34 @@ const activeHref =
 		.flatMap((section) => section.items.map((item) => item.href))
 		.filter((href) => isActive(href))
 		.sort((a, b) => b.length - a.length)[0] ?? ""
-const isSectionActive = (items: (typeof enterpriseNavigation)[number]["items"]) =>
-	items.some((item) => item.href === activeHref || isActive(item.href))
 
-let policyReadinessSummary = ""
+let sidebarReadiness: ProviderSidebarReadiness = {}
+let disclosureMode: SidebarDisclosureMode = "small-provider"
 try {
 	const providerId = await getProviderIdFromRequest(Astro.request)
 	if (providerId) {
-		policyReadinessSummary = (await getProviderPolicyReadiness(providerId)).summary
+		const sidebarData = await getProviderSidebarData(providerId)
+		sidebarReadiness = sidebarData.summaries
+		disclosureMode = sidebarData.disclosureMode
 	}
 } catch {
-	policyReadinessSummary = "Condiciones: readiness no disponible."
+	sidebarReadiness = {
+		[routes.ratePlansList()]: "Tarifas: readiness no disponible.",
+		[routes.pricing()]: "Calendario: readiness no disponible.",
+		[routes.inventory()]: "Inventario: readiness no disponible.",
+		[routes.rateRestrictions()]: "Restricciones: readiness no disponible.",
+		[routes.providerPolicies()]: "Condiciones: readiness no disponible.",
+	}
 }
+const visibleNavigation = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+	mode: disclosureMode,
+	activeHref,
+})
+const isSectionActive = (items: (typeof visibleNavigation)[number]["items"]) =>
+	items.some((item) => item.href === activeHref || isActive(item.href))
 
 function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number]) {
-	if (item.href === routes.providerPolicies() && policyReadinessSummary)
-		return policyReadinessSummary
+	if (sidebarReadiness[item.href]) return sidebarReadiness[item.href]
 	return item.summary
 }
 ---
@@ -54,7 +73,7 @@ function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number
 		</p>
 	</div>
 	{
-		enterpriseNavigation.map((section) => (
+		visibleNavigation.map((section) => (
 			<DashboardSidebarSection
 				title={section.title}
 				owner={section.owner}
