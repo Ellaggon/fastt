@@ -2,10 +2,7 @@ import { z } from "zod"
 
 import { logger } from "@/lib/observability/logger"
 import { getFeatureFlag } from "@/config/featureFlags"
-import {
-	normalizePolicyResolutionResult,
-	resolveEffectivePolicies,
-} from "@/modules/policies/public"
+import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { buildOccupancyKey } from "../../domain/occupancy-key"
 import { normalizeOccupancy, type Occupancy } from "@/shared/domain/occupancy"
 import type { SearchUnitMaterializationRepositoryPort } from "../ports/SearchUnitMaterializationRepositoryPort"
@@ -263,11 +260,7 @@ export async function materializeSearchUnit(
 				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 				onMissingCategory: "return_null",
 			})
-			const normalized = normalizePolicyResolutionResult(resolvedPolicies, {
-				asOfDate: normalizedDate,
-				warnings: [],
-			}).dto
-			policyBlocked = normalized.missingCategories.length > 0
+			policyBlocked = resolvedPolicies.missingCategories.length > 0
 		} catch (error) {
 			logger.warn("search.materialize.policy_resolution_failed", {
 				variantId: parsed.variantId,

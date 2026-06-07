@@ -4,7 +4,6 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	derivePolicySummaryFromResolvedPolicies,
-	normalizePolicyResolutionResult,
 	REQUIRED_POLICY_CATEGORIES,
 	resolveEffectivePolicies,
 	resolvePolicyDateRange,
@@ -53,7 +52,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			}
 
 			try {
-				const resolvedRaw = await resolveEffectivePolicies({
+				const resolved = await resolveEffectivePolicies({
 					productId,
 					variantId: variantId || undefined,
 					ratePlanId,
@@ -63,10 +62,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					requiredCategories,
 					onMissingCategory: "return_null",
 				})
-				const resolved = normalizePolicyResolutionResult(resolvedRaw, {
-					asOfDate: checkIn,
-					warnings: [],
-				}).dto
 				const missingCategories = resolved.missingCategories
 				const coveredCategories = Math.max(requiredCategories.length - missingCategories.length, 0)
 				return {

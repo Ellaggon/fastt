@@ -16,7 +16,46 @@ try {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
 	isAdmin = false
 }
-const items = isAdmin ? await listPolicyExceptionRulesUseCase({ limit: 250 }) : []
+const filters = {
+	q: String(Astro.url.searchParams.get("q") ?? "")
+		.trim()
+		.toLowerCase(),
+	scope: String(Astro.url.searchParams.get("scope") ?? "all").trim(),
+	category: String(Astro.url.searchParams.get("category") ?? "").trim(),
+	type: String(Astro.url.searchParams.get("type") ?? "all").trim(),
+	status: String(Astro.url.searchParams.get("status") ?? "all").trim(),
+}
+const rawItems = isAdmin
+	? await listPolicyExceptionRulesUseCase({
+			scope: filters.scope as any,
+			category: filters.category || null,
+			type: filters.type as any,
+			isActive:
+				filters.status === "active"
+					? true
+					: filters.status === "inactive"
+						? false
+						: ("all" as const),
+			limit: 250,
+		})
+	: []
+const items = filters.q
+	? rawItems.filter((item) =>
+			[
+				item.id,
+				item.type,
+				item.scope,
+				item.scopeId,
+				item.category,
+				item.reason,
+				item.createdBy,
+				JSON.stringify(item.action ?? {}),
+			]
+				.join(" ")
+				.toLowerCase()
+				.includes(filters.q)
+		)
+	: rawItems
 const scopeRows = isAdmin
 	? await db
 			.select({
@@ -119,6 +158,17 @@ function impactCopy(item: any) {
 	const hostFeePercent = percent(action.hostCancellationFeePercent)
 	const noShowWaived = action.waiveNoShowCharge === true
 	return {
+		before: "Antes: cálculo estándar de condiciones vigentes, sin excepción aplicada.",
+		after:
+			[
+				refund ? `Después: reembolso forzado ${refund}` : null,
+				payout ? `Después: payout ajustado ${payout}` : null,
+				noShowWaived ? "Después: cargo no-show eximido" : null,
+				hostFeeAmount || hostFeePercent ? "Después: cargo al proveedor por cancelación" : null,
+				rebookingAmount || rebookingPercent ? "Después: crédito de reubicación aplicado" : null,
+			]
+				.filter(Boolean)
+				.join(" · ") || "Después: se mantiene cálculo estándar, pero queda auditado.",
 		guest:
 			[
 				refund ? `recibe reembolso forzado de ${refund}` : null,
@@ -148,11 +198,31 @@ function impactCopy(item: any) {
 				.filter(Boolean)
 				.join(" · ") || "mantiene cálculo estándar y trazabilidad",
 		evidence:
-			[item.reason, action.note]
+			[
+				item.reason,
+				action.note,
+				...(Array.isArray(action.evidenceAttachments)
+					? action.evidenceAttachments.map((entry: any) => `${entry.label}: ${entry.value}`)
+					: []),
+			]
 				.map((value) => String(value ?? "").trim())
 				.filter(Boolean)
 				.join(" · ") || "sin evidencia cargada",
 	}
+}
+
+function approvalStatus(item: any): string {
+	return String(item.action?.approval?.status ?? (item.isActive === false ? "pending" : "approved"))
+}
+
+function approvalLabel(item: any): string {
+	const labels: Record<string, string> = {
+		pending: "Pendiente aprobación",
+		approved: "Aprobada",
+		rejected: "Rechazada",
+		rolled_back: "Rollback aplicado",
+	}
+	return labels[approvalStatus(item)] ?? "Pendiente aprobación"
 }
 ---
 
@@ -184,6 +254,70 @@ function impactCopy(item: any) {
 									cuándo aplica; y qué evidencia o motivo justifica el cambio.
 								</p>
 							</div>
+							<form
+								method="get"
+								class="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 lg:grid-cols-5"
+							>
+								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+									<span class="font-semibold">Buscador soporte/admin</span>
+									<input
+										name="q"
+										value={filters.q}
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="Buscar por motivo, evidencia, scope, creador o ID"
+										data-policy-exception-search
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Scope</span>
+									<select name="scope" class="w-full rounded border border-slate-300 p-2">
+										<option value="all" selected={filters.scope === "all"}>
+											Todos
+										</option>
+										{scopes.map((scope) => (
+											<option value={scope.value} selected={filters.scope === scope.value}>
+												{scope.label}
+											</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Tipo</span>
+									<select name="type" class="w-full rounded border border-slate-300 p-2">
+										<option value="all" selected={filters.type === "all"}>
+											Todos
+										</option>
+										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
+											<option value={type} selected={filters.type === type}>
+												{exceptionTypeLabels[type] ?? type}
+											</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Estado</span>
+									<select name="status" class="w-full rounded border border-slate-300 p-2">
+										<option value="all" selected={filters.status === "all"}>
+											Todos
+										</option>
+										<option value="active" selected={filters.status === "active"}>
+											Activos
+										</option>
+										<option value="inactive" selected={filters.status === "inactive"}>
+											Inactivos
+										</option>
+									</select>
+								</label>
+								<div class="flex items-end gap-3 lg:col-span-5">
+									<Button type="submit" variant="secondary">
+										Buscar
+									</Button>
+									<a href="/admin/policy-exceptions" class="text-sm font-semibold text-slate-600">
+										Limpiar filtros
+									</a>
+									<p class="text-sm text-slate-500">{items.length} resultado(s)</p>
+								</div>
+							</form>
 							<form id="policy-exception-form" class="grid gap-4 lg:grid-cols-4">
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Tipo de excepción</span>
@@ -365,6 +499,42 @@ function impactCopy(item: any) {
 										placeholder="URL, ticket, resolución legal o referencia de soporte"
 									/>
 								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Ticket / caso</span>
+									<input
+										name="evidenceReference"
+										class="w-full rounded border border-slate-300 p-2"
+										required
+										placeholder="SUP-1234 / LEGAL-2026-07"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">URL de evidencia</span>
+									<input
+										name="evidenceUrl"
+										type="url"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="https://..."
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Adjunto referenciado</span>
+									<input
+										name="evidenceFileName"
+										class="w-full rounded border border-slate-300 p-2"
+										placeholder="captura-soporte.pdf"
+									/>
+								</label>
+								<label class="space-y-1 text-sm text-slate-700">
+									<span class="font-semibold">Aprobación</span>
+									<select name="approvalStatus" class="w-full rounded border border-slate-300 p-2">
+										<option value="pending">Crear pendiente</option>
+										<option value="approved">Crear aprobada</option>
+									</select>
+									<span class="block text-xs text-slate-500">
+										Pendiente no afecta snapshots hasta aprobar.
+									</span>
+								</label>
 								<div class="rounded-lg border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
 									<p class="font-semibold text-slate-900">Impacto previsto</p>
 									<div class="mt-3 grid gap-3 md:grid-cols-3">
@@ -407,8 +577,9 @@ function impactCopy(item: any) {
 									<tbody class="divide-y divide-slate-200">
 										{items.map((item) => {
 											const impact = impactCopy(item)
+											const approval = approvalStatus(item)
 											return (
-												<tr>
+												<tr data-policy-exception-row>
 													<td class="px-3 py-3 align-top text-sm font-semibold text-slate-900">
 														{exceptionTypeLabels[item.type] ?? item.type}
 														<p class="text-xs font-normal text-slate-500">
@@ -448,6 +619,11 @@ function impactCopy(item: any) {
 																<p class="font-semibold text-amber-950">Evidencia</p>
 																<p class="text-amber-900">{impact.evidence}</p>
 															</div>
+															<div class="rounded bg-white p-2 md:col-span-2">
+																<p class="font-semibold text-slate-900">Antes / después</p>
+																<p>{impact.before}</p>
+																<p class="mt-1">{impact.after}</p>
+															</div>
 														</div>
 														<details class="mt-2">
 															<summary class="cursor-pointer text-xs font-semibold text-slate-600">
@@ -459,21 +635,67 @@ function impactCopy(item: any) {
 														</details>
 													</td>
 													<td class="px-3 py-3 align-top">
-														{item.isActive === false ? (
-															<Badge variant="error">Inactivo</Badge>
-														) : (
-															<Badge variant="success">Activo</Badge>
-														)}
+														<div class="space-y-2">
+															{approval === "approved" && item.isActive !== false ? (
+																<Badge variant="success">Aprobada y activa</Badge>
+															) : approval === "rolled_back" ? (
+																<Badge variant="error">Rollback aplicado</Badge>
+															) : approval === "rejected" ? (
+																<Badge variant="error">Rechazada</Badge>
+															) : (
+																<Badge variant="warning">Pendiente aprobación</Badge>
+															)}
+															<p class="text-xs text-slate-500">{approvalLabel(item)}</p>
+															<p class="text-xs text-slate-500">
+																{item.isActive === false
+																	? "No afecta cálculos"
+																	: "Afecta snapshots"}
+															</p>
+														</div>
 													</td>
 													<td class="px-3 py-3 align-top">
-														<Button
-															type="button"
-															variant="secondary"
-															data-toggle-exception={item.id}
-															data-next-active={item.isActive === false ? "true" : "false"}
-														>
-															{item.isActive === false ? "Activar" : "Desactivar"}
-														</Button>
+														<div class="flex flex-col gap-2">
+															{approval !== "approved" && (
+																<Button
+																	type="button"
+																	variant="primary"
+																	data-exception-operation="approve"
+																	data-exception-id={item.id}
+																>
+																	Aprobar
+																</Button>
+															)}
+															{approval === "pending" && (
+																<Button
+																	type="button"
+																	variant="secondary"
+																	data-exception-operation="reject"
+																	data-exception-id={item.id}
+																>
+																	Rechazar
+																</Button>
+															)}
+															{approval === "approved" && item.isActive !== false && (
+																<Button
+																	type="button"
+																	variant="secondary"
+																	data-exception-operation="rollback"
+																	data-exception-id={item.id}
+																>
+																	Rollback
+																</Button>
+															)}
+															{approval === "approved" && (
+																<Button
+																	type="button"
+																	variant="secondary"
+																	data-toggle-exception={item.id}
+																	data-next-active={item.isActive === false ? "true" : "false"}
+																>
+																	{item.isActive === false ? "Reactivar" : "Desactivar manual"}
+																</Button>
+															)}
+														</div>
 													</td>
 												</tr>
 											)
@@ -575,7 +797,24 @@ function impactCopy(item: any) {
 			const response = await fetch(`/api/admin/policies/exceptions/${id}`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ isActive }),
+				body: JSON.stringify({ operation: "set_active", isActive }),
+			})
+			if (response.ok) location.reload()
+		})
+	})
+	document.querySelectorAll("[data-exception-operation]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const id = button.getAttribute("data-exception-id")
+			const operation = button.getAttribute("data-exception-operation")
+			let reason = ""
+			if (operation === "reject" || operation === "rollback") {
+				reason = window.prompt("Indica razón de auditoría para esta acción") || ""
+				if (reason.trim().length < 8) return
+			}
+			const response = await fetch(`/api/admin/policies/exceptions/${id}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ operation, reason }),
 			})
 			if (response.ok) location.reload()
 		})

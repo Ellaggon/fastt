@@ -8,7 +8,6 @@ import { createInventoryHold } from "@/modules/inventory/public"
 import {
 	assignPolicyCapa6,
 	createPolicyCapa6,
-	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 	type HoldPolicySnapshot,
 } from "@/modules/policies/public"
@@ -246,11 +245,7 @@ describe("integration/policy exception rules CAPA6", () => {
 		const hold = await createInventoryHold(
 			{
 				repo: inventoryHoldRepository,
-				resolveEffectivePolicies: async (ctx) =>
-					normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
-						asOfDate: String(ctx.checkIn ?? checkIn),
-						warnings: [],
-					}).dto,
+				resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
 				resolvePolicyExceptionRules: resolvePolicyExceptionRulesUseCase,
 				policyContext: {
 					productId,

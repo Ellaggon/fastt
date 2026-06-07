@@ -442,6 +442,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 			trigger?.dataset.assignmentScopeId || assignmentOverlay?.dataset.defaultScopeId || ""
 		const defaultPolicyId = trigger?.dataset.assignmentPolicyId || ""
 		const defaultCategory = trigger?.dataset.assignmentCategory || ""
+		const defaultChannel = trigger?.dataset.assignmentChannel || ""
 		const defaultMode =
 			trigger?.dataset.assignmentMode || (defaultPolicyId ? "existing" : "existing")
 
@@ -449,6 +450,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		renderScopeOptions(defaultScopeId)
 		if (defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
+		if (channelSelect) channelSelect.value = defaultChannel
 		renderPresetOptions()
 		setMode(defaultMode)
 		statusBox?.classList.add("hidden")

@@ -23,7 +23,6 @@ vi.mock("@/config/featureFlags", () => ({
 
 vi.mock("@/modules/policies/public", () => ({
 	resolveEffectivePolicies: vi.fn(),
-	normalizePolicyResolutionResult: vi.fn(),
 }))
 
 import {

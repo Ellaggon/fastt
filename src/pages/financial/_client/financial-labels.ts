@@ -74,7 +74,6 @@ export const workItemLabels: Record<string, string> = {
 	missing_settlement_reference: "Settlement proof missing",
 	missing_refund_reference: "Refund proof missing",
 	incomplete_contract_snapshot: "Booking proof incomplete",
-	legacy_snapshot_compatibility: "Older booking proof needs care",
 	evidence_unknown: "Proof is unclear",
 	multi_room_review: "Multi-room review",
 }

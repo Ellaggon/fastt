@@ -1,4 +1,5 @@
 import {
+	buildPolicySnapshot,
 	derivePolicySummaryFromResolvedPolicies,
 	mapResolvedPoliciesToUI,
 	resolveEffectivePolicies,
@@ -7,14 +8,14 @@ import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
 import type { FeatureFlagContext } from "@/config/featureFlags"
-import { normalizePolicyResolutionResult } from "../adapters/policyResolutionAdapter"
+import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories/PolicyExceptionRuleRepository"
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
 export const POLICY_CATEGORY_ORDER: Record<string, string> = {
 	Cancellation: "Cancelación",
 	Payment: "Pago",
-	CheckIn: "Ingreso",
+	CheckIn: "Ingreso/salida",
 	NoShow: "No presentación",
 }
 
@@ -34,9 +35,17 @@ export type PolicyPlanView = {
 	priceLabel: string
 	coverageCount: number
 	missingCategories: string[]
+	isSellableByContract: boolean
+	sellabilityLabel: string
+	sellabilityBlockers: string[]
 	policySummary: string
 	policyIdByCategory: Record<string, string | null>
 	policyPreviewByCategory: Record<string, string>
+	inheritanceByCategory: Record<string, string>
+	overrideSummaryByCategory: Record<string, string>
+	snapshotPreviewByCategory: Record<string, string>
+	snapshotVersionIds: string[]
+	snapshotResolvedAt: string
 }
 
 export type WizardPlanView = {
@@ -50,6 +59,21 @@ export type WizardPlanView = {
 	policySummary: string
 	policyPreviewByCategory: Record<string, string>
 }
+
+const scopeLabels: Record<string, string> = {
+	rate_plan: "Tarifa",
+	variant: "Habitación",
+	product: "Listing",
+	global: "Global",
+}
+
+const snapshotKeysByCategory: Record<string, "cancellation" | "payment" | "no_show" | "check_in"> =
+	{
+		Cancellation: "cancellation",
+		Payment: "payment",
+		NoShow: "no_show",
+		CheckIn: "check_in",
+	}
 
 function toISODateOnly(date: Date): string {
 	return date.toISOString().slice(0, 10)
@@ -67,14 +91,47 @@ export function resolvePolicyDateRange(url: URL): { checkIn: string; checkOut: s
 	return { checkIn, checkOut }
 }
 
-function asPolicyResolutionDTO(params: {
-	value: Awaited<ReturnType<typeof resolveEffectivePolicies>>
-	asOfDate: string
-}): ReturnType<typeof normalizePolicyResolutionResult>["dto"] {
-	return normalizePolicyResolutionResult(params.value, {
-		asOfDate: params.asOfDate,
-		warnings: [],
-	}).dto
+function sourceLabel(scope: unknown) {
+	return scopeLabels[String(scope ?? "")] ?? String(scope ?? "Sin fuente")
+}
+
+function blockerLabels(missingCategories: string[], isActive: boolean) {
+	const labels: string[] = []
+	if (!isActive) labels.push("La tarifa está inactiva.")
+	for (const category of missingCategories) {
+		labels.push(`Falta ${POLICY_CATEGORY_ORDER[category] ?? category}.`)
+	}
+	return labels
+}
+
+function overrideLabel(snapshotItem: any) {
+	const applied = Array.isArray(snapshotItem?.appliedOverrides) ? snapshotItem.appliedOverrides : []
+	if (!applied.length) return "Sin overrides activos"
+	const first = applied[0]
+	return `${String(first.type ?? "Override")} · ${String(first.reason ?? "sin razón")}`
+}
+
+function snapshotLabel(category: string, snapshotItem: any) {
+	if (!snapshotItem) return "Sin snapshot: falta condición aplicable."
+	if (category === "Cancellation") {
+		const tiers = snapshotItem.calculation?.cancellation?.refundTiers ?? []
+		const deadline = snapshotItem.calculation?.cancellation?.freeCancellationDeadlineLocal
+		return `${tiers.length} tramo${tiers.length === 1 ? "" : "s"} · deadline ${deadline ?? "manual"}`
+	}
+	if (category === "Payment") {
+		const payment = snapshotItem.calculation?.payment
+		if (!payment) return "Pago pendiente de reglas calculables."
+		return payment.paymentType === "prepayment"
+			? `Prepago ${payment.prepaymentPercentage ?? "manual"}% · vence ${payment.paymentDueLocal ?? "manual"}`
+			: "Pago en propiedad"
+	}
+	if (category === "NoShow") {
+		const noShow = snapshotItem.calculation?.noShow
+		if (!noShow) return "No presentación pendiente de reglas calculables."
+		return `Cargo ${noShow.chargeType ?? "manual"} · base ${noShow.chargeBasis ?? "manual"}`
+	}
+	const calculation = snapshotItem.calculation
+	return `Zona ${calculation?.localTimezone ?? "property_local"} · operativo`
 }
 
 export async function handleRatePlanPoliciesPost(params: {
@@ -139,7 +196,7 @@ export async function handleRatePlanPoliciesPost(params: {
 			})
 		}
 
-		const previewRaw = await resolveEffectivePolicies({
+		const previewResult = await resolveEffectivePolicies({
 			productId: ownerContext.productId,
 			variantId: ownerContext.variantId,
 			ratePlanId,
@@ -153,10 +210,6 @@ export async function handleRatePlanPoliciesPost(params: {
 				request: params.request,
 				query: new URL(params.request.url).searchParams,
 			},
-		})
-		const previewResult = asPolicyResolutionDTO({
-			value: previewRaw,
-			asOfDate: requestCheckIn,
 		})
 		if (previewResult.missingCategories.length > 0) {
 			logger.warn("policies.contract.missing_categories", {
@@ -204,6 +257,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 	requestId?: string
 	featureContext?: FeatureFlagContext
 }): Promise<{ policyPlans: PolicyPlanView[]; wizardPlans: WizardPlanView[] }> {
+	const exceptionRepo = new PolicyExceptionRuleRepository()
 	const policyPlans = await Promise.all(
 		params.ratePlans.map(async (plan) => {
 			const ratePlanId = String(plan.id)
@@ -222,9 +276,24 @@ export async function buildRatePlanPoliciesSurface(params: {
 				requestId: params.requestId,
 				featureContext: params.featureContext,
 			})
-			const resolved = asPolicyResolutionDTO({
-				value: resolvedRaw,
-				asOfDate: params.checkIn,
+			const resolved = resolvedRaw
+			const exceptionRules =
+				productId && variantId
+					? await exceptionRepo.listApplicable({
+							productId,
+							variantId,
+							ratePlanId,
+							channel: "web",
+							checkIn: params.checkIn,
+							checkOut: params.checkOut,
+						})
+					: []
+			const snapshot = buildPolicySnapshot({
+				resolvedPolicies: resolved,
+				checkIn: params.checkIn,
+				checkOut: params.checkOut,
+				channel: "web",
+				exceptionRules,
 			})
 			if (resolved.missingCategories.length > 0) {
 				logger.warn("policies.contract.missing_categories", {
@@ -256,12 +325,36 @@ export async function buildRatePlanPoliciesSurface(params: {
 				REQUIRED_POLICY_CATEGORIES.map((category) => {
 					const item = resolved.policies.find((p: any) => String(p.category) === category)
 					const mapped = mapResolvedPoliciesToUI({
+						version: "v2",
 						policies: item ? [item] : [],
 						missingCategories: [],
+						coverage: { hasFullCoverage: Boolean(item) },
+						asOfDate: params.checkIn,
+						warnings: [],
 					})
 					return [category, String(mapped[0]?.description ?? "Sin definir")]
 				})
 			)
+			const inheritanceByCategory = Object.fromEntries(
+				REQUIRED_POLICY_CATEGORIES.map((category) => {
+					const item = resolved.policies.find((p: any) => String(p.category) === category)
+					return [category, item ? sourceLabel(item.resolvedFromScope) : "Sin asignación"]
+				})
+			)
+			const overrideSummaryByCategory = Object.fromEntries(
+				REQUIRED_POLICY_CATEGORIES.map((category) => {
+					const key = snapshotKeysByCategory[category]
+					return [category, overrideLabel(key ? (snapshot as any)[key] : null)]
+				})
+			)
+			const snapshotPreviewByCategory = Object.fromEntries(
+				REQUIRED_POLICY_CATEGORIES.map((category) => {
+					const key = snapshotKeysByCategory[category]
+					return [category, snapshotLabel(category, key ? (snapshot as any)[key] : null)]
+				})
+			)
+			const sellabilityBlockers = blockerLabels(resolved.missingCategories, Boolean(plan.isActive))
+			const isSellableByContract = sellabilityBlockers.length === 0
 			return {
 				ratePlanId,
 				ratePlanName: String(plan.name),
@@ -270,9 +363,17 @@ export async function buildRatePlanPoliciesSurface(params: {
 				priceLabel: String(plan.modifierLabel ?? "Tarifa según configuración"),
 				coverageCount: REQUIRED_POLICY_CATEGORIES.length - resolved.missingCategories.length,
 				missingCategories: resolved.missingCategories,
+				isSellableByContract,
+				sellabilityLabel: isSellableByContract ? "Lista para vender" : "No lista para vender",
+				sellabilityBlockers,
 				policySummary: derivePolicySummaryFromResolvedPolicies(resolved),
 				policyIdByCategory,
 				policyPreviewByCategory,
+				inheritanceByCategory,
+				overrideSummaryByCategory,
+				snapshotPreviewByCategory,
+				snapshotVersionIds: snapshot.meta.policyVersionIds,
+				snapshotResolvedAt: snapshot.meta.resolvedAt,
 			}
 		})
 	)

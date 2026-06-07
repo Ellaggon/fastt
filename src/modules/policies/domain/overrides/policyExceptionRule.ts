@@ -19,6 +19,22 @@ export type PolicyExceptionRuleAction = {
 	rebookingCreditAmount?: number | null
 	rebookingCreditPercent?: number | null
 	note?: string | null
+	evidenceAttachments?: Array<{
+		type: "url" | "ticket" | "file_reference" | "legal_reference"
+		label: string
+		value: string
+	}>
+	approval?: {
+		status: "pending" | "approved" | "rejected" | "rolled_back"
+		approvedAt?: string | null
+		approvedBy?: string | null
+		rejectedAt?: string | null
+		rejectedBy?: string | null
+		rolledBackAt?: string | null
+		rolledBackBy?: string | null
+		reason?: string | null
+	}
+	rollbackOf?: string | null
 }
 
 export type PolicyExceptionRule = {

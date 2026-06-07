@@ -1,15 +1,9 @@
 ---
-import NavDashboardBurger from "@/components/nav/NavDashboardBurger.astro"
-import NavDashboardLayout from "@/components/nav/NavDashboardLayout.astro"
-import Layout from "@/layouts/Layout.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 
 const { title = "Dashboard" } = Astro.props
 ---
 
-<Layout title={title}>
-	<NavDashboardLayout />
-	<NavDashboardBurger />
-	<div class="pt-20">
-		<slot />
-	</div>
-</Layout>
+<WorkspaceLayout title={title}>
+	<slot />
+</WorkspaceLayout>

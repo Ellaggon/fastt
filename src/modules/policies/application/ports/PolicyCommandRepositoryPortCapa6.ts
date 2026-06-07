@@ -83,6 +83,9 @@ export interface PolicyCommandRepositoryPortCapa6 {
 			| "policy_archived"
 			| "policy_exception_created"
 			| "policy_exception_updated"
+			| "policy_exception_approved"
+			| "policy_exception_rejected"
+			| "policy_exception_rolled_back"
 			| "policy_override_resolved"
 			| "policy_snapshot_created"
 		actorUserId?: string | null

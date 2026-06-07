@@ -150,6 +150,34 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 		return toDomain(row)
 	}
 
+	async findById(id: string): Promise<PolicyExceptionRuleDomain | null> {
+		const key = String(id ?? "").trim()
+		if (!key) return null
+		const row = await db
+			.select()
+			.from(PolicyExceptionRule)
+			.where(eq(PolicyExceptionRule.id, key))
+			.get()
+		return row ? toDomain(row) : null
+	}
+
+	async updateAction(params: {
+		id: string
+		action: PolicyExceptionRuleAction
+		isActive?: boolean | null
+	}): Promise<PolicyExceptionRuleDomain | null> {
+		const id = String(params.id ?? "").trim()
+		if (!id) return null
+		const values: Record<string, unknown> = { actionJson: normalizeAction(params.action) }
+		if (typeof params.isActive === "boolean") values.isActive = params.isActive
+		await db
+			.update(PolicyExceptionRule)
+			.set(values as any)
+			.where(eq(PolicyExceptionRule.id, id))
+			.run()
+		return this.findById(id)
+	}
+
 	async setActive(params: {
 		id: string
 		isActive: boolean

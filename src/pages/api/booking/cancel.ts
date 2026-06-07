@@ -6,6 +6,7 @@ import { refundCalculationRepository } from "@/container/financial.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRefundCancellationContext } from "@/lib/financial/refundCancellationContext"
 import {
+	buildPolicyFinancialPreviewFromSnapshot,
 	createRefundQuoteBeforeCancellation,
 	recordRefundLedgerFromQuote,
 	type RefundQuote,
@@ -122,6 +123,18 @@ export const POST: APIRoute = async ({ request }) => {
 				externalReference: parsed.externalReference ?? null,
 			}
 		)
+		const financialPreview = buildPolicyFinancialPreviewFromSnapshot({
+			providerId: auth.providerId,
+			bookingId: context.booking.id,
+			snapshot: context.policySnapshot,
+			currency: context.booking.currency,
+			grossAmount: context.booking.grossAmount,
+			cancelledAt,
+			bookedAt: context.booking.bookedAt,
+			reason: parsed.reason,
+			lines: context.lines,
+			idPrefix: `cancel-preview:${auth.providerId}:${context.booking.id}`,
+		})
 
 		await db
 			.update(Booking)
@@ -142,6 +155,7 @@ export const POST: APIRoute = async ({ request }) => {
 					refundLedgerId: ledger.id,
 					refundAmount: ledger.refundAmount,
 					currency: ledger.currency,
+					financialPreview: financialPreview.preview,
 				},
 			} as any)
 			.where(eq(Booking.id, context.booking.id))
@@ -153,6 +167,7 @@ export const POST: APIRoute = async ({ request }) => {
 			quote,
 			quoteCreated,
 			ledger,
+			financialPreview,
 		})
 	} catch (error) {
 		if (error instanceof Response) return error

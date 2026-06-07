@@ -176,7 +176,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			expect.arrayContaining([
 				expect.objectContaining({ shell: "WorkspaceLayout", status: "canonical" }),
 				expect.objectContaining({ shell: "InternalAdminLayout", status: "canonical" }),
-				expect.objectContaining({ shell: "DashboardLayout", status: "legacy" }),
+				expect.objectContaining({ shell: "DashboardLayout", status: "canonical" }),
 				expect.objectContaining({ shell: "SearchLayout", status: "public" }),
 			])
 		)
@@ -428,15 +428,37 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
 		expect(sidebarSource).toContain("Panel del proveedor")
+		expect(sidebarSource).toContain("getProviderPolicyReadiness")
+		expect(sidebarSource).toContain("item.href === routes.providerPolicies()")
 		expect(sidebarSource).toContain("section.planned")
 		expect(sidebarSource).toContain("Próximamente")
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).toContain("routes.productRooms()")
+		expect(sidebarSource).not.toContain("12 tarifas")
+		expect(sidebarSource).not.toContain("9 listas")
+		expect(sidebarSource).not.toContain("3 incompletas")
 		expect(sidebarSource).not.toContain(
 			'<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">\n\t\t\t\t\t\t\tPlanned'
 		)
 		expect(itemSource).toContain("data-governance-status")
 		expect(itemSource).not.toContain("(Transitional)")
+	})
+
+	it("keeps DashboardLayout absorbed into the canonical sidebar navigation", () => {
+		const dashboardLayoutSource = readFileSync(
+			join(process.cwd(), "src/layouts/DashboardLayout.astro"),
+			"utf8"
+		)
+
+		expect(existsSync(join(process.cwd(), "src/components/nav/NavDashboardLayout.astro"))).toBe(
+			false
+		)
+		expect(existsSync(join(process.cwd(), "src/components/nav/NavDashboardBurger.astro"))).toBe(
+			false
+		)
+		expect(dashboardLayoutSource).toContain("WorkspaceLayout")
+		expect(dashboardLayoutSource).not.toContain("NavDashboardLayout")
+		expect(dashboardLayoutSource).not.toContain("NavDashboardBurger")
 	})
 
 	it("prevents legacy dashboard shell usage from active pages", () => {

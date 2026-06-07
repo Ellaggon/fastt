@@ -28,13 +28,7 @@ export type {
 	PolicyResolutionCoverage,
 	PolicyResolutionDTOPolicy,
 } from "./application/dto/PolicyResolutionDTO"
-export {
-	isPolicyResolutionDTO,
-	mapDTOToLegacy,
-	mapLegacyToDTO,
-	normalizePolicyResolutionResult,
-} from "./application/adapters/policyResolutionAdapter"
-export type { LegacyPolicyResolutionResult } from "./application/adapters/policyResolutionAdapter"
+export { isPolicyResolutionDTO } from "./application/dto/PolicyResolutionDTO"
 
 // Application services
 export * from "./application/services/RestrictionService"
@@ -76,11 +70,7 @@ export async function resolveEffectivePolicies(params: {
 	includeTrace?: boolean
 	requestId?: string
 	featureContext?: import("@/config/featureFlags").FeatureFlagContext
-	dtoV2Enabled?: boolean
-}): Promise<
-	| import("./application/dto/PolicyResolutionDTO").PolicyResolutionDTO
-	| import("./application/adapters/policyResolutionAdapter").LegacyPolicyResolutionResult
-> {
+}): Promise<import("./application/dto/PolicyResolutionDTO").PolicyResolutionDTO> {
 	const { resolveEffectivePoliciesUseCase } =
 		await import("@/container/policies-resolution.container")
 	return resolveEffectivePoliciesUseCase(params)

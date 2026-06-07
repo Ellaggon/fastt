@@ -1,16 +1,25 @@
 import type { APIRoute } from "astro"
 import { db, and, CancellationTier, eq, Policy, PolicyGroup, PolicyRule } from "astro:db"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
-import { buildRefundQuote } from "@/modules/financial/public"
-import { buildPolicySnapshot, type PolicyResolutionDTO } from "@/modules/policies/public"
+import { buildPolicyFinancialPreviewFromResolution } from "@/modules/financial/public"
+import type { PolicyResolutionDTO } from "@/modules/policies/public"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
 
 type PreviewBody = {
-	mode?: "existing" | "preset"
+	mode?: "existing" | "preset" | "draft"
 	policyId?: string
 	policyPresetKey?: string
 	category?: string
+	description?: string
+	stayLengthType?: string
+	gracePeriod?: number | null
+	refundBasis?: string | null
+	payoutBasis?: string | null
+	localTimezone?: string | null
+	legalOverrideFlags?: Record<string, boolean> | null
+	rules?: Record<string, unknown>
+	cancellationTiers?: unknown[]
 	scope?: "product" | "variant" | "rate_plan"
 	scopeId?: string
 	channel?: string | null
@@ -32,21 +41,6 @@ function addDays(dateOnly: string, days: number): string {
 	if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10)
 	date.setUTCDate(date.getUTCDate() + days)
 	return date.toISOString().slice(0, 10)
-}
-
-function dateAtUtcNoon(dateOnly: string): Date {
-	const date = new Date(`${String(dateOnly).slice(0, 10)}T12:00:00.000Z`)
-	return Number.isNaN(date.getTime()) ? new Date() : date
-}
-
-function money(value: unknown, currency: string): string {
-	const amount = Number(value ?? 0)
-	return `${currency} ${Math.round((Number.isFinite(amount) ? amount : 0) * 100) / 100}`
-}
-
-function percent(value: unknown): string {
-	const n = Number(value)
-	return Number.isFinite(n) ? `${Math.round(n * 100) / 100}%` : "revisión manual"
 }
 
 function ensureOwnedScope(
@@ -200,61 +194,35 @@ function loadPresetPolicy(policyPresetKey: string, categoryHint?: string) {
 	}
 }
 
-function quoteFor(params: {
-	snapshot: ReturnType<typeof buildPolicySnapshot>
-	cancelledAt: Date
-	bookedAt: Date
-	currency: string
-	grossAmount: number
-	id: string
-	providerId: string
-}) {
-	return buildRefundQuote({
-		bookingId: `preview-booking:${params.id}`,
-		providerId: params.providerId,
-		reason: "policy_preview",
-		currency: params.currency,
-		grossAmount: params.grossAmount,
-		cancelledAt: params.cancelledAt,
-		bookedAt: params.bookedAt,
-		policySnapshot: params.snapshot,
-		lines: [
-			{ type: "base", label: "Tarifa", amount: Math.round(params.grossAmount * 0.8 * 100) / 100 },
-			{
-				type: "tax",
-				label: "Impuestos",
-				amount: Math.round(params.grossAmount * 0.12 * 100) / 100,
-			},
-			{ type: "fee", label: "Cargos", amount: Math.round(params.grossAmount * 0.08 * 100) / 100 },
-		],
-		idempotencyKey: `policy-preview:${params.id}:${params.cancelledAt.toISOString()}`,
-	})
-}
-
-function noShowValue(snapshot: ReturnType<typeof buildPolicySnapshot>) {
-	const noShow = snapshot.no_show?.calculation?.noShow
-	if (!noShow) return "Se resolverá con la condición No presentación asignada."
-	if (noShow.chargeType === "waived") return "Cargo eximido por excepción vigente."
-	if (noShow.chargeType === "first_night") return "Se cobra la primera noche."
-	if (noShow.chargeType === "full") return "Se cobra la estadía completa."
-	if (noShow.chargeType === "percentage") return `Se cobra ${percent(noShow.chargeAmount)}.`
-	return `Cargo: ${noShow.chargeType || "revisión manual"}.`
-}
-
-function paymentDueValue(snapshot: ReturnType<typeof buildPolicySnapshot>) {
-	const payment = snapshot.payment?.calculation?.payment
-	if (!payment) return "Se resolverá con la condición Pago asignada."
-	if (payment.paymentType === "pay_at_property") return "El huésped paga en la propiedad."
-	if (payment.paymentType === "prepayment") {
-		return `${percent(payment.prepaymentPercentage)} vence en ${payment.paymentDueLocal ?? "fecha local pendiente"}.`
+function loadDraftPolicy(body: PreviewBody) {
+	const category = String(body.category ?? "").trim()
+	if (!category) return null
+	const id = `preview:draft:${category}`
+	return {
+		category,
+		policy: {
+			id,
+			groupId: `preview-group:${category}`,
+			description: String(body.description ?? "Condición en edición"),
+			version: 1,
+			status: "active",
+			policyPresetKey: body.policyPresetKey ?? null,
+			stayLengthType: body.stayLengthType ?? "any",
+			gracePeriod: body.gracePeriod ?? null,
+			refundBasis: body.refundBasis ?? null,
+			payoutBasis: body.payoutBasis ?? null,
+			localTimezone: body.localTimezone ?? "property_local",
+			legalOverrideFlags: body.legalOverrideFlags ?? null,
+		},
+		rules: rulesObjectToRows(id, body.rules),
+		cancellationTiers: tiersToRows(id, body.cancellationTiers),
 	}
-	return "Pago pendiente requiere revisión manual."
 }
 
 export const POST: APIRoute = async ({ request }) => {
 	const { providerId } = await requireProvider(request)
 	const body = (await request.json().catch(() => ({}))) as PreviewBody
-	const mode = body.mode === "preset" ? "preset" : "existing"
+	const mode = body.mode === "draft" ? "draft" : body.mode === "preset" ? "preset" : "existing"
 	const scope = String(body.scope ?? "rate_plan")
 	const scopeId = String(body.scopeId ?? "").trim()
 	const owned = await getOwnedPolicyScopeIds(providerId)
@@ -274,9 +242,11 @@ export const POST: APIRoute = async ({ request }) => {
 			.toUpperCase() || "BOB"
 	const grossAmount = Number.isFinite(Number(body.grossAmount)) ? Number(body.grossAmount) : 1000
 	const selected =
-		mode === "preset"
-			? loadPresetPolicy(String(body.policyPresetKey ?? ""), String(body.category ?? ""))
-			: await loadExistingPolicy(providerId, String(body.policyId ?? ""))
+		mode === "draft"
+			? loadDraftPolicy(body)
+			: mode === "preset"
+				? loadPresetPolicy(String(body.policyPresetKey ?? ""), String(body.category ?? ""))
+				: await loadExistingPolicy(providerId, String(body.policyId ?? ""))
 
 	if (!selected) {
 		return new Response(JSON.stringify({ error: "policy_source_not_found" }), {
@@ -292,98 +262,19 @@ export const POST: APIRoute = async ({ request }) => {
 		rules: selected.rules,
 		cancellationTiers: selected.cancellationTiers,
 	})
-	const snapshot = buildPolicySnapshot({
+	const financialPreview = buildPolicyFinancialPreviewFromResolution({
+		providerId,
 		resolvedPolicies: resolved,
 		checkIn,
 		checkOut,
 		channel: body.channel ?? null,
-	})
-	const longStaySnapshot = buildPolicySnapshot({
-		resolvedPolicies: resolved,
-		checkIn,
-		checkOut: addDays(checkIn, 28),
-		channel: body.channel ?? null,
-	})
-	const bookedAt = new Date(today.getTime() - 2 * 60 * 60 * 1000)
-	const todayQuote = quoteFor({
-		snapshot,
+		currency,
+		grossAmount,
 		cancelledAt: today,
-		bookedAt,
-		currency,
-		grossAmount,
-		id: "today",
-		providerId,
+		bookedAt: new Date(today.getTime() - 2 * 60 * 60 * 1000),
+		reason: "policy_preview",
+		idPrefix: "policy-preview",
 	})
-	const weekQuote = quoteFor({
-		snapshot,
-		cancelledAt: dateAtUtcNoon(addDays(checkIn, -7)),
-		bookedAt,
-		currency,
-		grossAmount,
-		id: "seven-days",
-		providerId,
-	})
-	const longQuote = quoteFor({
-		snapshot: longStaySnapshot,
-		cancelledAt: today,
-		bookedAt,
-		currency,
-		grossAmount,
-		id: "long-stay",
-		providerId,
-	})
-
-	const taxFeeLineAmount = todayQuote.taxFeeRefundAmount
-	const hostPayoutAmount = todayQuote.policySnapshot.hostPayoutAmount
-	const preview = [
-		{
-			key: "cancel_today",
-			label: "Cancela hoy",
-			value: `${money(todayQuote.refundAmount, currency)} de reembolso · ${percent(todayQuote.refundPercent)}`,
-			detail: `Deadline local: ${todayQuote.cancellationDeadlineLocal ?? "revisión manual"}.`,
-		},
-		{
-			key: "cancel_7_days",
-			label: "Cancela 7 días antes",
-			value: `${money(weekQuote.refundAmount, currency)} de reembolso · ${percent(weekQuote.refundPercent)}`,
-			detail: `Deadline local: ${weekQuote.cancellationDeadlineLocal ?? "revisión manual"}.`,
-		},
-		{
-			key: "long_stay_28",
-			label: "28+ noches",
-			value: `${money(longQuote.refundAmount, currency)} de reembolso en ejemplo de 28 noches.`,
-			detail: longStaySnapshot.cancellation?.calculation?.cancellation?.stayLength?.isLongStay
-				? "Se evalúa como estadía larga."
-				: "No cambia a estadía larga para esta condición.",
-		},
-		{
-			key: "taxes_fees",
-			label: "Impuestos/cargos",
-			value: `${money(taxFeeLineAmount, currency)} reembolsable en el ejemplo.`,
-			detail: `Base: ${todayQuote.policySnapshot.taxesFeesBasis ?? "manual"}.`,
-		},
-		{
-			key: "provider_payout",
-			label: "Payout proveedor",
-			value:
-				hostPayoutAmount == null
-					? "Requiere revisión manual."
-					: `${money(hostPayoutAmount, currency)} estimado para proveedor.`,
-			detail: `Impacto de payout: ${money(todayQuote.payoutImpactAmount, currency)}.`,
-		},
-		{
-			key: "no_show",
-			label: "No presentación",
-			value: noShowValue(snapshot),
-			detail: `Base: ${snapshot.no_show?.calculation?.noShow?.chargeBasis ?? "condición asignada"}.`,
-		},
-		{
-			key: "payment_due",
-			label: "Pago pendiente",
-			value: paymentDueValue(snapshot),
-			detail: `Fecha local: ${todayQuote.paymentDueLocal ?? "sin vencimiento en plataforma"}.`,
-		},
-	]
 
 	return new Response(
 		JSON.stringify({
@@ -396,13 +287,9 @@ export const POST: APIRoute = async ({ request }) => {
 				policyId: selected.policy.id,
 				policyPresetKey: selected.policy.policyPresetKey ?? null,
 			},
-			snapshot,
-			quotes: {
-				cancelToday: todayQuote,
-				cancelSevenDaysBefore: weekQuote,
-				longStay: longQuote,
-			},
-			preview,
+			snapshot: financialPreview.snapshot,
+			quotes: financialPreview.quotes,
+			preview: financialPreview.preview,
 		}),
 		{ status: 200, headers: { "Content-Type": "application/json" } }
 	)

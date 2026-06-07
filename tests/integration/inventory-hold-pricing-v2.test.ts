@@ -391,11 +391,11 @@ describe("integration/hold pricing V2 snapshot", () => {
 		expect(snapshot?.totalPrice).toBeGreaterThan(0)
 	})
 
-	it("rejects booking confirmation when hold snapshot is legacy/incomplete", async () => {
-		const token = "t_hold_legacy_fallback"
-		const variantId = `var_hold_legacy_${crypto.randomUUID()}`
-		const productId = `prod_hold_legacy_${crypto.randomUUID()}`
-		const ratePlanId = `rp_hold_legacy_${crypto.randomUUID()}`
+	it("rejects booking confirmation when hold snapshot is incomplete", async () => {
+		const token = "t_hold_incomplete_snapshot"
+		const variantId = `var_hold_incomplete_${crypto.randomUUID()}`
+		const productId = `prod_hold_incomplete_${crypto.randomUUID()}`
+		const ratePlanId = `rp_hold_incomplete_${crypto.randomUUID()}`
 		const dates = ["2026-12-01", "2026-12-02"]
 		await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: false })
 		await ensurePricingCoverageForRequestRuntime({

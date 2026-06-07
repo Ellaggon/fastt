@@ -16,7 +16,6 @@ import {
 	assignPolicyCapa6,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
-	normalizePolicyResolutionResult,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import {
@@ -208,11 +207,7 @@ describe("integration/hold policy snapshot", () => {
 		const hold = await createInventoryHold(
 			{
 				repo: inventoryHoldRepository,
-				resolveEffectivePolicies: async (ctx) =>
-					normalizePolicyResolutionResult(await resolveEffectivePolicies(ctx), {
-						asOfDate: String(ctx.checkIn ?? "2030-01-01"),
-						warnings: [],
-					}).dto,
+				resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
 				buildGuestExpectationsSnapshot: (id) => buildGuestStayExpectationsSnapshot(id),
 				policyContext: {
 					productId,
