@@ -52,7 +52,18 @@ export type EnterpriseNavigationSection = {
 	planned?: readonly string[]
 }
 
-export type RoomsAndRatesOwnership = "commercial" | "physical" | "financial" | "planned"
+export type SidebarDisclosureMode =
+	| "small-provider"
+	| "scaled-provider"
+	| "internal-admin"
+	| "revenue-ops"
+
+export type SidebarDisclosureContext = {
+	mode: SidebarDisclosureMode
+	activeHref?: string
+}
+
+export type RoomsAndRatesOwnership = "commercial" | "physical" | "financial"
 
 export type RoomsAndRatesSurface = {
 	label: string
@@ -358,7 +369,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/provider/policies/**",
-		status: "transitional",
+		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
@@ -874,13 +885,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 			{
 				label: "Condiciones",
 				href: routes.providerPolicies(),
-				status: "transitional",
+				status: "canonical",
 				level: 2,
 				summary:
 					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
 			},
 		],
-		planned: ["Pricing por ocupación", "Historial de auditoría"],
 	},
 	{
 		title: "Reservas",
@@ -1036,6 +1046,50 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 ]
 
+function sectionHasHref(section: EnterpriseNavigationSection, href: string): boolean {
+	return section.items.some((item) => item.href === href)
+}
+
+function shouldShowSectionForDisclosure(
+	section: EnterpriseNavigationSection,
+	context: SidebarDisclosureContext
+): boolean {
+	const activeHref = context.activeHref ?? ""
+	if (activeHref && sectionHasHref(section, activeHref)) return true
+	if (context.mode !== "small-provider") return true
+	return !["Analítica", "Conectividad"].includes(section.title)
+}
+
+function shouldShowItemForDisclosure(
+	item: EnterpriseNavigationItem,
+	context: SidebarDisclosureContext
+): boolean {
+	if (context.activeHref === item.href) return true
+	if (context.mode !== "small-provider") return true
+	return item.href !== routes.providerPoliciesAudit()
+}
+
+function shouldShowPlannedForDisclosure(context: SidebarDisclosureContext): boolean {
+	return context.mode !== "small-provider"
+}
+
+export function filterEnterpriseNavigationForDisclosure(
+	sections: readonly EnterpriseNavigationSection[],
+	context: SidebarDisclosureContext
+): EnterpriseNavigationSection[] {
+	return sections
+		.filter((section) => shouldShowSectionForDisclosure(section, context))
+		.map((section) => {
+			const items = section.items.filter((item) => shouldShowItemForDisclosure(item, context))
+			return {
+				...section,
+				items,
+				planned: shouldShowPlannedForDisclosure(context) ? section.planned : undefined,
+			}
+		})
+		.filter((section) => section.items.length > 0)
+}
+
 export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
 	{
 		title: "Capa comercial de producto y precios",
@@ -1049,14 +1103,16 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				href: routes.ratePlansList(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
-				description: "Superficie explícita para mantener tarifas comerciales.",
+				description:
+					"Superficie explícita para mantener tarifas comerciales; precios por ocupación vive aquí como ajuste avanzado cuando esté disponible.",
 			},
 			{
 				label: "Calendario de precios",
 				href: routes.pricing(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
-				description: "Cobertura diaria de precios, brechas y edición rápida desde calendario.",
+				description:
+					"Cobertura diaria de precios, brechas y edición rápida desde calendario; rule-sets de precio pertenecen a este contexto.",
 			},
 		],
 	},
@@ -1105,43 +1161,15 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
-					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell y ventanas de reserva.",
+					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y rule-sets de vendibilidad.",
 			},
 			{
 				label: "Condiciones",
 				href: routes.providerPolicies(),
-				status: "transitional",
+				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
-					"Biblioteca contractual para cancelación, pago, no presentación, ingreso y salida.",
-			},
-			{
-				label: "Impuestos y cargos",
-				href: routes.providerTaxFees(),
-				status: "transitional",
-				owner: "Pagos y finanzas",
-				description: "Cargos financieros y comerciales como dependencia gobernada entre áreas.",
-			},
-		],
-	},
-	{
-		title: "Hoja de ruta de madurez de tarifas e inventario",
-		ownership: "planned",
-		status: "planned",
-		intent:
-			"Marcadores de hoja de ruta. No son espacios activos hasta tener responsabilidad y rutas reales.",
-		surfaces: [
-			{
-				label: "Precios por ocupación",
-				status: "planned",
-				owner: "Habitaciones y tarifas",
-				description: "Gestión futura de precios por ocupación sobre tarifas.",
-			},
-			{
-				label: "Historial de auditoría",
-				status: "planned",
-				owner: "Habitaciones y tarifas",
-				description: "Superficie futura de auditoría de tarifas e inventario.",
+					"Biblioteca contractual para cancelación, pago, no presentación, ingreso y salida; auditoría vive dentro de cada condición y los impuestos/cargos se referencian solo cuando afectan reembolso.",
 			},
 		],
 	},

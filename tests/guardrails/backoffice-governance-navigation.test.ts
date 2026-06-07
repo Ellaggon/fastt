@@ -6,6 +6,7 @@ import {
 	backofficeRouteClassifications,
 	backofficeShells,
 	enterpriseNavigation,
+	filterEnterpriseNavigationForDisclosure,
 	getGovernanceStatusMetadata,
 	getOperationalContextMetadata,
 	roomsAndRatesOperationalMap,
@@ -290,6 +291,47 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
+	it("uses progressive disclosure so small providers see an operational sidebar instead of roadmap", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+		})
+		const titles = visible.map((section) => section.title)
+		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+
+		expect(titles).toContain("Habitaciones y tarifas")
+		expect(titles).not.toContain("Analítica")
+		expect(titles).not.toContain("Conectividad")
+		expect(labels).not.toContain("Auditoría de condiciones")
+		expect(visible.flatMap((section) => section.planned ?? [])).toEqual([])
+	})
+
+	it("reveals professional surfaces when the provider has scale", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "scaled-provider",
+		})
+		const titles = visible.map((section) => section.title)
+		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+		const planned = visible.flatMap((section) => section.planned ?? [])
+
+		expect(titles).toContain("Analítica")
+		expect(titles).toContain("Conectividad")
+		expect(labels).toContain("Auditoría de condiciones")
+		expect(planned).toContain("Revenue management")
+		expect(planned).toContain("Channel manager")
+	})
+
+	it("keeps active advanced routes visible even when the provider is in simple mode", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			activeHref: "/analytics/revenue",
+		})
+
+		expect(visible.map((section) => section.title)).toContain("Analítica")
+		expect(visible.flatMap((section) => section.items.map((item) => item.href))).toContain(
+			"/analytics/revenue"
+		)
+	})
+
 	it("keeps Rooms & Rates as an enterprise ARI hub with explicit ownership lanes", () => {
 		const roomsAndRates = enterpriseNavigation.find(
 			(section) => section.title === "Habitaciones y tarifas"
@@ -321,19 +363,18 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(
 			roomsAndRates?.items.find((item) => item.label === "Restricciones de venta")?.status
 		).toEqual("canonical")
-		expect(roomsAndRates?.planned).toEqual(
-			expect.arrayContaining(["Pricing por ocupación", "Historial de auditoría"])
-		)
+		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
+		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Inventory Calendar")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Restrictions")
 	})
 
 	it("enforces physical vs commercial ownership separation inside Rooms & Rates", () => {
-		const ownerships = new Set(roomsAndRatesOperationalMap.map((lane) => lane.ownership))
+		const ownerships = new Set<string>(roomsAndRatesOperationalMap.map((lane) => lane.ownership))
 		expect(ownerships.has("commercial")).toBe(true)
 		expect(ownerships.has("physical")).toBe(true)
-		expect(ownerships.has("planned")).toBe(true)
+		expect(ownerships.has("planned")).toBe(false)
 
 		const physicalHrefViolations = roomsAndRatesOperationalMap
 			.filter((lane) => lane.ownership === "physical")
@@ -360,7 +401,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			)
 
 		const plannedHrefViolations = roomsAndRatesOperationalMap
-			.filter((lane) => lane.status === "planned" || lane.ownership === "planned")
+			.filter((lane) => lane.status === "planned")
 			.flatMap((lane) =>
 				lane.surfaces.flatMap((surface) =>
 					surface.href ? [`${lane.title}/${surface.label}: planned ARI surfaces must not link`] : []
@@ -428,8 +469,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
 		expect(sidebarSource).toContain("Panel del proveedor")
-		expect(sidebarSource).toContain("getProviderPolicyReadiness")
-		expect(sidebarSource).toContain("item.href === routes.providerPolicies()")
+		expect(sidebarSource).toContain("getProviderSidebarData")
+		expect(sidebarSource).toContain("filterEnterpriseNavigationForDisclosure")
+		expect(sidebarSource).toContain("sidebarReadiness[item.href]")
 		expect(sidebarSource).toContain("section.planned")
 		expect(sidebarSource).toContain("Próximamente")
 		expect(sidebarSource).toContain("isRoomSurface")
