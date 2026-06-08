@@ -31,8 +31,8 @@ if (!bookingId) return Astro.redirect("/dashboard")
 					Operational boundary
 				</p>
 				<p class="mt-2 text-sm leading-6 text-slate-300">
-					Reservations coordina lifecycle, auditabilidad y handoff. Pricing, Inventory y Payments
-					mantienen ownership separado.
+					Reservas coordina ciclo de vida, auditabilidad y traspaso operativo. Precios, inventario y
+					pagos mantienen ownership separado.
 				</p>
 			</Card>
 		</header>
@@ -255,7 +255,7 @@ if (!bookingId) return Astro.redirect("/dashboard")
 						const checks = booking?.snapshotIntegrity ?? {}
 						const rows = [
 							["Rate plan captured", checks?.hasRatePlanId],
-							["Pricing breakdown snapshot", checks?.hasPricingBreakdown],
+							["Snapshot de desglose de precio", checks?.hasPricingBreakdown],
 							["Policy snapshot", checks?.hasPolicySnapshot],
 							["Taxes/fees snapshot", checks?.hasTaxSnapshot],
 							["Occupancy detail", checks?.hasOccupancyDetail],

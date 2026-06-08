@@ -72,7 +72,7 @@ const inventoryBulkHref = selected
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<Button href={routes.pricing()} variant="primary">Ir al Calendario</Button>
-				<Button href={routes.rateRestrictions()} variant="secondary">Rule-sets avanzados</Button>
+				<Button href={routes.rateRestrictions()} variant="secondary">Reglas avanzadas</Button>
 				<Button href={routes.productRooms()} variant="secondary">Habitaciones</Button>
 			</div>
 		</header>
@@ -245,7 +245,7 @@ const inventoryBulkHref = selected
 					</div>
 					<div>
 						<p class="font-semibold text-slate-900">{commercialSignalDays} con restricciones</p>
-						<p>Solo lectura: la vendibilidad se opera en rule-sets.</p>
+						<p>Solo lectura: la vendibilidad se opera en reglas de venta.</p>
 					</div>
 				</div>
 
@@ -544,7 +544,7 @@ const inventoryBulkHref = selected
 												>
 													<span class="md:hidden">Restr.</span>
 													<span class="hidden md:inline">
-														{day.restrictionSignals.summary ?? "Rule-sets"}
+														{day.restrictionSignals.summary ?? "Reglas de venta"}
 													</span>
 												</a>
 											) : null}
@@ -571,7 +571,7 @@ const inventoryBulkHref = selected
 						<p class="max-w-2xl leading-6">
 							El Calendario es la operación diaria. Usa este flujo para rangos excepcionales o
 							multi-unidad; cierre de venta, no llegada/no salida, estadía mínima y ventanas de
-							reserva siguen viviendo en rule-sets.
+							reserva siguen viviendo en reglas de venta.
 						</p>
 						<Button href={inventoryBulkHref} variant="secondary" size="sm">
 							Abrir flujo avanzado
@@ -584,7 +584,7 @@ const inventoryBulkHref = selected
 
 		<Section
 			title="Responsabilidad de la capa"
-			description="Inventario opera capacidad física. El Calendario concentra la acción diaria; rule-sets controla vendibilidad comercial."
+			description="Inventario opera capacidad física. El Calendario concentra la acción diaria; las reglas de venta controlan vendibilidad comercial."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				<Card className="bg-slate-50 text-slate-800">
@@ -594,7 +594,7 @@ const inventoryBulkHref = selected
 					</p>
 				</Card>
 				<Card className="bg-slate-50 text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Rule-sets de venta</h2>
+					<h2 class="text-base font-semibold text-slate-950">Reglas de venta</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
 						Controla vendibilidad comercial: cierre de venta, estadía mínima, no llegada/no salida y
 						ventanas de reserva por alcance.

@@ -2,6 +2,7 @@
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	enterpriseNavigation,
 	filterEnterpriseNavigationForDisclosure,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/backoffice-governance"
 import {
 	getProviderSidebarData,
+	isProfessionalToolsExplicitlyEnabled,
 	type ProviderSidebarReadiness,
 } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
@@ -34,9 +36,13 @@ const activeHref =
 let sidebarReadiness: ProviderSidebarReadiness = {}
 let disclosureMode: SidebarDisclosureMode = "small-provider"
 try {
-	const providerId = await getProviderIdFromRequest(Astro.request)
+	const user = await getUserFromRequest(Astro.request)
+	const providerId = await getProviderIdFromRequest(Astro.request, user)
 	if (providerId) {
-		const sidebarData = await getProviderSidebarData(providerId)
+		const sidebarData = await getProviderSidebarData(providerId, {
+			userId: user?.id,
+			professionalToolsEnabled: isProfessionalToolsExplicitlyEnabled(Astro.request),
+		})
 		sidebarReadiness = sidebarData.summaries
 		disclosureMode = sidebarData.disclosureMode
 	}

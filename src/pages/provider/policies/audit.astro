@@ -128,12 +128,12 @@ function scopeLabel(scope: string | null, scopeId: string | null): string {
 	}
 	if (normalizedScope === "variant") {
 		const productId = variantToProduct.get(id)
-		return `${productNameById.get(String(productId ?? "")) ?? "Producto"} / ${id}`
+		return `${productNameById.get(String(productId ?? "")) ?? "Hotel"} / ${id}`
 	}
 	if (normalizedScope === "rate_plan") {
 		const variantId = ratePlanToVariant.get(id)
 		const productId = variantId ? variantToProduct.get(variantId) : null
-		return `${productNameById.get(String(productId ?? "")) ?? "Producto"} / ${String(variantId ?? "?")} / ${id}`
+		return `${productNameById.get(String(productId ?? "")) ?? "Hotel"} / ${String(variantId ?? "?")} / ${id}`
 	}
 	return `${normalizedScope}:${id}`
 }
@@ -141,7 +141,7 @@ function scopeLabel(scope: string | null, scopeId: string | null): string {
 function scopeName(scope: string | null | undefined): string {
 	if (scope === "rate_plan") return "Tarifa"
 	if (scope === "variant") return "Variante"
-	if (scope === "product") return "Producto"
+	if (scope === "product") return "Hotel"
 	if (!scope) return "Sin ámbito"
 	return String(scope)
 }
@@ -301,7 +301,7 @@ const eventTypes = Array.from(
 		>
 			<Card className="space-y-6 bg-white">
 				<form method="GET" class="grid gap-4 md:grid-cols-4">
-					<FormField label="Producto" htmlFor="traceProductId" required>
+					<FormField label="Hotel" htmlFor="traceProductId" required>
 						<Select id="traceProductId" name="traceProductId" required>
 							<option value="">Selecciona producto</option>
 							{

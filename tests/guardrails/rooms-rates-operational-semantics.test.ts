@@ -65,6 +65,14 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 			/Configurar precios/i,
 			/Editar precios/i,
 			/Default plans/i,
+			/Continuación desde Pricing/i,
+			/operar pricing/i,
+			/dominio de pricing/i,
+			/no en Pricing/i,
+			/Reparar pricing/i,
+			/pricing diario/i,
+			/accurate pricing/i,
+			/Pricing breakdown snapshot/i,
 		]
 
 		const violations = semanticFiles.flatMap((relativePath) => {
@@ -166,12 +174,12 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(governance).toContain("Restricciones de venta")
 		expect(governance).toContain('pattern: "/rates/restrictions",\n\t\tstatus: "canonical"')
 		expect(governance).not.toContain('planned: ["ARI Summary", "Restrictions"')
-		expect(restrictions).toContain("Rule-sets de venta")
-		expect(restrictions).toContain("Página avanzada de rule-sets")
+		expect(restrictions).toContain("Reglas de venta avanzadas")
+		expect(restrictions).toContain("Página avanzada de reglas de venta")
 		expect(restrictions).toContain("reglas recurrentes, temporadas")
 		expect(restrictions).toContain("Acciones por temporada")
-		expect(restrictions).toContain("Crear rule-set avanzado")
-		expect(restrictions).toContain("Rule-sets y reglas recurrentes")
+		expect(restrictions).toContain("Crear conjunto avanzado")
+		expect(restrictions).toContain("Reglas recurrentes")
 		expect(restrictions).not.toContain("Crear restriccion")
 		expect(restrictions).not.toContain("Bloqueos comerciales viven en Restricciones de venta")
 		expect(restrictions).toContain("Impacto operativo")
@@ -239,10 +247,13 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(routes).toContain('ratesCalendar: () => "/rates/calendar"')
 		expect(routes).toContain('pricing: () => "/rates/calendar"')
 		expect(routes).toContain('inventory: () => "/inventory"')
+		expect(routes).toContain("focus=availability")
 		expect(governance).toContain('label: "Calendario"')
 		expect(governance).toContain("href: routes.pricing()")
 		expect(governance).toContain('label: "Inventario avanzado"')
 		expect(governance).toContain("href: routes.inventory()")
+		expect(governance).toContain('pattern: "/product/:id/rooms/:roomId/inventory"')
+		expect(governance).toContain("Compat redirect hacia /rates/calendar")
 		expect(governance).toContain('label: "Tarifas"')
 		expect(governance).toContain('label: "Restricciones de venta"')
 		expect(governance).toContain("Contextual advanced workflow")
@@ -322,13 +333,14 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(pricing).toContain("buildInventoryRangePayload")
 		expect(pricing).toContain("selectedRatePlanId")
 		expect(pricing).toContain("selectedVariantId")
+		expect(pricing).toContain('variantId: Astro.url.searchParams.get("variantId")')
 		expect(pricing).toContain("data-panel-inventory-preview")
 		expect(pricing).toContain("data-panel-inventory-apply")
 		expect(pricing).toContain("data-panel-restrictions-action")
 		expect(pricing).toContain("data-restriction-simple-drawer")
 		expect(pricing).toContain("restrictionSimpleDrawer")
 		expect(pricing).toContain("Crear restricción simple")
-		expect(pricing).toContain("Rule-sets avanzados")
+		expect(pricing).toContain("Reglas avanzadas")
 		expect(pricing).toContain("action={routes.rateRestrictions()}")
 		expect(pricing).toContain('name="action" value="create"')
 		expect(pricing).toContain('name="scope" value="rate_plan"')
@@ -339,7 +351,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(pricing).toContain("selectedPolicySummary")
 		expect(pricing).toContain("selectedPolicyCoverage")
 		expect(pricing).toContain("Abrir matriz de condiciones")
-		expect(pricing).toContain("Los cambios de precio llaman solo al dominio de pricing")
+		expect(pricing).toContain("Los cambios de precio llaman solo al dominio de precios")
 		expect(pricing).toContain("El cupo físico se guarda en Inventario")
 		expect(pricing).toContain("Las restricciones usan reglas de vendibilidad")
 		expect(pricing).toContain("El Calendario solo resume el contrato aplicable")
@@ -452,7 +464,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(inventory).toContain("Actualizacion operacional")
 		expect(inventory).toContain("Cupo bajo")
 		expect(inventory).toContain("Agotado fisico")
-		expect(inventory).toContain("vendibilidad se opera en rule-sets")
+		expect(inventory).toContain("vendibilidad se opera en reglas de venta")
 		expect(inventory).toContain("/api/inventory/bulk-preview")
 		expect(inventory).toContain("/api/inventory/bulk-apply")
 		expect(inventory).toContain('type: "set_inventory"')
@@ -462,10 +474,14 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(inventoryBulk).not.toContain('value="close_sales"')
 		expect(inventoryBulk).not.toContain("Abrir ventas")
 		expect(inventoryBulk).not.toContain("Cerrar ventas")
-		expect(variantInventory).not.toContain("Cerrar ventas")
-		expect(variantInventory).not.toContain("Abrir ventas")
-		expect(variantInventory).toContain("Gestionar rule-sets")
+		expect(variantInventory).toContain('new URL("/rates/calendar", Astro.url)')
+		expect(variantInventory).toContain('target.searchParams.set("variantId", variantId)')
+		expect(variantInventory).toContain('target.searchParams.set("focus", "availability")')
+		expect(variantInventory).toContain("return Astro.redirect")
+		expect(variantInventory).not.toContain("WorkspaceLayout")
+		expect(variantInventory).not.toContain("/api/inventory/update-day")
 		expect(surfaces).toContain("buildPricingCalendarSurface")
+		expect(surfaces).toContain("variantId?: string | null")
 		expect(surfaces).toContain("buildInventoryCalendarSurface")
 		expect(surfaces).toContain("EffectivePricingV2")
 		expect(surfaces).toContain("EffectiveAvailability")
@@ -551,7 +567,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(inventoryBulk).not.toContain('value="close_sales"')
 		expect(inventoryBulk).toContain("Inventario avanzado · Operaciones masivas")
 		expect(inventoryBulk).toContain("operación diaria de cupos vive en el Calendario")
-		expect(inventoryBulk).toContain("Gestionar vendibilidad en rule-sets")
+		expect(inventoryBulk).toContain("Gestionar vendibilidad en reglas")
 		expect(inventoryHoldRepository).not.toContain("DailyInventory.stopSell")
 		expect(inventoryCalendarApi).not.toContain("EffectiveAvailability.stopSell")
 		expect(inventoryCalendarApi).not.toContain("isSellable")

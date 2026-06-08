@@ -253,7 +253,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				capacityHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
 				typeHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
 				profileHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
-				inventoryHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/inventory`,
+				inventoryHref: `/rates/calendar?variantId=${encodeURIComponent(String(variant.id))}&focus=availability`,
 			},
 		}
 	})

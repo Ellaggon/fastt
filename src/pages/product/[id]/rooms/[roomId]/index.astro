@@ -553,7 +553,7 @@ const tabs = [
 				}
 				if (value === "inventory_missing") {
 					return {
-						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}/inventory`,
+						href: `/rates/calendar?variantId=${encodeURIComponent(roomId)}&focus=availability`,
 						label: "Editar disponibilidad",
 					}
 				}

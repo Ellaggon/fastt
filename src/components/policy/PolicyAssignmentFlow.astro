@@ -109,7 +109,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 								>
 									<option value="rate_plan">Tarifa</option>
 									<option value="variant">Habitación</option>
-									<option value="product">Producto</option>
+									<option value="product">Hotel</option>
 								</select>
 							</label>
 							<label class="block text-sm font-medium text-slate-700">
@@ -209,7 +209,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	}
 
 	function scopeLabel(scope) {
-		if (scope === "product") return "Producto"
+		if (scope === "product") return "Hotel"
 		if (scope === "variant") return "Habitación"
 		return "Tarifa"
 	}

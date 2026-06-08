@@ -14,6 +14,14 @@ export async function getProviderIdFromRequest(
 	request: Request,
 	preloadedUser?: AuthUser | null
 ): Promise<string | null> {
+	if (
+		process.env.NODE_ENV !== "production" &&
+		process.env.LOCAL_QA_AUTH_ENABLED === "true" &&
+		process.env.LOCAL_QA_PROVIDER_ID
+	) {
+		return String(process.env.LOCAL_QA_PROVIDER_ID).trim() || null
+	}
+
 	const user = preloadedUser ?? (await getUserFromRequest(request))
 	if (!user?.id) return null
 	const sessionId = getSessionIdFromRequest(request)

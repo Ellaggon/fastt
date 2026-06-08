@@ -12,6 +12,10 @@ import {
 	roomsAndRatesOperationalMap,
 } from "../../src/lib/backoffice-governance"
 import type { BackofficeRouteClassification } from "../../src/lib/backoffice-governance"
+import {
+	SIDEBAR_DISCLOSURE_THRESHOLDS,
+	resolveDisclosureMode,
+} from "../../src/lib/dashboard/providerSidebarReadiness"
 
 function toPosix(value: string): string {
 	return value.replace(/\\/g, "/")
@@ -198,6 +202,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 				expect.objectContaining({ pattern: "/rates/calendar", status: "canonical" }),
 				expect.objectContaining({ pattern: "/pricing", status: "legacy" }),
 				expect.objectContaining({ pattern: "/pricing/calendar", status: "legacy" }),
+				expect.objectContaining({
+					pattern: "/product/:id/rooms/:roomId/inventory",
+					status: "legacy",
+				}),
+				expect.objectContaining({ pattern: "/inventory", status: "transitional" }),
 				expect.objectContaining({ pattern: "/rates/plans/**", status: "canonical" }),
 			])
 		)
@@ -334,27 +343,114 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(planned).toContain("Channel manager")
 	})
 
-	it("keeps active advanced Rooms & Rates routes visible in simple mode", () => {
+	it("reveals professional surfaces when tools are explicitly activated", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "professional-tools",
+		})
+		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+
+		expect(labels).toContain("Inventario avanzado")
+		expect(labels).toContain("Restricciones avanzadas")
+		expect(labels).toContain("Reglas masivas")
+		expect(labels).toContain("Auditoría")
+	})
+
+	it("does not reveal advanced Rooms & Rates just because an advanced route is active", () => {
 		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 			mode: "small-provider",
-			activeHref: "/inventory",
+			activeHref: "/rates/restrictions",
 		})
 		const roomsAndRatesLabels =
 			visible
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toContain("Inventario avanzado")
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
 	})
 
-	it("keeps active advanced routes visible even when the provider is in simple mode", () => {
+	it("keeps small providers below explicit scale thresholds", () => {
+		expect(
+			resolveDisclosureMode({
+				ratePlanIds: Array.from(
+					{ length: SIDEBAR_DISCLOSURE_THRESHOLDS.ratePlans - 1 },
+					(_, index) => `rate-${index}`
+				),
+				variantIds: Array.from(
+					{ length: SIDEBAR_DISCLOSURE_THRESHOLDS.variants - 1 },
+					(_, index) => `variant-${index}`
+				),
+				activePriceRules: SIDEBAR_DISCLOSURE_THRESHOLDS.activePriceRules - 1,
+				activeRestrictions: SIDEBAR_DISCLOSURE_THRESHOLDS.activeRestrictions - 1,
+			})
+		).toBe("small-provider")
+	})
+
+	it("reveals advanced navigation only when a scale threshold is reached", () => {
+		const baseMetrics = {
+			ratePlanIds: [],
+			variantIds: [],
+			activePriceRules: 0,
+			activeRestrictions: 0,
+		}
+
+		expect(
+			resolveDisclosureMode({
+				...baseMetrics,
+				ratePlanIds: Array.from(
+					{ length: SIDEBAR_DISCLOSURE_THRESHOLDS.ratePlans },
+					(_, index) => `rate-${index}`
+				),
+			})
+		).toBe("scaled-provider")
+		expect(
+			resolveDisclosureMode({
+				...baseMetrics,
+				variantIds: Array.from(
+					{ length: SIDEBAR_DISCLOSURE_THRESHOLDS.variants },
+					(_, index) => `variant-${index}`
+				),
+			})
+		).toBe("scaled-provider")
+		expect(
+			resolveDisclosureMode({
+				...baseMetrics,
+				activePriceRules: SIDEBAR_DISCLOSURE_THRESHOLDS.activePriceRules,
+			})
+		).toBe("scaled-provider")
+		expect(
+			resolveDisclosureMode({
+				...baseMetrics,
+				activeRestrictions: SIDEBAR_DISCLOSURE_THRESHOLDS.activeRestrictions,
+			})
+		).toBe("scaled-provider")
+	})
+
+	it("reveals advanced navigation by explicit activation or professional role", () => {
+		const baseMetrics = {
+			ratePlanIds: [],
+			variantIds: [],
+			activePriceRules: 0,
+			activeRestrictions: 0,
+		}
+
+		expect(resolveDisclosureMode(baseMetrics, { professionalToolsEnabled: true })).toBe(
+			"professional-tools"
+		)
+		expect(resolveDisclosureMode(baseMetrics, { providerRole: "admin" })).toBe("professional-tools")
+		expect(resolveDisclosureMode(baseMetrics, { providerRole: "revenue_ops" })).toBe("revenue-ops")
+		expect(resolveDisclosureMode(baseMetrics, { providerRole: "internal_admin" })).toBe(
+			"internal-admin"
+		)
+	})
+
+	it("keeps advanced routes hidden when the provider is in simple mode", () => {
 		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 			mode: "small-provider",
 			activeHref: "/analytics/revenue",
 		})
 
-		expect(visible.map((section) => section.title)).toContain("Analítica")
-		expect(visible.flatMap((section) => section.items.map((item) => item.href))).toContain(
+		expect(visible.map((section) => section.title)).not.toContain("Analítica")
+		expect(visible.flatMap((section) => section.items.map((item) => item.href))).not.toContain(
 			"/analytics/revenue"
 		)
 	})
@@ -384,7 +480,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 		expect(
 			roomsAndRates?.items.find((item) => item.label === "Inventario avanzado")?.status
-		).toEqual("canonical")
+		).toEqual("transitional")
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
@@ -605,10 +701,21 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("keeps legacy pricing calendar as redirect-only, not an operational workspace", () => {
-		const source = readFileSync(join(process.cwd(), "src/pages/pricing/calendar.astro"), "utf8")
+		const pricing = readFileSync(join(process.cwd(), "src/pages/pricing/index.astro"), "utf8")
+		const calendar = readFileSync(join(process.cwd(), "src/pages/pricing/calendar.astro"), "utf8")
+		const rules = readFileSync(join(process.cwd(), "src/pages/pricing/rules.astro"), "utf8")
+		const roomInventory = readFileSync(
+			join(process.cwd(), "src/pages/product/[id]/rooms/[roomId]/inventory.astro"),
+			"utf8"
+		)
 
-		expect(source).toContain("return Astro.redirect")
-		expect(source).not.toContain("WorkspaceLayout")
-		expect(source).not.toContain("PricingCalendar")
+		for (const source of [pricing, calendar, rules, roomInventory]) {
+			expect(source).toContain("return Astro.redirect")
+			expect(source).not.toContain("WorkspaceLayout")
+			expect(source).not.toContain("PricingCalendar")
+		}
+		expect(calendar).toContain("target.search = Astro.url.search")
+		expect(rules).toContain('target.hash = "pricing-automation"')
+		expect(roomInventory).toContain('target.searchParams.set("focus", "availability")')
 	})
 })

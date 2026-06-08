@@ -4,12 +4,15 @@ import Card from "@/components/ui/Card.astro"
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
+import { formatHistoryDate, loadPolicyContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { routes } from "@/lib/routes"
 
 // Provider-only page. If unauthenticated or no provider, redirect to existing flows.
+let providerId = ""
 try {
-	await requireProvider(Astro.request)
+	const auth = await requireProvider(Astro.request)
+	providerId = auth.providerId
 } catch (e: any) {
 	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
 	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
@@ -65,7 +68,7 @@ const presetLabels: Record<string, string> = {
 }
 const scopeLabels: Record<string, string> = {
 	global: "Global",
-	product: "Producto",
+	product: "Hotel",
 	variant: "Habitación",
 	rate_plan: "Tarifa",
 }
@@ -352,7 +355,7 @@ function buildMatrixRows() {
 		...(assignmentOptions?.scopes?.product ?? []).map((item: any) => ({
 			...item,
 			scope: "product",
-			scopeLabel: "Listing",
+			scopeLabel: "Hotel",
 		})),
 	]
 	for (const target of targets) {
@@ -401,6 +404,13 @@ const missingMatrixCells = matrixRows.reduce(
 	(total, row) => total + (matrixCategories.length - row.assignedCells),
 	0
 )
+const policyHistory = await loadPolicyContextualHistory({ providerId, limit: 8 })
+const historyToneClasses: Record<string, string> = {
+	success: "border-emerald-800 bg-emerald-950/40 text-emerald-100",
+	warning: "border-amber-800 bg-amber-950/40 text-amber-100",
+	info: "border-blue-800 bg-blue-950/40 text-blue-100",
+	neutral: "border-slate-800 bg-slate-900 text-slate-200",
+}
 ---
 
 <WorkspaceLayout title="Condiciones">
@@ -763,6 +773,46 @@ const missingMatrixCells = matrixRows.reduce(
 				)
 			}
 		</div>
+
+		<section class="mx-auto max-w-7xl space-y-4 px-6">
+			<div>
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+					Auditoría contextual
+				</p>
+				<h2 class="mt-1 text-xl font-semibold text-slate-100">Historial</h2>
+				<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+					Cambios recientes de biblioteca, publicación y asignación de condiciones.
+				</p>
+			</div>
+			<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				{
+					policyHistory.length === 0 ? (
+						<p class="text-sm text-slate-400">
+							Todavía no hay eventos de auditoría para estas condiciones.
+						</p>
+					) : (
+						<ol class="space-y-3">
+							{policyHistory.map((item) => (
+								<li
+									class={`rounded-2xl border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
+								>
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div class="min-w-0">
+											<p class="font-semibold">{item.title}</p>
+											<p class="mt-1 text-sm opacity-80">{item.description}</p>
+											<p class="mt-1 text-xs opacity-70">{item.meta}</p>
+										</div>
+										<time class="text-xs font-medium opacity-70">
+											{formatHistoryDate(item.createdAt)}
+										</time>
+									</div>
+								</li>
+							))}
+						</ol>
+					)
+				}
+			</Card>
+		</section>
 
 		<aside
 			id="policyTechnicalDrawer"

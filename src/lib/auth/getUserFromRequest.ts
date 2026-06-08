@@ -33,10 +33,24 @@ export function getSessionIdFromRequest(request: Request): string | null {
 	return hashToken(token)
 }
 
+function getLocalQaUser(): AuthUser | null {
+	if (process.env.NODE_ENV === "production") return null
+	if (process.env.LOCAL_QA_AUTH_ENABLED !== "true") return null
+	const id = String(process.env.LOCAL_QA_AUTH_USER_ID ?? "").trim()
+	const email = String(process.env.LOCAL_QA_AUTH_EMAIL ?? "")
+		.trim()
+		.toLowerCase()
+	if (!id || !email) return null
+	return { id, email }
+}
+
 /**
  * Reads the access token from Authorization header or cookies and validates it with Supabase.
  */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
+	const localQaUser = getLocalQaUser()
+	if (localQaUser) return localQaUser
+
 	const token = readBearerToken(request) || readCookieToken(request)
 
 	// Supabase configured: validate token against Supabase.

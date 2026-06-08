@@ -123,14 +123,14 @@ function selected(value: string | undefined, expected: string): boolean {
 }
 ---
 
-<WorkspaceLayout title="Rule-sets de venta">
+<WorkspaceLayout title="Reglas de venta avanzadas">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Habitaciones y tarifas · Avanzado
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Rule-sets de venta</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Reglas de venta avanzadas</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
 					Administra reglas recurrentes, temporadas y excepciones de vendibilidad. Para un cierre
 					puntual o mínimo de noches simple, usa el drawer del Calendario.
@@ -160,7 +160,7 @@ function selected(value: string | undefined, expected: string): boolean {
 
 		<section class="grid gap-4 md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Rule-sets activos</p>
+				<p class="text-xs uppercase tracking-wide text-slate-500">Conjuntos activos</p>
 				<p class="mt-2 text-2xl font-semibold">{surface.stats.activeRules}</p>
 				<p class="mt-1 text-xs text-slate-400">{surface.stats.inactiveRules} inactivas</p>
 			</Card>
@@ -194,7 +194,7 @@ function selected(value: string | undefined, expected: string): boolean {
 		<Card className="border-blue-200 bg-blue-50 text-blue-950">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<p class="text-sm font-semibold">Página avanzada de rule-sets.</p>
+					<p class="text-sm font-semibold">Página avanzada de reglas de venta.</p>
 					<p class="mt-1 text-sm text-blue-900">
 						Usa esta superficie para reglas recurrentes, temporadas, ventanas comerciales y acciones
 						masivas. El proveedor pequeño resuelve lo puntual desde Calendario.
@@ -205,7 +205,7 @@ function selected(value: string | undefined, expected: string): boolean {
 		</Card>
 
 		<Section
-			title="Explorar rule-sets"
+			title="Explorar reglas"
 			description={`Filtra reglas por ${vocabulary.product}, ${vocabulary.variant}, ${vocabulary.ratePlan}, tipo, estado o temporada.`}
 		>
 			<Card className="bg-white text-slate-800">
@@ -311,7 +311,7 @@ function selected(value: string | undefined, expected: string): boolean {
 		</Section>
 
 		<Section
-			title="Crear rule-set avanzado"
+			title="Crear conjunto avanzado"
 			description={`Crea una regla recurrente o de temporada sobre ${vocabulary.product}, ${vocabulary.variant} o ${vocabulary.ratePlan}. Para una regla puntual, vuelve al Calendario.`}
 		>
 			<Card className="bg-white text-slate-800">
@@ -476,7 +476,7 @@ function selected(value: string | undefined, expected: string): boolean {
 						</Card>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
-						<Button type="submit" variant="primary">Crear rule-set</Button>
+						<Button type="submit" variant="primary">Crear conjunto</Button>
 						<p class="text-xs text-slate-500">
 							Search evalua estas señales cuando el read model existente las materializa.
 						</p>
@@ -486,7 +486,7 @@ function selected(value: string | undefined, expected: string): boolean {
 		</Section>
 
 		<Section
-			title="Rule-sets y reglas recurrentes"
+			title="Reglas recurrentes"
 			description="Reglas que bloquean venta, condicionan llegadas/salidas o limitan ventanas de reserva por temporada."
 		>
 			{
@@ -571,7 +571,7 @@ function selected(value: string | undefined, expected: string): boolean {
 
 								<details class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
 									<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-										Editar rule-set
+										Editar conjunto
 									</summary>
 									<form method="POST" class="mt-4 space-y-4" data-restriction-form>
 										<input type="hidden" name="action" value="update" />
@@ -756,7 +756,7 @@ function selected(value: string | undefined, expected: string): boolean {
 											</Card>
 										</div>
 										<Button type="submit" variant="primary">
-											Guardar rule-set
+											Guardar conjunto
 										</Button>
 									</form>
 								</details>
@@ -769,7 +769,7 @@ function selected(value: string | undefined, expected: string): boolean {
 
 		<Section
 			title="Limites operativos"
-			description="Rule-sets controla vendibilidad avanzada; los otros dominios conservan su responsabilidad."
+			description="Las reglas de venta controlan vendibilidad avanzada; los otros dominios conservan su responsabilidad."
 		>
 			<div class="grid gap-4 md:grid-cols-3">
 				<Card className="bg-white text-slate-800">

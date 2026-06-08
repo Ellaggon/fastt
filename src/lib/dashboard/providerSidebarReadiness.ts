@@ -6,6 +6,7 @@ import {
 	inArray,
 	PriceRule,
 	Product,
+	ProviderUser,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	Restriction,
@@ -30,10 +31,20 @@ type ProviderSidebarMetrics = {
 	activeRestrictions: number
 }
 
-const SCALED_PROVIDER_MIN_RATE_PLANS = 10
-const SCALED_PROVIDER_MIN_VARIANTS = 8
-const SCALED_PROVIDER_MIN_PRICE_RULES = 5
-const SCALED_PROVIDER_MIN_RESTRICTIONS = 5
+type ProviderAdvancedDisclosureContext = {
+	userId?: string | null
+	providerRole?: string | null
+	professionalToolsEnabled?: boolean
+}
+
+export const SIDEBAR_DISCLOSURE_THRESHOLDS = {
+	ratePlans: 10,
+	variants: 8,
+	activePriceRules: 5,
+	activeRestrictions: 5,
+} as const
+
+const ADVANCED_PROVIDER_ROLES = new Set(["admin", "revenue_ops", "operations_manager"])
 
 function plural(value: number, singular: string, pluralLabel: string = `${singular}s`) {
 	return `${value} ${value === 1 ? singular : pluralLabel}`
@@ -192,16 +203,80 @@ async function getRestrictionsSummary(
 	return `${plural(activeRestrictions, "restricción", "restricciones")} activas en tarifas, habitaciones u hotel.`
 }
 
-function resolveDisclosureMode(metrics: ProviderSidebarMetrics): SidebarDisclosureMode {
-	if (
-		metrics.ratePlanIds.length >= SCALED_PROVIDER_MIN_RATE_PLANS ||
-		metrics.variantIds.length >= SCALED_PROVIDER_MIN_VARIANTS ||
-		metrics.activePriceRules >= SCALED_PROVIDER_MIN_PRICE_RULES ||
-		metrics.activeRestrictions >= SCALED_PROVIDER_MIN_RESTRICTIONS
-	) {
-		return "scaled-provider"
-	}
+function hasScaleForAdvancedTools(metrics: ProviderSidebarMetrics): boolean {
+	return (
+		metrics.ratePlanIds.length >= SIDEBAR_DISCLOSURE_THRESHOLDS.ratePlans ||
+		metrics.variantIds.length >= SIDEBAR_DISCLOSURE_THRESHOLDS.variants ||
+		metrics.activePriceRules >= SIDEBAR_DISCLOSURE_THRESHOLDS.activePriceRules ||
+		metrics.activeRestrictions >= SIDEBAR_DISCLOSURE_THRESHOLDS.activeRestrictions
+	)
+}
+
+function normalizeProviderRole(role: unknown): string {
+	return String(role ?? "")
+		.trim()
+		.toLowerCase()
+}
+
+export function resolveDisclosureMode(
+	metrics: ProviderSidebarMetrics,
+	context: ProviderAdvancedDisclosureContext = {}
+): SidebarDisclosureMode {
+	const role = normalizeProviderRole(context.providerRole)
+	if (role === "internal_admin") return "internal-admin"
+	if (role === "revenue_ops") return "revenue-ops"
+	if (ADVANCED_PROVIDER_ROLES.has(role)) return "professional-tools"
+	if (context.professionalToolsEnabled) return "professional-tools"
+	if (hasScaleForAdvancedTools(metrics)) return "scaled-provider"
 	return "small-provider"
+}
+
+async function getProviderUserRole(
+	providerId: string,
+	userId?: string | null
+): Promise<string | null> {
+	if (!providerId || !userId) return null
+	const row = await db
+		.select({ role: ProviderUser.role })
+		.from(ProviderUser)
+		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
+		.get()
+	return row?.role ? String(row.role) : null
+}
+
+export function isProfessionalToolsExplicitlyEnabled(request: Request): boolean {
+	const url = new URL(request.url)
+	const value = (
+		url.searchParams.get("professionalTools") ??
+		url.searchParams.get("modoAvanzado") ??
+		request.headers.get("x-fastt-professional-tools") ??
+		""
+	)
+		.trim()
+		.toLowerCase()
+	if (["1", "true", "enabled", "on", "si", "sí"].includes(value)) return true
+	const cookie = request.headers.get("cookie") ?? ""
+	return /(?:^|;\s*)fastt_professional_tools=(?:1|true|enabled|on)(?:;|$)/i.test(cookie)
+}
+
+export function isProfessionalToolsExplicitlyDisabled(request: Request): boolean {
+	const url = new URL(request.url)
+	const value = (
+		url.searchParams.get("professionalTools") ??
+		url.searchParams.get("modoAvanzado") ??
+		request.headers.get("x-fastt-professional-tools") ??
+		""
+	)
+		.trim()
+		.toLowerCase()
+	if (
+		["0", "false", "disabled", "off", "no"].includes(value) ||
+		/(?:^|;\s*)fastt_professional_tools=(?:0|false|disabled|off)(?:;|$)/i.test(
+			request.headers.get("cookie") ?? ""
+		)
+	)
+		return true
+	return false
 }
 
 async function countActivePriceRules(ratePlanIds: string[]): Promise<number> {
@@ -230,7 +305,10 @@ async function countActiveRestrictions(scopeIds: string[]): Promise<number> {
 	)
 }
 
-export async function getProviderSidebarData(providerId: string): Promise<ProviderSidebarData> {
+export async function getProviderSidebarData(
+	providerId: string,
+	context: ProviderAdvancedDisclosureContext = {}
+): Promise<ProviderSidebarData> {
 	const normalizedProviderId = String(providerId ?? "").trim()
 	if (!normalizedProviderId) return { disclosureMode: "small-provider", summaries: {} }
 
@@ -249,9 +327,10 @@ export async function getProviderSidebarData(providerId: string): Promise<Provid
 		...variantIds,
 		...productRows.map((row) => String(row.productId)),
 	].filter(Boolean)
-	const [activePriceRules, activeRestrictions] = await Promise.all([
+	const [activePriceRules, activeRestrictions, providerRole] = await Promise.all([
 		countActivePriceRules(ratePlanIds),
 		countActiveRestrictions(scopeIds),
+		getProviderUserRole(normalizedProviderId, context.userId),
 	])
 
 	const [ratesSummary, pricingSummary, inventorySummary, restrictionsSummary] = await Promise.all([
@@ -262,12 +341,19 @@ export async function getProviderSidebarData(providerId: string): Promise<Provid
 	])
 
 	return {
-		disclosureMode: resolveDisclosureMode({
-			ratePlanIds,
-			variantIds,
-			activePriceRules,
-			activeRestrictions,
-		}),
+		disclosureMode: resolveDisclosureMode(
+			{
+				ratePlanIds,
+				variantIds,
+				activePriceRules,
+				activeRestrictions,
+			},
+			{
+				providerRole: context.providerRole ?? providerRole,
+				professionalToolsEnabled: context.professionalToolsEnabled,
+				userId: context.userId,
+			}
+		),
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.pricing()]: pricingSummary,

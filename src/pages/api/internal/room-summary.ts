@@ -437,7 +437,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			complete: inventoryComplete,
 			summary: inventorySummary,
 			actionLabel: "Editar disponibilidad",
-			actionHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}/inventory`,
+			actionHref: `/rates/calendar?variantId=${encodeURIComponent(variantId)}&focus=availability`,
 		},
 		{
 			key: "policies",

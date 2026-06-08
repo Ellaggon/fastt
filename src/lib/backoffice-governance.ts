@@ -54,6 +54,7 @@ export type EnterpriseNavigationSection = {
 
 export type SidebarDisclosureMode =
 	| "small-provider"
+	| "professional-tools"
 	| "scaled-provider"
 	| "internal-admin"
 	| "revenue-ops"
@@ -329,20 +330,28 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Superficie de calendario deprecada; no exponer en navegación primaria.",
 	},
 	{
+		pattern: "/product/:id/rooms/:roomId/inventory",
+		status: "legacy",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Compat redirect hacia /rates/calendar con filtro de habitación y foco de disponibilidad.",
+	},
+	{
 		pattern: "/inventory/bulk",
 		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Contextual advanced workflow for bulk physical inventory operations; daily operation lives in /inventory.",
+			"Contextual advanced workflow for bulk physical inventory operations; daily operation lives in /rates/calendar.",
 	},
 	{
 		pattern: "/inventory",
-		status: "canonical",
+		status: "transitional",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Operación de inventario físico desde calendario; la responsabilidad por habitación vive aquí.",
+			"Vista avanzada de inventario físico; la operación diaria de cupos vive en /rates/calendar.",
 	},
 	{
 		pattern: "/booking/**",
@@ -889,7 +898,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 			{
 				label: "Inventario avanzado",
 				href: routes.inventory(),
-				status: "canonical",
+				status: "transitional",
 				level: 2,
 				summary:
 					"Capa física detallada para multi-unidad y excepciones; cupo diario vive en Calendario.",
@@ -1065,10 +1074,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 ]
 
-function sectionHasHref(section: EnterpriseNavigationSection, href: string): boolean {
-	return section.items.some((item) => item.href === href)
-}
-
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
 	return [
 		routes.inventory(),
@@ -1082,8 +1087,6 @@ function shouldShowSectionForDisclosure(
 	section: EnterpriseNavigationSection,
 	context: SidebarDisclosureContext
 ): boolean {
-	const activeHref = context.activeHref ?? ""
-	if (activeHref && sectionHasHref(section, activeHref)) return true
 	if (context.mode !== "small-provider") return true
 	return !["Analítica", "Conectividad"].includes(section.title)
 }
@@ -1092,7 +1095,6 @@ function shouldShowItemForDisclosure(
 	item: EnterpriseNavigationItem,
 	context: SidebarDisclosureContext
 ): boolean {
-	if (context.activeHref === item.href) return true
 	if (context.mode !== "small-provider") return true
 	return !isAdvancedSidebarItem(item)
 }
@@ -1140,7 +1142,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
-					"Cobertura diaria de precios, brechas y edición rápida desde calendario; rule-sets de precio pertenecen a este contexto.",
+					"Cobertura diaria de precios, brechas y edición rápida desde calendario; las reglas de precio pertenecen a este contexto.",
 			},
 		],
 	},
@@ -1190,7 +1192,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
-					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y rule-sets de vendibilidad.",
+					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y reglas de vendibilidad.",
 			},
 			{
 				label: "Condiciones",
