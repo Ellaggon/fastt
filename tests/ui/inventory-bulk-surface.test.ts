@@ -19,7 +19,7 @@ describe("ui/inventory bulk surface", () => {
 		expect(source).toContain("/api/inventory/bulk-apply")
 		expect(source).not.toContain("Abrir ventas")
 		expect(source).not.toContain("Cerrar ventas")
-		expect(source).toContain("Gestionar vendibilidad en rule-sets")
+		expect(source).toContain("Gestionar vendibilidad en reglas")
 		expect(source).toContain("Ajustar cupo")
 	})
 

@@ -143,7 +143,7 @@ export const POST: APIRoute = async ({ request }) => {
 				defaultRatePlanCreated: false,
 				nextStep: "inventory",
 				pricingCoverageReady: false,
-				note: "Precio base guardado. Falta generar pricing efectivo para vender.",
+				note: "Precio base guardado. Falta generar precios efectivos para vender.",
 			}),
 			{
 				status: 200,

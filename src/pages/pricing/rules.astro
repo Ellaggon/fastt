@@ -1,3 +1,6 @@
 ---
-return Astro.redirect("/rates/calendar#pricing-automation", 301)
+const target = new URL("/rates/calendar", Astro.url)
+target.search = Astro.url.search
+target.hash = "pricing-automation"
+return Astro.redirect(target.toString(), 308)
 ---

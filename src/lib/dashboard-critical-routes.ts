@@ -5,7 +5,7 @@
  * y deben mantenerse estables durante las fases de transición.
  */
 export const DASHBOARD_CRITICAL_ROUTES = {
-	deepNavigation: ["/product/:id/rooms/:roomId/inventory"],
+	deepNavigation: ["/rates/calendar"],
 	highBusinessImpact: ["/booking", "/api/inventory/hold", "/api/booking/confirm"],
 	policyAndRates: [
 		"/provider/policies",

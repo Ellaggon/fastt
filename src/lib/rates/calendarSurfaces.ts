@@ -558,12 +558,18 @@ async function loadBaseline(
 export async function buildPricingCalendarSurface(input: {
 	rows: RatePlanListItem[]
 	ratePlanId?: string | null
+	variantId?: string | null
 	month?: string | null
 	visibleMonths?: number
 }): Promise<PricingCalendarSurface> {
 	const rows = input.rows
 	const selectedRatePlan =
 		rows.find((row) => String(row.ratePlanId) === String(input.ratePlanId ?? "")) ??
+		rows.find(
+			(row) =>
+				String(row.variantId) === String(input.variantId ?? "") && row.isDefault && row.isActive
+		) ??
+		rows.find((row) => String(row.variantId) === String(input.variantId ?? "") && row.isActive) ??
 		rows.find((row) => row.isDefault && row.isActive) ??
 		rows.find((row) => row.isActive) ??
 		rows[0] ??

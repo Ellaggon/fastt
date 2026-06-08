@@ -20,7 +20,7 @@ export const pricingOperationCopy = {
 		advancedModeTitle: "Modo avanzado de extensión",
 		advancedModeDescription:
 			"Úsalo solo cuando necesites revisar muchos planes o diagnosticar detalle técnico. La operación diaria nace en el calendario.",
-		contextTitle: "Continuación desde Pricing",
+		contextTitle: "Continuación desde Calendario",
 		contextFallback:
 			"Vuelve al calendario y selecciona un rango para llegar con fechas y plan preseleccionados.",
 		targetsTitle: "Planes donde se replicará",

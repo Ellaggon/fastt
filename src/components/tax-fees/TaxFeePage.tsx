@@ -75,7 +75,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			<aside className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<div>
-						<p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+						<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
 							Definitions
 						</p>
 						<h2 className="mt-2 text-2xl font-semibold text-neutral-950">Existing taxes & fees</h2>
@@ -109,7 +109,8 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 							No taxes or fees configured yet
 						</h3>
 						<p className="mt-2 text-sm leading-6 text-neutral-600">
-							Add taxes or fees here so guests can see accurate pricing before they book.
+							Agrega impuestos o cargos para que los huéspedes vean precios correctos antes de
+							reservar.
 						</p>
 						<button
 							type="button"
@@ -125,7 +126,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 							<div key={definition.id} className="rounded-3xl border border-neutral-200 p-4">
 								<div className="flex items-start justify-between gap-4">
 									<div>
-										<p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+										<p className="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
 											{definition.kind === "tax" ? "Tax" : "Fee"}
 										</p>
 										<h3 className="mt-1 text-lg font-semibold text-neutral-950">
@@ -163,7 +164,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 
 				{mode === "idle" ? (
 					<section className="rounded-[2rem] border border-dashed border-neutral-300 bg-white/80 p-8 shadow-sm">
-						<p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+						<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
 							Wizard
 						</p>
 						<h2 className="mt-3 text-2xl font-semibold text-neutral-950">

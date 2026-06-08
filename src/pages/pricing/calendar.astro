@@ -1,3 +1,5 @@
 ---
-return Astro.redirect("/rates/calendar", 308)
+const target = new URL("/rates/calendar", Astro.url)
+target.search = Astro.url.search
+return Astro.redirect(target.toString(), 308)
 ---
