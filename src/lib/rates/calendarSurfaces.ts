@@ -56,8 +56,18 @@ export type PricingCalendarDay = CalendarDay & {
 	baseComponent: number | null
 	ruleAdjustment: number | null
 	status: "priced" | "missing" | "past"
+	operationalStatus: "sellable" | "no_price" | "no_inventory" | "closed" | "restricted" | "past"
+	operationalStatusLabel: string
 	priceSignal: "gap" | "manual_override" | "baseline" | "effective" | "past"
 	priceSignalLabel: string
+	hasInventory: boolean
+	totalUnits: number
+	bookedUnits: number
+	heldUnits: number
+	availableUnits: number
+	capacitySignal: "healthy" | "low" | "sold_out" | "missing" | "past"
+	capacitySignalLabel: string
+	utilizationPercent: number | null
 	restrictionSignals: CalendarRestrictionSignals
 }
 
@@ -100,6 +110,7 @@ export type PricingCalendarSurface = {
 	freshness: {
 		overall: MaterializationFreshness
 		pricing: MaterializationFreshness
+		availability: MaterializationFreshness
 		restrictions: MaterializationFreshness
 		search: MaterializationFreshness
 	}
@@ -342,6 +353,28 @@ function resolveCapacitySignal(
 	return { capacitySignal: "healthy", capacitySignalLabel: "Saludable" }
 }
 
+function resolveOperationalStatus(params: {
+	isPast: boolean
+	hasPrice: boolean
+	hasInventory: boolean
+	availableUnits: number
+	restrictionSignals: CalendarRestrictionSignals
+}): Pick<PricingCalendarDay, "operationalStatus" | "operationalStatusLabel"> {
+	if (params.isPast) return { operationalStatus: "past", operationalStatusLabel: "Pasado" }
+	if (!params.hasPrice)
+		return { operationalStatus: "no_price", operationalStatusLabel: "Sin precio" }
+	if (!params.hasInventory || params.availableUnits <= 0) {
+		return { operationalStatus: "no_inventory", operationalStatusLabel: "Sin cupo" }
+	}
+	if (params.restrictionSignals.hasCommercialBlocker) {
+		return { operationalStatus: "closed", operationalStatusLabel: "Cerrado" }
+	}
+	if (params.restrictionSignals.count > 0) {
+		return { operationalStatus: "restricted", operationalStatusLabel: "Restringido" }
+	}
+	return { operationalStatus: "sellable", operationalStatusLabel: "Vendible" }
+}
+
 function toRestrictionSignalRow(row: {
 	date: string
 	ratePlanId?: string | null
@@ -574,6 +607,27 @@ export async function buildPricingCalendarSurface(input: {
 				endDate,
 			})
 		: []
+	const availabilityRows = selectedRatePlan
+		? await db
+				.select({
+					date: EffectiveAvailability.date,
+					totalUnits: EffectiveAvailability.totalUnits,
+					bookedUnits: EffectiveAvailability.bookedUnits,
+					heldUnits: EffectiveAvailability.heldUnits,
+					availableUnits: EffectiveAvailability.availableUnits,
+					computedAt: EffectiveAvailability.computedAt,
+				})
+				.from(EffectiveAvailability)
+				.where(
+					and(
+						eq(EffectiveAvailability.variantId, String(selectedRatePlan.variantId)),
+						gte(EffectiveAvailability.date, startDate),
+						lt(EffectiveAvailability.date, endDate)
+					)
+				)
+				.orderBy(asc(EffectiveAvailability.date))
+				.all()
+		: []
 	const searchRows = selectedRatePlan
 		? await loadSearchMaterializationRows({
 				variantId: String(selectedRatePlan.variantId),
@@ -583,12 +637,31 @@ export async function buildPricingCalendarSurface(input: {
 			})
 		: []
 	const byDate = new Map(pricingRows.map((row) => [String(row.date), row]))
+	const availabilityByDate = new Map(availabilityRows.map((row) => [String(row.date), row]))
 	const restrictionSignalsByDate = groupRestrictionSignals(restrictionRows)
 	const days: PricingCalendarDay[] = baseDays.map((day) => {
 		const row = byDate.get(day.date)
+		const availability = availabilityByDate.get(day.date)
 		const hasPrice = row?.finalPrice != null
 		const ruleAdjustment = row?.ruleAdjustment == null ? null : Number(row.ruleAdjustment)
 		const baseComponent = row?.baseComponent == null ? null : Number(row.baseComponent)
+		const hasInventory = Boolean(availability)
+		const totalUnits = Number(availability?.totalUnits ?? 0)
+		const availableUnits = Number(availability?.availableUnits ?? 0)
+		const restrictionSignals = restrictionSignalsByDate.get(day.date) ?? emptyRestrictionSignals()
+		const capacityStatus: InventoryCalendarDay["status"] = day.isPast
+			? "past"
+			: !hasInventory
+				? "missing"
+				: availableUnits <= 0
+					? "sold_out"
+					: availableUnits <= Math.max(1, Math.floor(totalUnits * 0.25))
+						? "low"
+						: "available"
+		const utilizationPercent =
+			hasInventory && totalUnits > 0
+				? Math.round(((totalUnits - Math.max(0, availableUnits)) / totalUnits) * 100)
+				: null
 		return {
 			...day,
 			hasPrice,
@@ -603,7 +676,21 @@ export async function buildPricingCalendarSurface(input: {
 				ruleAdjustment,
 				baseComponent,
 			}),
-			restrictionSignals: restrictionSignalsByDate.get(day.date) ?? emptyRestrictionSignals(),
+			hasInventory,
+			totalUnits,
+			bookedUnits: Number(availability?.bookedUnits ?? 0),
+			heldUnits: Number(availability?.heldUnits ?? 0),
+			availableUnits,
+			...resolveCapacitySignal(capacityStatus),
+			utilizationPercent,
+			restrictionSignals,
+			...resolveOperationalStatus({
+				isPast: day.isPast,
+				hasPrice,
+				hasInventory,
+				availableUnits,
+				restrictionSignals,
+			}),
 		}
 	})
 
@@ -618,6 +705,11 @@ export async function buildPricingCalendarSurface(input: {
 		expectedRows,
 		timestamps: restrictionRows.map((row) => row.computedAt),
 	})
+	const availabilityFreshness = evaluateMaterializationFreshness({
+		label: "Inventario",
+		expectedRows,
+		timestamps: availabilityRows.map((row) => row.computedAt),
+	})
 	const searchFreshness = evaluateMaterializationFreshness({
 		label: "Busqueda",
 		expectedRows,
@@ -627,10 +719,12 @@ export async function buildPricingCalendarSurface(input: {
 	})
 	const freshness = {
 		pricing: pricingFreshness,
+		availability: availabilityFreshness,
 		restrictions: restrictionFreshness,
 		search: searchFreshness,
 		overall: summarizeMaterializationFreshness([
 			pricingFreshness,
+			availabilityFreshness,
 			restrictionFreshness,
 			searchFreshness,
 		]),

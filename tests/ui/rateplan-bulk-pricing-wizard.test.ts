@@ -17,8 +17,8 @@ describe("ui/pricing contextual extension", () => {
 		expect(routes).not.toContain("/pricing/bulk")
 	})
 
-	it("pricing calendar keeps extension contextual inside the calendar shell", () => {
-		const source = read("src/pages/pricing/index.astro")
+	it("rates calendar keeps extension contextual inside the calendar shell", () => {
+		const source = read("src/pages/rates/calendar.astro")
 
 		expect(source).toContain("Cambio manual de precio")
 		expect(source).toContain("Reglas simples que actúan después")
