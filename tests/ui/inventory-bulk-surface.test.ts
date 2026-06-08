@@ -9,16 +9,17 @@ function read(path: string) {
 describe("ui/inventory bulk surface", () => {
 	it("inventory bulk page exposes preview/apply operations", () => {
 		const source = read("src/pages/inventory/bulk.astro")
-		expect(source).toContain("Operacion avanzada de inventario")
-		expect(source).toContain("el calendario de Inventory es la operacion diaria principal")
-		expect(source).toContain("Volver a Inventory")
+		expect(source).toContain("Operación avanzada de inventario")
+		expect(source).toContain("la operación diaria de cupos vive en Calendario")
+		expect(source).toContain("Volver a Inventario avanzado")
+		expect(source).toContain("Ir al Calendario")
 		expect(source).toContain('id="bulkPreviewBtn"')
 		expect(source).toContain('id="bulkApplyBtn"')
 		expect(source).toContain("/api/inventory/bulk-preview")
 		expect(source).toContain("/api/inventory/bulk-apply")
 		expect(source).not.toContain("Abrir ventas")
 		expect(source).not.toContain("Cerrar ventas")
-		expect(source).toContain("Gestionar vendibilidad en Restrictions")
+		expect(source).toContain("Gestionar vendibilidad en rule-sets")
 		expect(source).toContain("Ajustar cupo")
 	})
 

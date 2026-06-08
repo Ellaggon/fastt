@@ -131,7 +131,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		})
 	})
 
-	it("continue setup routing: no capacity => /profile; with capacity => /profile; complete => /pricing", async () => {
+	it("continue setup routing: no capacity => /profile; with capacity => /profile; complete => /rates/calendar", async () => {
 		const token = "t_dash_route"
 		const email = "dash-route@example.com"
 		const providerId = "prov_dash_route"

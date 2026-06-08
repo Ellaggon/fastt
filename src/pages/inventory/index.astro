@@ -56,21 +56,23 @@ const inventoryBulkHref = selected
 	: routes.inventoryBulk()
 ---
 
-<WorkspaceLayout title="Inventario">
+<WorkspaceLayout title="Inventario avanzado">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Habitaciones y tarifas · Inventario
+					Habitaciones y tarifas · Avanzado
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Inventario</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Inventario avanzado</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Opera capacidad fisica por {vocabulary.variant}. Inventory responde cuantos cupos existen;
-					Restrictions controla si esos cupos pueden venderse.
+					Vista de capacidad física por {vocabulary.variant} para operación con escala. La operación diaria
+					de cupos se resuelve desde Calendario; esta pantalla queda para revisión detallada, multi-unidad
+					y ajustes excepcionales.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.rateRestrictions()} variant="secondary">Restrictions</Button>
+				<Button href={routes.pricing()} variant="primary">Ir al Calendario</Button>
+				<Button href={routes.rateRestrictions()} variant="secondary">Rule-sets avanzados</Button>
 				<Button href={routes.productRooms()} variant="secondary">Habitaciones</Button>
 			</div>
 		</header>
@@ -125,10 +127,20 @@ const inventoryBulkHref = selected
 		</section>
 
 		<Section
-			title="Calendario de inventario"
-			description={`Selecciona ${vocabulary.variant}, revisa cupos fisicos y edita capacidad diaria sin tocar restricciones comerciales.`}
+			title="Vista avanzada de inventario"
+			description={`Selecciona ${vocabulary.variant}, revisa capacidad física y usa esta pantalla solo para ajustes detallados. Para cupo diario, usa el Calendario operativo.`}
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
+				<div
+					class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950"
+				>
+					<p class="max-w-2xl leading-6">
+						Para operación diaria, ajusta cupos desde la pestaña <strong>Disponibilidad</strong>
+						del Calendario. Inventario avanzado queda como capa física: revisión detallada, multi-unidad
+						y correcciones excepcionales.
+					</p>
+					<Button href={routes.pricing()} variant="secondary" size="sm">Abrir Calendario</Button>
+				</div>
 				<form method="get" class="grid gap-3 lg:grid-cols-[1.6fr_0.8fr_auto] lg:items-end">
 					<label class="space-y-1 text-sm">
 						<span class="font-medium text-slate-700">{vocabulary.scopeVariant}</span>
@@ -233,7 +245,7 @@ const inventoryBulkHref = selected
 					</div>
 					<div>
 						<p class="font-semibold text-slate-900">{commercialSignalDays} con restricciones</p>
-						<p>Solo lectura: la vendibilidad se opera en Restrictions.</p>
+						<p>Solo lectura: la vendibilidad se opera en rule-sets.</p>
 					</div>
 				</div>
 
@@ -532,7 +544,7 @@ const inventoryBulkHref = selected
 												>
 													<span class="md:hidden">Restr.</span>
 													<span class="hidden md:inline">
-														{day.restrictionSignals.summary ?? "Restrictions"}
+														{day.restrictionSignals.summary ?? "Rule-sets"}
 													</span>
 												</a>
 											) : null}
@@ -553,13 +565,13 @@ const inventoryBulkHref = selected
 					class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
 				>
 					<summary class="cursor-pointer font-semibold text-slate-900">
-						Operacion avanzada de capacidad fisica
+						Operación avanzada de capacidad física
 					</summary>
 					<div class="mt-2 flex flex-wrap items-center justify-between gap-3">
 						<p class="max-w-2xl leading-6">
-							El calendario es la operacion diaria. Usa este flujo para rangos excepcionales o
-							multi-unidad; Stop Sell, CTA/CTD, LOS y Booking Window siguen viviendo en
-							Restrictions.
+							El Calendario es la operación diaria. Usa este flujo para rangos excepcionales o
+							multi-unidad; cierre de venta, no llegada/no salida, estadía mínima y ventanas de
+							reserva siguen viviendo en rule-sets.
 						</p>
 						<Button href={inventoryBulkHref} variant="secondary" size="sm">
 							Abrir flujo avanzado
@@ -571,20 +583,21 @@ const inventoryBulkHref = selected
 		</Section>
 
 		<Section
-			title="Ownership"
-			description="Inventory opera capacidad fisica. Bloqueos comerciales, CTA/CTD, LOS y booking windows viven en Restrictions."
+			title="Responsabilidad de la capa"
+			description="Inventario opera capacidad física. El Calendario concentra la acción diaria; rule-sets controla vendibilidad comercial."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				<Card className="bg-slate-50 text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Inventory</h2>
+					<h2 class="text-base font-semibold text-slate-950">Inventario físico</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Edita cupos fisicos, capacidad materializada, reservas y holds por {vocabulary.variant}.
+						Edita cupos físicos, capacidad materializada, reservas y holds por {vocabulary.variant}.
 					</p>
 				</Card>
 				<Card className="bg-slate-50 text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Restrictions</h2>
+					<h2 class="text-base font-semibold text-slate-950">Rule-sets de venta</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Controla vendibilidad comercial: Stop Sell, LOS, CTA/CTD y Booking Window por alcance.
+						Controla vendibilidad comercial: cierre de venta, estadía mínima, no llegada/no salida y
+						ventanas de reserva por alcance.
 					</p>
 				</Card>
 			</div>

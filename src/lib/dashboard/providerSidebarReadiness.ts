@@ -273,6 +273,7 @@ export async function getProviderSidebarData(providerId: string): Promise<Provid
 			[routes.pricing()]: pricingSummary,
 			[routes.inventory()]: inventorySummary,
 			[routes.rateRestrictions()]: restrictionsSummary,
+			[routes.pricingAutomation()]: `${plural(activePriceRules, "regla")} activas para automatizar cambios.`,
 			[routes.providerPolicies()]: policyReadiness.summary,
 		},
 	}

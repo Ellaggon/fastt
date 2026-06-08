@@ -60,6 +60,20 @@ function toCancellationTiers(policy: SnapshotPolicy | null): CancellationTier[] 
 function describeCancellation(policy: SnapshotPolicy | null): string {
 	if (!policy) return "Condiciones de cancelación según política"
 
+	const presetKey = String(policy.policy?.policyPresetKey ?? "")
+		.trim()
+		.toLowerCase()
+	const presetLabels: Record<string, string> = {
+		flexible: "Cancelación flexible",
+		moderate: "Cancelación moderada",
+		limited: "Cancelación limitada",
+		firm: "Cancelación firme",
+		strict: "Cancelación estricta",
+		long_term: "Cancelación larga estadía",
+		non_refundable: "No reembolsable",
+	}
+	if (presetLabels[presetKey]) return presetLabels[presetKey]
+
 	const tiers = toCancellationTiers(policy)
 	if (!tiers.length) {
 		const description = String(policy.policy?.description ?? "").trim()
@@ -101,6 +115,16 @@ function describePayment(policy: SnapshotPolicy | null): string {
 	if (!policy) return "Condiciones de pago según política"
 
 	const rules = toRuleMap(policy)
+	const presetKey = String(policy.policy?.policyPresetKey ?? "")
+		.trim()
+		.toLowerCase()
+	const presetLabels: Record<string, string> = {
+		pay_at_property: "Pago en propiedad",
+		prepayment_full: "Pago anticipado total",
+		deposit_50: "Pago parcial",
+	}
+	if (presetLabels[presetKey]) return presetLabels[presetKey]
+
 	const paymentType = String(rules.paymentType ?? "").toLowerCase()
 	if (paymentType === "pay_at_property") return "Paga en la propiedad"
 	if (paymentType === "prepayment" || paymentType === "prepaid" || paymentType === "prepay") {
@@ -123,14 +147,47 @@ function describePayment(policy: SnapshotPolicy | null): string {
 	return "Pago según política"
 }
 
+function describeNoShow(policy: SnapshotPolicy | null): string {
+	if (!policy) return "No-show pendiente"
+
+	const presetKey = String(policy.policy?.policyPresetKey ?? "")
+		.trim()
+		.toLowerCase()
+	const presetLabels: Record<string, string> = {
+		no_show_first_night: "No-show: primera noche",
+		no_show_full_stay: "No-show: estadía completa",
+		no_show_percentage_100: "No-show listo",
+	}
+	if (presetLabels[presetKey]) return presetLabels[presetKey]
+
+	const rules = toRuleMap(policy)
+	const penaltyType = String(rules.penaltyType ?? "").toLowerCase()
+	const penaltyAmount = Number(rules.penaltyAmount ?? NaN)
+	if (penaltyType === "first_night") return "No-show: primera noche"
+	if (penaltyType === "full") return "No-show: estadía completa"
+	if (penaltyType === "percentage" && Number.isFinite(penaltyAmount)) {
+		return penaltyAmount >= 100 ? "No-show listo" : `No-show ${Math.round(penaltyAmount)}%`
+	}
+
+	const description = String(policy.policy?.description ?? "").trim()
+	if (!description) return "No-show listo"
+	return "No-show listo"
+}
+
 export function derivePolicySummaryFromResolvedPolicies(resolved: PolicyResolutionDTO): string {
 	const policies = Array.isArray(resolved?.policies) ? resolved.policies : []
 	const cancellation = findCategory(policies, (category) => category.includes("cancel"))
 	const payment = findCategory(policies, (category) => category === "payment")
+	const noShow = findCategory(
+		policies,
+		(category) => category.includes("noshow") || category.includes("no_show")
+	)
 
 	const cancellationSummary = describeCancellation(cancellation)
 	const paymentSummary = describePayment(payment)
+	const noShowSummary = describeNoShow(noShow)
 
-	if (cancellationSummary === paymentSummary) return cancellationSummary
-	return `${cancellationSummary} · ${paymentSummary}`
+	return Array.from(new Set([cancellationSummary, paymentSummary, noShowSummary]))
+		.filter(Boolean)
+		.join(" · ")
 }

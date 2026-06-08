@@ -26,8 +26,83 @@ const rows = await loadRatePlansReadModel({
 	channel: "web",
 })
 
+const policyCategoryLabels: Record<string, string> = {
+	Cancellation: "Cancelación",
+	Payment: "Pago",
+	CheckIn: "Ingreso/salida",
+	NoShow: "No presentación",
+}
+
+function money(value: number | null | undefined, currency: string | null | undefined) {
+	if (value == null || !Number.isFinite(Number(value))) return null
+	return new Intl.NumberFormat("es-BO", {
+		style: "currency",
+		currency: String(currency ?? "BOB"),
+		maximumFractionDigits: 0,
+	}).format(Number(value))
+}
+
+function calendarResolveHref(ratePlanId: string, focus: "price" | "availability") {
+	const params = new URLSearchParams({
+		ratePlanId,
+		focus,
+		checkIn,
+		checkOut,
+	})
+	return `${routes.pricing()}?${params.toString()}`
+}
+
+function firstCommercialBlocker(row: (typeof rows)[number]) {
+	const ratePlanId = String(row.ratePlanId)
+	if (!row.isActive) {
+		return {
+			key: "inactive",
+			label: "Activar tarifa",
+			href: routes.ratePlanDetail(ratePlanId),
+			reason: "La tarifa está inactiva.",
+		}
+	}
+	if (!row.pricingReadiness?.hasBasePrice) {
+		return {
+			key: "price",
+			label: "Precio base",
+			href: calendarResolveHref(ratePlanId, "price"),
+			reason: "Falta precio base.",
+		}
+	}
+	if (!row.inventoryReadiness?.isReady) {
+		return {
+			key: "inventory",
+			label: "Inventario",
+			href: calendarResolveHref(ratePlanId, "availability"),
+			reason: "Falta cupo físico vendible.",
+		}
+	}
+	if (!row.policyCoverage?.isComplete) {
+		const missing = row.policyCoverage?.missingCategories ?? []
+		return {
+			key: "policies",
+			label: "Condiciones",
+			href: routes.ratePlanPolicies(ratePlanId),
+			reason: missing.length
+				? `Faltan ${missing.map((category) => policyCategoryLabels[category] ?? category).join(", ")}.`
+				: "Faltan condiciones.",
+		}
+	}
+	return {
+		key: "ready",
+		label: "Lista",
+		href: routes.ratePlanDetail(ratePlanId),
+		reason: "Sin bloqueos comerciales.",
+	}
+}
+
+function isCommercialReady(row: (typeof rows)[number]) {
+	return firstCommercialBlocker(row).key === "ready"
+}
+
 const activeRatePlans = rows.filter((row) => row.isActive).length
-const readyRatePlans = rows.filter((row) => row.isActive && row.policyCoverage?.isComplete).length
+const readyRatePlans = rows.filter(isCommercialReady).length
 const needsAttention = rows.length - readyRatePlans
 const variantChoices = Array.from(
 	new Map(
@@ -56,7 +131,7 @@ const variantChoices = Array.from(
 					</p>
 				</div>
 				<div class="flex flex-wrap items-center gap-2">
-					<Button href={routes.pricing()} variant="primary">Calendario de precios</Button>
+					<Button href={routes.pricing()} variant="primary">Calendario</Button>
 				</div>
 			</div>
 			<div class="mt-5 flex flex-wrap gap-2 text-sm">
@@ -89,18 +164,23 @@ const variantChoices = Array.from(
 					<div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
 						{rows.map((row, index) => {
 							const restrictionsCount = Number(row.summary?.activeRestrictionsCount ?? 0)
-							const isReady = row.isActive && Boolean(row.policyCoverage?.isComplete)
-							const primaryHref = row.policyCoverage?.isComplete
-								? routes.ratePlanDetail(String(row.ratePlanId))
-								: routes.ratePlanPolicies(String(row.ratePlanId))
-							const primaryLabel = row.policyCoverage?.isComplete
-								? "Abrir ficha"
-								: "Completar condiciones"
-							const stateLabel = !row.isActive ? "Inactiva" : isReady ? "Lista" : "Falta completar"
+							const policyCovered = Number(row.policyCoverage?.coveredCategories ?? 0)
+							const policyTotal = Number(row.policyCoverage?.totalCategories ?? 4)
+							const priceReady = Boolean(row.pricingReadiness?.hasBasePrice)
+							const priceLabel =
+								money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency) ?? "Falta"
+							const inventoryReady = Boolean(row.inventoryReadiness?.isReady)
+							const inventoryLabel = inventoryReady
+								? `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 0} noches`
+								: "Falta"
+							const conditionsReady = Boolean(row.policyCoverage?.isComplete)
+							const blocker = firstCommercialBlocker(row)
+							const isReady = blocker.key === "ready"
+							const stateLabel = !row.isActive ? "No lista" : isReady ? "Lista" : "No lista"
 							const stateVariant = !row.isActive ? "warning" : isReady ? "success" : "warning"
 							return (
 								<article
-									class={`grid gap-4 px-5 py-5 text-slate-800 md:grid-cols-[1.4fr_1fr_auto] md:items-center ${
+									class={`grid gap-4 px-5 py-5 text-slate-800 xl:grid-cols-[1.1fr_2fr_auto] xl:items-center ${
 										index > 0 ? "border-t border-slate-100" : ""
 									}`}
 								>
@@ -113,35 +193,74 @@ const variantChoices = Array.from(
 										<p class="text-sm text-slate-500">
 											{row.productName} · {row.variantName}
 										</p>
+										<p class="text-xs font-medium text-slate-500">
+											Bloqueo principal: {blocker.reason}
+										</p>
 									</div>
 
-									<div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
-										<div class="rounded-2xl bg-slate-50 px-3 py-2">
-											<p class="text-xs text-slate-500">Condiciones</p>
-											<p class="mt-1 font-semibold text-slate-900">
-												{row.policyCoverage?.isComplete ? "Listas" : "Pendientes"}
+									<div class="grid grid-cols-2 gap-2 text-sm lg:grid-cols-5">
+										<div
+											class={`rounded-2xl px-3 py-2 ${
+												priceReady ? "bg-emerald-50 text-emerald-950" : "bg-amber-50 text-amber-950"
+											}`}
+										>
+											<p class="text-xs opacity-70">Precio base</p>
+											<p class="mt-1 font-semibold">{priceReady ? "Listo" : "Falta"}</p>
+											<p class="mt-0.5 text-xs opacity-80">{priceLabel}</p>
+										</div>
+										<div
+											class={`rounded-2xl px-3 py-2 ${
+												inventoryReady
+													? "bg-emerald-50 text-emerald-950"
+													: "bg-amber-50 text-amber-950"
+											}`}
+										>
+											<p class="text-xs opacity-70">Inventario</p>
+											<p class="mt-1 font-semibold">{inventoryReady ? "Listo" : "Falta"}</p>
+											<p class="mt-0.5 text-xs opacity-80">{inventoryLabel}</p>
+										</div>
+										<div
+											class={`rounded-2xl px-3 py-2 ${
+												conditionsReady
+													? "bg-emerald-50 text-emerald-950"
+													: "bg-amber-50 text-amber-950"
+											}`}
+										>
+											<p class="text-xs opacity-70">Condiciones</p>
+											<p class="mt-1 font-semibold">
+												{policyCovered}/{policyTotal}
+											</p>
+											<p class="mt-0.5 text-xs opacity-80">
+												{conditionsReady ? "Completas" : "Faltantes"}
 											</p>
 										</div>
-										<div class="rounded-2xl bg-slate-50 px-3 py-2">
+										<div class="rounded-2xl bg-slate-50 px-3 py-2 text-slate-900">
 											<p class="text-xs text-slate-500">Restricciones</p>
-											<p class="mt-1 font-semibold text-slate-900">
-												{restrictionsCount > 0 ? `${restrictionsCount} activas` : "Sin reglas"}
+											<p class="mt-1 font-semibold">
+												{restrictionsCount > 0 ? "Activas" : "No activas"}
+											</p>
+											<p class="mt-0.5 text-xs text-slate-500">
+												{restrictionsCount > 0 ? `${restrictionsCount} reglas` : "Sin reglas"}
 											</p>
 										</div>
-										<div class="rounded-2xl bg-slate-50 px-3 py-2">
-											<p class="text-xs text-slate-500">Ayudas</p>
-											<p class="mt-1 font-semibold text-slate-900">
-												{Number(row.summary?.priceRulesCount ?? 0)}
-											</p>
+										<div
+											class={`rounded-2xl px-3 py-2 ${
+												isReady ? "bg-emerald-100 text-emerald-950" : "bg-red-50 text-red-950"
+											}`}
+										>
+											<p class="text-xs opacity-70">Estado vendible</p>
+											<p class="mt-1 font-semibold">{isReady ? "Lista" : "No lista"}</p>
+											<p class="mt-0.5 text-xs opacity-80">{blocker.label}</p>
 										</div>
 									</div>
 
 									<div class="flex flex-wrap items-center gap-2 md:justify-end">
-										<Button href={routes.pricing()} variant="secondary" size="sm">
-											Precios
-										</Button>
-										<Button href={primaryHref} variant="primary" size="sm">
-											{primaryLabel}
+										<Button
+											href={blocker.href}
+											variant={isReady ? "secondary" : "primary"}
+											size="sm"
+										>
+											Resolver
 										</Button>
 									</div>
 								</article>

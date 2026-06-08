@@ -77,7 +77,7 @@ const policyCategoryLabels: Record<string, string> = {
 			</div>
 			<div class="flex items-center gap-2">
 				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
-				<Button href={routes.pricing()} variant="primary">Calendario de precios</Button>
+				<Button href={routes.pricing()} variant="primary">Calendario</Button>
 				<Button href={routes.ratePlanPolicies(String(row.ratePlanId))} variant="secondary"
 					>Condiciones</Button
 				>
@@ -107,9 +107,7 @@ const policyCategoryLabels: Record<string, string> = {
 						</div>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
-						<Button href={routes.pricing()} variant="primary" size="sm">
-							Calendario de precios
-						</Button>
+						<Button href={routes.pricing()} variant="primary" size="sm"> Calendario </Button>
 						<Button
 							href={routes.ratePlanPolicies(String(row.ratePlanId))}
 							variant="secondary"

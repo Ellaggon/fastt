@@ -14,6 +14,18 @@ export type RatePlanListItem = {
 		priceRulesCount: number
 		activeRestrictionsCount: number
 	}
+	pricingReadiness?: {
+		hasBasePrice: boolean
+		basePrice: number | null
+		currency: string | null
+		effectivePricingDays: number
+	}
+	inventoryReadiness?: {
+		isReady: boolean
+		coverageDays: number
+		availableDays: number
+		expectedDays: number
+	}
 	policyCoverage?: {
 		totalCategories: number
 		coveredCategories: number

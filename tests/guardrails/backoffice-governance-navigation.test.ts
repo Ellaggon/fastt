@@ -64,8 +64,9 @@ function patternToRegExp(pattern: string): RegExp {
 }
 
 function matchingClassification(route: string): BackofficeRouteClassification | null {
+	const routeWithoutHash = route.split("#")[0] ?? route
 	for (const classification of backofficeRouteClassifications) {
-		if (patternToRegExp(classification.pattern).test(route)) return classification
+		if (patternToRegExp(classification.pattern).test(routeWithoutHash)) return classification
 	}
 	return null
 }
@@ -142,7 +143,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			section.items.map((item) => item.label)
 		)
 
-		expect(hrefs).toContain("/pricing")
+		expect(hrefs).toContain("/rates/calendar")
 		expect(hrefs).not.toContain("/pricing/rules")
 		expect(labels).not.toContain("Commercial Rules")
 		expect(labels).not.toContain("Pricing Rules & Promotions")
@@ -194,6 +195,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 					status: "transitional",
 				}),
 				expect.objectContaining({ pattern: "/api/pricing/**", status: "canonical" }),
+				expect.objectContaining({ pattern: "/rates/calendar", status: "canonical" }),
+				expect.objectContaining({ pattern: "/pricing", status: "legacy" }),
 				expect.objectContaining({ pattern: "/pricing/calendar", status: "legacy" }),
 				expect.objectContaining({ pattern: "/rates/plans/**", status: "canonical" }),
 			])
@@ -297,11 +300,19 @@ describe("Guardrail: backoffice governance navigation", () => {
 		})
 		const titles = visible.map((section) => section.title)
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+		const roomsAndRatesLabels =
+			visible
+				.find((section) => section.title === "Habitaciones y tarifas")
+				?.items.map((item) => item.label) ?? []
 
 		expect(titles).toContain("Habitaciones y tarifas")
 		expect(titles).not.toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(labels).not.toContain("Auditoría de condiciones")
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
+		expect(labels).not.toContain("Inventario avanzado")
+		expect(labels).not.toContain("Restricciones avanzadas")
+		expect(labels).not.toContain("Reglas masivas")
+		expect(labels).not.toContain("Auditoría")
 		expect(visible.flatMap((section) => section.planned ?? [])).toEqual([])
 	})
 
@@ -315,9 +326,25 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(labels).toContain("Auditoría de condiciones")
+		expect(labels).toContain("Inventario avanzado")
+		expect(labels).toContain("Restricciones avanzadas")
+		expect(labels).toContain("Reglas masivas")
+		expect(labels).toContain("Auditoría")
 		expect(planned).toContain("Revenue management")
 		expect(planned).toContain("Channel manager")
+	})
+
+	it("keeps active advanced Rooms & Rates routes visible in simple mode", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			activeHref: "/inventory",
+		})
+		const roomsAndRatesLabels =
+			visible
+				.find((section) => section.title === "Habitaciones y tarifas")
+				?.items.map((item) => item.label) ?? []
+
+		expect(roomsAndRatesLabels).toContain("Inventario avanzado")
 	})
 
 	it("keeps active advanced routes visible even when the provider is in simple mode", () => {
@@ -344,24 +371,25 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining([
-				"Calendario de precios",
-				"Inventario",
-				"Restricciones de venta",
+				"Calendario",
+				"Inventario avanzado",
+				"Restricciones avanzadas",
+				"Reglas masivas",
 				"Tarifas",
 				"Condiciones",
 			])
 		)
-		expect(
-			roomsAndRates?.items.find((item) => item.label === "Calendario de precios")?.status
-		).toEqual("canonical")
-		expect(roomsAndRates?.items.find((item) => item.label === "Inventario")?.status).toEqual(
+		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
 			"canonical"
 		)
+		expect(
+			roomsAndRates?.items.find((item) => item.label === "Inventario avanzado")?.status
+		).toEqual("canonical")
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
 		expect(
-			roomsAndRates?.items.find((item) => item.label === "Restricciones de venta")?.status
+			roomsAndRates?.items.find((item) => item.label === "Restricciones avanzadas")?.status
 		).toEqual("canonical")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")

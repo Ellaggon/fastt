@@ -299,11 +299,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Official sellability domain for restriction rules and search evaluation.",
 	},
 	{
-		pattern: "/pricing",
+		pattern: "/rates/calendar",
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Operación diaria de precios desde calendario sobre responsabilidad de tarifas.",
+		rationale:
+			"Calendario operativo unificado para precio, cupo, vendibilidad, restricciones y condiciones aplicables.",
+	},
+	{
+		pattern: "/pricing",
+		status: "legacy",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale: "Compat redirect hacia /rates/calendar; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/pricing/rules",
@@ -311,7 +319,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Enlace legacy redirigido a /pricing#pricing-automation; no exponer en navegación primaria.",
+			"Enlace legacy redirigido a /rates/calendar#pricing-automation; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -854,7 +862,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Operaciones comerciales",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona tarifas, calendario de precios, inventario, restricciones de venta y condiciones.",
+			"Gestiona tarifas, calendario, condiciones y herramientas avanzadas de inventario, restricciones de venta y reglas cuando el proveedor tiene escala.",
 		maturity: "operational",
 		items: [
 			{
@@ -865,22 +873,10 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 					"Tarifas comerciales vinculadas a habitaciones: precio base, condiciones y estado.",
 			},
 			{
-				label: "Calendario de precios",
+				label: "Calendario",
 				href: routes.pricing(),
 				status: "canonical",
-				summary: "Cambios manuales diarios, rango visible y ayudas recurrentes.",
-			},
-			{
-				label: "Inventario",
-				href: routes.inventory(),
-				status: "canonical",
-				summary: "Capacidad física disponible por día y ajustes rápidos de cupo.",
-			},
-			{
-				label: "Restricciones de venta",
-				href: routes.rateRestrictions(),
-				status: "canonical",
-				summary: "Reglas de venta: estadía mínima, cierres, llegada/salida y ventanas de reserva.",
+				summary: "Precio, cupo y venta diaria desde una superficie operativa.",
 			},
 			{
 				label: "Condiciones",
@@ -889,6 +885,29 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				level: 2,
 				summary:
 					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
+			},
+			{
+				label: "Inventario avanzado",
+				href: routes.inventory(),
+				status: "canonical",
+				level: 2,
+				summary:
+					"Capa física detallada para multi-unidad y excepciones; cupo diario vive en Calendario.",
+			},
+			{
+				label: "Restricciones avanzadas",
+				href: routes.rateRestrictions(),
+				status: "canonical",
+				level: 2,
+				summary:
+					"Reglas de venta avanzadas: estadía mínima, cierres, llegada/salida y ventanas de reserva.",
+			},
+			{
+				label: "Reglas masivas",
+				href: routes.pricingAutomation(),
+				status: "canonical",
+				level: 2,
+				summary: "Automatizaciones y cambios masivos dentro del calendario.",
 			},
 		],
 	},
@@ -1036,7 +1055,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Flujo de verificación del proveedor.",
 			},
 			{
-				label: "Auditoría de condiciones",
+				label: "Auditoría",
 				href: routes.providerPoliciesAudit(),
 				status: "transitional",
 				summary: "Trazabilidad y resolución de condiciones para gobernanza.",
@@ -1048,6 +1067,15 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 
 function sectionHasHref(section: EnterpriseNavigationSection, href: string): boolean {
 	return section.items.some((item) => item.href === href)
+}
+
+function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
+	return [
+		routes.inventory(),
+		routes.rateRestrictions(),
+		routes.pricingAutomation(),
+		routes.providerPoliciesAudit(),
+	].includes(item.href)
 }
 
 function shouldShowSectionForDisclosure(
@@ -1066,7 +1094,7 @@ function shouldShowItemForDisclosure(
 ): boolean {
 	if (context.activeHref === item.href) return true
 	if (context.mode !== "small-provider") return true
-	return item.href !== routes.providerPoliciesAudit()
+	return !isAdvancedSidebarItem(item)
 }
 
 function shouldShowPlannedForDisclosure(context: SidebarDisclosureContext): boolean {
@@ -1107,7 +1135,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 					"Superficie explícita para mantener tarifas comerciales; precios por ocupación vive aquí como ajuste avanzado cuando esté disponible.",
 			},
 			{
-				label: "Calendario de precios",
+				label: "Calendario",
 				href: routes.pricing(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
@@ -1121,7 +1149,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		ownership: "physical",
 		status: "operational",
 		intent:
-			"Responsabilidad de inventario físico por habitación, disponibilidad y capacidad de unidades.",
+			"Responsabilidad de inventario físico por habitación, disponibilidad y capacidad de unidades; la operación diaria de cupos se expone en Calendario.",
 		surfaces: [
 			{
 				label: "Catálogo y habitaciones",
@@ -1132,11 +1160,12 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 					"Setup de catálogo; hoteles entregan habitaciones como contexto físico al inventario.",
 			},
 			{
-				label: "Inventario",
+				label: "Inventario avanzado",
 				href: routes.inventory(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
-				description: "Capacidad física, disponibilidad y unidades por habitación desde calendario.",
+				description:
+					"Capa avanzada de capacidad física para revisión detallada, multi-unidad y ajustes excepcionales. El cupo diario se opera desde Calendario.",
 			},
 			{
 				label: "Inventario masivo",
