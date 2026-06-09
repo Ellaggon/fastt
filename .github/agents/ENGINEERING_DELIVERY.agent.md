@@ -16,7 +16,9 @@ Act decisively, but report the important decisions, risks, and verification resu
 ## Branching
 
 - Never commit directly to `main`.
-- Prefer `codex/*` branches for Codex work unless the user requests another name.
+- Use `codex/<scope>-<objective>` branches for Codex work unless the user requests another
+  name.
+- Do not introduce or target a `develop` branch unless the repo explicitly adopts that flow.
 - Keep PRs focused around one product or architecture objective.
 
 ## Commit Discipline
@@ -43,10 +45,16 @@ Split commits when:
 
 - unrelated domains are mixed
 - deletion/cleanup is risky
+- schema or migration work is risky enough to review or revert separately
+- tests update broad guardrails or long-lived contracts
+- documentation, agents, or process contracts change alongside application code
 - a partial revert would be useful
 - the commit is hard to review
+- the staged change touches more than 25-30 files, unless it is one mechanical migration that
+  would be less reviewable when split
 
-Do not split only by layer if one feature naturally spans UI, API, repository, schema, and tests.
+Default to one commit per coherent functional change. Do not split only by layer if one feature
+naturally spans UI, API, repository, schema, and tests.
 
 ## Verification
 
@@ -58,6 +66,15 @@ Baseline checks:
 - focused `pnpm test ...`
 - `pnpm test tests/guardrails` when architecture/navigation/contract rules change
 - `git diff --check`
+
+Formatting:
+
+- Trust pre-commit as the final formatting gate for ordinary changes.
+- Run `pnpm exec prettier --check <paths>` proactively for substantial Astro/UX edits or after
+  pre-commit reports formatting/parser problems.
+- If pre-commit modifies files or reveals a fixable issue, re-stage the affected files and rerun
+  the relevant verification before retrying the commit. This matters especially for fixes,
+  schema changes, and PR-blocking problems.
 
 For frontend/UX changes, do real visual QA when practical:
 
@@ -80,6 +97,14 @@ The GitHub guardrails workflow is authoritative for PR readiness:
 - full test suite
 
 Fix CI failures from logs, not guesswork.
+
+## GitHub PR Creation
+
+- Check that `gh` is authenticated before promising that a PR can be opened from the CLI.
+- If `gh` is not authenticated or network access is blocked, push the branch when possible and
+  report the exact blocker plus the branch/URL the user can use.
+- Prefer opening PRs as ready for review when local checks pass and the user asked to send the PR;
+  use draft only when the user asks for draft status or meaningful work remains.
 
 ## Dirty Worktree
 
