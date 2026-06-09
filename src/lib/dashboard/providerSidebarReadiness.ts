@@ -16,6 +16,7 @@ import {
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
+import { getProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
 
 export type ProviderSidebarReadiness = Partial<Record<string, string>>
 
@@ -244,41 +245,6 @@ async function getProviderUserRole(
 	return row?.role ? String(row.role) : null
 }
 
-export function isProfessionalToolsExplicitlyEnabled(request: Request): boolean {
-	const url = new URL(request.url)
-	const value = (
-		url.searchParams.get("professionalTools") ??
-		url.searchParams.get("modoAvanzado") ??
-		request.headers.get("x-fastt-professional-tools") ??
-		""
-	)
-		.trim()
-		.toLowerCase()
-	if (["1", "true", "enabled", "on", "si", "sí"].includes(value)) return true
-	const cookie = request.headers.get("cookie") ?? ""
-	return /(?:^|;\s*)fastt_professional_tools=(?:1|true|enabled|on)(?:;|$)/i.test(cookie)
-}
-
-export function isProfessionalToolsExplicitlyDisabled(request: Request): boolean {
-	const url = new URL(request.url)
-	const value = (
-		url.searchParams.get("professionalTools") ??
-		url.searchParams.get("modoAvanzado") ??
-		request.headers.get("x-fastt-professional-tools") ??
-		""
-	)
-		.trim()
-		.toLowerCase()
-	if (
-		["0", "false", "disabled", "off", "no"].includes(value) ||
-		/(?:^|;\s*)fastt_professional_tools=(?:0|false|disabled|off)(?:;|$)/i.test(
-			request.headers.get("cookie") ?? ""
-		)
-	)
-		return true
-	return false
-}
-
 async function countActivePriceRules(ratePlanIds: string[]): Promise<number> {
 	if (!ratePlanIds.length) return 0
 	return Number(
@@ -332,6 +298,11 @@ export async function getProviderSidebarData(
 		countActiveRestrictions(scopeIds),
 		getProviderUserRole(normalizedProviderId, context.userId),
 	])
+	const professionalToolsEnabled =
+		typeof context.professionalToolsEnabled === "boolean"
+			? context.professionalToolsEnabled
+			: (await getProviderProfessionalToolsPreference(normalizedProviderId))
+					.professionalToolsEnabled
 
 	const [ratesSummary, pricingSummary, inventorySummary, restrictionsSummary] = await Promise.all([
 		getRatesSummary(ratePlanIds),
@@ -350,7 +321,7 @@ export async function getProviderSidebarData(
 			},
 			{
 				providerRole: context.providerRole ?? providerRole,
-				professionalToolsEnabled: context.professionalToolsEnabled,
+				professionalToolsEnabled,
 				userId: context.userId,
 			}
 		),

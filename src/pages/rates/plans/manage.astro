@@ -412,10 +412,40 @@ const historyToneClasses: Record<string, string> = {
 		</div>
 
 		<Section
-			title="Historial"
-			description="Cambios recientes que explican el estado comercial de las tarifas."
+			title="Cambios recientes de tarifa"
+			description="Historial operativo de tarifas, reglas de precio y señales de venta vinculadas a este listado."
 		>
-			<Card className="bg-white text-slate-800">
+			<Card className="space-y-4 bg-white text-slate-800">
+				<div class="flex flex-wrap gap-2" aria-label="Filtrar historial de tarifas">
+					<button
+						type="button"
+						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+						data-history-filter="all"
+					>
+						Todo
+					</button>
+					<button
+						type="button"
+						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+						data-history-filter="tarifa"
+					>
+						Tarifa
+					</button>
+					<button
+						type="button"
+						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+						data-history-filter="habitacion"
+					>
+						Habitación
+					</button>
+					<button
+						type="button"
+						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+						data-history-filter="fecha"
+					>
+						Fecha
+					</button>
+				</div>
 				{
 					ratePlanHistory.length === 0 ? (
 						<p class="text-sm text-slate-600">
@@ -426,16 +456,33 @@ const historyToneClasses: Record<string, string> = {
 							{ratePlanHistory.map((item) => (
 								<li
 									class={`rounded-2xl border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
+									data-history-item
+									data-history-object={item.objectType}
 								>
 									<div class="flex flex-wrap items-start justify-between gap-3">
 										<div class="min-w-0">
-											<p class="font-semibold">{item.title}</p>
+											<div class="flex flex-wrap items-center gap-2">
+												<p class="font-semibold">{item.title}</p>
+												<span class="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase opacity-80">
+													{item.objectLabel}
+												</span>
+											</div>
 											<p class="mt-1 text-sm opacity-80">{item.description}</p>
 											<p class="mt-1 text-xs opacity-70">{item.meta}</p>
 										</div>
 										<time class="text-xs font-medium opacity-70">
 											{formatHistoryDate(item.createdAt)}
 										</time>
+									</div>
+									<div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+										<div class="rounded-xl bg-white/70 p-2">
+											<p class="font-semibold tracking-wide uppercase opacity-60">Antes</p>
+											<p class="mt-1">{item.beforeLabel ?? "Sin estado anterior visible"}</p>
+										</div>
+										<div class="rounded-xl bg-white/70 p-2">
+											<p class="font-semibold tracking-wide uppercase opacity-60">Después</p>
+											<p class="mt-1">{item.afterLabel ?? "Cambio aplicado"}</p>
+										</div>
 									</div>
 								</li>
 							))}
@@ -448,6 +495,16 @@ const historyToneClasses: Record<string, string> = {
 </WorkspaceLayout>
 
 <script>
+	document.querySelectorAll("[data-history-filter]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const filter = button.getAttribute("data-history-filter") || "all"
+			document.querySelectorAll("[data-history-item]").forEach((item) => {
+				const objectType = item.getAttribute("data-history-object") || ""
+				item.classList.toggle("hidden", filter !== "all" && objectType !== filter)
+			})
+		})
+	})
+
 	const intentForm = document.querySelector("[data-rate-plan-intent-form]")
 	const intentFeedback = document.querySelector("[data-rate-plan-intent-feedback]")
 

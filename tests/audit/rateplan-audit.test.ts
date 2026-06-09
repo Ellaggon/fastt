@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-	and,
-	db,
-	eq,
-	notInArray,
-	sql,
-	RatePlan,
-	RatePlanTemplate,
-	PriceRule,
-	Restriction,
-	Variant,
-} from "astro:db"
+import { and, db, eq, notInArray, sql, RatePlan, PriceRule, Restriction, Variant } from "astro:db"
 
 function toInt(v: unknown): number {
 	if (typeof v === "number") return v
@@ -25,11 +14,6 @@ describe("audit/rateplan data (read-only)", () => {
 			(await db
 				.select({ n: sql<number>`count(*)` })
 				.from(RatePlan)
-				.all()) ?? []
-		const [{ n: templateCount }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(RatePlanTemplate)
 				.all()) ?? []
 		const [{ n: priceRuleCount }] =
 			(await db
@@ -93,12 +77,11 @@ describe("audit/rateplan data (read-only)", () => {
 				.where(sql`${Variant.id} is null`)
 				.all()) ?? []
 
-		const [{ n: orphanTemplates }] =
+		const [{ n: unnamedRatePlans }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
-				.from(RatePlanTemplate)
-				.leftJoin(RatePlan, eq(RatePlan.templateId, RatePlanTemplate.id))
-				.where(sql`${RatePlan.id} is null`)
+				.from(RatePlan)
+				.where(sql`"RatePlan"."name" is null or trim("RatePlan"."name") = ''`)
 				.all()) ?? []
 
 		const [{ n: orphanRatePlanRestrictions }] =
@@ -112,7 +95,6 @@ describe("audit/rateplan data (read-only)", () => {
 		const report = {
 			counts: {
 				ratePlans: toInt(ratePlanCount),
-				ratePlanTemplates: toInt(templateCount),
 				priceRules: toInt(priceRuleCount),
 				restrictions: toInt(restrictionCount),
 			},
@@ -133,13 +115,13 @@ describe("audit/rateplan data (read-only)", () => {
 			orphans: {
 				priceRulesWithoutRatePlan: toInt(orphanPriceRules),
 				ratePlansWithoutVariant: toInt(orphanRatePlansByVariant),
-				templatesNotLinkedToRatePlan: toInt(orphanTemplates),
+				ratePlansWithoutName: toInt(unnamedRatePlans),
 				ratePlanRestrictionsWithoutRatePlan: toInt(orphanRatePlanRestrictions),
 			},
 		}
 
 		expect(report.counts.ratePlans).toBeGreaterThanOrEqual(0)
-		expect(report.counts.ratePlanTemplates).toBeGreaterThanOrEqual(0)
+		expect(report.orphans.ratePlansWithoutName).toBeGreaterThanOrEqual(0)
 		expect(report.orphans.priceRulesWithoutRatePlan).toBeGreaterThanOrEqual(0)
 		// eslint-disable-next-line no-console
 		console.log("[rateplan-audit]", JSON.stringify(report, null, 2))

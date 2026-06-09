@@ -3,8 +3,8 @@ export type RatePlanListItemByProduct = {
 	variantId: string
 	isDefault: boolean
 	isActive: boolean
-	templateId: string
-	templateName: string
+	name: string
+	description?: string | null
 }
 
 export interface RatePlanListByProductRepositoryPort {

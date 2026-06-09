@@ -1,30 +1,37 @@
-import { db, RatePlan, RatePlanTemplate, eq } from "astro:db"
+import { db, RatePlan, eq } from "astro:db"
+import { resolveRatePlanBaseSelect } from "@/lib/rates/ratePlanSchemaCompat"
 import type { RatePlanRepositoryPort } from "../../application/ports/RatePlanRepositoryPort"
 
 type RatePlanWithTemplate = typeof RatePlan.$inferSelect & {
-	template: typeof RatePlanTemplate.$inferSelect
+	template: {
+		id: string
+		name: string
+		description: string | null
+		createdAt: Date | null
+	}
 }
 
 export class RatePlanRepository implements RatePlanRepositoryPort {
 	async getActiveByVariant(variantId: string): Promise<RatePlanWithTemplate[]> {
-		const plans = await db.select().from(RatePlan).where(eq(RatePlan.variantId, variantId))
+		const ratePlanSelect = await resolveRatePlanBaseSelect()
+		const plans = await db
+			.select(ratePlanSelect)
+			.from(RatePlan)
+			.where(eq(RatePlan.variantId, variantId))
 
 		const results: RatePlanWithTemplate[] = []
 
 		for (const p of plans) {
 			if (!p.isActive) continue
 
-			const template = await db
-				.select()
-				.from(RatePlanTemplate)
-				.where(eq(RatePlanTemplate.id, p.templateId))
-				.get()
-
-			if (!template) continue
-
 			results.push({
 				...p,
-				template,
+				template: {
+					id: String(p.id),
+					name: String(p.name ?? "Tarifa"),
+					description: p.description ?? null,
+					createdAt: p.createdAt ?? null,
+				},
 			})
 		}
 
@@ -33,21 +40,23 @@ export class RatePlanRepository implements RatePlanRepositoryPort {
 
 	// Still used by non-ported legacy code paths.
 	async get(ratePlanId: string): Promise<RatePlanWithTemplate | null> {
-		const plan = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
+		const ratePlanSelect = await resolveRatePlanBaseSelect()
+		const plan = await db
+			.select(ratePlanSelect)
+			.from(RatePlan)
+			.where(eq(RatePlan.id, ratePlanId))
+			.get()
 
 		if (!plan) return null
 
-		const template = await db
-			.select()
-			.from(RatePlanTemplate)
-			.where(eq(RatePlanTemplate.id, plan.templateId))
-			.get()
-
-		if (!template) return null
-
 		return {
 			...plan,
-			template,
+			template: {
+				id: String(plan.id),
+				name: String(plan.name ?? "Tarifa"),
+				description: plan.description ?? null,
+				createdAt: plan.createdAt ?? null,
+			},
 		}
 	}
 }

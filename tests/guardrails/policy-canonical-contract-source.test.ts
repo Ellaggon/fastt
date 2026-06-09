@@ -7,15 +7,13 @@ function read(relativePath: string): string {
 }
 
 describe("Guardrail: policy tables are the only contractual source", () => {
-	it("keeps RatePlanTemplate free of cancellation/payment contract fields", () => {
+	it("keeps RatePlan compressed and free of cancellation/payment contract fields", () => {
 		const dbConfig = read("db/config.ts")
-		const ratePlanTemplate =
-			dbConfig.match(/const RatePlanTemplate = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		expect(dbConfig).not.toContain("const RatePlanTemplate")
+		const ratePlan = dbConfig.match(/const RatePlan = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		const forbidden = [/paymentType/, /refundable/, /cancellation/i, /refund/i]
 		const violations = forbidden.flatMap((pattern) =>
-			pattern.test(ratePlanTemplate)
-				? [`RatePlanTemplate must not contain contractual field ${pattern}`]
-				: []
+			pattern.test(ratePlan) ? [`RatePlan must not contain contractual field ${pattern}`] : []
 		)
 		expect(violations).toEqual([])
 	})

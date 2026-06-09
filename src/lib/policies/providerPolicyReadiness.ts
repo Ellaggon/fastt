@@ -1,4 +1,5 @@
-import { db, eq, Product, RatePlan, RatePlanTemplate, Variant } from "astro:db"
+import { db, eq, Product, RatePlan, Variant } from "astro:db"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 
 const REQUIRED_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
@@ -42,17 +43,17 @@ export async function getProviderPolicyReadiness(
 		}
 	}
 
+	const ratePlanName = await resolveRatePlanNameColumn()
 	const ratePlans = await db
 		.select({
 			ratePlanId: RatePlan.id,
 			variantId: Variant.id,
 			productId: Product.id,
-			templateName: RatePlanTemplate.name,
+			ratePlanName,
 		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 		.innerJoin(Product, eq(Product.id, Variant.productId))
-		.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 		.where(eq(Product.providerId, normalizedProviderId))
 		.all()
 

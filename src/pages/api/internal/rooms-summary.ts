@@ -8,11 +8,11 @@ import {
 	Image,
 	inArray,
 	RatePlan,
-	RatePlanTemplate,
 	db,
 } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
@@ -80,6 +80,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const variantIds = aggregate.variants.map((variant) => String(variant.id)).filter(Boolean)
+	const ratePlanName = await resolveRatePlanNameColumn()
 	const [effectiveRows, inventoryRows, imageRows, tariffRows] = variantIds.length
 		? await Promise.all([
 				db
@@ -126,12 +127,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 						variantId: RatePlan.variantId,
 						isDefault: RatePlan.isDefault,
 						isActive: RatePlan.isActive,
-						name: RatePlanTemplate.name,
+						name: ratePlanName,
 					})
 					.from(RatePlan)
-					.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 					.where(inArray(RatePlan.variantId, variantIds))
-					.orderBy(asc(RatePlanTemplate.name), asc(RatePlan.id))
+					.orderBy(asc(ratePlanName), asc(RatePlan.id))
 					.all(),
 			])
 		: [[], [], [], []]

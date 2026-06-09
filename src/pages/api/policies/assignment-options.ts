@@ -10,12 +10,12 @@ import {
 	PolicyRule,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	Variant,
 } from "astro:db"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 const categoryLabels: Record<string, string> = {
 	Cancellation: "Cancelación",
@@ -58,6 +58,7 @@ function policyLabel(row: {
 export const GET: APIRoute = async ({ request }) => {
 	const { providerId } = await requireProvider(request)
 	const owned = await getOwnedPolicyScopeIds(providerId)
+	const ratePlanName = await resolveRatePlanNameColumn()
 
 	const products = owned.productIds.length
 		? await db
@@ -88,13 +89,12 @@ export const GET: APIRoute = async ({ request }) => {
 					variantId: RatePlan.variantId,
 					variantName: Variant.name,
 					productName: Product.name,
-					templateName: RatePlanTemplate.name,
+					ratePlanName,
 					isDefault: RatePlan.isDefault,
 				})
 				.from(RatePlan)
 				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
-				.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 				.where(inArray(RatePlan.id, owned.ratePlanIds))
 				.all()
 		: []
@@ -181,17 +181,17 @@ export const GET: APIRoute = async ({ request }) => {
 				product: products.map((product) => ({
 					id: String(product.id),
 					label: String(product.name ?? product.id),
-					helper: String(product.productType ?? "Producto"),
+					helper: String(product.productType ?? "Hotel"),
 				})),
 				variant: variants.map((variant) => ({
 					id: String(variant.id),
 					label: String(variant.name ?? variant.id),
-					helper: String(variant.productName ?? "Producto"),
+					helper: String(variant.productName ?? "Hotel"),
 				})),
 				rate_plan: ratePlans.map((plan) => ({
 					id: String(plan.id),
-					label: String(plan.templateName ?? plan.id),
-					helper: `${String(plan.productName ?? "Producto")} · ${String(plan.variantName ?? "Habitación")}${plan.isDefault ? " · por defecto" : ""}`,
+					label: String(plan.ratePlanName ?? plan.id),
+					helper: `${String(plan.productName ?? "Hotel")} · ${String(plan.variantName ?? "Habitación")}${plan.isDefault ? " · por defecto" : ""}`,
 				})),
 			},
 		}),

@@ -67,7 +67,6 @@ export let VariantInventoryConfig: any
 export let DailyInventory: any
 export let EffectiveAvailability: any
 export let SearchUnitView: any
-export let RatePlanTemplate: any
 export let RatePlan: any
 export let RatePlanOccupancyPolicy: any
 export let PriceRule: any
@@ -205,7 +204,6 @@ async function init() {
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveAvailability = drizzleTables.EffectiveAvailability
 	SearchUnitView = drizzleTables.SearchUnitView
-	RatePlanTemplate = drizzleTables.RatePlanTemplate
 	RatePlan = drizzleTables.RatePlan
 	RatePlanOccupancyPolicy = drizzleTables.RatePlanOccupancyPolicy
 	PriceRule = drizzleTables.PriceRule

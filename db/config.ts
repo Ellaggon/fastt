@@ -119,6 +119,9 @@ const ProviderProfile = defineTable({
 		defaultCurrency: column.text({ default: "USD" }),
 		supportEmail: column.text({ optional: true }),
 		supportPhone: column.text({ optional: true }),
+		professionalToolsEnabled: column.boolean({ default: false }),
+		professionalToolsUpdatedAt: column.date({ optional: true }),
+		professionalToolsUpdatedBy: column.text({ optional: true, references: () => User.columns.id }),
 	},
 })
 const ProviderVerification = defineTable({
@@ -519,19 +522,12 @@ const SearchUnitView = defineTable({
 
 // 6. Pricing / Restrictions
 
-const RatePlanTemplate = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		name: column.text(),
-		description: column.text({ optional: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-})
 const RatePlan = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		templateId: column.text({ references: () => RatePlanTemplate.columns.id }),
 		variantId: column.text({ references: () => Variant.columns.id }),
+		name: column.text(),
+		description: column.text({ optional: true }),
 		// CAPA 4B (Pricing Engine minimal): allow one default rate plan per variant.
 		// Enforced at application layer (SQLite-safe incremental schema).
 		isDefault: column.boolean({ default: false }),
@@ -1188,7 +1184,6 @@ export default defineDb({
 		SearchUnitView,
 
 		// 6 pricing
-		RatePlanTemplate,
 		RatePlan,
 		RatePlanOccupancyPolicy,
 		RatePlanOccupancyOverride,

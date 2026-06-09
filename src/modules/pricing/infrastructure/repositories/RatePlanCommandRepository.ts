@@ -1,4 +1,4 @@
-import { db, RatePlanTemplate, RatePlan, PriceRule, Restriction, eq } from "astro:db"
+import { db, RatePlan, PriceRule, Restriction, eq } from "astro:db"
 import type {
 	CreateRatePlanCommand,
 	RatePlanCommandRepositoryPort,
@@ -18,19 +18,12 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 					.where(eq(RatePlan.variantId, cmd.ratePlan.variantId))
 			}
 
-			/* ---------------- TEMPLATE ---------------- */
-			await tx.insert(RatePlanTemplate).values({
-				id: cmd.template.id,
-				name: cmd.template.name,
-				description: cmd.template.description,
-				createdAt: cmd.template.createdAt,
-			})
-
 			/* ---------------- RATE PLAN ---------------- */
 			await tx.insert(RatePlan).values({
 				id: cmd.ratePlan.id,
 				variantId: cmd.ratePlan.variantId,
-				templateId: cmd.ratePlan.templateId,
+				name: cmd.ratePlan.name,
+				description: cmd.ratePlan.description,
 				isDefault: Boolean(cmd.ratePlan.isDefault),
 				isActive: cmd.ratePlan.isActive,
 				createdAt: cmd.ratePlan.createdAt,
@@ -70,10 +63,8 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	async updateRatePlan(params: {
 		ratePlanId: string
 		isActive: boolean
-		template: {
-			name: string
-			description: string | null
-		}
+		name: string
+		description: string | null
 		priceRule: null | {
 			id: string
 			ratePlanId: string
@@ -104,16 +95,10 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				.update(RatePlan)
 				.set({
 					isActive: Boolean(params.isActive),
+					name: params.name,
+					description: params.description ?? null,
 				})
 				.where(eq(RatePlan.id, params.ratePlanId))
-
-			await tx
-				.update(RatePlanTemplate)
-				.set({
-					name: params.template.name,
-					description: params.template.description ?? null,
-				})
-				.where(eq(RatePlanTemplate.id, ratePlan.templateId))
 
 			await tx.delete(PriceRule).where(eq(PriceRule.ratePlanId, params.ratePlanId))
 
@@ -168,10 +153,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			await tx.delete(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId))
 			await tx.delete(Restriction).where(eq(Restriction.scopeId, ratePlanId))
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
-
-			if (ratePlan.templateId) {
-				await tx.delete(RatePlanTemplate).where(eq(RatePlanTemplate.id, ratePlan.templateId))
-			}
 		})
 
 		return notFound ? "not_found" : "ok"

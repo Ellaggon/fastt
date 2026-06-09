@@ -1,14 +1,5 @@
-import {
-	and,
-	db,
-	eq,
-	inArray,
-	PriceRule,
-	Product,
-	RatePlan,
-	RatePlanTemplate,
-	Variant,
-} from "astro:db"
+import { and, db, eq, inArray, PriceRule, Product, RatePlan, Variant } from "astro:db"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 import {
 	formatPricingRuleEligibilityLabel,
@@ -305,17 +296,17 @@ function readEligibility(value: unknown): PricingRuleEligibility | null {
 }
 
 async function loadProviderRatePlans(providerId: string) {
+	const ratePlanName = await resolveRatePlanNameColumn()
 	return db
 		.select({
 			ratePlanId: RatePlan.id,
-			ratePlanName: RatePlanTemplate.name,
+			ratePlanName,
 			productName: Product.name,
 			variantName: Variant.name,
 			productId: Product.id,
 			variantId: Variant.id,
 		})
 		.from(RatePlan)
-		.innerJoin(RatePlanTemplate, eq(RatePlan.templateId, RatePlanTemplate.id))
 		.innerJoin(Variant, eq(RatePlan.variantId, Variant.id))
 		.innerJoin(Product, eq(Variant.productId, Product.id))
 		.where(and(eq(Product.providerId, providerId), eq(RatePlan.isActive, true)))

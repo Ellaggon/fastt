@@ -61,10 +61,8 @@ export const PUT: APIRoute = async ({ request }) => {
 		const result = await ratePlanCommandRepository.updateRatePlan({
 			ratePlanId: body.id,
 			isActive: Boolean(body.isActive),
-			template: {
-				name: String(body.name ?? ""),
-				description: body.description ?? null,
-			},
+			name: String(body.name ?? ""),
+			description: body.description ?? null,
 			priceRule,
 			restrictions: specResult.spec.restrictions.items.map((item) => ({
 				type: String(item.type),

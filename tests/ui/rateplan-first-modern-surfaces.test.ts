@@ -184,7 +184,8 @@ describe("ui/rateplan-first modern surfaces", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 
 		expect(policyIndex).toContain("data-policy-operations-matrix")
-		expect(policyIndex).toContain("Tarifas/listings/canales vs condiciones")
+		expect(policyIndex).toContain("Centro operativo por tarifa, hotel y canal")
+		expect(policyIndex).not.toContain("Tarifas/listings/canales vs condiciones")
 		expect(policyIndex).toContain("Centro operativo")
 		expect(policyIndex).toContain("Cancelación")
 		expect(policyIndex).toContain("Pago")

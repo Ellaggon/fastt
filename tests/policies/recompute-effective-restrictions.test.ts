@@ -8,7 +8,6 @@ import {
 	Product,
 	Provider,
 	RatePlan,
-	RatePlanTemplate,
 	Restriction,
 	Variant,
 } from "astro:db"
@@ -26,9 +25,7 @@ async function seedVariant() {
 	const destinationId = `dest_${suffix}`
 	const productId = `prod_${suffix}`
 	const variantId = `var_${suffix}`
-	const ratePlanTemplateId = `rpt_${suffix}`
 	const ratePlanId = `rp_${suffix}`
-	const secondaryRatePlanTemplateId = `rpt_secondary_${suffix}`
 	const secondaryRatePlanId = `rp_secondary_${suffix}`
 
 	await db.insert(Provider).values({
@@ -60,32 +57,18 @@ async function seedVariant() {
 		isActive: true,
 		createdAt: new Date(),
 	} as any)
-	await db.insert(RatePlanTemplate).values({
-		id: ratePlanTemplateId,
-		name: "Default",
-		paymentType: "pay_at_property",
-		refundable: true,
-		createdAt: new Date(),
-	} as any)
-	await db.insert(RatePlanTemplate).values({
-		id: secondaryRatePlanTemplateId,
-		name: "Non refundable",
-		paymentType: "prepaid",
-		refundable: false,
-		createdAt: new Date(),
-	} as any)
 	await db.insert(RatePlan).values({
 		id: ratePlanId,
-		templateId: ratePlanTemplateId,
 		variantId,
+		name: "Default",
 		isDefault: true,
 		isActive: true,
 		createdAt: new Date(),
 	} as any)
 	await db.insert(RatePlan).values({
 		id: secondaryRatePlanId,
-		templateId: secondaryRatePlanTemplateId,
 		variantId,
+		name: "Non refundable",
 		isDefault: false,
 		isActive: true,
 		createdAt: new Date(),

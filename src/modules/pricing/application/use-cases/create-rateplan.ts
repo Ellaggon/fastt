@@ -15,7 +15,6 @@ export async function createRatePlan(
 		return { ok: false, status: 400, error: specResult.error.message }
 	}
 
-	const templateId = randomUUID()
 	const ratePlanId = randomUUID()
 
 	const now = new Date()
@@ -34,16 +33,11 @@ export async function createRatePlan(
 	}
 
 	await deps.repo.createRatePlan({
-		template: {
-			id: templateId,
-			name: body.name,
-			description: body.description ?? null,
-			createdAt: now,
-		},
 		ratePlan: {
 			id: ratePlanId,
 			variantId: body.variantId,
-			templateId,
+			name: body.name,
+			description: body.description ?? null,
 			isDefault: Boolean(body.isDefault),
 			isActive: Boolean(body.isActive),
 			createdAt: now,

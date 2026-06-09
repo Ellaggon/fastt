@@ -1,23 +1,32 @@
 import {
 	and,
+	asc,
 	db,
 	eq,
 	inArray,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	Restriction,
 	PriceRule,
 	Variant,
 } from "astro:db"
+import {
+	resolveRatePlanBaseSelect,
+	resolveRatePlanNameColumn,
+} from "@/lib/rates/ratePlanSchemaCompat"
 import type { RatePlanQueryRepositoryPort } from "../../application/ports/RatePlanQueryRepositoryPort"
 
 export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 	async listByVariant(variantId: string): Promise<unknown[]> {
+		const [ratePlanSelect, ratePlanName] = await Promise.all([
+			resolveRatePlanBaseSelect(),
+			resolveRatePlanNameColumn(),
+		])
 		const ratePlans = await db
-			.select()
+			.select(ratePlanSelect)
 			.from(RatePlan)
 			.where(eq(RatePlan.variantId, variantId))
+			.orderBy(asc(ratePlanName), asc(RatePlan.id))
 			.all()
 
 		if (!ratePlans.length) {
@@ -25,14 +34,10 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 		}
 
 		const ratePlanIds = ratePlans.map((r) => r.id)
-		const templateIds = [...new Set(ratePlans.map((r) => r.templateId))]
-
-		const [templates, restrictions] = await Promise.all([
-			db.select().from(RatePlanTemplate).where(inArray(RatePlanTemplate.id, templateIds)),
-			db.select().from(Restriction).where(inArray(Restriction.scopeId, ratePlanIds)),
-		])
-
-		const templateMap = Object.fromEntries(templates.map((t) => [t.id, t]))
+		const restrictions = await db
+			.select()
+			.from(Restriction)
+			.where(inArray(Restriction.scopeId, ratePlanIds))
 
 		type RestrictionRow = (typeof restrictions)[number]
 		const restrictionMap = restrictions.reduce<Record<string, RestrictionRow[]>>((acc, r) => {
@@ -47,7 +52,12 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 
 			return {
 				...rp,
-				template: templateMap[rp.templateId],
+				template: {
+					id: rp.id,
+					name: rp.name,
+					description: rp.description ?? null,
+					createdAt: rp.createdAt,
+				},
 				restrictions: rpRestrictions,
 				dateRange: baseRestriction
 					? {
@@ -60,6 +70,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 	}
 
 	async listByProvider(providerId: string): Promise<unknown[]> {
+		const ratePlanName = await resolveRatePlanNameColumn()
 		const rows = await db
 			.select({
 				ratePlanId: RatePlan.id,
@@ -67,14 +78,13 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 				variantName: Variant.name,
 				productId: Product.id,
 				productName: Product.name,
-				ratePlanName: RatePlanTemplate.name,
+				ratePlanName,
 				isActive: RatePlan.isActive,
 				isDefault: RatePlan.isDefault,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
 			.all()
 
@@ -153,17 +163,16 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 	}
 
 	async getById(ratePlanId: string): Promise<unknown | null> {
-		const ratePlan = await db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
+		const ratePlanSelect = await resolveRatePlanBaseSelect()
+		const ratePlan = await db
+			.select(ratePlanSelect)
+			.from(RatePlan)
+			.where(eq(RatePlan.id, ratePlanId))
+			.get()
 
 		if (!ratePlan) {
 			return null
 		}
-
-		const template = await db
-			.select()
-			.from(RatePlanTemplate)
-			.where(eq(RatePlanTemplate.id, ratePlan.templateId))
-			.get()
 
 		const priceRules = await db
 			.select()
@@ -192,7 +201,12 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 
 		return {
 			...ratePlan,
-			template,
+			template: {
+				id: ratePlan.id,
+				name: ratePlan.name,
+				description: ratePlan.description ?? null,
+				createdAt: ratePlan.createdAt,
+			},
 			priceRules,
 			restrictions,
 			dateRange: baseRestriction

@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { db, sql, RatePlanTemplate } from "astro:db"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
 describe.skip("legacy/audit rateplan template coupling", () => {
-	it("legacy: template.cancellationPolicyId not null detection", async () => {
-		const [{ n }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(RatePlanTemplate)
-				.where(sql`"cancellationPolicyId" is not null`)
-				.all()) ?? []
-
-		expect(Number(n ?? 0)).toBeGreaterThanOrEqual(0)
+	it("legacy: RatePlanTemplate has been removed from the canonical schema", () => {
+		const dbConfig = readFileSync(join(process.cwd(), "db/config.ts"), "utf8")
+		expect(dbConfig).not.toContain("const RatePlanTemplate")
 	})
 })

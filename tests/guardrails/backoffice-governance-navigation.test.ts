@@ -131,8 +131,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 	it("keeps provider sidebar free of internal-only and legacy pricing destinations", () => {
 		const hrefs = flattenNavigationHrefs()
 		const violations = hrefs.filter(
-			(href) =>
-				href.startsWith("/api/") || href === "/pricing/calendar" || href === "/pricing/rules"
+			(href) => href.startsWith("/api/") || href === "/pricing" || href.startsWith("/pricing/")
 		)
 
 		expect(
@@ -249,8 +248,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Inicio": ["Command Center"],
 			"Habitaciones y tarifas": ["Rooms & Rates"],
 			"Reservas": ["Reservations"],
-			"Catálogo de ofertas": ["Property Content"],
-			"Contenido del alojamiento": ["Property Content"],
+			"Catálogo de ofertas": ["Property Content", "Contenido de alojamiento"],
+			"Contenido del alojamiento": ["Property Content", "Contenido de alojamiento"],
 			"Pagos y finanzas": ["Payments & Finance"],
 			"Analítica": ["Analytics & Performance"],
 			"Conectividad": ["Connectivity"],
@@ -318,9 +317,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(titles).not.toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
 		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
-		expect(labels).not.toContain("Inventario avanzado")
-		expect(labels).not.toContain("Restricciones avanzadas")
-		expect(labels).not.toContain("Reglas masivas")
+		expect(labels).not.toContain("Inventario físico")
+		expect(labels).not.toContain("Reglas de venta")
+		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).not.toContain("Auditoría")
 		expect(visible.flatMap((section) => section.planned ?? [])).toEqual([])
 	})
@@ -335,9 +334,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(labels).toContain("Inventario avanzado")
-		expect(labels).toContain("Restricciones avanzadas")
-		expect(labels).toContain("Reglas masivas")
+		expect(labels).toContain("Inventario físico")
+		expect(labels).toContain("Reglas de venta")
+		expect(labels).toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
 		expect(planned).toContain("Revenue management")
 		expect(planned).toContain("Channel manager")
@@ -349,9 +348,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		})
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
 
-		expect(labels).toContain("Inventario avanzado")
-		expect(labels).toContain("Restricciones avanzadas")
-		expect(labels).toContain("Reglas masivas")
+		expect(labels).toContain("Inventario físico")
+		expect(labels).toContain("Reglas de venta")
+		expect(labels).toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
 	})
 
@@ -443,6 +442,50 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 	})
 
+	it("persists professional tools in provider profile instead of creating workspace tables", () => {
+		const config = readFileSync(join(process.cwd(), "db/config.ts"), "utf8")
+		const migration = readFileSync(
+			join(process.cwd(), "db/migrations/2026-06-09_provider_profile_professional_tools.sql"),
+			"utf8"
+		)
+		const preferences = readFileSync(
+			join(process.cwd(), "src/lib/providerProfessionalToolsPreference.ts"),
+			"utf8"
+		)
+		const sidebar = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
+			"utf8"
+		)
+		const settings = readFileSync(join(process.cwd(), "src/pages/provider/index.astro"), "utf8")
+		const endpoint = readFileSync(
+			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
+			"utf8"
+		)
+
+		expect(config).toContain("professionalToolsEnabled")
+		expect(config).toContain("professionalToolsUpdatedAt")
+		expect(config).toContain("professionalToolsUpdatedBy")
+		expect(config).not.toContain("ProviderWorkspacePreferences")
+		expect(config).not.toContain("ProviderWorkspaceAuditLog")
+		expect(migration).toContain('ALTER TABLE "ProviderProfile"')
+		expect(migration).toContain('"professionalToolsEnabled"')
+		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspacePreferences"')
+		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspaceAuditLog"')
+		expect(preferences).toContain("getProviderProfessionalToolsPreference")
+		expect(preferences).toContain("setProviderProfessionalToolsPreference")
+		expect(preferences).toContain("ProviderProfile")
+		expect(preferences).not.toContain("ProviderWorkspacePreferences")
+		expect(preferences).not.toContain("ProviderWorkspaceAuditLog")
+		expect(preferences).not.toContain("fastt_professional_tools")
+		expect(sidebar).toContain("getProviderSidebarData")
+		expect(sidebar).not.toContain("professionalToolsEnabled:")
+		expect(settings).toContain("Herramientas profesionales")
+		expect(settings).toContain("Mostrar herramientas profesionales")
+		expect(settings).toContain("/api/provider/preferences/professional-tools")
+		expect(endpoint).toContain("requireProvider")
+		expect(endpoint).toContain("setProviderProfessionalToolsPreference")
+	})
+
 	it("keeps advanced routes hidden when the provider is in simple mode", () => {
 		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 			mode: "small-provider",
@@ -468,9 +511,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining([
 				"Calendario",
-				"Inventario avanzado",
-				"Restricciones avanzadas",
-				"Reglas masivas",
+				"Inventario físico",
+				"Reglas de venta",
+				"Operaciones masivas",
 				"Tarifas",
 				"Condiciones",
 			])
@@ -478,15 +521,15 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
 			"canonical"
 		)
-		expect(
-			roomsAndRates?.items.find((item) => item.label === "Inventario avanzado")?.status
-		).toEqual("transitional")
+		expect(roomsAndRates?.items.find((item) => item.label === "Inventario físico")?.status).toEqual(
+			"transitional"
+		)
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
-		expect(
-			roomsAndRates?.items.find((item) => item.label === "Restricciones avanzadas")?.status
-		).toEqual("canonical")
+		expect(roomsAndRates?.items.find((item) => item.label === "Reglas de venta")?.status).toEqual(
+			"canonical"
+		)
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
@@ -556,9 +599,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 	it("exposes human-readable context and status metadata for shell rendering", () => {
 		expect(getOperationalContextMetadata("enterprise-operations").label).toEqual(
-			"Enterprise Operations"
+			"Operación comercial"
 		)
-		expect(getOperationalContextMetadata("provider-workspace").label).toEqual("Provider Workspace")
+		expect(getOperationalContextMetadata("provider-workspace").label).toEqual(
+			"Espacio del proveedor"
+		)
 		expect(getGovernanceStatusMetadata("canonical").label).toEqual("Operational")
 		expect(getGovernanceStatusMetadata("transitional").description).toContain(
 			"not yet the final enterprise module"
@@ -717,5 +762,31 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(calendar).toContain("target.search = Astro.url.search")
 		expect(rules).toContain('target.hash = "pricing-automation"')
 		expect(roomInventory).toContain('target.searchParams.set("focus", "availability")')
+	})
+
+	it("keeps visible CTAs and route helpers off legacy /pricing destinations", () => {
+		const files = [
+			...walkFiles(join(process.cwd(), "src/pages"), [".astro", ".ts"]).filter(
+				(file) => !file.startsWith("src/pages/api/") && !file.startsWith("src/pages/pricing/")
+			),
+			...walkFiles(join(process.cwd(), "src/components"), [".astro", ".ts"]),
+			"src/lib/routes.ts",
+		]
+		const visibleLegacyPricingPattern =
+			/(?:href|action)=\{?["'`]\/pricing(?:[/?#"'`}]|$)|Astro\.redirect\(["'`]\/pricing(?:[/?#"'`]|$)|=>\s*["'`]\/pricing(?:[/?#"'`]|$)/
+		const violations = files.flatMap((file) => {
+			const source = readFileSync(join(process.cwd(), file), "utf8")
+			return visibleLegacyPricingPattern.test(source) ? [file] : []
+		})
+
+		expect(
+			violations,
+			`Visible UX must use /rates/calendar; /pricing is redirect-only legacy:\n${violations.join("\n")}`
+		).toEqual([])
+		const routesSource = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
+		expect(routesSource).toContain('pricing: () => "/rates/calendar"')
+		expect(routesSource).toContain('pricingAutomation: () => "/rates/calendar#pricing-automation"')
+		expect(routesSource).not.toContain('pricing: () => "/pricing')
+		expect(routesSource).not.toContain('pricingAutomation: () => "/pricing')
 	})
 })
