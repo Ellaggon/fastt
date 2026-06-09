@@ -10,7 +10,6 @@ import {
 	InventoryLock,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	sql,
 	User,
 	Variant,
@@ -18,6 +17,7 @@ import {
 
 import { cacheKeys } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import type {
 	BookingFromHoldRepositoryPort,
 	CreateBookingFromHoldInput,
@@ -308,18 +308,12 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
 			const baseTotal = Number(snapshot.totalPrice)
+			const ratePlanName = await resolveRatePlanNameColumn()
 			const ratePlan = await tx
-				.select({ templateId: RatePlan.templateId })
+				.select({ name: ratePlanName })
 				.from(RatePlan)
 				.where(eq(RatePlan.id, snapshot.ratePlanId))
 				.get()
-			const ratePlanTemplate = ratePlan
-				? await tx
-						.select({ name: RatePlanTemplate.name })
-						.from(RatePlanTemplate)
-						.where(eq(RatePlanTemplate.id, ratePlan.templateId))
-						.get()
-				: null
 			const guest = params.input.userId
 				? await tx
 						.select({
@@ -423,7 +417,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					productIdSnapshot: product.id,
 					productNameSnapshot: product.productName,
 					variantNameSnapshot: variant.variantName,
-					ratePlanNameSnapshot: ratePlanTemplate?.name ?? null,
+					ratePlanNameSnapshot: ratePlan?.name ?? null,
 					occupancySnapshotJson: {
 						adults: Math.max(1, adults),
 						children: Math.max(0, children),

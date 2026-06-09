@@ -56,14 +56,14 @@ const inventoryBulkHref = selected
 	: routes.inventoryBulk()
 ---
 
-<WorkspaceLayout title="Inventario avanzado">
+<WorkspaceLayout title="Inventario físico">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Habitaciones y tarifas · Avanzado
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Inventario avanzado</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Inventario físico</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
 					Vista de capacidad física por {vocabulary.variant} para operación con escala. La operación diaria
 					de cupos se resuelve desde Calendario; esta pantalla queda para revisión detallada, multi-unidad
@@ -72,15 +72,12 @@ const inventoryBulkHref = selected
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<Button href={routes.pricing()} variant="primary">Ir al Calendario</Button>
-				<Button href={routes.rateRestrictions()} variant="secondary">Reglas avanzadas</Button>
+				<Button href={routes.rateRestrictions()} variant="secondary">Reglas de venta</Button>
 				<Button href={routes.productRooms()} variant="secondary">Habitaciones</Button>
 			</div>
 		</header>
 
-		<section
-			data-mobile-calendar-summary
-			class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs sm:hidden"
-		>
+		<section data-mobile-calendar-summary class="flex flex-wrap gap-2 text-xs sm:hidden">
 			<span
 				class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 font-semibold text-slate-100"
 			>
@@ -136,8 +133,8 @@ const inventoryBulkHref = selected
 				>
 					<p class="max-w-2xl leading-6">
 						Para operación diaria, ajusta cupos desde la pestaña <strong>Disponibilidad</strong>
-						del Calendario. Inventario avanzado queda como capa física: revisión detallada, multi-unidad
-						y correcciones excepcionales.
+						del Calendario. Inventario físico queda como capa: revisión detallada, multi-unidad y correcciones
+						excepcionales.
 					</p>
 					<Button href={routes.pricing()} variant="secondary" size="sm">Abrir Calendario</Button>
 				</div>

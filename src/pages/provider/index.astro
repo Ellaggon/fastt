@@ -8,6 +8,7 @@ import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 type ProviderStep = "register" | "profile" | "verification" | null
@@ -53,6 +54,8 @@ const showSuccess = successParam === "saved" || successParam === "updated"
 let provider: ProviderAggregate["provider"] | null = null
 let profile: ProviderAggregate["profile"] | null = null
 let latestVerification: ProviderAggregate["latestVerification"] | null = null
+let professionalToolsEnabled = false
+let professionalToolsUpdatedAt: Date | null = null
 
 if (isStepView && userId && providerId && !loadError) {
 	try {
@@ -64,6 +67,28 @@ if (isStepView && userId && providerId && !loadError) {
 		loadError = "No pudimos cargar los datos del proveedor en este momento."
 	}
 }
+
+if (!isStepView && providerId && !loadError) {
+	try {
+		const preferences = await getProviderProfessionalToolsPreference(providerId)
+		professionalToolsEnabled = preferences.professionalToolsEnabled
+		professionalToolsUpdatedAt = preferences.updatedAt
+	} catch {
+		professionalToolsEnabled = false
+		professionalToolsUpdatedAt = null
+	}
+}
+
+const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
+const professionalToolsSaved = professionalToolsParam === "saved"
+const professionalToolsError = professionalToolsParam === "error"
+const professionalToolsUpdatedLabel = professionalToolsUpdatedAt
+	? professionalToolsUpdatedAt.toLocaleDateString("es-BO", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+		})
+	: "Sin cambios registrados"
 ---
 
 <WorkspaceLayout title="Proveedor">
@@ -79,6 +104,38 @@ if (isStepView && userId && providerId && !loadError) {
 							</p>
 						</div>
 						<Badge variant="success">Guardado</Badge>
+					</div>
+				</Card>
+			)
+		}
+		{
+			professionalToolsSaved && (
+				<Card>
+					<div class="flex items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-lg font-semibold text-slate-900">
+								Herramientas profesionales actualizadas
+							</p>
+							<p class="text-sm text-slate-600">
+								El sidebar se ajustará según la preferencia del proveedor, escala y rol.
+							</p>
+						</div>
+						<Badge variant="success">Guardado</Badge>
+					</div>
+				</Card>
+			)
+		}
+		{
+			professionalToolsError && (
+				<Card>
+					<div class="flex items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-lg font-semibold text-slate-900">No se pudo actualizar</p>
+							<p class="text-sm text-slate-600">
+								Revisa que la migración de preferencias del proveedor esté aplicada.
+							</p>
+						</div>
+						<Badge variant="error">Error</Badge>
 					</div>
 				</Card>
 			)
@@ -130,7 +187,7 @@ if (isStepView && userId && providerId && !loadError) {
 							<div class="space-y-2">
 								<h1
 									id="providerTitle"
-									class="text-3xl font-semibold uppercase tracking-wide text-slate-100"
+									class="text-3xl font-semibold tracking-wide text-slate-100 uppercase"
 								>
 									Cargando proveedor...
 								</h1>
@@ -288,6 +345,73 @@ if (isStepView && userId && providerId && !loadError) {
 								</div>
 							</Card>
 						</div>
+					</section>
+
+					<section class="space-y-4">
+						<header class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">Configuración</h2>
+							<p class="text-sm text-slate-300">
+								Preferencias que cambian cómo se organiza el espacio de trabajo.
+							</p>
+						</header>
+						<Card class="bg-slate-100">
+							<form
+								method="post"
+								action="/api/provider/preferences/professional-tools"
+								class="space-y-5"
+							>
+								<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+									<div class="max-w-2xl space-y-2">
+										<div class="flex flex-wrap items-center gap-3">
+											<h2 class="text-xl font-semibold text-slate-900">
+												Herramientas profesionales
+											</h2>
+											<Badge variant={professionalToolsEnabled ? "success" : "neutral"}>
+												{professionalToolsEnabled ? "Activadas" : "Desactivadas"}
+											</Badge>
+										</div>
+										<p class="text-sm leading-6 text-slate-600">
+											Activa herramientas para manejar muchas tarifas, reglas, inventario físico y
+											operaciones masivas.
+										</p>
+										<p class="text-sm leading-6 text-slate-600">
+											Recomendado si administras varios hoteles, muchas habitaciones o reglas
+											recurrentes.
+										</p>
+										<p class="text-xs text-slate-500">
+											Última actualización: {professionalToolsUpdatedLabel}
+										</p>
+									</div>
+									<label class="flex min-w-[220px] items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+										<span>Mostrar herramientas profesionales</span>
+										<input
+											type="checkbox"
+											name="professionalToolsEnabled"
+											checked={professionalToolsEnabled}
+											class="h-5 w-5 rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A]"
+										/>
+									</label>
+								</div>
+								<div class="rounded-xl border border-slate-200 bg-white p-4">
+									<p class="text-sm font-semibold text-slate-900">Al activar</p>
+									<p class="mt-1 text-sm leading-6 text-slate-600">
+										El sidebar puede mostrar Inventario físico, Reglas de venta y Operaciones
+										masivas junto a las superficies base de Tarifas, Calendario y Condiciones.
+									</p>
+									<p class="mt-3 text-sm font-semibold text-slate-900">Al desactivar</p>
+									<p class="mt-1 text-sm leading-6 text-slate-600">
+										Se oculta la navegación avanzada para proveedores pequeños. Los datos existentes
+										se conservan y siguen disponibles para roles internos, soporte o proveedores con
+										escala operativa.
+									</p>
+								</div>
+								<div class="flex justify-end">
+									<Button type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
+										Guardar preferencia
+									</Button>
+								</div>
+							</form>
+						</Card>
 					</section>
 
 					<section class="space-y-4">

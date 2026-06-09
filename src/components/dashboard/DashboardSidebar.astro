@@ -10,7 +10,6 @@ import {
 } from "@/lib/backoffice-governance"
 import {
 	getProviderSidebarData,
-	isProfessionalToolsExplicitlyEnabled,
 	type ProviderSidebarReadiness,
 } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
@@ -41,7 +40,6 @@ try {
 	if (providerId) {
 		const sidebarData = await getProviderSidebarData(providerId, {
 			userId: user?.id,
-			professionalToolsEnabled: isProfessionalToolsExplicitlyEnabled(Astro.request),
 		})
 		sidebarReadiness = sidebarData.summaries
 		disclosureMode = sidebarData.disclosureMode
@@ -50,9 +48,9 @@ try {
 	sidebarReadiness = {
 		[routes.ratePlansList()]: "Tarifas: readiness no disponible.",
 		[routes.pricing()]: "Calendario: readiness no disponible.",
-		[routes.inventory()]: "Inventario avanzado: readiness no disponible.",
-		[routes.rateRestrictions()]: "Restricciones avanzadas: readiness no disponible.",
-		[routes.pricingAutomation()]: "Reglas masivas: readiness no disponible.",
+		[routes.inventory()]: "Inventario físico: readiness no disponible.",
+		[routes.rateRestrictions()]: "Reglas de venta: readiness no disponible.",
+		[routes.pricingAutomation()]: "Operaciones masivas: readiness no disponible.",
 		[routes.providerPolicies()]: "Condiciones: readiness no disponible.",
 	}
 }

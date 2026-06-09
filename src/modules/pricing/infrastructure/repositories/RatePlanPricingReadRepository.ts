@@ -10,9 +10,9 @@ import {
 	PriceRule,
 	RatePlan,
 	RatePlanOccupancyPolicy,
-	RatePlanTemplate,
 	sql,
 } from "astro:db"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import type {
 	PricingRuleUiSummary,
@@ -109,15 +109,15 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 	async listRatePlanModifierSummaryByVariant(
 		variantId: string
 	): Promise<RatePlanPricingModifierSummary[]> {
+		const ratePlanName = await resolveRatePlanNameColumn()
 		const plans = await db
 			.select({
 				id: RatePlan.id,
-				name: RatePlanTemplate.name,
+				name: ratePlanName,
 				isDefault: RatePlan.isDefault,
 				isActive: RatePlan.isActive,
 			})
 			.from(RatePlan)
-			.leftJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 			.where(eq(RatePlan.variantId, variantId))
 			.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive), asc(RatePlan.createdAt))
 			.all()

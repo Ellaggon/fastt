@@ -32,12 +32,12 @@ const productId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const variant = variantId ? await variantManagementRepository.getVariantById(variantId) : null
 ---
 
-<WorkspaceLayout title="Inventario avanzado · Operaciones masivas">
+<WorkspaceLayout title="Inventario físico · Operaciones masivas">
 	<div class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Inventario avanzado · Operaciones masivas
+					Inventario físico · Operaciones masivas
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Flujo avanzado de inventario físico</h1>
 				<p class="text-sm text-slate-300">
@@ -49,7 +49,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 			</div>
 			<div class="flex items-center gap-2">
 				<Button href={routes.pricing()} variant="primary">Ir al Calendario</Button>
-				<Button href={routes.rateRestrictions()} variant="secondary">Reglas avanzadas</Button>
+				<Button href={routes.rateRestrictions()} variant="secondary">Reglas de venta</Button>
 				{
 					productId && variantId ? (
 						<Button href={routes.productRoomInventory(productId, variantId)} variant="secondary">
@@ -57,7 +57,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 						</Button>
 					) : (
 						<Button href={routes.inventory()} variant="secondary">
-							Volver a Inventario avanzado
+							Volver a Inventario físico
 						</Button>
 					)
 				}
@@ -76,8 +76,8 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 						usa reglas de venta.
 					</p>
 					<p data-bulk-advanced-context class="mt-2 text-xs text-slate-600">
-						Este flujo complementa Inventario avanzado para rangos excepcionales; el Calendario
-						sigue siendo la operación diaria de cupo físico.
+						Este flujo complementa Inventario físico para rangos excepcionales; el Calendario sigue
+						siendo la operación diaria de cupo físico.
 					</p>
 					<div class="mt-3">
 						<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
@@ -87,7 +87,7 @@ const variant = variantId ? await variantManagementRepository.getVariantById(var
 				</div>
 				<div class="grid gap-4 md:grid-cols-4">
 					<FormField label="Unidad" required>
-						<Input id="bulkVariantId" value={variantId} placeholder="Precargada desde Inventory" />
+						<Input id="bulkVariantId" value={variantId} placeholder="Precargada desde Inventario" />
 					</FormField>
 					<FormField label="Desde" required>
 						<Input id="bulkDateFrom" type="date" value={dateFrom} />

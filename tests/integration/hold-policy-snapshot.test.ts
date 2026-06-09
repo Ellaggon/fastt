@@ -370,7 +370,8 @@ describe("integration/hold policy snapshot", () => {
 			.insert(RatePlan)
 			.values({
 				id: ratePlanIdB,
-				templateId,
+				name: "Default",
+				description: null,
 				variantId,
 				isActive: true,
 				isDefault: false,

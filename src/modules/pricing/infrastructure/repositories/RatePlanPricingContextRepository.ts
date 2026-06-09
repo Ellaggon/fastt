@@ -1,4 +1,5 @@
-import { and, db, eq, Product, RatePlan, RatePlanTemplate, Variant } from "astro:db"
+import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 import type {
 	RatePlanPricingContext,
@@ -10,10 +11,11 @@ export class RatePlanPricingContextRepository implements RatePlanPricingContextR
 		providerId: string
 		ratePlanId: string
 	}): Promise<RatePlanPricingContext | null> {
+		const ratePlanName = await resolveRatePlanNameColumn()
 		const row = await db
 			.select({
 				ratePlanId: RatePlan.id,
-				ratePlanName: RatePlanTemplate.name,
+				ratePlanName,
 				productId: Product.id,
 				productName: Product.name,
 				variantId: Variant.id,
@@ -22,7 +24,6 @@ export class RatePlanPricingContextRepository implements RatePlanPricingContextR
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 			.where(and(eq(RatePlan.id, params.ratePlanId), eq(Product.providerId, params.providerId)))
 			.get()
 

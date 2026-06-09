@@ -4,13 +4,14 @@ import {
 	Product,
 	Variant,
 	VariantCapacity,
-	RatePlanTemplate,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	PriceRule,
 	eq,
 	and,
 } from "astro:db"
+
+const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
 
 export async function upsertDestination(row: {
 	id: string
@@ -210,38 +211,33 @@ export async function upsertRatePlanTemplate(row: {
 	paymentType?: string
 	refundable?: boolean
 }) {
-	await db
-		.insert(RatePlanTemplate)
-		.values({
-			id: row.id,
-			name: row.name,
-			description: row.description ?? null,
-			createdAt: new Date(),
-		})
-		.onConflictDoUpdate({
-			target: [RatePlanTemplate.id],
-			set: {
-				name: row.name,
-				description: row.description ?? null,
-			},
-		})
+	ratePlanTemplateFixtures.set(row.id, {
+		name: row.name,
+		description: row.description ?? null,
+	})
 }
 
 export async function upsertRatePlan(row: {
 	id: string
-	templateId: string
+	templateId?: string
 	variantId: string
+	name?: string
+	description?: string | null
 	isActive: boolean
 	isDefault?: boolean
 	baseAmount?: number
 	baseCurrency?: string
 }) {
+	const fixture = row.templateId ? ratePlanTemplateFixtures.get(row.templateId) : null
+	const name = String(row.name ?? fixture?.name ?? row.id)
+	const description = row.description ?? fixture?.description ?? null
 	await db
 		.insert(RatePlan)
 		.values({
 			id: row.id,
-			templateId: row.templateId,
 			variantId: row.variantId,
+			name,
+			description,
 			isDefault: row.isDefault ?? false,
 			isActive: row.isActive,
 			createdAt: new Date(),
@@ -249,8 +245,9 @@ export async function upsertRatePlan(row: {
 		.onConflictDoUpdate({
 			target: [RatePlan.id],
 			set: {
-				templateId: row.templateId,
 				variantId: row.variantId,
+				name,
+				description,
 				isDefault: row.isDefault ?? false,
 				isActive: row.isActive,
 			},

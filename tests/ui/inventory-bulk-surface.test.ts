@@ -11,7 +11,7 @@ describe("ui/inventory bulk surface", () => {
 		const source = read("src/pages/inventory/bulk.astro")
 		expect(source).toContain("Operación avanzada de inventario")
 		expect(source).toContain("la operación diaria de cupos vive en Calendario")
-		expect(source).toContain("Volver a Inventario avanzado")
+		expect(source).toContain("Volver a Inventario físico")
 		expect(source).toContain("Ir al Calendario")
 		expect(source).toContain('id="bulkPreviewBtn"')
 		expect(source).toContain('id="bulkApplyBtn"')

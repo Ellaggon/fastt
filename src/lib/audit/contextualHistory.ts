@@ -9,16 +9,20 @@ import {
 	PriceRule,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	Restriction,
 	Variant,
 } from "astro:db"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 export type ContextualHistoryItem = {
 	id: string
 	title: string
 	description: string
 	meta: string
+	objectType: "tarifa" | "habitacion" | "fecha" | "condicion" | "hotel" | "operacion"
+	objectLabel: string
+	beforeLabel?: string
+	afterLabel?: string
 	createdAt: string
 	tone: "neutral" | "success" | "warning" | "info"
 }
@@ -106,6 +110,18 @@ function policyEventLabel(type: unknown) {
 	return labels[key] ?? (key || "Evento de condición")
 }
 
+function policyCategoryLabel(category: unknown) {
+	const key = String(category ?? "")
+	const labels: Record<string, string> = {
+		cancellation: "Cancelación",
+		payment: "Pago",
+		no_show: "No presentación",
+		check_in: "Ingreso y salida",
+		checkin: "Ingreso y salida",
+	}
+	return labels[key] ?? (key || "Condición")
+}
+
 function scopeLabel(scope: unknown) {
 	const key = String(scope ?? "")
 	const labels: Record<string, string> = {
@@ -116,6 +132,39 @@ function scopeLabel(scope: unknown) {
 		global: "biblioteca",
 	}
 	return labels[key] ?? (key || "alcance")
+}
+
+function stringifyValue(value: unknown): string {
+	if (value == null || value === "") return "sin dato"
+	if (typeof value === "boolean") return value ? "activo" : "inactivo"
+	if (typeof value === "number") return String(value)
+	if (typeof value === "string") return value
+	if (Array.isArray(value)) return `${value.length} elemento${value.length === 1 ? "" : "s"}`
+	if (typeof value === "object") return "detalle actualizado"
+	return String(value)
+}
+
+function summarizeAuditPayload(value: unknown, fallback: string): string {
+	if (!value || typeof value !== "object") return fallback
+	const record = value as Record<string, unknown>
+	const preferredKeys = [
+		"status",
+		"state",
+		"category",
+		"scope",
+		"channel",
+		"policyId",
+		"policyGroupId",
+		"assignmentId",
+	]
+	const parts = preferredKeys
+		.filter((key) => record[key] !== undefined && record[key] !== null && record[key] !== "")
+		.slice(0, 3)
+		.map((key) => `${key}: ${stringifyValue(record[key])}`)
+	if (parts.length) return parts.join(" · ")
+	const keys = Object.keys(record).slice(0, 3)
+	if (!keys.length) return fallback
+	return keys.map((key) => `${key}: ${stringifyValue(record[key])}`).join(" · ")
 }
 
 export async function loadRatesContextualHistory(params: {
@@ -136,16 +185,16 @@ export async function loadRatesContextualHistory(params: {
 		...new Set(ratePlans.map((row) => String(row.productId ?? "")).filter(Boolean)),
 	]
 
+	const ratePlanName = await resolveRatePlanNameColumn()
 	const ratePlanRows = await db
 		.select({
 			id: RatePlan.id,
 			createdAt: RatePlan.createdAt,
-			templateName: RatePlanTemplate.name,
+			ratePlanName,
 		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 		.innerJoin(Product, eq(Product.id, Variant.productId))
-		.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 		.where(and(eq(Product.providerId, params.providerId), inArray(RatePlan.id, ratePlanIds)))
 		.orderBy(desc(RatePlan.createdAt))
 		.limit(limit)
@@ -206,7 +255,11 @@ export async function loadRatesContextualHistory(params: {
 				id: `rate_plan:${row.id}`,
 				title: "Tarifa creada",
 				description: `${ratePlanLabel(ratePlanMap, row.id)} quedó disponible para operación comercial.`,
-				meta: row.templateName ? `Plantilla: ${row.templateName}` : "Origen: tarifa",
+				meta: row.ratePlanName ? `Tarifa: ${row.ratePlanName}` : "Origen: tarifa",
+				objectType: "tarifa" as const,
+				objectLabel: ratePlanLabel(ratePlanMap, row.id),
+				beforeLabel: "No existía en la operación comercial",
+				afterLabel: row.ratePlanName ? `Tarifa ${row.ratePlanName}` : "Tarifa disponible",
 				createdAt: toIso(row.createdAt),
 				tone: "success" as const,
 			})),
@@ -215,6 +268,10 @@ export async function loadRatesContextualHistory(params: {
 				title: "Regla de precio creada",
 				description: `${rule.name || priceRuleLabel(rule.type)} sobre ${ratePlanLabel(ratePlanMap, rule.ratePlanId)}.`,
 				meta: `${priceRuleLabel(rule.type)} · ${Number(rule.value ?? 0)} · ${rule.isActive ? "activa" : "inactiva"}`,
+				objectType: "tarifa" as const,
+				objectLabel: ratePlanLabel(ratePlanMap, rule.ratePlanId),
+				beforeLabel: "Sin esta regla de precio",
+				afterLabel: `${priceRuleLabel(rule.type)} · ${Number(rule.value ?? 0)} · ${rule.isActive ? "activa" : "inactiva"}`,
 				createdAt: toIso(rule.createdAt),
 				tone: "info" as const,
 			})),
@@ -223,6 +280,10 @@ export async function loadRatesContextualHistory(params: {
 				title: "Regla de venta creada",
 				description: `${restrictionTypeLabel(rule.type)} aplicada a ${scopeLabel(rule.scope)}.`,
 				meta: `${String(rule.startDate ?? "sin inicio")} a ${String(rule.endDate ?? "sin fin")} · ${rule.isActive ? "activa" : "inactiva"}`,
+				objectType: "fecha" as const,
+				objectLabel: `${String(rule.startDate ?? "sin inicio")} a ${String(rule.endDate ?? "sin fin")}`,
+				beforeLabel: "Venta sin esta regla",
+				afterLabel: `${restrictionTypeLabel(rule.type)} · ${rule.isActive ? "activa" : "inactiva"}`,
 				createdAt: toIso(rule.createdAt),
 				tone: rule.isActive ? ("warning" as const) : ("neutral" as const),
 			})),
@@ -246,6 +307,8 @@ export async function loadPolicyContextualHistory(params: {
 			channel: PolicyAuditLog.channel,
 			createdAt: PolicyAuditLog.createdAt,
 			policyGroupId: PolicyAuditLog.policyGroupId,
+			beforeJson: PolicyAuditLog.beforeJson,
+			afterJson: PolicyAuditLog.afterJson,
 			category: PolicyGroup.category,
 		})
 		.from(PolicyAuditLog)
@@ -258,8 +321,12 @@ export async function loadPolicyContextualHistory(params: {
 	return rows.map((row) => ({
 		id: `policy_audit:${row.id}`,
 		title: policyEventLabel(row.eventType),
-		description: `${String(row.category ?? "Condición")} actualizada en la biblioteca contractual.`,
-		meta: `${scopeLabel(row.scope ?? "global")} · ${String(row.scopeId ?? row.policyGroupId ?? "sin alcance")} · ${String(row.channel ?? "todos los canales")}`,
+		description: `${policyCategoryLabel(row.category)} actualizada en la biblioteca contractual.`,
+		meta: `${scopeLabel(row.scope ?? "global")} · ${String(row.channel ?? "todos los canales")}`,
+		objectType: "condicion",
+		objectLabel: policyCategoryLabel(row.category),
+		beforeLabel: summarizeAuditPayload(row.beforeJson, "Estado anterior no registrado"),
+		afterLabel: summarizeAuditPayload(row.afterJson, "Cambio registrado"),
 		createdAt: toIso(row.createdAt),
 		tone: "info",
 	}))

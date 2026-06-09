@@ -8,7 +8,6 @@ import {
 	EffectiveRestriction,
 	InventoryLock,
 	RatePlan,
-	RatePlanTemplate,
 	Variant,
 	eq,
 	and,
@@ -120,18 +119,10 @@ async function seedVariantWithInventory(params: {
 		isActive: true,
 	} as any)
 
-	const ratePlanTemplateId = `rpt_hold_${crypto.randomUUID()}`
-	await db.insert(RatePlanTemplate).values({
-		id: ratePlanTemplateId,
-		name: "Hold Template",
-		paymentType: "pay_at_property",
-		refundable: true,
-		createdAt: new Date(),
-	} as any)
 	await db.insert(RatePlan).values({
 		id: params.ratePlanId,
-		templateId: ratePlanTemplateId,
 		variantId: params.variantId,
+		name: "Hold Tarifa",
 		isDefault: true,
 		isActive: true,
 		createdAt: new Date(),

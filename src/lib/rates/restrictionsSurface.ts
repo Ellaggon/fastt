@@ -8,13 +8,13 @@ import {
 	or,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	Restriction,
 	Variant,
 } from "astro:db"
 import { randomUUID } from "node:crypto"
 
 import { logger } from "@/lib/observability/logger"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import {
 	computeRestrictionPriority,
 	type RecomputeEffectiveRestrictionsResult,
@@ -356,18 +356,18 @@ async function loadProviderTargets(providerId: string) {
 		.all()
 
 	const variantIds = variants.map((variant) => String(variant.id))
+	const ratePlanName = await resolveRatePlanNameColumn()
 	const ratePlans = variantIds.length
 		? await db
 				.select({
 					id: RatePlan.id,
-					name: RatePlanTemplate.name,
+					name: ratePlanName,
 					variantId: Variant.id,
 					variantName: Variant.name,
 					productId: Product.id,
 					productName: Product.name,
 				})
 				.from(RatePlan)
-				.innerJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
 				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(inArray(RatePlan.variantId, variantIds))

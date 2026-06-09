@@ -12,7 +12,6 @@ import {
 	InventoryLock,
 	Product,
 	RatePlan,
-	RatePlanTemplate,
 	Variant,
 } from "astro:db"
 
@@ -96,7 +95,6 @@ async function seedBookingReadyVariant(params: {
 	dates: string[]
 }) {
 	const destinationId = `dest_bk_inv_${crypto.randomUUID()}`
-	const ratePlanTemplateId = `rpt_bk_inv_${crypto.randomUUID()}`
 
 	await db.insert(Destination).values({
 		id: destinationId,
@@ -124,17 +122,10 @@ async function seedBookingReadyVariant(params: {
 		createdAt: new Date(),
 	} as any)
 
-	await db.insert(RatePlanTemplate).values({
-		id: ratePlanTemplateId,
-		name: "Default",
-		paymentType: "pay_at_property",
-		refundable: true,
-		createdAt: new Date(),
-	} as any)
 	await db.insert(RatePlan).values({
 		id: params.ratePlanId,
-		templateId: ratePlanTemplateId,
 		variantId: params.variantId,
+		name: "Default",
 		isDefault: true,
 		isActive: true,
 		createdAt: new Date(),

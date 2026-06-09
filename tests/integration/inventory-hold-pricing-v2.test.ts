@@ -7,7 +7,6 @@ import {
 	EffectivePricingV2,
 	eq,
 	RatePlan,
-	RatePlanTemplate,
 	Variant,
 } from "astro:db"
 
@@ -109,18 +108,10 @@ async function seedFixture(params: {
 		createdAt: new Date(),
 		isActive: true,
 	} as any)
-	const ratePlanTemplateId = `rpt_hold_v2_${crypto.randomUUID()}`
-	await db.insert(RatePlanTemplate).values({
-		id: ratePlanTemplateId,
-		name: "Hold V2 Template",
-		paymentType: "pay_at_property",
-		refundable: true,
-		createdAt: new Date(),
-	} as any)
 	await db.insert(RatePlan).values({
 		id: params.ratePlanId,
-		templateId: ratePlanTemplateId,
 		variantId: params.variantId,
+		name: "Hold V2 Tarifa",
 		isDefault: true,
 		isActive: true,
 		createdAt: new Date(),

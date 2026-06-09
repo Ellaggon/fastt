@@ -1,4 +1,8 @@
-import { db, eq, inArray, RatePlan, RatePlanTemplate, Variant } from "astro:db"
+import { db, eq, inArray, RatePlan, Variant } from "astro:db"
+import {
+	resolveRatePlanDescriptionColumn,
+	resolveRatePlanNameColumn,
+} from "@/lib/rates/ratePlanSchemaCompat"
 import type {
 	RatePlanListByProductRepositoryPort,
 	RatePlanListItemByProduct,
@@ -14,17 +18,20 @@ export class RatePlanListByProductRepository implements RatePlanListByProductRep
 
 		if (variantIds.length === 0) return []
 
+		const [ratePlanName, ratePlanDescription] = await Promise.all([
+			resolveRatePlanNameColumn(),
+			resolveRatePlanDescriptionColumn(),
+		])
 		return db
 			.select({
 				id: RatePlan.id,
 				variantId: RatePlan.variantId,
 				isDefault: RatePlan.isDefault,
 				isActive: RatePlan.isActive,
-				templateId: RatePlan.templateId,
-				templateName: RatePlanTemplate.name,
+				name: ratePlanName,
+				description: ratePlanDescription,
 			})
 			.from(RatePlan)
-			.innerJoin(RatePlanTemplate, eq(RatePlan.templateId, RatePlanTemplate.id))
 			.where(inArray(RatePlan.variantId, variantIds))
 			.all()
 	}

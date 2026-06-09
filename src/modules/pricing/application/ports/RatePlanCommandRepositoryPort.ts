@@ -1,14 +1,9 @@
 export interface CreateRatePlanCommand {
-	template: {
-		id: string
-		name: string
-		description: string | null
-		createdAt: Date
-	}
 	ratePlan: {
 		id: string
 		variantId: string
-		templateId: string
+		name: string
+		description: string | null
 		isDefault?: boolean
 		isActive: boolean
 		createdAt: Date
@@ -41,10 +36,8 @@ export interface RatePlanCommandRepositoryPort {
 	updateRatePlan(params: {
 		ratePlanId: string
 		isActive: boolean
-		template: {
-			name: string
-			description: string | null
-		}
+		name: string
+		description: string | null
 		priceRule: null | {
 			id: string
 			ratePlanId: string

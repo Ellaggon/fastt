@@ -5,8 +5,9 @@ import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { POLICY_EXCEPTION_RULE_TYPES } from "@/modules/policies/public"
-import { asc, db, Product, Provider, RatePlan, RatePlanTemplate, Variant, eq } from "astro:db"
+import { asc, db, Product, Provider, RatePlan, Variant, eq } from "astro:db"
 
 let isAdmin = false
 try {
@@ -56,25 +57,26 @@ const items = filters.q
 				.includes(filters.q)
 		)
 	: rawItems
-const scopeRows = isAdmin
-	? await db
-			.select({
-				productId: Product.id,
-				productName: Product.name,
-				providerName: Provider.displayName,
-				variantId: Variant.id,
-				variantName: Variant.name,
-				ratePlanId: RatePlan.id,
-				ratePlanName: RatePlanTemplate.name,
-			})
-			.from(Product)
-			.leftJoin(Provider, eq(Provider.id, Product.providerId))
-			.leftJoin(Variant, eq(Variant.productId, Product.id))
-			.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
-			.leftJoin(RatePlanTemplate, eq(RatePlanTemplate.id, RatePlan.templateId))
-			.orderBy(asc(Product.name), asc(Variant.name), asc(RatePlanTemplate.name))
-			.all()
-	: []
+const scopeRows = await (async () => {
+	if (!isAdmin) return []
+	const ratePlanName = await resolveRatePlanNameColumn()
+	return db
+		.select({
+			productId: Product.id,
+			productName: Product.name,
+			providerName: Provider.displayName,
+			variantId: Variant.id,
+			variantName: Variant.name,
+			ratePlanId: RatePlan.id,
+			ratePlanName,
+		})
+		.from(Product)
+		.leftJoin(Provider, eq(Provider.id, Product.providerId))
+		.leftJoin(Variant, eq(Variant.productId, Product.id))
+		.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+		.orderBy(asc(Product.name), asc(Variant.name), asc(ratePlanName))
+		.all()
+})()
 const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
 const categories = [
 	{ value: "Cancellation", label: "Cancelación" },
@@ -84,8 +86,8 @@ const categories = [
 ]
 const scopes = [
 	{ value: "global", label: "Global" },
-	{ value: "product", label: "Producto" },
-	{ value: "variant", label: "Variante" },
+	{ value: "product", label: "Oferta / hotel" },
+	{ value: "variant", label: "Habitación / variante" },
 	{ value: "rate_plan", label: "Tarifa" },
 ]
 const exceptionTypeLabels: Record<string, string> = {
@@ -264,12 +266,12 @@ function approvalLabel(item: any): string {
 										name="q"
 										value={filters.q}
 										class="w-full rounded border border-slate-300 p-2"
-										placeholder="Buscar por motivo, evidencia, scope, creador o ID"
+										placeholder="Buscar por motivo, evidencia, alcance, creador o ID"
 										data-policy-exception-search
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Scope</span>
+									<span class="font-semibold">Alcance</span>
 									<select name="scope" class="w-full rounded border border-slate-300 p-2">
 										<option value="all" selected={filters.scope === "all"}>
 											Todos
@@ -335,7 +337,7 @@ function approvalLabel(item: any): string {
 										class="w-full rounded border border-slate-300 p-2"
 									>
 										<option value="global::">Global: toda la plataforma</option>
-										<optgroup label="Productos">
+										<optgroup label="Ofertas y hoteles">
 											{Array.from(productOptions.entries()).map(([id, label]) => (
 												<option value={`product::${id}`}>{label}</option>
 											))}
