@@ -156,9 +156,7 @@ function formatBathroomSummary(room: any): string {
 }
 
 function formatOccupancySummary(room: any, offer: any): string {
-	const count = Number(
-		room?.maxOccupancyOverride ?? room?.maxOccupancy ?? offer?.variant?.maxOccupancy ?? 0
-	)
+	const count = Number(room?.maxOccupancy ?? offer?.variant?.maxOccupancy ?? 0)
 	return Number.isFinite(count) && count > 0
 		? `Hasta ${count} huésped${count > 1 ? "es" : ""}`
 		: "Capacidad por confirmar"
@@ -339,8 +337,8 @@ export function toRoomSectionRows(params: {
 							? `${roomMetaRaw.bathroomCount ?? roomMetaRaw.bathroom} baño${Number(roomMetaRaw.bathroomCount ?? roomMetaRaw.bathroom) > 1 ? "s" : ""}`
 							: "Baños no especificados",
 					occupancy:
-						(roomMetaRaw?.maxOccupancy ?? roomMetaRaw?.maxOccupancyOverride) != null
-							? `${roomMetaRaw.maxOccupancy ?? roomMetaRaw.maxOccupancyOverride} persona${Number(roomMetaRaw.maxOccupancy ?? roomMetaRaw.maxOccupancyOverride) > 1 ? "s" : ""}`
+						roomMetaRaw?.maxOccupancy != null
+							? `${roomMetaRaw.maxOccupancy} persona${Number(roomMetaRaw.maxOccupancy) > 1 ? "s" : ""}`
 							: "Capacidad no especificada",
 				},
 			})

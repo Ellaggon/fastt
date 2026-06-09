@@ -276,13 +276,11 @@ const VariantRoomProfile = defineTable({
 	columns: {
 		variantId: column.text({ primaryKey: true, references: () => Variant.columns.id }),
 		roomTypeId: column.text({ references: () => RoomType.columns.id, optional: true }),
-		totalRooms: column.number({ default: 0 }),
 		sizeM2: column.number({ optional: true }),
 		viewType: column.text({ optional: true }),
 		bathroomCount: column.number({ optional: true }),
 		bathroomType: column.text({ optional: true }), // private | shared | ensuite | dedicated | unknown
 		hasBalcony: column.boolean({ optional: true }),
-		maxOccupancyOverride: column.number({ optional: true }),
 		guestFacingNotes: column.text({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
@@ -554,19 +552,6 @@ const RatePlanOccupancyPolicy = defineTable({
 	},
 	indexes: [{ on: ["ratePlanId", "effectiveFrom", "effectiveTo"] }],
 })
-const RatePlanOccupancyOverride = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
-		occupancyKey: column.text(),
-		dateFrom: column.date(),
-		dateTo: column.date(),
-		overrideType: column.text(), // fixed | delta
-		value: column.number(),
-		createdAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["ratePlanId", "occupancyKey", "dateFrom", "dateTo"], unique: true }],
-})
 const PriceRule = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -655,20 +640,6 @@ const EffectivePricingV2 = defineTable({
 	],
 })
 
-const TaxFee = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		// Legacy tax table kept for compatibility during CAPA 7 rollout.
-		// Plain text avoids remote reset failures caused by FK teardown order.
-		productId: column.text(),
-		type: column.text({ default: "percentage" }), // 'percentage'|'fixed'|'perPerson'|'perNight'|'perBooking'
-		value: column.number(), // 13 => 13% si type=percentage, o 50 (moneda) si fixed
-		currency: column.text({ default: "USD" }),
-		isIncluded: column.boolean({ default: false }), // si está incluido en el precio mostrado
-		isActive: column.boolean({ default: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-})
 // CAPA 7 (Taxes & Fees): canonical additive tax/fee definitions.
 const TaxFeeDefinition = defineTable({
 	columns: {
@@ -1186,12 +1157,10 @@ export default defineDb({
 		// 6 pricing
 		RatePlan,
 		RatePlanOccupancyPolicy,
-		RatePlanOccupancyOverride,
 		PriceRule,
 		Restriction,
 		EffectiveRestriction,
 		EffectivePricingV2,
-		TaxFee,
 		TaxFeeDefinition,
 		TaxFeeAssignment,
 

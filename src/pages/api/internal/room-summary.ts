@@ -12,6 +12,7 @@ import {
 	inArray,
 	AmenityRoom,
 	RoomType,
+	VariantInventoryConfig,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -204,7 +205,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			variantId: VariantRoomProfile.variantId,
 			roomTypeId: VariantRoomProfile.roomTypeId,
 			roomTypeName: RoomType.name,
-			totalRooms: VariantRoomProfile.totalRooms,
 			sizeM2: VariantRoomProfile.sizeM2,
 			viewType: VariantRoomProfile.viewType,
 			bathroomCount: VariantRoomProfile.bathroomCount,
@@ -216,6 +216,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 		.where(eq(VariantRoomProfile.variantId, variantId))
 		.get()
+	const inventoryConfig = await db
+		.select({
+			defaultTotalUnits: VariantInventoryConfig.defaultTotalUnits,
+		})
+		.from(VariantInventoryConfig)
+		.where(eq(VariantInventoryConfig.variantId, variantId))
+		.get()
+	const defaultTotalUnits = Number(inventoryConfig?.defaultTotalUnits ?? 0)
 	const roomBeds = await db
 		.select({
 			bedType: VariantRoomBed.bedType,
@@ -486,6 +494,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						: "",
 				viewSummary: roomProfile?.viewType ? `Vista ${roomProfile.viewType}` : "",
 				hasBalcony: roomProfile?.hasBalcony === true,
+				totalRooms: defaultTotalUnits,
 				guestFacingNotes: roomProfile?.guestFacingNotes ?? "",
 				amenityLabels: availableAmenities
 					.map((amenity) => String(amenity.amenityName ?? amenity.amenityId ?? "").trim())
@@ -533,6 +542,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				inventory: {
 					complete: inventoryComplete,
 					summary: inventorySummary,
+					defaultTotalUnits,
 				},
 			},
 			summary: {

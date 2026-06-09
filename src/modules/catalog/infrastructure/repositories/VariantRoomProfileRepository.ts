@@ -1,4 +1,13 @@
-import { db, eq, inArray, RoomType, VariantRoomBed, VariantRoomProfile } from "astro:db"
+import {
+	db,
+	eq,
+	inArray,
+	RoomType,
+	VariantCapacity,
+	VariantInventoryConfig,
+	VariantRoomBed,
+	VariantRoomProfile,
+} from "astro:db"
 import type { VariantRoomProfileRepositoryPort } from "../../application/ports/VariantRoomProfileRepositoryPort"
 
 export class VariantRoomProfileRepository implements VariantRoomProfileRepositoryPort {
@@ -6,23 +15,23 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 		const variantIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))]
 		if (!variantIds.length) return []
 
-		const [profiles, beds] = await Promise.all([
+		const [profiles, beds, inventoryConfigs] = await Promise.all([
 			db
 				.select({
 					id: VariantRoomProfile.variantId,
 					roomTypeId: VariantRoomProfile.roomTypeId,
 					roomTypeName: RoomType.name,
-					totalRooms: VariantRoomProfile.totalRooms,
 					viewType: VariantRoomProfile.viewType,
 					sizeM2: VariantRoomProfile.sizeM2,
 					bathroomCount: VariantRoomProfile.bathroomCount,
 					bathroomType: VariantRoomProfile.bathroomType,
 					hasBalcony: VariantRoomProfile.hasBalcony,
-					maxOccupancyOverride: VariantRoomProfile.maxOccupancyOverride,
+					maxOccupancy: VariantCapacity.maxOccupancy,
 					guestFacingNotes: VariantRoomProfile.guestFacingNotes,
 				})
 				.from(VariantRoomProfile)
 				.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
+				.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, VariantRoomProfile.variantId))
 				.where(inArray(VariantRoomProfile.variantId, variantIds))
 				.all(),
 			db
@@ -36,7 +45,21 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 				.from(VariantRoomBed)
 				.where(inArray(VariantRoomBed.variantId, variantIds))
 				.all(),
+			db
+				.select({
+					variantId: VariantInventoryConfig.variantId,
+					defaultTotalUnits: VariantInventoryConfig.defaultTotalUnits,
+				})
+				.from(VariantInventoryConfig)
+				.where(inArray(VariantInventoryConfig.variantId, variantIds))
+				.all(),
 		])
+		const unitsByVariant = new Map(
+			inventoryConfigs.map((config) => [
+				String(config.variantId),
+				Number(config.defaultTotalUnits ?? 0),
+			])
+		)
 
 		const bedsByVariant = new Map<
 			string,
@@ -60,7 +83,7 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 				variantId: String(profile.id),
 				roomTypeId: profile.roomTypeId ? String(profile.roomTypeId) : null,
 				roomTypeName: profile.roomTypeName ? String(profile.roomTypeName) : null,
-				totalRooms: Number(profile.totalRooms ?? 0),
+				totalRooms: unitsByVariant.get(String(profile.id)) ?? 0,
 				hasView: profile.viewType ?? null,
 				viewType: profile.viewType ?? null,
 				bedType: beds,
@@ -70,8 +93,7 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 				bathroomCount: profile.bathroomCount ?? null,
 				bathroomType: profile.bathroomType ?? null,
 				hasBalcony: profile.hasBalcony ?? null,
-				maxOccupancyOverride: profile.maxOccupancyOverride ?? null,
-				maxOccupancy: profile.maxOccupancyOverride ?? null,
+				maxOccupancy: profile.maxOccupancy ?? null,
 				guestFacingNotes: profile.guestFacingNotes ?? null,
 			}
 		})

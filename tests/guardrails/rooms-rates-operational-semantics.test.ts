@@ -53,6 +53,97 @@ const physicalContextFiles = [
 ].sort()
 
 describe("Guardrail: Rooms & Rates operational semantics", () => {
+	it("resolves occupancy-specific price overrides through PriceRule", () => {
+		const dbConfig = read("db/config.ts")
+		const priceRule = dbConfig.match(/const PriceRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+
+		expect(dbConfig).not.toContain("const RatePlanOccupancyOverride")
+		expect(dbConfig).not.toContain("RatePlanOccupancyOverride,")
+		expect(priceRule).toContain("occupancyKey")
+		expect(priceRule).toContain('type: column.text({ default: "modifier" })')
+		expect(priceRule).toContain("dateRangeJson")
+		expect(priceRule).toContain("priority")
+	})
+
+	it("keeps physical inventory units in VariantInventoryConfig", () => {
+		const dbConfig = read("db/config.ts")
+		const roomProfile =
+			dbConfig.match(/const VariantRoomProfile = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const inventoryConfig =
+			dbConfig.match(/const VariantInventoryConfig = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const variantCapacity =
+			dbConfig.match(/const VariantCapacity = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+
+		expect(roomProfile).not.toContain("totalRooms")
+		expect(roomProfile).not.toContain("maxOccupancyOverride")
+		expect(inventoryConfig).toContain("defaultTotalUnits")
+		expect(variantCapacity).toContain("minOccupancy")
+		expect(variantCapacity).toContain("maxOccupancy")
+	})
+
+	it("uses TaxFeeDefinition and TaxFeeAssignment as the only taxes/fees contract", () => {
+		const dbConfig = read("db/config.ts")
+		const catalogPublic = read("src/modules/catalog/public.ts")
+		const catalogContainer = read("src/container/catalog.container.ts")
+
+		expect(dbConfig).not.toContain("const TaxFee = defineTable")
+		expect(dbConfig).not.toContain("\n\t\tTaxFee,")
+		expect(dbConfig).toContain("const TaxFeeDefinition = defineTable")
+		expect(dbConfig).toContain("const TaxFeeAssignment = defineTable")
+		expect(catalogPublic).not.toContain("create-tax")
+		expect(catalogPublic).not.toContain("update-tax")
+		expect(catalogPublic).not.toContain("delete-tax")
+		expect(catalogPublic).not.toContain("get-taxes")
+		expect(catalogPublic).not.toContain("TaxFeeRepositoryPort")
+		expect(catalogContainer).not.toContain(
+			"modules/catalog/infrastructure/repositories/TaxFeeRepository"
+		)
+		expect(catalogContainer).not.toContain("taxFeeRepository")
+	})
+
+	it("documents source, derived, and snapshot table roles", () => {
+		const dbConfig = read("db/config.ts")
+		const taxonomy = read("docs/engineering/rooms-rates-table-taxonomy.md")
+		const sourceTables = [
+			"Variant",
+			"RatePlan",
+			"DailyInventory",
+			"PriceRule",
+			"Restriction",
+			"PolicyGroup",
+			"Policy",
+			"PolicyAssignment",
+			"PolicyRule",
+			"PolicyExceptionRule",
+			"PolicyAuditLog",
+			"TaxFeeDefinition",
+			"TaxFeeAssignment",
+		]
+		const derivedTables = [
+			"EffectiveAvailability",
+			"EffectivePricingV2",
+			"EffectiveRestriction",
+			"SearchUnitView",
+		]
+		const snapshotTables = ["Hold", "BookingRoomDetail", "BookingPolicySnapshot", "BookingTaxFee"]
+
+		for (const table of [...sourceTables, ...derivedTables, ...snapshotTables]) {
+			expect(dbConfig, `${table} must exist in db/config.ts`).toContain(
+				`const ${table} = defineTable`
+			)
+			expect(taxonomy, `${table} must be classified in the table taxonomy`).toContain(
+				`\`${table}\``
+			)
+		}
+
+		expect(taxonomy).toContain("## Source Of Truth")
+		expect(taxonomy).toContain("## Derived / Read Model")
+		expect(taxonomy).toContain("## Snapshot")
+		expect(taxonomy).toContain("New provider-facing mutations must target source-of-truth")
+		expect(taxonomy).toContain("BookingTaxFee")
+		expect(taxonomy).toContain("not the removed legacy `TaxFee` table")
+	})
+
 	it("blocks legacy pricing language from active Rooms & Rates surfaces", () => {
 		const bannedCopy = [
 			/Tarifa base/i,

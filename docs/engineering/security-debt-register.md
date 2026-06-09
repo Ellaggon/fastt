@@ -1,25 +1,35 @@
 # Security & Technical Debt Register (Phase H)
 
-Last updated: 2026-04-27
+Last updated: 2026-06-09
 
 ## Scope
 
-This register captures unresolved dependency/security debt after the Astro 6 migration and stabilizations.
+This register captures unresolved dependency/security debt after the Astro 6 migration and
+stabilizations. Vulnerability counts in this document are the last known audit result, not
+a live security status.
 
-## Current dependency security status
+## Last audited dependency security status
+
+Last audit date: 2026-04-27
 
 Audit baseline command:
 
 ```bash
-npm audit --json
+pnpm audit --json
 ```
 
-Current summary:
+Last known summary:
 
 - Total vulnerabilities: 7
 - High: 2
 - Moderate: 5
 - Critical: 0
+
+## Next audit required
+
+Run a fresh `pnpm audit --json` in a dedicated audit phase before using this register for
+merge, release or security-risk decisions. Package registry access may require network
+approval in sandboxed environments.
 
 ## Active items
 

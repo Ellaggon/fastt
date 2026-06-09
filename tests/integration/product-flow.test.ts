@@ -4,6 +4,7 @@ import {
 	RoomType,
 	Variant,
 	VariantCapacity,
+	VariantInventoryConfig,
 	VariantRoomBed,
 	VariantRoomProfile,
 } from "astro:db"
@@ -104,10 +105,15 @@ describe("integration/catalog Product V2 flow", () => {
 		await db.insert(VariantRoomProfile).values({
 			variantId,
 			roomTypeId,
-			totalRooms: 1,
 			sizeM2: 28,
 			bathroomCount: 1,
 			bathroomType: "private",
+		})
+		await db.insert(VariantInventoryConfig).values({
+			variantId,
+			defaultTotalUnits: 1,
+			horizonDays: 365,
+			createdAt: new Date(),
 		})
 		await db.insert(VariantRoomBed).values({
 			id: `${variantId}:bed:queen`,

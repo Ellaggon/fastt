@@ -29,7 +29,7 @@ describe("room-section viewmodel", () => {
 					viewType: "al jardín",
 					bathroomCount: 1,
 					bathroomType: "private",
-					maxOccupancyOverride: 3,
+					maxOccupancy: 3,
 					hasBalcony: true,
 					guestFacingNotes: "Acceso por segundo piso.",
 					beds: [

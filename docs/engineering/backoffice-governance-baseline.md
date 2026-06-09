@@ -29,15 +29,15 @@ Runtime invariants remain unchanged:
 
 ## Shell governance
 
-| Shell               | Status            | Rule                                                            |
-| ------------------- | ----------------- | --------------------------------------------------------------- |
-| WorkspaceLayout     | Canonical         | Provider workspace and enterprise operations.                   |
-| InternalAdminLayout | Canonical         | Internal admin surfaces only.                                   |
-| DashboardLayout     | Legacy isolated   | Kept as debt but no active page may import it.                  |
-| NavDashboardLayout  | Legacy isolated   | Not the enterprise navigation map and not used by active pages. |
-| UILayout            | Public            | Marketplace only.                                               |
-| SearchLayout        | Public            | Search/discovery only.                                          |
-| Layout              | Transitional base | Auth/public/simple pages only; not a provider workspace shell.  |
+| Shell               | Status            | Rule                                                             |
+| ------------------- | ----------------- | ---------------------------------------------------------------- |
+| WorkspaceLayout     | Canonical         | Provider workspace and enterprise operations.                    |
+| InternalAdminLayout | Canonical         | Internal admin surfaces only.                                    |
+| DashboardLayout     | Compatibility     | Alias over WorkspaceLayout; it must not own separate navigation. |
+| NavDashboardLayout  | Legacy isolated   | Not the enterprise navigation map and not used by active pages.  |
+| UILayout            | Public            | Marketplace only.                                                |
+| SearchLayout        | Public            | Search/discovery only.                                           |
+| Layout              | Transitional base | Auth/public/simple pages only; not a provider workspace shell.   |
 
 ## Route governance
 
@@ -49,8 +49,8 @@ Mandatory coverage:
 - Every `src/pages/api/**/*.ts` route must match one governance classification.
 - `/api/internal/**` defaults to internal-only, except explicitly classified provider-facing BFF/read/operational endpoints.
 - `/admin/**` must remain internal-admin.
-- `/pricing/calendar` remains legacy redirect-only and must not be exported as a normal route helper.
-- No active page may import or render `DashboardLayout`.
+- `/pricing/**` routes remain legacy redirect/contextual compatibility and must not be exported as primary route helpers.
+- `DashboardLayout` may exist only as a WorkspaceLayout compatibility alias; active pages must not use it as an independent shell.
 - `InternalAdminLayout` may only be used under `src/pages/admin/**`.
 - Provider-facing pages may not call APIs classified as `internal-only`.
 - Navigation targets must match their route classification status and owner.
@@ -63,12 +63,12 @@ Mandatory coverage:
 | /dashboard                                                             | Canonical                | Enterprise Operations        | Command Center              |
 | /product/\*\*                                                          | Canonical                | Provider Workspace           | Property Content            |
 | /rates/plans/\*\*                                                      | Canonical                | Enterprise Operations        | Rooms & Rates               |
-| /pricing/bulk                                                          | Canonical                | Enterprise Operations        | Rooms & Rates               |
-| /pricing/rules                                                         | Transitional             | Enterprise Operations        | Rooms & Rates               |
-| /pricing/calendar                                                      | Legacy                   | Enterprise Operations        | Rooms & Rates               |
-| /inventory/bulk                                                        | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /rates/calendar                                                        | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /rates/restrictions                                                    | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /pricing, /pricing/rules, /pricing/calendar                            | Legacy                   | Enterprise Operations        | Rooms & Rates               |
+| /inventory, /inventory/bulk                                            | Transitional             | Enterprise Operations        | Rooms & Rates               |
 | /booking/\*\*                                                          | Canonical                | Enterprise Operations        | Reservations                |
-| /provider/policies/\*\*                                                | Transitional             | Enterprise Operations        | Rooms & Rates               |
+| /provider/policies/\*\*                                                | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /provider/tax-fees                                                     | Transitional             | Enterprise Operations        | Payments & Finance          |
 | /analytics/\*\*                                                        | Transitional             | Enterprise Operations        | Analytics & Performance     |
 | /system/integrations                                                   | Transitional             | Enterprise Operations        | Connectivity                |
@@ -95,7 +95,7 @@ Mandatory coverage:
 The sidebar is organized by operational ownership, not implementation folders.
 
 1. Command Center
-2. Rooms & Rates
+2. Habitaciones y tarifas
 3. Reservations
 4. Property Content
 5. Payments & Finance
@@ -133,32 +133,44 @@ but they must be visually marked as transitional in both navigation and shell co
 Planned modules must not link anywhere until a real route and ownership classification exist.
 They are collapsed by default to avoid roadmap clutter.
 
-## Capa 2 Rooms & Rates enterprise core
+## Capa 2 Rooms & Rates operating model
 
-Rooms & Rates is now the enterprise ARI operating hub. `/rates/plans` is no longer only a
-rate-plan list; it is the governed Rooms & Rates Hub and must communicate the separation
-between:
+Habitaciones y tarifas is calendar-first. It is not a generic ARI hub and it must not expose
+future maturity as primary navigation. The provider-facing mental model is:
 
-- **Commercial rate plan layer:** rate plans, rate-plan pricing, pricing rules, and selling
-  conditions. RatePlan remains the commercial selector for pricing.
-- **Physical inventory layer:** products, room types, variants, availability, capacity, and
-  bulk inventory. Variant remains the physical/inventory owner where that ownership is correct.
-- **Commercial conditions:** cancellation policy and policy audit surfaces remain transitional
-  under Rooms & Rates; taxes and fees are a governed financial dependency owned by Payments &
-  Finance.
-- **ARI maturity roadmap:** ARI Summary, Restrictions, Occupancy Pricing, and Audit History
-  remain non-clickable roadmap markers until real routes and ownership exist.
+- **Tarifas:** commercial rate plans attached to rooms, including price base, commercial
+  readiness and links to resolve missing setup.
+- **Calendario:** daily operating surface for price, available units, sellability, sales
+  rules, reservations/holds and applicable conditions.
+- **Condiciones:** contractual matrix and library for cancellation, payment, no-show and
+  check-in/check-out terms by rate, room, hotel and channel scope.
+
+Advanced tools exist only by progressive disclosure: role, provider scale or explicit
+professional-tools preference. They may appear as contextual or professional surfaces, but
+must not clutter the small-provider sidebar.
+
+- **Inventario físico:** advanced physical inventory detail; daily unit operation lives in
+  Calendario.
+- **Reglas de venta:** professional sale-rule workspace for recurrent min-stay, stop-sell,
+  arrival/departure and booking-window rules.
+- **Operaciones masivas:** batch price/inventory/rule actions inside the calendar operating
+  context.
 
 The canonical operating map lives in `roomsAndRatesOperationalMap` inside
-`src/lib/backoffice-governance.ts`. The Rooms & Rates Hub consumes that map directly, and CI
-enforces that physical lanes do not navigate into pricing surfaces, commercial lanes do not
-navigate into variant internals, and planned ARI surfaces remain non-navigable.
+`src/lib/backoffice-governance.ts`. CI enforces that physical lanes do not navigate into
+pricing mutation ownership, commercial lanes do not navigate into variant internals, and
+provider navigation stays calendar-first.
 
 ## Navigation rules
 
 - Do not link provider sidebar items directly to `/api/**`.
-- Do not expose legacy `/pricing/calendar` in primary navigation.
+- Do not expose legacy `/pricing/**` in primary navigation.
 - Do not export `routes.pricingCalendar()` as a normal helper.
+- Keep `/rates/calendar` as the daily operating surface for price, cupo, sale rules and
+  applicable conditions.
+- Keep the small-provider sidebar focused on Tarifas, Calendario and Condiciones.
+- Expose Inventario físico, Reglas de venta and Operaciones masivas only through progressive
+  disclosure.
 - Do not export route helpers for nonexistent pages.
 - Do not use a generic System bucket for governance, connectivity, or provider setup.
 - Do not duplicate conceptual entries that navigate to the same route unless they represent different valid contexts.
@@ -177,12 +189,13 @@ navigate into variant internals, and planned ARI surfaces remain non-navigable.
 - Provider sidebar is ownership-driven and consumes `enterpriseNavigation`.
 - Direct internal API links were removed from operator navigation.
 - Provider-facing `/api/internal/*` BFF/read endpoints are explicitly classified; true internal ops remain internal-only.
-- `/pricing/calendar` is legacy redirect-only, removed from primary navigation, and no longer exported by `routes.ts`.
+- `/pricing/**` routes are legacy redirect/contextual compatibility, removed from primary navigation.
 - `routes.catalog()` was removed because no `/catalog` surface exists.
-- Provider policies and tax-fees run on `WorkspaceLayout`.
+- Condiciones runs as a canonical Rooms & Rates surface; taxes/fees run as a transitional
+  Payments & Finance surface.
 - Internal admin pages run on `InternalAdminLayout`.
 - Internal admin product review no longer depends on provider context or redirects to provider workspace.
-- Active pages no longer use `DashboardLayout`.
+- `DashboardLayout` no longer owns navigation; it may exist only as WorkspaceLayout compatibility.
 - Astro page and API route governance coverage is enforced in CI.
 - Navigation guardrails block internal-only and legacy-route leakage.
 - Shell/context alignment and navigation/owner compatibility are enforced in CI.
@@ -191,13 +204,13 @@ navigate into variant internals, and planned ARI surfaces remain non-navigable.
 - Planned modules are collapsed roadmap markers, not active workspaces.
 - Topbar uses human-readable operational context labels instead of raw governance enums.
 - WorkspaceLayout renders a shared page-level context panel for all workspace pages.
-- Rooms & Rates renders the Capa 2 ARI ownership map without adding new pricing, inventory, or
-  channel-management runtime behavior.
+- Habitaciones y tarifas exposes Tarifas, Calendario and Condiciones as the primary operating
+  flow, with advanced inventory/rules/bulk operations behind progressive disclosure.
 
 ## Residual debt accepted after Capa 0
 
-- `DashboardLayout` and `NavDashboardLayout` still exist as isolated legacy files but are not used by active pages.
-- Several surfaces remain transitional by design: Analytics, Connectivity, provider policies, taxes/fees, provider settings, verification.
+- `NavDashboardLayout` still exists as isolated legacy debt and is not the enterprise navigation source.
+- Several surfaces remain transitional by design: Analytics, Connectivity, taxes/fees, provider settings, verification.
 - `/system/integrations` keeps its historical path for compatibility, but visible ownership is Connectivity.
 - Several provider-facing BFF endpoints still live under `/api/internal/*` for URL compatibility, but their governance classification is no longer internal-only.
 - Full role-aware permissions remain future work; Capa 1 only canonicalizes visible shell/navigation governance.

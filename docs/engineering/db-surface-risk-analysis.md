@@ -1,6 +1,6 @@
 # DB Surface Risk Analysis (Phase H)
 
-Last updated: 2026-04-27
+Last updated: 2026-06-09
 
 ## Objective
 
@@ -81,10 +81,10 @@ Residual risk:
 1. Keep concurrency invariant tests mandatory for DB upgrades:
    - `tests/integration/inventory-hold.test.ts` race/conflict expectations.
 2. Re-run full validation on any `@astrojs/db` or Drizzle change:
-   - `npm run check`
-   - `npx tsc --noEmit`
-   - `npm test`
-   - `npm run build`
+   - `pnpm exec astro check`
+   - `pnpm exec tsc --noEmit`
+   - `pnpm test`
+   - `pnpm build`
 3. Explicitly reject introducing dynamic SQL identifiers without strict sanitization or whitelist strategy.
 
 ## 7) Conclusion
