@@ -54,7 +54,7 @@ function bathroomCount(room: any): number | null {
 }
 
 function occupancyCount(room: any): number | null {
-	const value = Number(room?.maxOccupancy ?? room?.maxOccupancyOverride)
+	const value = Number(room?.maxOccupancy)
 	return Number.isFinite(value) ? value : null
 }
 

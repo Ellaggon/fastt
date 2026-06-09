@@ -215,7 +215,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		await db.insert(VariantRoomProfile).values({
 			variantId: params.variantId,
 			roomTypeId: params.roomTypeId,
-			totalRooms: 0,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		})

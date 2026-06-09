@@ -6,6 +6,7 @@ import {
 	RoomType,
 	Variant,
 	VariantCapacity,
+	VariantInventoryConfig,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -178,13 +179,18 @@ describe("integration/room profile editor", () => {
 			expect(typeof json?.variantId).toBe("string")
 
 			const variantId = json.variantId as string
-			const [variant, capacity, profile, beds, amenities] = await Promise.all([
+			const [variant, capacity, profile, inventoryConfig, beds, amenities] = await Promise.all([
 				db.select().from(Variant).where(eq(Variant.id, variantId)).get(),
 				db.select().from(VariantCapacity).where(eq(VariantCapacity.variantId, variantId)).get(),
 				db
 					.select()
 					.from(VariantRoomProfile)
 					.where(eq(VariantRoomProfile.variantId, variantId))
+					.get(),
+				db
+					.select()
+					.from(VariantInventoryConfig)
+					.where(eq(VariantInventoryConfig.variantId, variantId))
 					.get(),
 				db.select().from(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId)).all(),
 				db
@@ -208,14 +214,16 @@ describe("integration/room profile editor", () => {
 			})
 			expect(profile).toMatchObject({
 				roomTypeId,
-				totalRooms: 5,
 				sizeM2: 32,
 				viewType: "Jardín",
 				bathroomCount: 1,
 				bathroomType: "private",
 				hasBalcony: true,
-				maxOccupancyOverride: 3,
 				guestFacingNotes: "Acceso por segundo piso.",
+			})
+			expect(inventoryConfig).toMatchObject({
+				defaultTotalUnits: 5,
+				horizonDays: 365,
 			})
 			expect(beds.map((bed) => bed.bedType).sort()).toEqual(["queen", "sofa_bed"])
 			expect(amenities).toHaveLength(1)

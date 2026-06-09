@@ -1,14 +1,21 @@
 import type { APIRoute } from "astro"
-import { taxFeeRepository } from "@/container"
-import { createTax } from "@/modules/catalog/public"
 
-export const POST: APIRoute = async ({ params, request }) => {
-	const productId = params.id
-	const body = await request.json()
-
-	const { type, value, currency, isIncluded, isActive } = body
-	return createTax(
-		{ repo: taxFeeRepository },
-		{ productId: productId || "", type, value, currency, isIncluded, isActive }
+function gone() {
+	return new Response(
+		JSON.stringify({
+			error: "Legacy product taxes endpoint retired",
+			message:
+				"Usa /api/provider/tax-fees/definitions y /api/provider/tax-fees/assignments. TaxFeeDefinition + TaxFeeAssignment son la fuente canónica.",
+		}),
+		{
+			status: 410,
+			headers: {
+				"Content-Type": "application/json",
+				"Deprecation": "true",
+				"Link": '</provider/tax-fees>; rel="canonical"',
+			},
+		}
 	)
 }
+
+export const POST: APIRoute = async () => gone()

@@ -50,7 +50,7 @@ export class InventoryBootstrapService {
 			await db.insert(DailyInventory).values(inserts)
 		}
 
-		// 3️⃣ Batch update (si cambió totalRooms)
+		// 3️⃣ Batch update when the canonical physical unit count changes.
 		if (updates.length > 0) {
 			await db
 				.update(DailyInventory)

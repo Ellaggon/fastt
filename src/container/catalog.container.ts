@@ -4,7 +4,6 @@ import { SubtypeRepository } from "../modules/catalog/infrastructure/repositorie
 import { ProviderRepository } from "../modules/catalog/infrastructure/repositories/ProviderRepository"
 import { ProviderV2Repository } from "../modules/catalog/infrastructure/repositories/ProviderV2Repository"
 import { ProductRepository } from "../modules/catalog/infrastructure/repositories/ProductRepository"
-import { TaxFeeRepository } from "../modules/catalog/infrastructure/repositories/TaxFeeRepository"
 import { ProductServiceRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceRepository"
 import { ProductImageRepository } from "../modules/catalog/infrastructure/repositories/ProductImageRepository"
 import { ImageUploadRepository } from "../modules/catalog/infrastructure/repositories/ImageUploadRepository"
@@ -40,7 +39,6 @@ export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
 export const providerV2Repository = new ProviderV2Repository()
 export const productRepository = new ProductRepository(r2)
-export const taxFeeRepository = new TaxFeeRepository()
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
 export const imageUploadRepository = new ImageUploadRepository()

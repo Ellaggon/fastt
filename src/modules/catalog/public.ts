@@ -5,15 +5,11 @@
 // Application use-cases
 export * from "./application/use-cases/create-provider"
 export * from "./application/use-cases/create-product-subtype"
-export * from "./application/use-cases/create-tax"
 export * from "./application/use-cases/delete-product"
 export * from "./application/use-cases/delete-product-service"
-export * from "./application/use-cases/delete-tax"
-export * from "./application/use-cases/get-taxes"
 export * from "./application/use-cases/sync-product-services"
 export * from "./application/use-cases/update-product-service"
 export * from "./application/use-cases/update-product-subtype"
-export * from "./application/use-cases/update-tax"
 
 // Provider V2 (parallel system)
 export { registerProviderV2 } from "./application/use-cases/provider-v2/register-provider-v2"
@@ -48,7 +44,6 @@ export * from "./application/ports/ProductImageRepositoryPort"
 export * from "./application/ports/ProductRepositoryPort"
 export * from "./application/ports/ProductServiceQueryRepositoryPort"
 export * from "./application/ports/ProductServiceRepositoryPort"
-export * from "./application/ports/TaxFeeRepositoryPort"
 export * from "./application/ports/ProviderV2RepositoryPort"
 export * from "./application/ports/VariantManagementRepositoryPort"
 

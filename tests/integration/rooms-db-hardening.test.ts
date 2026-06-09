@@ -4,6 +4,7 @@ import {
 	db,
 	Hotel,
 	RoomType,
+	VariantInventoryConfig,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -21,6 +22,7 @@ describe("rooms db hardening", () => {
 			destinationId: `dest_${variantId}`,
 			productId: `product_${variantId}`,
 			variantId,
+			maxOccupancy: 3,
 		})
 		await db.insert(Hotel).values({ productId: `product_${variantId}` })
 		await db.insert(RoomType).values({
@@ -32,14 +34,18 @@ describe("rooms db hardening", () => {
 		await db.insert(VariantRoomProfile).values({
 			variantId,
 			roomTypeId: `suite_${variantId}`,
-			totalRooms: 4,
 			viewType: "mar",
 			sizeM2: 32,
 			bathroomCount: 1,
 			bathroomType: "private",
 			hasBalcony: true,
-			maxOccupancyOverride: 3,
 			guestFacingNotes: "Vista al mar",
+		})
+		await db.insert(VariantInventoryConfig).values({
+			variantId,
+			defaultTotalUnits: 4,
+			horizonDays: 365,
+			createdAt: new Date(),
 		})
 		await db.insert(VariantRoomBed).values({
 			id: `${variantId}:bed:queen`,
@@ -107,7 +113,12 @@ describe("rooms db hardening", () => {
 		await db.insert(VariantRoomProfile).values({
 			variantId,
 			roomTypeId: `double_${variantId}`,
-			totalRooms: 2,
+		})
+		await db.insert(VariantInventoryConfig).values({
+			variantId,
+			defaultTotalUnits: 2,
+			horizonDays: 365,
+			createdAt: new Date(),
 		})
 		await db.insert(VariantRoomAmenity).values({
 			id: `${variantId}:amenity:${amenityId}`,

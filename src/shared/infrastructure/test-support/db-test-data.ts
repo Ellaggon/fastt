@@ -171,6 +171,8 @@ export async function seedTestProductVariant(params?: {
 	productId?: string
 	variantId?: string
 	basePrice?: number
+	minOccupancy?: number
+	maxOccupancy?: number
 }) {
 	const destinationId = params?.destinationId ?? "dest_test"
 	const productId = params?.productId ?? "prod_test"
@@ -198,6 +200,8 @@ export async function seedTestProductVariant(params?: {
 		name: "Test Variant",
 		baseRateCurrency: "USD",
 		baseRatePrice: params?.basePrice ?? 100,
+		minOccupancy: params?.minOccupancy,
+		maxOccupancy: params?.maxOccupancy,
 		isActive: true,
 	})
 

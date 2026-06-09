@@ -222,13 +222,11 @@ export const POST: APIRoute = async ({ request }) => {
 			parsed.hasBalcony === "true" ? true : parsed.hasBalcony === "false" ? false : null
 		const profileValues = {
 			roomTypeId,
-			totalRooms: parsed.totalRooms,
 			sizeM2: parsed.sizeM2,
 			viewType: parsed.viewType || null,
 			bathroomCount: parsed.bathroomCount,
 			bathroomType: parsed.bathroomType || null,
 			hasBalcony,
-			maxOccupancyOverride: parsed.maxOccupancy,
 			guestFacingNotes: parsed.guestFacingNotes || null,
 			updatedAt: new Date(),
 		}
@@ -245,6 +243,17 @@ export const POST: APIRoute = async ({ request }) => {
 				createdAt: new Date(),
 			})
 		}
+
+		await variantInventoryConfigRepository.upsert({
+			variantId,
+			defaultTotalUnits: parsed.totalRooms,
+			horizonDays: 365,
+		})
+		await inventoryBootstrapper.bootstrapVariantInventory({
+			variantId,
+			totalInventory: parsed.totalRooms,
+			days: 365,
+		})
 
 		await variantManagementRepository.upsertCapacity({
 			variantId,

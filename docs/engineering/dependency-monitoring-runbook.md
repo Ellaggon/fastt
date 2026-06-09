@@ -1,6 +1,6 @@
 # Dependency Security Monitoring Runbook
 
-Last updated: 2026-04-27
+Last updated: 2026-06-09
 
 ## Purpose
 
@@ -17,22 +17,23 @@ Provide an executable routine for monitoring unresolved dependency security debt
 ### Weekly check
 
 ```bash
-npm install
-npm audit --json
-npm ls drizzle-orm @astrojs/db path-to-regexp @astrojs/vercel @vercel/routing-utils
+pnpm install
+pnpm audit --json
+pnpm list drizzle-orm @astrojs/db path-to-regexp @astrojs/vercel @vercel/routing-utils
 ```
 
 Decision trigger:
 
 - If counts or severity increased, open/refresh debt issue immediately.
+- `pnpm audit` and package registry checks may require network access in sandboxed environments.
 
 ### Full validation gate (for any dependency change)
 
 ```bash
-npm run check
-npx tsc --noEmit
-npm test
-npm run build
+pnpm exec astro check
+pnpm exec tsc --noEmit
+pnpm test
+pnpm build
 ```
 
 If any command fails:
