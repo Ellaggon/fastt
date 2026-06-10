@@ -297,7 +297,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
-		rationale: "Official sellability domain for restriction rules and search evaluation.",
+		rationale: "Dominio profesional de reglas de venta para vendibilidad y evaluación de búsqueda.",
 	},
 	{
 		pattern: "/rates/calendar",
@@ -305,7 +305,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Calendario operativo unificado para precio, cupo, vendibilidad, restricciones y condiciones aplicables.",
+			"Calendario operativo unificado para precio, cupo, vendibilidad, reglas de venta y condiciones aplicables.",
 	},
 	{
 		pattern: "/pricing",
@@ -382,7 +382,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
-			"Reglas visibles para huéspedes; no son precios, restricciones ni condiciones de reserva.",
+			"Reglas visibles para huéspedes; no son precios, reglas de venta ni condiciones de reserva.",
 	},
 	{
 		pattern: "/provider/policies/**",
@@ -871,7 +871,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Operaciones comerciales",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona tarifas, calendario, condiciones y herramientas avanzadas de inventario, restricciones de venta y reglas cuando el proveedor tiene escala.",
+			"Gestiona tarifas, calendario, condiciones y herramientas avanzadas de inventario, reglas de venta y operaciones masivas cuando el proveedor tiene escala.",
 		maturity: "operational",
 		items: [
 			{
@@ -1102,6 +1102,14 @@ function shouldShowPlannedForDisclosure(context: SidebarDisclosureContext): bool
 	return context.mode !== "small-provider"
 }
 
+function shouldShowSectionPlannedForDisclosure(
+	section: EnterpriseNavigationSection,
+	context: SidebarDisclosureContext
+): boolean {
+	if (section.title === "Habitaciones y tarifas") return false
+	return shouldShowPlannedForDisclosure(context)
+}
+
 export function filterEnterpriseNavigationForDisclosure(
 	sections: readonly EnterpriseNavigationSection[],
 	context: SidebarDisclosureContext
@@ -1113,7 +1121,9 @@ export function filterEnterpriseNavigationForDisclosure(
 			return {
 				...section,
 				items,
-				planned: shouldShowPlannedForDisclosure(context) ? section.planned : undefined,
+				planned: shouldShowSectionPlannedForDisclosure(section, context)
+					? section.planned
+					: undefined,
 			}
 		})
 		.filter((section) => section.items.length > 0)
@@ -1183,10 +1193,10 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"Restricciones controla la venta; Condiciones controla los términos contractuales de reserva. Ninguno es motor de precios.",
+			"Reglas de venta controla vendibilidad; Condiciones controla los términos contractuales de reserva. Ninguno es motor de precios.",
 		surfaces: [
 			{
-				label: "Restricciones de venta",
+				label: "Reglas de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",

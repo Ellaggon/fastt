@@ -16,7 +16,7 @@ import {
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
-import { getProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
+import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
 
 export type ProviderSidebarReadiness = Partial<Record<string, string>>
 
@@ -189,7 +189,7 @@ async function getRestrictionsSummary(
 		...variantIds,
 		...productRows.map((row) => String(row.productId)),
 	].filter(Boolean)
-	if (!scopeIds.length) return "Sin alcances activos para restricciones."
+	if (!scopeIds.length) return "Sin alcances activos para reglas de venta."
 
 	const activeRestrictions = Number(
 		(
@@ -200,8 +200,8 @@ async function getRestrictionsSummary(
 				.get()
 		)?.value ?? 0
 	)
-	if (activeRestrictions === 0) return "Sin restricciones activas: venta abierta por defecto."
-	return `${plural(activeRestrictions, "restricción", "restricciones")} activas en tarifas, habitaciones u hotel.`
+	if (activeRestrictions === 0) return "Sin reglas de venta activas: venta abierta por defecto."
+	return `${plural(activeRestrictions, "regla de venta", "reglas de venta")} activas en tarifas, habitaciones u hotel.`
 }
 
 function hasScaleForAdvancedTools(metrics: ProviderSidebarMetrics): boolean {
@@ -298,11 +298,14 @@ export async function getProviderSidebarData(
 		countActiveRestrictions(scopeIds),
 		getProviderUserRole(normalizedProviderId, context.userId),
 	])
+	const professionalToolsPreference =
+		await getProviderProfessionalToolsPreferenceRead(normalizedProviderId)
 	const professionalToolsEnabled =
 		typeof context.professionalToolsEnabled === "boolean"
 			? context.professionalToolsEnabled
-			: (await getProviderProfessionalToolsPreference(normalizedProviderId))
-					.professionalToolsEnabled
+			: professionalToolsPreference.schemaAvailable
+				? professionalToolsPreference.professionalToolsEnabled
+				: false
 
 	const [ratesSummary, pricingSummary, inventorySummary, restrictionsSummary] = await Promise.all([
 		getRatesSummary(ratePlanIds),

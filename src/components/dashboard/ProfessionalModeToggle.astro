@@ -1,0 +1,65 @@
+---
+import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
+
+interface Props {
+	enabled: boolean
+	disclosureMode: SidebarDisclosureMode
+	lockedReason?: string
+	returnTo?: string
+}
+
+const { enabled, disclosureMode, lockedReason = "", returnTo = "" } = Astro.props
+const effectiveProfessional = disclosureMode !== "small-provider"
+const simpleDisabled = effectiveProfessional && Boolean(lockedReason)
+const professionalDisabled = effectiveProfessional
+const helperLabel =
+	lockedReason ||
+	(effectiveProfessional
+		? "Pro: herramientas profesionales visibles."
+		: "Simple: operación diaria limpia.")
+---
+
+<form
+	method="post"
+	action="/api/provider/preferences/professional-tools"
+	class="inline-flex min-w-0 items-center"
+	aria-label="Cambiar entre modo simple y modo pro"
+	title={helperLabel}
+	data-professional-mode-toggle
+>
+	<input type="hidden" name="returnTo" value={returnTo} />
+	<div
+		class="inline-grid grid-cols-2 rounded-full border border-slate-700/80 bg-slate-900/80 p-0.5 text-xs font-semibold shadow-sm"
+		role="group"
+		aria-label="Simple o Pro"
+	>
+		<button
+			type="submit"
+			name="mode"
+			value="simple"
+			disabled={!effectiveProfessional || simpleDisabled}
+			aria-pressed={!effectiveProfessional ? "true" : "false"}
+			class={`rounded-full px-3 py-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+				!effectiveProfessional
+					? "bg-white text-slate-950 shadow"
+					: "text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+			}`}
+		>
+			Simple
+		</button>
+		<button
+			type="submit"
+			name="mode"
+			value="professional"
+			disabled={professionalDisabled && enabled}
+			aria-pressed={effectiveProfessional ? "true" : "false"}
+			class={`rounded-full px-3 py-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+				effectiveProfessional
+					? "bg-white text-slate-950 shadow"
+					: "text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+			}`}
+		>
+			Pro
+		</button>
+	</div>
+</form>
