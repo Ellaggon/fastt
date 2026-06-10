@@ -3,18 +3,26 @@ import PolicyBuilder from "@/components/policy/PolicyBuilder.astro"
 import Button from "@/components/ui/Button.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
 
 const policyId = String(Astro.params.policyId ?? "").trim()
 if (!policyId) return Astro.redirect("/provider/policies")
 
+let providerId = ""
+let userId = ""
 try {
-	await requireProvider(Astro.request)
+	const auth = await requireProvider(Astro.request)
+	providerId = auth.providerId
+	userId = auth.user.id
 } catch (e: any) {
 	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
 	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
 	throw e
 }
+
+const sidebarData = await getProviderSidebarData(providerId, { userId })
+const isProfessionalPolicies = sidebarData.disclosureMode !== "small-provider"
 
 const policyRes = await fetch(new URL(`/api/policies/${policyId}`, Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
@@ -98,6 +106,7 @@ const initialValues = {
 			initialValues={initialValues}
 			previousPolicyId={policyId}
 			policyGroupId={policyGroupId}
+			showTechnicalAdvanced={isProfessionalPolicies}
 		/>
 	</div>
 </WorkspaceLayout>

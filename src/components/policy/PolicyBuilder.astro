@@ -31,6 +31,7 @@ type Props = {
 	initialValues?: InitialValues
 	previousPolicyId?: string
 	policyGroupId?: string
+	showTechnicalAdvanced?: boolean
 }
 
 const {
@@ -40,6 +41,7 @@ const {
 	initialValues = {},
 	previousPolicyId = "",
 	policyGroupId = "",
+	showTechnicalAdvanced = false,
 } = Astro.props as Props
 
 const isVersionMode = mode === "version"
@@ -553,7 +555,10 @@ function legalOverrideText(value: InitialValues["legalOverrideFlags"]) {
 				</label>
 			</section>
 
-			<details class="rounded-md border border-slate-200 p-4" data-technical-advanced>
+			<details
+				class:list={["rounded-md border border-slate-200 p-4", !showTechnicalAdvanced && "hidden"]}
+				data-technical-advanced
+			>
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">
 					Avanzado técnico
 				</summary>

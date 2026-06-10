@@ -707,7 +707,7 @@ export async function buildPricingCalendarSurface(input: {
 		timestamps: pricingRows.map((row) => row.computedAt),
 	})
 	const restrictionFreshness = evaluateMaterializationFreshness({
-		label: "Restricciones",
+		label: "Reglas de venta",
 		expectedRows,
 		timestamps: restrictionRows.map((row) => row.computedAt),
 	})
@@ -866,7 +866,7 @@ export async function buildInventoryCalendarSurface(input: {
 		timestamps: inventoryRows.map((row) => row.computedAt),
 	})
 	const restrictionFreshness = evaluateMaterializationFreshness({
-		label: "Restricciones",
+		label: "Reglas de venta",
 		expectedRows,
 		timestamps: restrictionRows.map((row) => row.computedAt),
 	})
