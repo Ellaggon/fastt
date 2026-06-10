@@ -2,9 +2,16 @@
 type Props = {
 	defaultScope?: "product" | "variant" | "rate_plan"
 	defaultScopeId?: string
+	defaultChannel?: string
+	isProfessionalMode?: boolean
 }
 
-const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
+const {
+	defaultScope = "rate_plan",
+	defaultScopeId = "",
+	defaultChannel = "",
+	isProfessionalMode = false,
+} = Astro.props
 ---
 
 <div
@@ -12,6 +19,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	class="fixed inset-0 z-[70] hidden bg-slate-950/70 p-4"
 	data-default-scope={defaultScope}
 	data-default-scope-id={defaultScopeId}
+	data-default-channel={defaultChannel}
 >
 	<div
 		class="mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl"
@@ -19,12 +27,11 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
 			<div>
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-					Asignación profesional
+					Asignación de condiciones
 				</p>
 				<h2 class="mt-1 text-xl font-semibold">Asignar condición</h2>
 				<p class="mt-1 text-sm text-slate-600">
-					Usa una condición publicada o crea una desde una plantilla. Revisa el impacto antes de
-					confirmar.
+					Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar.
 				</p>
 			</div>
 			<button
@@ -39,16 +46,19 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 		<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
 			<div class="grid gap-4 md:grid-cols-[1fr_320px]">
 				<form id="policyAssignmentForm" class="space-y-5">
-					<section class="rounded-lg border border-slate-200 p-4">
+					<section
+						class:list={["rounded-lg border border-slate-200 p-4", !isProfessionalMode && "hidden"]}
+						data-assignment-origin-section
+					>
 						<p class="text-sm font-semibold text-slate-900">1. Origen</p>
 						<div class="mt-3 grid gap-2 sm:grid-cols-2">
 							<label class="rounded-lg border border-slate-200 p-3 text-sm">
-								<input type="radio" name="assignmentMode" value="existing" checked />
+								<input type="radio" name="assignmentMode" value="existing" />
 								<span class="ml-2 font-medium">Usar condición existente</span>
 								<span class="mt-1 block text-slate-500">Selecciona una condición publicada.</span>
 							</label>
 							<label class="rounded-lg border border-slate-200 p-3 text-sm">
-								<input type="radio" name="assignmentMode" value="preset" />
+								<input type="radio" name="assignmentMode" value="preset" checked />
 								<span class="ml-2 font-medium">Crear desde plantilla</span>
 								<span class="mt-1 block text-slate-500">Crea y asigna una condición publicada.</span
 								>
@@ -57,8 +67,13 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 					</section>
 
 					<section class="rounded-lg border border-slate-200 p-4">
-						<p class="text-sm font-semibold text-slate-900">2. Condición</p>
-						<div id="assignmentExistingFields" class="mt-3 space-y-3">
+						<p class="text-sm font-semibold text-slate-900">
+							{isProfessionalMode ? "2. Condición" : "1. Condición"}
+						</p>
+						<div
+							id="assignmentExistingFields"
+							class:list={["mt-3 space-y-3", !isProfessionalMode && "hidden"]}
+						>
 							<label class="block text-sm font-medium text-slate-700" for="assignmentPolicyId">
 								Condición publicada
 							</label>
@@ -67,7 +82,10 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 								class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
 							></select>
 						</div>
-						<div id="assignmentPresetFields" class="mt-3 hidden grid gap-3 sm:grid-cols-2">
+						<div
+							id="assignmentPresetFields"
+							class:list={["mt-3 grid gap-3 sm:grid-cols-2", isProfessionalMode && "hidden"]}
+						>
 							<label class="block text-sm font-medium text-slate-700">
 								Categoría
 								<select
@@ -99,7 +117,9 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 					</section>
 
 					<section class="rounded-lg border border-slate-200 p-4">
-						<p class="text-sm font-semibold text-slate-900">3. Alcance</p>
+						<p class="text-sm font-semibold text-slate-900">
+							{isProfessionalMode ? "3. Alcance" : "2. Alcance"}
+						</p>
 						<div class="mt-3 grid gap-3 sm:grid-cols-2">
 							<label class="block text-sm font-medium text-slate-700">
 								Aplicar a
@@ -119,8 +139,14 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
 								></select>
 							</label>
-							<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
-								Canal
+							<label
+								class:list={[
+									"block text-sm font-medium text-slate-700 sm:col-span-2",
+									!isProfessionalMode && "hidden",
+								]}
+								data-assignment-channel-row
+							>
+								Canal avanzado
 								<select
 									id="assignmentChannel"
 									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
@@ -132,6 +158,13 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 									<option value="direct">Directo</option>
 								</select>
 							</label>
+							{
+								!isProfessionalMode && (
+									<p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 sm:col-span-2">
+										Canal: <span class="font-semibold text-slate-900">Todos los canales</span>
+									</p>
+								)
+							}
 						</div>
 					</section>
 				</form>
@@ -142,11 +175,11 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 						Cargando opciones...
 					</div>
 					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
-						<p class="text-sm font-semibold text-blue-950">Vista previa tipo OTA</p>
-						<p class="mt-1 text-xs text-blue-900">
+						<p class="text-sm font-semibold text-slate-950">Vista previa tipo OTA</p>
+						<p class="mt-1 text-xs text-slate-700">
 							Consecuencias visibles para operar sin leer reglas técnicas.
 						</p>
-						<div id="assignmentAirbnbPreview" class="mt-3 space-y-2 text-sm text-blue-950"></div>
+						<div id="assignmentAirbnbPreview" class="mt-3 space-y-2 text-sm text-slate-950"></div>
 					</div>
 					<div id="assignmentStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
 				</aside>
@@ -170,7 +203,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	</div>
 </div>
 
-<script>
+<script is:inline define:vars={{ isProfessionalMode }}>
 	// @ts-nocheck
 	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
 	const assignmentClose = document.getElementById("policyAssignmentClose")
@@ -205,7 +238,8 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	}
 
 	function selectedMode() {
-		return document.querySelector('input[name="assignmentMode"]:checked')?.value || "existing"
+		if (!isProfessionalMode) return "preset"
+		return document.querySelector('input[name="assignmentMode"]:checked')?.value || "preset"
 	}
 
 	function scopeLabel(scope) {
@@ -376,9 +410,9 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 				.map(
 					(item) => `
 						<div class="rounded-md border border-blue-200 bg-white/70 p-2">
-							<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">${assignmentEscape(item.label)}</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${assignmentEscape(item.label)}</p>
 							<p class="mt-1">${assignmentEscape(item.value)}</p>
-							${item.detail ? `<p class="mt-1 text-xs text-blue-800">${assignmentEscape(item.detail)}</p>` : ""}
+							${item.detail ? `<p class="mt-1 text-xs text-slate-600">${assignmentEscape(item.detail)}</p>` : ""}
 						</div>
 					`
 				)
@@ -399,7 +433,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 	function renderImpact() {
 		if (!impactBox) return
 		const selected = currentSelection()
-		const channel = channelSelect?.value || "todos los canales"
+		const channel = channelSelect?.value || "Todos los canales"
 		const source =
 			selected.mode === "existing"
 				? selected.policy?.label || "Selecciona una condición publicada"
@@ -415,7 +449,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 			<div class="rounded-lg border border-slate-200 bg-white p-3">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Destino</p>
 				<p class="mt-1 font-medium text-slate-900">${assignmentEscape(destination)}</p>
-				<p class="mt-1 text-xs text-slate-500">Canal: ${assignmentEscape(channel)}</p>
+				${isProfessionalMode ? `<p class="mt-1 text-xs text-slate-500">Canal: ${assignmentEscape(channel)}</p>` : `<p class="mt-1 text-xs text-slate-500">Canal: Todos los canales</p>`}
 			</div>
 			<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
 				<p class="font-medium">Impacto contractual</p>
@@ -442,15 +476,21 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 			trigger?.dataset.assignmentScopeId || assignmentOverlay?.dataset.defaultScopeId || ""
 		const defaultPolicyId = trigger?.dataset.assignmentPolicyId || ""
 		const defaultCategory = trigger?.dataset.assignmentCategory || ""
-		const defaultChannel = trigger?.dataset.assignmentChannel || ""
+		const defaultChannel =
+			trigger?.dataset.assignmentChannel || assignmentOverlay?.dataset.defaultChannel || ""
 		const defaultMode =
-			trigger?.dataset.assignmentMode || (defaultPolicyId ? "existing" : "existing")
+			isProfessionalMode && defaultPolicyId
+				? "existing"
+				: trigger?.dataset.assignmentMode || "preset"
 
 		if (scopeSelect) scopeSelect.value = defaultScope
 		renderScopeOptions(defaultScopeId)
-		if (defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
+		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
-		if (channelSelect) channelSelect.value = defaultChannel
+		if (channelSelect) {
+			channelSelect.value = defaultChannel
+			if (!isProfessionalMode) channelSelect.value = ""
+		}
 		renderPresetOptions()
 		setMode(defaultMode)
 		statusBox?.classList.add("hidden")
@@ -486,7 +526,10 @@ const { defaultScope = "rate_plan", defaultScopeId = "" } = Astro.props
 
 		const sourceLabel =
 			selected.mode === "existing" ? selected.policy.label : `${selected.preset.label} nuevo`
-		const confirmText = `Vas a asignar "${sourceLabel}" a ${scopeLabel(selected.scope)} "${selected.scopeOption?.label || selected.scopeId}". Esto reemplaza la condición activa de la misma categoría para el canal seleccionado.`
+		const channelLabel = isProfessionalMode
+			? `canal ${channelSelect?.value || "Todos los canales"}`
+			: "Todos los canales"
+		const confirmText = `Vas a asignar "${sourceLabel}" a ${scopeLabel(selected.scope)} "${selected.scopeOption?.label || selected.scopeId}". Esto reemplaza la condición activa de la misma categoría para ${channelLabel}.`
 		if (!window.confirm(confirmText)) return
 
 		assignmentSubmit.disabled = true

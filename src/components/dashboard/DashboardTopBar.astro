@@ -1,13 +1,88 @@
 ---
+import ProfessionalModeToggle from "@/components/dashboard/ProfessionalModeToggle.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
+import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
 
 const user = await getUserFromRequest(Astro.request)
 const email = user?.email?.trim() || "Sin sesión"
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`
+const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
+let showProfessionalToggle = false
+let professionalToolsEnabled = false
+let disclosureMode: SidebarDisclosureMode = "small-provider"
+let lockedReason = ""
+let professionalToolsFeedback = ""
+const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+
+try {
+	const providerId = await getProviderIdFromRequest(Astro.request, user)
+	if (providerId) {
+		const preferences = await getProviderProfessionalToolsPreferenceRead(providerId)
+		professionalToolsEnabled =
+			typeof professionalModeCookie === "boolean"
+				? professionalModeCookie
+				: preferences.schemaAvailable
+					? preferences.professionalToolsEnabled
+					: false
+		const sidebarData = await getProviderSidebarData(providerId, {
+			userId: user?.id,
+			professionalToolsEnabled,
+		}).catch(() => null)
+		disclosureMode =
+			sidebarData?.disclosureMode ??
+			(professionalToolsEnabled ? "professional-tools" : "small-provider")
+		showProfessionalToggle = true
+		if (disclosureMode === "scaled-provider") {
+			lockedReason = "Vista profesional activada por escala operativa."
+		} else if (disclosureMode === "revenue-ops") {
+			lockedReason = "Vista profesional activada por rol de revenue."
+		} else if (disclosureMode === "internal-admin") {
+			lockedReason = "Vista profesional activada por rol interno."
+		} else if (disclosureMode === "professional-tools" && !professionalToolsEnabled) {
+			lockedReason = "Vista profesional activada por rol operativo."
+		}
+	}
+} catch {
+	showProfessionalToggle = false
+}
+
+if (professionalToolsParam === "saved") {
+	professionalToolsFeedback = "Modo actualizado"
+} else if (professionalToolsParam === "error") {
+	professionalToolsFeedback = "No se pudo cambiar"
+}
 ---
 
 <header class="border-b border-slate-800 bg-slate-950">
-	<div class="mx-auto flex min-h-12 max-w-7xl items-center justify-end px-6 py-2">
-		<div class="flex items-center gap-4 text-sm">
+	<div
+		class="mx-auto flex min-h-12 max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-end"
+	>
+		{
+			showProfessionalToggle ? (
+				<div class="flex w-full min-w-0 items-center gap-3 lg:mr-auto lg:w-auto">
+					<ProfessionalModeToggle
+						enabled={professionalToolsEnabled}
+						disclosureMode={disclosureMode}
+						lockedReason={lockedReason}
+						returnTo={returnTo}
+					/>
+					{professionalToolsFeedback ? (
+						<span
+							class={`text-xs font-medium ${
+								professionalToolsParam === "error" ? "text-amber-300" : "text-slate-400"
+							}`}
+						>
+							{professionalToolsFeedback}
+						</span>
+					) : null}
+				</div>
+			) : null
+		}
+		<div class="flex items-center justify-end gap-4 text-sm">
 			<span class="text-slate-300">{email}</span>
 			<a
 				href="/api/auth/logout"

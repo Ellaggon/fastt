@@ -8,6 +8,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { and, db, eq, PriceRule } from "astro:db"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import {
 	loadPricingAutomationSurface,
 	type PricingAutomationTemplate,
@@ -182,6 +183,8 @@ const rows = await loadRatePlansReadModel({
 	checkOut,
 	channel: "web",
 })
+const sidebarData = await getProviderSidebarData(auth.providerId, { userId: auth.user.id })
+const isProfessionalCalendar = sidebarData.disclosureMode !== "small-provider"
 const surface = await buildPricingCalendarSurface({
 	rows,
 	ratePlanId: Astro.url.searchParams.get("ratePlanId"),
@@ -410,7 +413,7 @@ const statusVariant = {
 
 		<Section
 			title="Calendario operativo"
-			description={`Selecciona ${vocabulary.ratePlan}, revisa vendibilidad diaria y toca fechas para operar precio, disponibilidad, restricciones y contrato de tarifa.`}
+			description={`Selecciona ${vocabulary.ratePlan}, revisa vendibilidad diaria y toca fechas para operar precio, disponibilidad, reglas de venta y contrato de tarifa.`}
 		>
 			<Card className="space-y-5 bg-white text-slate-800">
 				<form method="get" class="grid gap-3 lg:grid-cols-[1.6fr_0.8fr_auto] lg:items-end">
@@ -622,14 +625,20 @@ const statusVariant = {
 										<button
 											type="button"
 											data-pricing-open-extension
-											class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
+											class:list={[
+												"w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto",
+												!isProfessionalCalendar && "hidden",
+											]}
 										>
 											Extender este cambio
 										</button>
 										<button
 											type="button"
 											data-pricing-make-recurring
-											class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
+											class:list={[
+												"w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto",
+												!isProfessionalCalendar && "hidden",
+											]}
 										>
 											Hacer recurrente
 										</button>
@@ -733,6 +742,18 @@ const statusVariant = {
 															</span>
 															<span data-pricing-output>{money(day.finalPrice, day.currency)}</span>
 														</p>
+														<p class="mt-1 truncate text-[10px] font-semibold text-slate-800 md:text-xs">
+															¿Se vende esta noche?{" "}
+															<span
+																class:list={[
+																	day.operationalStatus === "sellable"
+																		? "text-emerald-700"
+																		: "text-red-700",
+																]}
+															>
+																{day.operationalStatus === "sellable" ? "Sí" : "No"}
+															</span>
+														</p>
 														<div class="mt-1 grid gap-0.5 text-[10px] text-slate-700 md:text-xs">
 															<p class="truncate">
 																Cupo: <span class="font-semibold">{day.availableUnits}</span>/
@@ -740,6 +761,23 @@ const statusVariant = {
 															</p>
 															<p class="truncate">
 																Reservas: {day.bookedUnits} · Holds: {day.heldUnits}
+															</p>
+															<p class="truncate">
+																Regla:{" "}
+																<span class="font-semibold">
+																	{day.restrictionSignals.summary ?? "venta estándar"}
+																</span>
+															</p>
+															<p class="truncate">
+																Condiciones:{" "}
+																<span
+																	class:list={[
+																		"font-semibold",
+																		hasIncompleteConditions ? "text-amber-700" : "text-emerald-700",
+																	]}
+																>
+																	{hasIncompleteConditions ? "incompletas" : "listas"}
+																</span>
 															</p>
 															<p class="truncate">
 																<span data-pricing-selected-label class="hidden">
@@ -793,10 +831,9 @@ const statusVariant = {
 																</span>
 															) : null}
 															{day.restrictionSignals.count > 0 ? (
-																<a
-																	href={routes.rateRestrictions()}
+																<span
 																	class:list={[
-																		"rounded-full px-1.5 py-0.5 text-[10px] font-medium underline-offset-2 hover:underline md:px-2 md:text-[11px]",
+																		"rounded-full px-1.5 py-0.5 text-[10px] font-medium md:px-2 md:text-[11px]",
 																		day.restrictionSignals.hasCommercialBlocker
 																			? "bg-red-100 text-red-800"
 																			: "bg-blue-100 text-blue-800",
@@ -804,9 +841,9 @@ const statusVariant = {
 																>
 																	<span class="md:hidden">Restr.</span>
 																	<span class="hidden md:inline">
-																		{day.restrictionSignals.summary ?? "Restricciones"}
+																		{day.restrictionSignals.summary ?? "Reglas de venta"}
 																	</span>
-																</a>
+																</span>
 															) : null}
 															{day.restrictionSignals.minStay != null ? (
 																<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 md:px-2 md:text-[11px]">
@@ -824,12 +861,9 @@ const statusVariant = {
 																</span>
 															) : null}
 															{hasIncompleteConditions ? (
-																<a
-																	href={routes.providerPolicies()}
-																	class="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 underline-offset-2 hover:underline md:px-2 md:text-[11px]"
-																>
+																<span class="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 md:px-2 md:text-[11px]">
 																	Condiciones incompletas
-																</a>
+																</span>
 															) : null}
 														</div>
 														{day.restrictionSignals.count > 0 ? (
@@ -856,7 +890,7 @@ const statusVariant = {
 											Selecciona una fecha
 										</h3>
 										<p class="text-xs leading-5 text-slate-600" data-operational-panel-summary>
-											El panel mostrará precio, cupo, restricciones, contrato de tarifa y detalle
+											El panel mostrará precio, cupo, reglas de venta, contrato de tarifa y detalle
 											técnico para operar sin saltar entre módulos.
 										</p>
 									</div>
@@ -885,7 +919,7 @@ const statusVariant = {
 											class="rounded-md px-2 py-1.5 text-left data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
 											data-operational-tab="restrictions"
 										>
-											Restricciones
+											Venta
 										</button>
 										<button
 											type="button"
@@ -894,13 +928,31 @@ const statusVariant = {
 										>
 											Condiciones
 										</button>
-										<button
-											type="button"
-											class="col-span-2 rounded-md px-2 py-1.5 text-left data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
-											data-operational-tab="technical"
-										>
-											Detalle técnico
-										</button>
+										{isProfessionalCalendar ? (
+											<>
+												<button
+													type="button"
+													class="rounded-md px-2 py-1.5 text-left data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
+													data-operational-tab="recurring"
+												>
+													Reglas recurrentes
+												</button>
+												<button
+													type="button"
+													class="rounded-md px-2 py-1.5 text-left data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
+													data-operational-tab="bulk"
+												>
+													Operación masiva
+												</button>
+												<button
+													type="button"
+													class="col-span-2 rounded-md px-2 py-1.5 text-left data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
+													data-operational-tab="technical"
+												>
+													Detalle técnico
+												</button>
+											</>
+										) : null}
 									</div>
 									<div class="mt-4 space-y-3" data-operational-panel-body>
 										<div data-operational-panel-section="price" class="space-y-2">
@@ -961,11 +1013,18 @@ const statusVariant = {
 											<p class="text-xs leading-5 text-slate-500" data-panel-inventory-feedback>
 												El cupo físico se guarda en Inventario, no en Precios.
 											</p>
+											<a
+												href={`${routes.inventory()}?variantId=${encodeURIComponent(selectedVariantId)}`}
+												class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 hover:bg-slate-50"
+												data-panel-inventory-detail
+											>
+												Ver detalle físico
+											</a>
 										</div>
 										<div data-operational-panel-section="restrictions" class="hidden space-y-2">
 											<p class="text-xs text-slate-500">Señales de venta</p>
 											<p class="font-semibold text-slate-950" data-panel-restrictions>
-												Sin restricciones seleccionadas.
+												Sin reglas de venta seleccionadas.
 											</p>
 											<div class="flex flex-wrap gap-1.5" data-panel-restriction-chips />
 											<div class="flex flex-wrap gap-2">
@@ -978,7 +1037,10 @@ const statusVariant = {
 												</button>
 												<a
 													href={routes.rateRestrictions()}
-													class="inline-flex rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+													class:list={[
+														"inline-flex rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50",
+														!isProfessionalCalendar && "hidden",
+													]}
 													data-panel-restrictions-advanced
 												>
 													Reglas de venta
@@ -1006,29 +1068,68 @@ const statusVariant = {
 												viven en Condiciones.
 											</p>
 										</div>
-										<div data-operational-panel-section="technical" class="hidden space-y-2">
-											<p class="text-xs text-slate-500">Estado técnico</p>
-											<dl class="grid gap-2 text-xs">
-												<div class="flex justify-between gap-3">
-													<dt class="text-slate-500">Estado</dt>
-													<dd class="font-semibold text-slate-900" data-panel-status>
-														—
-													</dd>
+										{isProfessionalCalendar ? (
+											<>
+												<div data-operational-panel-section="recurring" class="hidden space-y-2">
+													<p class="text-xs text-slate-500">Reglas recurrentes</p>
+													<p class="font-semibold text-slate-950">
+														Convierte la selección en una regla que se repite.
+													</p>
+													<p class="text-xs leading-5 text-slate-500">
+														Útil para descuentos, aumentos, estadías largas, último minuto o precio
+														fijo por temporada.
+													</p>
+													<button
+														type="button"
+														class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+														data-pricing-make-recurring
+														data-panel-recurring-action
+													>
+														Crear regla recurrente
+													</button>
 												</div>
-												<div class="flex justify-between gap-3">
-													<dt class="text-slate-500">Fecha</dt>
-													<dd class="font-semibold text-slate-900" data-panel-date>
-														—
-													</dd>
+												<div data-operational-panel-section="bulk" class="hidden space-y-2">
+													<p class="text-xs text-slate-500">Operación masiva</p>
+													<p class="font-semibold text-slate-950">
+														Extiende este cambio a otras tarifas compatibles.
+													</p>
+													<p class="text-xs leading-5 text-slate-500">
+														Revisa impacto antes de copiar precio a múltiples tarifas o rangos.
+													</p>
+													<button
+														type="button"
+														class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+														data-pricing-open-extension
+														data-panel-bulk-action
+													>
+														Extender cambio
+													</button>
 												</div>
-												<div class="flex justify-between gap-3">
-													<dt class="text-slate-500">Tarifa</dt>
-													<dd class="font-semibold text-slate-900">
-														{selectedRatePlanName || "—"}
-													</dd>
+												<div data-operational-panel-section="technical" class="hidden space-y-2">
+													<p class="text-xs text-slate-500">Estado técnico</p>
+													<dl class="grid gap-2 text-xs">
+														<div class="flex justify-between gap-3">
+															<dt class="text-slate-500">Estado</dt>
+															<dd class="font-semibold text-slate-900" data-panel-status>
+																—
+															</dd>
+														</div>
+														<div class="flex justify-between gap-3">
+															<dt class="text-slate-500">Fecha</dt>
+															<dd class="font-semibold text-slate-900" data-panel-date>
+																—
+															</dd>
+														</div>
+														<div class="flex justify-between gap-3">
+															<dt class="text-slate-500">Tarifa</dt>
+															<dd class="font-semibold text-slate-900">
+																{selectedRatePlanName || "—"}
+															</dd>
+														</div>
+													</dl>
 												</div>
-											</dl>
-										</div>
+											</>
+										) : null}
 									</div>
 								</aside>
 							</div>
@@ -1076,13 +1177,13 @@ const statusVariant = {
 			<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
 				<div class="space-y-1">
 					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-						Restricción simple
+						Regla de venta puntual
 					</p>
 					<h2 id="restrictionSimpleTitle" class="text-lg font-semibold text-slate-950">
 						Crear regla de venta
 					</h2>
 					<p class="text-sm leading-5 text-slate-600" data-restriction-simple-context>
-						Selecciona una fecha o rango para crear una restricción sobre esta tarifa.
+						Selecciona una fecha o rango para crear una regla de venta sobre esta tarifa.
 					</p>
 				</div>
 				<button
@@ -1198,7 +1299,7 @@ const statusVariant = {
 		>
 			<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
 				<div class="space-y-1">
-					<p class="text-xs font-semibold uppercase tracking-wide text-blue-700">
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
 						Extensión contextual
 					</p>
 					<h2 id="pricingExtensionTitle" class="text-lg font-semibold text-slate-950">
@@ -1809,6 +1910,7 @@ const statusVariant = {
 			currency: surface.baseline.currency,
 			copy: pricingOperationCopy,
 			extensionOperations: pricingExtensionOperationOptions,
+			isProfessional: isProfessionalCalendar,
 			operationalDays: operationalCalendarDays,
 		})}
 	>
@@ -1885,6 +1987,7 @@ const statusVariant = {
 		const selectedRatePlanName = String(rangeConfig.ratePlanName || "")
 		const selectedVariantId = String(rangeConfig.variantId || "")
 		const selectedCurrency = String(rangeConfig.currency || "USD")
+		const isProfessionalCalendar = Boolean(rangeConfig.isProfessional)
 		const operationCopy = rangeConfig.copy || {}
 		const ratePlans = Array.isArray(rangeConfig.ratePlans) ? rangeConfig.ratePlans : []
 		const extensionOperations = Array.isArray(rangeConfig.extensionOperations)
@@ -1946,13 +2049,10 @@ const statusVariant = {
 		let extensionPreviewPayload = null
 		let automationPreviewReady = false
 		let appliedAidsVisible = false
-		let activeOperationalTab = [
-			"price",
-			"availability",
-			"restrictions",
-			"policies",
-			"technical",
-		].includes(String(rangeConfig.focus || ""))
+		const allowedOperationalTabs = isProfessionalCalendar
+			? ["price", "availability", "restrictions", "policies", "recurring", "bulk", "technical"]
+			: ["price", "availability", "restrictions", "policies"]
+		let activeOperationalTab = allowedOperationalTabs.includes(String(rangeConfig.focus || ""))
 			? String(rangeConfig.focus)
 			: "price"
 
@@ -2029,7 +2129,8 @@ const statusVariant = {
 		}
 
 		function setOperationalPanelTab(tab) {
-			activeOperationalTab = String(tab || "price")
+			const nextTab = String(tab || "price")
+			activeOperationalTab = allowedOperationalTabs.includes(nextTab) ? nextTab : "price"
 			document.querySelectorAll("[data-operational-tab]").forEach((button) => {
 				button.setAttribute(
 					"data-active",
@@ -2073,6 +2174,7 @@ const statusVariant = {
 			const policiesMissing = document.querySelector("[data-panel-policies-missing]")
 			const status = document.querySelector("[data-panel-status]")
 			const panelDate = document.querySelector("[data-panel-date]")
+			const inventoryDetail = document.querySelector("[data-panel-inventory-detail]")
 			if (!day) return
 
 			if (title) title.textContent = `${day.weekday} ${day.day} · ${day.date}`
@@ -2085,9 +2187,26 @@ const statusVariant = {
 				availability.textContent = `${day.availableUnits}/${day.totalUnits} cupos`
 			}
 			if (locks) locks.textContent = `Reservas: ${day.bookedUnits} · Holds: ${day.heldUnits}`
+			if (inventoryDetail instanceof HTMLAnchorElement) {
+				const hasInventoryIssue =
+					day.status === "no_inventory" ||
+					Number(day.availableUnits ?? 0) <= 0 ||
+					Number(day.totalUnits ?? 0) <= 0
+				inventoryDetail.classList.toggle("hidden", !(isProfessionalCalendar || hasInventoryIssue))
+				const params = new URLSearchParams()
+				if (selectedVariantId) params.set("variantId", selectedVariantId)
+				if (day.date) {
+					params.set("month", String(day.date).slice(0, 7))
+					params.set("date", String(day.date))
+				}
+				inventoryDetail.href = `/inventory${params.toString() ? `?${params.toString()}` : ""}`
+				inventoryDetail.textContent = hasInventoryIssue
+					? "Ver detalle físico del cupo"
+					: "Ver detalle físico"
+			}
 			if (restrictions) {
 				restrictions.textContent =
-					day.restrictionSummary || "Sin restricciones activas para esta fecha."
+					day.restrictionSummary || "Sin reglas de venta activas para esta fecha."
 			}
 			if (restrictionChips) {
 				restrictionChips.replaceChildren()
@@ -2873,7 +2992,7 @@ const statusVariant = {
 		})
 		restrictionSimpleOpenBtn?.addEventListener("click", () => {
 			if (!selectedRange) {
-				setFeedback("Selecciona una fecha o rango para crear una restricción.")
+				setFeedback("Selecciona una fecha o rango para crear una regla de venta.")
 				return
 			}
 			syncRestrictionDrawerRange()
@@ -3202,7 +3321,7 @@ const statusVariant = {
 				rangeSummary.textContent = `${formatRangeLabel(selectedRange)} · Impactará ${nightsLabel(days)} en ${selectedRatePlanName || "el plan seleccionado"}.`
 			}
 			if (rangePreview) {
-				rangePreview.textContent = `${nightsLabel(days)} seleccionadas · ${summary.missing} sin precio · ${summary.adjusted} con ajuste manual · ${summary.restricted} con restricciones.`
+				rangePreview.textContent = `${nightsLabel(days)} seleccionadas · ${summary.missing} sin precio · ${summary.adjusted} con ajuste manual · ${summary.restricted} con reglas de venta.`
 			}
 			rangePreviewPayload = null
 			rangePreviewDays = []
@@ -3265,9 +3384,19 @@ const statusVariant = {
 			})
 		})
 
-		renderOperationalPanel(
-			rangeCards.find((card) => card.getAttribute("tabindex") === "0")?.getAttribute("data-date")
-		)
+		const initialFocusableCard = rangeCards.find((card) => card.getAttribute("tabindex") === "0")
+		renderOperationalPanel(initialFocusableCard?.getAttribute("data-date"))
+		if (rangeConfig.focus && initialFocusableCard) {
+			selectPricingDate(initialFocusableCard.getAttribute("data-date"))
+			setOperationalPanelTab(activeOperationalTab)
+			if (activeOperationalTab === "restrictions") {
+				window.setTimeout(() => {
+					syncRestrictionDrawerRange()
+					syncSimpleRestrictionCopy()
+					setRestrictionDrawerOpen(true)
+				}, 150)
+			}
+		}
 
 		rangePresetButtons.forEach((button) => {
 			button.addEventListener("click", () => {

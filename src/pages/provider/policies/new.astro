@@ -3,19 +3,25 @@ import PolicyBuilder from "@/components/policy/PolicyBuilder.astro"
 import Button from "@/components/ui/Button.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
 import { createPolicyCapa6, PolicyValidationError } from "@/modules/policies/public"
 import { z } from "zod"
 
 let providerId = ""
+let userId = ""
 try {
 	const provider = await requireProvider(Astro.request)
 	providerId = provider.providerId
+	userId = provider.user.id
 } catch (e: any) {
 	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
 	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
 	throw e
 }
+
+const sidebarData = await getProviderSidebarData(providerId, { userId })
+const isProfessionalPolicies = sidebarData.disclosureMode !== "small-provider"
 
 let error: string | null = null
 let fieldErrors: Record<string, string> = {}
@@ -163,6 +169,11 @@ if (Astro.request.method === "POST") {
 			</div>
 		</header>
 
-		<PolicyBuilder mode="create" error={error} fieldErrors={fieldErrors} />
+		<PolicyBuilder
+			mode="create"
+			error={error}
+			fieldErrors={fieldErrors}
+			showTechnicalAdvanced={isProfessionalPolicies}
+		/>
 	</div>
 </WorkspaceLayout>

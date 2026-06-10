@@ -1,39 +1,98 @@
 import type { APIRoute } from "astro"
 
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { setProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
+import {
+	PROFESSIONAL_MODE_COOKIE,
+	type ProfessionalModeCookieValue,
+} from "@/lib/dashboard/professionalModeCookie"
+import {
+	isMissingProfessionalToolsPreferenceShape,
+	setProviderProfessionalToolsPreference,
+} from "@/lib/providerProfessionalToolsPreference"
 
-function redirectToSettings(request: Request, status: "saved" | "error") {
-	const url = new URL("/provider", request.url)
+function safeReturnPath(value: unknown): string {
+	const candidate = String(value ?? "").trim()
+	if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/provider"
+	return candidate
+}
+
+function redirectAfterSave(request: Request, status: "saved" | "error", returnTo?: unknown) {
+	const url = new URL(safeReturnPath(returnTo), request.url)
 	url.searchParams.set("professionalTools", status)
 	return Response.redirect(url, 303)
 }
 
-export const POST: APIRoute = async ({ request }) => {
+function modeFromEnabled(enabled: boolean): ProfessionalModeCookieValue {
+	return enabled ? "professional" : "simple"
+}
+
+export const POST: APIRoute = async ({ request, cookies }) => {
+	let returnTo: unknown = null
+	let enabled = false
 	try {
 		const { user, providerId } = await requireProvider(request)
 		const contentType = request.headers.get("content-type") ?? ""
-		let enabled = false
 		if (contentType.includes("application/json")) {
-			const body = (await request.json().catch(() => ({}))) as { enabled?: unknown }
-			enabled = body.enabled === true || body.enabled === "true" || body.enabled === 1
+			const body = (await request.json().catch(() => ({}))) as {
+				enabled?: unknown
+				mode?: unknown
+				returnTo?: unknown
+			}
+			const mode = String(body.mode ?? "").trim()
+			returnTo = body.returnTo
+			enabled =
+				mode === "professional" ||
+				body.enabled === true ||
+				body.enabled === "true" ||
+				body.enabled === 1
 		} else {
 			const formData = await request.formData()
-			enabled = formData.get("professionalToolsEnabled") === "on"
+			const mode = String(formData.get("mode") ?? "").trim()
+			enabled =
+				mode === "professional" ||
+				formData.get("enabled") === "true" ||
+				formData.get("professionalToolsEnabled") === "on"
+			returnTo = formData.get("returnTo")
 		}
 
-		const preferences = await setProviderProfessionalToolsPreference({
-			providerId,
-			actorUserId: user.id,
-			enabled,
+		cookies.set(PROFESSIONAL_MODE_COOKIE, modeFromEnabled(enabled), {
+			path: "/",
+			httpOnly: true,
+			sameSite: "lax",
+			secure: process.env.NODE_ENV === "production",
+			maxAge: 60 * 60 * 24 * 365,
 		})
 
+		let persisted: "database" | "cookie" = "database"
+		let preferences = null
+		try {
+			preferences = await setProviderProfessionalToolsPreference({
+				providerId,
+				actorUserId: user.id,
+				enabled,
+			})
+		} catch (error) {
+			if (
+				!isMissingProfessionalToolsPreferenceShape(error) &&
+				process.env.LOCAL_QA_AUTH_ENABLED !== "true"
+			) {
+				throw error
+			}
+			persisted = "cookie"
+			preferences = {
+				providerId,
+				professionalToolsEnabled: enabled,
+				updatedAt: null,
+				updatedBy: user.id,
+			}
+		}
+
 		if (contentType.includes("application/json")) {
-			return new Response(JSON.stringify({ ok: true, preferences }), {
+			return new Response(JSON.stringify({ ok: true, preferences, persisted }), {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		return redirectToSettings(request, "saved")
+		return redirectAfterSave(request, "saved", returnTo)
 	} catch (error) {
 		if (error instanceof Response) return error
 		if ((request.headers.get("content-type") ?? "").includes("application/json")) {
@@ -48,6 +107,6 @@ export const POST: APIRoute = async ({ request }) => {
 				{ status: 500, headers: { "Content-Type": "application/json" } }
 			)
 		}
-		return redirectToSettings(request, "error")
+		return redirectAfterSave(request, "error", returnTo)
 	}
 }

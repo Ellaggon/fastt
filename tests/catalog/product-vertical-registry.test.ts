@@ -103,7 +103,9 @@ describe("catalog/product vertical registry", () => {
 		expect(getVerticalVocabulary("package").scopeVariant).toBe("Modalidad")
 
 		expect(resolveVerticalVocabulary(["Hotel"]).product).toBe("alojamiento")
-		expect(resolveVerticalVocabulary(["Hotel", "Tour"]).product).toBe("producto")
+		expect(resolveVerticalVocabulary(["Hotel", "Tour"]).product).toBe("oferta")
+		expect(resolveVerticalVocabulary(["Hotel", "Tour"]).scopeProduct).toBe("Oferta")
+		expect(resolveVerticalVocabulary(["Hotel", "Tour"]).scopeRatePlan).toBe("Tarifa")
 		expect(resolveProductVerticalEntry(["Package"]).vertical).toBe("package")
 	})
 })

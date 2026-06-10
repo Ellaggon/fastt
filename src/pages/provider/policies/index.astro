@@ -6,18 +6,30 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { formatHistoryDate, loadPolicyContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
 
 // Provider-only page. If unauthenticated or no provider, redirect to existing flows.
 let providerId = ""
+let userId = ""
 try {
 	const auth = await requireProvider(Astro.request)
 	providerId = auth.providerId
+	userId = auth.user.id
 } catch (e: any) {
 	if (e instanceof Response && e.status === 401) return Astro.redirect("/SignInPage")
 	if (e instanceof Response && e.status === 403) return Astro.redirect("/provider")
 	throw e
 }
+
+const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+const sidebarData = await getProviderSidebarData(providerId, {
+	userId,
+	professionalToolsEnabled:
+		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
+})
+const isProfessionalPolicies = sidebarData.disclosureMode !== "small-provider"
 
 const res = await fetch(new URL("/api/policies/list-library", Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
@@ -339,6 +351,7 @@ function channelLabel(channel: unknown) {
 }
 
 function targetChannels(scope: string, scopeId: string) {
+	if (!isProfessionalPolicies) return [""]
 	const channels = Array.from(channelsByTarget.get(`${scope}::${scopeId}`) ?? new Set<string>())
 	if (!channels.length) return [""]
 	return channels.sort((a, b) => channelLabel(a).localeCompare(channelLabel(b), "es"))
@@ -400,6 +413,8 @@ function buildMatrixRows() {
 const matrixRows = buildMatrixRows()
 const readyMatrixRows = matrixRows.filter((row) => row.isReady).length
 const incompleteMatrixRows = matrixRows.length - readyMatrixRows
+const incompleteRows = matrixRows.filter((row) => !row.isReady)
+const readyRows = matrixRows.filter((row) => row.isReady)
 const missingMatrixCells = matrixRows.reduce(
 	(total, row) => total + (matrixCategories.length - row.assignedCells),
 	0
@@ -478,12 +493,12 @@ const historyToneClasses: Record<string, string> = {
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-							Tarifas/hoteles/canales vs condiciones
+							Preparación comercial
 						</p>
 						<h2 class="mt-1 text-xl font-semibold text-slate-100">Centro operativo</h2>
 						<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-							La matriz muestra Cancelación, Pago, No presentación e Ingreso/salida por cada destino
-							comercial. Las celdas vacías abren el flujo profesional de asignación.
+							Primero resuelve tarifas incompletas. La vista detallada conserva la matriz completa
+							por categoría y canal cuando necesites auditar el contrato.
 						</p>
 					</div>
 					<div class="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
@@ -509,7 +524,7 @@ const historyToneClasses: Record<string, string> = {
 				{
 					!assignmentOptionsRes.ok ? (
 						<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-							No se pudieron cargar tarifas, hoteles y canales para la matriz.
+							No se pudieron cargar tarifas y hoteles para condiciones.
 						</div>
 					) : matrixRows.length === 0 ? (
 						<div class="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
@@ -517,161 +532,134 @@ const historyToneClasses: Record<string, string> = {
 						</div>
 					) : (
 						<>
-							<div class="space-y-3 md:hidden">
-								{matrixRows.map((row) => (
-									<article class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-										<div class="flex flex-wrap items-start justify-between gap-3">
-											<div class="min-w-0">
-												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													{row.scopeLabel}
-												</p>
-												<h3 class="mt-1 text-base font-semibold text-slate-100">{row.label}</h3>
-												{row.helper && (
-													<p class="mt-1 text-xs leading-5 text-slate-400">{row.helper}</p>
-												)}
-											</div>
-											<span
-												class:list={[
-													"rounded-full border px-2.5 py-1 text-xs font-semibold",
-													row.isReady
-														? "border-emerald-700 bg-emerald-950/50 text-emerald-200"
-														: "border-amber-700 bg-amber-950/50 text-amber-200",
-												]}
-											>
-												{row.isReady ? "Lista" : "Incompleta"}
-											</span>
+							<div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+								<section class="rounded-lg border border-amber-900/70 bg-amber-950/20 p-4">
+									<div class="flex flex-wrap items-center justify-between gap-3">
+										<div>
+											<p class="text-xs font-semibold tracking-wide text-amber-300 uppercase">
+												Tarifas incompletas
+											</p>
+											<h3 class="mt-1 text-lg font-semibold text-amber-100">
+												{incompleteRows.length} pendientes
+											</h3>
 										</div>
-
-										<div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-											<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 font-semibold text-slate-300">
-												{row.channelLabel}
-											</span>
-											<span class="text-slate-500">
-												{row.assignedCells}/{matrixCategories.length} categorías listas
-											</span>
-										</div>
-
-										<div class="mt-4 grid gap-2">
-											{row.cells.map((cell: any) => (
-												<div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
-													<div class="mb-2 flex items-center justify-between gap-2">
-														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-															{cell.categoryLabel}
-														</p>
-														{cell.isInherited && (
-															<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
-																Heredada
+										<span class="rounded-full border border-amber-700 px-2.5 py-1 text-xs font-semibold text-amber-200">
+											{missingMatrixCells} faltantes
+										</span>
+									</div>
+									<div class="mt-4 space-y-3">
+										{incompleteRows.length === 0 ? (
+											<p class="rounded-lg border border-emerald-900/70 bg-emerald-950/30 p-3 text-sm text-emerald-100">
+												No hay tarifas incompletas. Todo lo visible está listo para vender.
+											</p>
+										) : (
+											incompleteRows.map((row) => {
+												const missingCells = row.cells.filter((cell: any) => !cell.group)
+												return (
+													<article class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+														<div class="flex flex-wrap items-start justify-between gap-3">
+															<div class="min-w-0">
+																<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																	{row.scopeLabel}
+																</p>
+																<h4 class="mt-1 font-semibold text-slate-100">{row.label}</h4>
+																{row.helper && (
+																	<p class="mt-1 text-xs leading-5 text-slate-400">{row.helper}</p>
+																)}
+															</div>
+															<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-300">
+																Todos los canales
 															</span>
-														)}
+														</div>
+														<div class="mt-3 flex flex-wrap gap-2">
+															{missingCells.map((cell: any) => (
+																<button
+																	type="button"
+																	class="policy-assignment-open rounded-full border border-amber-700 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:border-amber-400"
+																	data-assignment-mode="preset"
+																	data-assignment-scope={row.scope}
+																	data-assignment-scope-id={row.scopeId}
+																	data-assignment-category={cell.category}
+																	data-assignment-channel=""
+																>
+																	Asignar {cell.categoryLabel}
+																</button>
+															))}
+														</div>
+													</article>
+												)
+											})
+										)}
+									</div>
+								</section>
+
+								<section class="rounded-lg border border-emerald-900/70 bg-emerald-950/20 p-4">
+									<div>
+										<p class="text-xs font-semibold tracking-wide text-emerald-300 uppercase">
+											Listas para vender
+										</p>
+										<h3 class="mt-1 text-lg font-semibold text-emerald-100">
+											{readyRows.length} listas
+										</h3>
+									</div>
+									<div class="mt-4 space-y-3">
+										{readyRows.length === 0 ? (
+											<p class="rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm text-slate-400">
+												Aún no hay tarifas u hoteles con las 4 categorías listas.
+											</p>
+										) : (
+											readyRows.slice(0, 8).map((row) => (
+												<article class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+													<div class="flex flex-wrap items-start justify-between gap-3">
+														<div>
+															<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																{row.scopeLabel}
+															</p>
+															<h4 class="mt-1 font-semibold text-slate-100">{row.label}</h4>
+															<p class="mt-1 text-xs text-slate-400">
+																Cancelación, pago, no presentación e ingreso/salida listas.
+															</p>
+														</div>
+														<span class="rounded-full border border-emerald-700 bg-emerald-950/50 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+															Lista
+														</span>
 													</div>
-													{cell.group ? (
-														<button
-															type="button"
-															class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
-															data-policy-view={jsonForHtml(cell.group.card.technical)}
-														>
-															<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
-																{cell.group.card.status}
-															</span>
-															<span class="mt-1 block font-semibold">{cell.group.card.preset}</span>
-															<span class="mt-1 block text-xs text-emerald-200/80">
-																{cell.isInherited
-																	? "Heredada de todos los canales"
-																	: cell.group.card.latestVersion}
-															</span>
-														</button>
-													) : (
-														<button
-															type="button"
-															class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
-															data-assignment-mode="preset"
-															data-assignment-scope={row.scope}
-															data-assignment-scope-id={row.scopeId}
-															data-assignment-category={cell.category}
-															data-assignment-channel={row.channel}
-														>
-															<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
-																Falta
-															</span>
-															<span class="mt-1 block font-semibold">Asignar condición</span>
-														</button>
-													)}
-												</div>
-											))}
-										</div>
-									</article>
-								))}
+												</article>
+											))
+										)}
+										{readyRows.length > 8 && (
+											<p class="text-xs text-slate-500">
+												{readyRows.length - 8} listas adicionales en vista detallada.
+											</p>
+										)}
+									</div>
+								</section>
 							</div>
 
-							<div class="hidden overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 md:block">
-								<table class="w-full min-w-[980px] text-left text-sm">
-									<thead class="border-b border-slate-800 bg-slate-950 text-xs tracking-wide text-slate-500 uppercase">
-										<tr>
-											<th class="px-4 py-3 font-semibold">Destino</th>
-											<th class="px-4 py-3 font-semibold">Canal</th>
-											{matrixCategories.map((category) => (
-												<th class="px-4 py-3 font-semibold">{categoryLabels[category]}</th>
-											))}
-											<th class="px-4 py-3 font-semibold">Estado</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-slate-800">
+							<details
+								class="rounded-lg border border-slate-800 bg-slate-900/70 p-4"
+								open={isProfessionalPolicies}
+							>
+								<summary class="cursor-pointer text-sm font-semibold text-slate-100">
+									Vista detallada
+									<span class="ml-2 text-xs font-normal text-slate-500">
+										Matriz completa por categoría; canal por defecto: Todos los canales.
+									</span>
+								</summary>
+								<div class="mt-4 space-y-3">
+									<div class="space-y-3 md:hidden">
 										{matrixRows.map((row) => (
-											<tr class="align-top">
-												<td class="px-4 py-4">
-													<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-														{row.scopeLabel}
-													</p>
-													<p class="mt-1 font-semibold text-slate-100">{row.label}</p>
-													{row.helper && <p class="mt-1 text-xs text-slate-400">{row.helper}</p>}
-												</td>
-												<td class="px-4 py-4">
-													<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-300">
-														{row.channelLabel}
-													</span>
-												</td>
-												{row.cells.map((cell: any) => (
-													<td class="px-4 py-4">
-														{cell.group ? (
-															<button
-																type="button"
-																class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
-																data-policy-view={jsonForHtml(cell.group.card.technical)}
-															>
-																<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
-																	{cell.group.card.status}
-																</span>
-																<span class="mt-1 block font-semibold">
-																	{cell.group.card.preset}
-																</span>
-																<span class="mt-1 block text-xs text-emerald-200/80">
-																	{cell.isInherited
-																		? "Heredada de todos los canales"
-																		: cell.group.card.latestVersion}
-																</span>
-															</button>
-														) : (
-															<button
-																type="button"
-																class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
-																data-assignment-mode="preset"
-																data-assignment-scope={row.scope}
-																data-assignment-scope-id={row.scopeId}
-																data-assignment-category={cell.category}
-																data-assignment-channel={row.channel}
-															>
-																<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
-																	Falta
-																</span>
-																<span class="mt-1 block font-semibold">Asignar</span>
-																<span class="mt-1 block text-xs text-amber-200/80">
-																	{cell.categoryLabel}
-																</span>
-															</button>
+											<article class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+												<div class="flex flex-wrap items-start justify-between gap-3">
+													<div class="min-w-0">
+														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+															{row.scopeLabel}
+														</p>
+														<h3 class="mt-1 text-base font-semibold text-slate-100">{row.label}</h3>
+														{row.helper && (
+															<p class="mt-1 text-xs leading-5 text-slate-400">{row.helper}</p>
 														)}
-													</td>
-												))}
-												<td class="px-4 py-4">
+													</div>
 													<span
 														class:list={[
 															"rounded-full border px-2.5 py-1 text-xs font-semibold",
@@ -680,17 +668,169 @@ const historyToneClasses: Record<string, string> = {
 																: "border-amber-700 bg-amber-950/50 text-amber-200",
 														]}
 													>
-														{row.isReady ? "Lista para vender" : "Incompleta"}
+														{row.isReady ? "Lista" : "Incompleta"}
 													</span>
-													<p class="mt-2 text-xs text-slate-500">
-														{row.assignedCells}/{matrixCategories.length} categorías
-													</p>
-												</td>
-											</tr>
+												</div>
+
+												<div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+													{isProfessionalPolicies && (
+														<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 font-semibold text-slate-300">
+															{row.channelLabel}
+														</span>
+													)}
+													<span class="text-slate-500">
+														{row.assignedCells}/{matrixCategories.length} categorías listas
+													</span>
+												</div>
+
+												<div class="mt-4 grid gap-2">
+													{row.cells.map((cell: any) => (
+														<div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+															<div class="mb-2 flex items-center justify-between gap-2">
+																<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																	{cell.categoryLabel}
+																</p>
+																{cell.isInherited && (
+																	<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
+																		Heredada
+																	</span>
+																)}
+															</div>
+															{cell.group ? (
+																<button
+																	type="button"
+																	class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
+																	data-policy-view={jsonForHtml(cell.group.card.technical)}
+																>
+																	<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
+																		{cell.group.card.status}
+																	</span>
+																	<span class="mt-1 block font-semibold">
+																		{cell.group.card.preset}
+																	</span>
+																	<span class="mt-1 block text-xs text-emerald-200/80">
+																		{cell.isInherited
+																			? "Heredada de todos los canales"
+																			: cell.group.card.latestVersion}
+																	</span>
+																</button>
+															) : (
+																<button
+																	type="button"
+																	class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
+																	data-assignment-mode="preset"
+																	data-assignment-scope={row.scope}
+																	data-assignment-scope-id={row.scopeId}
+																	data-assignment-category={cell.category}
+																	data-assignment-channel={row.channel}
+																>
+																	<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
+																		Falta
+																	</span>
+																	<span class="mt-1 block font-semibold">Asignar condición</span>
+																</button>
+															)}
+														</div>
+													))}
+												</div>
+											</article>
 										))}
-									</tbody>
-								</table>
-							</div>
+									</div>
+
+									<div class="hidden overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 md:block">
+										<table class="w-full min-w-[980px] text-left text-sm">
+											<thead class="border-b border-slate-800 bg-slate-950 text-xs tracking-wide text-slate-500 uppercase">
+												<tr>
+													<th class="px-4 py-3 font-semibold">Destino</th>
+													{isProfessionalPolicies && <th class="px-4 py-3 font-semibold">Canal</th>}
+													{matrixCategories.map((category) => (
+														<th class="px-4 py-3 font-semibold">{categoryLabels[category]}</th>
+													))}
+													<th class="px-4 py-3 font-semibold">Estado</th>
+												</tr>
+											</thead>
+											<tbody class="divide-y divide-slate-800">
+												{matrixRows.map((row) => (
+													<tr class="align-top">
+														<td class="px-4 py-4">
+															<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																{row.scopeLabel}
+															</p>
+															<p class="mt-1 font-semibold text-slate-100">{row.label}</p>
+															{row.helper && (
+																<p class="mt-1 text-xs text-slate-400">{row.helper}</p>
+															)}
+														</td>
+														{isProfessionalPolicies && (
+															<td class="px-4 py-4">
+																<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-300">
+																	{row.channelLabel}
+																</span>
+															</td>
+														)}
+														{row.cells.map((cell: any) => (
+															<td class="px-4 py-4">
+																{cell.group ? (
+																	<button
+																		type="button"
+																		class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
+																		data-policy-view={jsonForHtml(cell.group.card.technical)}
+																	>
+																		<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
+																			{cell.group.card.status}
+																		</span>
+																		<span class="mt-1 block font-semibold">
+																			{cell.group.card.preset}
+																		</span>
+																		<span class="mt-1 block text-xs text-emerald-200/80">
+																			{cell.isInherited
+																				? "Heredada de todos los canales"
+																				: cell.group.card.latestVersion}
+																		</span>
+																	</button>
+																) : (
+																	<button
+																		type="button"
+																		class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
+																		data-assignment-mode="preset"
+																		data-assignment-scope={row.scope}
+																		data-assignment-scope-id={row.scopeId}
+																		data-assignment-category={cell.category}
+																		data-assignment-channel={row.channel}
+																	>
+																		<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
+																			Falta
+																		</span>
+																		<span class="mt-1 block font-semibold">Asignar</span>
+																		<span class="mt-1 block text-xs text-amber-200/80">
+																			{cell.categoryLabel}
+																		</span>
+																	</button>
+																)}
+															</td>
+														))}
+														<td class="px-4 py-4">
+															<span
+																class:list={[
+																	"rounded-full border px-2.5 py-1 text-xs font-semibold",
+																	row.isReady
+																		? "border-emerald-700 bg-emerald-950/50 text-emerald-200"
+																		: "border-amber-700 bg-amber-950/50 text-amber-200",
+																]}
+															>
+																{row.isReady ? "Lista para vender" : "Incompleta"}
+															</span>
+															<p class="mt-2 text-xs text-slate-500">
+																{row.assignedCells}/{matrixCategories.length} categorías
+															</p>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</details>
 						</>
 					)
 				}
@@ -981,7 +1121,7 @@ const historyToneClasses: Record<string, string> = {
 			<div id="policyTechnicalDrawerBody" class="mt-6 space-y-4 text-sm text-slate-300"></div>
 		</aside>
 		<div id="policyTechnicalDrawerBackdrop" class="fixed inset-0 z-40 hidden bg-slate-950/60"></div>
-		<PolicyAssignmentFlow />
+		<PolicyAssignmentFlow isProfessionalMode={isProfessionalPolicies} />
 	</main>
 </WorkspaceLayout>
 

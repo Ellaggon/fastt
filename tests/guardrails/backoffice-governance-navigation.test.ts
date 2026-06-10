@@ -330,14 +330,29 @@ describe("Guardrail: backoffice governance navigation", () => {
 		})
 		const titles = visible.map((section) => section.title)
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+		const roomsAndRatesLabels =
+			visible
+				.find((section) => section.title === "Habitaciones y tarifas")
+				?.items.map((item) => item.label) ?? []
 		const planned = visible.flatMap((section) => section.planned ?? [])
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario",
+			"Condiciones",
+			"Inventario físico",
+			"Reglas de venta",
+			"Operaciones masivas",
+		])
 		expect(labels).toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
+		expect(
+			visible.find((section) => section.title === "Habitaciones y tarifas")?.planned
+		).toBeUndefined()
 		expect(planned).toContain("Revenue management")
 		expect(planned).toContain("Channel manager")
 	})
@@ -347,7 +362,19 @@ describe("Guardrail: backoffice governance navigation", () => {
 			mode: "professional-tools",
 		})
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+		const roomsAndRatesLabels =
+			visible
+				.find((section) => section.title === "Habitaciones y tarifas")
+				?.items.map((item) => item.label) ?? []
 
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario",
+			"Condiciones",
+			"Inventario físico",
+			"Reglas de venta",
+			"Operaciones masivas",
+		])
 		expect(labels).toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).toContain("Operaciones masivas")
@@ -456,9 +483,21 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
 			"utf8"
 		)
+		const cookiePreference = readFileSync(
+			join(process.cwd(), "src/lib/dashboard/professionalModeCookie.ts"),
+			"utf8"
+		)
 		const settings = readFileSync(join(process.cwd(), "src/pages/provider/index.astro"), "utf8")
 		const endpoint = readFileSync(
 			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
+			"utf8"
+		)
+		const topbar = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardTopBar.astro"),
+			"utf8"
+		)
+		const toggle = readFileSync(
+			join(process.cwd(), "src/components/dashboard/ProfessionalModeToggle.astro"),
 			"utf8"
 		)
 
@@ -472,18 +511,62 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspacePreferences"')
 		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspaceAuditLog"')
 		expect(preferences).toContain("getProviderProfessionalToolsPreference")
+		expect(preferences).toContain("getProviderProfessionalToolsPreferenceRead")
 		expect(preferences).toContain("setProviderProfessionalToolsPreference")
+		expect(preferences).toContain("schemaAvailable")
+		expect(preferences).toContain("isMissingProfessionalToolsPreferenceShape")
 		expect(preferences).toContain("ProviderProfile")
+		expect(preferences).toContain("db.insert(ProviderProfile)")
+		expect(preferences).toContain("DEFAULT_PROVIDER_PROFILE_TIMEZONE")
+		expect(preferences).toContain("DEFAULT_PROVIDER_PROFILE_CURRENCY")
 		expect(preferences).not.toContain("ProviderWorkspacePreferences")
 		expect(preferences).not.toContain("ProviderWorkspaceAuditLog")
 		expect(preferences).not.toContain("fastt_professional_tools")
 		expect(sidebar).toContain("getProviderSidebarData")
-		expect(sidebar).not.toContain("professionalToolsEnabled:")
+		expect(sidebar).toContain("getProfessionalModeCookiePreference")
+		expect(sidebar).toContain("professionalToolsEnabledFromCookie")
+		expect(sidebar).not.toContain("ProfessionalModeToggle")
+		expect(sidebar).not.toContain("data-professional-mode-toggle")
+		expect(sidebar).toContain(
+			'disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"'
+		)
+		expect(sidebar).toContain("professionalToolsEnabled")
+		expect(cookiePreference).toContain("PROFESSIONAL_MODE_COOKIE")
+		expect(cookiePreference).toContain("fastt_workspace_mode")
+		expect(cookiePreference).toContain("professional")
+		expect(cookiePreference).toContain("simple")
 		expect(settings).toContain("Herramientas profesionales")
-		expect(settings).toContain("Mostrar herramientas profesionales")
+		expect(settings).toContain('aria-label="Modo de experiencia"')
+		expect(settings).toContain('value="simple"')
+		expect(settings).toContain('value="professional"')
+		expect(settings).toContain("Modo Simple")
+		expect(settings).toContain("Modo Pro")
 		expect(settings).toContain("/api/provider/preferences/professional-tools")
 		expect(endpoint).toContain("requireProvider")
 		expect(endpoint).toContain("setProviderProfessionalToolsPreference")
+		expect(endpoint).toContain("isMissingProfessionalToolsPreferenceShape")
+		expect(endpoint).toContain("safeReturnPath")
+		expect(endpoint).toContain('mode === "professional"')
+		expect(endpoint).toContain("PROFESSIONAL_MODE_COOKIE")
+		expect(endpoint).toContain('persisted: "database" | "cookie"')
+		expect(endpoint).not.toContain("parsedMode")
+		expect(topbar).toContain("ProfessionalModeToggle")
+		expect(topbar).toContain("getProviderSidebarData")
+		expect(topbar).toContain("getProviderProfessionalToolsPreferenceRead")
+		expect(topbar).toContain("getProfessionalModeCookiePreference")
+		expect(topbar).toContain("preferences.schemaAvailable")
+		expect(topbar).toContain("Modo actualizado")
+		expect(topbar).toContain("No se pudo cambiar")
+		expect(toggle).toContain("Cambiar entre modo simple y modo pro")
+		expect(toggle).toContain("Simple: operación diaria limpia.")
+		expect(toggle).toContain("Pro: herramientas profesionales visibles.")
+		expect(toggle).toContain("Simple")
+		expect(toggle).toContain("Pro")
+		expect(toggle).toContain("/api/provider/preferences/professional-tools")
+		expect(toggle).not.toContain("advanced")
+		expect(toggle).not.toContain("pricing")
+		expect(toggle).not.toContain("policy")
+		expect(toggle).not.toContain("listing")
 	})
 
 	it("keeps advanced routes hidden when the provider is in simple mode", () => {
@@ -505,7 +588,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates).toBeDefined()
 		expect(roomsAndRates?.maturity).toEqual("operational")
 		expect(roomsAndRates?.operationalIntent).toContain("tarifas")
-		expect(roomsAndRates?.operationalIntent).toContain("restricciones de venta")
+		expect(roomsAndRates?.operationalIntent).toContain("reglas de venta")
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
@@ -530,6 +613,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items.find((item) => item.label === "Reglas de venta")?.status).toEqual(
 			"canonical"
 		)
+		expect(roomsAndRates?.planned ?? []).toEqual([])
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
@@ -623,6 +707,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
 			"utf8"
 		)
+		const governanceSource = readFileSync(
+			join(process.cwd(), "src/lib/backoffice-governance.ts"),
+			"utf8"
+		)
 		const itemSource = readFileSync(
 			join(process.cwd(), "src/components/dashboard/DashboardSidebarItem.astro"),
 			"utf8"
@@ -634,6 +722,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(workspaceSource).not.toContain("isTransitionalSurface")
 		expect(workspaceSource).not.toContain("activeSection?.nextMaturity")
 		expect(workspaceSource).not.toContain("activeSection?.operationalIntent")
+		expect(topbarSource).toContain("ProfessionalModeToggle")
+		expect(topbarSource).toContain("Vista profesional activada por escala operativa")
 		expect(topbarSource).not.toContain("getOperationalContextMetadata")
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
@@ -643,6 +733,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).toContain("sidebarReadiness[item.href]")
 		expect(sidebarSource).toContain("section.planned")
 		expect(sidebarSource).toContain("Próximamente")
+		expect(governanceSource).toContain('section.title === "Habitaciones y tarifas"')
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain("12 tarifas")
@@ -788,5 +879,22 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(routesSource).toContain('pricingAutomation: () => "/rates/calendar#pricing-automation"')
 		expect(routesSource).not.toContain('pricing: () => "/pricing')
 		expect(routesSource).not.toContain('pricingAutomation: () => "/pricing')
+	})
+
+	it("keeps inventory bulk as a professional-only surface", () => {
+		const inventoryBulk = readFileSync(
+			join(process.cwd(), "src/pages/inventory/bulk.astro"),
+			"utf8"
+		)
+		const sidebar = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
+			"utf8"
+		)
+
+		expect(inventoryBulk).toContain("getProviderSidebarData")
+		expect(inventoryBulk).toContain('sidebarData.disclosureMode === "small-provider"')
+		expect(inventoryBulk).toContain('target.searchParams.set("source", "inventory-bulk")')
+		expect(inventoryBulk).toContain("return Astro.redirect")
+		expect(sidebar).not.toContain("/inventory/bulk")
 	})
 })

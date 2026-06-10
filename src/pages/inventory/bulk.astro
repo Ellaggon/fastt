@@ -7,6 +7,7 @@ import Section from "@/components/ui/Section.astro"
 import { variantManagementRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -16,6 +17,14 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const sidebarData = await getProviderSidebarData(auth.providerId, { userId: auth.user.id })
+if (sidebarData.disclosureMode === "small-provider") {
+	const target = new URL(routes.pricing(), Astro.url)
+	target.searchParams.set("focus", "availability")
+	target.searchParams.set("source", "inventory-bulk")
+	return Astro.redirect(target.toString(), 303)
+}
 
 const today = new Date()
 const dateFrom = String(

@@ -43,7 +43,7 @@ function money(value: number | null | undefined, currency: string | null | undef
 	}).format(Number(value))
 }
 
-function calendarResolveHref(ratePlanId: string, focus: "price" | "availability") {
+function calendarResolveHref(ratePlanId: string, focus: "price" | "availability" | "restrictions") {
 	const params = new URLSearchParams({
 		ratePlanId,
 		focus,
@@ -88,6 +88,14 @@ function firstCommercialBlocker(row: (typeof rows)[number]) {
 			reason: missing.length
 				? `Faltan ${missing.map((category) => policyCategoryLabels[category] ?? category).join(", ")}.`
 				: "Faltan condiciones.",
+		}
+	}
+	if (Number(row.summary?.activeRestrictionsCount ?? 0) > 0) {
+		return {
+			key: "restrictions",
+			label: "Reglas de venta",
+			href: calendarResolveHref(ratePlanId, "restrictions"),
+			reason: "Hay reglas de venta activas para revisar.",
 		}
 	}
 	return {
@@ -169,7 +177,7 @@ const historyToneClasses: Record<string, string> = {
 						<p class="text-base font-semibold text-slate-950">No hay tarifas todavía.</p>
 						<p class="mt-2 text-sm leading-6 text-slate-600">
 							Cuando una habitación tenga una tarifa, aparecerá aquí para revisar precio base,
-							condiciones y restricciones de venta.
+							condiciones y reglas de venta.
 						</p>
 					</Card>
 				) : (
@@ -188,7 +196,13 @@ const historyToneClasses: Record<string, string> = {
 							const conditionsReady = Boolean(row.policyCoverage?.isComplete)
 							const blocker = firstCommercialBlocker(row)
 							const isReady = blocker.key === "ready"
-							const stateLabel = !row.isActive ? "No lista" : isReady ? "Lista" : "No lista"
+							const stateLabel = !row.isActive
+								? "No lista"
+								: isReady
+									? "Lista"
+									: blocker.key === "restrictions"
+										? "Revisar venta"
+										: "No lista"
 							const stateVariant = !row.isActive ? "warning" : isReady ? "success" : "warning"
 							return (
 								<article
@@ -247,7 +261,7 @@ const historyToneClasses: Record<string, string> = {
 											</p>
 										</div>
 										<div class="rounded-2xl bg-slate-50 px-3 py-2 text-slate-900">
-											<p class="text-xs text-slate-500">Restricciones</p>
+											<p class="text-xs text-slate-500">Reglas de venta</p>
 											<p class="mt-1 font-semibold">
 												{restrictionsCount > 0 ? "Activas" : "No activas"}
 											</p>
@@ -398,13 +412,11 @@ const historyToneClasses: Record<string, string> = {
 			class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-600"
 		>
 			<p>
-				Restricciones de venta y condiciones siguen separadas para evitar mezclar precio,
-				vendibilidad y contrato.
+				Reglas de venta y condiciones siguen separadas para evitar mezclar precio, vendibilidad y
+				contrato. Usa Resolver para abrir el bloqueo correcto.
 			</p>
 			<div class="flex flex-wrap gap-2">
-				<Button href={routes.rateRestrictions()} variant="secondary" size="sm">
-					Restricciones de venta
-				</Button>
+				<Button href={routes.pricing()} variant="secondary" size="sm">Calendario</Button>
 				<Button href={routes.providerPolicies()} variant="secondary" size="sm">
 					Condiciones
 				</Button>

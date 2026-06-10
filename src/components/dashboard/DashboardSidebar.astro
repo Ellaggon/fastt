@@ -8,6 +8,7 @@ import {
 	filterEnterpriseNavigationForDisclosure,
 	type SidebarDisclosureMode,
 } from "@/lib/backoffice-governance"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import {
 	getProviderSidebarData,
 	type ProviderSidebarReadiness,
@@ -34,17 +35,23 @@ const activeHref =
 
 let sidebarReadiness: ProviderSidebarReadiness = {}
 let disclosureMode: SidebarDisclosureMode = "small-provider"
+const professionalToolsEnabledFromCookie = getProfessionalModeCookiePreference(Astro.request)
 try {
 	const user = await getUserFromRequest(Astro.request)
 	const providerId = await getProviderIdFromRequest(Astro.request, user)
 	if (providerId) {
 		const sidebarData = await getProviderSidebarData(providerId, {
 			userId: user?.id,
+			professionalToolsEnabled:
+				typeof professionalToolsEnabledFromCookie === "boolean"
+					? professionalToolsEnabledFromCookie
+					: undefined,
 		})
 		sidebarReadiness = sidebarData.summaries
 		disclosureMode = sidebarData.disclosureMode
 	}
 } catch {
+	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
 	sidebarReadiness = {
 		[routes.ratePlansList()]: "Tarifas: readiness no disponible.",
 		[routes.pricing()]: "Calendario: readiness no disponible.",
@@ -69,7 +76,7 @@ function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number
 
 <nav class="space-y-4" aria-label="Enterprise backoffice navigation">
 	<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-		<p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-300">
+		<p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
 			Panel del proveedor
 		</p>
 		<p class="mt-1 text-xs leading-5 text-slate-400">
