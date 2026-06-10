@@ -260,7 +260,8 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(assignment).toContain("Canal avanzado")
 		expect(assignment).toContain("Canal: <span")
 		expect(assignment).toContain('if (!isProfessionalMode) return "preset"')
-		expect(assignment).toContain('channelSelect.value = isProfessionalMode ? defaultChannel : ""')
+		expect(assignment).toContain("channelSelect.value = defaultChannel")
+		expect(assignment).toContain('if (!isProfessionalMode) channelSelect.value = ""')
 		expect(assignment).toContain("Crea y asigna desde una plantilla")
 
 		expect(builder).toContain("showTechnicalAdvanced?: boolean")

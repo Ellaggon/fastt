@@ -2,10 +2,16 @@
 type Props = {
 	defaultScope?: "product" | "variant" | "rate_plan"
 	defaultScopeId?: string
+	defaultChannel?: string
 	isProfessionalMode?: boolean
 }
 
-const { defaultScope = "rate_plan", defaultScopeId = "", isProfessionalMode = false } = Astro.props
+const {
+	defaultScope = "rate_plan",
+	defaultScopeId = "",
+	defaultChannel = "",
+	isProfessionalMode = false,
+} = Astro.props
 ---
 
 <div
@@ -13,6 +19,7 @@ const { defaultScope = "rate_plan", defaultScopeId = "", isProfessionalMode = fa
 	class="fixed inset-0 z-[70] hidden bg-slate-950/70 p-4"
 	data-default-scope={defaultScope}
 	data-default-scope-id={defaultScopeId}
+	data-default-channel={defaultChannel}
 >
 	<div
 		class="mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl"
@@ -469,7 +476,8 @@ const { defaultScope = "rate_plan", defaultScopeId = "", isProfessionalMode = fa
 			trigger?.dataset.assignmentScopeId || assignmentOverlay?.dataset.defaultScopeId || ""
 		const defaultPolicyId = trigger?.dataset.assignmentPolicyId || ""
 		const defaultCategory = trigger?.dataset.assignmentCategory || ""
-		const defaultChannel = trigger?.dataset.assignmentChannel || ""
+		const defaultChannel =
+			trigger?.dataset.assignmentChannel || assignmentOverlay?.dataset.defaultChannel || ""
 		const defaultMode =
 			isProfessionalMode && defaultPolicyId
 				? "existing"
@@ -479,7 +487,10 @@ const { defaultScope = "rate_plan", defaultScopeId = "", isProfessionalMode = fa
 		renderScopeOptions(defaultScopeId)
 		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
-		if (channelSelect) channelSelect.value = isProfessionalMode ? defaultChannel : ""
+		if (channelSelect) {
+			channelSelect.value = defaultChannel
+			if (!isProfessionalMode) channelSelect.value = ""
+		}
 		renderPresetOptions()
 		setMode(defaultMode)
 		statusBox?.classList.add("hidden")
