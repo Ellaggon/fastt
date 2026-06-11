@@ -344,11 +344,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Condiciones",
 			"Inventario físico",
 			"Reglas de venta",
-			"Operaciones masivas",
 		])
 		expect(labels).toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
-		expect(labels).toContain("Operaciones masivas")
+		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
 		expect(
 			visible.find((section) => section.title === "Habitaciones y tarifas")?.planned
@@ -373,12 +372,32 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Condiciones",
 			"Inventario físico",
 			"Reglas de venta",
-			"Operaciones masivas",
 		])
 		expect(labels).toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
-		expect(labels).toContain("Operaciones masivas")
+		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
+	})
+
+	it("keeps bulk operations contextual instead of a primary sidebar destination", () => {
+		for (const mode of ["small-provider", "scaled-provider", "professional-tools"] as const) {
+			const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, { mode })
+			const roomsAndRates = visible.find((section) => section.title === "Habitaciones y tarifas")
+			const labels = roomsAndRates?.items.map((item) => item.label) ?? []
+			const hrefs = roomsAndRates?.items.map((item) => item.href) ?? []
+
+			expect(labels).not.toContain("Operaciones masivas")
+			expect(hrefs).not.toContain("/inventory/bulk")
+			expect(hrefs).not.toContain("/rates/calendar#pricing-automation")
+		}
+
+		const roomsAndRates = enterpriseNavigation.find(
+			(section) => section.title === "Habitaciones y tarifas"
+		)
+		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
+		expect(roomsAndRates?.items.map((item) => item.href)).not.toContain(
+			"/rates/calendar#pricing-automation"
+		)
 	})
 
 	it("does not reveal advanced Rooms & Rates just because an advanced route is active", () => {
@@ -596,11 +615,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 				"Calendario",
 				"Inventario físico",
 				"Reglas de venta",
-				"Operaciones masivas",
 				"Tarifas",
 				"Condiciones",
 			])
 		)
+		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
 			"canonical"
 		)
@@ -879,6 +898,22 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(routesSource).toContain('pricingAutomation: () => "/rates/calendar#pricing-automation"')
 		expect(routesSource).not.toContain('pricing: () => "/pricing')
 		expect(routesSource).not.toContain('pricingAutomation: () => "/pricing')
+
+		const pricingAutomationHelperUsages = [
+			...walkFiles(join(process.cwd(), "src/pages"), [".astro", ".ts"]).filter(
+				(file) => !file.startsWith("src/pages/api/")
+			),
+			...walkFiles(join(process.cwd(), "src/components"), [".astro", ".ts"]),
+			...walkFiles(join(process.cwd(), "src/lib"), [".ts"]),
+		].flatMap((file) => {
+			const source = readFileSync(join(process.cwd(), file), "utf8")
+			return source.includes("routes.pricingAutomation()") ? [file] : []
+		})
+
+		expect(pricingAutomationHelperUsages).toEqual([
+			"src/components/rates/PricingAutomationPanel.astro",
+			"src/lib/dashboard/providerSidebarReadiness.ts",
+		])
 	})
 
 	it("keeps inventory bulk as a professional-only surface", () => {
