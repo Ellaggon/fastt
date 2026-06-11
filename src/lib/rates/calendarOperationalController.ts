@@ -71,6 +71,10 @@ export function initRatesCalendar() {
 		? rangeConfig.extensionOperations
 		: []
 	const automationForm = document.querySelector("[data-pricing-automation-form]")
+	const automationPresets = document.querySelector("[data-pricing-automation-presets]")
+	const automationTrigger = document.querySelector("[data-pricing-automation-trigger]")
+	const automationPopover = document.querySelector("[data-pricing-automation-popover]")
+	const automationClose = document.querySelector("[data-pricing-automation-close]")
 	const automationCards = Array.from(document.querySelectorAll("[data-pricing-automation-card]"))
 	const automationKindInput = document.querySelector("[data-pricing-automation-kind]")
 	const automationRatePlan = document.querySelector("[data-pricing-automation-rate-plan]")
@@ -78,9 +82,6 @@ export function initRatesCalendar() {
 	const automationValueLabel = document.querySelector("[data-pricing-automation-value-label]")
 	const automationValueHelp = document.querySelector("[data-pricing-automation-value-help]")
 	const automationSelectedTitle = document.querySelector("[data-pricing-automation-selected-title]")
-	const automationSelectedDescription = document.querySelector(
-		"[data-pricing-automation-selected-description]"
-	)
 	const automationDateFrom = document.querySelector("[data-pricing-automation-date-from]")
 	const automationDateTo = document.querySelector("[data-pricing-automation-date-to]")
 	const automationReview = document.querySelector("[data-pricing-automation-review]")
@@ -564,8 +565,18 @@ export function initRatesCalendar() {
 
 	function resetAutomationReview() {
 		automationPreviewReady = false
-		automationReview?.classList.add("hidden")
-		if (automationReview) automationReview.replaceChildren()
+		if (!automationReview) return
+		automationReview.className =
+			"rounded-lg border border-slate-200 bg-white p-3 text-sm lg:col-span-6"
+		automationReview.replaceChildren()
+		const heading = document.createElement("p")
+		heading.className = "font-semibold text-slate-900"
+		heading.textContent = "Vista previa del impacto"
+		const body = document.createElement("p")
+		body.className = "mt-1 text-slate-600"
+		body.textContent =
+			"Selecciona tarifa, fechas y valor para revisar cuántas noches cambiarán antes de crear la regla."
+		automationReview.append(heading, body)
 	}
 
 	function focusAutomationForm() {
@@ -578,14 +589,19 @@ export function initRatesCalendar() {
 		}, 250)
 	}
 
+	function setAutomationPopoverOpen(open) {
+		if (!(automationPopover instanceof HTMLElement)) return
+		automationPopover.hidden = !open
+		if (automationTrigger instanceof HTMLElement) {
+			automationTrigger.setAttribute("aria-expanded", open ? "true" : "false")
+		}
+	}
+
 	function setAutomationKind(kind) {
 		const template = getAutomationTemplate(kind)
 		if (!template) return
 		if (automationKindInput instanceof HTMLInputElement) automationKindInput.value = template.kind
 		if (automationSelectedTitle) automationSelectedTitle.textContent = template.label
-		if (automationSelectedDescription) {
-			automationSelectedDescription.textContent = `${template.description} Esta regla actuará automáticamente después.`
-		}
 		if (automationValueLabel)
 			automationValueLabel.textContent = automationValueLabelFor(template.kind)
 		if (automationValueHelp) automationValueHelp.textContent = automationValueHelpFor(template)
@@ -604,6 +620,7 @@ export function initRatesCalendar() {
 			const visible = field.getAttribute("data-pricing-eligibility") === template.kind
 			field.classList.toggle("hidden", !visible)
 		})
+		setAutomationPopoverOpen(false)
 		resetAutomationReview()
 	}
 
@@ -1044,6 +1061,22 @@ export function initRatesCalendar() {
 
 	automationCards.forEach((card) => {
 		card.addEventListener("click", () => setAutomationKind(card.getAttribute("data-kind")))
+	})
+	automationTrigger?.addEventListener("click", (event) => {
+		event.stopPropagation()
+		const isOpen = automationPopover instanceof HTMLElement ? !automationPopover.hidden : false
+		setAutomationPopoverOpen(!isOpen)
+	})
+	automationClose?.addEventListener("click", () => setAutomationPopoverOpen(false))
+	document.addEventListener("click", (event) => {
+		if (!(automationPopover instanceof HTMLElement) || automationPopover.hidden) return
+		if (automationPresets instanceof HTMLElement && event.target instanceof Node) {
+			if (automationPresets.contains(event.target)) return
+		}
+		setAutomationPopoverOpen(false)
+	})
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") setAutomationPopoverOpen(false)
 	})
 	makeRecurringButtons.forEach((button) => {
 		button.addEventListener("click", prefillRecurringFromSelection)

@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import type { PricingAutomationTemplate } from "@/lib/pricing/pricingAutomationSurface"
 import { routes } from "@/lib/routes"
+import { ChevronDown } from "@lucide/astro"
 
 type PricingAutomationRuleStatus = "active" | "inactive"
 
@@ -22,6 +23,7 @@ type PricingAutomationSurface = {
 		kindLabel: string
 		status: PricingAutomationRuleStatus
 		statusLabel: string
+		valueLabel: string
 		summary: string
 		productName: string
 		variantName: string
@@ -71,61 +73,15 @@ const {
 
 <Section
 	title="Reglas automáticas de precio"
-	description="Reglas que seguirán actuando después. Para aplicar o extender un cambio puntual, usa Operación masiva dentro del calendario."
+	description="Automatiza descuentos, aumentos o precios fijos para fechas y condiciones específicas."
 >
-	<Card id="pricing-automation" className="space-y-5 bg-white text-slate-800">
-		<div class="space-y-5" data-pricing-automation-panel>
-			<div class="flex flex-wrap items-start justify-between gap-3">
-				<div class="space-y-1">
-					<p class="text-sm font-semibold text-slate-950">Crear regla automática de precio</p>
-					<p class="max-w-2xl text-sm leading-6 text-slate-600">
-						Elige una lógica que debe repetirse automáticamente. La operación masiva queda reservada
-						para extender cambios puntuales a varias tarifas o rangos.
-					</p>
-				</div>
-				<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-					{automationSurface.stats.activeRules} activas
-				</span>
-			</div>
-
+	<Card id="pricing-automation" className="space-y-4 bg-white text-slate-800">
+		<div class="space-y-4" data-pricing-automation-panel>
 			<div
 				hidden
 				id="pricingAutomationTemplates"
 				data-templates={JSON.stringify(automationTemplateCatalog)}
 			>
-			</div>
-
-			<div data-pricing-automation-presets class="space-y-3">
-				{
-					automationTemplateGroups.map((group) => (
-						<div class="space-y-2">
-							<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-								{group.label}
-							</p>
-							<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-								{group.templates.map((template) => (
-									<button
-										type="button"
-										data-pricing-automation-card
-										data-kind={template.kind}
-										aria-pressed={
-											template.kind === automationDefaultTemplate?.kind ? "true" : "false"
-										}
-										class:list={[
-											"rounded-lg border bg-white p-3 text-left text-sm transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500",
-											template.kind === automationDefaultTemplate?.kind
-												? "border-blue-400 bg-blue-50"
-												: "border-slate-200",
-										]}
-									>
-										<p class="font-semibold text-slate-950">{template.shortLabel}</p>
-										<p class="mt-1 text-xs leading-5 text-slate-600">{template.description}</p>
-									</button>
-								))}
-							</div>
-						</div>
-					))
-				}
 			</div>
 
 			{
@@ -136,12 +92,83 @@ const {
 				) : (
 					<div
 						data-pricing-automation-create
-						class="rounded-xl border border-slate-200 bg-slate-50 p-3"
+						class="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
 					>
+						<div
+							data-pricing-automation-presets
+							class="relative flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4"
+						>
+							<p
+								class="text-base font-semibold text-slate-950"
+								data-pricing-automation-selected-title
+							>
+								{automationDefaultTemplate?.label}
+							</p>
+							<button
+								type="button"
+								class="inline-flex items-center gap-2 rounded-lg border border-slate-400 bg-white px-3.5 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:border-blue-400 hover:bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+								aria-expanded="false"
+								data-pricing-automation-trigger
+							>
+								<span>¿Qué regla quieres crear?</span>
+								<ChevronDown class="h-4 w-4 text-slate-500" aria-hidden="true" />
+							</button>
+							<div
+								hidden
+								class="absolute top-full right-0 z-30 mt-3 w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-900/15"
+								data-pricing-automation-popover
+							>
+								<div class="mb-3 flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+									<div>
+										<p class="text-sm font-semibold text-slate-950">Selecciona una regla</p>
+										<p class="text-xs leading-5 text-slate-500">
+											Elige una lógica automática. Después ajusta tarifa, fechas y valor.
+										</p>
+									</div>
+									<button
+										type="button"
+										class="rounded-full px-3 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+										data-pricing-automation-close
+									>
+										Cerrar
+									</button>
+								</div>
+								{automationTemplateGroups.map((group) => (
+									<div class="space-y-2 py-2 first:pt-0 last:pb-0">
+										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+											{group.label}
+										</p>
+										<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+											{group.templates.map((template) => (
+												<button
+													type="button"
+													data-pricing-automation-card
+													data-kind={template.kind}
+													aria-pressed={
+														template.kind === automationDefaultTemplate?.kind ? "true" : "false"
+													}
+													class:list={[
+														"rounded-lg border bg-white p-3 text-left text-sm transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500",
+														template.kind === automationDefaultTemplate?.kind
+															? "border-blue-400 bg-blue-50"
+															: "border-slate-200",
+													]}
+												>
+													<p class="font-semibold text-slate-950">{template.shortLabel}</p>
+													<p class="mt-1 text-xs leading-5 text-slate-600">
+														{template.description}
+													</p>
+												</button>
+											))}
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
 						<form
 							method="POST"
 							action={routes.pricingAutomation()}
-							class="grid gap-4 lg:grid-cols-6"
+							class="grid gap-3 lg:grid-cols-6"
 							data-pricing-automation-form
 						>
 							<input type="hidden" name="action" value="create-pricing-automation" />
@@ -151,14 +178,6 @@ const {
 								value={automationDefaultTemplate?.kind}
 								data-pricing-automation-kind
 							/>
-							<div class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 lg:col-span-6">
-								<p class="font-semibold" data-pricing-automation-selected-title>
-									{automationDefaultTemplate?.label}
-								</p>
-								<p class="mt-1 leading-5" data-pricing-automation-selected-description>
-									{automationDefaultTemplate?.description}
-								</p>
-							</div>
 							<label class="space-y-1 text-sm lg:col-span-3">
 								<span class="font-medium text-slate-700">Plan tarifario</span>
 								<select
@@ -251,16 +270,20 @@ const {
 								<p class="text-xs text-slate-500">Aplica cuando la estadía cumple este mínimo.</p>
 							</label>
 							<div
-								class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm lg:col-span-6"
+								class="mt-1 rounded-lg border border-slate-200 bg-white p-3 text-sm lg:col-span-6"
 								data-pricing-automation-review
-							/>
-							<details class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm lg:col-span-6">
-								<summary class="cursor-pointer font-semibold text-slate-800">
-									Revisión del impacto
-								</summary>
+							>
+								<p class="font-semibold text-slate-900">Vista previa del impacto</p>
+								<p class="mt-1 text-slate-600">
+									Selecciona tarifa, fechas y valor para revisar cuántas noches cambiarán antes de
+									crear la regla.
+								</p>
+							</div>
+							<details class="rounded-lg border border-slate-200 bg-white p-3 text-sm lg:col-span-6">
+								<summary class="cursor-pointer font-semibold text-slate-800">Avanzado</summary>
 								<div class="mt-3 grid gap-4 lg:grid-cols-6">
 									<label class="space-y-1 lg:col-span-2">
-										<span class="font-medium text-slate-700">Prioridad avanzada</span>
+										<span class="font-medium text-slate-700">Prioridad entre reglas</span>
 										<input
 											name="priority"
 											type="number"
@@ -275,7 +298,7 @@ const {
 									</label>
 								</div>
 							</details>
-							<div class="flex flex-wrap items-end gap-2 lg:col-span-6">
+							<div class="flex flex-wrap items-end gap-2 pt-1 lg:col-span-6">
 								<button
 									type="button"
 									data-pricing-automation-preview
@@ -296,8 +319,10 @@ const {
 			<div class="space-y-3">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<div>
-						<p class="text-sm font-semibold text-slate-900">Reglas automáticas activas</p>
-						<p class="text-xs text-slate-500">Reglas de precio que seguirán actuando después.</p>
+						<p class="text-sm font-semibold text-slate-900">Reglas activas</p>
+						<p class="text-xs text-slate-500">
+							Estas reglas seguirán modificando precios mientras estén vigentes.
+						</p>
 					</div>
 				</div>
 				{
@@ -305,31 +330,44 @@ const {
 						<div class="grid gap-3">
 							{automationSurface.rules.map((rule) => (
 								<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div>
+									<div class="grid gap-3 lg:grid-cols-[1.1fr_1fr_0.8fr_auto] lg:items-start">
+										<div class="space-y-2">
 											<div class="flex flex-wrap items-center gap-2">
 												<Badge variant="info">{rule.kindLabel}</Badge>
 												<Badge variant={statusVariant[rule.status]}>{rule.statusLabel}</Badge>
 											</div>
-											<p class="mt-2 text-sm text-slate-700">{rule.summary}</p>
 											<p class="mt-1 text-xs text-slate-500">
 												{rule.productName} · {rule.variantName} · {rule.ratePlanName}
 											</p>
-											<details class="mt-2 text-xs text-slate-500">
-												<summary class="cursor-pointer font-semibold text-slate-600">
-													Detalle
-												</summary>
-												<p class="mt-1">
-													Vigencia: {rule.validityLabel} · Condición: {rule.eligibilityLabel} ·
-													Prioridad interna {rule.priority}
-												</p>
-												<p class="mt-1">
-													Creada: {rule.createdAt.toLocaleString("es-CL")} · Ref.{" "}
-													{rule.id.slice(0, 8)}
-												</p>
-											</details>
+										</div>
+										<div class="text-sm text-slate-700">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Vigencia
+											</p>
+											<p class="mt-1">{rule.validityLabel}</p>
+										</div>
+										<div class="text-sm text-slate-700">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Valor
+											</p>
+											<p class="mt-1">{rule.valueLabel}</p>
 										</div>
 										<div class="flex flex-wrap justify-end gap-2">
+											<details class="mt-2 text-xs text-slate-500">
+												<summary class="cursor-pointer font-semibold text-slate-600">
+													Ver detalle
+												</summary>
+												<div class="mt-2 max-w-xs rounded-lg border border-slate-200 bg-slate-50 p-3 text-left">
+													<p class="text-slate-700">{rule.summary}</p>
+													<p class="mt-2">
+														Condición: {rule.eligibilityLabel} · Prioridad interna {rule.priority}
+													</p>
+													<p class="mt-1">
+														Creada: {rule.createdAt.toLocaleString("es-CL")} · Ref.{" "}
+														{rule.id.slice(0, 8)}
+													</p>
+												</div>
+											</details>
 											<details class="text-right text-xs text-slate-500">
 												<summary class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50">
 													Eliminar

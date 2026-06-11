@@ -88,11 +88,32 @@ function priceRuleLabel(type: unknown) {
 	const labels: Record<string, string> = {
 		percentage: "ajuste porcentual",
 		fixed: "ajuste fijo",
+		fixed_adjustment: "ajuste fijo",
+		fixed_override: "precio fijo",
+		percentage_discount: "descuento porcentual",
+		percentage_markup: "recargo porcentual",
 		modifier: "modificador",
 		absolute: "precio absoluto",
 		override: "sobrescritura",
 	}
 	return labels[key] ?? (key || "regla de precio")
+}
+
+function priceRuleNameLabel(name: unknown, type: unknown) {
+	const value = String(name ?? "").trim()
+	if (!value || value.startsWith("ctx:")) return priceRuleLabel(type)
+	return value.replaceAll("_", " ")
+}
+
+function dateRangeLabel(value: unknown) {
+	if (!value || typeof value !== "object") return ""
+	const record = value as Record<string, unknown>
+	const from = String(record.from ?? record.startDate ?? "").trim()
+	const to = String(record.to ?? record.endDate ?? "").trim()
+	if (from && to) return `${from} a ${to}`
+	if (from) return `desde ${from}`
+	if (to) return `hasta ${to}`
+	return ""
 }
 
 function policyEventLabel(type: unknown) {
@@ -171,8 +192,10 @@ export async function loadRatesContextualHistory(params: {
 	providerId: string
 	ratePlans: RatePlanContext[]
 	limit?: number
+	context?: "rate_plans" | "calendar"
 }): Promise<ContextualHistoryItem[]> {
 	const limit = params.limit ?? 8
+	const context = params.context ?? "rate_plans"
 	const ratePlans = params.ratePlans.filter((row) => row.ratePlanId)
 	const ratePlanIds = [...new Set(ratePlans.map((row) => String(row.ratePlanId)))]
 	if (!params.providerId || !ratePlanIds.length) return []
@@ -208,6 +231,7 @@ export async function loadRatesContextualHistory(params: {
 			type: PriceRule.type,
 			value: PriceRule.value,
 			isActive: PriceRule.isActive,
+			dateRangeJson: PriceRule.dateRangeJson,
 			createdAt: PriceRule.createdAt,
 		})
 		.from(PriceRule)
@@ -251,7 +275,7 @@ export async function loadRatesContextualHistory(params: {
 
 	return sortHistory(
 		[
-			...ratePlanRows.map((row) => ({
+			...(context === "calendar" ? [] : ratePlanRows).map((row) => ({
 				id: `rate_plan:${row.id}`,
 				title: "Tarifa creada",
 				description: `${ratePlanLabel(ratePlanMap, row.id)} quedó disponible para operación comercial.`,
@@ -265,17 +289,26 @@ export async function loadRatesContextualHistory(params: {
 			})),
 			...priceRules.map((rule) => ({
 				id: `price_rule:${rule.id}`,
-				title: "Regla de precio creada",
-				description: `${rule.name || priceRuleLabel(rule.type)} sobre ${ratePlanLabel(ratePlanMap, rule.ratePlanId)}.`,
-				meta: `${priceRuleLabel(rule.type)} · ${Number(rule.value ?? 0)} · ${rule.isActive ? "activa" : "inactiva"}`,
-				objectType: "tarifa" as const,
-				objectLabel: ratePlanLabel(ratePlanMap, rule.ratePlanId),
+				title: context === "calendar" ? "Cambio de precio creado" : "Regla de precio creada",
+				description:
+					context === "calendar"
+						? `${priceRuleNameLabel(rule.name, rule.type)} para ${dateRangeLabel(rule.dateRangeJson) || "el calendario seleccionado"}.`
+						: `${priceRuleNameLabel(rule.name, rule.type)} en ${ratePlanLabel(ratePlanMap, rule.ratePlanId)}.`,
+				meta:
+					context === "calendar"
+						? `${ratePlanLabel(ratePlanMap, rule.ratePlanId)} · ${priceRuleLabel(rule.type)} · ${rule.isActive ? "activa" : "inactiva"}`
+						: `${priceRuleLabel(rule.type)} · ${Number(rule.value ?? 0)} · ${rule.isActive ? "activa" : "inactiva"}`,
+				objectType: context === "calendar" ? ("fecha" as const) : ("tarifa" as const),
+				objectLabel:
+					context === "calendar"
+						? dateRangeLabel(rule.dateRangeJson) || "Calendario"
+						: ratePlanLabel(ratePlanMap, rule.ratePlanId),
 				beforeLabel: "Sin esta regla de precio",
 				afterLabel: `${priceRuleLabel(rule.type)} · ${Number(rule.value ?? 0)} · ${rule.isActive ? "activa" : "inactiva"}`,
 				createdAt: toIso(rule.createdAt),
 				tone: "info" as const,
 			})),
-			...restrictions.map((rule) => ({
+			...(context === "rate_plans" ? [] : restrictions).map((rule) => ({
 				id: `restriction:${rule.id}`,
 				title: "Regla de venta creada",
 				description: `${restrictionTypeLabel(rule.type)} aplicada a ${scopeLabel(rule.scope)}.`,
