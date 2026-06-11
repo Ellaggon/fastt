@@ -57,8 +57,8 @@ const statusLabels: Record<string, string> = {
 }
 const statusClasses: Record<string, string> = {
 	active: "border-emerald-200 bg-emerald-50 text-emerald-800",
-	draft: "border-amber-200 bg-amber-50 text-amber-800",
-	template: "border-blue-200 bg-blue-50 text-blue-800",
+	draft: "border-slate-200 bg-slate-100 text-slate-700",
+	template: "border-slate-200 bg-slate-100 text-slate-700",
 	archived: "border-slate-200 bg-slate-100 text-slate-600",
 }
 const presetLabels: Record<string, string> = {
@@ -421,23 +421,23 @@ const missingMatrixCells = matrixRows.reduce(
 )
 const policyHistory = await loadPolicyContextualHistory({ providerId, limit: 8 })
 const historyToneClasses: Record<string, string> = {
-	success: "border-emerald-800 bg-emerald-950/40 text-emerald-100",
-	warning: "border-amber-800 bg-amber-950/40 text-amber-100",
-	info: "border-blue-800 bg-blue-950/40 text-blue-100",
-	neutral: "border-slate-800 bg-slate-900 text-slate-200",
+	success: "border-emerald-200 bg-emerald-50 text-emerald-900",
+	warning: "border-amber-200 bg-amber-50 text-amber-900",
+	info: "border-blue-200 bg-blue-50 text-blue-900",
+	neutral: "border-slate-200 bg-white text-slate-800",
 }
 ---
 
 <WorkspaceLayout title="Condiciones">
-	<main class="min-h-screen text-slate-200">
+	<main class="min-h-screen bg-slate-50 text-slate-800">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header class="flex flex-wrap items-start justify-between gap-4">
 				<div class="space-y-2">
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
 						Habitaciones y tarifas · Centro operativo
 					</p>
-					<h1 class="text-3xl font-semibold text-slate-100">Condiciones</h1>
-					<p class="max-w-4xl text-sm leading-6 text-slate-300">
+					<h1 class="text-3xl font-semibold text-slate-950">Condiciones</h1>
+					<p class="max-w-4xl text-sm leading-6 text-slate-600">
 						Centro operativo por tarifa, hotel y canal. Revisa qué condiciones están listas, qué
 						falta para vender y qué impacto contractual tendrá cada asignación.
 					</p>
@@ -449,25 +449,25 @@ const historyToneClasses: Record<string, string> = {
 			</header>
 
 			<div class="grid gap-4 md:grid-cols-4">
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<Card className="border-slate-200 bg-white text-slate-900">
 					<p class="text-xs uppercase tracking-wide text-slate-500">Grupos</p>
 					<p class="mt-2 text-2xl font-semibold">{cards.length}</p>
-					<p class="mt-1 text-xs text-slate-400">Biblioteca contractual</p>
+					<p class="mt-1 text-xs text-slate-500">Biblioteca contractual</p>
 				</Card>
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<Card className="border-slate-200 bg-white text-slate-900">
 					<p class="text-xs uppercase tracking-wide text-slate-500">Publicadas</p>
 					<p class="mt-2 text-2xl font-semibold">{activeCount}</p>
-					<p class="mt-1 text-xs text-slate-400">Listas para asignar</p>
+					<p class="mt-1 text-xs text-slate-500">Listas para asignar</p>
 				</Card>
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<Card className="border-slate-200 bg-white text-slate-900">
 					<p class="text-xs uppercase tracking-wide text-slate-500">Asignadas</p>
 					<p class="mt-2 text-2xl font-semibold">{assignedCount}</p>
-					<p class="mt-1 text-xs text-slate-400">Con uso activo</p>
+					<p class="mt-1 text-xs text-slate-500">Con uso activo</p>
 				</Card>
-				<Card className="border-slate-800 bg-slate-950 text-slate-100">
+				<Card className="border-slate-200 bg-white text-slate-900">
 					<p class="text-xs uppercase tracking-wide text-slate-500">Borradores</p>
 					<p class="mt-2 text-2xl font-semibold">{draftCount}</p>
-					<p class="mt-1 text-xs text-slate-400">Pendientes de publicación</p>
+					<p class="mt-1 text-xs text-slate-500">Pendientes de publicación</p>
 				</Card>
 			</div>
 
@@ -486,37 +486,102 @@ const historyToneClasses: Record<string, string> = {
 				)
 			}
 
+			<nav
+				class="flex gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm"
+				aria-label="Vistas de condiciones"
+				data-policy-tabs
+			>
+				<button
+					type="button"
+					class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-950 shadow-sm"
+					data-policy-tab="incomplete"
+					aria-selected="true"
+				>
+					Incompletas
+					<span class="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+						{incompleteMatrixRows}
+					</span>
+				</button>
+				<button
+					type="button"
+					class="rounded-md border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100"
+					data-policy-tab="ready"
+					aria-selected="false"
+				>
+					Listas
+					<span class="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-800">
+						{readyMatrixRows}
+					</span>
+				</button>
+				{
+					isProfessionalPolicies && (
+						<button
+							type="button"
+							class="rounded-md border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100"
+							data-policy-tab="detail"
+							aria-selected="false"
+						>
+							Matriz profesional
+						</button>
+					)
+				}
+				<button
+					type="button"
+					class="rounded-md border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100"
+					data-policy-tab="library"
+					aria-selected="false"
+				>
+					Biblioteca
+					<span class="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+						{cards.length}
+					</span>
+				</button>
+				{
+					isProfessionalPolicies && (
+						<button
+							type="button"
+							class="rounded-md border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100"
+							data-policy-tab="history"
+							aria-selected="false"
+						>
+							Historial avanzado
+						</button>
+					)
+				}
+			</nav>
+
 			<section
-				class="space-y-4 rounded-lg border border-slate-800 bg-slate-950/80 p-5"
+				class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
 				data-policy-operations-matrix
+				data-policy-tab-shell="operations"
 			>
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
 							Preparación comercial
 						</p>
-						<h2 class="mt-1 text-xl font-semibold text-slate-100">Centro operativo</h2>
-						<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-							Primero resuelve tarifas incompletas. La vista detallada conserva la matriz completa
-							por categoría y canal cuando necesites auditar el contrato.
+						<h2 class="mt-1 text-xl font-semibold text-slate-950">Centro operativo</h2>
+						<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+							Primero resuelve tarifas incompletas. En modo Pro puedes revisar matriz por canal,
+							historial avanzado y detalle técnico.
 						</p>
 					</div>
 					<div class="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
-						<div class="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+						<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
 							<p class="text-slate-500">Filas</p>
-							<p class="mt-1 text-lg font-semibold text-slate-100">{matrixRows.length}</p>
+							<p class="mt-1 text-lg font-semibold text-slate-900">{matrixRows.length}</p>
 						</div>
-						<div class="rounded-lg border border-emerald-900/70 bg-emerald-950/30 px-3 py-2">
-							<p class="text-emerald-300">Listas</p>
-							<p class="mt-1 text-lg font-semibold text-emerald-100">{readyMatrixRows}</p>
+						<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+							<p class="text-emerald-700">Listas</p>
+							<p class="mt-1 text-lg font-semibold text-emerald-900">{readyMatrixRows}</p>
 						</div>
-						<div class="rounded-lg border border-amber-900/70 bg-amber-950/30 px-3 py-2">
-							<p class="text-amber-300">Incompletas</p>
-							<p class="mt-1 text-lg font-semibold text-amber-100">{incompleteMatrixRows}</p>
+						<div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+							<p class="text-amber-700">Incompletas</p>
+							<p class="mt-1 text-lg font-semibold text-amber-900">{incompleteMatrixRows}</p>
 						</div>
-						<div class="rounded-lg border border-amber-900/70 bg-amber-950/30 px-3 py-2">
-							<p class="text-amber-300">Faltantes</p>
-							<p class="mt-1 text-lg font-semibold text-amber-100">{missingMatrixCells}</p>
+						<div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+							<p class="text-amber-700">Faltantes</p>
+							<p class="mt-1 text-lg font-semibold text-amber-900">{missingMatrixCells}</p>
 						</div>
 					</div>
 				</div>
@@ -527,64 +592,75 @@ const historyToneClasses: Record<string, string> = {
 							No se pudieron cargar tarifas y hoteles para condiciones.
 						</div>
 					) : matrixRows.length === 0 ? (
-						<div class="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
+						<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
 							Aún no hay tarifas u hoteles disponibles para mostrar en el centro operativo.
 						</div>
 					) : (
 						<>
-							<div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-								<section class="rounded-lg border border-amber-900/70 bg-amber-950/20 p-4">
+							<div class="grid gap-4">
+								<section
+									class="rounded-lg border border-amber-200 bg-amber-50 p-4"
+									data-policy-tab-panel="incomplete"
+								>
 									<div class="flex flex-wrap items-center justify-between gap-3">
 										<div>
-											<p class="text-xs font-semibold tracking-wide text-amber-300 uppercase">
+											<p class="text-xs font-semibold tracking-wide text-amber-700 uppercase">
 												Tarifas incompletas
 											</p>
-											<h3 class="mt-1 text-lg font-semibold text-amber-100">
+											<h3 class="mt-1 text-lg font-semibold text-amber-900">
 												{incompleteRows.length} pendientes
 											</h3>
 										</div>
-										<span class="rounded-full border border-amber-700 px-2.5 py-1 text-xs font-semibold text-amber-200">
+										<span class="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800">
 											{missingMatrixCells} faltantes
 										</span>
 									</div>
 									<div class="mt-4 space-y-3">
 										{incompleteRows.length === 0 ? (
-											<p class="rounded-lg border border-emerald-900/70 bg-emerald-950/30 p-3 text-sm text-emerald-100">
+											<p class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
 												No hay tarifas incompletas. Todo lo visible está listo para vender.
 											</p>
 										) : (
 											incompleteRows.map((row) => {
 												const missingCells = row.cells.filter((cell: any) => !cell.group)
+												const nextMissingCell = missingCells[0]
 												return (
-													<article class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+													<article class="rounded-lg border border-slate-200 bg-white p-3">
 														<div class="flex flex-wrap items-start justify-between gap-3">
 															<div class="min-w-0">
 																<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 																	{row.scopeLabel}
 																</p>
-																<h4 class="mt-1 font-semibold text-slate-100">{row.label}</h4>
+																<h4 class="mt-1 font-semibold text-slate-950">{row.label}</h4>
 																{row.helper && (
-																	<p class="mt-1 text-xs leading-5 text-slate-400">{row.helper}</p>
+																	<p class="mt-1 text-xs leading-5 text-slate-500">{row.helper}</p>
 																)}
 															</div>
-															<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-300">
+															<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
 																Todos los canales
 															</span>
 														</div>
-														<div class="mt-3 flex flex-wrap gap-2">
-															{missingCells.map((cell: any) => (
-																<button
-																	type="button"
-																	class="policy-assignment-open rounded-full border border-amber-700 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:border-amber-400"
-																	data-assignment-mode="preset"
-																	data-assignment-scope={row.scope}
-																	data-assignment-scope-id={row.scopeId}
-																	data-assignment-category={cell.category}
-																	data-assignment-channel=""
-																>
-																	Asignar {cell.categoryLabel}
-																</button>
-															))}
+														<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+															<div class="flex flex-wrap gap-2">
+																{missingCells.map((cell: any) => (
+																	<span class="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
+																		Falta {cell.categoryLabel}
+																	</span>
+																))}
+															</div>
+															<button
+																type="button"
+																class="policy-assignment-open rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+																data-assignment-mode="preset"
+																data-assignment-scope={row.scope}
+																data-assignment-scope-id={row.scopeId}
+																data-assignment-category={
+																	nextMissingCell?.category ?? "Cancellation"
+																}
+																data-assignment-channel=""
+															>
+																Resolver
+															</button>
 														</div>
 													</article>
 												)
@@ -593,34 +669,37 @@ const historyToneClasses: Record<string, string> = {
 									</div>
 								</section>
 
-								<section class="rounded-lg border border-emerald-900/70 bg-emerald-950/20 p-4">
+								<section
+									class="hidden rounded-lg border border-emerald-200 bg-emerald-50 p-4"
+									data-policy-tab-panel="ready"
+								>
 									<div>
-										<p class="text-xs font-semibold tracking-wide text-emerald-300 uppercase">
+										<p class="text-xs font-semibold tracking-wide text-emerald-700 uppercase">
 											Listas para vender
 										</p>
-										<h3 class="mt-1 text-lg font-semibold text-emerald-100">
+										<h3 class="mt-1 text-lg font-semibold text-emerald-900">
 											{readyRows.length} listas
 										</h3>
 									</div>
 									<div class="mt-4 space-y-3">
 										{readyRows.length === 0 ? (
-											<p class="rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm text-slate-400">
+											<p class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
 												Aún no hay tarifas u hoteles con las 4 categorías listas.
 											</p>
 										) : (
 											readyRows.slice(0, 8).map((row) => (
-												<article class="rounded-lg border border-slate-800 bg-slate-900 p-3">
+												<article class="rounded-lg border border-slate-200 bg-white p-3">
 													<div class="flex flex-wrap items-start justify-between gap-3">
 														<div>
 															<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 																{row.scopeLabel}
 															</p>
-															<h4 class="mt-1 font-semibold text-slate-100">{row.label}</h4>
-															<p class="mt-1 text-xs text-slate-400">
+															<h4 class="mt-1 font-semibold text-slate-950">{row.label}</h4>
+															<p class="mt-1 text-xs text-slate-500">
 																Cancelación, pago, no presentación e ingreso/salida listas.
 															</p>
 														</div>
-														<span class="rounded-full border border-emerald-700 bg-emerald-950/50 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+														<span class="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
 															Lista
 														</span>
 													</div>
@@ -629,160 +708,88 @@ const historyToneClasses: Record<string, string> = {
 										)}
 										{readyRows.length > 8 && (
 											<p class="text-xs text-slate-500">
-												{readyRows.length - 8} listas adicionales en vista detallada.
+												{readyRows.length - 8} listas adicionales en matriz profesional.
 											</p>
 										)}
 									</div>
 								</section>
 							</div>
 
-							<details
-								class="rounded-lg border border-slate-800 bg-slate-900/70 p-4"
-								open={isProfessionalPolicies}
-							>
-								<summary class="cursor-pointer text-sm font-semibold text-slate-100">
-									Vista detallada
-									<span class="ml-2 text-xs font-normal text-slate-500">
-										Matriz completa por categoría; canal por defecto: Todos los canales.
-									</span>
-								</summary>
-								<div class="mt-4 space-y-3">
-									<div class="space-y-3 md:hidden">
-										{matrixRows.map((row) => (
-											<article class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-												<div class="flex flex-wrap items-start justify-between gap-3">
-													<div class="min-w-0">
-														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-															{row.scopeLabel}
-														</p>
-														<h3 class="mt-1 text-base font-semibold text-slate-100">{row.label}</h3>
-														{row.helper && (
-															<p class="mt-1 text-xs leading-5 text-slate-400">{row.helper}</p>
-														)}
-													</div>
-													<span
-														class:list={[
-															"rounded-full border px-2.5 py-1 text-xs font-semibold",
-															row.isReady
-																? "border-emerald-700 bg-emerald-950/50 text-emerald-200"
-																: "border-amber-700 bg-amber-950/50 text-amber-200",
-														]}
-													>
-														{row.isReady ? "Lista" : "Incompleta"}
-													</span>
-												</div>
-
-												<div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-													{isProfessionalPolicies && (
-														<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 font-semibold text-slate-300">
-															{row.channelLabel}
-														</span>
-													)}
-													<span class="text-slate-500">
-														{row.assignedCells}/{matrixCategories.length} categorías listas
-													</span>
-												</div>
-
-												<div class="mt-4 grid gap-2">
-													{row.cells.map((cell: any) => (
-														<div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
-															<div class="mb-2 flex items-center justify-between gap-2">
-																<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-																	{cell.categoryLabel}
-																</p>
-																{cell.isInherited && (
-																	<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
-																		Heredada
-																	</span>
-																)}
-															</div>
-															{cell.group ? (
-																<button
-																	type="button"
-																	class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
-																	data-policy-view={jsonForHtml(cell.group.card.technical)}
-																>
-																	<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
-																		{cell.group.card.status}
-																	</span>
-																	<span class="mt-1 block font-semibold">
-																		{cell.group.card.preset}
-																	</span>
-																	<span class="mt-1 block text-xs text-emerald-200/80">
-																		{cell.isInherited
-																			? "Heredada de todos los canales"
-																			: cell.group.card.latestVersion}
-																	</span>
-																</button>
-															) : (
-																<button
-																	type="button"
-																	class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
-																	data-assignment-mode="preset"
-																	data-assignment-scope={row.scope}
-																	data-assignment-scope-id={row.scopeId}
-																	data-assignment-category={cell.category}
-																	data-assignment-channel={row.channel}
-																>
-																	<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
-																		Falta
-																	</span>
-																	<span class="mt-1 block font-semibold">Asignar condición</span>
-																</button>
-															)}
-														</div>
-													))}
-												</div>
-											</article>
-										))}
-									</div>
-
-									<div class="hidden overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 md:block">
-										<table class="w-full min-w-[980px] text-left text-sm">
-											<thead class="border-b border-slate-800 bg-slate-950 text-xs tracking-wide text-slate-500 uppercase">
-												<tr>
-													<th class="px-4 py-3 font-semibold">Destino</th>
-													{isProfessionalPolicies && <th class="px-4 py-3 font-semibold">Canal</th>}
-													{matrixCategories.map((category) => (
-														<th class="px-4 py-3 font-semibold">{categoryLabels[category]}</th>
-													))}
-													<th class="px-4 py-3 font-semibold">Estado</th>
-												</tr>
-											</thead>
-											<tbody class="divide-y divide-slate-800">
-												{matrixRows.map((row) => (
-													<tr class="align-top">
-														<td class="px-4 py-4">
+							{isProfessionalPolicies && (
+								<details
+									class="hidden rounded-lg border border-slate-200 bg-slate-50 p-4"
+									open
+									data-policy-tab-panel="detail"
+								>
+									<summary class="cursor-pointer text-sm font-semibold text-slate-900">
+										Matriz profesional
+										<span class="ml-2 text-xs font-normal text-slate-500">
+											Vista completa por categoría y canal para operación avanzada.
+										</span>
+									</summary>
+									<div class="mt-4 space-y-3">
+										<div class="space-y-3 md:hidden">
+											{matrixRows.map((row) => (
+												<article class="rounded-lg border border-slate-200 bg-white p-4">
+													<div class="flex flex-wrap items-start justify-between gap-3">
+														<div class="min-w-0">
 															<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 																{row.scopeLabel}
 															</p>
-															<p class="mt-1 font-semibold text-slate-100">{row.label}</p>
+															<h3 class="mt-1 text-base font-semibold text-slate-950">
+																{row.label}
+															</h3>
 															{row.helper && (
-																<p class="mt-1 text-xs text-slate-400">{row.helper}</p>
+																<p class="mt-1 text-xs leading-5 text-slate-500">{row.helper}</p>
 															)}
-														</td>
-														{isProfessionalPolicies && (
-															<td class="px-4 py-4">
-																<span class="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-300">
-																	{row.channelLabel}
-																</span>
-															</td>
-														)}
+														</div>
+														<span
+															class:list={[
+																"rounded-full border px-2.5 py-1 text-xs font-semibold",
+																row.isReady
+																	? "border-emerald-300 bg-emerald-50 text-emerald-800"
+																	: "border-amber-300 bg-amber-50 text-amber-800",
+															]}
+														>
+															{row.isReady ? "Lista" : "Incompleta"}
+														</span>
+													</div>
+
+													<div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+														<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-600">
+															{row.channelLabel}
+														</span>
+														<span class="text-slate-500">
+															{row.assignedCells}/{matrixCategories.length} categorías listas
+														</span>
+													</div>
+
+													<div class="mt-4 grid gap-2">
 														{row.cells.map((cell: any) => (
-															<td class="px-4 py-4">
+															<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+																<div class="mb-2 flex items-center justify-between gap-2">
+																	<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																		{cell.categoryLabel}
+																	</p>
+																	{cell.isInherited && (
+																		<span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+																			Heredada
+																		</span>
+																	)}
+																</div>
 																{cell.group ? (
 																	<button
 																		type="button"
-																		class="w-full rounded-lg border border-emerald-800 bg-emerald-950/40 p-3 text-left text-emerald-100 transition hover:border-emerald-500"
+																		class="w-full rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-left text-emerald-900 transition hover:border-emerald-400"
 																		data-policy-view={jsonForHtml(cell.group.card.technical)}
 																	>
-																		<span class="block text-xs font-semibold tracking-wide text-emerald-300 uppercase">
+																		<span class="block text-xs font-semibold tracking-wide text-emerald-700 uppercase">
 																			{cell.group.card.status}
 																		</span>
 																		<span class="mt-1 block font-semibold">
 																			{cell.group.card.preset}
 																		</span>
-																		<span class="mt-1 block text-xs text-emerald-200/80">
+																		<span class="mt-1 block text-xs text-emerald-700">
 																			{cell.isInherited
 																				? "Heredada de todos los canales"
 																				: cell.group.card.latestVersion}
@@ -791,312 +798,500 @@ const historyToneClasses: Record<string, string> = {
 																) : (
 																	<button
 																		type="button"
-																		class="policy-assignment-open w-full rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-left text-amber-100 transition hover:border-amber-500"
+																		class="policy-assignment-open w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-amber-900 transition hover:border-amber-500"
 																		data-assignment-mode="preset"
 																		data-assignment-scope={row.scope}
 																		data-assignment-scope-id={row.scopeId}
 																		data-assignment-category={cell.category}
 																		data-assignment-channel={row.channel}
 																	>
-																		<span class="block text-xs font-semibold tracking-wide text-amber-300 uppercase">
+																		<span class="block text-xs font-semibold tracking-wide text-amber-700 uppercase">
 																			Falta
 																		</span>
-																		<span class="mt-1 block font-semibold">Asignar</span>
-																		<span class="mt-1 block text-xs text-amber-200/80">
-																			{cell.categoryLabel}
-																		</span>
+																		<span class="mt-1 block font-semibold">Asignar condición</span>
 																	</button>
 																)}
-															</td>
+															</div>
 														))}
-														<td class="px-4 py-4">
-															<span
-																class:list={[
-																	"rounded-full border px-2.5 py-1 text-xs font-semibold",
-																	row.isReady
-																		? "border-emerald-700 bg-emerald-950/50 text-emerald-200"
-																		: "border-amber-700 bg-amber-950/50 text-amber-200",
-																]}
-															>
-																{row.isReady ? "Lista para vender" : "Incompleta"}
-															</span>
-															<p class="mt-2 text-xs text-slate-500">
-																{row.assignedCells}/{matrixCategories.length} categorías
-															</p>
-														</td>
+													</div>
+												</article>
+											))}
+										</div>
+
+										<div class="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
+											<table class="w-full min-w-[980px] text-left text-sm">
+												<thead class="border-b border-slate-200 bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
+													<tr>
+														<th class="px-4 py-3 font-semibold">Destino</th>
+														<th class="px-4 py-3 font-semibold">Canal</th>
+														{matrixCategories.map((category) => (
+															<th class="px-4 py-3 font-semibold">{categoryLabels[category]}</th>
+														))}
+														<th class="px-4 py-3 font-semibold">Estado</th>
 													</tr>
-												))}
-											</tbody>
-										</table>
+												</thead>
+												<tbody class="divide-y divide-slate-200">
+													{matrixRows.map((row) => (
+														<tr class="align-top">
+															<td class="px-4 py-4">
+																<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+																	{row.scopeLabel}
+																</p>
+																<p class="mt-1 font-semibold text-slate-950">{row.label}</p>
+																{row.helper && (
+																	<p class="mt-1 text-xs text-slate-500">{row.helper}</p>
+																)}
+															</td>
+															<td class="px-4 py-4">
+																<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+																	{row.channelLabel}
+																</span>
+															</td>
+															{row.cells.map((cell: any) => (
+																<td class="px-4 py-4">
+																	{cell.group ? (
+																		<button
+																			type="button"
+																			class="w-full rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-left text-emerald-900 transition hover:border-emerald-400"
+																			data-policy-view={jsonForHtml(cell.group.card.technical)}
+																		>
+																			<span class="block text-xs font-semibold tracking-wide text-emerald-700 uppercase">
+																				{cell.group.card.status}
+																			</span>
+																			<span class="mt-1 block font-semibold">
+																				{cell.group.card.preset}
+																			</span>
+																			<span class="mt-1 block text-xs text-emerald-700">
+																				{cell.isInherited
+																					? "Heredada de todos los canales"
+																					: cell.group.card.latestVersion}
+																			</span>
+																		</button>
+																	) : (
+																		<button
+																			type="button"
+																			class="policy-assignment-open w-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-amber-900 transition hover:border-amber-500"
+																			data-assignment-mode="preset"
+																			data-assignment-scope={row.scope}
+																			data-assignment-scope-id={row.scopeId}
+																			data-assignment-category={cell.category}
+																			data-assignment-channel={row.channel}
+																		>
+																			<span class="block text-xs font-semibold tracking-wide text-amber-700 uppercase">
+																				Falta
+																			</span>
+																			<span class="mt-1 block font-semibold">Asignar</span>
+																			<span class="mt-1 block text-xs text-amber-700">
+																				{cell.categoryLabel}
+																			</span>
+																		</button>
+																	)}
+																</td>
+															))}
+															<td class="px-4 py-4">
+																<span
+																	class:list={[
+																		"rounded-full border px-2.5 py-1 text-xs font-semibold",
+																		row.isReady
+																			? "border-emerald-300 bg-emerald-50 text-emerald-800"
+																			: "border-amber-300 bg-amber-50 text-amber-800",
+																	]}
+																>
+																	{row.isReady ? "Lista para vender" : "Incompleta"}
+																</span>
+																<p class="mt-2 text-xs text-slate-500">
+																	{row.assignedCells}/{matrixCategories.length} categorías
+																</p>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
 									</div>
-								</div>
-							</details>
+								</details>
+							)}
 						</>
 					)
 				}
 			</section>
 
-			{
-				!res.ok ? (
-					<Card className="border-red-200 bg-red-50 text-red-900">
-						<p>No se pudieron cargar las condiciones.</p>
-					</Card>
-				) : cards.length === 0 ? (
-					<Card className="border-slate-800 bg-slate-950 text-slate-100">
-						<div class="flex flex-wrap items-center justify-between gap-4">
-							<div>
-								<p class="text-lg font-semibold">Aún no hay condiciones</p>
-								<p class="mt-1 text-sm text-slate-400">
-									Crea el primer grupo contractual desde una plantilla y publícalo cuando esté
-									listo.
-								</p>
-							</div>
-							<Button href="/provider/policies/new" variant="primary">
-								Crear condición
-							</Button>
-						</div>
-					</Card>
-				) : (
-					<section class="space-y-4" data-policy-library-secondary>
-						<div>
-							<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-								Biblioteca secundaria
-							</p>
-							<h2 class="mt-1 text-xl font-semibold text-slate-100">Grupos de condiciones</h2>
-							<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-								Usa estas cards para gestionar versiones, publicación, auditoría y detalle técnico.
-								La operación diaria vive en la matriz superior.
-							</p>
-						</div>
-						<div class="grid gap-4 lg:grid-cols-2">
-							{cards.map((group) => {
-								const latest = group.latest ?? {}
-								const canPublish =
-									String(latest.status ?? "") !== "active" &&
-									String(latest.status ?? "") !== "archived"
-								const canArchive = String(latest.status ?? "") !== "archived"
-								return (
-									<article class="rounded-lg border border-slate-200 bg-white p-5 text-slate-800 shadow-sm">
-										<div class="flex flex-wrap items-start justify-between gap-3">
-											<div class="min-w-0 space-y-2">
-												<div class="flex flex-wrap items-center gap-2">
-													<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
-														{group.card.category}
-													</span>
-													<span
-														class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${group.card.statusClass}`}
-													>
-														{group.card.status}
-													</span>
-												</div>
-												<h2 class="text-lg leading-tight font-semibold text-slate-950">
-													{group.card.name}
-												</h2>
-											</div>
-											<p class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-												{group.card.latestVersion}
-											</p>
-										</div>
-
-										<dl class="mt-5 grid gap-4 border-y border-slate-200 py-4 sm:grid-cols-2">
-											<div class="border-l-2 border-slate-200 pl-3">
-												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Plantilla
-												</dt>
-												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{group.card.preset}
-												</dd>
-											</div>
-											<div class="border-l-2 border-slate-200 pl-3">
-												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Uso
-												</dt>
-												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{group.card.usage}
-												</dd>
-											</div>
-										</dl>
-
-										<div class="mt-4 space-y-3">
-											<div>
-												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Resumen para huésped
-												</p>
-												<p class="mt-1 text-sm leading-6 text-slate-700">
-													{group.card.guestSummary}
-												</p>
-											</div>
-											<div>
-												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Impacto financiero
-												</p>
-												<p class="mt-1 text-sm leading-6 text-slate-700">
-													{group.card.financialImpact}
-												</p>
-											</div>
-										</div>
-
-										<div class="mt-5 flex flex-wrap items-center gap-2">
-											<button
-												type="button"
-												class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
-												data-policy-view={jsonForHtml(group.card.technical)}
-											>
-												Ver
-											</button>
-											{canPublish && (
-												<button
-													type="button"
-													class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-													data-policy-action="publish"
-													data-policy-id={latest.id}
-												>
-													Publicar
-												</button>
-											)}
-											<button
-												type="button"
-												class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-												class:list={[
-													"policy-assignment-open",
-													String(latest.status ?? "") !== "active" &&
-														"cursor-not-allowed opacity-60",
-												]}
-												data-assignment-policy-id={
-													String(latest.status ?? "") === "active" ? latest.id : ""
-												}
-												data-assignment-category={group.group.category}
-												disabled={String(latest.status ?? "") !== "active"}
-											>
-												Asignar
-											</button>
-											{canArchive && (
-												<button
-													type="button"
-													class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
-													data-policy-action="archive"
-													data-policy-id={latest.id}
-												>
-													Archivar
-												</button>
-											)}
-											<Button
-												href={`/provider/policies/${latest.id}/edit`}
-												variant="secondary"
-												size="sm"
-											>
-												Nueva versión
-											</Button>
-											<Button
-												href={`/provider/policies/groups/${encodeURIComponent(group.group.id)}/audit`}
-												variant="secondary"
-												size="sm"
-											>
-												Auditoría
-											</Button>
-										</div>
-									</article>
-								)
-							})}
-						</div>
-					</section>
-				)
-			}
-		</div>
-
-		<section class="mx-auto max-w-7xl space-y-4 px-6">
-			<div>
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-					Historial operativo
-				</p>
-				<h2 class="mt-1 text-xl font-semibold text-slate-100">Historial de condiciones</h2>
-				<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-					Cambios recientes de biblioteca, publicación y asignación de condiciones.
-				</p>
-			</div>
-			<Card className="space-y-4 border-slate-800 bg-slate-950 text-slate-100">
-				<div class="flex flex-wrap gap-2" aria-label="Filtrar historial de condiciones">
-					<button
-						type="button"
-						class="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-900"
-						data-policy-history-filter="all"
-					>
-						Todo
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-900"
-						data-policy-history-filter="condicion"
-					>
-						Condición
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-900"
-						data-policy-history-filter="tarifa"
-					>
-						Tarifa
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-900"
-						data-policy-history-filter="habitacion"
-					>
-						Habitación
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-900"
-						data-policy-history-filter="hotel"
-					>
-						Hotel
-					</button>
-				</div>
+			<div class="hidden" data-policy-tab-panel="library">
 				{
-					policyHistory.length === 0 ? (
-						<p class="text-sm text-slate-400">
-							Todavía no hay cambios recientes para estas condiciones.
-						</p>
+					!res.ok ? (
+						<Card className="border-red-200 bg-red-50 text-red-900">
+							<p>No se pudieron cargar las condiciones.</p>
+						</Card>
+					) : cards.length === 0 ? (
+						<Card className="border-slate-200 bg-white text-slate-900">
+							<div class="flex flex-wrap items-center justify-between gap-4">
+								<div>
+									<p class="text-lg font-semibold">Aún no hay condiciones</p>
+									<p class="mt-1 text-sm text-slate-600">
+										Crea el primer grupo contractual desde una plantilla y publícalo cuando esté
+										listo.
+									</p>
+								</div>
+								<Button href="/provider/policies/new" variant="primary">
+									Crear condición
+								</Button>
+							</div>
+						</Card>
 					) : (
-						<ol class="space-y-3">
-							{policyHistory.map((item) => (
-								<li
-									class={`rounded-2xl border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
-									data-policy-history-item
-									data-policy-history-object={item.objectType}
-								>
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div class="min-w-0">
-											<div class="flex flex-wrap items-center gap-2">
-												<p class="font-semibold">{item.title}</p>
-												<span class="rounded-full bg-slate-900/70 px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase opacity-80">
-													{item.objectLabel}
-												</span>
+						<section
+							class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+							data-policy-library-tab
+						>
+							<div class="flex flex-wrap items-start justify-between gap-4">
+								<div>
+									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										{isProfessionalPolicies ? "Biblioteca Pro" : "Biblioteca básica"}
+									</p>
+									<h2 class="mt-1 text-xl font-semibold text-slate-950">
+										Condiciones reutilizables
+									</h2>
+									<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+										{isProfessionalPolicies
+											? "Gestiona plantillas, versiones, publicación, asignación existente y auditoría por grupo."
+											: "Consulta condiciones reutilizables, publica borradores y archiva lo que ya no uses. La asignación diaria se resuelve desde Incompletas."}
+									</p>
+								</div>
+								<Button href="/provider/policies/new" variant="primary">
+									Crear condición
+								</Button>
+							</div>
+
+							<div class="grid gap-3 md:hidden">
+								{cards.map((group) => {
+									const latest = group.latest ?? {}
+									const canPublish =
+										String(latest.status ?? "") !== "active" &&
+										String(latest.status ?? "") !== "archived"
+									const canArchive = String(latest.status ?? "") !== "archived"
+									return (
+										<article class="rounded-lg border border-slate-200 bg-white p-4 text-slate-900">
+											<div class="flex flex-wrap items-start justify-between gap-3">
+												<div class="min-w-0 space-y-2">
+													<div class="flex flex-wrap items-center gap-2">
+														<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+															{group.card.category}
+														</span>
+														<span
+															class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${group.card.statusClass}`}
+														>
+															{group.card.status}
+														</span>
+													</div>
+													<h2 class="text-base leading-tight font-semibold text-slate-950">
+														{group.card.name}
+													</h2>
+													<p class="text-xs text-slate-500">
+														{group.card.preset} · {group.card.usage}
+													</p>
+												</div>
+												<p class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+													{group.card.latestVersion}
+												</p>
 											</div>
-											<p class="mt-1 text-sm opacity-80">{item.description}</p>
-											<p class="mt-1 text-xs opacity-70">{item.meta}</p>
-										</div>
-										<time class="text-xs font-medium opacity-70">
-											{formatHistoryDate(item.createdAt)}
-										</time>
-									</div>
-									<div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-										<div class="rounded-xl bg-slate-900/70 p-2">
-											<p class="font-semibold tracking-wide uppercase opacity-60">Antes</p>
-											<p class="mt-1">{item.beforeLabel ?? "Sin estado anterior visible"}</p>
-										</div>
-										<div class="rounded-xl bg-slate-900/70 p-2">
-											<p class="font-semibold tracking-wide uppercase opacity-60">Después</p>
-											<p class="mt-1">{item.afterLabel ?? "Cambio aplicado"}</p>
-										</div>
-									</div>
-								</li>
-							))}
-						</ol>
+											<p class="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+												{group.card.guestSummary}
+											</p>
+
+											<div class="mt-5 flex flex-wrap items-center gap-2">
+												{isProfessionalPolicies && (
+													<button
+														type="button"
+														class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+														data-policy-view={jsonForHtml(group.card.technical)}
+													>
+														Detalle técnico
+													</button>
+												)}
+												{canPublish && (
+													<button
+														type="button"
+														class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+														data-policy-action="publish"
+														data-policy-id={latest.id}
+													>
+														Publicar
+													</button>
+												)}
+												{isProfessionalPolicies && (
+													<button
+														type="button"
+														class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+														class:list={[
+															"policy-assignment-open",
+															String(latest.status ?? "") !== "active" &&
+																"cursor-not-allowed opacity-60",
+														]}
+														data-assignment-policy-id={
+															String(latest.status ?? "") === "active" ? latest.id : ""
+														}
+														data-assignment-category={group.group.category}
+														disabled={String(latest.status ?? "") !== "active"}
+													>
+														Usar existente
+													</button>
+												)}
+												{canArchive && (
+													<button
+														type="button"
+														class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+														data-policy-action="archive"
+														data-policy-id={latest.id}
+													>
+														Archivar
+													</button>
+												)}
+												{isProfessionalPolicies && (
+													<>
+														<Button
+															href={`/provider/policies/${latest.id}/edit`}
+															variant="secondary"
+															size="sm"
+														>
+															Nueva versión
+														</Button>
+														<Button
+															href={`/provider/policies/groups/${encodeURIComponent(group.group.id)}/audit`}
+															variant="secondary"
+															size="sm"
+														>
+															Auditoría
+														</Button>
+													</>
+												)}
+											</div>
+										</article>
+									)
+								})}
+							</div>
+
+							<div class="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
+								<table class="w-full min-w-[1040px] text-left text-sm">
+									<thead class="border-b border-slate-200 bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
+										<tr>
+											<th class="px-4 py-3 font-semibold">Condición</th>
+											<th class="px-4 py-3 font-semibold">Categoría</th>
+											<th class="px-4 py-3 font-semibold">Plantilla</th>
+											<th class="px-4 py-3 font-semibold">Estado</th>
+											<th class="px-4 py-3 font-semibold">Uso</th>
+											<th class="px-4 py-3 font-semibold">Resumen</th>
+											<th class="px-4 py-3 font-semibold">Acciones</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-200">
+										{cards.map((group) => {
+											const latest = group.latest ?? {}
+											const canPublish =
+												String(latest.status ?? "") !== "active" &&
+												String(latest.status ?? "") !== "archived"
+											const canArchive = String(latest.status ?? "") !== "archived"
+											return (
+												<tr class="align-top">
+													<td class="px-4 py-4">
+														<p class="max-w-[240px] font-semibold text-slate-950">
+															{group.card.name}
+														</p>
+														<p class="mt-1 text-xs text-slate-500">{group.card.latestVersion}</p>
+													</td>
+													<td class="px-4 py-4">
+														<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+															{group.card.category}
+														</span>
+													</td>
+													<td class="px-4 py-4 text-slate-700">{group.card.preset}</td>
+													<td class="px-4 py-4">
+														<span
+															class={`rounded-full border px-2.5 py-1 text-xs font-semibold ${group.card.statusClass}`}
+														>
+															{group.card.status}
+														</span>
+													</td>
+													<td class="px-4 py-4 text-slate-700">{group.card.usage}</td>
+													<td class="px-4 py-4">
+														<p class="max-w-[320px] text-sm leading-6 text-slate-600">
+															{group.card.guestSummary}
+														</p>
+													</td>
+													<td class="px-4 py-4">
+														<div class="flex flex-wrap gap-2">
+															{isProfessionalPolicies && (
+																<button
+																	type="button"
+																	class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+																	data-policy-view={jsonForHtml(group.card.technical)}
+																>
+																	Detalle técnico
+																</button>
+															)}
+															{canPublish && (
+																<button
+																	type="button"
+																	class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+																	data-policy-action="publish"
+																	data-policy-id={latest.id}
+																>
+																	Publicar
+																</button>
+															)}
+															{isProfessionalPolicies && (
+																<button
+																	type="button"
+																	class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+																	class:list={[
+																		"policy-assignment-open",
+																		String(latest.status ?? "") !== "active" &&
+																			"cursor-not-allowed opacity-60",
+																	]}
+																	data-assignment-policy-id={
+																		String(latest.status ?? "") === "active" ? latest.id : ""
+																	}
+																	data-assignment-category={group.group.category}
+																	disabled={String(latest.status ?? "") !== "active"}
+																>
+																	Usar existente
+																</button>
+															)}
+															{canArchive && (
+																<button
+																	type="button"
+																	class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+																	data-policy-action="archive"
+																	data-policy-id={latest.id}
+																>
+																	Archivar
+																</button>
+															)}
+															{isProfessionalPolicies && (
+																<>
+																	<Button
+																		href={`/provider/policies/${latest.id}/edit`}
+																		variant="secondary"
+																		size="sm"
+																	>
+																		Nueva versión
+																	</Button>
+																	<Button
+																		href={`/provider/policies/groups/${encodeURIComponent(group.group.id)}/audit`}
+																		variant="secondary"
+																		size="sm"
+																	>
+																		Auditoría
+																	</Button>
+																</>
+															)}
+														</div>
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+							</div>
+						</section>
 					)
 				}
-			</Card>
-		</section>
+			</div>
+		</div>
+
+		{
+			isProfessionalPolicies && (
+				<section
+					class="mx-auto hidden max-w-7xl space-y-4 px-6"
+					data-policy-tab-panel="history"
+					data-policy-history-tab
+				>
+					<Card className="space-y-4 border-slate-200 bg-white text-slate-900">
+						<div class="flex flex-wrap items-start justify-between gap-4">
+							<div>
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Historial avanzado
+								</p>
+								<h2 class="mt-1 text-xl font-semibold text-slate-950">Cambios recientes</h2>
+								<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+									Últimos movimientos de condiciones, tarifas, habitaciones y hoteles. Para revisar
+									trazabilidad completa, abre Auditoría desde cada condición en Biblioteca.
+								</p>
+							</div>
+							<Button href="/provider/policies?vista=library" variant="secondary" size="sm">
+								Ir a biblioteca
+							</Button>
+						</div>
+						<div class="flex flex-wrap gap-2" aria-label="Filtrar historial de condiciones">
+							<button
+								type="button"
+								class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+								data-policy-history-filter="all"
+							>
+								Todo
+							</button>
+							<button
+								type="button"
+								class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+								data-policy-history-filter="condicion"
+							>
+								Condición
+							</button>
+							<button
+								type="button"
+								class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+								data-policy-history-filter="tarifa"
+							>
+								Tarifa
+							</button>
+							<button
+								type="button"
+								class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+								data-policy-history-filter="habitacion"
+							>
+								Habitación
+							</button>
+							<button
+								type="button"
+								class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+								data-policy-history-filter="hotel"
+							>
+								Hotel
+							</button>
+						</div>
+						{policyHistory.length === 0 ? (
+							<p class="text-sm text-slate-600">
+								Todavía no hay cambios recientes para estas condiciones.
+							</p>
+						) : (
+							<ol class="space-y-3">
+								{policyHistory.map((item) => (
+									<li
+										class={`rounded-lg border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
+										data-policy-history-item
+										data-policy-history-object={item.objectType}
+									>
+										<div class="flex flex-wrap items-start justify-between gap-3">
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
+													<p class="font-semibold">{item.title}</p>
+													<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
+														{item.objectLabel}
+													</span>
+												</div>
+												<p class="mt-1 text-sm opacity-80">{item.description}</p>
+												<p class="mt-1 text-xs opacity-70">{item.meta}</p>
+											</div>
+											<time class="text-xs font-medium opacity-70">
+												{formatHistoryDate(item.createdAt)}
+											</time>
+										</div>
+									</li>
+								))}
+							</ol>
+						)}
+					</Card>
+				</section>
+			)
+		}
 
 		<aside
 			id="policyTechnicalDrawer"
@@ -1126,6 +1321,49 @@ const historyToneClasses: Record<string, string> = {
 </WorkspaceLayout>
 
 <script>
+	const policyTabButtons = Array.from(document.querySelectorAll("[data-policy-tab]"))
+	const policyTabPanels = Array.from(document.querySelectorAll("[data-policy-tab-panel]"))
+	const policyOperationsShell = document.querySelector("[data-policy-tab-shell='operations']")
+
+	function activatePolicyTab(tab: string) {
+		const requestedTab = tab || "incomplete"
+		const nextTab = policyTabButtons.some(
+			(button) => button.getAttribute("data-policy-tab") === requestedTab
+		)
+			? requestedTab
+			: "incomplete"
+		policyTabButtons.forEach((button) => {
+			const isActive = button.getAttribute("data-policy-tab") === nextTab
+			button.setAttribute("aria-selected", isActive ? "true" : "false")
+			button.classList.toggle("border-slate-300", isActive)
+			button.classList.toggle("border-transparent", !isActive)
+			button.classList.toggle("bg-white", isActive)
+			button.classList.toggle("shadow-sm", isActive)
+			button.classList.toggle("text-slate-950", isActive)
+			button.classList.toggle("text-slate-600", !isActive)
+			button.classList.toggle("hover:bg-slate-100", !isActive)
+		})
+		policyTabPanels.forEach((panel) => {
+			panel.classList.toggle("hidden", panel.getAttribute("data-policy-tab-panel") !== nextTab)
+		})
+		policyOperationsShell?.classList.toggle(
+			"hidden",
+			!["incomplete", "ready", "detail"].includes(nextTab)
+		)
+	}
+
+	policyTabButtons.forEach((button) => {
+		button.addEventListener("click", () => {
+			const tab = button.getAttribute("data-policy-tab") || "incomplete"
+			activatePolicyTab(tab)
+			const url = new URL(window.location.href)
+			url.searchParams.set("vista", tab)
+			window.history.replaceState({}, "", url)
+		})
+	})
+
+	activatePolicyTab(new URL(window.location.href).searchParams.get("vista") || "incomplete")
+
 	document.querySelectorAll("[data-policy-history-filter]").forEach((button) => {
 		button.addEventListener("click", () => {
 			const filter = button.getAttribute("data-policy-history-filter") || "all"
