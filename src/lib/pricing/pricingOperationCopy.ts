@@ -10,8 +10,8 @@ export const pricingOperationCopy = {
 	resultReady: "Cambio aplicado",
 	resultNeedsReview: "Aplicación con revisión",
 	partialFailureTitle: "Planes que necesitan revisión",
-	advancedDetail: "Detalle avanzado",
-	technicalDetail: "Detalle técnico",
+	advancedDetail: "Revisión del impacto",
+	technicalDetail: "Diagnóstico",
 	nextStepLabel: "Qué hacer ahora",
 	rangeFallback: "Rango del calendario",
 	extension: {
@@ -19,7 +19,7 @@ export const pricingOperationCopy = {
 		drawerTitle: "Extender este cambio",
 		advancedModeTitle: "Modo avanzado de extensión",
 		advancedModeDescription:
-			"Úsalo solo cuando necesites revisar muchos planes o diagnosticar detalle técnico. La operación diaria nace en el calendario.",
+			"Úsalo solo cuando necesites revisar muchos planes o diagnosticar un caso puntual. La operación diaria nace en el calendario.",
 		contextTitle: "Continuación desde Calendario",
 		contextFallback:
 			"Vuelve al calendario y selecciona un rango para llegar con fechas y plan preseleccionados.",
@@ -28,10 +28,10 @@ export const pricingOperationCopy = {
 		reviewTitle: "Revisión de extensión",
 		noApplicableTitle: "Aplicación con revisión",
 		noApplicableSummary:
-			"No encontramos planes aplicables en esta revisión. Ajusta el alcance o abre el detalle avanzado.",
+			"No encontramos planes aplicables en esta revisión. Ajusta el alcance o revisa el impacto.",
 		advancedDetailLink: "Abrir modo avanzado",
-		advancedDetailTitle: "Detalle avanzado de extensión",
-		technicalTableTitle: "Detalle técnico por plan",
+		advancedDetailTitle: "Revisión del impacto de extensión",
+		technicalTableTitle: "Diagnóstico por plan",
 	},
 	recovery: {
 		validation: {
@@ -50,18 +50,17 @@ export const pricingOperationCopy = {
 			title: "No se pudo aplicar en este plan",
 			summary: "La revisión terminó, pero este plan no aceptó la aplicación del cambio.",
 			action:
-				"Revisa el detalle técnico, confirma que el plan siga activo y vuelve a intentar solo este plan.",
+				"Revisa el diagnóstico, confirma que el plan siga activo y vuelve a intentar solo este plan.",
 		},
 		network: {
 			title: "No pudimos completar la operación",
 			summary: "La conexión o el servidor interrumpió la operación antes de terminar.",
-			action: "Espera unos segundos y vuelve a intentar. Si persiste, revisa el detalle técnico.",
+			action: "Espera unos segundos y vuelve a intentar. Si persiste, revisa el diagnóstico.",
 		},
 		unknown: {
 			title: "Necesita revisión",
 			summary: "Este plan no pudo completarse automáticamente.",
-			action:
-				"Abre el detalle técnico, revisa el plan y vuelve a intentar con un alcance más pequeño.",
+			action: "Abre el diagnóstico, revisa el plan y vuelve a intentar con un alcance más pequeño.",
 		},
 	},
 } as const

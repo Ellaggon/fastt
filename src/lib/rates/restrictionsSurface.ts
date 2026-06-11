@@ -106,15 +106,15 @@ export const SELLABILITY_RULES: {
 }[] = [
 	{
 		type: "stop_sell",
-		label: "Stop Sell",
-		category: "Sellability",
+		label: "Cierre de venta",
+		category: "Venta",
 		description: "Cierra la venta para las fechas seleccionadas.",
 		requiresValue: false,
 	},
 	{
 		type: "min_los",
 		label: "Estadía mínima",
-		category: "LOS",
+		category: "Estadía",
 		description: "Exige una cantidad mínima de noches.",
 		requiresValue: true,
 		valueLabel: "Noches mínimas",
@@ -123,7 +123,7 @@ export const SELLABILITY_RULES: {
 	{
 		type: "max_los",
 		label: "Estadía máxima",
-		category: "LOS",
+		category: "Estadía",
 		description: "Limita la cantidad máxima de noches.",
 		requiresValue: true,
 		valueLabel: "Noches máximas",
@@ -131,14 +131,14 @@ export const SELLABILITY_RULES: {
 	},
 	{
 		type: "cta",
-		label: "CTA",
+		label: "Sin llegada",
 		category: "Llegada / salida",
 		description: "Bloquea llegadas en las fechas seleccionadas.",
 		requiresValue: false,
 	},
 	{
 		type: "ctd",
-		label: "CTD",
+		label: "Sin salida",
 		category: "Llegada / salida",
 		description: "Bloquea salidas en las fechas seleccionadas.",
 		requiresValue: false,
@@ -146,7 +146,7 @@ export const SELLABILITY_RULES: {
 	{
 		type: "min_lead_time",
 		label: "Anticipación mínima",
-		category: "Booking Window",
+		category: "Ventana de reserva",
 		description: "Exige reservar con al menos N días de anticipación.",
 		requiresValue: true,
 		valueLabel: "Días mínimos",
@@ -155,7 +155,7 @@ export const SELLABILITY_RULES: {
 	{
 		type: "max_lead_time",
 		label: "Anticipación máxima",
-		category: "Booking Window",
+		category: "Ventana de reserva",
 		description: "Evita reservas hechas con demasiada anticipación.",
 		requiresValue: true,
 		valueLabel: "Días máximos",
@@ -262,13 +262,13 @@ function impactLabel(type: SellabilityRuleType, value: number | null): string {
 
 function parseRuleType(value: unknown): SellabilityRuleType {
 	const type = asString(value) as SellabilityRuleType
-	if (!VALID_RULE_TYPES.has(type)) throw new Error("Unsupported restriction type")
+	if (!VALID_RULE_TYPES.has(type)) throw new Error("Tipo de regla de venta no soportado")
 	return type
 }
 
 function parseScope(value: unknown): RestrictionScope {
 	const scope = asString(value) as RestrictionScope
-	if (!VALID_SCOPES.has(scope)) throw new Error("Unsupported restriction scope")
+	if (!VALID_SCOPES.has(scope)) throw new Error("Alcance de regla de venta no soportado")
 	return scope
 }
 
@@ -277,7 +277,7 @@ function normalizeRuleValue(type: SellabilityRuleType, value: unknown): number |
 	if (!definition?.requiresValue) return null
 	const numberValue = Number(value)
 	if (!Number.isFinite(numberValue) || numberValue < 1) {
-		throw new Error("Rule value must be a positive number")
+		throw new Error("El valor de la regla debe ser un número positivo")
 	}
 	return Math.floor(numberValue)
 }
@@ -300,30 +300,30 @@ function inferTargetName(params: {
 	if (params.scope === "product") {
 		const product = params.products.find((entry) => entry.id === params.scopeId)
 		return {
-			targetName: product?.name ?? "Product",
+			targetName: product?.name ?? "Oferta",
 			productId: product?.id ?? params.scopeId,
-			productName: product?.name ?? "Product",
+			productName: product?.name ?? "Oferta",
 		}
 	}
 	if (params.scope === "variant") {
 		const variant = params.variants.find((entry) => entry.id === params.scopeId)
 		return {
-			targetName: variant?.name ?? "Variant",
+			targetName: variant?.name ?? "Habitación",
 			productId: variant?.productId ?? "",
 			productName: variant?.productName ?? "",
 			variantId: variant?.id ?? params.scopeId,
-			variantName: variant?.name ?? "Variant",
+			variantName: variant?.name ?? "Habitación",
 		}
 	}
 	const ratePlan = params.ratePlans.find((entry) => entry.id === params.scopeId)
 	return {
-		targetName: ratePlan?.name ?? "Rate plan",
+		targetName: ratePlan?.name ?? "Tarifa",
 		productId: ratePlan?.productId ?? "",
 		productName: ratePlan?.productName ?? "",
 		variantId: ratePlan?.variantId,
 		variantName: ratePlan?.variantName,
 		ratePlanId: ratePlan?.id ?? params.scopeId,
-		ratePlanName: ratePlan?.name ?? "Rate plan",
+		ratePlanName: ratePlan?.name ?? "Tarifa",
 	}
 }
 
@@ -377,24 +377,24 @@ async function loadProviderTargets(providerId: string) {
 	return {
 		products: products.map((product) => ({
 			id: String(product.id),
-			name: String(product.name ?? "Product"),
+			name: String(product.name ?? "Oferta"),
 			productType: String(product.productType ?? ""),
 		})),
 		variants: variants.map((variant) => ({
 			id: String(variant.id),
-			name: String(variant.name ?? "Variant"),
+			name: String(variant.name ?? "Habitación"),
 			productId: String(variant.productId),
-			productName: String(variant.productName ?? "Product"),
+			productName: String(variant.productName ?? "Oferta"),
 			productType: targetsProductType(products, String(variant.productId)),
 		})),
 		ratePlans: ratePlans.map((ratePlan) => ({
 			id: String(ratePlan.id),
-			name: String(ratePlan.name ?? "Rate plan"),
+			name: String(ratePlan.name ?? "Tarifa"),
 			productId: String(ratePlan.productId),
-			productName: String(ratePlan.productName ?? "Product"),
+			productName: String(ratePlan.productName ?? "Oferta"),
 			productType: targetsProductType(products, String(ratePlan.productId)),
 			variantId: String(ratePlan.variantId),
-			variantName: String(ratePlan.variantName ?? "Variant"),
+			variantName: String(ratePlan.variantName ?? "Habitación"),
 		})),
 	}
 }
@@ -462,7 +462,7 @@ async function loadProviderRuleOrThrow(
 ): Promise<RestrictionSurfaceRule> {
 	const model = await loadRestrictionsSurface(providerId, { status: "all" })
 	const rule = model.rules.find((entry) => entry.id === ruleId)
-	if (!rule) throw new Error("Restriction rule not found for this provider")
+	if (!rule) throw new Error("Regla de venta no encontrada para este proveedor")
 	return rule
 }
 
@@ -567,7 +567,7 @@ export async function loadRestrictionsSurface(
 				scopeId,
 				type,
 				typeLabel: definition?.label ?? type,
-				category: definition?.category ?? "Sellability",
+				category: definition?.category ?? "Venta",
 				value,
 				valueLabel: formatValue(type, value),
 				startDate,

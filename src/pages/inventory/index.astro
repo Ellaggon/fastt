@@ -7,6 +7,8 @@ import MobileCalendarSheetStyles from "@/components/rates/MobileCalendarSheetSty
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { buildInventoryCalendarSurface } from "@/lib/rates/calendarSurfaces"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
@@ -19,6 +21,30 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+const sidebarData = await getProviderSidebarData(auth.providerId, {
+	userId: auth.user.id,
+	professionalToolsEnabled:
+		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
+})
+const inventoryDetailReason = String(Astro.url.searchParams.get("source") ?? "").trim()
+if (
+	sidebarData.disclosureMode === "small-provider" &&
+	inventoryDetailReason !== "inventory-issue"
+) {
+	const target = new URL(routes.pricing(), Astro.url)
+	const variantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+	const date = String(Astro.url.searchParams.get("date") ?? "").trim()
+	const month = String(Astro.url.searchParams.get("month") ?? "").trim()
+	if (variantId) target.searchParams.set("variantId", variantId)
+	if (date) target.searchParams.set("date", date)
+	if (month) target.searchParams.set("month", month)
+	target.searchParams.set("focus", "availability")
+	target.searchParams.set("source", "inventory-simple-redirect")
+	return Astro.redirect(target.toString(), 303)
+}
+const isProfessionalInventory = sidebarData.disclosureMode !== "small-provider"
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const rows = await loadRatePlansReadModel({
@@ -72,7 +98,13 @@ const inventoryBulkHref = selected
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<Button href={routes.pricing()} variant="primary">Ir al Calendario</Button>
-				<Button href={routes.rateRestrictions()} variant="secondary">Reglas de venta</Button>
+				{
+					isProfessionalInventory && (
+						<Button href={routes.rateRestrictions()} variant="secondary">
+							Reglas de venta
+						</Button>
+					)
+				}
 				<Button href={routes.productRooms()} variant="secondary">Habitaciones</Button>
 			</div>
 		</header>
@@ -374,12 +406,14 @@ const inventoryBulkHref = selected
 												Limpiar
 											</button>
 										</div>
-										<a
-											href={inventoryBulkHref}
-											class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
-										>
-											Multi-unidad avanzado
-										</a>
+										{isProfessionalInventory && (
+											<a
+												href={inventoryBulkHref}
+												class="w-full text-right text-xs font-medium text-blue-800 underline-offset-2 hover:underline sm:w-auto"
+											>
+												Multi-unidad avanzado
+											</a>
+										)}
 									</div>
 								</div>
 								<div
@@ -529,7 +563,7 @@ const inventoryBulkHref = selected
 													Reservado
 												</span>
 											) : null}
-											{day.restrictionSignals.count > 0 ? (
+											{day.restrictionSignals.count > 0 && isProfessionalInventory ? (
 												<a
 													href={routes.rateRestrictions()}
 													class:list={[
@@ -557,24 +591,28 @@ const inventoryBulkHref = selected
 						</>
 					)
 				}
-				<details
-					data-inventory-advanced-panel
-					class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-				>
-					<summary class="cursor-pointer font-semibold text-slate-900">
-						Operación avanzada de capacidad física
-					</summary>
-					<div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-						<p class="max-w-2xl leading-6">
-							El Calendario es la operación diaria. Usa este flujo para rangos excepcionales o
-							multi-unidad; cierre de venta, no llegada/no salida, estadía mínima y ventanas de
-							reserva siguen viviendo en reglas de venta.
-						</p>
-						<Button href={inventoryBulkHref} variant="secondary" size="sm">
-							Abrir flujo avanzado
-						</Button>
-					</div>
-				</details>
+				{
+					isProfessionalInventory && (
+						<details
+							data-inventory-advanced-panel
+							class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+						>
+							<summary class="cursor-pointer font-semibold text-slate-900">
+								Operación avanzada de capacidad física
+							</summary>
+							<div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+								<p class="max-w-2xl leading-6">
+									El Calendario es la operación diaria. Usa este flujo para rangos excepcionales o
+									multi-unidad; cierre de venta, no llegada/no salida, estadía mínima y ventanas de
+									reserva siguen viviendo en reglas de venta.
+								</p>
+								<Button href={inventoryBulkHref} variant="secondary" size="sm">
+									Abrir flujo avanzado
+								</Button>
+							</div>
+						</details>
+					)
+				}
 				<p id="inventoryCalendarFeedback" class="text-sm text-slate-600"></p>
 			</Card>
 		</Section>

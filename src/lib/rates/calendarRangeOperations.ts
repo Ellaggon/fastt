@@ -32,7 +32,7 @@ export function countInclusiveDays(range: CalendarRange): number {
 export function formatRangeLabel(range: CalendarRange): string {
 	return range.from === range.to
 		? formatHumanDateLabel(range.from)
-		: `${formatHumanDateLabel(range.from)} a ${formatHumanDateLabel(range.to)}`
+		: `${formatHumanDateLabel(range.from)} al ${formatHumanDateLabel(range.to)}`
 }
 
 export function formatHumanDateLabel(value: string): string {
@@ -53,7 +53,7 @@ export function formatHumanDateLabel(value: string): string {
 		"NOV",
 		"DIC",
 	][date.getUTCMonth()]
-	return `${day}-${month}-${date.getUTCFullYear()}`
+	return `${day} ${month} ${date.getUTCFullYear()}`
 }
 
 export function summarizeRangeDays(days: CalendarRangeDay[], range: CalendarRange) {

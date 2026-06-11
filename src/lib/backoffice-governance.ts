@@ -910,13 +910,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				level: 2,
 				summary: "Estadía mínima, cierre de venta, llegada/salida permitida y ventana de reserva.",
 			},
-			{
-				label: "Operaciones masivas",
-				href: routes.pricingAutomation(),
-				status: "canonical",
-				level: 2,
-				summary: "Automatizaciones y cambios masivos dentro del calendario.",
-			},
 		],
 	},
 	{
@@ -1074,12 +1067,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 ]
 
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
-	return [
-		routes.inventory(),
-		routes.rateRestrictions(),
-		routes.pricingAutomation(),
-		routes.providerPoliciesAudit(),
-	].includes(item.href)
+	return [routes.inventory(), routes.rateRestrictions(), routes.providerPoliciesAudit()].includes(
+		item.href
+	)
 }
 
 function shouldShowSectionForDisclosure(
