@@ -128,6 +128,7 @@ const ratePlanHistory = await loadRatesContextualHistory({
 	providerId: auth.providerId,
 	ratePlans: rows,
 	limit: 6,
+	context: "rate_plans",
 })
 const historyToneClasses: Record<string, string> = {
 	success: "border-emerald-200 bg-emerald-50 text-emerald-950",
@@ -425,7 +426,7 @@ const historyToneClasses: Record<string, string> = {
 
 		<Section
 			title="Cambios recientes de tarifa"
-			description="Historial operativo de tarifas, reglas de precio y señales de venta vinculadas a este listado."
+			description="Cambios comerciales de tarifas y reglas de precio vinculadas directamente a este listado."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="flex flex-wrap gap-2" aria-label="Filtrar historial de tarifas">
@@ -442,20 +443,6 @@ const historyToneClasses: Record<string, string> = {
 						data-history-filter="tarifa"
 					>
 						Tarifa
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-history-filter="habitacion"
-					>
-						Habitación
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-history-filter="fecha"
-					>
-						Fecha
 					</button>
 				</div>
 				{

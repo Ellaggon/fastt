@@ -291,6 +291,7 @@ const calendarHistory = await loadRatesContextualHistory({
 	providerId: auth.providerId,
 	ratePlans: selected ? [selected] : rows,
 	limit: 6,
+	context: "calendar",
 })
 const historyToneClasses: Record<string, string> = {
 	success: "border-emerald-200 bg-emerald-50 text-emerald-950",
@@ -651,11 +652,6 @@ const statusVariant = {
 															>
 																{day.operationalStatusLabel}
 															</span>
-															{day.status === "missing" ? (
-																<span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 md:px-2 md:text-[11px]">
-																	Sin precio
-																</span>
-															) : null}
 															{day.availableUnits <= 0 && !day.isPast ? (
 																<span class="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800 md:px-2 md:text-[11px]">
 																	Sin cupo
@@ -1015,8 +1011,8 @@ const statusVariant = {
 		</aside>
 
 		<Section
-			title="Cambios de fechas seleccionadas"
-			description="Historial operativo de precios, cupos, reglas de venta y tarifas que afectan este calendario."
+			title="Cambios del calendario"
+			description="Cambios de precio, disponibilidad y reglas de venta que afectan las fechas operativas."
 		>
 			<Card className="space-y-4 bg-white text-slate-800">
 				<div class="flex flex-wrap gap-2" aria-label="Filtrar historial del calendario">
@@ -1033,20 +1029,6 @@ const statusVariant = {
 						data-calendar-history-filter="fecha"
 					>
 						Fecha
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-calendar-history-filter="tarifa"
-					>
-						Tarifa
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-calendar-history-filter="habitacion"
-					>
-						Habitación
 					</button>
 				</div>
 				{

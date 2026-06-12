@@ -179,7 +179,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(presets).not.toContain("Estricta heredada")
 	})
 
-	it("condiciones es centro operativo matriz primero y biblioteca secundaria despues", () => {
+	it("condiciones organiza operacion diaria por tabs y reserva detalle para pro", () => {
 		const policyIndex = read("src/pages/provider/policies/index.astro")
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 
@@ -187,14 +187,25 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(policyIndex).toContain("Centro operativo por tarifa, hotel y canal")
 		expect(policyIndex).not.toContain("Tarifas/listings/canales vs condiciones")
 		expect(policyIndex).toContain("Centro operativo")
+		expect(policyIndex).toContain("data-policy-tabs")
+		expect(policyIndex).toContain('data-policy-tab="incomplete"')
+		expect(policyIndex).toContain('aria-selected="true"')
+		expect(policyIndex).toContain("Tarifas incompletas")
+		expect(policyIndex).toContain("Listas para vender")
 		expect(policyIndex).toContain("Cancelación")
 		expect(policyIndex).toContain("Pago")
 		expect(policyIndex).toContain("No presentación")
 		expect(policyIndex).toContain("Ingreso/salida")
-		expect(policyIndex).toContain("data-policy-library-secondary")
-		expect(policyIndex).toContain("Biblioteca secundaria")
+		expect(policyIndex).toContain("Matriz profesional")
+		expect(policyIndex).toContain("Biblioteca básica")
+		expect(policyIndex).toContain("Biblioteca Pro")
+		expect(policyIndex).toContain("Historial avanzado")
+		expect(policyIndex).toContain('data-policy-tab-panel="library"')
+		expect(policyIndex).toContain('data-policy-tab-panel="history"')
+		expect(policyIndex).not.toContain("data-policy-library-secondary")
+		expect(policyIndex).not.toContain("Biblioteca secundaria")
 		expect(policyIndex.indexOf("data-policy-operations-matrix")).toBeLessThan(
-			policyIndex.indexOf("data-policy-library-secondary")
+			policyIndex.indexOf('data-policy-tab-panel="library"')
 		)
 		expect(policyIndex).toContain("data-assignment-channel")
 		expect(assignmentFlow).toContain("defaultChannel")
