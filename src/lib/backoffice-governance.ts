@@ -320,7 +320,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Enlace legacy redirigido a /rates/calendar#pricing-automation; no exponer en navegación primaria.",
+			"Enlace legacy redirigido a /rates/restrictions?tab=price; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -339,19 +339,19 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	},
 	{
 		pattern: "/inventory/bulk",
-		status: "transitional",
+		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Contextual advanced workflow for bulk physical inventory operations; daily operation lives in /rates/calendar.",
+			"Compat redirect hacia /rates/calendar con foco de disponibilidad; las operaciones de cupo viven en Calendario.",
 	},
 	{
 		pattern: "/inventory",
-		status: "transitional",
+		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Vista avanzada de inventario físico; la operación diaria de cupos vive en /rates/calendar.",
+			"Compat redirect hacia /rates/calendar con foco de disponibilidad; no exponer como navegación primaria.",
 	},
 	{
 		pattern: "/booking/**",
@@ -896,14 +896,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
 			},
 			{
-				label: "Inventario físico",
-				href: routes.inventory(),
-				status: "transitional",
-				level: 2,
-				summary:
-					"Capa física detallada para multi-unidad y excepciones; cupo diario vive en Calendario.",
-			},
-			{
 				label: "Reglas de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
@@ -1067,9 +1059,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 ]
 
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
-	return [routes.inventory(), routes.rateRestrictions(), routes.providerPoliciesAudit()].includes(
-		item.href
-	)
+	return [routes.rateRestrictions(), routes.providerPoliciesAudit()].includes(item.href)
 }
 
 function shouldShowSectionForDisclosure(
@@ -1159,22 +1149,6 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				owner: "Catálogo de ofertas",
 				description:
 					"Setup de catálogo; hoteles entregan habitaciones como contexto físico al inventario.",
-			},
-			{
-				label: "Inventario físico",
-				href: routes.inventory(),
-				status: "canonical",
-				owner: "Habitaciones y tarifas",
-				description:
-					"Capa avanzada de capacidad física para revisión detallada, multi-unidad y ajustes excepcionales. El cupo diario se opera desde Calendario.",
-			},
-			{
-				label: "Inventario masivo",
-				href: routes.inventoryBulk(),
-				status: "transitional",
-				owner: "Habitaciones y tarifas",
-				description:
-					"Flujo avanzado contextual para operaciones excepcionales de capacidad física desde Inventario.",
 			},
 		],
 	},

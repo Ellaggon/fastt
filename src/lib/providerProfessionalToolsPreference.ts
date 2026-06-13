@@ -19,7 +19,12 @@ export function isMissingProfessionalToolsPreferenceShape(error: unknown): boole
 	return (
 		message.includes("no such table: ProviderProfile") ||
 		message.includes("no such column: ProviderProfile.professionalToolsEnabled") ||
-		message.includes("no such column: professionalToolsEnabled")
+		message.includes("no such column: ProviderProfile.professionalToolsUpdatedAt") ||
+		message.includes("no such column: ProviderProfile.professionalToolsUpdatedBy") ||
+		message.includes("no such column: professionalToolsEnabled") ||
+		message.includes("no such column: professionalToolsUpdatedAt") ||
+		message.includes("no such column: professionalToolsUpdatedBy") ||
+		message.includes("Provider profile professional-tools schema is not migrated")
 	)
 }
 

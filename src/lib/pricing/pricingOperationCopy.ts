@@ -15,8 +15,8 @@ export const pricingOperationCopy = {
 	nextStepLabel: "Qué hacer ahora",
 	rangeFallback: "Rango del calendario",
 	extension: {
-		title: "Extender este cambio",
-		drawerTitle: "Extender este cambio",
+		title: "Extender cambio",
+		drawerTitle: "Extender cambio",
 		advancedModeTitle: "Modo avanzado de extensión",
 		advancedModeDescription:
 			"Úsalo solo cuando necesites revisar muchos planes o diagnosticar un caso puntual. La operación diaria nace en el calendario.",

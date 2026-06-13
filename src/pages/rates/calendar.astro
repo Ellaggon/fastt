@@ -4,18 +4,13 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import CalendarOperationalPanel from "@/components/rates/CalendarOperationalPanel.astro"
 import MobileCalendarSheetStyles from "@/components/rates/MobileCalendarSheetStyles.astro"
-import PricingAutomationPanel from "@/components/rates/PricingAutomationPanel.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { and, db, eq, PriceRule } from "astro:db"
-import { RefreshCw } from "@lucide/astro"
+import { ChevronLeft, ChevronRight, RefreshCw } from "@lucide/astro"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
-import {
-	loadPricingAutomationSurface,
-	type PricingAutomationTemplate,
-} from "@/lib/pricing/pricingAutomationSurface"
 import { pricingExtensionOperationOptions } from "@/lib/pricing/pricingExtensionPresenter"
 import { pricingOperationCopy } from "@/lib/pricing/pricingOperationCopy"
 import { buildPricingCalendarSurface } from "@/lib/rates/calendarSurfaces"
@@ -23,7 +18,6 @@ import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { ratePlanPricingReadRepository } from "@/container"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
-import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -33,152 +27,6 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 
-let actionError: string | null = null
-let actionErrorTitle = "No se pudo guardar la regla automática de precio"
-
-const mapTemplatePayload = (template: PricingAutomationTemplate, rawValue: number) => {
-	const value =
-		template.kind === "fixed_discount" ? -Math.abs(rawValue) : Math.max(0, Number(rawValue))
-	return {
-		type: template.internalType,
-		value,
-		contextKey: template.contextKey,
-	}
-}
-
-const eligibilityForForm = (kind: string, form: FormData): Record<string, number> => {
-	if (kind === "early_bird") {
-		const minLeadDays = Number(form.get("minLeadDays") ?? 30)
-		if (!Number.isFinite(minLeadDays) || minLeadDays < 1) {
-			throw new Error("Reserva anticipada necesita al menos 1 día de anticipación")
-		}
-		return { minLeadDays: Math.trunc(minLeadDays) }
-	}
-	if (kind === "last_minute") {
-		const maxLeadDays = Number(form.get("maxLeadDays") ?? 3)
-		if (!Number.isFinite(maxLeadDays) || maxLeadDays < 1) {
-			throw new Error("Último minuto necesita una ventana de llegada de al menos 1 día")
-		}
-		return { maxLeadDays: Math.trunc(maxLeadDays) }
-	}
-	if (kind === "los_discount") {
-		const minNights = Number(form.get("minNights") ?? 5)
-		if (!Number.isFinite(minNights) || minNights < 1) {
-			throw new Error("El descuento por estadía necesita al menos 1 noche")
-		}
-		return { minNights: Math.trunc(minNights) }
-	}
-	return {}
-}
-
-function jsonRequest(path: string, body: Record<string, unknown>) {
-	const headers = new Headers({ "Content-Type": "application/json" })
-	const cookie = Astro.request.headers.get("cookie")
-	if (cookie) headers.set("cookie", cookie)
-	return new Request(new URL(path, Astro.url), {
-		method: "POST",
-		headers,
-		body: JSON.stringify(body),
-	})
-}
-
-async function deletePriceRuleDirectly(ruleId: string, ratePlanId: string) {
-	const existing = await db
-		.select({ id: PriceRule.id })
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
-	if (!existing?.id) {
-		throw new Error("La regla automática de precio ya no existe o pertenece a otro plan")
-	}
-
-	const statement = db
-		.delete(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-	if (typeof (statement as any).run === "function") {
-		await (statement as any).run()
-	} else {
-		await statement
-	}
-
-	const stillThere = await db
-		.select({ id: PriceRule.id })
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
-	if (stillThere?.id) {
-		throw new Error("No se pudo confirmar la eliminación. Intenta nuevamente.")
-	}
-}
-
-if (Astro.request.method === "POST") {
-	const form = await Astro.request.formData()
-	const action = String(form.get("action") ?? "").trim()
-	if (action === "create-pricing-automation") {
-		try {
-			const automation = await loadPricingAutomationSurface(auth.providerId)
-			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
-			const kind = String(form.get("kind") ?? "").trim()
-			const template = automation.templates.find((item) => item.kind === kind)
-			if (!template) throw new Error("Tipo de regla automática no soportado")
-			if (!automation.ratePlanOptions.some((item) => item.id === ratePlanId)) {
-				throw new Error("El plan tarifario no está disponible para este proveedor")
-			}
-			const value = Number(form.get("value") ?? Number.NaN)
-			if (!Number.isFinite(value) || value < 0)
-				throw new Error("El valor de la regla automática debe ser cero o mayor")
-			const priority = Number(form.get("priority") ?? 20)
-			if (!Number.isFinite(priority) || priority < 0 || priority > 1000) {
-				throw new Error("La prioridad debe estar entre 0 y 1000")
-			}
-			const dateFrom = String(form.get("dateFrom") ?? "").trim()
-			const dateTo = String(form.get("dateTo") ?? "").trim()
-			const mapped = mapTemplatePayload(template, value)
-			const body: Record<string, unknown> = {
-				ratePlanId,
-				type: mapped.type,
-				value: mapped.value,
-				priority,
-				contextKey: mapped.contextKey,
-			}
-			if (dateFrom) body.dateFrom = dateFrom
-			if (dateTo) body.dateTo = dateTo
-			Object.assign(body, eligibilityForForm(kind, form))
-
-			const response = await createPricingRulePost({
-				request: jsonRequest("/api/pricing/rules/v2/create", body),
-				url: new URL("/api/pricing/rules/v2/create", Astro.url),
-			} as any)
-			if (!response.ok) {
-				const payload = await response.json().catch(() => null)
-				throw new Error(String(payload?.error ?? "No se pudo crear la regla automática"))
-			}
-			return Astro.redirect(`${routes.pricing()}?success=automation-created#pricing-automation`)
-		} catch (error) {
-			actionErrorTitle = "No se pudo crear la regla automática de precio"
-			actionError = error instanceof Error ? error.message : "Falló la regla automática"
-		}
-	}
-	if (action === "delete-pricing-automation") {
-		try {
-			const automation = await loadPricingAutomationSurface(auth.providerId)
-			const ruleId = String(form.get("ruleId") ?? "").trim()
-			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
-			if (!ruleId || !ratePlanId) {
-				throw new Error("Falta identificar la regla automática de precio")
-			}
-			if (!automation.rules.some((rule) => rule.id === ruleId && rule.ratePlanId === ratePlanId)) {
-				throw new Error("La regla automática de precio no está disponible para este proveedor")
-			}
-			await deletePriceRuleDirectly(ruleId, ratePlanId)
-			return Astro.redirect(`${routes.pricing()}?success=automation-deleted#pricing-automation`)
-		} catch (error) {
-			actionErrorTitle = "No se pudo eliminar la regla automática de precio"
-			actionError = error instanceof Error ? error.message : "Falló la regla automática de precio"
-		}
-	}
-}
-
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const rows = await loadRatePlansReadModel({
 	request: Astro.request,
@@ -186,7 +34,12 @@ const rows = await loadRatePlansReadModel({
 	checkOut,
 	channel: "web",
 })
-const sidebarData = await getProviderSidebarData(auth.providerId, { userId: auth.user.id })
+const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+const sidebarData = await getProviderSidebarData(auth.providerId, {
+	userId: auth.user.id,
+	professionalToolsEnabled:
+		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
+})
 const isProfessionalCalendar = sidebarData.disclosureMode !== "small-provider"
 const surface = await buildPricingCalendarSurface({
 	rows,
@@ -211,14 +64,6 @@ function money(amount: number | null, currency: string): string {
 	return `${currency} ${Number(amount).toFixed(0)}`
 }
 
-const primaryMonthDays = surface.days.filter((day) => day.date.startsWith(surface.month))
-const primaryMissingDays = primaryMonthDays.filter((day) => day.status === "missing").length
-const primaryNoInventoryDays = primaryMonthDays.filter(
-	(day) => !day.isPast && day.operationalStatus === "no_inventory"
-).length
-const primaryClosedDays = primaryMonthDays.filter(
-	(day) => !day.isPast && day.operationalStatus === "closed"
-).length
 const pricingRangeDays = surface.days.map((day) => ({
 	date: day.date,
 	status: day.status,
@@ -305,6 +150,11 @@ function pricingCalendarHref(month: string): string {
 	params.set("month", month)
 	return `${routes.pricing()}?${params.toString()}`
 }
+function shiftMonth(month: string, delta: number): string {
+	const date = new Date(`${month}-01T12:00:00.000Z`)
+	date.setUTCMonth(date.getUTCMonth() + delta)
+	return date.toISOString().slice(0, 7)
+}
 const extensionTargetOptions = await Promise.all(
 	rows
 		.filter((row) => String(row.ratePlanId) !== selectedRatePlanId)
@@ -320,54 +170,6 @@ const extensionTargetOptions = await Promise.all(
 			}
 		})
 )
-const automationSurface = await loadPricingAutomationSurface(auth.providerId)
-const automationDefaultRatePlanId = automationSurface.ratePlanOptions[0]?.id ?? ""
-const automationTemplates = automationSurface.templates
-const automationDefaultTemplate =
-	automationTemplates.find((item) => item.kind === "percentage_discount") ??
-	automationTemplates[0] ??
-	automationSurface.templates[0]
-const automationTemplateCatalog = automationSurface.templates.map((template) => ({
-	kind: template.kind,
-	label: template.label,
-	shortLabel: template.shortLabel,
-	description: template.description,
-	internalType: template.internalType,
-	defaultValue: template.defaultValue,
-	valueSuffix: template.valueSuffix,
-	contextKey: template.contextKey,
-	eligibilityHint: template.eligibilityHint ?? "",
-}))
-const automationTemplateGroups = [
-	{
-		label: "Descuentos",
-		templates: automationTemplates.filter((template) =>
-			[
-				"percentage_discount",
-				"fixed_discount",
-				"early_bird",
-				"last_minute",
-				"los_discount",
-			].includes(template.kind)
-		),
-	},
-	{
-		label: "Aumentos",
-		templates: automationTemplates.filter((template) =>
-			["percentage_markup", "fixed_markup"].includes(template.kind)
-		),
-	},
-	{
-		label: "Precio fijo",
-		templates: automationTemplates.filter((template) => template.kind === "manual_override"),
-	},
-].filter((group) => group.templates.length > 0)
-const success = String(Astro.url.searchParams.get("success") ?? "").trim()
-const visibleSuccess = actionError ? "" : success
-const statusVariant = {
-	active: "success",
-	inactive: "neutral",
-} as const
 ---
 
 <WorkspaceLayout title="Calendario">
@@ -385,40 +187,7 @@ const statusVariant = {
 			</div>
 		</header>
 
-		{
-			actionError && (
-				<Card className="border-red-200 bg-red-50 text-red-900">
-					<p class="text-sm font-semibold">{actionErrorTitle}</p>
-					<p class="mt-1 text-sm">{actionError}</p>
-				</Card>
-			)
-		}
-		{
-			visibleSuccess === "automation-created" && (
-				<Card className="border-green-200 bg-green-50 text-green-900">
-					<p class="text-sm font-semibold">Regla automática de precio creada.</p>
-					<p class="mt-1 text-sm">
-						La regla quedó guardada y seguirá actuando cuando el rango o la elegibilidad coincidan.
-					</p>
-				</Card>
-			)
-		}
-		{
-			visibleSuccess === "automation-deleted" && (
-				<Card className="border-green-200 bg-green-50 text-green-900">
-					<p class="text-sm font-semibold">Regla automática de precio eliminada.</p>
-					<p class="mt-1 text-sm">
-						Dejó de actuar automáticamente. Si la cobertura necesita refrescarse, el calendario la
-						actualizará con el próximo recompute.
-					</p>
-				</Card>
-			)
-		}
-
-		<Section
-			title="Operación diaria"
-			description={`Elige ${vocabulary.ratePlan}, revisa el estado de cada noche y selecciona una fecha o rango para actualizar precio, disponibilidad, venta o condiciones aplicables.`}
-		>
+		<Section>
 			<Card className="space-y-5 bg-white text-slate-800">
 				<form method="get" class="grid gap-3 lg:grid-cols-[1.6fr_0.8fr_auto] lg:items-end">
 					<label class="space-y-1 text-sm">
@@ -462,41 +231,6 @@ const statusVariant = {
 					</div>
 				</form>
 
-				<div
-					class="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-3"
-				>
-					<div class="flex flex-wrap items-center gap-2">
-						<Button href={pricingCalendarHref(surface.previousMonth)} variant="secondary" size="sm">
-							Mes anterior
-						</Button>
-						<Button href={pricingCalendarHref(surface.nextMonth)} variant="secondary" size="sm">
-							Mes siguiente
-						</Button>
-						<Badge variant={primaryMissingDays > 0 ? "warning" : "success"}>
-							{primaryMissingDays > 0 ? `${primaryMissingDays} días sin precio` : "Cobertura lista"}
-						</Badge>
-						<Badge variant={primaryNoInventoryDays > 0 ? "warning" : "success"}>
-							{
-								primaryNoInventoryDays > 0
-									? `${primaryNoInventoryDays} días sin cupo`
-									: "Cupo disponible"
-							}
-						</Badge>
-						{
-							primaryClosedDays > 0 ? (
-								<Badge variant="warning">{primaryClosedDays} días cerrados</Badge>
-							) : null
-						}
-						<button
-							id="pricingAppliedAidToggle"
-							type="button"
-							class="min-h-8 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-200"
-							aria-pressed="false"
-						>
-							Ajuste solo si existe
-						</button>
-					</div>
-				</div>
 				<p class="text-xs text-slate-500 sm:hidden">
 					Toca una fecha para editarla; toca otra fecha para crear un rango.
 				</p>
@@ -508,17 +242,8 @@ const statusVariant = {
 						</div>
 					) : (
 						<>
-							<div
-								id="pricingSheetBackdrop"
-								class="mobile-calendar-sheet-backdrop hidden"
-								aria-hidden="true"
-							/>
 							<div class="space-y-5">
-								<CalendarOperationalPanel
-									isProfessionalCalendar={isProfessionalCalendar}
-									selectedVariantId={selectedVariantId}
-									selectedRatePlanName={selectedRatePlanName}
-								/>
+								<CalendarOperationalPanel isProfessionalCalendar={isProfessionalCalendar} />
 								<div class="space-y-5" data-pricing-two-month-calendar>
 									{pricingCalendarMonths.map((monthGroup, monthIndex) => (
 										<section
@@ -526,13 +251,68 @@ const statusVariant = {
 											data-pricing-calendar-month={monthGroup.month}
 											data-pricing-extra-month={monthIndex > 0 ? "true" : undefined}
 										>
-											<div class="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-												<h3 class="text-sm font-semibold text-slate-900 capitalize">
-													{monthGroup.label}
-												</h3>
-												<span class="text-xs text-slate-500">
-													{monthGroup.days.filter((day) => !day.isPast).length} noches futuras
-												</span>
+											<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+												<div class="flex min-w-0 items-center gap-2">
+													<a
+														href={pricingCalendarHref(shiftMonth(monthGroup.month, -1))}
+														class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+														aria-label="Mes anterior"
+														title="Mes anterior"
+													>
+														<ChevronLeft class="h-4 w-4" aria-hidden="true" />
+													</a>
+													<h3 class="truncate text-base font-semibold text-slate-950 capitalize">
+														{monthGroup.label}
+													</h3>
+													<a
+														href={pricingCalendarHref(shiftMonth(monthGroup.month, 1))}
+														class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+														aria-label="Mes siguiente"
+														title="Mes siguiente"
+													>
+														<ChevronRight class="h-4 w-4" aria-hidden="true" />
+													</a>
+												</div>
+												<div class="flex flex-wrap items-center gap-1.5">
+													<Badge
+														variant={
+															monthGroup.days.filter((day) => day.status === "missing").length > 0
+																? "warning"
+																: "success"
+														}
+													>
+														{monthGroup.days.filter((day) => day.status === "missing").length > 0
+															? `${monthGroup.days.filter((day) => day.status === "missing").length} días sin precio`
+															: "Cobertura lista"}
+													</Badge>
+													<Badge
+														variant={
+															monthGroup.days.filter(
+																(day) => !day.isPast && day.operationalStatus === "no_inventory"
+															).length > 0
+																? "warning"
+																: "success"
+														}
+													>
+														{monthGroup.days.filter(
+															(day) => !day.isPast && day.operationalStatus === "no_inventory"
+														).length > 0
+															? `${monthGroup.days.filter((day) => !day.isPast && day.operationalStatus === "no_inventory").length} días sin cupo`
+															: "Cupo disponible"}
+													</Badge>
+													{monthGroup.days.filter(
+														(day) => !day.isPast && day.operationalStatus === "closed"
+													).length > 0 ? (
+														<Badge variant="warning">
+															{
+																monthGroup.days.filter(
+																	(day) => !day.isPast && day.operationalStatus === "closed"
+																).length
+															}{" "}
+															días cerrados
+														</Badge>
+													) : null}
+												</div>
 											</div>
 											<div class="mobile-calendar-grid grid grid-cols-7 gap-1 md:gap-2">
 												{Array.from({ length: monthGroup.leadingBlankDays }).map((_, index) => (
@@ -550,6 +330,8 @@ const statusVariant = {
 														data-current-price={
 															day.finalPrice == null ? "" : String(day.finalPrice)
 														}
+														data-has-price={day.finalPrice == null ? "false" : "true"}
+														data-is-past={day.isPast ? "true" : "false"}
 														data-base-price={
 															day.baseComponent == null ? "" : String(day.baseComponent)
 														}
@@ -609,33 +391,92 @@ const statusVariant = {
 																]}
 															/>
 														</div>
-														<p class="mobile-priority-signal mt-1 truncate text-[10px] font-semibold text-slate-950 md:mt-3 md:text-sm">
-															<span data-pricing-selected-label class="hidden">
-																Precio final{" "}
-															</span>
-															<span data-pricing-output>{money(day.finalPrice, day.currency)}</span>
-														</p>
-														<div class="sr-only">
-															<span data-pricing-selected-label>Precio base </span>
-															<span data-pricing-base-output>
-																{day.baseComponent == null
-																	? "sin materializar"
-																	: money(day.baseComponent, day.currency)}
-															</span>
-														</div>
+														{!day.isPast && day.finalPrice != null ? (
+															<div
+																data-price-primary-signal
+																class="mobile-priority-signal mt-1 space-y-0.5 truncate text-[10px] text-slate-950 md:mt-3 md:text-sm"
+															>
+																<span data-price-default-row class="block font-semibold">
+																	<span data-pricing-output>
+																		{money(day.finalPrice, day.currency)}
+																	</span>
+																</span>
+																<span
+																	data-price-adjustment-row
+																	class="flex hidden items-baseline gap-1"
+																>
+																	<span class="text-[9px] font-medium tracking-wide text-slate-400 uppercase md:text-[10px]">
+																		Base
+																	</span>
+																	<span
+																		data-pricing-base-output
+																		class="font-semibold text-slate-950"
+																	>
+																		{day.baseComponent == null
+																			? "sin materializar"
+																			: money(day.baseComponent, day.currency)}
+																	</span>
+																</span>
+																<span
+																	data-price-adjustment-row
+																	class="flex hidden items-baseline gap-1"
+																>
+																	<span class="text-[9px] font-medium tracking-wide text-slate-400 uppercase md:text-[10px]">
+																		Final
+																	</span>
+																	<span
+																		data-pricing-final-compare-output
+																		class="font-semibold text-slate-950"
+																	>
+																		{money(day.finalPrice, day.currency)}
+																	</span>
+																</span>
+															</div>
+														) : null}
 														<div class="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-600 md:text-xs">
 															{day.availableUnits > 0 && !day.isPast ? (
-																<span class="truncate">{day.availableUnits} cupos</span>
+																<span data-availability-status-signal class="hidden truncate">
+																	{day.availableUnits} cupos
+																</span>
 															) : null}
-															{day.bookedUnits > 0 ? (
-																<span class="truncate">{day.bookedUnits} reservas</span>
+															{isProfessionalCalendar && day.bookedUnits > 0 ? (
+																<span data-availability-status-signal class="hidden truncate">
+																	{day.bookedUnits} reservas
+																</span>
 															) : null}
-															{day.heldUnits > 0 ? (
-																<span class="truncate">{day.heldUnits} holds</span>
+															{isProfessionalCalendar && day.heldUnits > 0 ? (
+																<span data-availability-status-signal class="hidden truncate">
+																	{day.heldUnits} holds
+																</span>
 															) : null}
 														</div>
+														{!day.isPast ? (
+															<div
+																data-availability-detail-signal
+																class="mt-1 hidden space-y-0.5 text-[10px] leading-4 text-slate-600 md:text-xs"
+															>
+																<p class="font-medium text-slate-700">
+																	{day.utilizationPercent ?? 0}% comprometido físicamente
+																</p>
+																<p>
+																	<span class="text-slate-400">Total</span>{" "}
+																	<span class="font-semibold text-slate-900">{day.totalUnits}</span>
+																</p>
+																<p>
+																	<span class="text-slate-400">Reservado</span>{" "}
+																	<span class="font-semibold text-slate-900">
+																		{day.bookedUnits}
+																	</span>
+																</p>
+																<p>
+																	<span class="text-slate-400">Retenido</span>{" "}
+																	<span class="font-semibold text-slate-900">{day.heldUnits}</span>
+																</p>
+															</div>
+														) : null}
 														<div data-pricing-signal-row class="mt-1 flex flex-wrap gap-1 md:mt-2">
 															<span
+																data-price-status-signal
 																class:list={[
 																	"rounded-full px-1.5 py-0.5 text-[10px] font-medium md:px-2 md:text-[11px]",
 																	day.operationalStatus === "sellable" &&
@@ -652,12 +493,18 @@ const statusVariant = {
 															>
 																{day.operationalStatusLabel}
 															</span>
-															{day.availableUnits <= 0 && !day.isPast ? (
-																<span class="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800 md:px-2 md:text-[11px]">
+															{isProfessionalCalendar && day.availableUnits <= 0 && !day.isPast ? (
+																<span
+																	data-availability-status-signal
+																	class="hidden rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800 md:px-2 md:text-[11px]"
+																>
 																	Sin cupo
 																</span>
 															) : null}
-															{Number(day.ruleAdjustment ?? 0) !== 0 ? (
+															{isProfessionalCalendar &&
+															!day.isPast &&
+															day.finalPrice != null &&
+															Number(day.ruleAdjustment ?? 0) !== 0 ? (
 																<span
 																	data-pricing-adjustment-line
 																	data-pricing-applied-aid
@@ -669,10 +516,30 @@ const statusVariant = {
 																	</span>
 																</span>
 															) : null}
-															{day.restrictionSignals.count > 0 ? (
+															{!day.isPast ? (
 																<span
+																	data-restriction-status-signal
 																	class:list={[
-																		"rounded-full px-1.5 py-0.5 text-[10px] font-medium md:px-2 md:text-[11px]",
+																		"hidden rounded-full px-1.5 py-0.5 text-[10px] font-medium md:px-2 md:text-[11px]",
+																		day.restrictionSignals.hasCommercialBlocker
+																			? "bg-red-100 text-red-800"
+																			: day.restrictionSignals.count > 0
+																				? "bg-blue-100 text-blue-800"
+																				: "bg-emerald-100 text-emerald-800",
+																	]}
+																>
+																	{day.restrictionSignals.hasCommercialBlocker
+																		? "Venta cerrada"
+																		: day.restrictionSignals.count > 0
+																			? "Con reglas"
+																			: "Venta abierta"}
+																</span>
+															) : null}
+															{isProfessionalCalendar && day.restrictionSignals.count > 0 ? (
+																<span
+																	data-restriction-status-signal
+																	class:list={[
+																		"hidden rounded-full px-1.5 py-0.5 text-[10px] font-medium md:px-2 md:text-[11px]",
 																		day.restrictionSignals.hasCommercialBlocker
 																			? "bg-red-100 text-red-800"
 																			: "bg-blue-100 text-blue-800",
@@ -684,22 +551,31 @@ const statusVariant = {
 																	</span>
 																</span>
 															) : null}
-															{day.restrictionSignals.minStay != null ? (
-																<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 md:px-2 md:text-[11px]">
+															{isProfessionalCalendar && day.restrictionSignals.minStay != null ? (
+																<span
+																	data-restriction-status-signal
+																	class="hidden rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 md:px-2 md:text-[11px]"
+																>
 																	Min. {day.restrictionSignals.minStay} noches
 																</span>
 															) : null}
-															{day.restrictionSignals.cta ? (
-																<span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 md:px-2 md:text-[11px]">
+															{isProfessionalCalendar && day.restrictionSignals.cta ? (
+																<span
+																	data-restriction-status-signal
+																	class="hidden rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 md:px-2 md:text-[11px]"
+																>
 																	No llegada
 																</span>
 															) : null}
-															{day.restrictionSignals.ctd ? (
-																<span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 md:px-2 md:text-[11px]">
+															{isProfessionalCalendar && day.restrictionSignals.ctd ? (
+																<span
+																	data-restriction-status-signal
+																	class="hidden rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 md:px-2 md:text-[11px]"
+																>
 																	No salida
 																</span>
 															) : null}
-															{hasIncompleteConditions ? (
+															{isProfessionalCalendar && hasIncompleteConditions && !day.isPast ? (
 																<span
 																	data-conditions-signal
 																	class="hidden rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 md:px-2 md:text-[11px]"
@@ -756,8 +632,8 @@ const statusVariant = {
 			aria-modal="true"
 			role="dialog"
 		>
-			<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
-				<div class="space-y-1">
+			<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5">
+				<div class="max-w-sm space-y-1.5">
 					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
 						Regla de venta puntual
 					</p>
@@ -781,74 +657,56 @@ const statusVariant = {
 				action={routes.rateRestrictions()}
 				class="grid h-full grid-rows-[1fr_auto]"
 			>
-				<div class="space-y-4 overflow-y-auto p-4">
+				<div class="space-y-5 overflow-y-auto px-5 py-5">
 					<input type="hidden" name="action" value="create" />
 					<input type="hidden" name="scope" value="rate_plan" />
 					<input type="hidden" name="rate_planScopeId" value={selectedRatePlanId} />
 					<input type="hidden" name="startDate" value={checkIn} data-restriction-start-date />
 					<input type="hidden" name="endDate" value={checkOut} data-restriction-end-date />
-					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-						<p class="font-semibold text-slate-900">Tarifa</p>
-						<p class="mt-1 text-slate-600">{selectedRatePlanName || "Tarifa seleccionada"}</p>
-						<p class="mt-1 text-xs text-slate-500" data-restriction-range-label>
-							Rango: {checkIn} a {checkOut}
-						</p>
-					</div>
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Regla</span>
-						<select
-							name="type"
-							class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							data-simple-restriction-type
-						>
-							<option value="stop_sell" data-requires-value="false">Cerrar venta</option>
-							<option value="min_los" data-requires-value="true" data-default-value="2">
-								Estadía mínima
-							</option>
-							<option value="cta" data-requires-value="false">No llegada</option>
-							<option value="ctd" data-requires-value="false">No salida</option>
-							<option value="min_lead_time" data-requires-value="true" data-default-value="1">
-								Anticipación mínima
-							</option>
-						</select>
-					</label>
-					<label class="space-y-1 text-sm" data-simple-restriction-value-row>
-						<span class="font-medium text-slate-700">Valor</span>
-						<input
-							type="number"
-							name="value"
-							min="1"
-							step="1"
-							value="2"
-							class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							data-simple-restriction-value
-						/>
-					</label>
-					<div class="space-y-2">
-						<p class="text-sm font-medium text-slate-700">Días aplicables</p>
-						<div class="flex flex-wrap gap-2">
-							{
-								[
-									[1, "Lun"],
-									[2, "Mar"],
-									[3, "Mié"],
-									[4, "Jue"],
-									[5, "Vie"],
-									[6, "Sáb"],
-									[7, "Dom"],
-								].map(([value, label]) => (
-									<label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-										<input type="checkbox" name="validDays" value={value} />
-										<span>{label}</span>
-									</label>
-								))
-							}
+					<div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Aplicación</p>
+						<div class="mt-2 space-y-1">
+							<p class="font-semibold text-slate-950">
+								{selectedRatePlanName || "Tarifa seleccionada"}
+							</p>
+							<p class="text-xs text-slate-500" data-restriction-range-label>
+								Rango: {checkIn} a {checkOut}
+							</p>
 						</div>
-						<p class="text-xs leading-5 text-slate-500">
-							Si no marcas días, la regla aplica a todos los días del rango.
-						</p>
 					</div>
-					<Card className="border-amber-100 bg-amber-50 text-amber-950 shadow-none">
+					<div class="space-y-4">
+						<label class="block space-y-1.5 text-sm">
+							<span class="font-medium text-slate-700">Regla</span>
+							<select
+								name="type"
+								class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+								data-simple-restriction-type
+							>
+								<option value="stop_sell" data-requires-value="false">Cerrar venta</option>
+								<option value="min_los" data-requires-value="true" data-default-value="2">
+									Estadía mínima
+								</option>
+								<option value="cta" data-requires-value="false">No llegada</option>
+								<option value="ctd" data-requires-value="false">No salida</option>
+								<option value="min_lead_time" data-requires-value="true" data-default-value="1">
+									Anticipación mínima
+								</option>
+							</select>
+						</label>
+						<label class="block space-y-1.5 text-sm" data-simple-restriction-value-row>
+							<span class="font-medium text-slate-700">Valor</span>
+							<input
+								type="number"
+								name="value"
+								min="1"
+								step="1"
+								value="2"
+								class="h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+								data-simple-restriction-value
+							/>
+						</label>
+					</div>
+					<div class="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-amber-950">
 						<p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Impacto</p>
 						<p class="mt-2 text-sm leading-5" data-simple-restriction-impact>
 							Cerrará la venta de esta tarifa en el rango seleccionado.
@@ -856,9 +714,9 @@ const statusVariant = {
 						<p class="mt-1 text-xs leading-5 text-amber-900/80">
 							No cambia precio ni cupo físico; solo vendibilidad.
 						</p>
-					</Card>
+					</div>
 				</div>
-				<div class="border-t border-slate-200 bg-white p-4">
+				<div class="border-t border-slate-200 bg-white px-5 py-4">
 					<div class="grid grid-cols-2 gap-2">
 						<Button href={routes.rateRestrictions()} variant="secondary">
 							Abrir reglas de venta
@@ -1010,72 +868,107 @@ const statusVariant = {
 			</div>
 		</aside>
 
-		<Section
-			title="Cambios del calendario"
-			description="Cambios de precio, disponibilidad y reglas de venta que afectan las fechas operativas."
-		>
-			<Card className="space-y-4 bg-white text-slate-800">
-				<div class="flex flex-wrap gap-2" aria-label="Filtrar historial del calendario">
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-calendar-history-filter="all"
+		{
+			isProfessionalCalendar && (
+				<>
+					<div
+						id="pricingCalendarHistoryBackdrop"
+						class="pricing-extension-backdrop hidden"
+						aria-hidden="true"
+					/>
+					<aside
+						id="pricingCalendarHistoryDrawer"
+						data-calendar-history-drawer
+						class="pricing-extension-drawer hidden bg-white text-slate-800"
+						aria-labelledby="pricingCalendarHistoryTitle"
+						aria-modal="true"
+						role="dialog"
 					>
-						Todo
-					</button>
-					<button
-						type="button"
-						class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-						data-calendar-history-filter="fecha"
-					>
-						Fecha
-					</button>
-				</div>
-				{
-					calendarHistory.length === 0 ? (
-						<p class="text-sm text-slate-600">
-							Todavía no hay cambios recientes para mostrar en este calendario.
-						</p>
-					) : (
-						<ol class="space-y-3">
-							{calendarHistory.map((item) => (
-								<li
-									class={`rounded-2xl border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
-									data-calendar-history-item
-									data-calendar-history-object={item.objectType}
-								>
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div class="min-w-0">
-											<div class="flex flex-wrap items-center gap-2">
-												<p class="font-semibold">{item.title}</p>
-												<span class="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase opacity-80">
-													{item.objectLabel}
-												</span>
-											</div>
-											<p class="mt-1 text-sm opacity-80">{item.description}</p>
-											<p class="mt-1 text-xs opacity-70">{item.meta}</p>
-										</div>
-										<time class="text-xs font-medium opacity-70">
-											{formatHistoryDate(item.createdAt)}
-										</time>
-									</div>
-									<div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-										<div class="rounded-xl bg-white/70 p-2">
-											<p class="font-semibold tracking-wide uppercase opacity-60">Antes</p>
-											<p class="mt-1">{item.beforeLabel ?? "Sin estado anterior visible"}</p>
-										</div>
-										<div class="rounded-xl bg-white/70 p-2">
-											<p class="font-semibold tracking-wide uppercase opacity-60">Después</p>
-											<p class="mt-1">{item.afterLabel ?? "Cambio aplicado"}</p>
-										</div>
-									</div>
-								</li>
-							))}
-						</ol>
-					)
-				}
-			</Card>
-		</Section>
+						<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+							<div class="space-y-1">
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Herramienta Pro
+								</p>
+								<h2 id="pricingCalendarHistoryTitle" class="text-lg font-semibold text-slate-950">
+									Historial del calendario
+								</h2>
+								<p class="text-sm leading-5 text-slate-600">
+									Cambios de precio, disponibilidad y reglas de venta que afectan la operación.
+								</p>
+							</div>
+							<button
+								id="pricingCalendarHistoryCloseBtn"
+								type="button"
+								class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+							>
+								Cerrar
+							</button>
+						</div>
+						<div class="overflow-y-auto p-4">
+							<Card className="space-y-4 border-0 bg-white text-slate-800 shadow-none">
+								<div class="flex flex-wrap gap-2" aria-label="Filtrar historial del calendario">
+									<button
+										type="button"
+										class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+										data-calendar-history-filter="all"
+									>
+										Todo
+									</button>
+									<button
+										type="button"
+										class="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+										data-calendar-history-filter="fecha"
+									>
+										Fecha
+									</button>
+								</div>
+								{calendarHistory.length === 0 ? (
+									<p class="text-sm text-slate-600">
+										Todavía no hay cambios recientes para mostrar en este calendario.
+									</p>
+								) : (
+									<ol class="space-y-3">
+										{calendarHistory.map((item) => (
+											<li
+												class={`rounded-2xl border p-3 ${historyToneClasses[item.tone] ?? historyToneClasses.neutral}`}
+												data-calendar-history-item
+												data-calendar-history-object={item.objectType}
+											>
+												<div class="flex flex-wrap items-start justify-between gap-3">
+													<div class="min-w-0">
+														<div class="flex flex-wrap items-center gap-2">
+															<p class="font-semibold">{item.title}</p>
+															<span class="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase opacity-80">
+																{item.objectLabel}
+															</span>
+														</div>
+														<p class="mt-1 text-sm opacity-80">{item.description}</p>
+														<p class="mt-1 text-xs opacity-70">{item.meta}</p>
+													</div>
+													<time class="text-xs font-medium opacity-70">
+														{formatHistoryDate(item.createdAt)}
+													</time>
+												</div>
+												<div class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+													<div class="rounded-xl bg-white/70 p-2">
+														<p class="font-semibold tracking-wide uppercase opacity-60">Antes</p>
+														<p class="mt-1">{item.beforeLabel ?? "Sin estado anterior visible"}</p>
+													</div>
+													<div class="rounded-xl bg-white/70 p-2">
+														<p class="font-semibold tracking-wide uppercase opacity-60">Después</p>
+														<p class="mt-1">{item.afterLabel ?? "Cambio aplicado"}</p>
+													</div>
+												</div>
+											</li>
+										))}
+									</ol>
+								)}
+							</Card>
+						</div>
+					</aside>
+				</>
+			)
+		}
 
 		<script is:inline>
 			document.querySelectorAll("[data-calendar-history-filter]").forEach((button) => {
@@ -1088,15 +981,6 @@ const statusVariant = {
 				})
 			})
 		</script>
-
-		<PricingAutomationPanel
-			automationSurface={automationSurface}
-			automationTemplateCatalog={automationTemplateCatalog}
-			automationTemplateGroups={automationTemplateGroups}
-			automationDefaultTemplate={automationDefaultTemplate}
-			automationDefaultRatePlanId={automationDefaultRatePlanId}
-			statusVariant={statusVariant}
-		/>
 	</div>
 
 	<style is:global>
@@ -1122,10 +1006,6 @@ const statusVariant = {
 		}
 
 		@media (max-width: 767px), (max-height: 480px) and (pointer: coarse) {
-			[data-pricing-selected-label] {
-				display: none !important;
-			}
-
 			.pricing-extension-drawer:not(.hidden) {
 				inset-inline: 0.75rem;
 				inset-block-start: auto;

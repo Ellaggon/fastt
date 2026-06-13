@@ -8,21 +8,22 @@ import {
 	selectCalendarRangePreset,
 	updateCalendarRangeHighlight,
 } from "@/lib/rates/calendarRangeOperations"
-import { createMobileActionSheet, flashAppliedRange } from "@/lib/rates/mobileCalendarInteraction"
+import { flashAppliedRange } from "@/lib/rates/mobileCalendarInteraction"
 
 export function initRatesCalendar() {
 	const feedback = document.getElementById("pricingCalendarFeedback")
 	const operationResult = document.getElementById("pricingOperationResult")
 	const generateBtn = document.getElementById("generatePricingCoverageBtn")
 	const rangePanel = document.getElementById("pricingRangePanel")
+	const manualPriceOpenBtn = document.querySelector("[data-panel-manual-price-action]")
+	const manualPriceDrawer = document.getElementById("pricingManualPriceDrawer")
+	const manualPriceBackdrop = document.getElementById("pricingManualPriceBackdrop")
+	const manualPriceCloseBtn = document.getElementById("pricingManualPriceCloseBtn")
+	const manualPriceRangeLabel = document.querySelector("[data-manual-price-range-label]")
 	const rangePreview = document.getElementById("pricingRangePreview")
 	const rangeOperationType = document.getElementById("pricingRangeOperationType")
 	const rangeValueLabel = document.getElementById("pricingRangeValueLabel")
 	const rangeValue = document.getElementById("pricingRangeValue")
-	const sheetBackdrop = document.getElementById("pricingSheetBackdrop")
-	const sheetCloseBtn = document.getElementById("pricingSheetCloseBtn")
-	const sheetExpandBtn = document.getElementById("pricingSheetExpandBtn")
-	const sheetHandle = document.querySelector("[data-mobile-sheet-handle]")
 	const rangePreviewBtn = document.getElementById("pricingRangePreviewBtn")
 	const rangeApplyBtn = document.getElementById("pricingRangeApplyBtn")
 	const rangeGenerateBtn = document.getElementById("pricingRangeGenerateBtn")
@@ -31,10 +32,22 @@ export function initRatesCalendar() {
 	const panelInventoryPreviewBtn = document.querySelector("[data-panel-inventory-preview]")
 	const panelInventoryApplyBtn = document.querySelector("[data-panel-inventory-apply]")
 	const panelInventoryFeedback = document.querySelector("[data-panel-inventory-feedback]")
+	const inventoryPhysicalOpenBtn = document.querySelector("[data-panel-inventory-action]")
+	const inventoryPhysicalDrawer = document.getElementById("inventoryPhysicalDrawer")
+	const inventoryPhysicalBackdrop = document.getElementById("inventoryPhysicalBackdrop")
+	const inventoryPhysicalCloseBtn = document.getElementById("inventoryPhysicalCloseBtn")
+	const inventoryRangeLabel = document.querySelector("[data-inventory-range-label]")
+	const inventoryPhysicalDetailToggle = document.getElementById("inventoryPhysicalDetailToggle")
+	const calendarHistoryOpenBtn = document.querySelector("[data-panel-calendar-history]")
+	const calendarHistoryDrawer = document.getElementById("pricingCalendarHistoryDrawer")
+	const calendarHistoryBackdrop = document.getElementById("pricingCalendarHistoryBackdrop")
+	const calendarHistoryCloseBtn = document.getElementById("pricingCalendarHistoryCloseBtn")
 	const restrictionSimpleBackdrop = document.getElementById("restrictionSimpleBackdrop")
 	const restrictionSimpleDrawer = document.getElementById("restrictionSimpleDrawer")
 	const restrictionSimpleCloseBtn = document.getElementById("restrictionSimpleCloseBtn")
-	const restrictionSimpleOpenBtn = document.querySelector("[data-panel-restrictions-action]")
+	const restrictionSimpleOpenBtns = Array.from(
+		document.querySelectorAll("[data-panel-restrictions-action]")
+	)
 	const restrictionStartDate = document.querySelector("[data-restriction-start-date]")
 	const restrictionEndDate = document.querySelector("[data-restriction-end-date]")
 	const restrictionRangeLabel = document.querySelector("[data-restriction-range-label]")
@@ -53,9 +66,6 @@ export function initRatesCalendar() {
 	const rangeConfig = JSON.parse(
 		document.getElementById("pricingRangeData")?.dataset?.range || "{}"
 	)
-	const automationTemplates = JSON.parse(
-		document.getElementById("pricingAutomationTemplates")?.dataset?.templates || "[]"
-	)
 	const rangeDays = Array.isArray(rangeConfig.days) ? rangeConfig.days : []
 	const operationalDays = Array.isArray(rangeConfig.operationalDays)
 		? rangeConfig.operationalDays
@@ -70,29 +80,6 @@ export function initRatesCalendar() {
 	const extensionOperations = Array.isArray(rangeConfig.extensionOperations)
 		? rangeConfig.extensionOperations
 		: []
-	const automationForm = document.querySelector("[data-pricing-automation-form]")
-	const automationPresets = document.querySelector("[data-pricing-automation-presets]")
-	const automationTrigger = document.querySelector("[data-pricing-automation-trigger]")
-	const automationPopover = document.querySelector("[data-pricing-automation-popover]")
-	const automationClose = document.querySelector("[data-pricing-automation-close]")
-	const automationCards = Array.from(document.querySelectorAll("[data-pricing-automation-card]"))
-	const automationKindInput = document.querySelector("[data-pricing-automation-kind]")
-	const automationRatePlan = document.querySelector("[data-pricing-automation-rate-plan]")
-	const automationValue = document.querySelector("[data-pricing-automation-value]")
-	const automationValueLabel = document.querySelector("[data-pricing-automation-value-label]")
-	const automationValueHelp = document.querySelector("[data-pricing-automation-value-help]")
-	const automationSelectedTitle = document.querySelector("[data-pricing-automation-selected-title]")
-	const automationDateFrom = document.querySelector("[data-pricing-automation-date-from]")
-	const automationDateTo = document.querySelector("[data-pricing-automation-date-to]")
-	const automationReview = document.querySelector("[data-pricing-automation-review]")
-	const automationPreviewBtn = document.querySelector("[data-pricing-automation-preview]")
-	const automationEligibilityFields = Array.from(
-		document.querySelectorAll("[data-pricing-eligibility]")
-	)
-	const automationPriority = automationForm?.querySelector('input[name="priority"]')
-	const makeRecurringButtons = Array.from(
-		document.querySelectorAll("[data-pricing-make-recurring]")
-	)
 	const extensionOpenButtons = Array.from(
 		document.querySelectorAll("[data-pricing-open-extension]")
 	)
@@ -123,8 +110,8 @@ export function initRatesCalendar() {
 	let rangePreviewDays = []
 	let inventoryPreviewPayload = null
 	let extensionPreviewPayload = null
-	let automationPreviewReady = false
 	let appliedAidsVisible = false
+	let availabilityDetailsVisible = false
 	let activeOperationalDate = ""
 	const allowedOperationalTabs = isProfessionalCalendar
 		? ["price", "availability", "restrictions", "policies", "pro"]
@@ -148,7 +135,6 @@ export function initRatesCalendar() {
 		pricingPreview: "/api/pricing/rules/v2/bulk-preview",
 		pricingApply: "/api/pricing/rules/v2/bulk-apply",
 		pricingGenerate: "/api/pricing/rules/v2/generate-effective",
-		pricingRulePreview: "/api/pricing/rules/v2/preview",
 		inventoryPreview: "/api/inventory/bulk-preview",
 		inventoryApply: "/api/inventory/bulk-apply",
 		restrictionsSurface: "/rates/restrictions",
@@ -228,7 +214,7 @@ export function initRatesCalendar() {
 	function operationalSummaryForTab(day) {
 		if (!day) return "Elige una fecha para operar precio, disponibilidad, venta y condiciones."
 		const scopeLabel = selectedOperationalScopeLabel(day)
-		const restrictionSummary = day.restrictionSummary || "Sin reglas de venta activas"
+		const restrictionSummary = day.restrictionSummary || "Venta abierta para la fecha seleccionada"
 		const conditionsSummary = day.conditionsSummary || "Condiciones de tarifa pendientes"
 		const conditionsDetail = day.conditionsIncomplete
 			? day.conditionsMissingSummary || "Contrato incompleto"
@@ -238,7 +224,7 @@ export function initRatesCalendar() {
 			availability: `${day.availableUnits}/${day.totalUnits} cupos disponibles · Reservas ${day.bookedUnits} · Holds ${day.heldUnits}`,
 			restrictions: `${day.statusLabel} · ${restrictionSummary}`,
 			policies: `${conditionsSummary} · ${conditionsDetail}`,
-			pro: `${scopeLabel} · Reglas automáticas, operación masiva y diagnóstico.`,
+			pro: `${scopeLabel} · Reglas de precio, reglas de venta e historial.`,
 		}
 		return summaryByTab[activeOperationalTab] || summaryByTab.price
 	}
@@ -248,12 +234,63 @@ export function initRatesCalendar() {
 		const summary = document.querySelector("[data-operational-panel-summary]")
 		if (title) title.textContent = selectedOperationalRangeLabel(day)
 		if (summary) summary.textContent = operationalSummaryForTab(day)
+		if (manualPriceRangeLabel) {
+			manualPriceRangeLabel.textContent = selectedOperationalRangeLabel(day)
+		}
+		if (inventoryRangeLabel) {
+			inventoryRangeLabel.textContent = selectedOperationalRangeLabel(day)
+		}
 	}
 
 	function syncConditionSignals() {
 		const showConditionSignals = activeOperationalTab === "policies"
 		document.querySelectorAll("[data-conditions-signal]").forEach((signal) => {
 			signal.classList.toggle("hidden", !showConditionSignals)
+		})
+	}
+
+	function syncPriceStatusSignals() {
+		const showPriceStatusSignals = activeOperationalTab === "price"
+		document.querySelectorAll("[data-price-status-signal]").forEach((signal) => {
+			signal.classList.toggle("hidden", !showPriceStatusSignals)
+		})
+	}
+
+	function syncPricePrimarySignals() {
+		const showPricePrimarySignals = activeOperationalTab === "price"
+		document.querySelectorAll("[data-price-primary-signal]").forEach((signal) => {
+			signal.classList.toggle("hidden", !showPricePrimarySignals)
+		})
+	}
+
+	function syncAvailabilityStatusSignals() {
+		const showAvailabilityStatusSignals = activeOperationalTab === "availability"
+		document.querySelectorAll("[data-availability-status-signal]").forEach((signal) => {
+			signal.classList.toggle("hidden", !showAvailabilityStatusSignals)
+		})
+	}
+
+	function syncAvailabilityDetailSignals() {
+		const showAvailabilityDetails =
+			activeOperationalTab === "availability" && availabilityDetailsVisible
+		document.querySelectorAll("[data-availability-detail-signal]").forEach((signal) => {
+			signal.classList.toggle("hidden", !showAvailabilityDetails)
+		})
+		if (inventoryPhysicalDetailToggle instanceof HTMLButtonElement) {
+			inventoryPhysicalDetailToggle.setAttribute(
+				"aria-pressed",
+				availabilityDetailsVisible ? "true" : "false"
+			)
+			inventoryPhysicalDetailToggle.textContent = availabilityDetailsVisible
+				? "Ocultar detalle físico"
+				: "Mostrar detalle físico"
+		}
+	}
+
+	function syncRestrictionStatusSignals() {
+		const showRestrictionStatusSignals = activeOperationalTab === "restrictions"
+		document.querySelectorAll("[data-restriction-status-signal]").forEach((signal) => {
+			signal.classList.toggle("hidden", !showRestrictionStatusSignals)
 		})
 	}
 
@@ -272,23 +309,14 @@ export function initRatesCalendar() {
 				section.getAttribute("data-operational-panel-section") !== activeOperationalTab
 			)
 		})
+		syncPricePrimarySignals()
+		syncPriceStatusSignals()
+		syncAvailabilityStatusSignals()
+		syncAvailabilityDetailSignals()
+		syncRestrictionStatusSignals()
 		syncConditionSignals()
+		syncSelectedPricingDetails()
 		updateOperationalPanelHeader(operationalDayByDate(activeOperationalDate))
-	}
-
-	function appendPanelChip(container, label, tone = "slate") {
-		if (!container || !label) return
-		const chip = document.createElement("span")
-		const tones = {
-			red: "bg-red-100 text-red-800",
-			amber: "bg-amber-100 text-amber-800",
-			blue: "bg-blue-100 text-blue-800",
-			purple: "bg-purple-100 text-purple-800",
-			slate: "bg-slate-100 text-slate-700",
-		}
-		chip.className = `rounded-full px-2 py-1 text-xs font-medium ${tones[tone] || tones.slate}`
-		chip.textContent = label
-		container.appendChild(chip)
 	}
 
 	function renderOperationalPanel(date) {
@@ -297,13 +325,9 @@ export function initRatesCalendar() {
 		const basePrice = document.querySelector("[data-panel-base-price]")
 		const availability = document.querySelector("[data-panel-availability]")
 		const locks = document.querySelector("[data-panel-locks]")
-		const restrictions = document.querySelector("[data-panel-restrictions]")
-		const restrictionChips = document.querySelector("[data-panel-restriction-chips]")
 		const policies = document.querySelector("[data-panel-policies]")
 		const policiesMissing = document.querySelector("[data-panel-policies-missing]")
-		const status = document.querySelector("[data-panel-status]")
-		const panelDate = document.querySelector("[data-panel-date]")
-		const inventoryDetail = document.querySelector("[data-panel-inventory-detail]")
+		const policiesAction = document.querySelector("[data-panel-policies-action]")
 		if (!day) return
 
 		activeOperationalDate = String(day.date || date || "")
@@ -314,42 +338,6 @@ export function initRatesCalendar() {
 			availability.textContent = `${day.availableUnits}/${day.totalUnits} cupos`
 		}
 		if (locks) locks.textContent = `Reservas: ${day.bookedUnits} · Holds: ${day.heldUnits}`
-		if (inventoryDetail instanceof HTMLAnchorElement) {
-			const hasInventoryIssue =
-				day.status === "no_inventory" ||
-				Number(day.availableUnits ?? 0) <= 0 ||
-				Number(day.totalUnits ?? 0) <= 0
-			inventoryDetail.classList.toggle("hidden", !(isProfessionalCalendar || hasInventoryIssue))
-			const params = new URLSearchParams()
-			if (selectedVariantId) params.set("variantId", selectedVariantId)
-			if (day.date) {
-				params.set("month", String(day.date).slice(0, 7))
-				params.set("date", String(day.date))
-			}
-			params.set("source", hasInventoryIssue ? "inventory-issue" : "professional")
-			inventoryDetail.href = `/inventory${params.toString() ? `?${params.toString()}` : ""}`
-			inventoryDetail.textContent = hasInventoryIssue
-				? "Ver detalle físico del cupo"
-				: "Ver detalle físico"
-		}
-		if (restrictions) {
-			restrictions.textContent =
-				day.restrictionSummary || "Sin reglas de venta activas para esta fecha."
-		}
-		if (restrictionChips) {
-			restrictionChips.replaceChildren()
-			if (day.stopSell) appendPanelChip(restrictionChips, "Cerrado", "red")
-			if (day.cta) appendPanelChip(restrictionChips, "No llegada", "red")
-			if (day.ctd) appendPanelChip(restrictionChips, "No salida", "red")
-			if (day.minStay != null) appendPanelChip(restrictionChips, `Mín. ${day.minStay} noches`)
-			if (day.maxStay != null) appendPanelChip(restrictionChips, `Máx. ${day.maxStay} noches`)
-			if (day.minLeadTime != null)
-				appendPanelChip(restrictionChips, `Anticipación mín. ${day.minLeadTime} días`)
-			if (day.maxLeadTime != null)
-				appendPanelChip(restrictionChips, `Anticipación máx. ${day.maxLeadTime} días`)
-			if (restrictionChips.childElementCount === 0)
-				appendPanelChip(restrictionChips, "Venta estándar")
-		}
 		if (policies) {
 			policies.textContent = day.conditionsSummary || "Condiciones de tarifa pendientes."
 		}
@@ -358,8 +346,11 @@ export function initRatesCalendar() {
 				? day.conditionsMissingSummary || "Esta tarifa todavía no tiene el contrato completo."
 				: "Contrato completo para la tarifa seleccionada."
 		}
-		if (status) status.textContent = day.statusLabel
-		if (panelDate) panelDate.textContent = day.date
+		if (policiesAction) {
+			policiesAction.textContent = day.conditionsIncomplete
+				? "Resolver condiciones"
+				: "Ver condiciones"
+		}
 		setOperationalPanelTab(activeOperationalTab)
 	}
 
@@ -374,18 +365,35 @@ export function initRatesCalendar() {
 			const date = card.getAttribute("data-date")
 			const isSelected = Boolean(date && isSelectedRangeDate(date))
 			card.classList.toggle("pricing-date-selected", isSelected)
-			card.querySelectorAll("[data-pricing-selected-label]").forEach((label) => {
-				label.classList.toggle("hidden", !isSelected)
+			card.querySelectorAll("[data-price-default-row]").forEach((row) => {
+				row.classList.toggle("hidden", appliedAidsVisible && activeOperationalTab === "price")
+			})
+			card.querySelectorAll("[data-price-adjustment-row]").forEach((row) => {
+				row.classList.toggle("hidden", !appliedAidsVisible || activeOperationalTab !== "price")
 			})
 			const adjustmentLine = card.querySelector("[data-pricing-applied-aid]")
 			const adjustmentOutput = card.querySelector("[data-pricing-adjustment-output]")
+			const canShowPriceAdjustment =
+				card.getAttribute("data-is-past") !== "true" &&
+				card.getAttribute("data-has-price") === "true"
 			const hasAdjustment = Boolean(
 				adjustmentOutput && String(adjustmentOutput.textContent ?? "").trim()
 			)
 			adjustmentLine?.classList.toggle(
 				"hidden",
-				!hasAdjustment || (!appliedAidsVisible && !isSelected)
+				!canShowPriceAdjustment ||
+					!hasAdjustment ||
+					!appliedAidsVisible ||
+					activeOperationalTab !== "price"
 			)
+		})
+	}
+
+	function syncSelectionRequiredActions() {
+		const hasSelection = Boolean(selectedRange)
+		document.querySelectorAll("[data-selection-required-action]").forEach((action) => {
+			action.classList.toggle("hidden", !hasSelection)
+			action.classList.toggle("inline-flex", hasSelection)
 		})
 	}
 
@@ -394,14 +402,16 @@ export function initRatesCalendar() {
 		syncSelectedPricingDetails()
 		if (appliedAidToggle instanceof HTMLButtonElement) {
 			appliedAidToggle.setAttribute("aria-pressed", appliedAidsVisible ? "true" : "false")
-			appliedAidToggle.textContent = appliedAidsVisible
-				? "Ocultar ajustes"
-				: "Ajuste solo si existe"
+			appliedAidToggle.textContent = appliedAidsVisible ? "Ocultar ajustes" : "Mostrar ajustes"
 		}
 	}
 
 	appliedAidToggle?.addEventListener("click", () => {
 		setAppliedAidsVisible(!appliedAidsVisible)
+	})
+	inventoryPhysicalDetailToggle?.addEventListener("click", () => {
+		availabilityDetailsVisible = !availabilityDetailsVisible
+		syncAvailabilityDetailSignals()
 	})
 
 	addMonthBtn?.addEventListener("click", () => {
@@ -538,113 +548,28 @@ export function initRatesCalendar() {
 		)
 	}
 
-	function getAutomationTemplate(kind) {
-		return (
-			automationTemplates.find((template) => String(template.kind) === String(kind)) ||
-			automationTemplates[0] ||
-			null
-		)
+	function setCalendarHistoryOpen(isOpen) {
+		calendarHistoryDrawer?.classList.toggle("hidden", !isOpen)
+		calendarHistoryBackdrop?.classList.toggle("hidden", !isOpen)
+		document.documentElement.classList.toggle("calendar-history-open", isOpen)
 	}
 
-	function automationValueLabelFor(kind) {
-		if (kind === "manual_override") return "Precio final"
-		if (kind === "fixed_discount") return "Monto de descuento"
-		if (kind === "fixed_markup") return "Monto de aumento"
-		if (kind === "percentage_markup") return "Porcentaje de aumento"
-		return "Porcentaje"
-	}
-
-	function automationValueHelpFor(template) {
-		if (!template) return ""
-		if (template.kind === "manual_override") return "Precio final que quedará activo."
-		if (template.kind === "fixed_discount") return "Monto que se restará al precio base."
-		if (template.kind === "fixed_markup") return "Monto que se sumará al precio base."
-		if (template.kind === "percentage_markup") return "Porcentaje que se sumará al precio base."
-		return template.valueSuffix || "% de descuento"
-	}
-
-	function resetAutomationReview() {
-		automationPreviewReady = false
-		if (!automationReview) return
-		automationReview.className =
-			"rounded-lg border border-slate-200 bg-white p-3 text-sm lg:col-span-6"
-		automationReview.replaceChildren()
-		const heading = document.createElement("p")
-		heading.className = "font-semibold text-slate-900"
-		heading.textContent = "Vista previa del impacto"
-		const body = document.createElement("p")
-		body.className = "mt-1 text-slate-600"
-		body.textContent =
-			"Selecciona tarifa, fechas y valor para revisar cuántas noches cambiarán antes de crear la regla."
-		automationReview.append(heading, body)
-	}
-
-	function focusAutomationForm() {
-		document.getElementById("pricing-automation")?.scrollIntoView({
-			behavior: "smooth",
-			block: "start",
-		})
-		window.setTimeout(() => {
-			if (automationValue instanceof HTMLInputElement) automationValue.focus()
-		}, 250)
-	}
-
-	function setAutomationPopoverOpen(open) {
-		if (!(automationPopover instanceof HTMLElement)) return
-		automationPopover.hidden = !open
-		if (automationTrigger instanceof HTMLElement) {
-			automationTrigger.setAttribute("aria-expanded", open ? "true" : "false")
+	function setManualPriceDrawerOpen(isOpen) {
+		manualPriceDrawer?.classList.toggle("hidden", !isOpen)
+		manualPriceBackdrop?.classList.toggle("hidden", !isOpen)
+		document.documentElement.classList.toggle("manual-price-drawer-open", isOpen)
+		if (isOpen && rangeValue instanceof HTMLInputElement) {
+			window.setTimeout(() => rangeValue.focus(), 150)
 		}
 	}
 
-	function setAutomationKind(kind) {
-		const template = getAutomationTemplate(kind)
-		if (!template) return
-		if (automationKindInput instanceof HTMLInputElement) automationKindInput.value = template.kind
-		if (automationSelectedTitle) automationSelectedTitle.textContent = template.label
-		if (automationValueLabel)
-			automationValueLabel.textContent = automationValueLabelFor(template.kind)
-		if (automationValueHelp) automationValueHelp.textContent = automationValueHelpFor(template)
-		if (automationValue instanceof HTMLInputElement) {
-			automationValue.value = String(template.defaultValue ?? "")
-			automationValue.placeholder = automationValueLabelFor(template.kind)
+	function setInventoryPhysicalDrawerOpen(isOpen) {
+		inventoryPhysicalDrawer?.classList.toggle("hidden", !isOpen)
+		inventoryPhysicalBackdrop?.classList.toggle("hidden", !isOpen)
+		document.documentElement.classList.toggle("inventory-physical-drawer-open", isOpen)
+		if (isOpen && panelInventoryValue instanceof HTMLInputElement) {
+			window.setTimeout(() => panelInventoryValue.focus(), 150)
 		}
-		automationCards.forEach((card) => {
-			const isSelected = card.getAttribute("data-kind") === template.kind
-			card.setAttribute("aria-pressed", isSelected ? "true" : "false")
-			card.classList.toggle("border-blue-400", isSelected)
-			card.classList.toggle("bg-blue-50", isSelected)
-			card.classList.toggle("border-slate-200", !isSelected)
-		})
-		automationEligibilityFields.forEach((field) => {
-			const visible = field.getAttribute("data-pricing-eligibility") === template.kind
-			field.classList.toggle("hidden", !visible)
-		})
-		setAutomationPopoverOpen(false)
-		resetAutomationReview()
-	}
-
-	function prefillRecurringFromSelection() {
-		if (!selectedRange) {
-			setFeedback(
-				"Selecciona una fecha o rango para crear una regla automática de precio desde el calendario."
-			)
-			focusAutomationForm()
-			return
-		}
-		setAutomationKind("manual_override")
-		if (automationRatePlan instanceof HTMLSelectElement && selectedRatePlanId) {
-			automationRatePlan.value = selectedRatePlanId
-		}
-		if (automationDateFrom instanceof HTMLInputElement)
-			automationDateFrom.value = selectedRange.from
-		if (automationDateTo instanceof HTMLInputElement) automationDateTo.value = selectedRange.to
-		if (automationValue instanceof HTMLInputElement && rangeValue instanceof HTMLInputElement) {
-			automationValue.value = rangeValue.value || automationValue.value
-		}
-		resetAutomationReview()
-		setFeedback("Regla automática de precio preparada con la selección actual del calendario.")
-		focusAutomationForm()
 	}
 
 	function inclusiveDays(from, to) {
@@ -653,160 +578,6 @@ export function initRatesCalendar() {
 		const end = new Date(`${to}T00:00:00`)
 		if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null
 		return Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-	}
-
-	function buildAutomationPreviewPayload() {
-		const template = getAutomationTemplate(automationKindInput?.value)
-		const ratePlanId = automationRatePlan?.value
-		const rawValue = Number(automationValue?.value)
-		if (!template || !ratePlanId) return { error: "Elige un plan tarifario." }
-		if (!Number.isFinite(rawValue) || rawValue < 0) return { error: "Define un valor válido." }
-		const dateFrom = automationDateFrom?.value || ""
-		const dateTo = automationDateTo?.value || ""
-		const previewDays = inclusiveDays(dateFrom, dateTo) ?? 30
-		const payload = {
-			ratePlanId,
-			type: template.internalType,
-			value: template.kind === "fixed_discount" ? -Math.abs(rawValue) : rawValue,
-			priority: Number(automationPriority?.value) || 20,
-			contextKey: template.contextKey,
-			previewFrom: dateFrom || new Date().toISOString().slice(0, 10),
-			previewDays,
-		}
-		if (dateFrom) payload.dateFrom = dateFrom
-		if (dateTo) payload.dateTo = dateTo
-		if (template.kind === "early_bird") {
-			const minLeadDays = Number(automationForm?.querySelector('input[name="minLeadDays"]')?.value)
-			if (Number.isFinite(minLeadDays) && minLeadDays > 0) payload.minLeadDays = minLeadDays
-			if (Number.isFinite(minLeadDays) && minLeadDays > 0) {
-				payload.requestDate = new Date().toISOString().slice(0, 10)
-				payload.checkIn = addDays(payload.requestDate, minLeadDays + 1)
-				payload.checkOut = addDays(payload.checkIn, 1)
-				payload.nights = 1
-			}
-		}
-		if (template.kind === "last_minute") {
-			const maxLeadDays = Number(automationForm?.querySelector('input[name="maxLeadDays"]')?.value)
-			if (Number.isFinite(maxLeadDays) && maxLeadDays > 0) payload.maxLeadDays = maxLeadDays
-			if (Number.isFinite(maxLeadDays) && maxLeadDays > 0) {
-				payload.requestDate = new Date().toISOString().slice(0, 10)
-				payload.checkIn = addDays(payload.requestDate, Math.max(0, maxLeadDays - 1))
-				payload.checkOut = addDays(payload.checkIn, 1)
-				payload.nights = 1
-			}
-		}
-		if (template.kind === "los_discount") {
-			const minNights = Number(automationForm?.querySelector('input[name="minNights"]')?.value)
-			if (Number.isFinite(minNights) && minNights > 0) payload.minNights = minNights
-			if (Number.isFinite(minNights) && minNights > 0) {
-				payload.checkIn = payload.previewFrom
-				payload.checkOut = addDays(payload.previewFrom, minNights)
-				payload.nights = minNights
-			}
-		}
-		return { payload, template }
-	}
-
-	function automationConditionChips(template, payload) {
-		const chips = []
-		if (payload.dateFrom || payload.dateTo) {
-			chips.push(
-				`Vigencia ${payload.dateFrom ? formatHumanDateLabel(payload.dateFrom) : "hoy"} a ${payload.dateTo ? formatHumanDateLabel(payload.dateTo) : "sin cierre"}`
-			)
-		} else {
-			chips.push("Sin fecha de cierre")
-		}
-		if (template.kind === "early_bird" && payload.minLeadDays) {
-			chips.push(`${payload.minLeadDays} dias de anticipacion`)
-		}
-		if (template.kind === "last_minute" && payload.maxLeadDays) {
-			chips.push(`Hasta ${payload.maxLeadDays} dias antes`)
-		}
-		if (template.kind === "los_discount" && payload.minNights) {
-			chips.push(`${payload.minNights} noches minimas`)
-		}
-		return chips
-	}
-
-	function renderAutomationReview({ kind = "neutral", title, summary, chips = [] }) {
-		if (!automationReview) return
-		const tone =
-			kind === "warning"
-				? "border-amber-200 bg-amber-50 text-amber-950"
-				: "border-blue-200 bg-blue-50 text-blue-950"
-		automationReview.className = `rounded-lg border p-3 text-sm lg:col-span-6 ${tone}`
-		automationReview.replaceChildren()
-		const heading = document.createElement("p")
-		heading.className = "font-semibold"
-		heading.textContent = title
-		automationReview.appendChild(heading)
-		const body = document.createElement("p")
-		body.className = "mt-1"
-		body.textContent = summary
-		automationReview.appendChild(body)
-		if (chips.length > 0) {
-			const wrap = document.createElement("div")
-			wrap.className = "mt-2 flex flex-wrap gap-1.5"
-			for (const chipText of chips) {
-				const chip = document.createElement("span")
-				chip.className = "rounded-full bg-white/80 px-2 py-1 text-xs font-medium"
-				chip.textContent = chipText
-				wrap.appendChild(chip)
-			}
-			automationReview.appendChild(wrap)
-		}
-		automationReview.classList.remove("hidden")
-	}
-
-	async function previewAutomationRule() {
-		const built = buildAutomationPreviewPayload()
-		if (built.error) {
-			renderAutomationReview({
-				kind: "warning",
-				title: "Revisa la regla automática",
-				summary: built.error,
-			})
-			return false
-		}
-		const { payload, template } = built
-		renderAutomationReview({
-			title: "Revisando impacto...",
-			summary: "Calculando próximos días afectados antes de guardar la regla automática.",
-			chips: [template.label],
-		})
-		if (automationPreviewBtn instanceof HTMLButtonElement) automationPreviewBtn.disabled = true
-		const response = await fetch(calendarMutationEndpoints.pricingRulePreview, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-		})
-		const body = await response.json().catch(() => ({}))
-		if (automationPreviewBtn instanceof HTMLButtonElement) automationPreviewBtn.disabled = false
-		if (!response.ok) {
-			const error = String(body?.error ?? response.status)
-			renderAutomationReview({
-				kind: "warning",
-				title: "No pudimos revisar esta regla automática",
-				summary: `El cambio no se guardó todavía. Revisa los campos o intenta nuevamente. Detalle: ${error}`,
-				chips: [template.label],
-			})
-			return false
-		}
-		const days = Array.isArray(body?.days) ? body.days : []
-		const affected = days.filter((day) => Number(day?.delta ?? 0) !== 0).length
-		const previewed = days.length || Number(payload.previewDays ?? 0)
-		const label = template.kind === "manual_override" ? "precio final" : "regla automática"
-		renderAutomationReview({
-			kind: affected > 0 ? "neutral" : "warning",
-			title: affected > 0 ? "Impacto revisado" : "Sin impacto visible por ahora",
-			summary:
-				affected > 0
-					? `${template.label} actuará automáticamente en ${affected} de ${previewed} noches revisadas. Guarda la regla si este impacto tiene sentido.`
-					: `No vimos noches afectadas en esta revisión. Puedes ajustar vigencia, condiciones o guardar el ${label} si lo necesitas para otro contexto.`,
-			chips: [automationValueHelpFor(template), ...automationConditionChips(template, payload)],
-		})
-		automationPreviewReady = true
-		return true
 	}
 
 	function formatMoneyLike(sample, value) {
@@ -831,14 +602,18 @@ export function initRatesCalendar() {
 
 	function updatePricingCardPrice(card, value) {
 		const output = card.querySelector("[data-pricing-output]")
+		const finalCompareOutput = card.querySelector("[data-pricing-final-compare-output]")
 		const nextText = formatMoneyLike(output?.textContent, value)
 		const basePrice = Number(card.getAttribute("data-base-price"))
+		const isPast = card.getAttribute("data-is-past") === "true"
 		const adjustment = Number.isFinite(basePrice) ? Number(value) - basePrice : null
 		card.setAttribute("data-current-price", String(value))
+		card.setAttribute("data-has-price", "true")
 		card.classList.remove("border-amber-200", "bg-amber-50")
 		card.classList.add("border-emerald-200", "bg-emerald-50")
 		if (output) output.textContent = nextText
-		if (adjustment == null) return
+		if (finalCompareOutput) finalCompareOutput.textContent = nextText
+		if (isPast || adjustment == null) return
 		const roundedAdjustment = Math.round(adjustment)
 		let adjustmentLine = card.querySelector("[data-pricing-adjustment-line]")
 		let adjustmentOutput = card.querySelector("[data-pricing-adjustment-output]")
@@ -857,10 +632,9 @@ export function initRatesCalendar() {
 		}
 		if (adjustmentLine instanceof HTMLElement && adjustmentOutput) {
 			adjustmentOutput.textContent = formatMoneyLike(output?.textContent, roundedAdjustment)
-			const isSelected = card.classList.contains("pricing-date-selected")
 			adjustmentLine.classList.toggle(
 				"hidden",
-				roundedAdjustment === 0 || (!appliedAidsVisible && !isSelected)
+				isPast || roundedAdjustment === 0 || !appliedAidsVisible || activeOperationalTab !== "price"
 			)
 		}
 	}
@@ -1059,38 +833,60 @@ export function initRatesCalendar() {
 		return { changedPlans, changedDays, failures, total: results.length }
 	}
 
-	automationCards.forEach((card) => {
-		card.addEventListener("click", () => setAutomationKind(card.getAttribute("data-kind")))
-	})
-	automationTrigger?.addEventListener("click", (event) => {
-		event.stopPropagation()
-		const isOpen = automationPopover instanceof HTMLElement ? !automationPopover.hidden : false
-		setAutomationPopoverOpen(!isOpen)
-	})
-	automationClose?.addEventListener("click", () => setAutomationPopoverOpen(false))
-	document.addEventListener("click", (event) => {
-		if (!(automationPopover instanceof HTMLElement) || automationPopover.hidden) return
-		if (automationPresets instanceof HTMLElement && event.target instanceof Node) {
-			if (automationPresets.contains(event.target)) return
-		}
-		setAutomationPopoverOpen(false)
-	})
 	document.addEventListener("keydown", (event) => {
-		if (event.key === "Escape") setAutomationPopoverOpen(false)
+		if (event.key === "Escape") {
+			const drawerWasOpen = Boolean(
+				(manualPriceDrawer && !manualPriceDrawer.classList.contains("hidden")) ||
+				(inventoryPhysicalDrawer && !inventoryPhysicalDrawer.classList.contains("hidden")) ||
+				(calendarHistoryDrawer && !calendarHistoryDrawer.classList.contains("hidden"))
+			)
+			setCalendarHistoryOpen(false)
+			setManualPriceDrawerOpen(false)
+			setInventoryPhysicalDrawerOpen(false)
+			if (drawerWasOpen) event.preventDefault()
+		}
 	})
-	makeRecurringButtons.forEach((button) => {
-		button.addEventListener("click", prefillRecurringFromSelection)
+	manualPriceOpenBtn?.addEventListener("click", () => {
+		if (!selectedRange) {
+			const fallbackDate =
+				activeOperationalDate || initialFocusableCard?.getAttribute("data-date") || ""
+			if (fallbackDate) {
+				selectedRange = { from: fallbackDate, to: fallbackDate }
+				rangeAnchor = null
+				selectedRangeDayFilter = null
+				renderRangeSelection()
+			}
+		}
+		if (!selectedRange) {
+			setFeedback("Selecciona una fecha o rango para cambiar el precio manualmente.")
+			return
+		}
+		setManualPriceDrawerOpen(true)
 	})
-	automationForm?.addEventListener("input", resetAutomationReview)
-	automationForm?.addEventListener("change", resetAutomationReview)
-	automationPreviewBtn?.addEventListener("click", previewAutomationRule)
-	automationForm?.addEventListener("submit", async (event) => {
-		if (automationPreviewReady) return
-		event.preventDefault()
-		const ok = await previewAutomationRule()
-		if (ok) setFeedback("Impacto revisado. Toca Crear regla automática nuevamente para guardarla.")
+	manualPriceCloseBtn?.addEventListener("click", () => setManualPriceDrawerOpen(false))
+	manualPriceBackdrop?.addEventListener("click", () => setManualPriceDrawerOpen(false))
+	inventoryPhysicalOpenBtn?.addEventListener("click", () => {
+		if (!selectedRange) {
+			const fallbackDate =
+				activeOperationalDate || initialFocusableCard?.getAttribute("data-date") || ""
+			if (fallbackDate) {
+				selectedRange = { from: fallbackDate, to: fallbackDate }
+				rangeAnchor = null
+				selectedRangeDayFilter = null
+				renderRangeSelection()
+			}
+		}
+		if (!selectedRange) {
+			setFeedback("Selecciona una fecha o rango para cambiar el cupo.")
+			return
+		}
+		setInventoryPhysicalDrawerOpen(true)
 	})
-	if (automationKindInput?.value) setAutomationKind(automationKindInput.value)
+	inventoryPhysicalCloseBtn?.addEventListener("click", () => setInventoryPhysicalDrawerOpen(false))
+	inventoryPhysicalBackdrop?.addEventListener("click", () => setInventoryPhysicalDrawerOpen(false))
+	calendarHistoryOpenBtn?.addEventListener("click", () => setCalendarHistoryOpen(true))
+	calendarHistoryCloseBtn?.addEventListener("click", () => setCalendarHistoryOpen(false))
+	calendarHistoryBackdrop?.addEventListener("click", () => setCalendarHistoryOpen(false))
 
 	extensionOpenButtons.forEach((button) => {
 		button.addEventListener("click", (event) => {
@@ -1132,15 +928,17 @@ export function initRatesCalendar() {
 		setInventoryApplyReady(false)
 		setInventoryFeedback("Revisa el impacto de inventario antes de guardar.")
 	})
-	restrictionSimpleOpenBtn?.addEventListener("click", () => {
-		if (!selectedRange) {
-			setFeedback("Selecciona una fecha o rango para crear una regla de venta.")
-			return
-		}
-		syncRestrictionDrawerRange()
-		syncSimpleRestrictionCopy()
-		setRestrictionDrawerOpen(true)
-	})
+	restrictionSimpleOpenBtns.forEach((restrictionSimpleOpenBtn) =>
+		restrictionSimpleOpenBtn.addEventListener("click", () => {
+			if (!selectedRange) {
+				setFeedback("Selecciona una fecha o rango para crear una regla de venta.")
+				return
+			}
+			syncRestrictionDrawerRange()
+			syncSimpleRestrictionCopy()
+			setRestrictionDrawerOpen(true)
+		})
+	)
 	restrictionSimpleCloseBtn?.addEventListener("click", () => setRestrictionDrawerOpen(false))
 	restrictionSimpleBackdrop?.addEventListener("click", () => setRestrictionDrawerOpen(false))
 	simpleRestrictionType?.addEventListener("change", syncSimpleRestrictionCopy)
@@ -1338,17 +1136,8 @@ export function initRatesCalendar() {
 		}
 	})
 
-	const mobileSheet = createMobileActionSheet({
-		panel: rangePanel,
-		backdrop: sheetBackdrop,
-		handle: sheetHandle,
-		expandButton: sheetExpandBtn,
-		closeButton: sheetCloseBtn,
-		onClose: clearRangeSelection,
-	})
-
 	function setSheetExpanded(isExpanded) {
-		mobileSheet.setState(isExpanded ? "expanded" : "compact")
+		rangePanel?.setAttribute("data-sheet-state", isExpanded ? "expanded" : "compact")
 	}
 
 	function getSelectedRangeDays() {
@@ -1455,7 +1244,6 @@ export function initRatesCalendar() {
 
 	function renderRangeSelection() {
 		if (!selectedRange) return
-		mobileSheet.setOpen(true)
 		const days = getSelectedRangeDays()
 		const summary = summarizeSelectedRangeDays()
 		const scopeLabel = selectedRangeDayFilter === "weekends" ? "fines de semana" : "fechas"
@@ -1474,6 +1262,7 @@ export function initRatesCalendar() {
 			selectedClassNames: ["ring-2", "ring-blue-500", "ring-offset-2", "pricing-date-selected"],
 		})
 		syncSelectedPricingDetails()
+		syncSelectionRequiredActions()
 		syncRangeValueFromSingleDate(selectedRange.from)
 		syncRestrictionDrawerRange()
 		renderOperationalPanel(selectedRange.from)
@@ -1486,12 +1275,13 @@ export function initRatesCalendar() {
 		selectedRangeDayFilter = null
 		rangePreviewPayload = null
 		rangePreviewDays = []
-		mobileSheet.setOpen(false)
+		setManualPriceDrawerOpen(false)
+		setInventoryPhysicalDrawerOpen(false)
 		setSheetExpanded(false)
 		setApplyNeedsConfirmation(false)
 		updateCalendarRangeHighlight({ cards: rangeCards, range: null })
 		syncSelectedPricingDetails()
-		mobileSheet.setState("compact")
+		syncSelectionRequiredActions()
 		setExtensionOpen(false)
 	}
 
@@ -1554,7 +1344,12 @@ export function initRatesCalendar() {
 
 	rangeClearBtn?.addEventListener("click", clearRangeSelection)
 	document.addEventListener("keydown", (event) => {
-		if (event.key === "Escape" && selectedRange) clearRangeSelection()
+		if (event.defaultPrevented) return
+		if (event.key !== "Escape" || !selectedRange) return
+		const manualDrawerOpen = manualPriceDrawer && !manualPriceDrawer.classList.contains("hidden")
+		const historyOpen = calendarHistoryDrawer && !calendarHistoryDrawer.classList.contains("hidden")
+		if (manualDrawerOpen || historyOpen) return
+		clearRangeSelection()
 	})
 
 	rangePreviewBtn?.addEventListener("click", async () => {
