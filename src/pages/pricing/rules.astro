@@ -1,6 +1,6 @@
 ---
-const target = new URL("/rates/calendar", Astro.url)
-target.search = Astro.url.search
-target.hash = "pricing-automation"
+const target = new URL("/rates/restrictions", Astro.url)
+target.search = Astro.url.search || "?tab=price"
+target.searchParams.set("tab", "price")
 return Astro.redirect(target.toString(), 308)
 ---

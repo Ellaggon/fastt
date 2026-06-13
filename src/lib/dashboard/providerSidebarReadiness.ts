@@ -1,6 +1,5 @@
 import {
 	and,
-	DailyInventory,
 	db,
 	eq,
 	inArray,
@@ -49,13 +48,6 @@ const ADVANCED_PROVIDER_ROLES = new Set(["admin", "revenue_ops", "operations_man
 
 function plural(value: number, singular: string, pluralLabel: string = `${singular}s`) {
 	return `${value} ${value === 1 ? singular : pluralLabel}`
-}
-
-function addDays(dateOnly: string, days: number): string {
-	const date = new Date(`${dateOnly}T00:00:00.000Z`)
-	if (Number.isNaN(date.getTime())) return dateOnly
-	date.setUTCDate(date.getUTCDate() + days)
-	return date.toISOString().slice(0, 10)
 }
 
 async function getProviderRatePlanIds(providerId: string): Promise<string[]> {
@@ -136,42 +128,6 @@ async function getPricingCalendarSummary(ratePlanIds: string[]) {
 	if (missing > 0)
 		return `${plural(ready, "tarifa")} listas, ${plural(missing, "tarifa")} sin precio base.`
 	return `${plural(ready, "tarifa")} listas para calendario de precios.`
-}
-
-async function getInventorySummary(providerId: string, variantIds: string[]) {
-	if (!variantIds.length) return "0 habitaciones activas: crea habitaciones para vender."
-
-	const today = new Date().toISOString().slice(0, 10)
-	const nextWeek = addDays(today, 7)
-	const rows = await db
-		.select({
-			variantId: DailyInventory.variantId,
-			days: sql<number>`count(*)`,
-			blockedDays: sql<number>`sum(case when ${DailyInventory.totalInventory} <= 0 then 1 else 0 end)`,
-		})
-		.from(DailyInventory)
-		.innerJoin(Variant, eq(Variant.id, DailyInventory.variantId))
-		.innerJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				eq(Product.providerId, providerId),
-				inArray(DailyInventory.variantId, variantIds),
-				sql`${DailyInventory.date} >= ${today}`,
-				sql`${DailyInventory.date} < ${nextWeek}`
-			)
-		)
-		.groupBy(DailyInventory.variantId)
-		.all()
-
-	const byVariant = new Map(rows.map((row) => [String(row.variantId), row]))
-	const variantsWithGaps = variantIds.filter((variantId) => {
-		const row = byVariant.get(variantId)
-		return !row || Number(row.days ?? 0) < 7 || Number(row.blockedDays ?? 0) > 0
-	}).length
-	if (variantsWithGaps > 0) {
-		return `${plural(variantsWithGaps, "habitación", "habitaciones")} con brechas esta semana.`
-	}
-	return `${plural(variantIds.length, "habitación", "habitaciones")} con inventario esta semana.`
 }
 
 async function getRestrictionsSummary(
@@ -307,10 +263,9 @@ export async function getProviderSidebarData(
 				? professionalToolsPreference.professionalToolsEnabled
 				: false
 
-	const [ratesSummary, pricingSummary, inventorySummary, restrictionsSummary] = await Promise.all([
+	const [ratesSummary, pricingSummary, restrictionsSummary] = await Promise.all([
 		getRatesSummary(ratePlanIds),
 		getPricingCalendarSummary(ratePlanIds),
-		getInventorySummary(normalizedProviderId, variantIds),
 		getRestrictionsSummary(normalizedProviderId, ratePlanIds, variantIds),
 	])
 
@@ -331,7 +286,6 @@ export async function getProviderSidebarData(
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.pricing()]: pricingSummary,
-			[routes.inventory()]: inventorySummary,
 			[routes.rateRestrictions()]: restrictionsSummary,
 			[routes.pricingAutomation()]: `${plural(activePriceRules, "regla")} activas para automatizar cambios.`,
 			[routes.providerPolicies()]: policyReadiness.summary,

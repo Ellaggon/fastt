@@ -205,7 +205,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 					pattern: "/product/:id/rooms/:roomId/inventory",
 					status: "legacy",
 				}),
-				expect.objectContaining({ pattern: "/inventory", status: "transitional" }),
+				expect.objectContaining({ pattern: "/inventory", status: "legacy" }),
+				expect.objectContaining({ pattern: "/inventory/bulk", status: "legacy" }),
 				expect.objectContaining({ pattern: "/rates/plans/**", status: "canonical" }),
 			])
 		)
@@ -338,14 +339,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual([
-			"Tarifas",
-			"Calendario",
-			"Condiciones",
-			"Inventario físico",
-			"Reglas de venta",
-		])
-		expect(labels).toContain("Inventario físico")
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Reglas de venta"])
+		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
@@ -366,14 +361,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual([
-			"Tarifas",
-			"Calendario",
-			"Condiciones",
-			"Inventario físico",
-			"Reglas de venta",
-		])
-		expect(labels).toContain("Inventario físico")
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Reglas de venta"])
+		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
@@ -515,6 +504,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardTopBar.astro"),
 			"utf8"
 		)
+		const calendar = readFileSync(join(process.cwd(), "src/pages/rates/calendar.astro"), "utf8")
 		const toggle = readFileSync(
 			join(process.cwd(), "src/components/dashboard/ProfessionalModeToggle.astro"),
 			"utf8"
@@ -534,6 +524,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(preferences).toContain("setProviderProfessionalToolsPreference")
 		expect(preferences).toContain("schemaAvailable")
 		expect(preferences).toContain("isMissingProfessionalToolsPreferenceShape")
+		expect(preferences).toContain("Provider profile professional-tools schema is not migrated")
 		expect(preferences).toContain("ProviderProfile")
 		expect(preferences).toContain("db.insert(ProviderProfile)")
 		expect(preferences).toContain("DEFAULT_PROVIDER_PROFILE_TIMEZONE")
@@ -563,11 +554,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(settings).toContain("/api/provider/preferences/professional-tools")
 		expect(endpoint).toContain("requireProvider")
 		expect(endpoint).toContain("setProviderProfessionalToolsPreference")
-		expect(endpoint).toContain("isMissingProfessionalToolsPreferenceShape")
 		expect(endpoint).toContain("safeReturnPath")
 		expect(endpoint).toContain('mode === "professional"')
 		expect(endpoint).toContain("PROFESSIONAL_MODE_COOKIE")
 		expect(endpoint).toContain('persisted: "database" | "cookie"')
+		expect(endpoint).toContain("void error")
+		expect(endpoint).not.toContain("isMissingProfessionalToolsPreferenceShape")
 		expect(endpoint).not.toContain("parsedMode")
 		expect(topbar).toContain("ProfessionalModeToggle")
 		expect(topbar).toContain("getProviderSidebarData")
@@ -576,6 +568,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(topbar).toContain("preferences.schemaAvailable")
 		expect(topbar).toContain("Modo actualizado")
 		expect(topbar).toContain("No se pudo cambiar")
+		expect(calendar).toContain("getProfessionalModeCookiePreference")
+		expect(calendar).toContain("professionalModeCookie")
+		expect(calendar).toContain("professionalToolsEnabled:")
+		expect(calendar).toContain('typeof professionalModeCookie === "boolean"')
 		expect(toggle).toContain("Cambiar entre modo simple y modo pro")
 		expect(toggle).toContain("Simple: operación diaria limpia.")
 		expect(toggle).toContain("Pro: herramientas profesionales visibles.")
@@ -611,21 +607,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining([
-				"Calendario",
-				"Inventario físico",
-				"Reglas de venta",
-				"Tarifas",
-				"Condiciones",
-			])
+			expect.arrayContaining(["Calendario", "Reglas de venta", "Tarifas", "Condiciones"])
 		)
 		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
 			"canonical"
 		)
-		expect(roomsAndRates?.items.find((item) => item.label === "Inventario físico")?.status).toEqual(
-			"transitional"
-		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Inventario físico")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
@@ -870,7 +858,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			expect(source).not.toContain("PricingCalendar")
 		}
 		expect(calendar).toContain("target.search = Astro.url.search")
-		expect(rules).toContain('target.hash = "pricing-automation"')
+		expect(rules).toContain('target.searchParams.set("tab", "price")')
 		expect(roomInventory).toContain('target.searchParams.set("focus", "availability")')
 	})
 
@@ -895,7 +883,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 		const routesSource = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
 		expect(routesSource).toContain('pricing: () => "/rates/calendar"')
-		expect(routesSource).toContain('pricingAutomation: () => "/rates/calendar#pricing-automation"')
+		expect(routesSource).toContain('pricingAutomation: () => "/rates/restrictions?tab=price"')
 		expect(routesSource).not.toContain('pricing: () => "/pricing')
 		expect(routesSource).not.toContain('pricingAutomation: () => "/pricing')
 
@@ -910,13 +898,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			return source.includes("routes.pricingAutomation()") ? [file] : []
 		})
 
-		expect(pricingAutomationHelperUsages).toEqual([
-			"src/components/rates/PricingAutomationPanel.astro",
-			"src/lib/dashboard/providerSidebarReadiness.ts",
-		])
+		expect(pricingAutomationHelperUsages).toEqual(["src/lib/dashboard/providerSidebarReadiness.ts"])
 	})
 
-	it("keeps inventory bulk as a professional-only surface", () => {
+	it("keeps inventory bulk as a legacy redirect to calendar availability", () => {
 		const inventoryBulk = readFileSync(
 			join(process.cwd(), "src/pages/inventory/bulk.astro"),
 			"utf8"
@@ -926,9 +911,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"utf8"
 		)
 
-		expect(inventoryBulk).toContain("getProviderSidebarData")
-		expect(inventoryBulk).toContain('sidebarData.disclosureMode === "small-provider"')
-		expect(inventoryBulk).toContain('target.searchParams.set("source", "inventory-bulk")')
+		expect(inventoryBulk).toContain("routes.pricing()")
+		expect(inventoryBulk).toContain('target.searchParams.set("focus", "availability")')
+		expect(inventoryBulk).toContain('target.searchParams.set("source", "inventory-bulk-redirect")')
 		expect(inventoryBulk).toContain("return Astro.redirect")
 		expect(sidebar).not.toContain("/inventory/bulk")
 	})

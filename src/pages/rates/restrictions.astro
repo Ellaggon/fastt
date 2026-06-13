@@ -1,26 +1,36 @@
 ---
+import PricingAutomationPanel from "@/components/rates/PricingAutomationPanel.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
-import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
-import { buildRestrictionOperationalCopyRegistry } from "@/lib/rates/restrictionOperationalCopy"
 import {
-	createRestrictionsSurfaceRule,
+	loadPricingAutomationSurface,
+	type PricingAutomationTemplate,
+} from "@/lib/pricing/pricingAutomationSurface"
+import {
 	loadRestrictionsSurface,
 	SELLABILITY_RULES,
 	setRestrictionsSurfaceRuleActive,
-	updateRestrictionsSurfaceRule,
 	type RestrictionScope,
 	type SellabilityRuleType,
 } from "@/lib/rates/restrictionsSurface"
 import { routes } from "@/lib/routes"
 import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
-import { resolvePolicyDateRange } from "@/modules/policies/public"
+import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
+import { and, db, eq, PriceRule } from "astro:db"
+
+type RuleTab =
+	| "all"
+	| "price"
+	| "availability"
+	| "arrival_departure"
+	| "stay"
+	| "booking_window"
+	| "paused"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -46,71 +56,222 @@ if (sidebarData.disclosureMode === "small-provider") {
 }
 
 let actionError: string | null = null
+let actionErrorTitle = "No se pudo guardar la regla"
+
+const mapTemplatePayload = (template: PricingAutomationTemplate, rawValue: number) => {
+	const value =
+		template.kind === "fixed_discount" ? -Math.abs(rawValue) : Math.max(0, Number(rawValue))
+	return { type: template.internalType, value, contextKey: template.contextKey }
+}
+
+const eligibilityForForm = (kind: string, form: FormData): Record<string, number> => {
+	if (kind === "early_bird") {
+		const minLeadDays = Number(form.get("minLeadDays") ?? 30)
+		if (!Number.isFinite(minLeadDays) || minLeadDays < 1) {
+			throw new Error("Reserva anticipada necesita al menos 1 día de anticipación")
+		}
+		return { minLeadDays: Math.trunc(minLeadDays) }
+	}
+	if (kind === "last_minute") {
+		const maxLeadDays = Number(form.get("maxLeadDays") ?? 3)
+		if (!Number.isFinite(maxLeadDays) || maxLeadDays < 1) {
+			throw new Error("Último minuto necesita una ventana de llegada de al menos 1 día")
+		}
+		return { maxLeadDays: Math.trunc(maxLeadDays) }
+	}
+	if (kind === "los_discount") {
+		const minNights = Number(form.get("minNights") ?? 5)
+		if (!Number.isFinite(minNights) || minNights < 1) {
+			throw new Error("El descuento por estadía necesita al menos 1 noche")
+		}
+		return { minNights: Math.trunc(minNights) }
+	}
+	return {}
+}
+
+function jsonRequest(path: string, body: Record<string, unknown>) {
+	const headers = new Headers({ "Content-Type": "application/json" })
+	const cookie = Astro.request.headers.get("cookie")
+	if (cookie) headers.set("cookie", cookie)
+	return new Request(new URL(path, Astro.url), {
+		method: "POST",
+		headers,
+		body: JSON.stringify(body),
+	})
+}
+
+async function deletePriceRuleDirectly(ruleId: string, ratePlanId: string) {
+	const existing = await db
+		.select({ id: PriceRule.id })
+		.from(PriceRule)
+		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
+		.get()
+	if (!existing?.id) throw new Error("La regla de precio ya no existe o pertenece a otra tarifa")
+
+	const statement = db
+		.delete(PriceRule)
+		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
+	if (typeof (statement as any).run === "function") await (statement as any).run()
+	else await statement
+}
 
 if (Astro.request.method === "POST") {
 	const form = await Astro.request.formData()
 	const action = String(form.get("action") ?? "").trim()
 	try {
-		if (action === "create") {
-			await createRestrictionsSurfaceRule(auth.providerId, form)
-			return Astro.redirect(`${routes.rateRestrictions()}?success=created`)
-		}
-		if (action === "update") {
-			await updateRestrictionsSurfaceRule(auth.providerId, form)
-			return Astro.redirect(`${routes.rateRestrictions()}?success=updated`)
-		}
 		if (action === "activate" || action === "deactivate") {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
 			await setRestrictionsSurfaceRuleActive(auth.providerId, ruleId, action === "activate")
 			return Astro.redirect(
-				`${routes.rateRestrictions()}?success=${action === "activate" ? "activated" : "deactivated"}`
+				`${routes.rateRestrictions()}?tab=all&success=${action === "activate" ? "activated" : "deactivated"}`
 			)
 		}
-		actionError = "Acción de regla de venta no soportada"
+		if (action === "create-pricing-automation") {
+			const automation = await loadPricingAutomationSurface(auth.providerId)
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			const kind = String(form.get("kind") ?? "").trim()
+			const template = automation.templates.find((item) => item.kind === kind)
+			if (!template) throw new Error("Tipo de regla de precio no soportado")
+			if (!automation.ratePlanOptions.some((item) => item.id === ratePlanId)) {
+				throw new Error("La tarifa no está disponible para este proveedor")
+			}
+			const value = Number(form.get("value") ?? Number.NaN)
+			if (!Number.isFinite(value) || value < 0) {
+				throw new Error("El valor de la regla debe ser cero o mayor")
+			}
+			const priority = Number(form.get("priority") ?? 20)
+			if (!Number.isFinite(priority) || priority < 0 || priority > 1000) {
+				throw new Error("La prioridad debe estar entre 0 y 1000")
+			}
+			const dateFrom = String(form.get("dateFrom") ?? "").trim()
+			const dateTo = String(form.get("dateTo") ?? "").trim()
+			const mapped = mapTemplatePayload(template, value)
+			const body: Record<string, unknown> = {
+				ratePlanId,
+				type: mapped.type,
+				value: mapped.value,
+				priority,
+				contextKey: mapped.contextKey,
+			}
+			if (dateFrom) body.dateFrom = dateFrom
+			if (dateTo) body.dateTo = dateTo
+			Object.assign(body, eligibilityForForm(kind, form))
+
+			const response = await createPricingRulePost({
+				request: jsonRequest("/api/pricing/rules/v2/create", body),
+				url: new URL("/api/pricing/rules/v2/create", Astro.url),
+			} as any)
+			if (!response.ok) {
+				const payload = await response.json().catch(() => null)
+				throw new Error(String(payload?.error ?? "No se pudo crear la regla de precio"))
+			}
+			return Astro.redirect(`${routes.rateRestrictions()}?tab=price&success=price-created`)
+		}
+		if (action === "delete-pricing-automation") {
+			const automation = await loadPricingAutomationSurface(auth.providerId)
+			const ruleId = String(form.get("ruleId") ?? "").trim()
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			if (!automation.rules.some((rule) => rule.id === ruleId && rule.ratePlanId === ratePlanId)) {
+				throw new Error("La regla de precio no está disponible para este proveedor")
+			}
+			await deletePriceRuleDirectly(ruleId, ratePlanId)
+			return Astro.redirect(`${routes.rateRestrictions()}?tab=price&success=price-deleted`)
+		}
+		actionError = "Acción de regla no soportada"
 	} catch (error) {
-		actionError = error instanceof Error ? error.message : "Falló la acción de regla de venta"
+		actionErrorTitle =
+			action === "create-pricing-automation"
+				? "No se pudo crear la regla de precio"
+				: action === "delete-pricing-automation"
+					? "No se pudo eliminar la regla de precio"
+					: "No se pudo guardar la regla de venta"
+		actionError = error instanceof Error ? error.message : "Falló la acción de regla"
 	}
 }
 
-const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
-const ratePlanRows = await loadRatePlansReadModel({
-	request: Astro.request,
-	checkIn,
-	checkOut,
-	channel: "web",
-})
+const requestedTab = String(Astro.url.searchParams.get("tab") ?? "all").trim() as RuleTab
+const activeTab: RuleTab = [
+	"all",
+	"price",
+	"availability",
+	"arrival_departure",
+	"stay",
+	"booking_window",
+	"paused",
+].includes(requestedTab)
+	? requestedTab
+	: "all"
+
+const tabTypeMap: Partial<Record<RuleTab, SellabilityRuleType[]>> = {
+	availability: ["stop_sell"],
+	arrival_departure: ["cta", "ctd"],
+	stay: ["min_los", "max_los"],
+	booking_window: ["min_lead_time", "max_lead_time"],
+}
 
 const filters = {
 	productId: String(Astro.url.searchParams.get("productId") ?? "").trim() || undefined,
 	variantId: String(Astro.url.searchParams.get("variantId") ?? "").trim() || undefined,
 	ratePlanId: String(Astro.url.searchParams.get("ratePlanId") ?? "").trim() || undefined,
-	status:
-		(String(Astro.url.searchParams.get("status") ?? "active").trim() as
-			| "active"
-			| "inactive"
-			| "all") || "active",
+	status: (activeTab === "paused" ? "inactive" : "all") as "active" | "inactive" | "all",
 	type:
 		(String(Astro.url.searchParams.get("type") ?? "all").trim() as SellabilityRuleType | "all") ||
 		"all",
 }
 
-const surface = await loadRestrictionsSurface(auth.providerId, filters)
+const [surface, automationSurface] = await Promise.all([
+	loadRestrictionsSurface(auth.providerId, filters),
+	loadPricingAutomationSurface(auth.providerId),
+])
 const vocabulary = resolveVerticalVocabulary(surface.productTypes)
-const operationalCopyRegistry = buildRestrictionOperationalCopyRegistry(vocabulary)
-const plansWithSignals = ratePlanRows.filter(
-	(row) => Number(row.summary?.activeRestrictionsCount ?? 0) > 0
-).length
-const activeRestrictionSignals = ratePlanRows.reduce(
-	(sum, row) => sum + Number(row.summary?.activeRestrictionsCount ?? 0),
-	0
-)
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
 
-const firstProductId = surface.products[0]?.id ?? ""
-const firstVariantId = surface.variants[0]?.id ?? ""
-const firstRatePlanId = surface.ratePlans[0]?.id ?? ""
-const defaultStartDate = checkIn
-const defaultEndDate = checkOut
+const automationTemplates = automationSurface.templates
+const automationDefaultRatePlanId = automationSurface.ratePlanOptions[0]?.id ?? ""
+const automationDefaultTemplate =
+	automationTemplates.find((item) => item.kind === "percentage_discount") ??
+	automationTemplates[0] ??
+	automationSurface.templates[0]
+const automationTemplateCatalog = automationSurface.templates.map((template) => ({
+	kind: template.kind,
+	label: template.label,
+	shortLabel: template.shortLabel,
+	description: template.description,
+	internalType: template.internalType,
+	defaultValue: template.defaultValue,
+	valueSuffix: template.valueSuffix,
+	contextKey: template.contextKey,
+	eligibilityHint: template.eligibilityHint ?? "",
+}))
+const automationTemplateGroups = [
+	{
+		label: "Descuentos",
+		templates: automationTemplates.filter((template) =>
+			[
+				"percentage_discount",
+				"fixed_discount",
+				"early_bird",
+				"last_minute",
+				"los_discount",
+			].includes(template.kind)
+		),
+	},
+	{
+		label: "Aumentos",
+		templates: automationTemplates.filter((template) =>
+			["percentage_markup", "fixed_markup"].includes(template.kind)
+		),
+	},
+	{
+		label: "Precio fijo",
+		templates: automationTemplates.filter((template) => template.kind === "manual_override"),
+	},
+].filter((group) => group.templates.length > 0)
+
+const statusVariant = {
+	active: "success",
+	inactive: "neutral",
+} as const
 
 const ruleBadgeVariant: Record<string, "success" | "warning" | "info" | "neutral"> = {
 	stop_sell: "warning",
@@ -129,40 +290,64 @@ const scopeLabel: Record<RestrictionScope, string> = {
 }
 
 const successMessage: Record<string, string> = {
-	created: "Regla de venta creada.",
-	updated: "Regla de venta actualizada.",
-	activated: "Regla de venta activada.",
-	deactivated: "Regla de venta desactivada.",
+	"activated": "Regla de venta activada.",
+	"deactivated": "Regla de venta pausada.",
+	"price-created": "Regla de precio creada.",
+	"price-deleted": "Regla de precio eliminada.",
 }
+
+const tabs: Array<{ key: RuleTab; label: string; count?: number }> = [
+	{ key: "all", label: "Todas", count: surface.rules.length + automationSurface.rules.length },
+	{ key: "price", label: "Precio", count: automationSurface.rules.length },
+	{ key: "availability", label: "Disponibilidad" },
+	{ key: "arrival_departure", label: "Llegada/salida" },
+	{ key: "stay", label: "Estadía" },
+	{ key: "booking_window", label: "Ventana de reserva" },
+	{ key: "paused", label: "Pausadas", count: surface.stats.inactiveRules },
+]
 
 function selected(value: string | undefined, expected: string): boolean {
 	return String(value ?? "") === expected
 }
+
+const allowedTypes = tabTypeMap[activeTab]
+const visibleRules = surface.rules.filter((rule) => {
+	if (activeTab === "all" || activeTab === "paused") return true
+	if (!allowedTypes) return true
+	return allowedTypes.includes(rule.type)
+})
+
+const showPricePanel = activeTab === "price"
+const showPriceSummary = activeTab === "all"
+const showSellability = activeTab !== "price"
 ---
 
 <WorkspaceLayout title="Reglas de venta">
-	<div class="space-y-8">
+	<div class="space-y-5">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Habitaciones y tarifas · Avanzado
+					Habitaciones y tarifas · Herramientas Pro
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Reglas de venta</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Administra reglas recurrentes, temporadas y excepciones de vendibilidad. Para un cierre
-					puntual o mínimo de noches simple, usa el drawer del Calendario.
+					Automatiza precio y vendibilidad para temporadas, eventos y reglas recurrentes.
 				</p>
 			</div>
-			<div class="flex items-center gap-2">
-				<Button href={routes.pricing()} variant="primary">Calendario</Button>
-				<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
+			<div class="flex flex-wrap items-center gap-2">
+				<Button href={`${routes.rateRestrictions()}?tab=price`} variant="primary">
+					Crear regla
+				</Button>
+				<Button href={`${routes.pricing()}?focus=restrictions`} variant="secondary">
+					Ver calendario
+				</Button>
 			</div>
 		</header>
 
 		{
 			actionError && (
 				<Card className="border-red-200 bg-red-50 text-red-900">
-					<p class="text-sm font-semibold">No se pudo guardar la regla de venta</p>
+					<p class="text-sm font-semibold">{actionErrorTitle}</p>
 					<p class="mt-1 text-sm">{actionError}</p>
 				</Card>
 			)
@@ -175,718 +360,212 @@ function selected(value: string | undefined, expected: string): boolean {
 			)
 		}
 
-		<section class="grid gap-4 md:grid-cols-4">
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Conjuntos activos</p>
-				<p class="mt-2 text-2xl font-semibold">{surface.stats.activeRules}</p>
-				<p class="mt-1 text-xs text-slate-400">{surface.stats.inactiveRules} inactivas</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">
-					{vocabulary.ratePlanPlural} con señales
-				</p>
-				<p class="mt-2 text-2xl font-semibold">{plansWithSignals}</p>
-				<p class="mt-1 text-xs text-slate-400">{activeRestrictionSignals} señales activas</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Dias condicionados</p>
-				<p class="mt-2 text-2xl font-semibold">
-					{surface.stats.estimatedBlockedOrConditionedDays}
-				</p>
-				<p class="mt-1 text-xs text-slate-400">Estimado desde reglas activas</p>
-			</Card>
-			<Card className="border-slate-800 bg-slate-950 text-slate-100">
-				<p class="text-xs uppercase tracking-wide text-slate-500">Cobertura operativa</p>
-				<p class="mt-2 text-2xl font-semibold">
-					{
-						surface.stats.stopSellRules +
-							surface.stats.lengthOfStayRules +
-							surface.stats.arrivalDepartureRules
-					}
-				</p>
-				<p class="mt-1 text-xs text-slate-400">
-					Cierre de venta, estadía mínima y reglas de llegada/salida
-				</p>
-			</Card>
-		</section>
+		<nav class="flex gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
+			{
+				tabs.map((tab) => (
+					<a
+						href={`${routes.rateRestrictions()}?tab=${tab.key}`}
+						class:list={[
+							"whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold transition",
+							activeTab === tab.key
+								? "bg-slate-950 text-white"
+								: "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+						]}
+					>
+						{tab.label}
+						{typeof tab.count === "number" ? (
+							<span class="ml-1 opacity-70">{tab.count}</span>
+						) : null}
+					</a>
+				))
+			}
+		</nav>
 
-		<Card className="border-blue-200 bg-blue-50 text-blue-950">
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<p class="text-sm font-semibold">Herramienta profesional de reglas de venta.</p>
-					<p class="mt-1 text-sm text-blue-900">
-						Usa esta superficie para reglas recurrentes, temporadas, ventanas comerciales y acciones
-						masivas. El proveedor pequeño resuelve lo puntual desde Calendario.
-					</p>
-				</div>
-				<Button href={routes.pricing()} variant="secondary" size="sm">
-					Crear regla de venta
-				</Button>
-			</div>
-		</Card>
+		{
+			showPricePanel && (
+				<PricingAutomationPanel
+					automationSurface={automationSurface}
+					automationTemplateCatalog={automationTemplateCatalog}
+					automationTemplateGroups={automationTemplateGroups}
+					automationDefaultTemplate={automationDefaultTemplate}
+					automationDefaultRatePlanId={automationDefaultRatePlanId}
+					statusVariant={statusVariant}
+					formAction={`${routes.rateRestrictions()}?tab=price`}
+				/>
+			)
+		}
 
-		<Section
-			title="Explorar reglas"
-			description={`Filtra reglas por ${vocabulary.product}, ${vocabulary.variant}, ${vocabulary.ratePlan}, tipo, estado o temporada.`}
-		>
-			<Card className="bg-white text-slate-800">
-				<form method="GET" class="grid gap-4 lg:grid-cols-5">
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">{vocabulary.scopeProduct}</span>
-						<select name="productId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-							<option value="">Todos los {vocabulary.productPlural}</option>
-							{
-								surface.products.map((product) => (
-									<option value={product.id} selected={selected(filters.productId, product.id)}>
-										{product.name}
-									</option>
-								))
-							}
-						</select>
-					</label>
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">{vocabulary.scopeVariant}</span>
-						<select name="variantId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-							<option value="">Todas las {vocabulary.variantPlural}</option>
-							{
-								surface.variants.map((variant) => (
-									<option value={variant.id} selected={selected(filters.variantId, variant.id)}>
-										{variant.productName} · {variant.name}
-									</option>
-								))
-							}
-						</select>
-					</label>
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">{vocabulary.scopeRatePlan}</span>
-						<select name="ratePlanId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-							<option value="">Todos los {vocabulary.ratePlanPlural}</option>
-							{
-								surface.ratePlans.map((ratePlan) => (
+		{
+			showPriceSummary && (
+				<Card className="space-y-3 bg-white text-slate-900">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<div>
+							<h2 class="text-lg font-semibold">Reglas de precio</h2>
+							<p class="text-sm text-slate-500">
+								{automationSurface.stats.activeRules} activas ·{" "}
+								{automationSurface.stats.inactiveRules} inactivas
+							</p>
+						</div>
+						<Button href={`${routes.rateRestrictions()}?tab=price`} variant="secondary" size="sm">
+							Administrar
+						</Button>
+					</div>
+					{automationSurface.rules.length ? (
+						<div class="grid gap-3 lg:grid-cols-2">
+							{automationSurface.rules.slice(0, 6).map((rule) => (
+								<div class="rounded-lg border border-slate-200 p-3">
+									<div class="flex flex-wrap items-center gap-2">
+										<Badge variant={rule.status === "active" ? "success" : "neutral"}>
+											{rule.statusLabel}
+										</Badge>
+										<Badge variant="info">{rule.kindLabel}</Badge>
+									</div>
+									<p class="mt-2 font-semibold text-slate-950">{rule.valueLabel}</p>
+									<p class="mt-1 text-sm text-slate-600">
+										{rule.productName} · {rule.variantName} · {rule.ratePlanName}
+									</p>
+									<p class="mt-1 text-xs text-slate-500">{rule.validityLabel}</p>
+								</div>
+							))}
+						</div>
+					) : (
+						<p class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+							No hay reglas automáticas de precio.
+						</p>
+					)}
+				</Card>
+			)
+		}
+
+		{
+			showSellability && (
+				<Card className="space-y-5 bg-white text-slate-900">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<div>
+							<h2 class="text-lg font-semibold">Reglas de venta</h2>
+							<p class="text-sm text-slate-500">
+								{surface.stats.activeRules} activas · {surface.stats.inactiveRules} pausadas
+							</p>
+						</div>
+						<Button href={`${routes.pricing()}?focus=restrictions`} variant="secondary" size="sm">
+							Crear desde calendario
+						</Button>
+					</div>
+
+					<form method="GET" class="grid gap-3 lg:grid-cols-4">
+						<input type="hidden" name="tab" value={activeTab} />
+						<label class="space-y-1 text-sm lg:col-span-2">
+							<span class="font-medium text-slate-700">Destino</span>
+							<select name="ratePlanId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+								<option value="">Todas las {vocabulary.ratePlanPlural}</option>
+								{surface.ratePlans.map((ratePlan) => (
 									<option value={ratePlan.id} selected={selected(filters.ratePlanId, ratePlan.id)}>
 										{ratePlan.productName} · {ratePlan.variantName} · {ratePlan.name}
 									</option>
-								))
-							}
-						</select>
-					</label>
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Tipo</span>
-						<select name="type" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-							<option value="all" selected={filters.type === "all"}>Todas las reglas</option>
-							{
-								SELLABILITY_RULES.map((rule) => (
+								))}
+							</select>
+						</label>
+						<label class="space-y-1 text-sm">
+							<span class="font-medium text-slate-700">Tipo</span>
+							<select name="type" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+								<option value="all" selected={filters.type === "all"}>
+									Todas
+								</option>
+								{SELLABILITY_RULES.map((rule) => (
 									<option value={rule.type} selected={filters.type === rule.type}>
 										{rule.label}
 									</option>
-								))
-							}
-						</select>
-					</label>
-					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Estado</span>
-						<select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-							<option value="active" selected={filters.status === "active"}>Activas</option>
-							<option value="inactive" selected={filters.status === "inactive"}>Inactivas</option>
-							<option value="all" selected={filters.status === "all"}>Todas</option>
-						</select>
-					</label>
-					<div class="flex items-end gap-2 lg:col-span-5">
-						<Button type="submit" variant="primary">Aplicar filtros</Button>
-						<Button href={routes.rateRestrictions()} variant="secondary">Limpiar</Button>
-					</div>
-				</form>
-			</Card>
-		</Section>
-
-		<Section
-			title="Acciones por temporada"
-			description="Agrupa reglas recurrentes para operar alta demanda, feriados, cierres operativos o ventanas comerciales."
-		>
-			<div class="grid gap-4 md:grid-cols-3">
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Alta demanda</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Aplica mínimos de noches, no llegada o no salida para fines de semana largos y feriados.
-					</p>
-					<p class="mt-3 text-xs font-semibold text-slate-500">
-						Reglas recurrentes · Estadía · Llegada/salida
-					</p>
-				</Card>
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Cierre comercial</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cierra venta por mantenimiento, inventario no confirmable o acuerdos comerciales.
-					</p>
-					<p class="mt-3 text-xs font-semibold text-slate-500">Cierre de venta · Alcance masivo</p>
-				</Card>
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Ventana de reserva</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Controla anticipación mínima o máxima cuando una temporada requiere preventa o último
-						minuto.
-					</p>
-					<p class="mt-3 text-xs font-semibold text-slate-500">Ventana de reserva · Temporada</p>
-				</Card>
-			</div>
-		</Section>
-
-		<Section
-			title="Crear conjunto avanzado"
-			description={`Crea una regla recurrente o de temporada sobre ${vocabulary.product}, ${vocabulary.variant} o ${vocabulary.ratePlan}. Para una regla puntual, vuelve al Calendario.`}
-		>
-			<Card className="bg-white text-slate-800">
-				<form method="POST" class="space-y-5" data-restriction-form>
-					<input type="hidden" name="action" value="create" />
-					<div class="grid gap-4 lg:grid-cols-4">
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Alcance</span>
-							<select
-								name="scope"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								data-scope-select
-							>
-								<option value="rate_plan" selected>{vocabulary.scopeRatePlan}</option>
-								<option value="variant">{vocabulary.scopeVariant}</option>
-								<option value="product">{vocabulary.scopeProduct}</option>
-							</select>
-						</label>
-						<label class="space-y-1 text-sm" data-scope-target="product">
-							<span class="font-medium text-slate-700">{vocabulary.scopeProduct}</span>
-							<select
-								name="productScopeId"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								{
-									surface.products.map((product) => (
-										<option value={product.id} selected={product.id === firstProductId}>
-											{product.name}
-										</option>
-									))
-								}
-							</select>
-						</label>
-						<label class="space-y-1 text-sm" data-scope-target="variant">
-							<span class="font-medium text-slate-700">{vocabulary.scopeVariant}</span>
-							<select
-								name="variantScopeId"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								{
-									surface.variants.map((variant) => (
-										<option value={variant.id} selected={variant.id === firstVariantId}>
-											{variant.productName} · {variant.name}
-										</option>
-									))
-								}
-							</select>
-						</label>
-						<label class="space-y-1 text-sm" data-scope-target="rate_plan">
-							<span class="font-medium text-slate-700">{vocabulary.scopeRatePlan}</span>
-							<select
-								name="rate_planScopeId"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-							>
-								{
-									surface.ratePlans.map((ratePlan) => (
-										<option value={ratePlan.id} selected={ratePlan.id === firstRatePlanId}>
-											{ratePlan.productName} · {ratePlan.variantName} · {ratePlan.name}
-										</option>
-									))
-								}
-							</select>
-						</label>
-					</div>
-					<div class="grid gap-4 lg:grid-cols-4">
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Regla de venta</span>
-							<select
-								name="type"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								data-rule-type
-							>
-								{
-									SELLABILITY_RULES.map((rule) => (
-										<option
-											value={rule.type}
-											data-requires-value={rule.requiresValue ? "true" : "false"}
-											data-default-value={rule.defaultValue ?? ""}
-										>
-											{rule.label}
-										</option>
-									))
-								}
+								))}
 							</select>
 						</label>
 						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Valor</span>
-							<input
-								type="number"
-								name="value"
-								min="1"
-								step="1"
-								value="2"
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								data-rule-value
-							/>
+							<span class="font-medium text-slate-700">Estado</span>
+							<select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+								<option value="all" selected={filters.status === "all"}>
+									Todas
+								</option>
+								<option value="active" selected={filters.status === "active"}>
+									Activas
+								</option>
+								<option value="inactive" selected={filters.status === "inactive"}>
+									Pausadas
+								</option>
+							</select>
 						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Desde</span>
-							<input
-								type="date"
-								name="startDate"
-								value={defaultStartDate}
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								required
-								data-start-date
-							/>
-						</label>
-						<label class="space-y-1 text-sm">
-							<span class="font-medium text-slate-700">Hasta</span>
-							<input
-								type="date"
-								name="endDate"
-								value={defaultEndDate}
-								class="w-full rounded-lg border border-slate-300 px-3 py-2"
-								required
-								data-end-date
-							/>
-						</label>
-					</div>
-					<div class="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-						<div class="space-y-2">
-							<p class="text-sm font-medium text-slate-700">Dias de semana</p>
-							<div class="flex flex-wrap gap-2">
-								{
-									[
-										[1, "Lun"],
-										[2, "Mar"],
-										[3, "Mie"],
-										[4, "Jue"],
-										[5, "Vie"],
-										[6, "Sab"],
-										[7, "Dom"],
-									].map(([value, label]) => (
-										<label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-											<input type="checkbox" name="validDays" value={value} />
-											<span>{label}</span>
-										</label>
-									))
-								}
-							</div>
+						<div class="flex flex-wrap items-end gap-2 lg:col-span-4">
+							<Button type="submit" variant="primary">
+								Aplicar filtros
+							</Button>
+							<Button href={`${routes.rateRestrictions()}?tab=${activeTab}`} variant="secondary">
+								Limpiar
+							</Button>
 						</div>
-						<Card className="border-slate-200 bg-slate-50 text-slate-950 shadow-none">
-							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-								Impacto operativo
-							</p>
-							<p class="mt-2 text-sm font-medium leading-5" data-impact-preview>
-								Esta regla afectara la venta del alcance y rango seleccionados.
-							</p>
-							<p class="mt-2 text-xs leading-5 text-slate-700">
-								<span class="font-semibold text-slate-950">Ejemplo:</span>{" "}
-								<span data-impact-example>Configura la regla para ver un caso practico.</span>
-							</p>
-							<p class="mt-1 text-xs leading-5 text-slate-600" data-impact-non-effect-row hidden>
-								<span class="font-semibold text-slate-950">No afecta:</span>{" "}
-								<span data-impact-non-effect></span>
-							</p>
-							<p class="mt-1 text-xs leading-5 text-slate-600" data-impact-range-row hidden>
-								<span class="font-semibold text-slate-950">Rango:</span>{" "}
-								<span data-impact-range></span>
-							</p>
-						</Card>
-					</div>
-					<div class="flex flex-wrap items-center gap-2">
-						<Button type="submit" variant="primary">Crear conjunto</Button>
-						<p class="text-xs text-slate-500">
-							Search evalua estas señales cuando el read model existente las materializa.
-						</p>
-					</div>
-				</form>
-			</Card>
-		</Section>
+					</form>
 
-		<Section
-			title="Reglas recurrentes"
-			description="Reglas que bloquean venta, condicionan llegadas/salidas o limitan ventanas de reserva por temporada."
-		>
-			{
-				surface.rules.length === 0 ? (
-					<Card className="bg-white text-slate-700">
-						<p class="text-sm font-semibold">No hay reglas para estos filtros.</p>
-						<p class="mt-1 text-sm text-slate-500">
-							Crea una regla de venta o limpia los filtros para revisar reglas inactivas.
-						</p>
-					</Card>
-				) : (
-					<div class="space-y-4">
-						{surface.rules.map((rule) => (
-							<Card className="bg-white text-slate-800">
-								<div class="flex flex-wrap items-start justify-between gap-4">
-									<div class="space-y-2">
-										<div class="flex flex-wrap items-center gap-2">
-											<Badge variant={ruleBadgeVariant[rule.type] ?? "neutral"}>
-												{rule.typeLabel}
-											</Badge>
-											<Badge variant={rule.isActive ? "success" : "neutral"}>
-												{rule.isActive ? "Activa" : "Inactiva"}
-											</Badge>
-											<Badge variant="neutral">{scopeLabel[rule.scope]}</Badge>
-										</div>
-										<div>
-											<h2 class="text-lg font-semibold text-slate-950">{rule.targetName}</h2>
-											<p class="text-sm text-slate-600">
-												{rule.productName}
-												{rule.variantName ? ` · ${rule.variantName}` : ""}
-												{rule.ratePlanName ? ` · ${rule.ratePlanName}` : ""}
+					{visibleRules.length === 0 ? (
+						<div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+							<p class="font-semibold text-slate-800">No hay reglas para esta vista.</p>
+							<p class="mt-1">Crea una regla desde Calendario o cambia de pestaña.</p>
+						</div>
+					) : (
+						<div class="space-y-3">
+							{visibleRules.map((rule) => (
+								<div class="rounded-lg border border-slate-200 p-3">
+									<div class="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+										<div class="min-w-0 space-y-2">
+											<div class="flex flex-wrap items-center gap-2">
+												<Badge variant={ruleBadgeVariant[rule.type] ?? "neutral"}>
+													{rule.typeLabel}
+												</Badge>
+												<Badge variant={rule.isActive ? "success" : "neutral"}>
+													{rule.isActive ? "Activa" : "Pausada"}
+												</Badge>
+												<Badge variant="neutral">{scopeLabel[rule.scope]}</Badge>
+											</div>
+											<div>
+												<h3 class="truncate text-base font-semibold text-slate-950">
+													{rule.targetName}
+												</h3>
+												<p class="text-sm text-slate-600">
+													{rule.productName}
+													{rule.variantName ? ` · ${rule.variantName}` : ""}
+													{rule.ratePlanName ? ` · ${rule.ratePlanName}` : ""}
+												</p>
+											</div>
+											<p class="text-sm leading-5 text-slate-700">
+												<span class="font-semibold">Impacto:</span> {rule.impactLabel} ·{" "}
+												{rule.startDate} a {rule.endDate}
 											</p>
 										</div>
-									</div>
-									<div class="flex flex-wrap items-center gap-2">
-										<form method="POST">
-											<input type="hidden" name="ruleId" value={rule.id} />
-											<input
-												type="hidden"
-												name="action"
-												value={rule.isActive ? "deactivate" : "activate"}
-											/>
-											<Button type="submit" variant="secondary" size="sm">
-												{rule.isActive ? "Desactivar" : "Activar"}
-											</Button>
-										</form>
-										{rule.ratePlanId && (
-											<Button
-												href={routes.ratePlanDetail(rule.ratePlanId)}
-												variant="secondary"
-												size="sm"
-											>
-												Tarifa
-											</Button>
-										)}
+										<div class="flex flex-wrap justify-start gap-2 lg:justify-end">
+											<form method="POST">
+												<input type="hidden" name="ruleId" value={rule.id} />
+												<input
+													type="hidden"
+													name="action"
+													value={rule.isActive ? "deactivate" : "activate"}
+												/>
+												<Button type="submit" variant="secondary" size="sm">
+													{rule.isActive ? "Pausar" : "Activar"}
+												</Button>
+											</form>
+											{rule.ratePlanId && (
+												<Button
+													href={`${routes.pricing()}?ratePlanId=${encodeURIComponent(rule.ratePlanId)}&focus=restrictions`}
+													variant="secondary"
+													size="sm"
+												>
+													Ver calendario
+												</Button>
+											)}
+										</div>
 									</div>
 								</div>
-
-								<div class="mt-5 grid gap-3 md:grid-cols-4">
-									<div class="rounded-lg bg-slate-50 p-3">
-										<p class="text-xs tracking-wide text-slate-500 uppercase">Fechas</p>
-										<p class="mt-1 text-sm font-medium text-slate-900">
-											{rule.startDate} to {rule.endDate}
-										</p>
-										<p class="mt-1 text-xs text-slate-500">{rule.validDaysLabel}</p>
-									</div>
-									<div class="rounded-lg bg-slate-50 p-3">
-										<p class="text-xs tracking-wide text-slate-500 uppercase">Valor</p>
-										<p class="mt-1 text-sm font-medium text-slate-900">{rule.valueLabel}</p>
-										<p class="mt-1 text-xs text-slate-500">{rule.category}</p>
-									</div>
-									<div class="rounded-lg bg-slate-50 p-3">
-										<p class="text-xs tracking-wide text-slate-500 uppercase">Impacto</p>
-										<p class="mt-1 text-sm font-medium text-slate-900">{rule.impactDays} dias</p>
-										<p class="mt-1 text-xs text-slate-500">Cobertura estimada</p>
-									</div>
-									<div class="rounded-lg bg-slate-50 p-3">
-										<p class="text-xs tracking-wide text-slate-500 uppercase">Vendibilidad</p>
-										<p class="mt-1 text-sm font-medium text-slate-900">{rule.impactLabel}</p>
-									</div>
-								</div>
-
-								<details class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-									<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-										Editar conjunto
-									</summary>
-									<form method="POST" class="mt-4 space-y-4" data-restriction-form>
-										<input type="hidden" name="action" value="update" />
-										<input type="hidden" name="ruleId" value={rule.id} />
-										<div class="grid gap-4 lg:grid-cols-4">
-											<label class="space-y-1 text-sm">
-												<span class="font-medium text-slate-700">Alcance</span>
-												<select
-													name="scope"
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-													data-scope-select
-												>
-													<option value="rate_plan" selected={rule.scope === "rate_plan"}>
-														{vocabulary.scopeRatePlan}
-													</option>
-													<option value="variant" selected={rule.scope === "variant"}>
-														{vocabulary.scopeVariant}
-													</option>
-													<option value="product" selected={rule.scope === "product"}>
-														{vocabulary.scopeProduct}
-													</option>
-												</select>
-											</label>
-											<label class="space-y-1 text-sm" data-scope-target="product">
-												<span class="font-medium text-slate-700">{vocabulary.scopeProduct}</span>
-												<select
-													name="productScopeId"
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-												>
-													{surface.products.map((product) => (
-														<option
-															value={product.id}
-															selected={rule.scope === "product" && product.id === rule.scopeId}
-														>
-															{product.name}
-														</option>
-													))}
-												</select>
-											</label>
-											<label class="space-y-1 text-sm" data-scope-target="variant">
-												<span class="font-medium text-slate-700">{vocabulary.scopeVariant}</span>
-												<select
-													name="variantScopeId"
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-												>
-													{surface.variants.map((variant) => (
-														<option
-															value={variant.id}
-															selected={rule.scope === "variant" && variant.id === rule.scopeId}
-														>
-															{variant.productName} · {variant.name}
-														</option>
-													))}
-												</select>
-											</label>
-											<label class="space-y-1 text-sm" data-scope-target="rate_plan">
-												<span class="font-medium text-slate-700">{vocabulary.scopeRatePlan}</span>
-												<select
-													name="rate_planScopeId"
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-												>
-													{surface.ratePlans.map((ratePlan) => (
-														<option
-															value={ratePlan.id}
-															selected={rule.scope === "rate_plan" && ratePlan.id === rule.scopeId}
-														>
-															{ratePlan.productName} · {ratePlan.variantName} · {ratePlan.name}
-														</option>
-													))}
-												</select>
-											</label>
-										</div>
-										<div class="grid gap-4 lg:grid-cols-4">
-											<label class="space-y-1 text-sm">
-												<span class="font-medium text-slate-700">Regla de venta</span>
-												<select
-													name="type"
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-													data-rule-type
-												>
-													{SELLABILITY_RULES.map((definition) => (
-														<option
-															value={definition.type}
-															selected={definition.type === rule.type}
-															data-requires-value={definition.requiresValue ? "true" : "false"}
-															data-default-value={definition.defaultValue ?? ""}
-														>
-															{definition.label}
-														</option>
-													))}
-												</select>
-											</label>
-											<label class="space-y-1 text-sm">
-												<span class="font-medium text-slate-700">Valor</span>
-												<input
-													type="number"
-													name="value"
-													min="1"
-													step="1"
-													value={rule.value ?? 1}
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-													data-rule-value
-												/>
-											</label>
-											<label class="space-y-1 text-sm">
-												<span class="font-medium text-slate-700">Desde</span>
-												<input
-													type="date"
-													name="startDate"
-													value={rule.startDate}
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-													required
-													data-start-date
-												/>
-											</label>
-											<label class="space-y-1 text-sm">
-												<span class="font-medium text-slate-700">Hasta</span>
-												<input
-													type="date"
-													name="endDate"
-													value={rule.endDate}
-													class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-													required
-													data-end-date
-												/>
-											</label>
-										</div>
-										<div class="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-											<div class="space-y-2">
-												<p class="text-sm font-medium text-slate-700">Dias de semana</p>
-												<div class="flex flex-wrap gap-2">
-													{[
-														[1, "Lun"],
-														[2, "Mar"],
-														[3, "Mie"],
-														[4, "Jue"],
-														[5, "Vie"],
-														[6, "Sab"],
-														[7, "Dom"],
-													].map(([value, label]) => (
-														<label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-															<input
-																type="checkbox"
-																name="validDays"
-																value={value}
-																checked={rule.validDays.includes(Number(value))}
-															/>
-															<span>{label}</span>
-														</label>
-													))}
-												</div>
-											</div>
-											<Card className="border-slate-200 bg-slate-50 text-slate-950 shadow-none">
-												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Impacto operativo
-												</p>
-												<p class="mt-2 text-sm leading-5 font-medium" data-impact-preview>
-													{rule.impactLabel}
-												</p>
-												<p class="mt-2 text-xs leading-5 text-slate-700">
-													<span class="font-semibold text-slate-950">Ejemplo:</span>{" "}
-													<span data-impact-example>
-														Actualiza la regla para ver un caso practico.
-													</span>
-												</p>
-												<p
-													class="mt-1 text-xs leading-5 text-slate-600"
-													data-impact-non-effect-row
-													hidden
-												>
-													<span class="font-semibold text-slate-950">No afecta:</span>{" "}
-													<span data-impact-non-effect />
-												</p>
-												<p
-													class="mt-1 text-xs leading-5 text-slate-600"
-													data-impact-range-row
-													hidden
-												>
-													<span class="font-semibold text-slate-950">Rango:</span>{" "}
-													<span data-impact-range />
-												</p>
-											</Card>
-										</div>
-										<Button type="submit" variant="primary">
-											Guardar conjunto
-										</Button>
-									</form>
-								</details>
-							</Card>
-						))}
-					</div>
-				)
-			}
-		</Section>
-
-		<Section
-			title="Limites operativos"
-			description="Las reglas de venta controlan vendibilidad avanzada; los otros dominios conservan su responsabilidad."
-		>
-			<div class="grid gap-4 md:grid-cols-3">
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Calendario</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Ayudas recurrentes, ajustes y automatización monetaria viven dentro del calendario de
-						precios.
-					</p>
+							))}
+						</div>
+					)}
 				</Card>
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Inventario</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cupos, unidades fisicas y disponibilidad base viven en Inventario.
-					</p>
-				</Card>
-				<Card className="bg-white text-slate-800">
-					<h2 class="text-base font-semibold text-slate-950">Condiciones</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cancelación, pago, no presentación, ingreso y salida viven en Condiciones.
-					</p>
-				</Card>
-			</div>
-		</Section>
+			)
+		}
 	</div>
 </WorkspaceLayout>
-
-<script define:vars={{ operationalCopyRegistry }}>
-	// @ts-nocheck
-	function applyTemplate(template, context) {
-		return String(template || "").replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "")
-	}
-
-	function wireRestrictionForm(form) {
-		const scopeSelect = form.querySelector("[data-scope-select]")
-		const typeSelect = form.querySelector("[data-rule-type]")
-		const valueInput = form.querySelector("[data-rule-value]")
-		const preview = form.querySelector("[data-impact-preview]")
-		const example = form.querySelector("[data-impact-example]")
-		const nonEffect = form.querySelector("[data-impact-non-effect]")
-		const nonEffectRow = form.querySelector("[data-impact-non-effect-row]")
-		const range = form.querySelector("[data-impact-range]")
-		const rangeRow = form.querySelector("[data-impact-range-row]")
-		const startInput = form.querySelector("[data-start-date]")
-		const endInput = form.querySelector("[data-end-date]")
-
-		function updateScopeTargets() {
-			const scope = scopeSelect?.value || "rate_plan"
-			form.querySelectorAll("[data-scope-target]").forEach((target) => {
-				const visible = target.getAttribute("data-scope-target") === scope
-				target.classList.toggle("hidden", !visible)
-			})
-		}
-
-		function updateImpact() {
-			const option = typeSelect?.selectedOptions?.[0]
-			const type = typeSelect?.value || "stop_sell"
-			const requiresValue = option?.dataset?.requiresValue === "true"
-			if (valueInput) {
-				valueInput.disabled = !requiresValue
-				valueInput.closest("label")?.classList.toggle("opacity-50", !requiresValue)
-				const defaultValue = option?.dataset?.defaultValue
-				if (requiresValue && !valueInput.value && defaultValue) valueInput.value = defaultValue
-			}
-			const start = startInput?.value
-			const end = endInput?.value
-			const ruleCopy = operationalCopyRegistry?.[type] || {}
-			const value = valueInput?.value || option?.dataset?.defaultValue || "N"
-			const context = { value, start, end }
-			if (preview) {
-				preview.textContent =
-					applyTemplate(ruleCopy.impact, context) || "Esta regla afecta vendibilidad."
-			}
-			if (example) {
-				example.textContent =
-					applyTemplate(ruleCopy.example, context) ||
-					"Configura la regla para ver un caso practico."
-			}
-			if (nonEffect && nonEffectRow) {
-				const text = applyTemplate(ruleCopy.nonEffect, context)
-				nonEffect.textContent = text
-				nonEffectRow.hidden = !text
-			}
-			if (range && rangeRow) {
-				range.textContent = start && end ? `${start} a ${end}` : ""
-				rangeRow.hidden = !(start && end)
-			}
-		}
-
-		scopeSelect?.addEventListener("change", updateScopeTargets)
-		typeSelect?.addEventListener("change", updateImpact)
-		valueInput?.addEventListener("input", updateImpact)
-		startInput?.addEventListener("change", updateImpact)
-		endInput?.addEventListener("change", updateImpact)
-		updateScopeTargets()
-		updateImpact()
-	}
-
-	document.querySelectorAll("[data-restriction-form]").forEach(wireRestrictionForm)
-</script>

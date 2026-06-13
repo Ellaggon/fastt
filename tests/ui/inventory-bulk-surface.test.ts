@@ -6,28 +6,24 @@ function read(path: string) {
 	return readFileSync(resolve(process.cwd(), path), "utf8")
 }
 
-describe("ui/inventory bulk surface", () => {
-	it("inventory bulk page exposes preview/apply operations", () => {
+describe("ui/inventory legacy redirects", () => {
+	it("inventory bulk redirects to calendar availability", () => {
 		const source = read("src/pages/inventory/bulk.astro")
-		expect(source).toContain("Operación avanzada de inventario")
-		expect(source).toContain("la operación diaria de cupos vive en Calendario")
-		expect(source).toContain("Volver a Inventario físico")
-		expect(source).toContain("Ir al Calendario")
-		expect(source).toContain('id="bulkPreviewBtn"')
-		expect(source).toContain('id="bulkApplyBtn"')
-		expect(source).toContain("/api/inventory/bulk-preview")
-		expect(source).toContain("/api/inventory/bulk-apply")
-		expect(source).not.toContain("Abrir ventas")
-		expect(source).not.toContain("Cerrar ventas")
-		expect(source).toContain("Gestionar vendibilidad en reglas")
-		expect(source).toContain("Ajustar cupo")
+		expect(source).toContain("routes.pricing()")
+		expect(source).toContain('target.searchParams.set("focus", "availability")')
+		expect(source).toContain('target.searchParams.set("source", "inventory-bulk-redirect")')
+		expect(source).toContain("return Astro.redirect")
+		expect(source).not.toContain("/api/inventory/bulk-preview")
+		expect(source).not.toContain("/api/inventory/bulk-apply")
 	})
 
-	it("inventory calendar links to bulk operations surface", () => {
+	it("inventory redirects to calendar availability", () => {
 		const source = read("src/pages/inventory/index.astro")
-		expect(source).toContain("routes.inventoryBulk()")
-		expect(source).toContain("Ajustar cupo fisico del rango")
-		expect(source).toContain("mobile-calendar-action-sheet")
-		expect(source).toContain("mobile-calendar-grid")
+		expect(source).toContain("routes.pricing()")
+		expect(source).toContain('target.searchParams.set("focus", "availability")')
+		expect(source).toContain('target.searchParams.set("source", "inventory-redirect")')
+		expect(source).toContain("return Astro.redirect")
+		expect(source).not.toContain("Diagnóstico físico de cupos")
+		expect(source).not.toContain("mobile-calendar-grid")
 	})
 })

@@ -3,11 +3,9 @@ import { routes } from "@/lib/routes"
 
 type Props = {
 	isProfessionalCalendar: boolean
-	selectedVariantId: string
-	selectedRatePlanName: string
 }
 
-const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astro.props
+const { isProfessionalCalendar } = Astro.props
 ---
 
 <aside
@@ -103,157 +101,50 @@ const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astr
 	</div>
 	<div class="mt-4 space-y-3" data-operational-panel-body>
 		<div data-operational-panel-section="price" class="space-y-2">
-			<div
-				id="pricingRangePanel"
-				data-mobile-calendar-action-sheet
-				data-sheet-state="compact"
-				class="mobile-calendar-action-sheet hidden rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-950"
-			>
-				<div
-					data-mobile-sheet-handle
-					class="mobile-sheet-handle mx-auto mb-3 hidden h-1 w-12 rounded-full bg-blue-200"
+			<div class="grid gap-2 sm:grid-cols-2">
+				<button
+					type="button"
+					class="hidden h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+					data-panel-manual-price-action
+					data-selection-required-action
 				>
-				</div>
-				<div class="space-y-3">
-					<div class="space-y-1">
-						<div class="flex items-start justify-between gap-2">
-							<p class="text-sm font-semibold leading-5">Cambio manual de precio</p>
-							<div class="flex items-center gap-1 md:hidden">
-								<button
-									id="pricingSheetExpandBtn"
-									type="button"
-									class="rounded border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-900"
-								>
-									Expandir
-								</button>
-								<button
-									id="pricingSheetCloseBtn"
-									type="button"
-									class="rounded border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-900"
-								>
-									Cerrar
-								</button>
-							</div>
-						</div>
-						<p id="pricingRangePreview" class="hidden text-xs leading-5 text-blue-800"></p>
-					</div>
-
-					<input id="pricingRangeOperationType" type="hidden" value="fixed_override" />
-					<div
-						class="grid grid-cols-2 gap-2 md:grid-cols-[minmax(10rem,14rem)_repeat(4,minmax(0,1fr))] md:items-end"
-					>
-						<label class="col-span-2 block space-y-1 md:col-span-1">
-							<span id="pricingRangeValueLabel" class="text-xs font-medium text-blue-950">
-								Precio final
-							</span>
-							<input
-								id="pricingRangeValue"
-								type="number"
-								min="0"
-								step="1"
-								placeholder="Precio"
-								class="h-10 w-full rounded border border-blue-200 px-3 py-2 text-sm text-slate-900"
-							/>
-						</label>
+					Cambio manual de precio
+				</button>
+				{
+					isProfessionalCalendar ? (
 						<button
-							id="pricingRangePreviewBtn"
+							id="pricingAppliedAidToggle"
 							type="button"
-							class="h-10 rounded border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+							class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+							aria-pressed="false"
 						>
-							Revisar cambio puntual
+							Mostrar ajustes
 						</button>
-						<button
-							id="pricingRangeApplyBtn"
-							type="button"
-							class="h-10 rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
-						>
-							Guardar cambio manual
-						</button>
-						<button
-							id="pricingRangeGenerateBtn"
-							type="button"
-							class="h-10 rounded border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
-						>
-							Actualizar
-						</button>
-						<button
-							id="pricingRangeClearBtn"
-							type="button"
-							class="h-10 rounded border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100"
-						>
-							Limpiar
-						</button>
-					</div>
-
-					<div class="flex flex-wrap gap-2">
-						<button
-							type="button"
-							data-pricing-open-extension
-							class:list={[
-								"text-xs font-medium text-blue-800 underline-offset-2 hover:underline",
-								!isProfessionalCalendar && "hidden",
-							]}
-						>
-							Extender este cambio
-						</button>
-						<button
-							type="button"
-							data-pricing-make-recurring
-							class:list={[
-								"text-xs font-medium text-blue-800 underline-offset-2 hover:underline",
-								!isProfessionalCalendar && "hidden",
-							]}
-						>
-							Hacer recurrente
-						</button>
-					</div>
-				</div>
+					) : null
+				}
 			</div>
 		</div>
 		<div data-operational-panel-section="availability" class="hidden space-y-2">
-			<div
-				class="grid grid-cols-2 gap-2 md:grid-cols-[minmax(10rem,14rem)_repeat(3,minmax(0,1fr))] md:items-end"
-			>
-				<label
-					class="col-span-2 block space-y-1 text-xs font-semibold text-slate-700 md:col-span-1"
-				>
-					<span>Cupo físico total</span>
-					<input
-						type="number"
-						min="0"
-						step="1"
-						class="h-10 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-						placeholder="Ej. 4"
-						data-panel-inventory-value
-					/>
-				</label>
+			<div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
 				<button
+					type="button"
+					class="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+					data-panel-inventory-action
+				>
+					Cambiar cupo
+				</button>
+				<button
+					id="inventoryPhysicalDetailToggle"
 					type="button"
 					class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-					data-panel-inventory-preview
+					aria-pressed="false"
 				>
-					Revisar cupo
+					Mostrar detalle físico
 				</button>
-				<button
-					type="button"
-					class="h-10 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-					data-panel-inventory-apply
-					disabled
-				>
-					Guardar cupo
-				</button>
-				<a
-					href={`${routes.inventory()}?variantId=${encodeURIComponent(selectedVariantId)}&source=professional`}
-					class="hidden h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 hover:bg-slate-50"
-					data-panel-inventory-detail
-				>
-					Ver detalle físico
-				</a>
 			</div>
-			<p class="text-xs leading-5 text-slate-500" data-panel-inventory-feedback></p>
 		</div>
-		<div data-operational-panel-section="restrictions" class="hidden space-y-2">
-			<div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+		<div data-operational-panel-section="restrictions" class="hidden space-y-3">
+			<div class="grid gap-2 sm:grid-cols-2">
 				<button
 					type="button"
 					class="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
@@ -261,18 +152,7 @@ const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astr
 				>
 					Crear regla de venta
 				</button>
-				<a
-					href={routes.rateRestrictions()}
-					class:list={[
-						"inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50",
-						!isProfessionalCalendar && "hidden",
-					]}
-					data-panel-restrictions-advanced
-				>
-					Reglas de venta
-				</a>
 			</div>
-			<div class="hidden flex-wrap gap-1.5" data-panel-restriction-chips></div>
 		</div>
 		<div data-operational-panel-section="policies" class="hidden space-y-2">
 			<div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
@@ -281,7 +161,7 @@ const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astr
 					class="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
 					data-panel-policies-action
 				>
-					Abrir matriz de condiciones
+					Resolver condiciones
 				</a>
 			</div>
 			<p class="hidden" data-panel-policies></p>
@@ -291,17 +171,16 @@ const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astr
 			isProfessionalCalendar ? (
 				<div data-operational-panel-section="pro" class="hidden space-y-3">
 					<p class="text-xs leading-5 text-slate-600">
-						Automatiza reglas, extiende cambios y revisa el diagnóstico de esta selección.
+						Abre herramientas Pro para automatizar reglas o extender cambios.
 					</p>
-					<div class="grid gap-2 md:grid-cols-2">
-						<button
-							type="button"
+					<div class="grid gap-2 md:grid-cols-3">
+						<a
+							href={`${routes.rateRestrictions()}?tab=price`}
 							class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-							data-pricing-make-recurring
 							data-panel-recurring-action
 						>
-							Crear regla automática
-						</button>
+							Reglas de venta
+						</a>
 						<button
 							type="button"
 							class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
@@ -310,27 +189,165 @@ const { isProfessionalCalendar, selectedVariantId, selectedRatePlanName } = Astr
 						>
 							Extender cambio
 						</button>
+						<button
+							type="button"
+							class="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-800 hover:bg-slate-50"
+							data-panel-calendar-history
+						>
+							Historial
+						</button>
 					</div>
-					<dl class="grid gap-2 text-xs md:grid-cols-3">
-						<div class="rounded-md bg-white px-3 py-2">
-							<dt class="text-slate-500">Estado</dt>
-							<dd class="font-semibold text-slate-900" data-panel-status>
-								—
-							</dd>
-						</div>
-						<div class="rounded-md bg-white px-3 py-2">
-							<dt class="text-slate-500">Fecha</dt>
-							<dd class="font-semibold text-slate-900" data-panel-date>
-								—
-							</dd>
-						</div>
-						<div class="rounded-md bg-white px-3 py-2">
-							<dt class="text-slate-500">Tarifa</dt>
-							<dd class="font-semibold text-slate-900">{selectedRatePlanName || "—"}</dd>
-						</div>
-					</dl>
 				</div>
 			) : null
 		}
+	</div>
+</aside>
+
+<div id="inventoryPhysicalBackdrop" class="pricing-extension-backdrop hidden" aria-hidden="true">
+</div>
+<aside
+	id="inventoryPhysicalDrawer"
+	class="pricing-extension-drawer hidden bg-white text-slate-800"
+	aria-labelledby="inventoryPhysicalTitle"
+	aria-modal="true"
+	role="dialog"
+>
+	<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+		<div class="space-y-1">
+			<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Cambio de cupo</p>
+			<h2
+				id="inventoryPhysicalTitle"
+				class="text-lg font-semibold text-slate-950"
+				data-inventory-range-label
+			>
+				Selecciona una fecha o rango
+			</h2>
+			<p class="text-sm leading-5 text-slate-600">
+				Ajusta el cupo físico para la disponibilidad seleccionada.
+			</p>
+		</div>
+		<button
+			id="inventoryPhysicalCloseBtn"
+			type="button"
+			class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+		>
+			Cerrar
+		</button>
+	</div>
+	<div class="space-y-4 overflow-y-auto p-4">
+		<label class="block space-y-1">
+			<span class="text-xs font-semibold text-slate-700">Cupo físico total</span>
+			<input
+				type="number"
+				min="0"
+				step="1"
+				class="h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+				placeholder="Ej. 4"
+				data-panel-inventory-value
+			/>
+		</label>
+		<div class="grid gap-2 sm:grid-cols-2">
+			<button
+				type="button"
+				class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+				data-panel-inventory-preview
+			>
+				Revisar cupo
+			</button>
+			<button
+				type="button"
+				class="h-10 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+				data-panel-inventory-apply
+				disabled
+			>
+				Guardar cupo
+			</button>
+		</div>
+		<p class="text-xs leading-5 text-slate-500" data-panel-inventory-feedback>
+			Revisa el impacto de inventario antes de guardar.
+		</p>
+	</div>
+</aside>
+
+<div id="pricingManualPriceBackdrop" class="pricing-extension-backdrop hidden" aria-hidden="true">
+</div>
+<aside
+	id="pricingManualPriceDrawer"
+	class="pricing-extension-drawer hidden bg-white text-slate-800"
+	aria-labelledby="pricingManualPriceTitle"
+	aria-modal="true"
+	role="dialog"
+>
+	<div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+		<div class="space-y-1">
+			<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+				Cambio manual de precio
+			</p>
+			<h2
+				id="pricingManualPriceTitle"
+				class="text-lg font-semibold text-slate-950"
+				data-manual-price-range-label
+			>
+				Selecciona una fecha o rango
+			</h2>
+			<p id="pricingRangePreview" class="text-sm leading-5 text-slate-600">
+				Selecciona una fecha o rango para revisar el impacto antes de guardar.
+			</p>
+		</div>
+		<button
+			id="pricingManualPriceCloseBtn"
+			type="button"
+			class="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+		>
+			Cerrar
+		</button>
+	</div>
+	<div id="pricingRangePanel" class="overflow-y-auto p-4">
+		<input id="pricingRangeOperationType" type="hidden" value="fixed_override" />
+		<div class="space-y-4">
+			<label class="block space-y-1">
+				<span id="pricingRangeValueLabel" class="text-xs font-semibold text-slate-700">
+					Precio final
+				</span>
+				<input
+					id="pricingRangeValue"
+					type="number"
+					min="0"
+					step="1"
+					placeholder="Precio"
+					class="h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+				/>
+			</label>
+			<div class="grid gap-2 sm:grid-cols-2">
+				<button
+					id="pricingRangePreviewBtn"
+					type="button"
+					class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+				>
+					Revisar cambio puntual
+				</button>
+				<button
+					id="pricingRangeApplyBtn"
+					type="button"
+					class="h-10 rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+				>
+					Guardar cambio manual
+				</button>
+				<button
+					id="pricingRangeGenerateBtn"
+					type="button"
+					class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+				>
+					Actualizar
+				</button>
+				<button
+					id="pricingRangeClearBtn"
+					type="button"
+					class="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+				>
+					Limpiar
+				</button>
+			</div>
+		</div>
 	</div>
 </aside>

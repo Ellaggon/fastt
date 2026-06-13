@@ -66,7 +66,7 @@ Mandatory coverage:
 | /rates/calendar                                                        | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /rates/restrictions                                                    | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /pricing, /pricing/rules, /pricing/calendar                            | Legacy                   | Enterprise Operations        | Rooms & Rates               |
-| /inventory, /inventory/bulk                                            | Transitional             | Enterprise Operations        | Rooms & Rates               |
+| /inventory, /inventory/bulk                                            | Legacy redirect          | Enterprise Operations        | Rooms & Rates               |
 | /booking/\*\*                                                          | Canonical                | Enterprise Operations        | Reservations                |
 | /provider/policies/\*\*                                                | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /provider/tax-fees                                                     | Transitional             | Enterprise Operations        | Payments & Finance          |
@@ -149,12 +149,12 @@ Advanced tools exist only by progressive disclosure: role, provider scale or exp
 professional-tools preference. They may appear as contextual or professional surfaces, but
 must not clutter the small-provider sidebar.
 
-- **Inventario físico:** advanced physical inventory detail; daily unit operation lives in
-  Calendario.
 - **Reglas de venta:** professional sale-rule workspace for recurrent min-stay, stop-sell,
   arrival/departure and booking-window rules.
 - **Operaciones masivas:** batch price/inventory/rule actions inside the calendar operating
   context.
+- Legacy `/inventory*` URLs redirect to Calendario > Disponibilidad; provider UX must not
+  expose Inventario físico as a page.
 
 The canonical operating map lives in `roomsAndRatesOperationalMap` inside
 `src/lib/backoffice-governance.ts`. CI enforces that physical lanes do not navigate into
@@ -169,8 +169,9 @@ provider navigation stays calendar-first.
 - Keep `/rates/calendar` as the daily operating surface for price, cupo, sale rules and
   applicable conditions.
 - Keep the small-provider sidebar focused on Tarifas, Calendario and Condiciones.
-- Expose Inventario físico, Reglas de venta and Operaciones masivas only through progressive
-  disclosure.
+- Expose Reglas de venta and Operaciones masivas only through progressive disclosure.
+- Do not expose Inventario físico as provider navigation; redirect legacy inventory URLs to
+  `/rates/calendar?focus=availability`.
 - Do not export route helpers for nonexistent pages.
 - Do not use a generic System bucket for governance, connectivity, or provider setup.
 - Do not duplicate conceptual entries that navigate to the same route unless they represent different valid contexts.

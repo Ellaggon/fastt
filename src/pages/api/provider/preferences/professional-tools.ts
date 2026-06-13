@@ -5,10 +5,7 @@ import {
 	PROFESSIONAL_MODE_COOKIE,
 	type ProfessionalModeCookieValue,
 } from "@/lib/dashboard/professionalModeCookie"
-import {
-	isMissingProfessionalToolsPreferenceShape,
-	setProviderProfessionalToolsPreference,
-} from "@/lib/providerProfessionalToolsPreference"
+import { setProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
 
 function safeReturnPath(value: unknown): string {
 	const candidate = String(value ?? "").trim()
@@ -26,34 +23,51 @@ function modeFromEnabled(enabled: boolean): ProfessionalModeCookieValue {
 	return enabled ? "professional" : "simple"
 }
 
-export const POST: APIRoute = async ({ request, cookies }) => {
-	let returnTo: unknown = null
-	let enabled = false
-	try {
-		const { user, providerId } = await requireProvider(request)
-		const contentType = request.headers.get("content-type") ?? ""
-		if (contentType.includes("application/json")) {
-			const body = (await request.json().catch(() => ({}))) as {
-				enabled?: unknown
-				mode?: unknown
-				returnTo?: unknown
-			}
-			const mode = String(body.mode ?? "").trim()
-			returnTo = body.returnTo
-			enabled =
+async function readPreferenceRequest(request: Request): Promise<{
+	enabled: boolean
+	returnTo: unknown
+	contentType: string
+}> {
+	const contentType = request.headers.get("content-type") ?? ""
+	if (contentType.includes("application/json")) {
+		const body = (await request.json().catch(() => ({}))) as {
+			enabled?: unknown
+			mode?: unknown
+			returnTo?: unknown
+		}
+		const mode = String(body.mode ?? "").trim()
+		return {
+			contentType,
+			returnTo: body.returnTo,
+			enabled:
 				mode === "professional" ||
 				body.enabled === true ||
 				body.enabled === "true" ||
-				body.enabled === 1
-		} else {
-			const formData = await request.formData()
-			const mode = String(formData.get("mode") ?? "").trim()
-			enabled =
-				mode === "professional" ||
-				formData.get("enabled") === "true" ||
-				formData.get("professionalToolsEnabled") === "on"
-			returnTo = formData.get("returnTo")
+				body.enabled === 1,
 		}
+	}
+
+	const formData = await request.formData()
+	const mode = String(formData.get("mode") ?? "").trim()
+	return {
+		contentType,
+		returnTo: formData.get("returnTo"),
+		enabled:
+			mode === "professional" ||
+			formData.get("enabled") === "true" ||
+			formData.get("professionalToolsEnabled") === "on",
+	}
+}
+
+export const POST: APIRoute = async ({ request, cookies }) => {
+	let returnTo: unknown = null
+	let enabled = false
+	let contentType = request.headers.get("content-type") ?? ""
+	try {
+		const parsed = await readPreferenceRequest(request)
+		enabled = parsed.enabled
+		returnTo = parsed.returnTo
+		contentType = parsed.contentType
 
 		cookies.set(PROFESSIONAL_MODE_COOKIE, modeFromEnabled(enabled), {
 			path: "/",
@@ -63,27 +77,33 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			maxAge: 60 * 60 * 24 * 365,
 		})
 
-		let persisted: "database" | "cookie" = "database"
-		let preferences = null
+		let persisted: "database" | "cookie" = "cookie"
+		let preferences: {
+			providerId: string
+			professionalToolsEnabled: boolean
+			updatedAt: Date | null
+			updatedBy: string | null
+		} = {
+			providerId: "",
+			professionalToolsEnabled: enabled,
+			updatedAt: null,
+			updatedBy: null,
+		}
+
 		try {
+			const { user, providerId } = await requireProvider(request)
 			preferences = await setProviderProfessionalToolsPreference({
 				providerId,
 				actorUserId: user.id,
 				enabled,
 			})
+			persisted = "database"
 		} catch (error) {
-			if (
-				!isMissingProfessionalToolsPreferenceShape(error) &&
-				process.env.LOCAL_QA_AUTH_ENABLED !== "true"
-			) {
-				throw error
-			}
-			persisted = "cookie"
+			void error
 			preferences = {
-				providerId,
+				...preferences,
 				professionalToolsEnabled: enabled,
 				updatedAt: null,
-				updatedBy: user.id,
 			}
 		}
 
@@ -94,7 +114,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 		}
 		return redirectAfterSave(request, "saved", returnTo)
 	} catch (error) {
-		if (error instanceof Response) return error
 		if ((request.headers.get("content-type") ?? "").includes("application/json")) {
 			return new Response(
 				JSON.stringify({
