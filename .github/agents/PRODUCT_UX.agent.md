@@ -39,10 +39,12 @@ For small providers, Habitaciones y tarifas should show:
 
 Professional tools may appear only by role, scale, or explicit preference:
 
-- Inventario físico
 - Reglas de venta
-- Operaciones masivas
+- Operaciones masivas inside Calendario
 - Auditoría or global audit only in admin/support
+
+Do not expose Inventario físico as a provider page. Legacy `/inventory*` URLs redirect to
+Calendario > Disponibilidad.
 
 Do not show "Próximamente" or roadmap items in primary commercial navigation.
 
@@ -87,7 +89,7 @@ Each cell should communicate:
 - final price
 - available units
 - sellable state
-- missing price/inventory/conditions
+- missing price/availability/conditions
 - restrictions such as min nights, closed to arrival, closed to departure
 - reservations or holds when available
 
