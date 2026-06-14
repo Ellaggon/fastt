@@ -308,6 +308,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Calendario operativo unificado para precio, cupo, vendibilidad, reglas de venta y condiciones aplicables.",
 	},
 	{
+		pattern: "/rates/multi-calendar",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Herramienta Pro para operar muchas tarifas por fecha sin reemplazar el calendario individual.",
+	},
+	{
 		pattern: "/pricing",
 		status: "legacy",
 		context: "enterprise-operations",
@@ -896,6 +904,13 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
 			},
 			{
+				label: "Multicalendario",
+				href: routes.ratesMultiCalendar(),
+				status: "canonical",
+				level: 2,
+				summary: "Vista Pro para operar varias tarifas y fechas sin entrar una por una.",
+			},
+			{
 				label: "Reglas de venta",
 				href: routes.rateRestrictions(),
 				status: "canonical",
@@ -1059,7 +1074,11 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 ]
 
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
-	return [routes.rateRestrictions(), routes.providerPoliciesAudit()].includes(item.href)
+	return [
+		routes.rateRestrictions(),
+		routes.ratesMultiCalendar(),
+		routes.providerPoliciesAudit(),
+	].includes(item.href)
 }
 
 function shouldShowSectionForDisclosure(
@@ -1132,6 +1151,14 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				owner: "Habitaciones y tarifas",
 				description:
 					"Cobertura diaria de precios, brechas y edición rápida desde calendario; las reglas de precio pertenecen a este contexto.",
+			},
+			{
+				label: "Multicalendario",
+				href: routes.ratesMultiCalendar(),
+				status: "canonical",
+				owner: "Habitaciones y tarifas",
+				description:
+					"Superficie Pro para revisar muchas tarifas por fecha y abrir acciones masivas sin reemplazar el calendario individual.",
 			},
 		],
 	},

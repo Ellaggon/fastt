@@ -185,6 +185,18 @@ const extensionTargetOptions = await Promise.all(
 					solo lugar.
 				</p>
 			</div>
+			{
+				isProfessionalCalendar ? (
+					<div class="flex flex-wrap items-center gap-2">
+						<Button
+							href={`${routes.ratesMultiCalendar()}?ratePlanId=${encodeURIComponent(selectedRatePlanId)}&month=${encodeURIComponent(surface.month)}`}
+							variant="secondary"
+						>
+							Multicalendario
+						</Button>
+					</div>
+				) : null
+			}
 		</header>
 
 		<Section>

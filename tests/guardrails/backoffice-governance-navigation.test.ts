@@ -319,6 +319,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(titles).not.toContain("Conectividad")
 		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
 		expect(labels).not.toContain("Inventario físico")
+		expect(labels).not.toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).not.toContain("Auditoría")
@@ -339,8 +340,15 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Reglas de venta"])
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario",
+			"Condiciones",
+			"Multicalendario",
+			"Reglas de venta",
+		])
 		expect(labels).not.toContain("Inventario físico")
+		expect(labels).toContain("Multicalendario")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
@@ -361,8 +369,15 @@ describe("Guardrail: backoffice governance navigation", () => {
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Reglas de venta"])
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario",
+			"Condiciones",
+			"Multicalendario",
+			"Reglas de venta",
+		])
 		expect(labels).not.toContain("Inventario físico")
+		expect(labels).toContain("Multicalendario")
 		expect(labels).toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
@@ -390,16 +405,18 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("does not reveal advanced Rooms & Rates just because an advanced route is active", () => {
-		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
-			mode: "small-provider",
-			activeHref: "/rates/restrictions",
-		})
-		const roomsAndRatesLabels =
-			visible
-				.find((section) => section.title === "Habitaciones y tarifas")
-				?.items.map((item) => item.label) ?? []
+		for (const activeHref of ["/rates/restrictions", "/rates/multi-calendar"]) {
+			const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+				mode: "small-provider",
+				activeHref,
+			})
+			const roomsAndRatesLabels =
+				visible
+					.find((section) => section.title === "Habitaciones y tarifas")
+					?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
+			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
+		}
 	})
 
 	it("keeps small providers below explicit scale thresholds", () => {
@@ -607,7 +624,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining(["Calendario", "Reglas de venta", "Tarifas", "Condiciones"])
+			expect.arrayContaining([
+				"Calendario",
+				"Multicalendario",
+				"Reglas de venta",
+				"Tarifas",
+				"Condiciones",
+			])
 		)
 		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(

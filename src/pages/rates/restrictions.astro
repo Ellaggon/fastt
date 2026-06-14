@@ -12,6 +12,7 @@ import {
 	type PricingAutomationTemplate,
 } from "@/lib/pricing/pricingAutomationSurface"
 import {
+	createRestrictionsSurfaceRule,
 	loadRestrictionsSurface,
 	SELLABILITY_RULES,
 	setRestrictionsSurfaceRuleActive,
@@ -119,6 +120,34 @@ if (Astro.request.method === "POST") {
 	const form = await Astro.request.formData()
 	const action = String(form.get("action") ?? "").trim()
 	try {
+		if (action === "create") {
+			await createRestrictionsSurfaceRule(auth.providerId, form)
+			return Astro.redirect(`${routes.rateRestrictions()}?tab=all&success=created`)
+		}
+		if (action === "create-batch") {
+			const scope = String(form.get("scope") ?? "rate_plan").trim()
+			const scopeIds = String(form.get("scopeIds") ?? "")
+				.split(",")
+				.map((value) => value.trim())
+				.filter(Boolean)
+			if (scope !== "rate_plan") throw new Error("La selección múltiple solo soporta tarifas")
+			if (scopeIds.length === 0) throw new Error("Selecciona al menos una tarifa")
+			for (const scopeId of scopeIds) {
+				const item = new FormData()
+				item.set("scope", scope)
+				item.set("scopeId", scopeId)
+				item.set("type", String(form.get("type") ?? ""))
+				item.set("startDate", String(form.get("startDate") ?? ""))
+				item.set("endDate", String(form.get("endDate") ?? ""))
+				const value = String(form.get("value") ?? "").trim()
+				if (value) item.set("value", value)
+				for (const validDay of form.getAll("validDays")) item.append("validDays", validDay)
+				await createRestrictionsSurfaceRule(auth.providerId, item)
+			}
+			return Astro.redirect(
+				`${routes.rateRestrictions()}?tab=all&success=batch-created&count=${scopeIds.length}`
+			)
+		}
 		if (action === "activate" || action === "deactivate") {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
 			await setRestrictionsSurfaceRuleActive(auth.providerId, ruleId, action === "activate")
@@ -225,6 +254,17 @@ const [surface, automationSurface] = await Promise.all([
 ])
 const vocabulary = resolveVerticalVocabulary(surface.productTypes)
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+const multiCalendarSource = String(Astro.url.searchParams.get("source") ?? "").trim()
+const multiCalendarRatePlanIds = String(Astro.url.searchParams.get("ratePlanIds") ?? "")
+	.split(",")
+	.map((value) => value.trim())
+	.filter(Boolean)
+const multiCalendarFrom = String(Astro.url.searchParams.get("from") ?? "").trim()
+const multiCalendarTo = String(Astro.url.searchParams.get("to") ?? "").trim()
+const hasMultiCalendarContext =
+	multiCalendarSource === "multi-calendar" &&
+	multiCalendarRatePlanIds.length > 0 &&
+	Boolean(multiCalendarFrom)
 
 const automationTemplates = automationSurface.templates
 const automationDefaultRatePlanId = automationSurface.ratePlanOptions[0]?.id ?? ""
@@ -290,6 +330,8 @@ const scopeLabel: Record<RestrictionScope, string> = {
 }
 
 const successMessage: Record<string, string> = {
+	"created": "Regla de venta creada.",
+	"batch-created": "Reglas de venta creadas para la selección.",
 	"activated": "Regla de venta activada.",
 	"deactivated": "Regla de venta pausada.",
 	"price-created": "Regla de precio creada.",
@@ -338,6 +380,9 @@ const showSellability = activeTab !== "price"
 				<Button href={`${routes.rateRestrictions()}?tab=price`} variant="primary">
 					Crear regla
 				</Button>
+				<Button href={`${routes.ratesMultiCalendar()}?tab=rules`} variant="secondary">
+					Multicalendario
+				</Button>
 				<Button href={`${routes.pricing()}?focus=restrictions`} variant="secondary">
 					Ver calendario
 				</Button>
@@ -356,6 +401,33 @@ const showSellability = activeTab !== "price"
 			successMessage[success] && (
 				<Card className="border-green-200 bg-green-50 text-green-900">
 					<p class="text-sm font-semibold">{successMessage[success]}</p>
+				</Card>
+			)
+		}
+		{
+			hasMultiCalendarContext && (
+				<Card className="border-blue-200 bg-blue-50 text-blue-950">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<div>
+							<p class="text-sm font-semibold">Selección desde Multicalendario</p>
+							<p class="mt-1 text-sm text-blue-900/80">
+								{multiCalendarRatePlanIds.length}{" "}
+								{multiCalendarRatePlanIds.length === 1 ? "tarifa" : "tarifas"} · {multiCalendarFrom}
+								{multiCalendarTo && multiCalendarTo !== multiCalendarFrom
+									? ` a ${multiCalendarTo}`
+									: ""}
+							</p>
+						</div>
+						<Button
+							href={`${routes.ratesMultiCalendar()}?tab=rules&from=${encodeURIComponent(
+								multiCalendarFrom
+							)}&to=${encodeURIComponent(multiCalendarTo || multiCalendarFrom)}`}
+							variant="secondary"
+							size="sm"
+						>
+							Volver al multicalendario
+						</Button>
+					</div>
 				</Card>
 			)
 		}

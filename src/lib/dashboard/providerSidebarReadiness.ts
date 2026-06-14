@@ -286,6 +286,7 @@ export async function getProviderSidebarData(
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.pricing()]: pricingSummary,
+			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} disponibles para operación Pro.`,
 			[routes.rateRestrictions()]: restrictionsSummary,
 			[routes.pricingAutomation()]: `${plural(activePriceRules, "regla")} activas para automatizar cambios.`,
 			[routes.providerPolicies()]: policyReadiness.summary,
