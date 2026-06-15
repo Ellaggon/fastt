@@ -1,4 +1,4 @@
-import { db, Restriction, and, eq, lte, gte, or } from "astro:db"
+import { listCommercialSellabilityRulesForScopes } from "@/lib/commercial-rules/commercialRulesRepository"
 import { toISODate } from "@/shared/domain/date/date.utils"
 import { mapRestrictionRow } from "../../application/mappers/restrictions.mapper"
 import type {
@@ -11,68 +11,38 @@ export class RestrictionRepository {
 		const checkInISO = toISODate(ctx.checkIn)
 		const checkOutISO = toISODate(ctx.checkOut)
 
-		const scopeConditions = []
+		const scopeIds = [ctx.productId, ctx.variantId, ctx.ratePlanId]
+			.map((value) => String(value ?? "").trim())
+			.filter(Boolean)
+		if (scopeIds.length === 0) return []
 
-		if (ctx.productId) {
-			scopeConditions.push(eq(Restriction.scopeId, ctx.productId))
-		}
-
-		if (ctx.variantId) {
-			scopeConditions.push(eq(Restriction.scopeId, ctx.variantId))
-		}
-
-		if (ctx.ratePlanId) {
-			scopeConditions.push(eq(Restriction.scopeId, ctx.ratePlanId))
-		}
-
-		if (scopeConditions.length === 0) {
-			return []
-		}
-
-		const raw = await db
-			.select()
-			.from(Restriction)
-			.where(
-				and(
-					eq(Restriction.isActive, true),
-					lte(Restriction.startDate, checkOutISO),
-					gte(Restriction.endDate, checkInISO),
-					or(...scopeConditions)
-				)
-			)
+		const raw = (await listCommercialSellabilityRulesForScopes({ scopeIds })).filter(
+			(rule) => rule.isActive && rule.startDate <= checkOutISO && rule.endDate >= checkInISO
+		)
 
 		return raw.map(mapRestrictionRow).filter(Boolean) as RestrictionRow[]
 	}
 
 	async loadByScope(scope: string, scopeId: string) {
-		const raw = await db
-			.select()
-			.from(Restriction)
-			.where(and(eq(Restriction.scope, scope), eq(Restriction.scopeId, scopeId)))
+		const raw = (await listCommercialSellabilityRulesForScopes({ scopeIds: [scopeId] })).filter(
+			(rule) => rule.scope === scope
+		)
 
 		return raw.map(mapRestrictionRow).filter(Boolean) as RestrictionRow[]
 	}
 
 	async create(rule: RestrictionRow) {
-		await db.insert(Restriction).values({
-			...rule,
-			startDate: toISODate(rule.startDate),
-			endDate: toISODate(rule.endDate),
-		})
+		void rule
+		throw new Error("legacy_restriction_write_disabled")
 	}
 
 	async update(rule: RestrictionRow) {
-		await db
-			.update(Restriction)
-			.set({
-				...rule,
-				startDate: toISODate(rule.startDate),
-				endDate: toISODate(rule.endDate),
-			})
-			.where(eq(Restriction.id, rule.id))
+		void rule
+		throw new Error("legacy_restriction_write_disabled")
 	}
 
 	async delete(id: string) {
-		await db.delete(Restriction).where(eq(Restriction.id, id))
+		void id
+		throw new Error("legacy_restriction_write_disabled")
 	}
 }

@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro"
-import { randomUUID } from "node:crypto"
-import { db, PriceRule } from "astro:db"
 
+import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	isValidDateOnly,
 	buildDateRangeJson,
@@ -31,6 +30,13 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 	const context = await resolveOwnedRatePlanContext(request, ratePlanId)
 	if (!context.ok) return context.response
+	const providerId = context.ownerContext.providerId
+	if (!providerId) {
+		return new Response(JSON.stringify({ error: "provider_not_found" }), {
+			status: 403,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
 
 	const typeRaw = requireText(payload, "type")
 	const type = normalizeRuleType(typeRaw)
@@ -74,10 +80,8 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 
-	const createdAt = new Date()
-	const ruleId = randomUUID()
-	await db.insert(PriceRule).values({
-		id: ruleId,
+	const created = await createCommercialPriceRule({
+		providerId,
 		ratePlanId,
 		name: contextKey ? `ctx:${contextKey}` : null,
 		type,
@@ -85,10 +89,8 @@ export const POST: APIRoute = async ({ request }) => {
 		priority,
 		dateRangeJson: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
 		dayOfWeekJson: dayOfWeek ?? null,
-		isActive: true,
-		createdAt,
-		...(occupancyKey ? ({ occupancyKey } as any) : {}),
-	} as any)
+		occupancyKey: occupancyKey ?? null,
+	})
 
 	const rematerializationFrom = dateFrom ?? new Date().toISOString().slice(0, 10)
 	const rematerializationTo = dateTo
@@ -113,7 +115,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	return new Response(
 		JSON.stringify({
-			ruleId,
+			ruleId: created.ruleId,
 			ratePlanId,
 			rematerialization,
 			rules: await listRulesByRatePlan(ratePlanId),

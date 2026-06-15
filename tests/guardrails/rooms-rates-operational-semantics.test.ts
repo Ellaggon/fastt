@@ -53,16 +53,24 @@ const physicalContextFiles = [
 ].sort()
 
 describe("Guardrail: Rooms & Rates operational semantics", () => {
-	it("resolves occupancy-specific price overrides through PriceRule", () => {
+	it("resolves commercial automations through CommercialRule tables", () => {
 		const dbConfig = read("db/config.ts")
-		const priceRule = dbConfig.match(/const PriceRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const commercialRule =
+			dbConfig.match(/const CommercialRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const commercialRuleApplication =
+			dbConfig.match(/const CommercialRuleApplication = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 
 		expect(dbConfig).not.toContain("const RatePlanOccupancyOverride")
 		expect(dbConfig).not.toContain("RatePlanOccupancyOverride,")
-		expect(priceRule).toContain("occupancyKey")
-		expect(priceRule).toContain('type: column.text({ default: "modifier" })')
-		expect(priceRule).toContain("dateRangeJson")
-		expect(priceRule).toContain("priority")
+		expect(dbConfig).not.toContain("const PriceRule = defineTable")
+		expect(dbConfig).not.toContain("const Restriction = defineTable")
+		expect(commercialRule).toContain("category")
+		expect(commercialRule).toContain("configJson")
+		expect(commercialRule).toContain("priority")
+		expect(commercialRuleApplication).toContain("scope")
+		expect(commercialRuleApplication).toContain("scopeId")
+		expect(commercialRuleApplication).toContain("startDate")
+		expect(commercialRuleApplication).toContain("validDays")
 	})
 
 	it("keeps physical inventory units in VariantInventoryConfig", () => {
@@ -108,8 +116,9 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 			"Variant",
 			"RatePlan",
 			"DailyInventory",
-			"PriceRule",
-			"Restriction",
+			"CommercialRuleSet",
+			"CommercialRule",
+			"CommercialRuleApplication",
 			"PolicyGroup",
 			"Policy",
 			"PolicyAssignment",
@@ -507,12 +516,21 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 			'import PricingAutomationPanel from "@/components/rates/PricingAutomationPanel.astro"'
 		)
 		expect(restrictions).toContain("<PricingAutomationPanel")
+		expect(restrictions).toContain('label: "Conjuntos"')
 		expect(restrictions).toContain('label: "Precio"')
-		expect(restrictions).toContain('label: "Disponibilidad"')
+		expect(restrictions).toContain('label: "Venta"')
 		expect(restrictions).toContain('label: "Llegada/salida"')
 		expect(restrictions).toContain('label: "Estadía"')
 		expect(restrictions).toContain('label: "Ventana de reserva"')
 		expect(restrictions).toContain('label: "Pausadas"')
+		expect(restrictions).toContain("Conjuntos comerciales")
+		expect(restrictions).toContain("Aplicar en multicalendario")
+		expect(restrictions).toContain("Crear regla de disponibilidad")
+		expect(restrictions).toContain("Crear regla de estadía")
+		expect(restrictions).toContain("Crear regla de llegada o salida")
+		expect(restrictions).toContain("Crear regla de ventana de reserva")
+		expect(restrictions).toContain("Tarifa de referencia")
+		expect(restrictions).toContain("Temporada alta")
 		expect(restrictions).toContain('action === "create-pricing-automation"')
 		expect(restrictions).toContain('action === "delete-pricing-automation"')
 		expect(restrictions).toContain("createRestrictionsSurfaceRule")

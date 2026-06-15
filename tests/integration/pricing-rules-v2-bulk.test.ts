@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { db, PriceRule } from "astro:db"
 
+import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
 import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
@@ -161,7 +161,7 @@ async function seedBulkFixture() {
 		isDefault: true,
 	})
 
-	return { token, email, ratePlanAId, ratePlanBId }
+	return { token, email, providerId, ratePlanAId, ratePlanBId }
 }
 
 describe("integration/pricing rules v2 bulk orchestration", () => {
@@ -231,8 +231,9 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 
 	it("calendar-style fixed override wins over existing fixed price rules", async () => {
 		const fixture = await seedBulkFixture()
-		await db.insert(PriceRule).values({
-			id: `rule_existing_${crypto.randomUUID()}`,
+		await createCommercialPriceRule({
+			providerId: fixture.providerId,
+			ruleId: `rule_existing_${crypto.randomUUID()}`,
 			ratePlanId: fixture.ratePlanAId,
 			name: "ctx:manual",
 			type: "fixed_override",
@@ -240,9 +241,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 			priority: 10,
 			dateRangeJson: { from: "2026-05-19", to: "2026-05-26" },
 			dayOfWeekJson: null,
-			isActive: true,
-			createdAt: new Date("2026-01-01T00:00:00.000Z"),
-		} as any)
+		})
 
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_calendar_override", email: fixture.email } },

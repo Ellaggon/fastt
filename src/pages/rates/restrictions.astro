@@ -5,6 +5,10 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	deleteCommercialRule,
+	getCommercialPriceRule,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import {
@@ -22,9 +26,9 @@ import {
 import { routes } from "@/lib/routes"
 import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
 import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
-import { and, db, eq, PriceRule } from "astro:db"
 
 type RuleTab =
+	| "sets"
 	| "all"
 	| "price"
 	| "availability"
@@ -102,18 +106,10 @@ function jsonRequest(path: string, body: Record<string, unknown>) {
 }
 
 async function deletePriceRuleDirectly(ruleId: string, ratePlanId: string) {
-	const existing = await db
-		.select({ id: PriceRule.id })
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
+	const existing = await getCommercialPriceRule({ ruleId, ratePlanId })
 	if (!existing?.id) throw new Error("La regla de precio ya no existe o pertenece a otra tarifa")
 
-	const statement = db
-		.delete(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-	if (typeof (statement as any).run === "function") await (statement as any).run()
-	else await statement
+	await deleteCommercialRule(ruleId)
 }
 
 if (Astro.request.method === "POST") {
@@ -218,8 +214,9 @@ if (Astro.request.method === "POST") {
 	}
 }
 
-const requestedTab = String(Astro.url.searchParams.get("tab") ?? "all").trim() as RuleTab
+const requestedTab = String(Astro.url.searchParams.get("tab") ?? "sets").trim() as RuleTab
 const activeTab: RuleTab = [
+	"sets",
 	"all",
 	"price",
 	"availability",
@@ -229,13 +226,55 @@ const activeTab: RuleTab = [
 	"paused",
 ].includes(requestedTab)
 	? requestedTab
-	: "all"
+	: "sets"
 
 const tabTypeMap: Partial<Record<RuleTab, SellabilityRuleType[]>> = {
 	availability: ["stop_sell"],
 	arrival_departure: ["cta", "ctd"],
 	stay: ["min_los", "max_los"],
 	booking_window: ["min_lead_time", "max_lead_time"],
+}
+
+const tabBuilderCopy: Partial<
+	Record<
+		RuleTab,
+		{
+			title: string
+			description: string
+			types: SellabilityRuleType[]
+			defaultType: SellabilityRuleType
+			primaryIntent: string
+		}
+	>
+> = {
+	availability: {
+		title: "Crear regla de disponibilidad",
+		description: "Cierra venta en fechas recurrentes o eventos donde no quieres aceptar reservas.",
+		types: ["stop_sell"],
+		defaultType: "stop_sell",
+		primaryIntent: "Cierre de venta",
+	},
+	arrival_departure: {
+		title: "Crear regla de llegada o salida",
+		description: "Controla qué días pueden llegar o salir los huéspedes dentro de una temporada.",
+		types: ["cta", "ctd"],
+		defaultType: "cta",
+		primaryIntent: "Sin llegada / sin salida",
+	},
+	stay: {
+		title: "Crear regla de estadía",
+		description: "Define noches mínimas o máximas para temporadas, fines de semana o eventos.",
+		types: ["min_los", "max_los"],
+		defaultType: "min_los",
+		primaryIntent: "Mínimo o máximo de noches",
+	},
+	booking_window: {
+		title: "Crear regla de ventana de reserva",
+		description: "Controla con cuánta anticipación puede reservar un huésped.",
+		types: ["min_lead_time", "max_lead_time"],
+		defaultType: "min_lead_time",
+		primaryIntent: "Anticipación de reserva",
+	},
 }
 
 const filters = {
@@ -313,6 +352,15 @@ const statusVariant = {
 	inactive: "neutral",
 } as const
 
+const ruleSetColors = [
+	"bg-rose-500",
+	"bg-blue-500",
+	"bg-emerald-500",
+	"bg-amber-500",
+	"bg-violet-500",
+	"bg-slate-500",
+]
+
 const ruleBadgeVariant: Record<string, "success" | "warning" | "info" | "neutral"> = {
 	stop_sell: "warning",
 	min_los: "info",
@@ -339,12 +387,12 @@ const successMessage: Record<string, string> = {
 }
 
 const tabs: Array<{ key: RuleTab; label: string; count?: number }> = [
-	{ key: "all", label: "Todas", count: surface.rules.length + automationSurface.rules.length },
+	{ key: "sets", label: "Conjuntos", count: surface.rules.length + automationSurface.rules.length },
 	{ key: "price", label: "Precio", count: automationSurface.rules.length },
-	{ key: "availability", label: "Disponibilidad" },
-	{ key: "arrival_departure", label: "Llegada/salida" },
-	{ key: "stay", label: "Estadía" },
-	{ key: "booking_window", label: "Ventana de reserva" },
+	{ key: "availability", label: "Venta", count: surface.stats.stopSellRules },
+	{ key: "stay", label: "Estadía", count: surface.stats.lengthOfStayRules },
+	{ key: "arrival_departure", label: "Llegada/salida", count: surface.stats.arrivalDepartureRules },
+	{ key: "booking_window", label: "Ventana de reserva", count: surface.stats.bookingWindowRules },
 	{ key: "paused", label: "Pausadas", count: surface.stats.inactiveRules },
 ]
 
@@ -359,9 +407,65 @@ const visibleRules = surface.rules.filter((rule) => {
 	return allowedTypes.includes(rule.type)
 })
 
+const ruleSetCards = [
+	...automationSurface.rules.map((rule, index) => ({
+		key: `price:${rule.id}`,
+		name: rule.kindLabel,
+		color: ruleSetColors[index % ruleSetColors.length],
+		statusLabel: rule.statusLabel,
+		statusVariant: rule.status === "active" ? "success" : "neutral",
+		dateLabel: rule.validityLabel,
+		targetLabel: `${rule.productName} · ${rule.variantName} · ${rule.ratePlanName}`,
+		includedRules: ["Precio"],
+		impactLabel: rule.summary || rule.valueLabel,
+		conflictLabel: rule.status === "active" ? "Sin conflicto visible" : "Pausada",
+		calendarHref: rule.quickLinks.ratePlan,
+		type: "price",
+	})),
+	...surface.rules.map((rule, index) => ({
+		key: `sellability:${rule.id}`,
+		name: rule.typeLabel,
+		color: ruleSetColors[(automationSurface.rules.length + index) % ruleSetColors.length],
+		statusLabel: rule.isActive ? "Activa" : "Pausada",
+		statusVariant: rule.isActive ? "success" : "neutral",
+		dateLabel: `${rule.startDate} a ${rule.endDate}`,
+		targetLabel: rule.targetName,
+		includedRules: [rule.category],
+		impactLabel: `${rule.impactLabel} ${rule.impactDays} fechas estimadas.`,
+		conflictLabel: "Sin conflicto visible",
+		calendarHref: rule.ratePlanId
+			? `${routes.pricing()}?ratePlanId=${encodeURIComponent(rule.ratePlanId)}&focus=restrictions`
+			: routes.ratesMultiCalendar(),
+		type: "sellability",
+	})),
+]
+
+const suggestedRuleSets = [
+	{
+		name: "Temporada alta",
+		color: "bg-rose-500",
+		description: "Aumento de precio, mínimo de noches y llegada controlada.",
+		rules: ["Precio", "Estadía", "Llegada/salida"],
+	},
+	{
+		name: "Último minuto",
+		color: "bg-blue-500",
+		description: "Descuento automático para noches cercanas con cupo disponible.",
+		rules: ["Precio", "Ventana de reserva"],
+	},
+	{
+		name: "Fines de semana",
+		color: "bg-emerald-500",
+		description: "Precio especial y mínimo de noches para viernes y sábado.",
+		rules: ["Precio", "Estadía"],
+	},
+]
+
 const showPricePanel = activeTab === "price"
-const showPriceSummary = activeTab === "all"
-const showSellability = activeTab !== "price"
+const showRuleSets = activeTab === "sets"
+const showSellabilityBuilder = Boolean(tabBuilderCopy[activeTab])
+const showSellability = activeTab !== "price" && activeTab !== "sets"
+const activeBuilder = tabBuilderCopy[activeTab]
 ---
 
 <WorkspaceLayout title="Reglas de venta">
@@ -468,43 +572,100 @@ const showSellability = activeTab !== "price"
 		}
 
 		{
-			showPriceSummary && (
+			showRuleSets && (
 				<Card className="space-y-3 bg-white text-slate-900">
 					<div class="flex flex-wrap items-center justify-between gap-3">
 						<div>
-							<h2 class="text-lg font-semibold">Reglas de precio</h2>
+							<h2 class="text-lg font-semibold">Conjuntos comerciales</h2>
 							<p class="text-sm text-slate-500">
-								{automationSurface.stats.activeRules} activas ·{" "}
-								{automationSurface.stats.inactiveRules} inactivas
+								Biblioteca Pro para revisar reglas reutilizables, impacto y dónde actúan.
 							</p>
 						</div>
-						<Button href={`${routes.rateRestrictions()}?tab=price`} variant="secondary" size="sm">
-							Administrar
-						</Button>
+						<div class="flex flex-wrap gap-2">
+							<Button href={`${routes.ratesMultiCalendar()}?tab=rules`} variant="primary" size="sm">
+								Aplicar en multicalendario
+							</Button>
+							<Button href={`${routes.rateRestrictions()}?tab=price`} variant="secondary" size="sm">
+								Crear regla
+							</Button>
+						</div>
 					</div>
-					{automationSurface.rules.length ? (
-						<div class="grid gap-3 lg:grid-cols-2">
-							{automationSurface.rules.slice(0, 6).map((rule) => (
-								<div class="rounded-lg border border-slate-200 p-3">
-									<div class="flex flex-wrap items-center gap-2">
-										<Badge variant={rule.status === "active" ? "success" : "neutral"}>
-											{rule.statusLabel}
+					{ruleSetCards.length ? (
+						<div class="grid gap-3 xl:grid-cols-2">
+							{ruleSetCards.map((ruleSet) => (
+								<div class="rounded-lg border border-slate-200 p-4">
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0">
+											<div class="flex items-center gap-2">
+												<span class:list={["h-3 w-3 rounded-full", ruleSet.color]} />
+												<h3 class="truncate text-base font-semibold text-slate-950">
+													{ruleSet.name}
+												</h3>
+											</div>
+											<p class="mt-1 text-sm text-slate-600">{ruleSet.targetLabel}</p>
+										</div>
+										<Badge variant={ruleSet.statusVariant as "success" | "neutral"}>
+											{ruleSet.statusLabel}
 										</Badge>
-										<Badge variant="info">{rule.kindLabel}</Badge>
 									</div>
-									<p class="mt-2 font-semibold text-slate-950">{rule.valueLabel}</p>
-									<p class="mt-1 text-sm text-slate-600">
-										{rule.productName} · {rule.variantName} · {rule.ratePlanName}
+									<div class="mt-4 grid gap-3 sm:grid-cols-2">
+										<div class="rounded-lg bg-slate-50 p-3">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Fechas
+											</p>
+											<p class="mt-1 text-sm font-semibold text-slate-900">{ruleSet.dateLabel}</p>
+										</div>
+										<div class="rounded-lg bg-slate-50 p-3">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Reglas incluidas
+											</p>
+											<p class="mt-1 text-sm font-semibold text-slate-900">
+												{ruleSet.includedRules.join(", ")}
+											</p>
+										</div>
+									</div>
+									<p class="mt-3 text-sm leading-5 text-slate-700">
+										<span class="font-semibold">Impacto:</span> {ruleSet.impactLabel}
 									</p>
-									<p class="mt-1 text-xs text-slate-500">{rule.validityLabel}</p>
+									<p class="mt-1 text-sm text-slate-500">
+										<span class="font-semibold">Conflictos:</span> {ruleSet.conflictLabel}
+									</p>
+									<div class="mt-4 flex flex-wrap gap-2">
+										<Button href={ruleSet.calendarHref} variant="secondary" size="sm">
+											Ver en calendario
+										</Button>
+										<Button
+											href={`${routes.ratesMultiCalendar()}?tab=rules`}
+											variant="secondary"
+											size="sm"
+										>
+											Aplicar
+										</Button>
+									</div>
 								</div>
 							))}
 						</div>
 					) : (
-						<p class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-							No hay reglas automáticas de precio.
-						</p>
+						<div class="rounded-lg border border-dashed border-slate-300 p-4">
+							<p class="text-sm font-semibold text-slate-800">Aún no hay conjuntos creados.</p>
+							<p class="mt-1 text-sm text-slate-600">
+								Crea una regla de precio o una regla de venta, luego aplícala desde Calendario o
+								Multicalendario.
+							</p>
+						</div>
 					)}
+					<div class="grid gap-3 border-t border-slate-200 pt-4 lg:grid-cols-3">
+						{suggestedRuleSets.map((preset) => (
+							<div class="rounded-lg border border-slate-200 p-3">
+								<div class="flex items-center gap-2">
+									<span class:list={["h-3 w-3 rounded-full", preset.color]} />
+									<p class="font-semibold text-slate-950">{preset.name}</p>
+								</div>
+								<p class="mt-2 text-sm leading-5 text-slate-600">{preset.description}</p>
+								<p class="mt-2 text-xs font-semibold text-slate-500">{preset.rules.join(" · ")}</p>
+							</div>
+						))}
+					</div>
 				</Card>
 			)
 		}
@@ -512,6 +673,95 @@ const showSellability = activeTab !== "price"
 		{
 			showSellability && (
 				<Card className="space-y-5 bg-white text-slate-900">
+					{showSellabilityBuilder && activeBuilder && (
+						<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div>
+									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										{activeBuilder.primaryIntent}
+									</p>
+									<h2 class="mt-1 text-lg font-semibold text-slate-950">{activeBuilder.title}</h2>
+									<p class="mt-1 max-w-2xl text-sm leading-5 text-slate-600">
+										{activeBuilder.description}
+									</p>
+								</div>
+								<Button
+									href={`${routes.ratesMultiCalendar()}?tab=rules`}
+									variant="secondary"
+									size="sm"
+								>
+									Aplicar desde multicalendario
+								</Button>
+							</div>
+							<form method="POST" class="mt-4 grid gap-3 lg:grid-cols-6">
+								<input type="hidden" name="action" value="create" />
+								<input type="hidden" name="scope" value="rate_plan" />
+								<label class="space-y-1 text-sm lg:col-span-3">
+									<span class="font-medium text-slate-700">Tarifa de referencia</span>
+									<select
+										name="rate_planScopeId"
+										class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+									>
+										{surface.ratePlans.map((ratePlan) => (
+											<option value={ratePlan.id}>
+												{ratePlan.productName} · {ratePlan.variantName} · {ratePlan.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm lg:col-span-3">
+									<span class="font-medium text-slate-700">Tipo de regla</span>
+									<select
+										name="type"
+										class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+									>
+										{SELLABILITY_RULES.filter((rule) =>
+											activeBuilder.types.includes(rule.type)
+										).map((rule) => (
+											<option value={rule.type} selected={rule.type === activeBuilder.defaultType}>
+												{rule.label}
+											</option>
+										))}
+									</select>
+								</label>
+								<label class="space-y-1 text-sm lg:col-span-2">
+									<span class="font-medium text-slate-700">Desde</span>
+									<input
+										name="startDate"
+										type="date"
+										class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm lg:col-span-2">
+									<span class="font-medium text-slate-700">Hasta</span>
+									<input
+										name="endDate"
+										type="date"
+										class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+									/>
+								</label>
+								<label class="space-y-1 text-sm lg:col-span-2">
+									<span class="font-medium text-slate-700">Valor cuando aplique</span>
+									<input
+										name="value"
+										type="number"
+										min="1"
+										step="1"
+										placeholder="Ej. 2"
+										class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+									/>
+								</label>
+								<div class="flex flex-wrap items-center gap-2 lg:col-span-6">
+									<Button type="submit" variant="primary">
+										Crear regla
+									</Button>
+									<p class="text-xs text-slate-500">
+										Para seleccionar muchas tarifas o fechas, usa Multicalendario.
+									</p>
+								</div>
+							</form>
+						</div>
+					)}
 					<div class="flex flex-wrap items-center justify-between gap-3">
 						<div>
 							<h2 class="text-lg font-semibold">Reglas de venta</h2>

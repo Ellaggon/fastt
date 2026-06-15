@@ -8,10 +8,13 @@ import {
 	Product,
 	Provider,
 	RatePlan,
-	Restriction,
 	Variant,
 } from "astro:db"
 
+import {
+	createCommercialSellabilityRule,
+	setCommercialRuleActive,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import { createRestrictionsSurfaceRule } from "@/lib/rates/restrictionsSurface"
 import {
 	recomputeEffectiveRestrictionsForScope,
@@ -30,20 +33,20 @@ async function seedVariant() {
 
 	await db.insert(Provider).values({
 		id: providerId,
-		displayName: "Restriction Provider",
+		displayName: "Commercial Rules Provider",
 		status: "active",
 		createdAt: new Date(),
 	} as any)
 	await db.insert(Destination).values({
 		id: destinationId,
-		name: "Restriction Destination",
+		name: "Commercial Rules Destination",
 		type: "city",
 		country: "CL",
 		slug: `restriction-${suffix}`,
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
-		name: "Restriction Product",
+		name: "Commercial Rules Product",
 		productType: "Hotel",
 		destinationId,
 		providerId,
@@ -51,7 +54,7 @@ async function seedVariant() {
 	await db.insert(Variant).values({
 		id: variantId,
 		productId,
-		name: "Restriction Room",
+		name: "Commercial Rules Room",
 		kind: "hotel_room",
 		status: "ready",
 		isActive: true,
@@ -77,6 +80,29 @@ async function seedVariant() {
 	return { providerId, productId, variantId, ratePlanId, secondaryRatePlanId }
 }
 
+async function seedCommercialRestriction(params: {
+	providerId: string
+	scope: "product" | "variant" | "rate_plan"
+	scopeId: string
+	type: string
+	value: number | null
+	startDate: string
+	endDate: string
+	priority?: number
+}) {
+	return createCommercialSellabilityRule({
+		providerId: params.providerId,
+		scope: params.scope,
+		scopeId: params.scopeId,
+		type: params.type,
+		value: params.value,
+		startDate: params.startDate,
+		endDate: params.endDate,
+		validDays: [],
+		priority: params.priority,
+	})
+}
+
 async function loadEffectiveRow(variantId: string, ratePlanId: string, date: string) {
 	return db
 		.select()
@@ -87,49 +113,39 @@ async function loadEffectiveRow(variantId: string, ratePlanId: string, date: str
 
 describe("recomputeEffectiveRestrictions", () => {
 	it("materializes product, variant, and rate-plan sellability rules into daily projection", async () => {
-		const { productId, variantId, ratePlanId, secondaryRatePlanId } = await seedVariant()
+		const { providerId, productId, variantId, ratePlanId, secondaryRatePlanId } =
+			await seedVariant()
 
-		await db.insert(Restriction).values([
-			{
-				id: `r_${randomUUID()}`,
-				scope: "product",
-				scopeId: productId,
-				type: "min_los",
-				value: 3,
-				startDate: "2026-05-20",
-				endDate: "2026-05-22",
-				validDays: null,
-				isActive: true,
-				priority: 350,
-				createdAt: new Date(),
-			},
-			{
-				id: `r_${randomUUID()}`,
-				scope: "variant",
-				scopeId: variantId,
-				type: "stop_sell",
-				value: null,
-				startDate: "2026-05-21",
-				endDate: "2026-05-21",
-				validDays: null,
-				isActive: true,
-				priority: 200,
-				createdAt: new Date(),
-			},
-			{
-				id: `r_${randomUUID()}`,
-				scope: "rate_plan",
-				scopeId: ratePlanId,
-				type: "cta",
-				value: null,
-				startDate: "2026-05-22",
-				endDate: "2026-05-22",
-				validDays: null,
-				isActive: true,
-				priority: 140,
-				createdAt: new Date(),
-			},
-		] as any)
+		await seedCommercialRestriction({
+			providerId,
+			scope: "product",
+			scopeId: productId,
+			type: "min_los",
+			value: 3,
+			startDate: "2026-05-20",
+			endDate: "2026-05-22",
+			priority: 350,
+		})
+		await seedCommercialRestriction({
+			providerId,
+			scope: "variant",
+			scopeId: variantId,
+			type: "stop_sell",
+			value: null,
+			startDate: "2026-05-21",
+			endDate: "2026-05-21",
+			priority: 200,
+		})
+		await seedCommercialRestriction({
+			providerId,
+			scope: "rate_plan",
+			scopeId: ratePlanId,
+			type: "cta",
+			value: null,
+			startDate: "2026-05-22",
+			endDate: "2026-05-22",
+			priority: 140,
+		})
 
 		const result = await recomputeEffectiveRestrictionsForVariantRange({
 			variantId,
@@ -163,21 +179,17 @@ describe("recomputeEffectiveRestrictions", () => {
 	})
 
 	it("writes neutral rows when rules are deactivated", async () => {
-		const { variantId, ratePlanId } = await seedVariant()
-		const ruleId = `r_${randomUUID()}`
-		await db.insert(Restriction).values({
-			id: ruleId,
+		const { providerId, variantId, ratePlanId } = await seedVariant()
+		const created = await seedCommercialRestriction({
+			providerId,
 			scope: "variant",
 			scopeId: variantId,
 			type: "stop_sell",
 			value: null,
 			startDate: "2026-06-10",
 			endDate: "2026-06-10",
-			validDays: null,
-			isActive: true,
 			priority: 100,
-			createdAt: new Date(),
-		} as any)
+		})
 
 		await recomputeEffectiveRestrictionsForScope({
 			scope: "variant",
@@ -189,7 +201,7 @@ describe("recomputeEffectiveRestrictions", () => {
 			stopSell: true,
 		})
 
-		await db.update(Restriction).set({ isActive: false }).where(eq(Restriction.id, ruleId))
+		await setCommercialRuleActive(created.ruleId, false)
 		await recomputeEffectiveRestrictionsForScope({
 			scope: "variant",
 			scopeId: variantId,
@@ -225,36 +237,28 @@ describe("recomputeEffectiveRestrictions", () => {
 	})
 
 	it("materializes booking-window lead time groundwork by rate plan", async () => {
-		const { variantId, ratePlanId, secondaryRatePlanId } = await seedVariant()
+		const { providerId, variantId, ratePlanId, secondaryRatePlanId } = await seedVariant()
 
-		await db.insert(Restriction).values([
-			{
-				id: `r_${randomUUID()}`,
-				scope: "rate_plan",
-				scopeId: ratePlanId,
-				type: "min_lead_time",
-				value: 2,
-				startDate: "2026-08-01",
-				endDate: "2026-08-01",
-				validDays: null,
-				isActive: true,
-				priority: 160,
-				createdAt: new Date(),
-			},
-			{
-				id: `r_${randomUUID()}`,
-				scope: "rate_plan",
-				scopeId: secondaryRatePlanId,
-				type: "max_lead_time",
-				value: 30,
-				startDate: "2026-08-01",
-				endDate: "2026-08-01",
-				validDays: null,
-				isActive: true,
-				priority: 165,
-				createdAt: new Date(),
-			},
-		] as any)
+		await seedCommercialRestriction({
+			providerId,
+			scope: "rate_plan",
+			scopeId: ratePlanId,
+			type: "min_lead_time",
+			value: 2,
+			startDate: "2026-08-01",
+			endDate: "2026-08-01",
+			priority: 160,
+		})
+		await seedCommercialRestriction({
+			providerId,
+			scope: "rate_plan",
+			scopeId: secondaryRatePlanId,
+			type: "max_lead_time",
+			value: 30,
+			startDate: "2026-08-01",
+			endDate: "2026-08-01",
+			priority: 165,
+		})
 
 		await recomputeEffectiveRestrictionsForVariantRange({
 			variantId,

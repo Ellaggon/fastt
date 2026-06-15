@@ -1,15 +1,9 @@
+import { and, asc, db, eq, Product, RatePlan, Variant } from "astro:db"
 import {
-	and,
-	asc,
-	db,
-	eq,
-	inArray,
-	Product,
-	RatePlan,
-	Restriction,
-	PriceRule,
-	Variant,
-} from "astro:db"
+	listCommercialPriceRulesByRatePlan,
+	listCommercialPriceRulesByRatePlans,
+	listCommercialSellabilityRulesForScopes,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	resolveRatePlanBaseSelect,
 	resolveRatePlanNameColumn,
@@ -34,10 +28,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 		}
 
 		const ratePlanIds = ratePlans.map((r) => r.id)
-		const restrictions = await db
-			.select()
-			.from(Restriction)
-			.where(inArray(Restriction.scopeId, ratePlanIds))
+		const restrictions = await listCommercialSellabilityRulesForScopes({ scopeIds: ratePlanIds })
 
 		type RestrictionRow = (typeof restrictions)[number]
 		const restrictionMap = restrictions.reduce<Record<string, RestrictionRow[]>>((acc, r) => {
@@ -94,20 +85,10 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 		const variantIds = [...new Set(rows.map((row) => String(row.variantId)))]
 		const productIds = [...new Set(rows.map((row) => String(row.productId)))]
 		const [priceRules, restrictions] = await Promise.all([
-			db
-				.select({ ratePlanId: PriceRule.ratePlanId })
-				.from(PriceRule)
-				.where(inArray(PriceRule.ratePlanId, ratePlanIds))
-				.all(),
-			db
-				.select({
-					scope: Restriction.scope,
-					scopeId: Restriction.scopeId,
-					isActive: Restriction.isActive,
-				})
-				.from(Restriction)
-				.where(inArray(Restriction.scopeId, [...ratePlanIds, ...variantIds, ...productIds]))
-				.all(),
+			listCommercialPriceRulesByRatePlans(ratePlanIds),
+			listCommercialSellabilityRulesForScopes({
+				scopeIds: [...ratePlanIds, ...variantIds, ...productIds],
+			}),
 		])
 
 		const priceRulesCountByRatePlanId = priceRules.reduce<Record<string, number>>((acc, row) => {
@@ -174,11 +155,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			return null
 		}
 
-		const priceRules = await db
-			.select()
-			.from(PriceRule)
-			.where(eq(PriceRule.ratePlanId, ratePlan.id))
-			.all()
+		const priceRules = await listCommercialPriceRulesByRatePlan(String(ratePlan.id))
 
 		const product = await db
 			.select({ productId: Variant.productId })
@@ -190,11 +167,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.map((value) => String(value ?? "").trim())
 			.filter(Boolean)
 		const restrictions = restrictionScopeIds.length
-			? await db
-					.select()
-					.from(Restriction)
-					.where(inArray(Restriction.scopeId, restrictionScopeIds))
-					.all()
+			? await listCommercialSellabilityRulesForScopes({ scopeIds: restrictionScopeIds })
 			: []
 
 		const baseRestriction = restrictions.find((r) => r.isActive) ?? null

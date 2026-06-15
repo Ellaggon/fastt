@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, notInArray, sql, RatePlan, PriceRule, Restriction, Variant } from "astro:db"
+import {
+	and,
+	CommercialRule,
+	CommercialRuleApplication,
+	db,
+	eq,
+	notInArray,
+	sql,
+	RatePlan,
+	Variant,
+} from "astro:db"
 
 function toInt(v: unknown): number {
 	if (typeof v === "number") return v
@@ -9,28 +19,38 @@ function toInt(v: unknown): number {
 }
 
 describe("audit/rateplan data (read-only)", () => {
-	it("prints modern RatePlan/PriceRule/Restriction audit report", async () => {
+	it("prints modern RatePlan/CommercialRule audit report", async () => {
 		const [{ n: ratePlanCount }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
 				.from(RatePlan)
 				.all()) ?? []
-		const [{ n: priceRuleCount }] =
+		const [{ n: commercialRuleCount }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
-				.from(PriceRule)
+				.from(CommercialRule)
 				.all()) ?? []
-		const [{ n: restrictionCount }] =
+		const [{ n: commercialRuleApplicationCount }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
-				.from(Restriction)
+				.from(CommercialRuleApplication)
 				.all()) ?? []
 
 		const invalidRuleTypes = await db
-			.select({ type: PriceRule.type, n: sql<number>`count(*)` })
-			.from(PriceRule)
-			.where(notInArray(PriceRule.type, ["percentage", "fixed"]))
-			.groupBy(PriceRule.type)
+			.select({ type: CommercialRule.type, n: sql<number>`count(*)` })
+			.from(CommercialRule)
+			.where(
+				and(
+					eq(CommercialRule.category, "price"),
+					notInArray(CommercialRule.type, [
+						"fixed_override",
+						"fixed_adjustment",
+						"percentage_discount",
+						"percentage_markup",
+					])
+				)
+			)
+			.groupBy(CommercialRule.type)
 			.all()
 
 		const perVariant = await db
@@ -61,12 +81,12 @@ describe("audit/rateplan data (read-only)", () => {
 			.filter((r) => r.defaultPlans !== 1)
 			.sort((a, b) => b.totalPlans - a.totalPlans)
 
-		const [{ n: orphanPriceRules }] =
+		const [{ n: orphanCommercialRatePlanApplications }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
-				.from(PriceRule)
-				.leftJoin(RatePlan, eq(PriceRule.ratePlanId, RatePlan.id))
-				.where(sql`${RatePlan.id} is null`)
+				.from(CommercialRuleApplication)
+				.leftJoin(RatePlan, eq(CommercialRuleApplication.scopeId, RatePlan.id))
+				.where(and(eq(CommercialRuleApplication.scope, "rate_plan"), sql`${RatePlan.id} is null`))
 				.all()) ?? []
 
 		const [{ n: orphanRatePlansByVariant }] =
@@ -84,19 +104,11 @@ describe("audit/rateplan data (read-only)", () => {
 				.where(sql`"RatePlan"."name" is null or trim("RatePlan"."name") = ''`)
 				.all()) ?? []
 
-		const [{ n: orphanRatePlanRestrictions }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(Restriction)
-				.leftJoin(RatePlan, eq(Restriction.scopeId, RatePlan.id))
-				.where(and(eq(Restriction.scope, "rate_plan"), sql`${RatePlan.id} is null`))
-				.all()) ?? []
-
 		const report = {
 			counts: {
 				ratePlans: toInt(ratePlanCount),
-				priceRules: toInt(priceRuleCount),
-				restrictions: toInt(restrictionCount),
+				commercialRules: toInt(commercialRuleCount),
+				commercialRuleApplications: toInt(commercialRuleApplicationCount),
 			},
 			legacyDetections: {
 				invalidPriceRuleTypes: invalidRuleTypes.map((r: any) => ({
@@ -113,16 +125,15 @@ describe("audit/rateplan data (read-only)", () => {
 				},
 			},
 			orphans: {
-				priceRulesWithoutRatePlan: toInt(orphanPriceRules),
+				commercialRatePlanApplicationsWithoutRatePlan: toInt(orphanCommercialRatePlanApplications),
 				ratePlansWithoutVariant: toInt(orphanRatePlansByVariant),
 				ratePlansWithoutName: toInt(unnamedRatePlans),
-				ratePlanRestrictionsWithoutRatePlan: toInt(orphanRatePlanRestrictions),
 			},
 		}
 
 		expect(report.counts.ratePlans).toBeGreaterThanOrEqual(0)
 		expect(report.orphans.ratePlansWithoutName).toBeGreaterThanOrEqual(0)
-		expect(report.orphans.priceRulesWithoutRatePlan).toBeGreaterThanOrEqual(0)
+		expect(report.orphans.commercialRatePlanApplicationsWithoutRatePlan).toBeGreaterThanOrEqual(0)
 		// eslint-disable-next-line no-console
 		console.log("[rateplan-audit]", JSON.stringify(report, null, 2))
 	})

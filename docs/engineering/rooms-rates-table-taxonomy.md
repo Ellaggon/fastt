@@ -10,21 +10,22 @@ Source-of-truth tables are the editable contractual or operational inputs. Mutat
 should target these tables through their owning domain. Derived tables and snapshots may
 read them, but must not replace them as the place where providers define the business rule.
 
-| Table                 | Owner                      | Role                                                                          |
-| --------------------- | -------------------------- | ----------------------------------------------------------------------------- |
-| `Variant`             | Catalog / Property Content | Sellable room or product variant.                                             |
-| `RatePlan`            | Rooms & Rates              | Commercial rate attached to a variant.                                        |
-| `DailyInventory`      | Inventory                  | Physical daily inventory input.                                               |
-| `PriceRule`           | Pricing                    | Price modifiers, overrides, seasonality and occupancy-specific pricing rules. |
-| `Restriction`         | Rooms & Rates              | Sale rules such as min stay, max stay, CTA/CTD and stop sell.                 |
-| `PolicyGroup`         | Conditions                 | Provider-owned condition group/library item.                                  |
-| `Policy`              | Conditions                 | Versioned condition content and lifecycle.                                    |
-| `PolicyAssignment`    | Conditions                 | Active condition assignment to rate, room, hotel or channel scope.            |
-| `PolicyRule`          | Conditions                 | Structured condition rule content.                                            |
-| `PolicyExceptionRule` | Conditions / Support       | Platform/legal/support exception before final refund or payout calculation.   |
-| `PolicyAuditLog`      | Conditions / Governance    | Audit of condition lifecycle, assignment and override changes.                |
-| `TaxFeeDefinition`    | Payments & Finance         | Canonical tax/fee definition visible to booking, search and finance.          |
-| `TaxFeeAssignment`    | Payments & Finance         | Canonical tax/fee assignment to provider, hotel, room, rate or channel scope. |
+| Table                       | Owner                      | Role                                                                                  |
+| --------------------------- | -------------------------- | ------------------------------------------------------------------------------------- |
+| `Variant`                   | Catalog / Property Content | Sellable room or product variant.                                                     |
+| `RatePlan`                  | Rooms & Rates              | Commercial rate attached to a variant.                                                |
+| `DailyInventory`            | Inventory                  | Physical daily inventory input.                                                       |
+| `CommercialRuleSet`         | Rooms & Rates Pro          | Reusable commercial automation group such as season, event, last-minute or weekend.   |
+| `CommercialRule`            | Rooms & Rates Pro          | Atomic price or sellability rule inside a commercial rule set.                        |
+| `CommercialRuleApplication` | Rooms & Rates Pro          | Scope/date/channel application of commercial rules to hotel, room, rate or selection. |
+| `PolicyGroup`               | Conditions                 | Provider-owned condition group/library item.                                          |
+| `Policy`                    | Conditions                 | Versioned condition content and lifecycle.                                            |
+| `PolicyAssignment`          | Conditions                 | Active condition assignment to rate, room, hotel or channel scope.                    |
+| `PolicyRule`                | Conditions                 | Structured condition rule content.                                                    |
+| `PolicyExceptionRule`       | Conditions / Support       | Platform/legal/support exception before final refund or payout calculation.           |
+| `PolicyAuditLog`            | Conditions / Governance    | Audit of condition lifecycle, assignment and override changes.                        |
+| `TaxFeeDefinition`          | Payments & Finance         | Canonical tax/fee definition visible to booking, search and finance.                  |
+| `TaxFeeAssignment`          | Payments & Finance         | Canonical tax/fee assignment to provider, hotel, room, rate or channel scope.         |
 
 ## Derived / Read Model
 
@@ -32,12 +33,12 @@ Derived/read-model tables are projections built from source-of-truth tables. The
 for fast reads, search, calendar rendering or sellability evaluation. If a derived row is
 wrong, fix the source table or recompute the projection.
 
-| Table                   | Derived From                                        | Role                                                 |
-| ----------------------- | --------------------------------------------------- | ---------------------------------------------------- |
-| `EffectiveAvailability` | `DailyInventory`, locks, bookings                   | Daily sellable unit count projection.                |
-| `EffectivePricingV2`    | `RatePlan`, `RatePlanOccupancyPolicy`, `PriceRule`  | Occupancy-aware daily price projection.              |
-| `EffectiveRestriction`  | `Restriction`                                       | Daily restriction projection for search/sellability. |
-| `SearchUnitView`        | Availability, pricing, restrictions, policy signals | Search-ready sellability read model.                 |
+| Table                   | Derived From                                             | Role                                                 |
+| ----------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
+| `EffectiveAvailability` | `DailyInventory`, locks, bookings                        | Daily sellable unit count projection.                |
+| `EffectivePricingV2`    | `RatePlan`, `RatePlanOccupancyPolicy`, `CommercialRule*` | Occupancy-aware daily price projection.              |
+| `EffectiveRestriction`  | `CommercialRule*`                                        | Daily restriction projection for search/sellability. |
+| `SearchUnitView`        | Availability, pricing, restrictions, policy signals      | Search-ready sellability read model.                 |
 
 ## Snapshot
 

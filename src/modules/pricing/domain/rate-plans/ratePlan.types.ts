@@ -12,7 +12,7 @@ export interface SelectedRatePlan {
 	priority: number
 }
 
-export interface PriceRule {
+export interface CommercialPriceRule {
 	id: string
 	ratePlanId: string
 	occupancyKey?: string | null

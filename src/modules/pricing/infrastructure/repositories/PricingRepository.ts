@@ -1,11 +1,11 @@
-import { asc, db, eq, PriceRule } from "astro:db"
+import { listCommercialPriceRulesByRatePlan } from "@/lib/commercial-rules/commercialRulesRepository"
 import { adaptPriceRule } from "../../domain/adapters/adapter.priceRule"
 import type { AppliedPriceRule } from "../../domain/pricing.types"
 import type { PricingRepositoryPort } from "../../application/ports/PricingRepositoryPort"
 
 export class PricingRepository implements PricingRepositoryPort {
 	async getRules(ratePlanId: string): Promise<AppliedPriceRule[]> {
-		const rows = await db.select().from(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId))
+		const rows = await listCommercialPriceRulesByRatePlan(ratePlanId)
 
 		return rows.map(adaptPriceRule).filter((r): r is AppliedPriceRule => r !== null)
 	}
@@ -13,21 +13,11 @@ export class PricingRepository implements PricingRepositoryPort {
 	async getPreviewRules(ratePlanId: string) {
 		// Deterministic ordering for preview computations: createdAt ASC.
 		// (id ASC tie-breaker is implicit in SQLite row ordering only sometimes; we do it explicitly.)
-		const rows = await db
-			.select({
-				id: PriceRule.id,
-				type: PriceRule.type,
-				value: PriceRule.value,
-				priority: PriceRule.priority,
-				dateRangeJson: (PriceRule as any).dateRangeJson,
-				dayOfWeekJson: (PriceRule as any).dayOfWeekJson,
-				createdAt: PriceRule.createdAt,
-				isActive: PriceRule.isActive,
-			})
-			.from(PriceRule)
-			.where(eq(PriceRule.ratePlanId, ratePlanId))
-			.orderBy(asc(PriceRule.createdAt), asc(PriceRule.id))
-			.all()
+		const rows = (await listCommercialPriceRulesByRatePlan(ratePlanId)).sort((a, b) => {
+			const byCreatedAt = a.createdAt.getTime() - b.createdAt.getTime()
+			if (byCreatedAt !== 0) return byCreatedAt
+			return a.id.localeCompare(b.id)
+		})
 
 		// Only active rules should affect preview computations.
 		const active = rows.filter((r) => r.isActive)

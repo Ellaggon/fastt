@@ -69,11 +69,12 @@ export let EffectiveAvailability: any
 export let SearchUnitView: any
 export let RatePlan: any
 export let RatePlanOccupancyPolicy: any
-export let PriceRule: any
+export let CommercialRuleSet: any
+export let CommercialRule: any
+export let CommercialRuleApplication: any
 export let EffectivePricingV2: any
 export let TaxFeeDefinition: any
 export let TaxFeeAssignment: any
-export let Restriction: any
 export let EffectiveRestriction: any
 export let InventoryLock: any
 export let Hold: any
@@ -206,11 +207,12 @@ async function init() {
 	SearchUnitView = drizzleTables.SearchUnitView
 	RatePlan = drizzleTables.RatePlan
 	RatePlanOccupancyPolicy = drizzleTables.RatePlanOccupancyPolicy
-	PriceRule = drizzleTables.PriceRule
+	CommercialRuleSet = drizzleTables.CommercialRuleSet
+	CommercialRule = drizzleTables.CommercialRule
+	CommercialRuleApplication = drizzleTables.CommercialRuleApplication
 	EffectivePricingV2 = drizzleTables.EffectivePricingV2
 	TaxFeeDefinition = drizzleTables.TaxFeeDefinition
 	TaxFeeAssignment = drizzleTables.TaxFeeAssignment
-	Restriction = drizzleTables.Restriction
 	EffectiveRestriction = drizzleTables.EffectiveRestriction
 	InventoryLock = drizzleTables.InventoryLock
 	Hold = drizzleTables.Hold

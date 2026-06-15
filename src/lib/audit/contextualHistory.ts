@@ -6,12 +6,14 @@ import {
 	inArray,
 	PolicyAuditLog,
 	PolicyGroup,
-	PriceRule,
 	Product,
 	RatePlan,
-	Restriction,
 	Variant,
 } from "astro:db"
+import {
+	listCommercialPriceRulesByRatePlans,
+	listCommercialSellabilityRulesForScopes,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 export type ContextualHistoryItem = {
@@ -223,55 +225,16 @@ export async function loadRatesContextualHistory(params: {
 		.limit(limit)
 		.all()
 
-	const priceRules = await db
-		.select({
-			id: PriceRule.id,
-			ratePlanId: PriceRule.ratePlanId,
-			name: PriceRule.name,
-			type: PriceRule.type,
-			value: PriceRule.value,
-			isActive: PriceRule.isActive,
-			dateRangeJson: PriceRule.dateRangeJson,
-			createdAt: PriceRule.createdAt,
+	const priceRules = (await listCommercialPriceRulesByRatePlans(ratePlanIds))
+		.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+		.slice(0, limit)
+	const restrictions = (
+		await listCommercialSellabilityRulesForScopes({
+			scopeIds: [...ratePlanIds, ...variantIds, ...productIds],
 		})
-		.from(PriceRule)
-		.where(inArray(PriceRule.ratePlanId, ratePlanIds))
-		.orderBy(desc(PriceRule.createdAt))
-		.limit(limit)
-		.all()
-
-	const restrictionQueries: Promise<any[]>[] = [
-		db
-			.select()
-			.from(Restriction)
-			.where(and(eq(Restriction.scope, "rate_plan"), inArray(Restriction.scopeId, ratePlanIds)))
-			.orderBy(desc(Restriction.createdAt))
-			.limit(limit)
-			.all(),
-	]
-	if (variantIds.length) {
-		restrictionQueries.push(
-			db
-				.select()
-				.from(Restriction)
-				.where(and(eq(Restriction.scope, "variant"), inArray(Restriction.scopeId, variantIds)))
-				.orderBy(desc(Restriction.createdAt))
-				.limit(limit)
-				.all()
-		)
-	}
-	if (productIds.length) {
-		restrictionQueries.push(
-			db
-				.select()
-				.from(Restriction)
-				.where(and(eq(Restriction.scope, "product"), inArray(Restriction.scopeId, productIds)))
-				.orderBy(desc(Restriction.createdAt))
-				.limit(limit)
-				.all()
-		)
-	}
-	const restrictions = (await Promise.all(restrictionQueries)).flat()
+	)
+		.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+		.slice(0, limit)
 
 	return sortHistory(
 		[

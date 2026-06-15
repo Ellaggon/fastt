@@ -1,16 +1,5 @@
-import {
-	and,
-	db,
-	EffectiveRestriction,
-	eq,
-	gte,
-	inArray,
-	lte,
-	RatePlan,
-	Restriction,
-	sql,
-	Variant,
-} from "astro:db"
+import { and, db, EffectiveRestriction, eq, RatePlan, sql, Variant } from "astro:db"
+import { ensureCommercialRuleTables } from "@/lib/commercial-rules/commercialRulesRepository"
 
 import type { RestrictionScope } from "../../domain/restrictions/restrictions.types"
 import type {
@@ -114,6 +103,19 @@ function normalizeRule(row: any): RestrictionRuleRow | null {
 	}
 }
 
+function placeholders(values: readonly unknown[]) {
+	return sql.join(
+		values.map((value) => sql`${value}`),
+		sql`, `
+	)
+}
+
+async function all<T>(query: unknown): Promise<T[]> {
+	await ensureCommercialRuleTables()
+	const result = await (db as any).run(query)
+	return ((result as any)?.rows ?? []) as T[]
+}
+
 async function resolveVariantContext(variantId: string): Promise<{
 	productId: string
 	ratePlans: RatePlanContext[]
@@ -170,18 +172,26 @@ async function loadApplicableRules(params: {
 	const toInclusive = addDays(params.to, -1)
 	const scopeIds = [context.productId, params.variantId, params.ratePlanId].filter(Boolean)
 	if (!scopeIds.length) return []
-	const rows = await db
-		.select()
-		.from(Restriction)
-		.where(
-			and(
-				eq(Restriction.isActive, true),
-				inArray(Restriction.scopeId, scopeIds),
-				lte(Restriction.startDate, toInclusive),
-				gte(Restriction.endDate, params.from)
-			)
-		)
-		.all()
+	const rows = await all(sql`
+		SELECT
+			r.id AS id,
+			a.scope AS scope,
+			a.scopeId AS scopeId,
+			r.type AS type,
+			r.value AS value,
+			a.startDate AS startDate,
+			a.endDate AS endDate,
+			a.validDays AS validDays,
+			r.priority AS priority
+		FROM CommercialRule r
+		INNER JOIN CommercialRuleApplication a ON a.ruleId = r.id
+		WHERE r.isActive = 1
+			AND a.isActive = 1
+			AND a.scopeId IN (${placeholders(scopeIds)})
+			AND a.startDate <= ${toInclusive}
+			AND a.endDate >= ${params.from}
+			AND r.category <> 'price'
+	`)
 	return rows.map(normalizeRule).filter((rule): rule is RestrictionRuleRow => rule != null)
 }
 

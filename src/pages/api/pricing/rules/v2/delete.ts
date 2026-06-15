@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, PriceRule } from "astro:db"
 
+import {
+	deleteCommercialRule,
+	getCommercialPriceRule,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	listRulesByRatePlan,
 	toDateOnly,
@@ -46,11 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 	const context = await resolveOwnedRatePlanContext(request, ratePlanId)
 	if (!context.ok) return context.response
-	const rule = await db
-		.select()
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
+	const rule = await getCommercialPriceRule({ ruleId, ratePlanId })
 	if (!rule) {
 		return new Response(JSON.stringify({ error: "rule_not_found_for_ratePlan" }), {
 			status: 404,
@@ -58,20 +57,9 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 
-	const deleteStatement = db
-		.delete(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-	if (typeof (deleteStatement as any).run === "function") {
-		await (deleteStatement as any).run()
-	} else {
-		await deleteStatement
-	}
+	await deleteCommercialRule(ruleId)
 
-	const stillThere = await db
-		.select({ id: PriceRule.id })
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
+	const stillThere = await getCommercialPriceRule({ ruleId, ratePlanId })
 	if (stillThere?.id) {
 		return new Response(JSON.stringify({ error: "rule_delete_not_confirmed" }), {
 			status: 409,

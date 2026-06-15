@@ -3,16 +3,17 @@ import {
 	db,
 	eq,
 	inArray,
-	PriceRule,
 	Product,
 	ProviderUser,
 	RatePlan,
 	RatePlanOccupancyPolicy,
-	Restriction,
-	sql,
 	Variant,
 } from "astro:db"
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
+import {
+	listCommercialPriceRulesByRatePlans,
+	listCommercialSellabilityRulesForScopes,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
 import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
@@ -98,15 +99,9 @@ async function getRatesSummary(ratePlanIds: string[]) {
 		return `${plural(missingBasePrice, "tarifa")} sin precio base.`
 	}
 
-	const activeRules = Number(
-		(
-			await db
-				.select({ value: sql<number>`count(*)` })
-				.from(PriceRule)
-				.where(inArray(PriceRule.ratePlanId, ratePlanIds))
-				.get()
-		)?.value ?? 0
-	)
+	const activeRules = (await listCommercialPriceRulesByRatePlans(ratePlanIds)).filter(
+		(rule) => rule.isActive
+	).length
 	return `${plural(ratePlanIds.length, "tarifa")} con precio base · ${plural(activeRules, "regla")} de precio.`
 }
 
@@ -147,15 +142,9 @@ async function getRestrictionsSummary(
 	].filter(Boolean)
 	if (!scopeIds.length) return "Sin alcances activos para reglas de venta."
 
-	const activeRestrictions = Number(
-		(
-			await db
-				.select({ value: sql<number>`count(*)` })
-				.from(Restriction)
-				.where(and(inArray(Restriction.scopeId, scopeIds), eq(Restriction.isActive, true)))
-				.get()
-		)?.value ?? 0
-	)
+	const activeRestrictions = (await listCommercialSellabilityRulesForScopes({ scopeIds })).filter(
+		(rule) => rule.isActive
+	).length
 	if (activeRestrictions === 0) return "Sin reglas de venta activas: venta abierta por defecto."
 	return `${plural(activeRestrictions, "regla de venta", "reglas de venta")} activas en tarifas, habitaciones u hotel.`
 }
@@ -203,28 +192,15 @@ async function getProviderUserRole(
 
 async function countActivePriceRules(ratePlanIds: string[]): Promise<number> {
 	if (!ratePlanIds.length) return 0
-	return Number(
-		(
-			await db
-				.select({ value: sql<number>`count(*)` })
-				.from(PriceRule)
-				.where(inArray(PriceRule.ratePlanId, ratePlanIds))
-				.get()
-		)?.value ?? 0
-	)
+	return (await listCommercialPriceRulesByRatePlans(ratePlanIds)).filter((rule) => rule.isActive)
+		.length
 }
 
 async function countActiveRestrictions(scopeIds: string[]): Promise<number> {
 	if (!scopeIds.length) return 0
-	return Number(
-		(
-			await db
-				.select({ value: sql<number>`count(*)` })
-				.from(Restriction)
-				.where(and(inArray(Restriction.scopeId, scopeIds), eq(Restriction.isActive, true)))
-				.get()
-		)?.value ?? 0
-	)
+	return (await listCommercialSellabilityRulesForScopes({ scopeIds })).filter(
+		(rule) => rule.isActive
+	).length
 }
 
 export async function getProviderSidebarData(

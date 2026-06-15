@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 
+import { createCommercialSellabilityRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import { searchOffers, dailyInventoryRepository, baseRateRepository } from "@/container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
@@ -22,7 +23,6 @@ import {
 	EffectiveAvailability,
 	EffectivePricingV2,
 	EffectiveRestriction,
-	Restriction,
 	SearchUnitView,
 	Variant,
 	and,
@@ -709,21 +709,19 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			totalInventory: 2,
 		})
 
-		await db.insert(Restriction).values({
-			id: `r_${crypto.randomUUID()}`,
+		await createCommercialSellabilityRule({
+			providerId,
 			scope: "variant",
 			scopeId: variantId,
 			type: "stop_sell",
 			value: null,
 			startDate: "2026-03-01",
 			endDate: "2026-03-31",
-			validDays: null,
-			isActive: true,
+			validDays: [],
 			priority: 1,
-			createdAt: new Date(),
-		} as any)
+		})
 
-		// SearchUnitView materialization reads from EffectiveRestriction (not raw Restriction).
+		// SearchUnitView materialization reads from EffectiveRestriction, not raw commercial rules.
 		for (const date of ["2026-03-10", "2026-03-11"]) {
 			await db
 				.insert(EffectiveRestriction)

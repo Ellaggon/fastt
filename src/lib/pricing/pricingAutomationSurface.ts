@@ -1,4 +1,5 @@
-import { and, db, eq, inArray, PriceRule, Product, RatePlan, Variant } from "astro:db"
+import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { listCommercialPriceRulesByRatePlans } from "@/lib/commercial-rules/commercialRulesRepository"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 import {
@@ -320,9 +321,7 @@ export async function loadPricingAutomationSurface(
 	const byRatePlan = new Map(ratePlans.map((row) => [String(row.ratePlanId), row]))
 	const ratePlanIds = ratePlans.map((row) => String(row.ratePlanId)).filter(Boolean)
 
-	const ruleRows = ratePlanIds.length
-		? await db.select().from(PriceRule).where(inArray(PriceRule.ratePlanId, ratePlanIds)).all()
-		: []
+	const ruleRows = await listCommercialPriceRulesByRatePlans(ratePlanIds)
 
 	const rules = ruleRows
 		.map((row) => {

@@ -552,47 +552,60 @@ const RatePlanOccupancyPolicy = defineTable({
 	},
 	indexes: [{ on: ["ratePlanId", "effectiveFrom", "effectiveTo"] }],
 })
-const PriceRule = defineTable({
+const CommercialRuleSet = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
-		name: column.text({ optional: true }), // Ej: "Recargo Fin de Semana" o "Temporada Alta"
-		// Optional occupancy scope for V2 occupancy-aware pricing.
-		// Null means global rule (applies to all occupancies).
-		occupancyKey: column.text({ optional: true }),
-		type: column.text({ default: "modifier" }), // 'modifier', 'absolute', 'override'
-		value: column.number(), // El monto o porcentaje
-
-		// Campos de estacionalidad (antes estaban en PriceSeason)
-		// startDate: column.text({ optional: true }),
-		// endDate: column.text({ optional: true }),
-		// validDays: column.json({ optional: true }), // [1,2,3,4,5]
-
-		priority: column.number({ default: 10 }), // Para saber qué regla se aplica primero
-		// CAPA 4: optional schedule metadata for deterministic OTA-style evaluation.
-		// Backward compatible with existing rules that do not define schedule.
-		dateRangeJson: column.json({ optional: true }), // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
-		dayOfWeekJson: column.json({ optional: true }), // number[] 0..6
-		isActive: column.boolean({ default: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["ratePlanId", "occupancyKey", "createdAt"] }],
-})
-const Restriction = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		// A qué se aplica: 'product', 'variant' o 'rate_plan'
-		scope: column.text(),
-		scopeId: column.text(),
-		type: column.text(), // 'min_stay', 'max_stay', 'cta' (closed to arrival), 'stop_sell'
-		value: column.number({ optional: true }),
-		startDate: column.text(),
-		endDate: column.text(),
-		validDays: column.json({ optional: true }), // [1,2,3,4,5,6,0]
-		isActive: column.boolean({ default: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		name: column.text(),
+		description: column.text({ optional: true }),
+		color: column.text({ optional: true }),
+		status: column.text({ default: "active" }), // draft | active | paused | archived
 		priority: column.number({ default: 100 }),
+		dateFrom: column.text({ optional: true }),
+		dateTo: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+		archivedAt: column.date({ optional: true }),
+	},
+	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "dateFrom", "dateTo"] }],
+})
+const CommercialRule = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		ruleSetId: column.text({ references: () => CommercialRuleSet.columns.id }),
+		category: column.text(), // price | sellability | stay | arrival_departure | booking_window
+		type: column.text(),
+		name: column.text({ optional: true }),
+		value: column.number({ optional: true }),
+		configJson: column.json({ optional: true }),
+		priority: column.number({ default: 100 }),
+		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "category", "type"] }, { on: ["ruleSetId", "isActive"] }],
+})
+const CommercialRuleApplication = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		ruleSetId: column.text({ references: () => CommercialRuleSet.columns.id }),
+		ruleId: column.text({ references: () => CommercialRule.columns.id }),
+		scope: column.text(), // product | variant | rate_plan
+		scopeId: column.text(),
+		startDate: column.text({ optional: true }),
+		endDate: column.text({ optional: true }),
+		validDays: column.json({ optional: true }),
+		channel: column.text({ optional: true }),
+		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [
+		{ on: ["providerId", "scope", "scopeId", "isActive"] },
+		{ on: ["ruleId", "scope", "scopeId"] },
+		{ on: ["ruleSetId", "isActive"] },
+	],
 })
 const EffectiveRestriction = defineTable({
 	columns: {
@@ -1157,8 +1170,9 @@ export default defineDb({
 		// 6 pricing
 		RatePlan,
 		RatePlanOccupancyPolicy,
-		PriceRule,
-		Restriction,
+		CommercialRuleSet,
+		CommercialRule,
+		CommercialRuleApplication,
 		EffectiveRestriction,
 		EffectivePricingV2,
 		TaxFeeDefinition,

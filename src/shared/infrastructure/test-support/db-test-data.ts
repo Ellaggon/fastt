@@ -6,10 +6,10 @@ import {
 	VariantCapacity,
 	RatePlan,
 	RatePlanOccupancyPolicy,
-	PriceRule,
 	eq,
 	and,
 } from "astro:db"
+import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 
 const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
 
@@ -301,30 +301,23 @@ export async function upsertPriceRule(row: {
 	name?: string | null
 	createdAt?: Date
 }) {
-	await db
-		.insert(PriceRule)
-		.values({
-			id: row.id,
-			ratePlanId: row.ratePlanId,
-			name: row.name ?? null,
-			type: row.type,
-			value: row.value,
-			priority: row.priority ?? 10,
-			isActive: row.isActive ?? true,
-			createdAt: row.createdAt ?? new Date(),
-		})
-		.onConflictDoUpdate({
-			target: [PriceRule.id],
-			set: {
-				ratePlanId: row.ratePlanId,
-				name: row.name ?? null,
-				type: row.type,
-				value: row.value,
-				priority: row.priority ?? 10,
-				isActive: row.isActive ?? true,
-				createdAt: row.createdAt ?? new Date(),
-			},
-		})
+	const owner = await db
+		.select({ providerId: Product.providerId })
+		.from(RatePlan)
+		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+		.innerJoin(Product, eq(Product.id, Variant.productId))
+		.where(eq(RatePlan.id, row.ratePlanId))
+		.get()
+	if (!owner?.providerId) throw new Error("test_rate_plan_provider_not_found")
+	await createCommercialPriceRule({
+		providerId: String(owner.providerId),
+		ratePlanId: row.ratePlanId,
+		ruleId: row.id,
+		name: row.name ?? null,
+		type: row.type,
+		value: row.value,
+		priority: row.priority ?? 10,
+	})
 }
 
 export async function seedTestRatePlan(params: {

@@ -1,12 +1,17 @@
-import { db, RatePlan, PriceRule, Restriction, eq } from "astro:db"
+import { db, Product, RatePlan, Variant, eq } from "astro:db"
+import {
+	createCommercialPriceRule,
+	createCommercialSellabilityRule,
+	deleteCommercialRulesForScope,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import type {
 	CreateRatePlanCommand,
 	RatePlanCommandRepositoryPort,
 } from "../../application/ports/RatePlanCommandRepositoryPort"
-import { randomUUID } from "node:crypto"
 
 export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort {
 	async createRatePlan(cmd: CreateRatePlanCommand): Promise<void> {
+		let providerId: string | null = null
 		await db.transaction(async (tx) => {
 			// INVARIANT:
 			// A variant can have only one default rate plan.
@@ -28,36 +33,38 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				isActive: cmd.ratePlan.isActive,
 				createdAt: cmd.ratePlan.createdAt,
 			})
-
-			/* ---------------- PRICE RULE ---------------- */
-			if (cmd.priceRule) {
-				await tx.insert(PriceRule).values({
-					id: cmd.priceRule.id,
-					ratePlanId: cmd.priceRule.ratePlanId,
-					name: cmd.priceRule.name,
-					type: cmd.priceRule.type,
-					value: cmd.priceRule.value,
-					priority: cmd.priceRule.priority,
-					isActive: cmd.priceRule.isActive,
-					createdAt: cmd.priceRule.createdAt,
-				})
-			}
-
-			/* ---------------- RESTRICTIONS ---------------- */
-			for (const r of cmd.restrictions) {
-				await tx.insert(Restriction).values({
-					id: r.id,
-					scope: r.scope,
-					scopeId: r.scopeId,
-					type: r.type,
-					value: r.value,
-					startDate: r.startDate,
-					endDate: r.endDate,
-					validDays: r.validDays,
-					isActive: r.isActive,
-				})
-			}
 		})
+		const owner = await db
+			.select({ providerId: Product.providerId })
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.where(eq(RatePlan.id, cmd.ratePlan.id))
+			.get()
+		providerId = owner?.providerId ? String(owner.providerId) : null
+		if (!providerId) return
+		if (cmd.priceRule) {
+			await createCommercialPriceRule({
+				providerId,
+				ratePlanId: cmd.priceRule.ratePlanId,
+				name: cmd.priceRule.name,
+				type: cmd.priceRule.type,
+				value: cmd.priceRule.value,
+				priority: cmd.priceRule.priority,
+			})
+		}
+		for (const r of cmd.restrictions) {
+			await createCommercialSellabilityRule({
+				providerId,
+				scope: r.scope,
+				scopeId: r.scopeId,
+				type: r.type,
+				value: r.value,
+				startDate: r.startDate,
+				endDate: r.endDate,
+				validDays: Array.isArray(r.validDays) ? r.validDays : [],
+			})
+		}
 	}
 
 	async updateRatePlan(params: {
@@ -79,6 +86,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	}): Promise<"not_found" | "ok"> {
 		let notFound = false
 
+		let providerId: string | null = null
 		await db.transaction(async (tx) => {
 			const ratePlan = await tx
 				.select()
@@ -99,42 +107,40 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 					description: params.description ?? null,
 				})
 				.where(eq(RatePlan.id, params.ratePlanId))
-
-			await tx.delete(PriceRule).where(eq(PriceRule.ratePlanId, params.ratePlanId))
-
+		})
+		const owner = await db
+			.select({ providerId: Product.providerId })
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.where(eq(RatePlan.id, params.ratePlanId))
+			.get()
+		providerId = owner?.providerId ? String(owner.providerId) : null
+		if (!notFound && providerId) {
+			await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: params.ratePlanId })
 			if (params.priceRule) {
-				await tx.insert(PriceRule).values({
-					id: params.priceRule.id || randomUUID(),
+				await createCommercialPriceRule({
+					providerId,
 					ratePlanId: params.ratePlanId,
 					name: params.priceRule.name ?? null,
 					type: params.priceRule.type,
 					value: Number(params.priceRule.value),
 					priority: params.priceRule.priority ?? 10,
-					isActive: true,
-					createdAt: params.priceRule.createdAt ?? new Date(),
 				})
 			}
-
-			await tx.delete(Restriction).where(eq(Restriction.scopeId, params.ratePlanId))
-
-			const baseRestriction = {
-				scope: "rate_plan" as const,
-				scopeId: params.ratePlanId,
-				startDate: new Date().toISOString(),
-				endDate: new Date("2099-12-31").toISOString(),
-				validDays: null,
-				isActive: true,
-			}
-
 			for (const r of params.restrictions) {
-				await tx.insert(Restriction).values({
-					id: randomUUID(),
-					...baseRestriction,
+				await createCommercialSellabilityRule({
+					providerId,
+					scope: "rate_plan",
+					scopeId: params.ratePlanId,
 					type: r.type,
 					value: Number(r.value),
+					startDate: new Date().toISOString().slice(0, 10),
+					endDate: "2099-12-31",
+					validDays: [],
 				})
 			}
-		})
+		}
 
 		return notFound ? "not_found" : "ok"
 	}
@@ -150,8 +156,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				return
 			}
 
-			await tx.delete(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId))
-			await tx.delete(Restriction).where(eq(Restriction.scopeId, ratePlanId))
+			await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: ratePlanId })
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
 		})
 

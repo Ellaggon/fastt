@@ -1,4 +1,10 @@
-import { db, PriceRule, eq } from "astro:db"
+import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import {
+	createCommercialPriceRule,
+	deleteCommercialRule,
+	getCommercialPriceRule,
+	updateCommercialPriceRule,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import type {
 	CreatePriceRuleCommand,
 	PriceRuleCommandRepositoryPort,
@@ -6,8 +12,16 @@ import type {
 
 export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPort {
 	async create(cmd: CreatePriceRuleCommand): Promise<void> {
-		await db.insert(PriceRule).values({
-			id: cmd.id,
+		const owner = await db
+			.select({ providerId: Product.providerId })
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.where(and(eq(RatePlan.id, cmd.ratePlanId), eq(RatePlan.isActive, true)))
+			.get()
+		if (!owner?.providerId) throw new Error("rate_plan_provider_not_found")
+		await createCommercialPriceRule({
+			providerId: String(owner.providerId),
 			ratePlanId: cmd.ratePlanId,
 			name: cmd.name ?? null,
 			type: cmd.type,
@@ -15,10 +29,8 @@ export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPor
 			priority: cmd.priority ?? 10,
 			dateRangeJson: cmd.dateRangeJson ?? null,
 			dayOfWeekJson: cmd.dayOfWeekJson ?? null,
-			isActive: Boolean(cmd.isActive),
-			createdAt: cmd.createdAt ?? new Date(),
-			...(cmd.occupancyKey ? ({ occupancyKey: cmd.occupancyKey } as any) : {}),
-		} as any)
+			occupancyKey: cmd.occupancyKey ?? null,
+		})
 	}
 
 	async updateById(
@@ -33,27 +45,25 @@ export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPor
 			dayOfWeekJson?: number[] | null
 		}
 	): Promise<"ok" | "not_found"> {
-		const existing = await db.select().from(PriceRule).where(eq(PriceRule.id, ruleId)).get()
+		const existing = await getCommercialPriceRule({ ruleId })
 		if (!existing) return "not_found"
-		await db
-			.update(PriceRule)
-			.set({
-				name: patch.name ?? null,
-				type: patch.type,
-				value: patch.value,
-				priority: patch.priority,
-				dateRangeJson: patch.dateRangeJson ?? null,
-				dayOfWeekJson: patch.dayOfWeekJson ?? null,
-				...(patch.occupancyKey ? ({ occupancyKey: patch.occupancyKey } as any) : {}),
-			} as any)
-			.where(eq(PriceRule.id, ruleId))
+		await updateCommercialPriceRule({
+			ruleId,
+			name: patch.name ?? null,
+			type: patch.type,
+			value: patch.value,
+			priority: patch.priority,
+			dateRangeJson: patch.dateRangeJson ?? null,
+			dayOfWeekJson: patch.dayOfWeekJson ?? null,
+			occupancyKey: patch.occupancyKey ?? null,
+		})
 		return "ok"
 	}
 
 	async deleteById(ruleId: string): Promise<"ok" | "not_found"> {
-		const existing = await db.select().from(PriceRule).where(eq(PriceRule.id, ruleId)).get()
+		const existing = await getCommercialPriceRule({ ruleId })
 		if (!existing) return "not_found"
-		await db.delete(PriceRule).where(eq(PriceRule.id, ruleId))
+		await deleteCommercialRule(ruleId)
 		return "ok"
 	}
 }

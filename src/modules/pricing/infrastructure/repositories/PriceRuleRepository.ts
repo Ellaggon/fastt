@@ -1,16 +1,16 @@
-import { db, PriceRule, eq } from "astro:db"
+import { listCommercialPriceRulesByRatePlan } from "@/lib/commercial-rules/commercialRulesRepository"
 import type { PriceRuleRepositoryPort } from "../../application/ports/PriceRuleRepositoryPort"
-import type { PriceRule as DomainPriceRule } from "../../domain/rate-plans/ratePlan.types"
+import type { CommercialPriceRule as DomainCommercialPriceRule } from "../../domain/rate-plans/ratePlan.types"
 
 export class PriceRuleRepository implements PriceRuleRepositoryPort {
-	async getActive(ratePlanId: string): Promise<DomainPriceRule[]> {
-		const rows = await db.select().from(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId))
+	async getActive(ratePlanId: string): Promise<DomainCommercialPriceRule[]> {
+		const rows = await listCommercialPriceRulesByRatePlan(ratePlanId)
 
 		return rows.map((r) => ({
 			id: r.id,
 			ratePlanId: r.ratePlanId,
-			occupancyKey: String((r as any).occupancyKey ?? "").trim() || null,
-			type: r.type as DomainPriceRule["type"],
+			occupancyKey: String(r.occupancyKey ?? "").trim() || null,
+			type: r.type as DomainCommercialPriceRule["type"],
 			value: r.value,
 			isActive: r.isActive,
 		}))

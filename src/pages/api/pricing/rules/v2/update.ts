@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
-import { db, eq, PriceRule } from "astro:db"
 
+import { updateCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	ensureRuleBelongsToRatePlan,
 	buildDateRangeJson,
@@ -82,18 +82,16 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	}
 
-	await db
-		.update(PriceRule)
-		.set({
-			name: contextKey ? `ctx:${contextKey}` : null,
-			type,
-			value,
-			priority,
-			dateRangeJson: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
-			dayOfWeekJson: dayOfWeek ?? null,
-			...(occupancyKey ? ({ occupancyKey } as any) : {}),
-		} as any)
-		.where(eq(PriceRule.id, ruleId))
+	await updateCommercialPriceRule({
+		ruleId,
+		name: contextKey ? `ctx:${contextKey}` : null,
+		type,
+		value,
+		priority,
+		dateRangeJson: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
+		dayOfWeekJson: dayOfWeek ?? null,
+		occupancyKey: occupancyKey ?? null,
+	})
 
 	const rematerializationFrom = dateFrom ?? new Date().toISOString().slice(0, 10)
 	const rematerializationTo = dateTo

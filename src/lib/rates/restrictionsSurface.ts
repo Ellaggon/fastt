@@ -1,18 +1,10 @@
-import {
-	and,
-	db,
-	eq,
-	gte,
-	inArray,
-	lte,
-	or,
-	Product,
-	RatePlan,
-	Restriction,
-	Variant,
-} from "astro:db"
-import { randomUUID } from "node:crypto"
+import { db, eq, inArray, Product, RatePlan, Variant } from "astro:db"
 
+import {
+	createCommercialSellabilityRule,
+	listCommercialSellabilityRulesForScopes,
+	setCommercialRuleActive,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import {
@@ -437,20 +429,15 @@ async function ensureNoOverlap(params: {
 	endDate: string
 	excludeId?: string
 }) {
-	const rows = await db
-		.select({ id: Restriction.id })
-		.from(Restriction)
-		.where(
-			and(
-				eq(Restriction.scope, params.scope),
-				eq(Restriction.scopeId, params.scopeId),
-				eq(Restriction.type, params.type),
-				lte(Restriction.startDate, params.endDate),
-				gte(Restriction.endDate, params.startDate)
-			)
-		)
-		.all()
-	const overlapping = rows.some((row) => String(row.id) !== String(params.excludeId ?? ""))
+	const rows = await listCommercialSellabilityRulesForScopes({ scopeIds: [params.scopeId] })
+	const overlapping = rows.some(
+		(row) =>
+			String(row.id) !== String(params.excludeId ?? "") &&
+			row.scope === params.scope &&
+			row.type === params.type &&
+			row.startDate <= params.endDate &&
+			row.endDate >= params.startDate
+	)
 	if (overlapping) {
 		throw new Error("Another rule of this type already overlaps this target and date range")
 	}
@@ -519,34 +506,10 @@ export async function loadRestrictionsSurface(
 		...targets.variants.map((entry) => entry.id),
 		...targets.ratePlans.map((entry) => entry.id),
 	]
-	const scopeConditions = [
-		targets.products.length
-			? inArray(
-					Restriction.scopeId,
-					targets.products.map((entry) => entry.id)
-				)
-			: null,
-		targets.variants.length
-			? inArray(
-					Restriction.scopeId,
-					targets.variants.map((entry) => entry.id)
-				)
-			: null,
-		targets.ratePlans.length
-			? inArray(
-					Restriction.scopeId,
-					targets.ratePlans.map((entry) => entry.id)
-				)
-			: null,
-	].filter((condition): condition is NonNullable<typeof condition> => condition != null)
-
-	const rawRules = targetIds.length
-		? await db
-				.select()
-				.from(Restriction)
-				.where(or(...scopeConditions))
-				.all()
-		: []
+	const rawRules = await listCommercialSellabilityRulesForScopes({
+		providerId,
+		scopeIds: targetIds,
+	})
 
 	const rules = rawRules
 		.map((row): RestrictionSurfaceRule | null => {
@@ -642,16 +605,15 @@ export async function createRestrictionsSurfaceRule(
 
 	await ensureNoOverlap({ scope, scopeId, type, startDate, endDate })
 
-	await db.insert(Restriction).values({
-		id: randomUUID(),
+	await createCommercialSellabilityRule({
+		providerId,
 		scope,
 		scopeId,
 		type,
-		value: value ?? undefined,
+		value,
 		startDate,
 		endDate,
-		validDays: validDays.length ? validDays : undefined,
-		isActive: true,
+		validDays,
 		priority: computeRestrictionPriority(scope, type),
 	})
 	await recomputeRuleProjection({
@@ -686,19 +648,18 @@ export async function updateRestrictionsSurfaceRule(
 
 	await ensureNoOverlap({ scope, scopeId, type, startDate, endDate, excludeId: ruleId })
 
-	await db
-		.update(Restriction)
-		.set({
-			scope,
-			scopeId,
-			type,
-			value: value ?? undefined,
-			startDate,
-			endDate,
-			validDays: validDays.length ? validDays : undefined,
-			priority: computeRestrictionPriority(scope, type),
-		})
-		.where(eq(Restriction.id, ruleId))
+	await setCommercialRuleActive(ruleId, false)
+	await createCommercialSellabilityRule({
+		providerId,
+		scope,
+		scopeId,
+		type,
+		value,
+		startDate,
+		endDate,
+		validDays,
+		priority: computeRestrictionPriority(scope, type),
+	})
 	await recomputeRuleProjection({
 		scope: previous.scope,
 		scopeId: previous.scopeId,
@@ -721,7 +682,7 @@ export async function setRestrictionsSurfaceRuleActive(
 	isActive: boolean
 ): Promise<void> {
 	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
-	await db.update(Restriction).set({ isActive }).where(eq(Restriction.id, ruleId))
+	await setCommercialRuleActive(ruleId, isActive)
 	await recomputeRuleProjection({
 		scope: rule.scope,
 		scopeId: rule.scopeId,

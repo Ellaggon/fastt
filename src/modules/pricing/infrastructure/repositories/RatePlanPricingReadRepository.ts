@@ -7,11 +7,11 @@ import {
 	EffectivePricingV2,
 	eq,
 	lte,
-	PriceRule,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	sql,
 } from "astro:db"
+import { listCommercialPriceRulesByRatePlan } from "@/lib/commercial-rules/commercialRulesRepository"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import type {
@@ -124,15 +124,9 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 
 		return Promise.all(
 			plans.map(async (plan) => {
-				const activeModifiers = Number(
-					(
-						await db
-							.select({ value: count() })
-							.from(PriceRule)
-							.where(and(eq(PriceRule.ratePlanId, plan.id), eq(PriceRule.isActive, true)))
-							.get()
-					)?.value ?? 0
-				)
+				const activeModifiers = (await listCommercialPriceRulesByRatePlan(String(plan.id))).filter(
+					(rule) => rule.isActive
+				).length
 				return {
 					id: String(plan.id),
 					name: String(plan.name ?? "Rate plan"),
@@ -148,19 +142,15 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
 		if (!normalizedRatePlanId) return []
 
-		const rows = await db
-			.select({
-				id: PriceRule.id,
-				name: PriceRule.name,
-				type: PriceRule.type,
-				value: PriceRule.value,
-				priority: PriceRule.priority,
-				dateRangeJson: PriceRule.dateRangeJson,
-				dayOfWeekJson: PriceRule.dayOfWeekJson,
+		const rows = (await listCommercialPriceRulesByRatePlan(normalizedRatePlanId))
+			.filter((rule) => rule.isActive)
+			.sort((a, b) => {
+				if (a.priority !== b.priority) return a.priority - b.priority
+				if (a.createdAt.getTime() !== b.createdAt.getTime()) {
+					return a.createdAt.getTime() - b.createdAt.getTime()
+				}
+				return a.id.localeCompare(b.id)
 			})
-			.from(PriceRule)
-			.where(and(eq(PriceRule.ratePlanId, normalizedRatePlanId), eq(PriceRule.isActive, true)))
-			.orderBy(asc(PriceRule.priority), asc(PriceRule.createdAt), asc(PriceRule.id))
 
 		return rows.map((rule) => {
 			const dateFrom =

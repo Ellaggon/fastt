@@ -1,8 +1,10 @@
-import { and, db, eq, PriceRule } from "astro:db"
-
 import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	getCommercialPriceRule,
+	listCommercialPriceRulesByRatePlan,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	formatPricingRuleEligibilityLabel,
 	type PricingRuleEligibility,
@@ -233,11 +235,7 @@ export async function ensureRuleBelongsToRatePlan(
 	ruleId: string,
 	ratePlanId: string
 ): Promise<boolean> {
-	const row = await db
-		.select({ id: PriceRule.id })
-		.from(PriceRule)
-		.where(and(eq(PriceRule.id, ruleId), eq(PriceRule.ratePlanId, ratePlanId)))
-		.get()
+	const row = await getCommercialPriceRule({ ruleId, ratePlanId })
 	return Boolean(row?.id)
 }
 
@@ -259,7 +257,7 @@ export function addDays(value: Date, days: number): Date {
 }
 
 export async function listRulesByRatePlan(ratePlanId: string) {
-	const rows = await db.select().from(PriceRule).where(eq(PriceRule.ratePlanId, ratePlanId)).all()
+	const rows = await listCommercialPriceRulesByRatePlan(ratePlanId)
 	return rows
 		.map((row) => ({
 			id: String(row.id),
