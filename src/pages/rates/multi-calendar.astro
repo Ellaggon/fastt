@@ -13,7 +13,6 @@ import {
 	type MultiCalendarTab,
 } from "@/lib/rates/multiCalendarSurface"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
-import { SELLABILITY_RULES } from "@/lib/rates/restrictionsSurface"
 import { routes } from "@/lib/routes"
 import { CalendarRange, ChevronLeft, ChevronRight, ExternalLink } from "@lucide/astro"
 
@@ -45,11 +44,13 @@ const surface = await buildRatesMultiCalendarSurface({
 })
 
 const tabs: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
-	{ key: "price", label: "Precio", helper: "Precio final y brechas." },
-	{ key: "availability", label: "Disponibilidad", helper: "Cupos, reservas y retenidos." },
-	{ key: "sellability", label: "Venta", helper: "Vendible, cerrado o restringido." },
+	{ key: "price", label: "Precio", helper: "Ajustes, descuentos y promociones." },
+	{ key: "availability", label: "Disponibilidad", helper: "Cupos y bloqueo físico." },
+	{ key: "sellability", label: "Venta", helper: "Vendible, cerrado o ventana de reserva." },
+	{ key: "stay", label: "Estancia", helper: "Mínimo, máximo y huecos." },
+	{ key: "arrival_departure", label: "Llegada/salida", helper: "Check-in y check-out permitidos." },
 	{ key: "conditions", label: "Condiciones", helper: "Contrato de cada tarifa." },
-	{ key: "rules", label: "Reglas", helper: "Reglas aplicadas por fecha." },
+	{ key: "rules", label: "Reglas aplicadas", helper: "Automatizaciones activas y conflictos." },
 ]
 
 function hrefWith(params: Record<string, string | number | null | undefined>): string {
@@ -74,7 +75,7 @@ function cellToneFor(tab: MultiCalendarTab, cell: MultiCalendarCell): string {
 			? "border-emerald-200 bg-emerald-50 text-emerald-950"
 			: "border-orange-200 bg-orange-50 text-orange-950"
 	}
-	if (tab === "sellability" || tab === "rules") {
+	if (tab === "sellability" || tab === "stay" || tab === "arrival_departure" || tab === "rules") {
 		if (cell.hasCommercialBlocker) return "border-red-200 bg-red-50 text-red-950"
 		if (cell.restrictionCount > 0) return "border-blue-200 bg-blue-50 text-blue-950"
 		return "border-emerald-200 bg-emerald-50 text-emerald-950"
@@ -92,6 +93,8 @@ function cellPrimaryFor(tab: MultiCalendarTab, cell: MultiCalendarCell): string 
 	if (cell.isPast) return "Pasado"
 	if (tab === "availability") return `${cell.availableUnits}/${cell.totalUnits} cupos`
 	if (tab === "sellability") return cell.operationalStatusLabel
+	if (tab === "stay") return cell.restrictionCount > 0 ? "Con regla" : "Sin regla"
+	if (tab === "arrival_departure") return cell.restrictionCount > 0 ? "Con regla" : "Entrada libre"
 	if (tab === "conditions") return cell.conditionsComplete ? "Listas" : "Faltan"
 	if (tab === "rules") {
 		if (cell.hasCommercialBlocker) return "Cerrado"
@@ -109,6 +112,8 @@ function cellSecondaryFor(tab: MultiCalendarTab, cell: MultiCalendarCell): strin
 	if (cell.isPast) return ""
 	if (tab === "availability") return `${cell.bookedUnits} reservas · ${cell.heldUnits} holds`
 	if (tab === "sellability") return cell.restrictionSummary
+	if (tab === "stay") return cell.restrictionSummary
+	if (tab === "arrival_departure") return cell.restrictionSummary
 	if (tab === "conditions") return cell.conditionsMissingSummary || cell.conditionsSummary
 	if (tab === "rules") return cell.restrictionSummary
 	return cell.hasPrice ? cell.basePrice : "Completar precio"
@@ -132,6 +137,39 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 	if (!row.readiness.conditionsReady) missing.push("condiciones")
 	return `Falta ${missing.join(", ")}`
 }
+
+function formatHotelDateLabel(value: string, options: { weekday?: boolean } = {}): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ""))) return value
+	const date = new Date(`${value}T12:00:00.000Z`)
+	if (Number.isNaN(date.getTime())) return value
+	const day = new Intl.DateTimeFormat("es-BO", {
+		day: "numeric",
+		month: "short",
+		timeZone: "UTC",
+	})
+		.format(date)
+		.replace(".", "")
+		.toLowerCase()
+	if (!options.weekday) return day
+	const weekday = new Intl.DateTimeFormat("es-BO", {
+		weekday: "short",
+		timeZone: "UTC",
+	})
+		.format(date)
+		.replace(".", "")
+		.toLowerCase()
+	return `${weekday} ${day}`
+}
+
+function formatHotelDateRange(
+	from: string,
+	to: string,
+	options: { weekday?: boolean } = {}
+): string {
+	if (!from) return "Sin fechas"
+	if (!to || from === to) return formatHotelDateLabel(from, options)
+	return `${formatHotelDateLabel(from, options)} → ${formatHotelDateLabel(to, options)}`
+}
 ---
 
 <WorkspaceLayout title="Multicalendario">
@@ -149,18 +187,22 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<Button href={routes.pricing()} variant="secondary">Calendario</Button>
-				<Button href={routes.rateRestrictions()} variant="primary">Crear regla</Button>
+				<Button href={`${routes.ratesMultiCalendar()}?tab=rules`} variant="primary"
+					>Ver reglas</Button
+				>
 			</div>
 		</header>
 
 		<Section>
-			<Card className="space-y-4 bg-white text-slate-900">
+			<Card
+				className="multi-calendar-shell space-y-4 border border-white/70 bg-white/95 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur"
+			>
 				<form method="get" class="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_0.8fr_auto] lg:items-end">
 					<input type="hidden" name="tab" value={surface.tab} />
 					<input type="hidden" name="range" value={surface.rangeSize} />
 					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Hotel</span>
-						<select name="productId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+						<span class="text-xs font-semibold text-slate-500">Hotel</span>
+						<select name="productId" class="multi-calendar-select">
 							<option value="">Todos los hoteles</option>
 							{
 								surface.options.products.map((product) => (
@@ -172,8 +214,8 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 						</select>
 					</label>
 					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Habitación</span>
-						<select name="variantId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+						<span class="text-xs font-semibold text-slate-500">Habitación</span>
+						<select name="variantId" class="multi-calendar-select">
 							<option value="">Todas las habitaciones</option>
 							{
 								surface.options.variants.map((variant) => (
@@ -185,8 +227,8 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 						</select>
 					</label>
 					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Tarifa</span>
-						<select name="ratePlanId" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+						<span class="text-xs font-semibold text-slate-500">Tarifa</span>
+						<select name="ratePlanId" class="multi-calendar-select">
 							<option value="">Todas las tarifas</option>
 							{
 								surface.options.ratePlans.map((ratePlan) => (
@@ -198,8 +240,8 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 						</select>
 					</label>
 					<label class="space-y-1 text-sm">
-						<span class="font-medium text-slate-700">Estado</span>
-						<select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+						<span class="text-xs font-semibold text-slate-500">Estado</span>
+						<select name="status" class="multi-calendar-select">
 							<option value="all" selected={surface.filters.status === "all"}>Todas</option>
 							<option value="ready" selected={surface.filters.status === "ready"}>Listas</option>
 							<option value="attention" selected={surface.filters.status === "attention"}>
@@ -216,14 +258,14 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 					<div class="flex items-center gap-2">
 						<a
 							href={hrefWith({ month: surface.previousMonth })}
-							class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+							class="multi-calendar-icon-button"
 							aria-label="Mes anterior"
 						>
 							<ChevronLeft class="h-4 w-4" aria-hidden="true" />
 						</a>
 						<div>
 							<p class="text-base font-semibold text-slate-950">
-								{surface.startDate || "Sin fechas"}{surface.endDate ? ` al ${surface.endDate}` : ""}
+								{formatHotelDateRange(surface.startDate, surface.endDate)}
 							</p>
 							<p class="text-xs text-slate-500">
 								{surface.stats.totalRows} tarifas · {surface.stats.readyRows} listas ·{" "}
@@ -232,32 +274,47 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 						</div>
 						<a
 							href={hrefWith({ month: surface.nextMonth })}
-							class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+							class="multi-calendar-icon-button"
 							aria-label="Mes siguiente"
 						>
 							<ChevronRight class="h-4 w-4" aria-hidden="true" />
 						</a>
 					</div>
 					<div class="flex flex-wrap items-center gap-1.5">
-						{
-							[14, 30, 60].map((range) => (
-								<a
-									href={hrefWith({ range })}
-									class:list={[
-										"rounded-md border px-3 py-1.5 text-xs font-semibold transition",
-										surface.rangeSize === range
-											? "border-slate-950 bg-slate-950 text-white"
-											: "border-slate-200 text-slate-600 hover:bg-slate-50",
-									]}
-								>
-									{range} días
-								</a>
-							))
-						}
+						<button
+							type="button"
+							data-multi-calendar-preset="visible_weekend"
+							class="multi-calendar-preset-button"
+						>
+							Fin de semana
+						</button>
+						<button
+							type="button"
+							data-multi-calendar-preset="visible_month"
+							class="multi-calendar-preset-button"
+						>
+							Vista visible
+						</button>
+						<button
+							type="button"
+							data-multi-calendar-preset="next_7"
+							class="multi-calendar-preset-button"
+						>
+							Prox. 7 dias
+						</button>
+						<button
+							type="button"
+							data-multi-calendar-preset="next_30"
+							class="multi-calendar-preset-button"
+						>
+							Prox. 30 dias
+						</button>
 					</div>
 				</div>
 
-				<div class="flex gap-2 overflow-x-auto border-t border-slate-200 pt-4">
+				<div
+					class="multi-calendar-tabs flex gap-1.5 overflow-x-auto border-t border-slate-200/70 pt-4"
+				>
 					{
 						tabs.map((tab) => (
 							<button
@@ -265,10 +322,10 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 								data-multi-calendar-tab-button
 								data-tab={tab.key}
 								class:list={[
-									"min-w-[9rem] rounded-lg border px-3 py-2 text-left text-sm transition",
+									"multi-calendar-tab min-w-[9rem] rounded-lg border px-3 py-2 text-left text-sm transition duration-200",
 									surface.tab === tab.key
-										? "border-slate-950 bg-slate-950 text-white"
-										: "border-slate-200 text-slate-700 hover:bg-slate-50",
+										? "is-active border-slate-950 bg-slate-950 text-white shadow-sm"
+										: "border-slate-200/80 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
 								]}
 							>
 								<span class="block font-semibold">{tab.label}</span>
@@ -287,7 +344,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 
 				<div
 					data-multi-calendar-selection-bar
-					class="hidden items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+					class="multi-calendar-selection-bar hidden items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/90 px-3 py-2"
 				>
 					<div class="min-w-0">
 						<p class="text-sm font-semibold text-slate-950" data-multi-calendar-selection-count>
@@ -298,27 +355,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 						</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-1.5">
-						<button
-							type="button"
-							data-multi-calendar-action="price"
-							class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-						>
-							Cambiar precio
-						</button>
-						<button
-							type="button"
-							data-multi-calendar-action="availability"
-							class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-						>
-							Cambiar cupo
-						</button>
-						<button
-							type="button"
-							data-multi-calendar-action="rule"
-							class="rounded-md bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-						>
-							Crear regla
-						</button>
+						<div class="flex flex-wrap items-center gap-1.5" data-multi-calendar-actions></div>
 						<button
 							type="button"
 							data-multi-calendar-action="clear"
@@ -332,9 +369,11 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		</Section>
 
 		<Section>
-			<Card className="overflow-hidden bg-white p-0 text-slate-900">
+			<Card
+				className="multi-calendar-board overflow-hidden border border-white/70 bg-white p-0 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.09)]"
+			>
 				<div
-					class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3"
+					class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3"
 				>
 					<div>
 						<h2 class="text-base font-semibold text-slate-950">Operación por tarifa</h2>
@@ -366,20 +405,20 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 					) : (
 						<div class="overflow-x-auto">
 							<div
-								class="grid min-w-max"
+								class="grid min-w-max bg-slate-100/70"
 								style={`grid-template-columns: 18rem repeat(${surface.days.length}, minmax(6.25rem, 1fr));`}
 								data-multi-calendar-grid
 							>
-								<div class="sticky left-0 z-20 border-r border-b border-slate-200 bg-white p-3">
+								<div class="sticky left-0 z-20 border-r border-b border-slate-200/80 bg-white/95 p-3 backdrop-blur">
 									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Tarifa</p>
 								</div>
 								{surface.days.map((day) => (
-									<div class="border-b border-slate-200 bg-slate-50 p-2 text-center">
+									<div class="border-b border-slate-200/80 bg-slate-50/90 p-2 text-center">
 										<button
 											type="button"
 											data-multi-calendar-select-date
 											data-date={day.date}
-											class="mx-auto block rounded-md px-2 py-1 hover:bg-white hover:shadow-sm"
+											class="multi-calendar-date-button mx-auto block rounded-md px-2 py-1 transition duration-200 hover:bg-white hover:shadow-sm"
 										>
 											<p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
 												{day.weekday}
@@ -391,7 +430,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 								))}
 								{surface.rows.map((row) => (
 									<>
-										<div class="sticky left-0 z-10 border-r border-b border-slate-200 bg-white p-3">
+										<div class="sticky left-0 z-10 border-r border-b border-slate-200/80 bg-white/95 p-3 backdrop-blur">
 											<div class="min-w-0 space-y-2">
 												<div>
 													<p class="truncate text-sm font-semibold text-slate-950">
@@ -419,20 +458,17 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 														type="button"
 														data-multi-calendar-select-row
 														data-rate-plan-id={row.ratePlanId}
-														class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+														class="multi-calendar-row-action"
 													>
 														Seleccionar
 													</button>
-													<a
-														href={row.calendarHref}
-														class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-													>
+													<a href={row.calendarHref} class="multi-calendar-row-action">
 														Calendario
 														<ExternalLink class="h-3 w-3" aria-hidden="true" />
 													</a>
 													<a
 														href={surface.tab === "conditions" ? row.policiesHref : row.rulesHref}
-														class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+														class="multi-calendar-row-action"
 													>
 														{surface.tab === "conditions" ? "Resolver" : "Reglas"}
 													</a>
@@ -462,6 +498,15 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 												data-primary-sellability={cellPrimaryFor("sellability", cell)}
 												data-secondary-sellability={cellSecondaryFor("sellability", cell)}
 												data-tone-sellability={cellToneFor("sellability", cell)}
+												data-primary-stay={cellPrimaryFor("stay", cell)}
+												data-secondary-stay={cellSecondaryFor("stay", cell)}
+												data-tone-stay={cellToneFor("stay", cell)}
+												data-primary-arrival-departure={cellPrimaryFor("arrival_departure", cell)}
+												data-secondary-arrival-departure={cellSecondaryFor(
+													"arrival_departure",
+													cell
+												)}
+												data-tone-arrival-departure={cellToneFor("arrival_departure", cell)}
 												data-primary-conditions={cellPrimaryFor("conditions", cell)}
 												data-secondary-conditions={cellSecondaryFor("conditions", cell)}
 												data-tone-conditions={cellToneFor("conditions", cell)}
@@ -473,7 +518,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 												data-rules-href={row.rulesHref}
 												disabled={cell.isPast}
 												class:list={[
-													"min-h-20 border-r border-b p-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500",
+													"multi-calendar-cell min-h-20 border-r border-b p-2 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-slate-950/40",
 													cellTone(cell),
 													cell.isPast ? "cursor-default" : "hover:shadow-sm",
 												]}
@@ -504,7 +549,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 	</div>
 	<aside
 		id="multiCalendarDrawer"
-		class="fixed top-0 right-0 z-50 hidden h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl"
+		class="multi-calendar-drawer fixed top-0 right-0 z-50 hidden h-full w-full max-w-md overflow-y-auto border-l border-slate-200/80 bg-white p-5 text-slate-900 shadow-2xl"
 		aria-label="Detalle del multicalendario"
 	>
 		<div class="flex items-start justify-between gap-4">
@@ -518,18 +563,18 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			<button
 				id="multiCalendarDrawerClose"
 				type="button"
-				class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+				class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
 			>
 				Cerrar
 			</button>
 		</div>
 
-		<div class="mt-5 rounded-lg border border-slate-200 p-4">
+		<div class="mt-5 rounded-lg border border-slate-200/80 bg-white p-4 shadow-sm">
 			<p id="multiCalendarDrawerPrimary" class="text-lg font-semibold text-slate-950"></p>
 			<p id="multiCalendarDrawerSecondary" class="mt-1 text-sm text-slate-600"></p>
 		</div>
 
-		<div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+		<div class="mt-5 rounded-lg border border-slate-200/80 bg-slate-50/80 p-4">
 			<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Impacto</p>
 			<p id="multiCalendarImpactTitle" class="mt-2 text-sm font-semibold text-slate-950">
 				Selecciona fechas para ver el alcance.
@@ -547,10 +592,10 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			</a>
 			<a
 				id="multiCalendarDrawerRulesLink"
-				href={routes.rateRestrictions()}
+				href={`${routes.ratesMultiCalendar()}?tab=rules`}
 				class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
 			>
-				Abrir Reglas de venta
+				Ver reglas aplicadas
 			</a>
 			<a
 				id="multiCalendarDrawerPoliciesLink"
@@ -566,13 +611,41 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			class="mt-5 hidden space-y-4 rounded-lg border border-slate-200 p-4"
 		>
 			<div>
-				<p class="text-sm font-semibold text-slate-950">Cambio de precio en selección</p>
-				<p class="mt-1 text-xs text-slate-500">
-					Guarda un precio final puntual para todas las tarifas seleccionadas.
+				<p id="multiCalendarPriceFormTitle" class="text-sm font-semibold text-slate-950">
+					Ajuste de precio
+				</p>
+				<p id="multiCalendarPriceFormDescription" class="mt-1 text-xs text-slate-500">
+					Define cómo cambiará el precio para la selección.
 				</p>
 			</div>
+			<div
+				id="multiCalendarPriceModeGroup"
+				class="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1"
+			>
+				<button
+					type="button"
+					data-price-mode="percentage_markup"
+					class="rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
+				>
+					Subir %
+				</button>
+				<button
+					type="button"
+					data-price-mode="percentage_discount"
+					class="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-slate-950 shadow-sm"
+				>
+					Bajar %
+				</button>
+				<button
+					type="button"
+					data-price-mode="fixed_override"
+					class="rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
+				>
+					Precio fijo
+				</button>
+			</div>
 			<label class="block space-y-1.5 text-sm">
-				<span class="font-medium text-slate-700">Precio final</span>
+				<span id="multiCalendarPriceValueLabel" class="font-medium text-slate-700">Valor</span>
 				<input
 					id="multiCalendarPriceValue"
 					type="number"
@@ -607,8 +680,10 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			class="mt-5 hidden space-y-4 rounded-lg border border-slate-200 p-4"
 		>
 			<div>
-				<p class="text-sm font-semibold text-slate-950">Cambio de cupo físico</p>
-				<p class="mt-1 text-xs text-slate-500">
+				<p id="multiCalendarAvailabilityFormTitle" class="text-sm font-semibold text-slate-950">
+					Cambio de cupo físico
+				</p>
+				<p id="multiCalendarAvailabilityFormDescription" class="mt-1 text-xs text-slate-500">
 					Actualiza la disponibilidad física de las habitaciones incluidas en la selección.
 				</p>
 			</div>
@@ -646,7 +721,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		<form
 			id="multiCalendarRuleForm"
 			method="POST"
-			action={routes.rateRestrictions()}
+			action={routes.ratesCommercialRulesApi()}
 			class="mt-5 hidden space-y-4 rounded-lg border border-slate-200 p-4"
 		>
 			<input type="hidden" name="action" value="create-batch" />
@@ -654,22 +729,27 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			<input type="hidden" name="scopeIds" data-multi-calendar-scope-ids />
 			<input type="hidden" name="startDate" data-multi-calendar-start-date />
 			<input type="hidden" name="endDate" data-multi-calendar-end-date />
+			<input type="hidden" name="type" data-multi-calendar-rule-type />
 			<div>
-				<p class="text-sm font-semibold text-slate-950">Crear regla para la selección</p>
-				<p class="mt-1 text-xs text-slate-500">
-					Se aplicará a las tarifas seleccionadas y quedará administrable en Reglas de venta.
+				<p id="multiCalendarRuleFormTitle" class="text-sm font-semibold text-slate-950">
+					Crear regla para la selección
+				</p>
+				<p id="multiCalendarRuleFormDescription" class="mt-1 text-xs text-slate-500">
+					La regla quedará aplicada a la selección y visible en reglas aplicadas.
 				</p>
 			</div>
-			<label class="block space-y-1.5 text-sm">
-				<span class="font-medium text-slate-700">Regla</span>
-				<select name="type" class="w-full rounded-lg border border-slate-300 px-3 py-2">
-					{SELLABILITY_RULES.map((rule) => <option value={rule.type}>{rule.label}</option>)}
-				</select>
-			</label>
-			<label class="block space-y-1.5 text-sm">
-				<span class="font-medium text-slate-700">Valor cuando aplique</span>
+			<div class="rounded-lg bg-slate-50 p-3 text-sm">
+				<p id="multiCalendarRuleImpact" class="font-medium text-slate-800">
+					Selecciona una acción para ver el impacto.
+				</p>
+			</div>
+			<label id="multiCalendarRuleValueField" class="block space-y-1.5 text-sm">
+				<span id="multiCalendarRuleValueLabel" class="font-medium text-slate-700">
+					Valor cuando aplique
+				</span>
 				<input
 					name="value"
+					data-multi-calendar-rule-value
 					type="number"
 					min="1"
 					step="1"
@@ -677,7 +757,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 					class="w-full rounded-lg border border-slate-300 px-3 py-2"
 				/>
 			</label>
-			<Button type="submit" variant="primary">Crear regla de venta</Button>
+			<Button type="submit" variant="primary">Guardar regla</Button>
 		</form>
 	</aside>
 </WorkspaceLayout>
@@ -694,6 +774,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 	const rulesLink = document.getElementById("multiCalendarDrawerRulesLink")
 	const policiesLink = document.getElementById("multiCalendarDrawerPoliciesLink")
 	const navigationActions = document.querySelector("[data-multi-calendar-navigation-actions]")
+	const contextualActions = document.querySelector("[data-multi-calendar-actions]")
 	const impactTitle = document.getElementById("multiCalendarImpactTitle")
 	const impactSummary = document.getElementById("multiCalendarImpactSummary")
 	const selectionBar = document.querySelector("[data-multi-calendar-selection-bar]")
@@ -704,18 +785,213 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 	const startDateInput = document.querySelector("[data-multi-calendar-start-date]")
 	const endDateInput = document.querySelector("[data-multi-calendar-end-date]")
 	const priceForm = document.getElementById("multiCalendarPriceForm")
+	const priceFormTitle = document.getElementById("multiCalendarPriceFormTitle")
+	const priceFormDescription = document.getElementById("multiCalendarPriceFormDescription")
+	const priceModeGroup = document.getElementById("multiCalendarPriceModeGroup")
+	const priceValueLabel = document.getElementById("multiCalendarPriceValueLabel")
 	const priceValue = document.getElementById("multiCalendarPriceValue")
 	const pricePreview = document.getElementById("multiCalendarPricePreview")
 	const priceApply = document.getElementById("multiCalendarPriceApply")
 	const priceFeedback = document.getElementById("multiCalendarPriceFeedback")
 	const availabilityForm = document.getElementById("multiCalendarAvailabilityForm")
+	const availabilityFormTitle = document.getElementById("multiCalendarAvailabilityFormTitle")
+	const availabilityFormDescription = document.getElementById(
+		"multiCalendarAvailabilityFormDescription"
+	)
 	const availabilityValue = document.getElementById("multiCalendarAvailabilityValue")
 	const availabilityPreview = document.getElementById("multiCalendarAvailabilityPreview")
 	const availabilityApply = document.getElementById("multiCalendarAvailabilityApply")
 	const availabilityFeedback = document.getElementById("multiCalendarAvailabilityFeedback")
+	const ruleTypeInput = document.querySelector("[data-multi-calendar-rule-type]")
+	const ruleValueInput = document.querySelector("[data-multi-calendar-rule-value]")
+	const ruleValueField = document.getElementById("multiCalendarRuleValueField")
+	const ruleValueLabel = document.getElementById("multiCalendarRuleValueLabel")
+	const ruleFormTitle = document.getElementById("multiCalendarRuleFormTitle")
+	const ruleFormDescription = document.getElementById("multiCalendarRuleFormDescription")
+	const ruleImpact = document.getElementById("multiCalendarRuleImpact")
 	const selectedKeys = new Set<string>()
 	let pricePayload: any = null
 	let inventoryPayload: any = null
+	let activeTab = new URL(window.location.href).searchParams.get("tab") || "price"
+	let activeAction: string = ""
+	let activePreset: string = ""
+	let activePriceMode = "percentage_discount"
+	let activePriceContextKey = "percentage_discount"
+
+	const actionCatalog: Record<string, Array<{ id: string; label: string; kind: string }>> = {
+		price: [
+			{ id: "price_base_adjustment", label: "Ajuste de precio", kind: "price" },
+			{ id: "price_stay_discount", label: "Descuento por estadía", kind: "price" },
+			{ id: "price_early_bird", label: "Anticipada", kind: "price" },
+			{ id: "price_last_minute", label: "Último minuto", kind: "price" },
+			{ id: "price_promotion", label: "Promoción", kind: "price" },
+		],
+		availability: [
+			{ id: "availability_units", label: "Cambiar cupo", kind: "availability" },
+			{ id: "availability_block", label: "Bloquear fechas", kind: "rule" },
+		],
+		sellability: [
+			{ id: "sellability_stop", label: "Cerrar venta", kind: "rule" },
+			{ id: "sellability_min_lead", label: "Anticipación mínima", kind: "rule" },
+			{ id: "sellability_max_lead", label: "Anticipación máxima", kind: "rule" },
+		],
+		stay: [
+			{ id: "stay_min", label: "Mínimo de noches", kind: "rule" },
+			{ id: "stay_max", label: "Máximo de noches", kind: "rule" },
+		],
+		arrival_departure: [
+			{ id: "arrival_block", label: "Bloquear llegada", kind: "rule" },
+			{ id: "departure_block", label: "Bloquear salida", kind: "rule" },
+		],
+		conditions: [
+			{ id: "conditions_resolve", label: "Resolver faltantes", kind: "conditions" },
+			{ id: "conditions_view", label: "Ver contrato", kind: "conditions" },
+		],
+		rules: [
+			{ id: "rules_manage", label: "Editar reglas", kind: "rules" },
+			{ id: "rules_conflicts", label: "Ver conflictos", kind: "rules" },
+			{ id: "rules_history", label: "Historial", kind: "rules" },
+		],
+	}
+
+	const priceActionConfig: Record<
+		string,
+		{
+			title: string
+			description: string
+			defaultMode: string
+			contextKey: string
+			label: string
+			placeholder: string
+		}
+	> = {
+		price_base_adjustment: {
+			title: "Ajuste de precio base",
+			description: "Sube, baja o fija el precio final para la selección.",
+			defaultMode: "percentage_discount",
+			contextKey: "multi_calendar_price_adjustment",
+			label: "Valor",
+			placeholder: "Ej. 10",
+		},
+		price_stay_discount: {
+			title: "Descuento por estadía",
+			description: "Aplica un descuento cuando la reserva cumple una duración mínima.",
+			defaultMode: "percentage_discount",
+			contextKey: "los_discount",
+			label: "% de descuento",
+			placeholder: "Ej. 12",
+		},
+		price_early_bird: {
+			title: "Descuento anticipado",
+			description: "Premia reservas hechas con suficiente anticipación.",
+			defaultMode: "percentage_discount",
+			contextKey: "early_bird",
+			label: "% de descuento",
+			placeholder: "Ej. 15",
+		},
+		price_last_minute: {
+			title: "Último minuto",
+			description: "Baja precio para fechas cercanas con demanda pendiente.",
+			defaultMode: "percentage_discount",
+			contextKey: "last_minute",
+			label: "% de descuento",
+			placeholder: "Ej. 20",
+		},
+		price_promotion: {
+			title: "Promoción especial",
+			description: "Crea un incentivo comercial para una temporada o evento.",
+			defaultMode: "percentage_discount",
+			contextKey: "promotion",
+			label: "% de descuento",
+			placeholder: "Ej. 10",
+		},
+	}
+
+	const ruleActionConfig: Record<
+		string,
+		{
+			title: string
+			description: string
+			type: string
+			requiresValue: boolean
+			valueLabel: string
+			impact: string
+			defaultValue: string
+		}
+	> = {
+		availability_block: {
+			title: "Bloquear fechas",
+			description: "Cierra venta para las fechas seleccionadas.",
+			type: "stop_sell",
+			requiresValue: false,
+			valueLabel: "",
+			impact: "Las fechas quedarán cerradas para las tarifas seleccionadas.",
+			defaultValue: "",
+		},
+		sellability_stop: {
+			title: "Cerrar venta",
+			description: "Bloquea la posibilidad de reservar en el rango seleccionado.",
+			type: "stop_sell",
+			requiresValue: false,
+			valueLabel: "",
+			impact: "No cambia precio ni cupo físico; solo vendibilidad.",
+			defaultValue: "",
+		},
+		sellability_min_lead: {
+			title: "Anticipación mínima",
+			description: "Exige reservar con cierta anticipación.",
+			type: "min_lead_time",
+			requiresValue: true,
+			valueLabel: "Días mínimos antes de llegada",
+			impact: "Bloquea reservas hechas con menos anticipación que el valor definido.",
+			defaultValue: "1",
+		},
+		sellability_max_lead: {
+			title: "Anticipación máxima",
+			description: "Evita reservas demasiado anticipadas.",
+			type: "max_lead_time",
+			requiresValue: true,
+			valueLabel: "Días máximos antes de llegada",
+			impact: "Bloquea reservas hechas con más anticipación que el valor definido.",
+			defaultValue: "365",
+		},
+		stay_min: {
+			title: "Estadía mínima",
+			description: "Define la cantidad mínima de noches reservables.",
+			type: "min_los",
+			requiresValue: true,
+			valueLabel: "Noches mínimas",
+			impact: "Evita reservas más cortas que el mínimo configurado.",
+			defaultValue: "2",
+		},
+		stay_max: {
+			title: "Estadía máxima",
+			description: "Define la cantidad máxima de noches reservables.",
+			type: "max_los",
+			requiresValue: true,
+			valueLabel: "Noches máximas",
+			impact: "Evita reservas más largas que el máximo configurado.",
+			defaultValue: "30",
+		},
+		arrival_block: {
+			title: "Bloquear llegada",
+			description: "Impide que una reserva comience en las fechas seleccionadas.",
+			type: "cta",
+			requiresValue: false,
+			valueLabel: "",
+			impact: "Los huéspedes no podrán iniciar estadía en esas fechas.",
+			defaultValue: "",
+		},
+		departure_block: {
+			title: "Bloquear salida",
+			description: "Impide que una reserva termine en las fechas seleccionadas.",
+			type: "ctd",
+			requiresValue: false,
+			valueLabel: "",
+			impact: "Los huéspedes no podrán terminar estadía en esas fechas.",
+			defaultValue: "",
+		},
+	}
 	const toneClasses = [
 		"border-slate-200",
 		"bg-slate-50",
@@ -749,6 +1025,39 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		return value.toISOString().slice(0, 10)
 	}
 
+	function formatHotelDateLabel(value: string, options: { weekday?: boolean } = {}): string {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return value
+		const date = new Date(`${value}T12:00:00.000Z`)
+		if (Number.isNaN(date.getTime())) return value
+		const day = new Intl.DateTimeFormat("es-BO", {
+			day: "numeric",
+			month: "short",
+			timeZone: "UTC",
+		})
+			.format(date)
+			.replace(".", "")
+			.toLowerCase()
+		if (!options.weekday) return day
+		const weekday = new Intl.DateTimeFormat("es-BO", {
+			weekday: "short",
+			timeZone: "UTC",
+		})
+			.format(date)
+			.replace(".", "")
+			.toLowerCase()
+		return `${weekday} ${day}`
+	}
+
+	function formatHotelDateRange(
+		from: string,
+		to: string,
+		options: { weekday?: boolean } = {}
+	): string {
+		if (!from) return "Sin fechas"
+		if (!to || from === to) return formatHotelDateLabel(from, options)
+		return `${formatHotelDateLabel(from, options)} → ${formatHotelDateLabel(to, options)}`
+	}
+
 	function getSelectableCells(): HTMLElement[] {
 		return Array.from(document.querySelectorAll<HTMLElement>("[data-multi-calendar-cell]")).filter(
 			(cell) => !cell.hasAttribute("disabled")
@@ -761,6 +1070,68 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 
 	function selectedCells(): HTMLElement[] {
 		return getSelectableCells().filter((cell) => selectedKeys.has(cellKey(cell)))
+	}
+
+	function todayIso(): string {
+		const now = new Date()
+		return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+			.toISOString()
+			.slice(0, 10)
+	}
+
+	function isWeekend(date: string): boolean {
+		const parsed = new Date(`${date}T12:00:00.000Z`)
+		if (Number.isNaN(parsed.getTime())) return false
+		const day = parsed.getUTCDay()
+		return day === 0 || day === 6
+	}
+
+	function syncPresetButtons() {
+		document.querySelectorAll<HTMLElement>("[data-multi-calendar-preset]").forEach((button) => {
+			const active = button.dataset.multiCalendarPreset === activePreset
+			button.classList.toggle("is-active", active)
+			button.setAttribute("aria-pressed", active ? "true" : "false")
+		})
+	}
+
+	function clearActivePreset() {
+		if (!activePreset) return
+		activePreset = ""
+		syncPresetButtons()
+	}
+
+	function cellsForPreset(preset: string): HTMLElement[] {
+		const cells = getSelectableCells()
+		const today = todayIso()
+		const next7 = addDays(today, 6)
+		const next30 = addDays(today, 29)
+		if (preset === "visible_weekend") {
+			return cells.filter((cell) => isWeekend(cell.dataset.date || ""))
+		}
+		if (preset === "next_7") {
+			return cells.filter((cell) => {
+				const date = cell.dataset.date || ""
+				return date >= today && date <= next7
+			})
+		}
+		if (preset === "next_30") {
+			return cells.filter((cell) => {
+				const date = cell.dataset.date || ""
+				return date >= today && date <= next30
+			})
+		}
+		return cells
+	}
+
+	function applyPreset(preset: string) {
+		const cells = cellsForPreset(preset)
+		selectedKeys.clear()
+		cells.forEach((cell) => selectedKeys.add(cellKey(cell)))
+		activePreset = preset
+		syncPresetButtons()
+		syncSelectedStyles()
+		syncSelectionBar()
+		if (drawer && !drawer.classList.contains("hidden")) updateDrawerFromSelection("detail")
 	}
 
 	function formatSelection(cells: HTMLElement[]) {
@@ -784,8 +1155,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			firstDate,
 			lastDate,
 			count: cells.length,
-			rangeLabel:
-				firstDate && lastDate && firstDate !== lastDate ? `${firstDate} a ${lastDate}` : firstDate,
+			rangeLabel: formatHotelDateRange(firstDate, lastDate, { weekday: true }),
 		}
 	}
 
@@ -812,13 +1182,99 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		scopeIdsInput?.setAttribute("value", selection.ratePlanIds.join(","))
 		startDateInput?.setAttribute("value", selection.firstDate)
 		endDateInput?.setAttribute("value", selection.lastDate)
+		renderContextualActions()
 	}
 
-	function setActionPanels(action: "detail" | "price" | "availability" | "rule" | "conditions") {
+	function renderContextualActions() {
+		if (!contextualActions) return
+		contextualActions.innerHTML = ""
+		const cells = selectedCells()
+		const actions = actionCatalog[activeTab] || actionCatalog.price
+		actions.forEach((action, index) => {
+			const button = document.createElement("button")
+			button.type = "button"
+			button.dataset.multiCalendarAction = action.id
+			button.className =
+				index === 0
+					? "multi-calendar-context-action is-primary disabled:cursor-not-allowed disabled:opacity-50"
+					: "multi-calendar-context-action disabled:cursor-not-allowed disabled:opacity-50"
+			button.disabled = cells.length === 0
+			button.textContent = action.label
+			button.addEventListener("click", () => openAction(action.id))
+			contextualActions.appendChild(button)
+		})
+	}
+
+	function priceModeLabel(mode: string) {
+		if (mode === "percentage_markup") return "% de aumento"
+		if (mode === "fixed_override") return "Precio final"
+		return "% de descuento"
+	}
+
+	function configurePriceAction(action: string) {
+		const config = priceActionConfig[action] || priceActionConfig.price_base_adjustment
+		activePriceMode = config.defaultMode
+		activePriceContextKey = config.contextKey
+		if (priceFormTitle) priceFormTitle.textContent = config.title
+		if (priceFormDescription) priceFormDescription.textContent = config.description
+		if (priceValueLabel)
+			priceValueLabel.textContent = config.label || priceModeLabel(activePriceMode)
+		if (priceValue instanceof HTMLInputElement) {
+			priceValue.placeholder = config.placeholder
+			priceValue.value = ""
+		}
+		if (priceModeGroup) {
+			priceModeGroup.classList.toggle("hidden", action !== "price_base_adjustment")
+		}
+		updatePriceModeButtons()
+	}
+
+	function updatePriceModeButtons() {
+		document.querySelectorAll<HTMLElement>("[data-price-mode]").forEach((button) => {
+			const active = button.dataset.priceMode === activePriceMode
+			button.classList.toggle("bg-white", active)
+			button.classList.toggle("text-slate-950", active)
+			button.classList.toggle("shadow-sm", active)
+			button.classList.toggle("text-slate-600", !active)
+		})
+		if (priceValueLabel) priceValueLabel.textContent = priceModeLabel(activePriceMode)
+	}
+
+	function configureAvailabilityAction(action: string) {
+		if (availabilityFormTitle) availabilityFormTitle.textContent = "Cambiar cupo"
+		if (availabilityFormDescription) {
+			availabilityFormDescription.textContent =
+				action === "availability_units"
+					? "Actualiza el cupo físico de las habitaciones incluidas en la selección."
+					: "Actualiza la disponibilidad operativa de la selección."
+		}
+		if (availabilityValue instanceof HTMLInputElement) availabilityValue.value = ""
+	}
+
+	function configureRuleAction(action: string) {
+		const config = ruleActionConfig[action] || ruleActionConfig.sellability_stop
+		ruleTypeInput?.setAttribute("value", config.type)
+		if (ruleFormTitle) ruleFormTitle.textContent = config.title
+		if (ruleFormDescription) ruleFormDescription.textContent = config.description
+		if (ruleImpact) ruleImpact.textContent = config.impact
+		ruleValueField?.classList.toggle("hidden", !config.requiresValue)
+		if (ruleValueLabel) ruleValueLabel.textContent = config.valueLabel
+		if (ruleValueInput instanceof HTMLInputElement) {
+			ruleValueInput.value = config.defaultValue
+			ruleValueInput.required = config.requiresValue
+		}
+	}
+
+	function setActionPanels(
+		action: "detail" | "price" | "availability" | "rule" | "conditions" | "rules"
+	) {
 		priceForm?.classList.toggle("hidden", action !== "price")
 		availabilityForm?.classList.toggle("hidden", action !== "availability")
 		ruleForm?.classList.toggle("hidden", action !== "rule")
-		navigationActions?.classList.toggle("hidden", action === "price" || action === "availability")
+		navigationActions?.classList.toggle(
+			"hidden",
+			action === "price" || action === "availability" || action === "rule"
+		)
 		if (action !== "price") {
 			pricePayload = null
 			if (priceApply instanceof HTMLButtonElement) priceApply.disabled = true
@@ -832,7 +1288,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 	}
 
 	function updateDrawerFromSelection(
-		action: "detail" | "price" | "availability" | "rule" | "conditions" = "detail"
+		action: "detail" | "price" | "availability" | "rule" | "conditions" | "rules" = "detail"
 	) {
 		const cells = selectedCells()
 		if (!cells.length) return
@@ -840,14 +1296,16 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		const firstCell = cells[0]
 		const actionLabel =
 			action === "price"
-				? "Cambiar precio"
+				? (priceActionConfig[activeAction]?.title ?? "Cambiar precio")
 				: action === "availability"
 					? "Cambiar cupo"
 					: action === "rule"
-						? "Crear regla de venta"
+						? (ruleActionConfig[activeAction]?.title ?? "Crear regla de venta")
 						: action === "conditions"
 							? "Resolver condiciones"
-							: "Selección"
+							: action === "rules"
+								? "Reglas aplicadas"
+								: "Selección"
 		if (title) title.textContent = actionLabel
 		if (summary) {
 			summary.textContent = `${selection.rangeLabel} · ${selection.ratePlanIds.length} ${selection.ratePlanIds.length === 1 ? "tarifa" : "tarifas"}`
@@ -867,19 +1325,27 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		if (impactSummary) {
 			impactSummary.textContent =
 				action === "rule"
-					? "La regla quedará guardada en Reglas de venta y seguirá actuando mientras esté vigente."
+					? "La regla quedará aplicada a la selección y seguirá actuando mientras esté vigente."
 					: action === "price"
-						? "El cambio de precio se aplicará como ajuste puntual sobre las fechas seleccionadas."
+						? "La regla de precio se aplicará sobre las fechas y tarifas seleccionadas."
 						: action === "availability"
 							? "El cupo se guardará sobre las habitaciones seleccionadas en el rango elegido."
-							: "Elige una acción para operar esta selección."
+							: action === "conditions"
+								? "Revisa o completa el contrato de las tarifas seleccionadas."
+								: action === "rules"
+									? "Revisa automatizaciones activas, conflictos e historial."
+									: "Elige una acción para operar esta selección."
 		}
 		const firstRatePlanId = selection.ratePlanIds[0] || firstCell.dataset.ratePlanId || ""
 		const month = (selection.firstDate || firstCell.dataset.date || "").slice(0, 7)
 		const focus =
-			action === "availability" ? "availability" : action === "rule" ? "restrictions" : "price"
+			action === "availability"
+				? "availability"
+				: action === "rule" || action === "rules"
+					? "restrictions"
+					: "price"
 		const calendarHref = `/rates/calendar?ratePlanId=${encodeURIComponent(firstRatePlanId)}&month=${encodeURIComponent(month)}&focus=${encodeURIComponent(focus)}&from=${encodeURIComponent(selection.firstDate)}&to=${encodeURIComponent(selection.lastDate)}`
-		const rulesHref = `/rates/restrictions?source=multi-calendar&tab=${action === "rule" ? "availability" : "all"}&ratePlanIds=${encodeURIComponent(selection.ratePlanIds.join(","))}&from=${encodeURIComponent(selection.firstDate)}&to=${encodeURIComponent(selection.lastDate)}`
+		const rulesHref = `/rates/multi-calendar?tab=rules&ratePlanIds=${encodeURIComponent(selection.ratePlanIds.join(","))}&from=${encodeURIComponent(selection.firstDate)}&to=${encodeURIComponent(selection.lastDate)}`
 		calendarLink?.setAttribute("href", calendarHref)
 		rulesLink?.setAttribute("href", rulesHref)
 		policiesLink?.setAttribute(
@@ -888,6 +1354,32 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		)
 		setActionPanels(action)
 		setDrawerOpen(true)
+	}
+
+	function openAction(action: string) {
+		const cells = selectedCells()
+		if (!cells.length && action !== "clear") return
+		activeAction = action
+		if (action.startsWith("price_")) {
+			configurePriceAction(action)
+			updateDrawerFromSelection("price")
+			return
+		}
+		if (action === "availability_units") {
+			configureAvailabilityAction(action)
+			updateDrawerFromSelection("availability")
+			return
+		}
+		if (action.startsWith("conditions_")) {
+			updateDrawerFromSelection("conditions")
+			return
+		}
+		if (action.startsWith("rules_")) {
+			updateDrawerFromSelection("rules")
+			return
+		}
+		configureRuleAction(action)
+		updateDrawerFromSelection("rule")
 	}
 
 	function toggleCell(cell: HTMLElement, force?: boolean) {
@@ -902,17 +1394,20 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 
 	getSelectableCells().forEach((cell) => {
 		cell.addEventListener("click", () => {
+			clearActivePreset()
 			toggleCell(cell)
 			if (drawer && !drawer.classList.contains("hidden")) updateDrawerFromSelection("detail")
 		})
 	})
 
 	function setActiveTab(tab: string) {
+		activeTab = tab
 		document.querySelectorAll<HTMLElement>("[data-multi-calendar-tab-button]").forEach((button) => {
 			const active = button.dataset.tab === tab
 			button.classList.toggle("border-slate-950", active)
 			button.classList.toggle("bg-slate-950", active)
 			button.classList.toggle("text-white", active)
+			button.classList.toggle("is-active", active)
 			button.classList.toggle("border-slate-200", !active)
 			button.classList.toggle("text-slate-700", !active)
 			button.classList.toggle("hover:bg-slate-50", !active)
@@ -921,10 +1416,11 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		})
 		getSelectableCells().forEach((cell) => {
 			cell.classList.remove(...toneClasses)
-			const tone = cell.dataset[`tone${tab[0].toUpperCase()}${tab.slice(1)}`] || ""
+			const tabAttr = tab.replaceAll("_", "-")
+			const tone = cell.getAttribute(`data-tone-${tabAttr}`) || ""
 			cell.classList.add(...tone.split(" ").filter(Boolean))
-			const primaryText = cell.dataset[`primary${tab[0].toUpperCase()}${tab.slice(1)}`] || ""
-			const secondaryText = cell.dataset[`secondary${tab[0].toUpperCase()}${tab.slice(1)}`] || ""
+			const primaryText = cell.getAttribute(`data-primary-${tabAttr}`) || ""
+			const secondaryText = cell.getAttribute(`data-secondary-${tabAttr}`) || ""
 			const primaryNode = cell.querySelector("[data-cell-primary]")
 			const secondaryNode = cell.querySelector("[data-cell-secondary]")
 			if (primaryNode) primaryNode.textContent = primaryText
@@ -933,6 +1429,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		const url = new URL(window.location.href)
 		url.searchParams.set("tab", tab)
 		window.history.replaceState({}, "", url)
+		renderContextualActions()
 	}
 
 	document.querySelectorAll<HTMLElement>("[data-multi-calendar-tab-button]").forEach((button) => {
@@ -941,6 +1438,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 
 	document.querySelectorAll<HTMLElement>("[data-multi-calendar-select-date]").forEach((button) => {
 		button.addEventListener("click", () => {
+			clearActivePreset()
 			const date = button.dataset.date || ""
 			const cells = getSelectableCells().filter((cell) => cell.dataset.date === date)
 			const shouldSelect = cells.some((cell) => !selectedKeys.has(cellKey(cell)))
@@ -950,6 +1448,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 
 	document.querySelectorAll<HTMLElement>("[data-multi-calendar-select-row]").forEach((button) => {
 		button.addEventListener("click", () => {
+			clearActivePreset()
 			const ratePlanId = button.dataset.ratePlanId || ""
 			const cells = getSelectableCells().filter((cell) => cell.dataset.ratePlanId === ratePlanId)
 			const shouldSelect = cells.some((cell) => !selectedKeys.has(cellKey(cell)))
@@ -962,13 +1461,29 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			const action = button.dataset.multiCalendarAction
 			if (action === "clear") {
 				selectedKeys.clear()
+				clearActivePreset()
 				syncSelectedStyles()
 				syncSelectionBar()
 				return
 			}
-			updateDrawerFromSelection(
-				action === "availability" ? "availability" : action === "rule" ? "rule" : "price"
-			)
+			if (action) openAction(action)
+		})
+	})
+
+	document.querySelectorAll<HTMLElement>("[data-multi-calendar-preset]").forEach((button) => {
+		button.setAttribute("aria-pressed", "false")
+		button.addEventListener("click", () =>
+			applyPreset(button.dataset.multiCalendarPreset || "visible_month")
+		)
+	})
+
+	document.querySelectorAll<HTMLElement>("[data-price-mode]").forEach((button) => {
+		button.addEventListener("click", () => {
+			activePriceMode = button.dataset.priceMode || "percentage_discount"
+			updatePriceModeButtons()
+			pricePayload = null
+			if (priceApply instanceof HTMLButtonElement) priceApply.disabled = true
+			if (priceFeedback) priceFeedback.textContent = ""
 		})
 	})
 
@@ -994,11 +1509,13 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 			setFeedback(priceFeedback, "Ingresa un precio final válido.")
 			return
 		}
+		const normalizedValue =
+			activePriceMode === "percentage_discount" ? Math.abs(value) : Math.max(0, value)
 		pricePayload = {
 			ratePlanIds: selection.ratePlanIds,
 			operation: {
-				type: "fixed_override",
-				value,
+				type: activePriceMode,
+				value: normalizedValue,
 				conditions: {
 					priority: 1000,
 					dateFrom: selection.firstDate,
@@ -1006,7 +1523,7 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 					previewFrom: selection.firstDate,
 					effectiveFrom: selection.firstDate,
 					effectiveTo: addDays(selection.lastDate, 1),
-					contextKey: "multicalendar_manual_price",
+					contextKey: activePriceContextKey,
 				},
 			},
 			dryRun: false,
@@ -1096,3 +1613,220 @@ function rowStatusLabel(row: (typeof surface.rows)[number]): string {
 		if (event.key === "Escape") setDrawerOpen(false)
 	})
 </script>
+
+<style>
+	.multi-calendar-shell,
+	.multi-calendar-board {
+		border-radius: 14px;
+	}
+
+	.multi-calendar-select {
+		width: 100%;
+		border-radius: 9px;
+		border: 1px solid rgb(226 232 240 / 0.9);
+		background: linear-gradient(180deg, #fff, #f8fafc);
+		padding: 0.56rem 0.75rem;
+		color: #0f172a;
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8);
+		transition:
+			border-color 180ms ease,
+			box-shadow 180ms ease,
+			background 180ms ease;
+	}
+
+	.multi-calendar-select:focus {
+		outline: none;
+		border-color: rgb(15 23 42 / 0.45);
+		box-shadow: 0 0 0 3px rgb(15 23 42 / 0.08);
+	}
+
+	.multi-calendar-icon-button {
+		display: inline-flex;
+		width: 2.25rem;
+		height: 2.25rem;
+		align-items: center;
+		justify-content: center;
+		border-radius: 10px;
+		border: 1px solid rgb(226 232 240 / 0.9);
+		background: rgb(255 255 255 / 0.92);
+		color: #475569;
+		box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+		transition:
+			transform 180ms ease,
+			background 180ms ease,
+			border-color 180ms ease,
+			box-shadow 180ms ease;
+	}
+
+	.multi-calendar-icon-button:hover,
+	.multi-calendar-date-button:hover,
+	.multi-calendar-row-action:hover {
+		transform: translateY(-1px);
+	}
+
+	.multi-calendar-preset-button {
+		border-radius: 8px;
+		border: 1px solid rgb(226 232 240 / 0.9);
+		background: rgb(255 255 255 / 0.86);
+		padding: 0.42rem 0.68rem;
+		font-size: 0.75rem;
+		font-weight: 650;
+		color: #475569;
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
+		transition:
+			transform 180ms ease,
+			background 180ms ease,
+			border-color 180ms ease,
+			color 180ms ease,
+			box-shadow 180ms ease;
+	}
+
+	.multi-calendar-preset-button:hover {
+		transform: translateY(-1px);
+		border-color: rgb(203 213 225 / 0.95);
+		background: #fff;
+		color: #0f172a;
+		box-shadow: 0 6px 16px rgb(15 23 42 / 0.08);
+	}
+
+	.multi-calendar-preset-button.is-active {
+		border-color: #0f172a;
+		background: #0f172a;
+		color: #fff;
+		box-shadow: 0 8px 18px rgb(15 23 42 / 0.14);
+	}
+
+	.multi-calendar-tab {
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.75);
+	}
+
+	.multi-calendar-tab:hover {
+		transform: translateY(-1px);
+	}
+
+	.multi-calendar-tab.is-active {
+		box-shadow:
+			0 8px 18px rgb(15 23 42 / 0.14),
+			inset 0 1px 0 rgb(255 255 255 / 0.1);
+	}
+
+	.multi-calendar-selection-bar {
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+		animation: multiCalendarSlideDown 180ms ease-out;
+	}
+
+	.multi-calendar-context-action {
+		border-radius: 7px;
+		border: 1px solid rgb(226 232 240 / 0.9);
+		background: rgb(255 255 255 / 0.88);
+		padding: 0.38rem 0.72rem;
+		font-size: 0.75rem;
+		font-weight: 650;
+		color: #334155;
+		transition:
+			transform 180ms ease,
+			background 180ms ease,
+			border-color 180ms ease,
+			box-shadow 180ms ease;
+	}
+
+	.multi-calendar-context-action:hover {
+		transform: translateY(-1px);
+		background: #fff;
+		box-shadow: 0 5px 14px rgb(15 23 42 / 0.08);
+	}
+
+	.multi-calendar-context-action.is-primary {
+		border-color: #0f172a;
+		background: #0f172a;
+		color: #fff;
+		box-shadow: 0 8px 18px rgb(15 23 42 / 0.16);
+	}
+
+	.multi-calendar-row-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		border-radius: 7px;
+		border: 1px solid rgb(226 232 240 / 0.9);
+		background: rgb(255 255 255 / 0.84);
+		padding: 0.25rem 0.5rem;
+		font-size: 11px;
+		font-weight: 650;
+		color: #475569;
+		transition:
+			transform 180ms ease,
+			background 180ms ease,
+			border-color 180ms ease,
+			color 180ms ease;
+	}
+
+	.multi-calendar-cell {
+		border-color: rgb(226 232 240 / 0.85);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
+		transition:
+			transform 180ms ease,
+			box-shadow 180ms ease,
+			background-color 180ms ease,
+			border-color 180ms ease,
+			color 180ms ease;
+	}
+
+	.multi-calendar-cell:not(:disabled):hover {
+		position: relative;
+		z-index: 1;
+		transform: translateY(-1px);
+		box-shadow:
+			0 10px 24px rgb(15 23 42 / 0.08),
+			inset 0 1px 0 rgb(255 255 255 / 0.72);
+	}
+
+	.multi-calendar-cell.ring-2 {
+		position: relative;
+		z-index: 2;
+		border-color: rgb(15 23 42 / 0.55);
+		box-shadow:
+			0 12px 28px rgb(15 23 42 / 0.12),
+			inset 0 1px 0 rgb(255 255 255 / 0.8);
+	}
+
+	.multi-calendar-drawer {
+		animation: multiCalendarDrawerIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+
+	@keyframes multiCalendarDrawerIn {
+		from {
+			opacity: 0;
+			transform: translateX(18px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0);
+		}
+	}
+
+	@keyframes multiCalendarSlideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.multi-calendar-icon-button,
+		.multi-calendar-preset-button,
+		.multi-calendar-tab,
+		.multi-calendar-cell,
+		.multi-calendar-row-action,
+		.multi-calendar-context-action,
+		.multi-calendar-selection-bar,
+		.multi-calendar-drawer {
+			animation: none;
+			transition: none;
+		}
+	}
+</style>
