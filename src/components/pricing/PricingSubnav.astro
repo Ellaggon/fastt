@@ -11,7 +11,7 @@ const { pathname } = Astro.props
 const items = [
 	{ href: routes.ratePlansList(), label: "Tarifas" },
 	{ href: routes.pricing(), label: "Calendario" },
-	{ href: routes.rateRestrictions(), label: "Reglas de venta" },
+	{ href: routes.ratesMultiCalendar(), label: "Multicalendario" },
 ]
 const isActive = (href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)

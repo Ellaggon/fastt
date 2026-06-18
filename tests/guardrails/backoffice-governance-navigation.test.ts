@@ -340,16 +340,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual([
-			"Tarifas",
-			"Calendario",
-			"Condiciones",
-			"Multicalendario",
-			"Reglas de venta",
-		])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
-		expect(labels).toContain("Reglas de venta")
+		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
 		expect(
@@ -369,16 +363,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual([
-			"Tarifas",
-			"Calendario",
-			"Condiciones",
-			"Multicalendario",
-			"Reglas de venta",
-		])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
-		expect(labels).toContain("Reglas de venta")
+		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).toContain("Auditoría")
 	})
@@ -405,7 +393,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("does not reveal advanced Rooms & Rates just because an advanced route is active", () => {
-		for (const activeHref of ["/rates/restrictions", "/rates/multi-calendar"]) {
+		for (const activeHref of ["/rates/multi-calendar"]) {
 			const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 				mode: "small-provider",
 				activeHref,
@@ -624,13 +612,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining([
-				"Calendario",
-				"Multicalendario",
-				"Reglas de venta",
-				"Tarifas",
-				"Condiciones",
-			])
+			expect.arrayContaining(["Calendario", "Multicalendario", "Tarifas", "Condiciones"])
 		)
 		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
@@ -640,9 +622,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Reglas de venta")?.status).toEqual(
-			"canonical"
-		)
+		expect(roomsAndRates?.items.find((item) => item.label === "Reglas de venta")).toBeUndefined()
 		expect(roomsAndRates?.planned ?? []).toEqual([])
 		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
 		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")
@@ -881,7 +861,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			expect(source).not.toContain("PricingCalendar")
 		}
 		expect(calendar).toContain("target.search = Astro.url.search")
-		expect(rules).toContain('target.searchParams.set("tab", "price")')
+		expect(rules).toContain('target.searchParams.set("tab", "rules")')
 		expect(roomInventory).toContain('target.searchParams.set("focus", "availability")')
 	})
 
@@ -906,7 +886,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 		const routesSource = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
 		expect(routesSource).toContain('pricing: () => "/rates/calendar"')
-		expect(routesSource).toContain('pricingAutomation: () => "/rates/restrictions?tab=price"')
+		expect(routesSource).toContain('pricingAutomation: () => "/rates/multi-calendar?tab=price"')
 		expect(routesSource).not.toContain('pricing: () => "/pricing')
 		expect(routesSource).not.toContain('pricingAutomation: () => "/pricing')
 
@@ -921,7 +901,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			return source.includes("routes.pricingAutomation()") ? [file] : []
 		})
 
-		expect(pricingAutomationHelperUsages).toEqual(["src/lib/dashboard/providerSidebarReadiness.ts"])
+		expect(pricingAutomationHelperUsages).toEqual([])
 	})
 
 	it("keeps inventory bulk as a legacy redirect to calendar availability", () => {

@@ -137,7 +137,7 @@ export function initRatesCalendar() {
 		pricingGenerate: "/api/pricing/rules/v2/generate-effective",
 		inventoryPreview: "/api/inventory/bulk-preview",
 		inventoryApply: "/api/inventory/bulk-apply",
-		restrictionsSurface: "/rates/restrictions",
+		restrictionsSurface: "/api/rates/commercial-rules",
 		policiesSurface: "/provider/policies",
 	}
 

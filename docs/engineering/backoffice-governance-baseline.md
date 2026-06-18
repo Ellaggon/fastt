@@ -64,7 +64,7 @@ Mandatory coverage:
 | /product/\*\*                                                          | Canonical                | Provider Workspace           | Property Content            |
 | /rates/plans/\*\*                                                      | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /rates/calendar                                                        | Canonical                | Enterprise Operations        | Rooms & Rates               |
-| /rates/restrictions                                                    | Canonical                | Enterprise Operations        | Rooms & Rates               |
+| /rates/multi-calendar                                                  | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /pricing, /pricing/rules, /pricing/calendar                            | Legacy                   | Enterprise Operations        | Rooms & Rates               |
 | /inventory, /inventory/bulk                                            | Legacy redirect          | Enterprise Operations        | Rooms & Rates               |
 | /booking/\*\*                                                          | Canonical                | Enterprise Operations        | Reservations                |

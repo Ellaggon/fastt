@@ -666,7 +666,7 @@ const extensionTargetOptions = await Promise.all(
 			</div>
 			<form
 				method="POST"
-				action={routes.rateRestrictions()}
+				action={routes.ratesCommercialRulesApi()}
 				class="grid h-full grid-rows-[1fr_auto]"
 			>
 				<div class="space-y-5 overflow-y-auto px-5 py-5">
@@ -730,8 +730,8 @@ const extensionTargetOptions = await Promise.all(
 				</div>
 				<div class="border-t border-slate-200 bg-white px-5 py-4">
 					<div class="grid grid-cols-2 gap-2">
-						<Button href={routes.rateRestrictions()} variant="secondary">
-							Abrir reglas de venta
+						<Button href={`${routes.ratesMultiCalendar()}?tab=rules`} variant="secondary">
+							Ver en multicalendario
 						</Button>
 						<Button type="submit" variant="primary"> Crear regla de venta </Button>
 					</div>

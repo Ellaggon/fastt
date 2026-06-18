@@ -3,7 +3,14 @@ import { buildPricingCalendarSurface } from "@/lib/rates/calendarSurfaces"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 
-export type MultiCalendarTab = "price" | "availability" | "sellability" | "conditions" | "rules"
+export type MultiCalendarTab =
+	| "price"
+	| "availability"
+	| "sellability"
+	| "stay"
+	| "arrival_departure"
+	| "conditions"
+	| "rules"
 export type MultiCalendarRangeSize = 14 | 30 | 60
 
 export type MultiCalendarCell = {
@@ -98,6 +105,8 @@ const VALID_TABS = new Set<MultiCalendarTab>([
 	"price",
 	"availability",
 	"sellability",
+	"stay",
+	"arrival_departure",
 	"conditions",
 	"rules",
 ])
@@ -238,9 +247,9 @@ export async function buildRatesMultiCalendarSurface(input: {
 				variantName: String(row.variantName),
 				status: row.status,
 				isDefault: row.isDefault,
-				calendarHref: `${routes.pricing()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}&month=${encodeURIComponent(surface.month)}&focus=${tab === "availability" ? "availability" : tab === "sellability" || tab === "rules" ? "restrictions" : "price"}`,
+				calendarHref: `${routes.pricing()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}&month=${encodeURIComponent(surface.month)}&focus=${tab === "availability" ? "availability" : tab === "sellability" || tab === "stay" || tab === "arrival_departure" || tab === "rules" ? "restrictions" : "price"}`,
 				policiesHref: `${routes.providerPolicies()}?vista=incomplete&ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
-				rulesHref: `${routes.rateRestrictions()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
+				rulesHref: `${routes.ratesMultiCalendar()}?tab=rules&ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
 				readiness,
 				cells,
 				_surface: surface,

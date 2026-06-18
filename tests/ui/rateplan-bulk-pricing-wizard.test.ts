@@ -17,34 +17,30 @@ describe("ui/pricing contextual extension", () => {
 		expect(routes).not.toContain("/pricing/bulk")
 	})
 
-	it("rates calendar keeps manual extension contextual and sends recurring rules to Reglas de venta", () => {
+	it("rates calendar keeps manual extension contextual and sends recurring rules through Multicalendario", () => {
 		const calendar = read("src/pages/rates/calendar.astro")
-		const restrictions = read("src/pages/rates/restrictions.astro")
+		const commercialRulesApi = read("src/pages/api/rates/commercial-rules.ts")
 		const operationalPanel = read("src/components/rates/CalendarOperationalPanel.astro")
-		const automationPanel = read("src/components/rates/PricingAutomationPanel.astro")
 		const controller = read("src/lib/rates/calendarOperationalController.ts")
-		const source = `${calendar}\n${restrictions}\n${operationalPanel}\n${automationPanel}\n${controller}`
+		const source = `${calendar}\n${commercialRulesApi}\n${operationalPanel}\n${controller}`
 
 		expect(calendar).toContain("CalendarOperationalPanel")
 		expect(calendar).not.toContain("PricingAutomationPanel")
-		expect(restrictions).toContain("PricingAutomationPanel")
+		expect(existsSync(resolve(process.cwd(), "src/pages/rates/restrictions.astro"))).toBe(false)
+		expect(
+			existsSync(resolve(process.cwd(), "src/components/rates/PricingAutomationPanel.astro"))
+		).toBe(false)
 		expect(operationalPanel).toContain("Cambio manual de precio")
 		expect(calendar).not.toContain("data-pricing-automation-drawer")
 		expect(calendar).not.toContain("pricingAutomationCloseBtn")
-		expect(automationPanel).toContain("data-pricing-automation-presets")
-		expect(restrictions).toContain("Descuentos")
-		expect(restrictions).toContain("Aumentos")
-		expect(restrictions).toContain("Precio fijo")
-		expect(automationPanel).toContain("Crear regla de precio")
-		expect(automationPanel).toContain("Eliminar regla")
-		expect(restrictions).toContain("delete-pricing-automation")
+		expect(commercialRulesApi).toContain("delete-pricing-automation")
 		expect(source).not.toContain("Simple primero")
 		expect(source).not.toContain("Ayudas automáticas recurrentes")
 		expect(source).not.toContain("Detalle avanzado")
 		expect(calendar).toContain("pricingAddMonthBtn")
 		expect(calendar).toContain("Añadir mes siguiente")
 		expect(source).not.toContain("Acciones avanzadas para la selección")
-		expect(operationalPanel).toContain("Reglas de venta")
+		expect(operationalPanel).toContain("Reglas aplicadas")
 		expect(operationalPanel).toContain("Crear regla de venta")
 		expect(operationalPanel.match(/data-panel-restrictions-action/g) ?? []).toHaveLength(1)
 		expect(calendar).toContain("data-pricing-extension-drawer")

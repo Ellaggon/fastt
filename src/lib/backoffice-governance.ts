@@ -293,13 +293,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Superficies comerciales centradas en tarifas, precios y condiciones.",
 	},
 	{
-		pattern: "/rates/restrictions",
-		status: "canonical",
-		context: "enterprise-operations",
-		owner: "Rooms & Rates",
-		rationale: "Dominio profesional de reglas de venta para vendibilidad y evaluación de búsqueda.",
-	},
-	{
 		pattern: "/rates/calendar",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -328,7 +321,7 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale:
-			"Enlace legacy redirigido a /rates/restrictions?tab=price; no exponer en navegación primaria.",
+			"Enlace legacy redirigido a /rates/multi-calendar?tab=rules; no exponer en navegación primaria.",
 	},
 	{
 		pattern: "/pricing/calendar",
@@ -908,14 +901,8 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.ratesMultiCalendar(),
 				status: "canonical",
 				level: 2,
-				summary: "Vista Pro para operar varias tarifas y fechas sin entrar una por una.",
-			},
-			{
-				label: "Reglas de venta",
-				href: routes.rateRestrictions(),
-				status: "canonical",
-				level: 2,
-				summary: "Estadía mínima, cierre de venta, llegada/salida permitida y ventana de reserva.",
+				summary:
+					"Vista Pro para operar varias tarifas, fechas y reglas de venta sin entrar una por una.",
 			},
 		],
 	},
@@ -1074,11 +1061,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 ]
 
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
-	return [
-		routes.rateRestrictions(),
-		routes.ratesMultiCalendar(),
-		routes.providerPoliciesAudit(),
-	].includes(item.href)
+	return [routes.ratesMultiCalendar(), routes.providerPoliciesAudit()].includes(item.href)
 }
 
 function shouldShowSectionForDisclosure(
@@ -1184,15 +1167,15 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"Reglas de venta controla vendibilidad; Condiciones controla los términos contractuales de reserva. Ninguno es motor de precios.",
+			"Multicalendario controla reglas de venta y vendibilidad en escala; Condiciones controla los términos contractuales de reserva.",
 		surfaces: [
 			{
-				label: "Reglas de venta",
-				href: routes.rateRestrictions(),
+				label: "Multicalendario",
+				href: routes.ratesMultiCalendar(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
-					"Dominio oficial para estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y reglas de vendibilidad.",
+					"Herramienta Pro para aplicar estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y reglas de vendibilidad en múltiples tarifas.",
 			},
 			{
 				label: "Condiciones",
