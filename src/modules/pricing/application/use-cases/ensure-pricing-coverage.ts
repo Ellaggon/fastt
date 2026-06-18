@@ -25,6 +25,7 @@ const ensurePricingCoverageSchema = z.object({
 			infants: z.number().int().min(0).optional(),
 		})
 		.optional(),
+	fallbackCurrency: z.string().length(3).optional(),
 })
 
 export type EnsurePricingCoverageInput = z.infer<typeof ensurePricingCoverageSchema>
@@ -46,6 +47,7 @@ type EnsurePricingCoverageDeps = {
 			childValue: number
 			currency: string
 		} | null>
+		getFallbackCurrency?(ratePlanId: string): Promise<string>
 		saveEffectivePricingV2(params: {
 			id: string
 			variantId: string
@@ -236,6 +238,7 @@ export async function ensurePricingCoverage(
 						deps.pricingV2Repo
 					),
 					getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
+					getFallbackCurrency: deps.pricingV2Repo.getFallbackCurrency?.bind(deps.pricingV2Repo),
 					saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(
 						deps.pricingV2Repo
 					),
@@ -245,6 +248,7 @@ export async function ensurePricingCoverage(
 					ratePlanId: parsed.ratePlanId,
 					dates: dateChunk,
 					occupancies: [occupancy],
+					fallbackCurrency: parsed.fallbackCurrency,
 				}
 			)
 		}

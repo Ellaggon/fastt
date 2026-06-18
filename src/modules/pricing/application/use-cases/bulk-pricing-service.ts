@@ -12,6 +12,7 @@ export type BulkPricingOperation = {
 		dayOfWeek?: number[] | string
 		contextKey?: string
 		occupancyKey?: string
+		currency?: string
 		previewFrom?: string
 		previewDays?: number
 		effectiveFrom?: string
@@ -190,6 +191,7 @@ function buildPreviewPayload(ratePlanId: string, operation: BulkPricingOperation
 			: conditions.dayOfWeek,
 		contextKey: conditions.contextKey,
 		occupancyKey: conditions.occupancyKey,
+		currency: conditions.currency,
 		previewFrom: conditions.previewFrom,
 		previewDays: conditions.previewDays,
 	}
@@ -209,17 +211,7 @@ function buildCreatePayload(ratePlanId: string, operation: BulkPricingOperation)
 			: conditions.dayOfWeek,
 		contextKey: conditions.contextKey,
 		occupancyKey: conditions.occupancyKey,
-	}
-}
-
-function buildGeneratePayload(ratePlanId: string, operation: BulkPricingOperation): JsonRecord {
-	const conditions = operation.conditions ?? {}
-	return {
-		ratePlanId,
-		from: conditions.effectiveFrom ?? conditions.dateFrom,
-		to: conditions.effectiveTo ?? conditions.dateTo,
-		days: conditions.effectiveDays ?? 60,
-		occupancyKey: conditions.occupancyKey,
+		currency: conditions.currency,
 	}
 }
 
@@ -431,8 +423,6 @@ export async function applyBulkOperation(params: {
 	)
 	const concurrency = clampConcurrency(input.concurrency)
 	const { POST: createRuleV2Post } = await import("@/pages/api/pricing/rules/v2/create")
-	const { POST: generateEffectiveV2Post } =
-		await import("@/pages/api/pricing/rules/v2/generate-effective")
 	const perRatePlan = await mapLimit(ratePlanIds, concurrency, async (ratePlanId) => {
 		const preview = await runPreviewForRatePlan(params.request, ratePlanId, input.operation)
 		if (!preview.ok) return preview
@@ -450,24 +440,11 @@ export async function applyBulkOperation(params: {
 		}
 		const createdBody = (await readJson(createResponse)) as any
 
-		const generateResponse = await generateEffectiveV2Post({
-			request: buildJsonRequest(
-				params.request,
-				"/api/pricing/rules/v2/generate-effective",
-				buildGeneratePayload(ratePlanId, input.operation)
-			),
-		} as any)
-		if (!generateResponse.ok) {
-			const body = await readJson(generateResponse)
-			return toBulkFailure(ratePlanId, "generate", generateResponse.status, body)
-		}
-		const generatedBody = (await readJson(generateResponse)) as any
-
 		return {
 			ratePlanId,
 			ok: true,
 			ruleId: String(createdBody?.ruleId ?? ""),
-			daysGenerated: Number(generatedBody?.daysGenerated ?? 0),
+			daysGenerated: Number(createdBody?.rematerialization?.generatedDatesCount ?? 0),
 			diff: preview.diff,
 		} as BulkApplySuccess
 	})

@@ -39,6 +39,7 @@ export async function recomputeEffectivePricingV2Range(
 				createdAt: Date
 			}>
 		>
+		getFallbackCurrency?: (ratePlanId: string) => Promise<string>
 		saveEffectivePricingV2: (params: {
 			id: string
 			variantId: string
@@ -59,6 +60,7 @@ export async function recomputeEffectivePricingV2Range(
 		ratePlanId: string
 		dates: string[]
 		occupancies?: Occupancy[]
+		fallbackCurrency?: string
 	}
 ): Promise<{ rows: number; occupancyKeys: string[] }> {
 	let rows = 0
@@ -72,12 +74,14 @@ export async function recomputeEffectivePricingV2Range(
 					getBaseFromPolicy: deps.getBaseFromPolicy,
 					getActiveOccupancyPolicy: deps.getActiveOccupancyPolicy,
 					getPreviewRules: deps.getPreviewRules,
+					getFallbackCurrency: deps.getFallbackCurrency,
 				},
 				{
 					variantId: input.variantId,
 					ratePlanId: input.ratePlanId,
 					date,
 					occupancy,
+					fallbackCurrency: input.fallbackCurrency,
 				}
 			)
 			const occupancyKey = result.occupancyKey

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { db, eq, RatePlanOccupancyPolicy } from "astro:db"
 
 import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
@@ -275,6 +276,47 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				expect(first?.preview?.priceSummary?.before?.avg).toBe(15)
 				expect(first?.preview?.priceSummary?.after?.avg).toBe(20)
 				expect(first?.diff?.changedDays).toBe(8)
+			}
+		)
+	})
+
+	it("aplica un precio fijo aunque la tarifa todavía no tenga precio base", async () => {
+		const fixture = await seedBulkFixture()
+		await db
+			.delete(RatePlanOccupancyPolicy)
+			.where(eq(RatePlanOccupancyPolicy.ratePlanId, fixture.ratePlanAId))
+
+		await withSupabaseAuthStub(
+			{ [fixture.token]: { id: "u_pr_v2_bulk_without_base", email: fixture.email } },
+			async () => {
+				const response = await bulkApplyPost({
+					request: makeAuthedJsonRequest({
+						path: "/api/pricing/rules/v2/bulk-apply",
+						token: fixture.token,
+						body: {
+							ratePlanIds: [fixture.ratePlanAId],
+							operation: {
+								type: "fixed_override",
+								value: 10,
+								conditions: {
+									priority: 1000,
+									dateFrom: "2026-06-20",
+									dateTo: "2026-06-22",
+									previewFrom: "2026-06-20",
+									previewDays: 3,
+									effectiveFrom: "2026-06-20",
+									effectiveTo: "2026-06-23",
+									contextKey: "manual",
+								},
+							},
+						},
+					}),
+				} as any)
+				expect(response.status).toBe(200)
+				const payload = await readJson(response)
+				expect(payload?.summary?.success).toBe(1)
+				expect(payload?.summary?.failed).toBe(0)
+				expect(payload?.results?.[0]?.daysGenerated).toBeGreaterThan(0)
 			}
 		)
 	})

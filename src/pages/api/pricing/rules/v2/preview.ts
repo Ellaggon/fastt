@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { evaluatePricingRules } from "@/modules/pricing/public"
-import { ratePlanPricingReadRepository } from "@/container"
+import { pricingV2Repository, ratePlanPricingReadRepository } from "@/container"
+import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
 	buildDateRangeJson,
@@ -31,14 +32,31 @@ export const POST: APIRoute = async ({ request }) => {
 	const context = await resolveOwnedRatePlanContext(request, ratePlanId)
 	if (!context.ok) return context.response
 
-	const pricingSummary = await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
+	const type = normalizeRuleType(requireText(payload, "type"))
+	const fallbackCurrency = (optionalText(payload, "currency") ?? "USD").toUpperCase()
+	const storedPricingSummary =
+		await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
+	const pricingSummary =
+		storedPricingSummary ??
+		(type === "fixed_override"
+			? {
+					ratePlanId,
+					basePrice: 0,
+					currency: fallbackCurrency || (await pricingV2Repository.getFallbackCurrency(ratePlanId)),
+					effectivePricingDays: 0,
+					coverageOccupancyKey: buildOccupancyKey({
+						adults: 2,
+						children: 0,
+						infants: 0,
+					}),
+				}
+			: null)
 	if (!pricingSummary) {
 		return new Response(JSON.stringify({ error: "pricing_missing" }), {
 			status: 400,
 			headers: { "Content-Type": "application/json" },
 		})
 	}
-	const type = normalizeRuleType(requireText(payload, "type"))
 	const value = parseNumber(payload, "value", Number.NaN)
 	if (!Number.isFinite(value)) {
 		return new Response(JSON.stringify({ error: "invalid_value" }), {

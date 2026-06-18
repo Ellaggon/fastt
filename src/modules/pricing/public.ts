@@ -85,6 +85,7 @@ export async function ensurePricingCoverageRuntime(params: {
 		children?: number
 		infants?: number
 	}
+	fallbackCurrency?: string
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
 	const { pricingRepository, pricingV2Repository, variantManagementRepository } =

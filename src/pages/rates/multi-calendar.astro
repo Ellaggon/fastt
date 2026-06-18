@@ -559,6 +559,7 @@ function formatHotelDateRange(
 												data-date={cell.date}
 												data-rate-plan-id={row.ratePlanId}
 												data-rate-plan-name={row.ratePlanName}
+												data-currency={cell.currency}
 												data-variant-id={row.variantId}
 												data-product-id={row.productId}
 												data-product-name={row.productName}
@@ -1357,6 +1358,9 @@ function formatHotelDateRange(
 		const productIds = [
 			...new Set(cells.map((cell) => cell.dataset.productId || "").filter(Boolean)),
 		]
+		const currencies = [
+			...new Set(cells.map((cell) => cell.dataset.currency || "").filter(Boolean)),
+		]
 		const firstDate = dates[0] || ""
 		const lastDate = dates[dates.length - 1] || firstDate
 		return {
@@ -1365,6 +1369,7 @@ function formatHotelDateRange(
 			ratePlanNames,
 			variantIds,
 			productIds,
+			currencies,
 			firstDate,
 			lastDate,
 			count: cells.length,
@@ -2009,6 +2014,10 @@ function formatHotelDateRange(
 			setFeedback(priceFeedback, "Ingresa un precio final válido.")
 			return
 		}
+		if (selection.currencies.length > 1) {
+			setFeedback(priceFeedback, "Selecciona tarifas que usen la misma moneda.")
+			return
+		}
 		const normalizedValue =
 			activePriceMode === "percentage_discount" ? Math.abs(value) : Math.max(0, value)
 		pricePayload = {
@@ -2024,6 +2033,7 @@ function formatHotelDateRange(
 					effectiveFrom: selection.firstDate,
 					effectiveTo: addDays(selection.lastDate, 1),
 					contextKey: activePriceContextKey,
+					currency: selection.currencies[0] || "USD",
 				},
 			},
 			dryRun: false,
@@ -2043,19 +2053,27 @@ function formatHotelDateRange(
 		}
 		if (priceApply instanceof HTMLButtonElement) priceApply.disabled = true
 		setFeedback(priceFeedback, "Guardando precio...")
-		const response = await fetch("/api/pricing/rules/v2/bulk-apply", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(pricePayload),
-		})
-		const body = await response.json().catch(() => ({}))
-		if (!response.ok) {
-			setFeedback(priceFeedback, `No se pudo guardar: ${String(body?.error ?? response.status)}`)
+		try {
+			const response = await fetch("/api/pricing/rules/v2/bulk-apply", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(pricePayload),
+			})
+			const body = await response.json().catch(() => ({}))
+			const failed = Number(body?.summary?.failed ?? 0)
+			if (!response.ok || failed > 0) {
+				const firstFailure = Array.isArray(body?.failures) ? body.failures[0] : null
+				const reason = String(firstFailure?.error ?? body?.error ?? response.status)
+				setFeedback(priceFeedback, `No se pudo guardar: ${reason}`)
+				if (priceApply instanceof HTMLButtonElement) priceApply.disabled = false
+				return
+			}
+			setFeedback(priceFeedback, "Precio guardado. Actualizando vista...")
+			window.setTimeout(() => window.location.reload(), 350)
+		} catch {
+			setFeedback(priceFeedback, "No se pudo guardar. Revisa la conexión e inténtalo otra vez.")
 			if (priceApply instanceof HTMLButtonElement) priceApply.disabled = false
-			return
 		}
-		setFeedback(priceFeedback, "Precio guardado. Actualizando vista...")
-		window.setTimeout(() => window.location.reload(), 500)
 	})
 
 	availabilityPreview?.addEventListener("click", () => {

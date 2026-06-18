@@ -12,4 +12,5 @@ export type EffectivePricingV2ComputationInput = {
 	ratePlanId: string
 	date: string
 	occupancy: Occupancy
+	fallbackCurrency?: string
 }

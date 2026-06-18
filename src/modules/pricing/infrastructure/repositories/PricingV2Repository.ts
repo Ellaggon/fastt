@@ -27,6 +27,12 @@ type OccupancyPolicyRow = {
 }
 
 export class PricingV2Repository {
+	async getFallbackCurrency(_ratePlanId: string): Promise<string> {
+		// A fixed date price can bootstrap coverage before a baseline exists.
+		// Currency remains the platform default until the canonical baseline is configured.
+		return "USD"
+	}
+
 	async getBaseFromPolicy(params: {
 		ratePlanId: string
 		date: string

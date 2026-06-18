@@ -20,6 +20,7 @@ export type MultiCalendarCell = {
 	isPast: boolean
 	price: string
 	basePrice: string
+	currency: string
 	hasPrice: boolean
 	availableUnits: number
 	totalUnits: number
@@ -234,6 +235,7 @@ export async function buildRatesMultiCalendarSurface(input: {
 				price: formatMoney(day.finalPrice, day.currency),
 				basePrice:
 					day.baseComponent == null ? "Sin base" : formatMoney(day.baseComponent, day.currency),
+				currency: day.currency,
 				hasPrice: day.hasPrice,
 				availableUnits: day.availableUnits,
 				totalUnits: day.totalUnits,

@@ -15,6 +15,7 @@ type VariantRepoForCoverage = {
 }
 
 type PricingV2CoverageRepo = {
+	getFallbackCurrency?(ratePlanId: string): Promise<string>
 	getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
 		baseAmount: number
 		currency: string

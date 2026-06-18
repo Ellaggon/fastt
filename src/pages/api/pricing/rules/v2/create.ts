@@ -53,6 +53,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const contextKey = optionalText(payload, "contextKey")
 	const occupancyKey = normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey)
+	const fallbackCurrency = optionalText(payload, "currency")?.toUpperCase()
 	const eligibility = parsePricingRuleEligibility(payload)
 	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
 	if (eligibilityError) {
@@ -111,6 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
 		to: rematerializationTo,
 		recomputeExisting: true,
 		occupancy: resolveCoverageOccupancy(occupancyKey),
+		fallbackCurrency,
 	})
 
 	return new Response(

@@ -51,6 +51,7 @@ export async function computeEffectivePricingV2(
 			date: string
 		}) => Promise<ActivePolicy | null>
 		getPreviewRules: (ratePlanId: string) => Promise<PreviewRule[]>
+		getFallbackCurrency?: (ratePlanId: string) => Promise<string>
 	},
 	input: EffectivePricingV2ComputationInput
 ): Promise<ComputeEffectivePricingV2Result> {
@@ -61,15 +62,51 @@ export async function computeEffectivePricingV2(
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 	})
-	const policyBase = await deps.getBaseFromPolicy({
+	let policyBase = await deps.getBaseFromPolicy({
 		ratePlanId: input.ratePlanId,
 		date: input.date,
 		occupancyKey,
 	})
+	const rules = await deps.getPreviewRules(input.ratePlanId)
 	if (!policyBase) {
-		throw new Error(
-			`POLICY_BASE_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date} occupancyKey=${occupancyKey}`
-		)
+		const rulesFromZero = evaluatePricingRules({
+			basePrice: 0,
+			date: input.date,
+			occupancyKey,
+			ratePlanId: input.ratePlanId,
+			rules: rules.map((rule) => ({
+				id: String(rule.id),
+				type: String(rule.type),
+				value: Number(rule.value),
+				occupancyKey: String(rule.occupancyKey ?? "").trim() || null,
+				priority: Number(rule.priority ?? 10),
+				dateRange: rule.dateRangeJson ?? null,
+				dayOfWeek: rule.dayOfWeekJson ?? null,
+				createdAt: rule.createdAt,
+				isActive: true,
+			})),
+		})
+		const hasApplicableFixedPrice = rules.some((rule) => {
+			const type = String(rule.type)
+			return (
+				(type === "fixed_override" || type === "fixed" || type === "override") &&
+				rulesFromZero.appliedRuleIds.includes(String(rule.id))
+			)
+		})
+		if (!hasApplicableFixedPrice) {
+			throw new Error(
+				`POLICY_BASE_NOT_FOUND ratePlanId=${input.ratePlanId} date=${input.date} occupancyKey=${occupancyKey}`
+			)
+		}
+		policyBase = {
+			baseAmount: 0,
+			currency:
+				String(input.fallbackCurrency ?? "")
+					.trim()
+					.toUpperCase() ||
+				(await deps.getFallbackCurrency?.(input.ratePlanId)) ||
+				"USD",
+		}
 	}
 	const activePolicy =
 		policy ??
@@ -91,7 +128,6 @@ export async function computeEffectivePricingV2(
 	})
 
 	const preRulePrice = Math.max(0, round2(base + occupancyAdjustment))
-	const rules = await deps.getPreviewRules(input.ratePlanId)
 	const evaluated = evaluatePricingRules({
 		basePrice: preRulePrice,
 		date: input.date,
