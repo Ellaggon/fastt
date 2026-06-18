@@ -256,13 +256,26 @@ function formatHotelDateRange(
 					class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
 				>
 					<div class="flex items-center gap-2">
-						<a
-							href={hrefWith({ month: surface.previousMonth })}
-							class="multi-calendar-icon-button"
-							aria-label="Mes anterior"
-						>
-							<ChevronLeft class="h-4 w-4" aria-hidden="true" />
-						</a>
+						{
+							surface.previousMonth ? (
+								<a
+									href={hrefWith({ month: surface.previousMonth })}
+									class="multi-calendar-icon-button"
+									aria-label="Mes anterior"
+								>
+									<ChevronLeft class="h-4 w-4" aria-hidden="true" />
+								</a>
+							) : (
+								<button
+									type="button"
+									class="multi-calendar-icon-button cursor-not-allowed opacity-35"
+									aria-label="No hay meses anteriores editables"
+									disabled
+								>
+									<ChevronLeft class="h-4 w-4" aria-hidden="true" />
+								</button>
+							)
+						}
 						<div>
 							<p class="text-base font-semibold text-slate-950">
 								{formatHotelDateRange(surface.startDate, surface.endDate)}

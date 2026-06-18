@@ -125,6 +125,16 @@ function normalizeRangeSize(value: string | null): MultiCalendarRangeSize {
 		: 30
 }
 
+function todayDate(): string {
+	return new Date().toISOString().slice(0, 10)
+}
+
+function currentOrFutureMonth(value: string | null, today: string): string {
+	const requested = String(value ?? "").trim()
+	const currentMonth = today.slice(0, 7)
+	return /^\d{4}-\d{2}$/.test(requested) && requested >= currentMonth ? requested : currentMonth
+}
+
 function formatMoney(amount: number | null, currency: string): string {
 	if (amount == null) return "Sin precio"
 	return `${currency} ${Number(amount).toFixed(0)}`
@@ -191,6 +201,8 @@ export async function buildRatesMultiCalendarSurface(input: {
 }): Promise<MultiCalendarSurface> {
 	const tab = normalizeTab(input.url.searchParams.get("tab"))
 	const rangeSize = normalizeRangeSize(input.url.searchParams.get("range"))
+	const today = todayDate()
+	const requestedMonth = currentOrFutureMonth(input.url.searchParams.get("month"), today)
 	const filters: MultiCalendarSurface["filters"] = {
 		productId: String(input.url.searchParams.get("productId") ?? "").trim(),
 		variantId: String(input.url.searchParams.get("variantId") ?? "").trim(),
@@ -199,17 +211,17 @@ export async function buildRatesMultiCalendarSurface(input: {
 			? (String(input.url.searchParams.get("status")) as "ready" | "attention")
 			: "all",
 	}
-	const visibleMonths = rangeSize === 60 ? 2 : 1
+	const visibleMonths = rangeSize === 60 ? 3 : 2
 	const candidateRows = input.rows.filter((row) => rowMatchesFilters(row, filters))
 	const projectedRows = await Promise.all(
 		candidateRows.map(async (row) => {
 			const surface = await buildPricingCalendarSurface({
 				rows: input.rows,
 				ratePlanId: String(row.ratePlanId),
-				month: input.url.searchParams.get("month"),
+				month: requestedMonth,
 				visibleMonths,
 			})
-			const days = surface.days.slice(0, rangeSize)
+			const days = surface.days.filter((day) => day.date >= today).slice(0, rangeSize)
 			const conditionsComplete = Boolean(row.policyCoverage?.isComplete)
 			const conditionsMissingSummary = row.policyCoverage?.missingCategories?.length
 				? `Faltan ${row.policyCoverage.missingCategories.length} categorías`
@@ -261,12 +273,15 @@ export async function buildRatesMultiCalendarSurface(input: {
 		.map(({ _surface, ...row }) => row)
 	const firstSurface = projectedRows[0]?._surface
 	const days =
-		firstSurface?.days.slice(0, rangeSize).map((day) => ({
-			date: day.date,
-			day: day.day,
-			weekday: day.weekday,
-			monthLabel: monthLabel(day.date),
-		})) ?? []
+		firstSurface?.days
+			.filter((day) => day.date >= today)
+			.slice(0, rangeSize)
+			.map((day) => ({
+				date: day.date,
+				day: day.day,
+				weekday: day.weekday,
+				monthLabel: monthLabel(day.date),
+			})) ?? []
 	const activeCells = rows.flatMap((row) => row.cells.filter((cell) => !cell.isPast))
 	const readyRows = rows.filter(
 		(row) =>
@@ -275,8 +290,9 @@ export async function buildRatesMultiCalendarSurface(input: {
 	return {
 		tab,
 		rangeSize,
-		month: firstSurface?.month ?? input.url.searchParams.get("month") ?? "",
-		previousMonth: firstSurface?.previousMonth ?? "",
+		month: firstSurface?.month ?? requestedMonth,
+		previousMonth:
+			firstSurface && firstSurface.month > today.slice(0, 7) ? firstSurface.previousMonth : "",
 		nextMonth: firstSurface?.nextMonth ?? "",
 		startDate: days[0]?.date ?? "",
 		endDate: days[days.length - 1]?.date ?? "",
