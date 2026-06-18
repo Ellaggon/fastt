@@ -7,12 +7,14 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
+import { loadPricingAutomationSurface } from "@/lib/pricing/pricingAutomationSurface"
 import {
 	buildRatesMultiCalendarSurface,
 	type MultiCalendarCell,
 	type MultiCalendarTab,
 } from "@/lib/rates/multiCalendarSurface"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { loadRestrictionsSurface } from "@/lib/rates/restrictionsSurface"
 import { routes } from "@/lib/routes"
 import { CalendarRange, ChevronLeft, ChevronRight, ExternalLink } from "@lucide/astro"
 
@@ -42,6 +44,64 @@ const surface = await buildRatesMultiCalendarSurface({
 	rows,
 	url: Astro.url,
 })
+
+const [sellabilitySurface, pricingAutomationSurface] = await Promise.all([
+	loadRestrictionsSurface(auth.providerId, { status: "all" }),
+	loadPricingAutomationSurface(auth.providerId),
+])
+
+const appliedRules = [
+	...pricingAutomationSurface.rules.map((rule) => ({
+		id: rule.id,
+		category: "price" as const,
+		categoryLabel: "Precio",
+		type: rule.type,
+		typeLabel: rule.kindLabel,
+		value: rule.value,
+		valueLabel: rule.valueLabel,
+		startDate: rule.dateFrom ?? "",
+		endDate: rule.dateTo ?? "",
+		isActive: rule.status === "active",
+		priority: rule.priority,
+		scope: "rate_plan" as const,
+		scopeId: rule.ratePlanId,
+		ratePlanId: rule.ratePlanId,
+		variantId: "",
+		productId: "",
+		targetName: rule.ratePlanName,
+		contextName: `${rule.productName} · ${rule.variantName}`,
+		impactLabel: rule.summary,
+		validDays: [] as number[],
+		createdAt: rule.createdAt.toISOString(),
+		contextKey: rule.contextKey,
+	})),
+	...sellabilitySurface.rules.map((rule) => ({
+		id: rule.id,
+		category: "sellability" as const,
+		categoryLabel: rule.category,
+		type: rule.type,
+		typeLabel: rule.typeLabel,
+		value: rule.value,
+		valueLabel: rule.valueLabel,
+		startDate: rule.startDate,
+		endDate: rule.endDate,
+		isActive: rule.isActive,
+		priority: rule.priority,
+		scope: rule.scope,
+		scopeId: rule.scopeId,
+		ratePlanId: rule.ratePlanId ?? "",
+		variantId: rule.variantId ?? "",
+		productId: rule.productId,
+		targetName: rule.targetName,
+		contextName: [rule.productName, rule.variantName].filter(Boolean).join(" · "),
+		impactLabel: rule.impactLabel,
+		validDays: rule.validDays,
+		createdAt: rule.createdAt.toISOString(),
+		contextKey: null,
+	})),
+]
+
+const appliedRulesJson = JSON.stringify(appliedRules).replace(/</g, "\\u003c")
 
 const tabs: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
 	{ key: "price", label: "Precio", helper: "Ajustes, descuentos y promociones." },
@@ -500,6 +560,7 @@ function formatHotelDateRange(
 												data-rate-plan-id={row.ratePlanId}
 												data-rate-plan-name={row.ratePlanName}
 												data-variant-id={row.variantId}
+												data-product-id={row.productId}
 												data-product-name={row.productName}
 												data-variant-name={row.variantName}
 												data-context-title={`${cell.date} · ${row.ratePlanName}`}
@@ -586,17 +647,19 @@ function formatHotelDateRange(
 			</button>
 		</div>
 
-		<div class="mt-5 rounded-lg border border-slate-200/80 bg-white p-4 shadow-sm">
-			<p id="multiCalendarDrawerPrimary" class="text-lg font-semibold text-slate-950"></p>
-			<p id="multiCalendarDrawerSecondary" class="mt-1 text-sm text-slate-600"></p>
-		</div>
+		<div id="multiCalendarSelectionOverview">
+			<div class="mt-5 rounded-lg border border-slate-200/80 bg-white p-4 shadow-sm">
+				<p id="multiCalendarDrawerPrimary" class="text-lg font-semibold text-slate-950"></p>
+				<p id="multiCalendarDrawerSecondary" class="mt-1 text-sm text-slate-600"></p>
+			</div>
 
-		<div class="mt-5 rounded-lg border border-slate-200/80 bg-slate-50/80 p-4">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Impacto</p>
-			<p id="multiCalendarImpactTitle" class="mt-2 text-sm font-semibold text-slate-950">
-				Selecciona fechas para ver el alcance.
-			</p>
-			<p id="multiCalendarImpactSummary" class="mt-1 text-sm text-slate-600"></p>
+			<div class="mt-5 rounded-lg border border-slate-200/80 bg-slate-50/80 p-4">
+				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Impacto</p>
+				<p id="multiCalendarImpactTitle" class="mt-2 text-sm font-semibold text-slate-950">
+					Selecciona fechas para ver el alcance.
+				</p>
+				<p id="multiCalendarImpactSummary" class="mt-1 text-sm text-slate-600"></p>
+			</div>
 		</div>
 
 		<div class="mt-5 grid gap-2" data-multi-calendar-navigation-actions>
@@ -622,6 +685,98 @@ function formatHotelDateRange(
 				Resolver condiciones
 			</a>
 		</div>
+
+		<section id="multiCalendarRulesPanel" class="mt-5 hidden space-y-4">
+			<div class="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+				<div>
+					<h3 id="multiCalendarRulesPanelTitle" class="text-base font-semibold text-slate-950">
+						Reglas aplicadas
+					</h3>
+					<p id="multiCalendarRulesPanelSummary" class="mt-1 text-sm text-slate-500"></p>
+				</div>
+			</div>
+			<div id="multiCalendarRulesContent" class="space-y-3"></div>
+
+			<form
+				id="multiCalendarRuleEditor"
+				method="POST"
+				action={routes.ratesCommercialRulesApi()}
+				class="hidden space-y-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4"
+			>
+				<input type="hidden" name="action" value="update-rule" />
+				<input type="hidden" name="ruleId" data-rule-editor-id />
+				<input type="hidden" name="category" data-rule-editor-category />
+				<input type="hidden" name="scope" data-rule-editor-scope />
+				<input type="hidden" name="scopeId" data-rule-editor-scope-id />
+				<input type="hidden" name="ratePlanId" data-rule-editor-rate-plan-id />
+				<input type="hidden" name="type" data-rule-editor-type />
+				<input type="hidden" name="contextKey" data-rule-editor-context-key />
+				<div>
+					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Editar regla</p>
+					<h4 data-rule-editor-title class="mt-1 text-base font-semibold text-slate-950"></h4>
+					<p data-rule-editor-context class="mt-1 text-sm text-slate-500"></p>
+				</div>
+				<div class="grid grid-cols-2 gap-3">
+					<label class="space-y-1.5 text-sm">
+						<span class="font-medium text-slate-700">Vigencia desde</span>
+						<input
+							type="date"
+							name="startDate"
+							data-rule-editor-start
+							required
+							class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+						/>
+					</label>
+					<label class="space-y-1.5 text-sm">
+						<span class="font-medium text-slate-700">Vigencia hasta</span>
+						<input
+							type="date"
+							name="endDate"
+							data-rule-editor-end
+							required
+							class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+						/>
+					</label>
+				</div>
+				<label data-rule-editor-value-field class="space-y-1.5 text-sm">
+					<span data-rule-editor-value-label class="font-medium text-slate-700">Valor</span>
+					<input
+						type="number"
+						name="value"
+						data-rule-editor-value
+						step="0.01"
+						class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+					/>
+				</label>
+				<label class="space-y-1.5 text-sm">
+					<span class="font-medium text-slate-700">Prioridad</span>
+					<input
+						type="number"
+						name="priority"
+						data-rule-editor-priority
+						min="0"
+						max="1000"
+						class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+					/>
+				</label>
+				<p data-rule-editor-feedback class="text-sm text-slate-600"></p>
+				<div class="grid grid-cols-2 gap-2">
+					<button
+						type="button"
+						data-rule-editor-cancel
+						class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+					>
+						Cancelar
+					</button>
+					<button
+						type="submit"
+						class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+					>
+						Guardar cambios
+					</button>
+				</div>
+			</form>
+		</section>
 
 		<form
 			id="multiCalendarPriceForm"
@@ -777,6 +932,7 @@ function formatHotelDateRange(
 			<Button type="submit" variant="primary">Guardar regla</Button>
 		</form>
 	</aside>
+	<script id="multiCalendarAppliedRulesData" type="application/json" set:html={appliedRulesJson} />
 </WorkspaceLayout>
 
 <script>
@@ -791,6 +947,7 @@ function formatHotelDateRange(
 	const rulesLink = document.getElementById("multiCalendarDrawerRulesLink")
 	const policiesLink = document.getElementById("multiCalendarDrawerPoliciesLink")
 	const navigationActions = document.querySelector("[data-multi-calendar-navigation-actions]")
+	const selectionOverview = document.getElementById("multiCalendarSelectionOverview")
 	const contextualActions = document.querySelector("[data-multi-calendar-actions]")
 	const impactTitle = document.getElementById("multiCalendarImpactTitle")
 	const impactSummary = document.getElementById("multiCalendarImpactSummary")
@@ -826,6 +983,15 @@ function formatHotelDateRange(
 	const ruleFormTitle = document.getElementById("multiCalendarRuleFormTitle")
 	const ruleFormDescription = document.getElementById("multiCalendarRuleFormDescription")
 	const ruleImpact = document.getElementById("multiCalendarRuleImpact")
+	const rulesPanel = document.getElementById("multiCalendarRulesPanel")
+	const rulesPanelTitle = document.getElementById("multiCalendarRulesPanelTitle")
+	const rulesPanelSummary = document.getElementById("multiCalendarRulesPanelSummary")
+	const rulesContent = document.getElementById("multiCalendarRulesContent")
+	const rulesDataNode = document.getElementById("multiCalendarAppliedRulesData")
+	const ruleEditor = document.getElementById("multiCalendarRuleEditor")
+	const ruleEditorCancel = document.querySelector("[data-rule-editor-cancel]")
+	const ruleEditorFeedback = document.querySelector("[data-rule-editor-feedback]")
+	const appliedRules = JSON.parse(rulesDataNode?.textContent || "[]") as AppliedRule[]
 	const selectedKeys = new Set<string>()
 	let pricePayload: any = null
 	let inventoryPayload: any = null
@@ -834,6 +1000,32 @@ function formatHotelDateRange(
 	let activePreset: string = ""
 	let activePriceMode = "percentage_discount"
 	let activePriceContextKey = "percentage_discount"
+	let editingRule: AppliedRule | null = null
+
+	type AppliedRule = {
+		id: string
+		category: "price" | "sellability"
+		categoryLabel: string
+		type: string
+		typeLabel: string
+		value: number | null
+		valueLabel: string
+		startDate: string
+		endDate: string
+		isActive: boolean
+		priority: number
+		scope: "product" | "variant" | "rate_plan"
+		scopeId: string
+		ratePlanId: string
+		variantId: string
+		productId: string
+		targetName: string
+		contextName: string
+		impactLabel: string
+		validDays: number[]
+		createdAt: string
+		contextKey: string | null
+	}
 
 	const actionCatalog: Record<string, Array<{ id: string; label: string; kind: string }>> = {
 		price: [
@@ -865,7 +1057,7 @@ function formatHotelDateRange(
 			{ id: "conditions_view", label: "Ver contrato", kind: "conditions" },
 		],
 		rules: [
-			{ id: "rules_manage", label: "Editar reglas", kind: "rules" },
+			{ id: "rules_manage", label: "Ver reglas", kind: "rules" },
 			{ id: "rules_conflicts", label: "Ver conflictos", kind: "rules" },
 			{ id: "rules_history", label: "Historial", kind: "rules" },
 		],
@@ -1162,6 +1354,9 @@ function formatHotelDateRange(
 		const variantIds = [
 			...new Set(cells.map((cell) => cell.dataset.variantId || "").filter(Boolean)),
 		]
+		const productIds = [
+			...new Set(cells.map((cell) => cell.dataset.productId || "").filter(Boolean)),
+		]
 		const firstDate = dates[0] || ""
 		const lastDate = dates[dates.length - 1] || firstDate
 		return {
@@ -1169,6 +1364,7 @@ function formatHotelDateRange(
 			ratePlanIds,
 			ratePlanNames,
 			variantIds,
+			productIds,
 			firstDate,
 			lastDate,
 			count: cells.length,
@@ -1300,15 +1496,263 @@ function formatHotelDateRange(
 		}
 	}
 
+	function escapeHtml(value: unknown): string {
+		return String(value ?? "")
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+			.replaceAll("'", "&#039;")
+	}
+
+	function ruleDateLabel(rule: AppliedRule): string {
+		if (!rule.startDate && !rule.endDate) return "Siempre activa"
+		if (!rule.endDate || rule.startDate === rule.endDate) {
+			return formatHotelDateLabel(rule.startDate || rule.endDate)
+		}
+		return `${formatHotelDateLabel(rule.startDate)} → ${formatHotelDateLabel(rule.endDate)}`
+	}
+
+	function ruleMatchesSelection(rule: AppliedRule, selection: ReturnType<typeof formatSelection>) {
+		const targetMatches =
+			rule.category === "price" || rule.scope === "rate_plan"
+				? selection.ratePlanIds.includes(rule.ratePlanId || rule.scopeId)
+				: rule.scope === "variant"
+					? selection.variantIds.includes(rule.variantId || rule.scopeId)
+					: selection.productIds.includes(rule.productId || rule.scopeId)
+		if (!targetMatches) return false
+		if (!rule.startDate && !rule.endDate) return true
+		const from = rule.startDate || "0000-01-01"
+		const to = rule.endDate || "9999-12-31"
+		return from <= selection.lastDate && to >= selection.firstDate
+	}
+
+	function selectedAppliedRules(): AppliedRule[] {
+		const selection = formatSelection(selectedCells())
+		return appliedRules
+			.filter((rule) => ruleMatchesSelection(rule, selection))
+			.sort((left, right) => {
+				if (left.isActive !== right.isActive) return left.isActive ? -1 : 1
+				if (left.priority !== right.priority) return left.priority - right.priority
+				return right.createdAt.localeCompare(left.createdAt)
+			})
+	}
+
+	function ruleCard(rule: AppliedRule): string {
+		const statusClass = rule.isActive
+			? "border-emerald-200 bg-emerald-50 text-emerald-700"
+			: "border-slate-200 bg-slate-100 text-slate-600"
+		return `
+			<article class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+				<div class="flex items-start justify-between gap-3">
+					<div class="min-w-0">
+						<div class="flex flex-wrap items-center gap-1.5">
+							<span class="rounded-md border px-2 py-0.5 text-[11px] font-semibold ${statusClass}">${rule.isActive ? "Activa" : "Pausada"}</span>
+							<span class="text-xs font-medium text-slate-500">${escapeHtml(rule.categoryLabel)}</span>
+						</div>
+						<h4 class="mt-2 text-sm font-semibold text-slate-950">${escapeHtml(rule.typeLabel)}</h4>
+						<p class="mt-0.5 text-xs text-slate-500">${escapeHtml(rule.targetName)}${rule.contextName ? ` · ${escapeHtml(rule.contextName)}` : ""}</p>
+					</div>
+					<span class="shrink-0 text-xs font-semibold text-slate-700">${escapeHtml(rule.valueLabel)}</span>
+				</div>
+				<div class="mt-3 grid gap-1 text-xs text-slate-600">
+					<p><span class="font-medium text-slate-700">Vigencia:</span> ${escapeHtml(ruleDateLabel(rule))}</p>
+					<p>${escapeHtml(rule.impactLabel)}</p>
+				</div>
+				<div class="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+					<button type="button" data-rule-governance-action="edit" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">Editar</button>
+					<button type="button" data-rule-governance-action="toggle" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">${rule.isActive ? "Pausar" : "Activar"}</button>
+					<button type="button" data-rule-governance-action="duplicate" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">Duplicar</button>
+					<button type="button" data-rule-governance-action="delete" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button is-danger">Eliminar</button>
+				</div>
+			</article>`
+	}
+
+	function conflictPairs(rules: AppliedRule[]) {
+		const active = rules.filter((rule) => rule.isActive)
+		const conflicts: Array<{ left: AppliedRule; right: AppliedRule; reason: string }> = []
+		for (let leftIndex = 0; leftIndex < active.length; leftIndex += 1) {
+			for (let rightIndex = leftIndex + 1; rightIndex < active.length; rightIndex += 1) {
+				const left = active[leftIndex]
+				const right = active[rightIndex]
+				const sameTarget = (left.ratePlanId || left.scopeId) === (right.ratePlanId || right.scopeId)
+				const datesOverlap =
+					(left.startDate || "0000-01-01") <= (right.endDate || "9999-12-31") &&
+					(left.endDate || "9999-12-31") >= (right.startDate || "0000-01-01")
+				if (!sameTarget || !datesOverlap) continue
+				const sameType = left.type === right.type
+				const bothPrice = left.category === "price" && right.category === "price"
+				const contradictoryStay =
+					new Set([left.type, right.type]).has("min_los") &&
+					new Set([left.type, right.type]).has("max_los") &&
+					Number((left.type === "min_los" ? left : right).value ?? 0) >
+						Number((left.type === "max_los" ? left : right).value ?? 0)
+				const contradictoryLead =
+					new Set([left.type, right.type]).has("min_lead_time") &&
+					new Set([left.type, right.type]).has("max_lead_time") &&
+					Number((left.type === "min_lead_time" ? left : right).value ?? 0) >
+						Number((left.type === "max_lead_time" ? left : right).value ?? 0)
+				if (!sameType && !bothPrice && !contradictoryStay && !contradictoryLead) continue
+				conflicts.push({
+					left,
+					right,
+					reason: contradictoryStay
+						? "El mínimo de noches supera el máximo."
+						: contradictoryLead
+							? "La anticipación mínima supera la máxima."
+							: sameType
+								? "Dos reglas del mismo tipo coinciden en fechas."
+								: "Dos ajustes de precio coinciden; la prioridad define el resultado.",
+				})
+			}
+		}
+		return conflicts
+	}
+
+	function bindRulesPanelActions() {
+		rulesContent
+			?.querySelectorAll<HTMLElement>("[data-rule-governance-action]")
+			.forEach((button) => {
+				button.addEventListener("click", () => {
+					const rule = appliedRules.find((item) => item.id === button.dataset.ruleId)
+					if (!rule) return
+					const action = button.dataset.ruleGovernanceAction
+					if (action === "edit") openRuleEditor(rule)
+					if (action === "toggle") void mutateRule(rule, "toggle-rule")
+					if (action === "duplicate") void mutateRule(rule, "duplicate-rule")
+					if (action === "delete" && window.confirm(`Eliminar ${rule.typeLabel}?`)) {
+						void mutateRule(rule, "delete-rule")
+					}
+				})
+			})
+	}
+
+	function renderRulesView(mode: string) {
+		if (!rulesContent || !rulesPanelTitle || !rulesPanelSummary) return
+		ruleEditor?.classList.add("hidden")
+		rulesContent.classList.remove("hidden")
+		const rules = selectedAppliedRules()
+		if (mode === "rules_conflicts") {
+			const conflicts = conflictPairs(rules)
+			rulesPanelTitle.textContent = "Conflictos"
+			rulesPanelSummary.textContent = `${conflicts.length} ${conflicts.length === 1 ? "conflicto detectado" : "conflictos detectados"} en la selección.`
+			rulesContent.innerHTML = conflicts.length
+				? conflicts
+						.map(
+							(conflict) => `<article class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+								<p class="text-sm font-semibold text-amber-950">${escapeHtml(conflict.reason)}</p>
+								<p class="mt-1 text-xs text-amber-800">${escapeHtml(conflict.left.typeLabel)} · ${escapeHtml(conflict.right.typeLabel)}</p>
+								<p class="mt-1 text-xs text-amber-700">${escapeHtml(conflict.left.targetName)} · prioridades ${conflict.left.priority} y ${conflict.right.priority}</p>
+								<div class="mt-3 flex gap-2"><button type="button" data-rule-governance-action="edit" data-rule-id="${escapeHtml(conflict.left.id)}" class="rule-governance-button">Editar regla</button></div>
+							</article>`
+						)
+						.join("")
+				: '<div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">No se detectaron conflictos en esta selección.</div>'
+		} else if (mode === "rules_history") {
+			rulesPanelTitle.textContent = "Historial"
+			rulesPanelSummary.textContent = "Actividad disponible para las reglas de esta selección."
+			rulesContent.innerHTML = rules.length
+				? [...rules]
+						.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+						.map(
+							(rule) => `<article class="border-l-2 border-slate-200 py-1 pl-3">
+								<p class="text-sm font-semibold text-slate-900">Regla creada · ${escapeHtml(rule.typeLabel)}</p>
+								<p class="mt-0.5 text-xs text-slate-500">${new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(new Date(rule.createdAt))}</p>
+								<p class="mt-1 text-xs text-slate-600">Estado actual: ${rule.isActive ? "activa" : "pausada"} · ${escapeHtml(ruleDateLabel(rule))}</p>
+								<button type="button" data-rule-governance-action="edit" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button mt-2">Ver regla</button>
+							</article>`
+						)
+						.join("")
+				: '<div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">No hay actividad para esta selección.</div>'
+		} else {
+			rulesPanelTitle.textContent = "Reglas aplicadas"
+			rulesPanelSummary.textContent = `${rules.length} ${rules.length === 1 ? "regla coincide" : "reglas coinciden"} con las fechas y tarifas seleccionadas.`
+			rulesContent.innerHTML = rules.length
+				? rules.map(ruleCard).join("")
+				: '<div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">No hay reglas en esta selección. Créala desde Precio, Venta, Estancia o Llegada/salida.</div>'
+		}
+		bindRulesPanelActions()
+	}
+
+	function setEditorInput(selector: string, value: string) {
+		const input = ruleEditor?.querySelector<HTMLInputElement>(selector)
+		if (input) input.value = value
+	}
+
+	function openRuleEditor(rule: AppliedRule) {
+		editingRule = rule
+		rulesContent?.classList.add("hidden")
+		ruleEditor?.classList.remove("hidden")
+		const today = todayIso()
+		setEditorInput("[data-rule-editor-id]", rule.id)
+		setEditorInput("[data-rule-editor-category]", rule.category)
+		setEditorInput("[data-rule-editor-scope]", rule.scope)
+		setEditorInput("[data-rule-editor-scope-id]", rule.scopeId)
+		setEditorInput("[data-rule-editor-rate-plan-id]", rule.ratePlanId)
+		setEditorInput("[data-rule-editor-type]", rule.type)
+		setEditorInput("[data-rule-editor-context-key]", rule.contextKey || "")
+		setEditorInput("[data-rule-editor-start]", rule.startDate || today)
+		setEditorInput("[data-rule-editor-end]", rule.endDate || rule.startDate || today)
+		setEditorInput("[data-rule-editor-value]", rule.value == null ? "" : String(rule.value))
+		setEditorInput("[data-rule-editor-priority]", String(rule.priority))
+		const title = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-title]")
+		const context = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-context]")
+		const valueField = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-value-field]")
+		const valueLabel = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-value-label]")
+		if (title) title.textContent = rule.typeLabel
+		if (context) context.textContent = `${rule.targetName} · ${rule.categoryLabel}`
+		if (valueLabel) valueLabel.textContent = rule.category === "price" ? "Valor" : rule.valueLabel
+		valueField?.classList.toggle("hidden", rule.value == null)
+		if (ruleEditorFeedback) ruleEditorFeedback.textContent = ""
+	}
+
+	async function mutateRule(rule: AppliedRule, action: string) {
+		const form = new FormData()
+		form.set("action", action)
+		form.set("ruleId", rule.id)
+		form.set("category", rule.category)
+		form.set("scope", rule.scope)
+		form.set("scopeId", rule.scopeId)
+		form.set("ratePlanId", rule.ratePlanId)
+		form.set("type", rule.type)
+		form.set("value", rule.value == null ? "" : String(rule.value))
+		form.set("startDate", rule.startDate)
+		form.set("endDate", rule.endDate)
+		form.set("priority", String(rule.priority))
+		form.set("contextKey", rule.contextKey || "")
+		form.set("isActive", String(rule.isActive))
+		rule.validDays.forEach((day) => form.append("validDays", String(day)))
+		const response = await fetch("/api/rates/commercial-rules", { method: "POST", body: form })
+		window.location.href = response.url || "/rates/multi-calendar?tab=rules"
+	}
+
+	ruleEditorCancel?.addEventListener("click", () => {
+		editingRule = null
+		ruleEditor?.classList.add("hidden")
+		rulesContent?.classList.remove("hidden")
+	})
+
+	ruleEditor?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!editingRule || !(ruleEditor instanceof HTMLFormElement)) return
+		if (ruleEditorFeedback) ruleEditorFeedback.textContent = "Guardando cambios..."
+		const form = new FormData(ruleEditor)
+		editingRule.validDays.forEach((day) => form.append("validDays", String(day)))
+		const response = await fetch(ruleEditor.action, { method: "POST", body: form })
+		window.location.href = response.url || "/rates/multi-calendar?tab=rules"
+	})
+
 	function setActionPanels(
 		action: "detail" | "price" | "availability" | "rule" | "conditions" | "rules"
 	) {
 		priceForm?.classList.toggle("hidden", action !== "price")
 		availabilityForm?.classList.toggle("hidden", action !== "availability")
 		ruleForm?.classList.toggle("hidden", action !== "rule")
+		rulesPanel?.classList.toggle("hidden", action !== "rules")
+		selectionOverview?.classList.toggle("hidden", action === "rules")
 		navigationActions?.classList.toggle(
 			"hidden",
-			action === "price" || action === "availability" || action === "rule"
+			action === "price" || action === "availability" || action === "rule" || action === "rules"
 		)
 		if (action !== "price") {
 			pricePayload = null
@@ -1339,7 +1783,11 @@ function formatHotelDateRange(
 						: action === "conditions"
 							? "Resolver condiciones"
 							: action === "rules"
-								? "Reglas aplicadas"
+								? activeAction === "rules_conflicts"
+									? "Conflictos"
+									: activeAction === "rules_history"
+										? "Historial"
+										: "Reglas aplicadas"
 								: "Selección"
 		if (title) title.textContent = actionLabel
 		if (summary) {
@@ -1388,6 +1836,7 @@ function formatHotelDateRange(
 			firstCell.getAttribute("data-policies-href") || "/provider/policies?vista=incomplete"
 		)
 		setActionPanels(action)
+		if (action === "rules") renderRulesView(activeAction)
 		setDrawerOpen(true)
 	}
 
@@ -1872,5 +2321,34 @@ function formatHotelDateRange(
 		border-color: #cbd5e1;
 		background: #fff;
 		color: #334155;
+	}
+
+	.rule-governance-button {
+		display: inline-flex;
+		min-height: 2rem;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid #cbd5e1;
+		border-radius: 7px;
+		background: #fff;
+		padding: 0.35rem 0.65rem;
+		font-size: 0.75rem;
+		font-weight: 650;
+		color: #334155;
+		transition:
+			background 160ms ease,
+			border-color 160ms ease,
+			color 160ms ease;
+	}
+
+	.rule-governance-button:hover {
+		border-color: #94a3b8;
+		background: #f8fafc;
+		color: #0f172a;
+	}
+
+	.rule-governance-button.is-danger {
+		border-color: #fecaca;
+		color: #b91c1c;
 	}
 </style>

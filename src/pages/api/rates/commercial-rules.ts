@@ -11,10 +11,15 @@ import {
 } from "@/lib/pricing/pricingAutomationSurface"
 import {
 	createRestrictionsSurfaceRule,
+	deleteRestrictionsSurfaceRule,
+	duplicateRestrictionsSurfaceRule,
 	setRestrictionsSurfaceRuleActive,
+	updateRestrictionsSurfaceRule,
 } from "@/lib/rates/restrictionsSurface"
 import { routes } from "@/lib/routes"
 import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
+import { POST as deletePricingRulePost } from "@/pages/api/pricing/rules/v2/delete"
+import { POST as updatePricingRulePost } from "@/pages/api/pricing/rules/v2/update"
 
 const mapTemplatePayload = (template: PricingAutomationTemplate, rawValue: number) => {
 	const value =
@@ -77,6 +82,54 @@ async function deletePriceRuleDirectly(ruleId: string, ratePlanId: string) {
 	await deleteCommercialRule(ruleId)
 }
 
+async function ownedPriceRule(providerId: string, ruleId: string, ratePlanId: string) {
+	const automation = await loadPricingAutomationSurface(providerId)
+	if (!automation.rules.some((rule) => rule.id === ruleId && rule.ratePlanId === ratePlanId)) {
+		throw new Error("La regla de precio no esta disponible para este proveedor")
+	}
+	const rule = await getCommercialPriceRule({ ruleId, ratePlanId })
+	if (!rule) throw new Error("La regla de precio ya no existe")
+	return rule
+}
+
+async function runPricingMutation(
+	handler: typeof createPricingRulePost,
+	request: Request,
+	path: string,
+	body: Record<string, unknown>
+) {
+	const response = await handler({
+		request: jsonRequest(request, path, body),
+		url: new URL(path, request.url),
+	} as any)
+	if (!response.ok) {
+		const payload = await response.json().catch(() => null)
+		throw new Error(String(payload?.error ?? "No se pudo actualizar la regla de precio"))
+	}
+	return response.json().catch(() => ({}))
+}
+
+function priceRulePayload(rule: Awaited<ReturnType<typeof ownedPriceRule>>) {
+	const dateRange = rule.dateRangeJson ?? {}
+	const eligibility =
+		dateRange.eligibility && typeof dateRange.eligibility === "object"
+			? (dateRange.eligibility as Record<string, unknown>)
+			: {}
+	return {
+		ratePlanId: rule.ratePlanId,
+		ruleId: rule.id,
+		type: rule.type,
+		value: rule.value,
+		priority: rule.priority,
+		dateFrom: String(dateRange.from ?? ""),
+		dateTo: String(dateRange.to ?? ""),
+		dayOfWeek: rule.dayOfWeekJson?.join(",") ?? "",
+		contextKey: rule.name?.startsWith("ctx:") ? rule.name.slice(4) : "",
+		occupancyKey: rule.occupancyKey ?? "",
+		...eligibility,
+	}
+}
+
 export const POST: APIRoute = async ({ request }) => {
 	const auth = await requireProvider(request).catch((error: unknown) => {
 		if (error instanceof Response) return error
@@ -88,6 +141,80 @@ export const POST: APIRoute = async ({ request }) => {
 	const action = String(form.get("action") ?? "").trim()
 
 	try {
+		if (["update-rule", "toggle-rule", "duplicate-rule", "delete-rule"].includes(action)) {
+			const ruleId = String(form.get("ruleId") ?? "").trim()
+			const category = String(form.get("category") ?? "").trim()
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			if (!ruleId) throw new Error("Falta la regla seleccionada")
+
+			if (category === "price") {
+				const rule = await ownedPriceRule(auth.providerId, ruleId, ratePlanId)
+				const basePayload = priceRulePayload(rule)
+				if (action === "update-rule") {
+					const startDate = String(form.get("startDate") ?? "").trim()
+					const endDate = String(form.get("endDate") ?? "").trim()
+					const value = Number(form.get("value") ?? rule.value)
+					const priority = Number(form.get("priority") ?? rule.priority)
+					if (!Number.isFinite(value)) throw new Error("El valor de precio no es valido")
+					if (startDate && endDate && endDate < startDate)
+						throw new Error("La vigencia no es valida")
+					await runPricingMutation(updatePricingRulePost, request, "/api/pricing/rules/v2/update", {
+						...basePayload,
+						value,
+						priority,
+						dateFrom: startDate,
+						dateTo: endDate,
+					})
+				}
+				if (action === "toggle-rule") {
+					await runPricingMutation(updatePricingRulePost, request, "/api/pricing/rules/v2/update", {
+						...basePayload,
+						isActive: !rule.isActive,
+					})
+				}
+				if (action === "duplicate-rule") {
+					const { ruleId: _ruleId, ...createPayload } = basePayload
+					const created = await runPricingMutation(
+						createPricingRulePost,
+						request,
+						"/api/pricing/rules/v2/create",
+						{ ...createPayload, priority: rule.priority + 1 }
+					)
+					if (created?.ruleId) {
+						await runPricingMutation(
+							updatePricingRulePost,
+							request,
+							"/api/pricing/rules/v2/update",
+							{
+								...createPayload,
+								ruleId: created.ruleId,
+								priority: rule.priority + 1,
+								isActive: false,
+							}
+						)
+					}
+				}
+				if (action === "delete-rule") {
+					await runPricingMutation(deletePricingRulePost, request, "/api/pricing/rules/v2/delete", {
+						ratePlanId,
+						ruleId,
+					})
+				}
+			} else {
+				if (action === "update-rule") await updateRestrictionsSurfaceRule(auth.providerId, form)
+				if (action === "toggle-rule") {
+					const isActive = String(form.get("isActive") ?? "") !== "true"
+					await setRestrictionsSurfaceRuleActive(auth.providerId, ruleId, isActive)
+				}
+				if (action === "duplicate-rule") {
+					await duplicateRestrictionsSurfaceRule(auth.providerId, ruleId)
+				}
+				if (action === "delete-rule") await deleteRestrictionsSurfaceRule(auth.providerId, ruleId)
+			}
+
+			return redirectToMultiCalendar(request, { tab: "rules", success: action })
+		}
+
 		if (action === "create") {
 			await createRestrictionsSurfaceRule(auth.providerId, form)
 			return redirectToMultiCalendar(request, { tab: "rules", success: "sellability-created" })

@@ -2,6 +2,7 @@ import { db, eq, inArray, Product, RatePlan, Variant } from "astro:db"
 
 import {
 	createCommercialSellabilityRule,
+	deleteCommercialRule,
 	listCommercialSellabilityRulesForScopes,
 	setCommercialRuleActive,
 } from "@/lib/commercial-rules/commercialRulesRepository"
@@ -47,6 +48,7 @@ export type RestrictionSurfaceRule = {
 	validDaysLabel: string
 	isActive: boolean
 	priority: number
+	createdAt: Date
 	targetName: string
 	productId: string
 	productName: string
@@ -539,6 +541,7 @@ export async function loadRestrictionsSurface(
 				validDaysLabel: formatValidDays(validDays),
 				isActive: Boolean(row.isActive),
 				priority: Number(row.priority ?? 100),
+				createdAt: row.createdAt,
 				...target,
 				impactDays,
 				impactLabel: impactLabel(type, value),
@@ -689,5 +692,39 @@ export async function setRestrictionsSurfaceRuleActive(
 		startDate: rule.startDate,
 		endDate: rule.endDate,
 		reason: isActive ? "restriction_activate" : "restriction_deactivate",
+	})
+}
+
+export async function duplicateRestrictionsSurfaceRule(
+	providerId: string,
+	ruleId: string
+): Promise<void> {
+	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
+	const duplicate = await createCommercialSellabilityRule({
+		providerId,
+		scope: rule.scope,
+		scopeId: rule.scopeId,
+		type: rule.type,
+		value: rule.value,
+		startDate: rule.startDate,
+		endDate: rule.endDate,
+		validDays: rule.validDays,
+		priority: rule.priority + 1,
+	})
+	await setCommercialRuleActive(duplicate.ruleId, false)
+}
+
+export async function deleteRestrictionsSurfaceRule(
+	providerId: string,
+	ruleId: string
+): Promise<void> {
+	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
+	await deleteCommercialRule(ruleId)
+	await recomputeRuleProjection({
+		scope: rule.scope,
+		scopeId: rule.scopeId,
+		startDate: rule.startDate,
+		endDate: rule.endDate,
+		reason: "restriction_delete",
 	})
 }

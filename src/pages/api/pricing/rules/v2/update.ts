@@ -54,6 +54,12 @@ export const POST: APIRoute = async ({ request }) => {
 	const dateTo = optionalText(payload, "dateTo")
 	const dayOfWeek = parseDayOfWeek(optionalText(payload, "dayOfWeek"))
 	const contextKey = optionalText(payload, "contextKey")
+	const isActive =
+		typeof payload.isActive === "boolean"
+			? payload.isActive
+			: typeof payload.isActive === "string"
+				? payload.isActive === "true"
+				: undefined
 	const occupancyKey = normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey)
 	const eligibility = parsePricingRuleEligibility(payload)
 	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
@@ -91,6 +97,7 @@ export const POST: APIRoute = async ({ request }) => {
 		dateRangeJson: buildDateRangeJson({ dateFrom, dateTo, eligibility }),
 		dayOfWeekJson: dayOfWeek ?? null,
 		occupancyKey: occupancyKey ?? null,
+		isActive,
 	})
 
 	const rematerializationFrom = dateFrom ?? new Date().toISOString().slice(0, 10)

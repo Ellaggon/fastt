@@ -41,6 +41,10 @@ export type PricingAutomationSurfaceRule = {
 	productName: string
 	variantName: string
 	type: string
+	value: number
+	dateFrom: string | null
+	dateTo: string | null
+	contextKey: string | null
 	kind: PricingAutomationKind
 	kindLabel: string
 	status: "active" | "inactive"
@@ -358,6 +362,10 @@ export async function loadPricingAutomationSurface(
 				productName: String(context?.productName ?? "Product"),
 				variantName: String(context?.variantName ?? "Variant"),
 				type: rule.type,
+				value: rule.value,
+				dateFrom: rule.dateFrom,
+				dateTo: rule.dateTo,
+				contextKey: rule.contextKey,
 				kind,
 				kindLabel: pricingAutomationKindLabel(kind),
 				status: rule.isActive ? "active" : "inactive",
