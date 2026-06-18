@@ -1205,32 +1205,26 @@ function formatHotelDateRange(
 				"border-slate-300 bg-white text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50",
 			].join(" ")
 			button.disabled = cells.length === 0
-			button.setAttribute("aria-pressed", "false")
+			button.setAttribute("aria-pressed", String(activeAction === action.id))
 			button.textContent = action.label
 			button.addEventListener("click", () => {
-				contextualActions
-					.querySelectorAll<HTMLElement>("[data-multi-calendar-action]")
-					.forEach((candidate) => {
-						const selected = candidate === button
-						candidate.classList.toggle("is-selected", selected)
-						candidate.classList.toggle("border-slate-950", selected)
-						candidate.classList.toggle("bg-slate-950", selected)
-						candidate.classList.toggle("text-white", selected)
-						candidate.classList.toggle("hover:bg-slate-800", selected)
-						candidate.classList.toggle("ring-2", selected)
-						candidate.classList.toggle("ring-slate-950/30", selected)
-						candidate.classList.toggle("ring-offset-1", selected)
-						candidate.classList.toggle("border-slate-300", !selected)
-						candidate.classList.toggle("bg-white", !selected)
-						candidate.classList.toggle("text-slate-700", !selected)
-						candidate.classList.toggle("hover:border-slate-400", !selected)
-						candidate.classList.toggle("hover:bg-slate-50", !selected)
-						candidate.setAttribute("aria-pressed", String(selected))
-					})
+				activeAction = action.id
+				syncContextualActionState()
 				openAction(action.id)
 			})
 			contextualActions.appendChild(button)
 		})
+	}
+
+	function syncContextualActionState() {
+		contextualActions
+			?.querySelectorAll<HTMLElement>("[data-multi-calendar-action]")
+			.forEach((button) => {
+				button.setAttribute(
+					"aria-pressed",
+					String(button.dataset.multiCalendarAction === activeAction)
+				)
+			})
 	}
 
 	function priceModeLabel(mode: string) {
@@ -1847,5 +1841,23 @@ function formatHotelDateRange(
 			animation: none;
 			transition: none;
 		}
+	}
+</style>
+
+<style is:global>
+	.multi-calendar-context-action[aria-pressed="true"] {
+		border-color: #0f172a !important;
+		background: #0f172a !important;
+		color: #fff !important;
+		transform: translateY(-1px);
+		box-shadow:
+			0 8px 18px rgb(15 23 42 / 0.16),
+			0 0 0 3px rgb(15 23 42 / 0.1) !important;
+	}
+
+	.multi-calendar-context-action[aria-pressed="false"] {
+		border-color: #cbd5e1;
+		background: #fff;
+		color: #334155;
 	}
 </style>
