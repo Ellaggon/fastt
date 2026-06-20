@@ -1,8 +1,10 @@
 import type { APIRoute } from "astro"
 
 import {
+	createCommercialPriceRule,
 	deleteCommercialRule,
 	getCommercialPriceRule,
+	listCommercialPriceRulesByRatePlan,
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import {
@@ -12,7 +14,6 @@ import {
 import {
 	createRestrictionsSurfaceRule,
 	deleteRestrictionsSurfaceRule,
-	duplicateRestrictionsSurfaceRule,
 	setRestrictionsSurfaceRuleActive,
 	updateRestrictionsSurfaceRule,
 } from "@/lib/rates/restrictionsSurface"
@@ -130,6 +131,38 @@ function priceRulePayload(rule: Awaited<ReturnType<typeof ownedPriceRule>>) {
 	}
 }
 
+function stableValue(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(stableValue)
+	if (value && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>)
+				.sort(([left], [right]) => left.localeCompare(right))
+				.map(([key, entry]) => [key, stableValue(entry)])
+		)
+	}
+	return value ?? null
+}
+
+function priceRuleSignature(rule: {
+	ratePlanId: string
+	type: string
+	value: number
+	dateRangeJson?: Record<string, unknown> | null
+	dayOfWeekJson?: number[] | null
+	occupancyKey?: string | null
+}) {
+	return JSON.stringify(
+		stableValue({
+			ratePlanId: rule.ratePlanId,
+			type: rule.type,
+			value: rule.value,
+			dateRangeJson: rule.dateRangeJson ?? null,
+			dayOfWeekJson: [...(rule.dayOfWeekJson ?? [])].sort((left, right) => left - right),
+			occupancyKey: rule.occupancyKey ?? null,
+		})
+	)
+}
+
 export const POST: APIRoute = async ({ request }) => {
 	const auth = await requireProvider(request).catch((error: unknown) => {
 		if (error instanceof Response) return error
@@ -141,7 +174,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const action = String(form.get("action") ?? "").trim()
 
 	try {
-		if (["update-rule", "toggle-rule", "duplicate-rule", "delete-rule"].includes(action)) {
+		if (["update-rule", "toggle-rule", "create-variant", "delete-rule"].includes(action)) {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
 			const category = String(form.get("category") ?? "").trim()
 			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
@@ -150,6 +183,50 @@ export const POST: APIRoute = async ({ request }) => {
 			if (category === "price") {
 				const rule = await ownedPriceRule(auth.providerId, ruleId, ratePlanId)
 				const basePayload = priceRulePayload(rule)
+				if (action === "create-variant") {
+					const startDate = String(form.get("startDate") ?? "").trim()
+					const endDate = String(form.get("endDate") ?? "").trim()
+					const value = Number(form.get("value") ?? rule.value)
+					const priority = Number(form.get("priority") ?? rule.priority)
+					if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+						throw new Error("La variante necesita una vigencia válida")
+					}
+					if (endDate < startDate) throw new Error("La vigencia no es válida")
+					if (!Number.isFinite(value)) throw new Error("El valor de precio no es válido")
+					if (!Number.isFinite(priority) || priority < 0 || priority > 1000) {
+						throw new Error("La prioridad debe estar entre 0 y 1000")
+					}
+					const dateRangeJson = {
+						...(rule.dateRangeJson ?? {}),
+						from: startDate,
+						to: endDate,
+					}
+					const candidate = {
+						ratePlanId,
+						type: rule.type,
+						value,
+						dateRangeJson,
+						dayOfWeekJson: rule.dayOfWeekJson,
+						occupancyKey: rule.occupancyKey,
+					}
+					const existing = await listCommercialPriceRulesByRatePlan(ratePlanId)
+					if (existing.some((item) => priceRuleSignature(item) === priceRuleSignature(candidate))) {
+						throw new Error("Cambia la vigencia o el valor antes de guardar la variante")
+					}
+					await createCommercialPriceRule({
+						providerId: auth.providerId,
+						ratePlanId,
+						name: rule.name,
+						type: rule.type,
+						value,
+						priority,
+						dateRangeJson,
+						dayOfWeekJson: rule.dayOfWeekJson,
+						occupancyKey: rule.occupancyKey,
+						isActive: false,
+						sourceRuleId: rule.id,
+					})
+				}
 				if (action === "update-rule") {
 					const startDate = String(form.get("startDate") ?? "").trim()
 					const endDate = String(form.get("endDate") ?? "").trim()
@@ -167,32 +244,23 @@ export const POST: APIRoute = async ({ request }) => {
 					})
 				}
 				if (action === "toggle-rule") {
+					if (!rule.isActive) {
+						const existing = await listCommercialPriceRulesByRatePlan(ratePlanId)
+						if (
+							existing.some(
+								(item) =>
+									item.id !== rule.id &&
+									item.isActive &&
+									priceRuleSignature(item) === priceRuleSignature(rule)
+							)
+						) {
+							throw new Error("Ya existe una regla activa idéntica")
+						}
+					}
 					await runPricingMutation(updatePricingRulePost, request, "/api/pricing/rules/v2/update", {
 						...basePayload,
 						isActive: !rule.isActive,
 					})
-				}
-				if (action === "duplicate-rule") {
-					const { ruleId: _ruleId, ...createPayload } = basePayload
-					const created = await runPricingMutation(
-						createPricingRulePost,
-						request,
-						"/api/pricing/rules/v2/create",
-						{ ...createPayload, priority: rule.priority + 1 }
-					)
-					if (created?.ruleId) {
-						await runPricingMutation(
-							updatePricingRulePost,
-							request,
-							"/api/pricing/rules/v2/update",
-							{
-								...createPayload,
-								ruleId: created.ruleId,
-								priority: rule.priority + 1,
-								isActive: false,
-							}
-						)
-					}
 				}
 				if (action === "delete-rule") {
 					await runPricingMutation(deletePricingRulePost, request, "/api/pricing/rules/v2/delete", {
@@ -206,8 +274,8 @@ export const POST: APIRoute = async ({ request }) => {
 					const isActive = String(form.get("isActive") ?? "") !== "true"
 					await setRestrictionsSurfaceRuleActive(auth.providerId, ruleId, isActive)
 				}
-				if (action === "duplicate-rule") {
-					await duplicateRestrictionsSurfaceRule(auth.providerId, ruleId)
+				if (action === "create-variant") {
+					throw new Error("Esta regla se crea desde una nueva selección del Multicalendario")
 				}
 				if (action === "delete-rule") await deleteRestrictionsSurfaceRule(auth.providerId, ruleId)
 			}

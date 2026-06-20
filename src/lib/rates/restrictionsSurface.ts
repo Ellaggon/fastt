@@ -685,6 +685,16 @@ export async function setRestrictionsSurfaceRuleActive(
 	isActive: boolean
 ): Promise<void> {
 	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
+	if (isActive) {
+		await ensureNoOverlap({
+			scope: rule.scope,
+			scopeId: rule.scopeId,
+			type: rule.type,
+			startDate: rule.startDate,
+			endDate: rule.endDate,
+			excludeId: rule.id,
+		})
+	}
 	await setCommercialRuleActive(ruleId, isActive)
 	await recomputeRuleProjection({
 		scope: rule.scope,
@@ -693,25 +703,6 @@ export async function setRestrictionsSurfaceRuleActive(
 		endDate: rule.endDate,
 		reason: isActive ? "restriction_activate" : "restriction_deactivate",
 	})
-}
-
-export async function duplicateRestrictionsSurfaceRule(
-	providerId: string,
-	ruleId: string
-): Promise<void> {
-	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
-	const duplicate = await createCommercialSellabilityRule({
-		providerId,
-		scope: rule.scope,
-		scopeId: rule.scopeId,
-		type: rule.type,
-		value: rule.value,
-		startDate: rule.startDate,
-		endDate: rule.endDate,
-		validDays: rule.validDays,
-		priority: rule.priority + 1,
-	})
-	await setCommercialRuleActive(duplicate.ruleId, false)
 }
 
 export async function deleteRestrictionsSurfaceRule(

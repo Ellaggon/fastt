@@ -1,4 +1,4 @@
-import { db, sql } from "astro:db"
+import { CommercialRule, CommercialRuleApplication, CommercialRuleSet, db, sql } from "astro:db"
 import { randomUUID } from "node:crypto"
 
 export type CommercialRuleScope = "product" | "variant" | "rate_plan"
@@ -21,6 +21,7 @@ export type CommercialPriceRule = {
 	priority: number
 	dateRangeJson: Record<string, unknown> | null
 	dayOfWeekJson: number[] | null
+	sourceRuleId: string | null
 	isActive: boolean
 	createdAt: Date
 }
@@ -103,6 +104,16 @@ async function rawRun(query: unknown) {
 }
 
 let ensureCommercialRuleTablesPromise: Promise<void> | null = null
+let commercialPriceRuleWriteQueue: Promise<void> = Promise.resolve()
+
+async function serializeCommercialPriceRuleWrite<T>(work: () => Promise<T>): Promise<T> {
+	const result = commercialPriceRuleWriteQueue.then(work, work)
+	commercialPriceRuleWriteQueue = result.then(
+		() => undefined,
+		() => undefined
+	)
+	return result
+}
 
 export async function ensureCommercialRuleTables() {
 	if (!ensureCommercialRuleTablesPromise) {
@@ -238,6 +249,7 @@ function priceRuleFromRaw(row: RawCommercialRuleRow): CommercialPriceRule {
 		priority: Number(row.rule_priority ?? 100),
 		dateRangeJson: normalizeDateRange(row.rule_configJson),
 		dayOfWeekJson: normalizeValidDays(config.dayOfWeekJson),
+		sourceRuleId: String(config.sourceRuleId ?? "").trim() || null,
 		isActive: normalizeBoolean(row.rule_isActive) && normalizeBoolean(row.application_isActive),
 		createdAt: normalizeDate(row.rule_createdAt),
 	}
@@ -328,56 +340,73 @@ export async function createCommercialPriceRule(params: {
 	dateRangeJson?: Record<string, unknown> | null
 	dayOfWeekJson?: number[] | null
 	occupancyKey?: string | null
+	isActive?: boolean
+	sourceRuleId?: string | null
 }): Promise<{ ruleSetId: string; ruleId: string }> {
-	const ruleSetId = await createRuleSet({
-		providerId: params.providerId,
-		name: params.name?.startsWith("ctx:")
-			? "Regla automática de precio"
-			: params.name || "Regla automática de precio",
-		status: "active",
-		priority: params.priority ?? 20,
-		dateFrom: String(params.dateRangeJson?.from ?? "").trim() || null,
-		dateTo: String(params.dateRangeJson?.to ?? "").trim() || null,
-	})
+	const isActive = params.isActive !== false
+	const ruleSetId = randomUUID()
 	const ruleId = params.ruleId ?? randomUUID()
-	const configJson = toJson({
+	const configPayload = {
 		dateRangeJson: params.dateRangeJson ?? null,
 		dayOfWeekJson: params.dayOfWeekJson ?? [],
 		occupancyKey: params.occupancyKey ?? null,
-	})
+		sourceRuleId: params.sourceRuleId ?? null,
+	}
 	const startDate = String(params.dateRangeJson?.from ?? "").trim() || null
 	const endDate = String(params.dateRangeJson?.to ?? "").trim() || null
-	await run(sql`
-		INSERT INTO CommercialRule (
-			id, providerId, ruleSetId, category, type, name, value, configJson, priority, isActive
-		) VALUES (
-			${ruleId},
-			${params.providerId},
-			${ruleSetId},
-			'price',
-			${params.type},
-			${params.name ?? null},
-			${params.value},
-			${configJson},
-			${params.priority ?? 20},
-			1
-		)
-	`)
-	await run(sql`
-		INSERT INTO CommercialRuleApplication (
-			id, providerId, ruleSetId, ruleId, scope, scopeId, startDate, endDate, isActive
-		) VALUES (
-			${randomUUID()},
-			${params.providerId},
-			${ruleSetId},
-			${ruleId},
-			'rate_plan',
-			${params.ratePlanId},
-			${startDate},
-			${endDate},
-			1
-		)
-	`)
+	await ensureCommercialRuleTables()
+	await serializeCommercialPriceRuleWrite(() =>
+		db.transaction(async (tx) => {
+			await tx
+				.insert(CommercialRuleSet)
+				.values({
+					id: ruleSetId,
+					providerId: params.providerId,
+					name: params.name?.startsWith("ctx:")
+						? "Regla automática de precio"
+						: params.name || "Regla automática de precio",
+					status: isActive ? "active" : "paused",
+					priority: params.priority ?? 20,
+					dateFrom: startDate,
+					dateTo: endDate,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.run()
+			await tx
+				.insert(CommercialRule)
+				.values({
+					id: ruleId,
+					providerId: params.providerId,
+					ruleSetId,
+					category: "price",
+					type: params.type,
+					name: params.name ?? null,
+					value: params.value,
+					configJson: configPayload,
+					priority: params.priority ?? 20,
+					isActive,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.run()
+			await tx
+				.insert(CommercialRuleApplication)
+				.values({
+					id: randomUUID(),
+					providerId: params.providerId,
+					ruleSetId,
+					ruleId,
+					scope: "rate_plan",
+					scopeId: params.ratePlanId,
+					startDate,
+					endDate,
+					isActive,
+					createdAt: new Date(),
+				})
+				.run()
+		})
+	)
 	return { ruleSetId, ruleId }
 }
 
@@ -433,7 +462,9 @@ export async function updateCommercialPriceRule(params: {
 	occupancyKey?: string | null
 	name?: string | null
 	isActive?: boolean
+	sourceRuleId?: string | null
 }) {
+	const existing = await getCommercialPriceRule({ ruleId: params.ruleId })
 	await run(sql`
 		UPDATE CommercialRule
 		SET
@@ -445,6 +476,10 @@ export async function updateCommercialPriceRule(params: {
 				dateRangeJson: params.dateRangeJson ?? null,
 				dayOfWeekJson: params.dayOfWeekJson ?? [],
 				occupancyKey: params.occupancyKey ?? null,
+				sourceRuleId:
+					params.sourceRuleId === undefined
+						? (existing?.sourceRuleId ?? null)
+						: params.sourceRuleId,
 			})},
 			isActive = ${typeof params.isActive === "boolean" ? (params.isActive ? 1 : 0) : sql`isActive`},
 			updatedAt = ${Date.now()}
@@ -464,6 +499,13 @@ export async function updateCommercialPriceRule(params: {
 				},
 				isActive = ${typeof params.isActive === "boolean" ? (params.isActive ? 1 : 0) : sql`isActive`}
 			WHERE ruleId = ${params.ruleId}
+		`)
+	}
+	if (typeof params.isActive === "boolean") {
+		await run(sql`
+			UPDATE CommercialRuleSet
+			SET status = ${params.isActive ? "active" : "paused"}, updatedAt = ${Date.now()}
+			WHERE id = (SELECT ruleSetId FROM CommercialRule WHERE id = ${params.ruleId})
 		`)
 	}
 }
@@ -621,6 +663,11 @@ export async function setCommercialRuleActive(ruleId: string, isActive: boolean)
 		UPDATE CommercialRuleApplication
 		SET isActive = ${isActive ? 1 : 0}
 		WHERE ruleId = ${ruleId}
+	`)
+	await run(sql`
+		UPDATE CommercialRuleSet
+		SET status = ${isActive ? "active" : "paused"}, updatedAt = ${Date.now()}
+		WHERE id = (SELECT ruleSetId FROM CommercialRule WHERE id = ${ruleId})
 	`)
 }
 

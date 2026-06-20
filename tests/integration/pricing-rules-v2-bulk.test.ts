@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, RatePlanOccupancyPolicy } from "astro:db"
+import { db, eq, RatePlanOccupancyPolicy, sql } from "astro:db"
 
-import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
+import {
+	createCommercialPriceRule,
+	listCommercialPriceRulesByRatePlan,
+} from "@/lib/commercial-rules/commercialRulesRepository"
+import { POST as commercialRulesPost } from "@/pages/api/rates/commercial-rules"
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
 import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
@@ -79,6 +83,14 @@ function makeAuthedGetRequest(params: { path: string; token?: string }) {
 		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
 	}
 	return new Request(`http://localhost:4321${params.path}`, { method: "GET", headers })
+}
+
+function makeAuthedFormRequest(params: { path: string; token: string; form: FormData }) {
+	return new Request(`http://localhost:4321${params.path}`, {
+		method: "POST",
+		headers: { cookie: `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r` },
+		body: params.form,
+	})
 }
 
 async function readJson(response: Response) {
@@ -540,5 +552,79 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				).toBe(true)
 			}
 		)
+	})
+
+	it("crea variantes de precio pausadas y conserva la regla de origen", async () => {
+		const fixture = await seedBulkFixture()
+		const sourceRuleId = `source_${crypto.randomUUID()}`
+		const created = await createCommercialPriceRule({
+			providerId: fixture.providerId,
+			ratePlanId: fixture.ratePlanAId,
+			type: "fixed_override",
+			value: 125,
+			priority: 21,
+			dateRangeJson: { from: "2026-07-01", to: "2026-07-05" },
+			isActive: false,
+			sourceRuleId,
+		})
+
+		const result = await (db as any).run(sql`
+			SELECT
+				rs.status AS ruleSetStatus,
+				r.isActive AS ruleActive,
+				r.configJson AS configJson,
+				a.isActive AS applicationActive
+			FROM CommercialRule r
+			INNER JOIN CommercialRuleSet rs ON rs.id = r.ruleSetId
+			INNER JOIN CommercialRuleApplication a ON a.ruleId = r.id
+			WHERE r.id = ${created.ruleId}
+		`)
+		const row = result.rows?.[0]
+		const config = JSON.parse(String(row?.configJson ?? "{}"))
+
+		expect(row?.ruleSetStatus).toBe("paused")
+		expect(Number(row?.ruleActive)).toBe(0)
+		expect(Number(row?.applicationActive)).toBe(0)
+		expect(config.sourceRuleId).toBe(sourceRuleId)
+	})
+
+	it("rechaza una variante idéntica sin crear otra regla", async () => {
+		const fixture = await seedBulkFixture()
+		const original = await createCommercialPriceRule({
+			providerId: fixture.providerId,
+			ratePlanId: fixture.ratePlanAId,
+			type: "fixed_override",
+			value: 125,
+			priority: 20,
+			dateRangeJson: { from: "2026-07-10", to: "2026-07-12" },
+		})
+		const before = await listCommercialPriceRulesByRatePlan(fixture.ratePlanAId)
+		const form = new FormData()
+		form.set("action", "create-variant")
+		form.set("ruleId", original.ruleId)
+		form.set("category", "price")
+		form.set("ratePlanId", fixture.ratePlanAId)
+		form.set("startDate", "2026-07-10")
+		form.set("endDate", "2026-07-12")
+		form.set("value", "125")
+		form.set("priority", "21")
+
+		await withSupabaseAuthStub(
+			{ [fixture.token]: { id: "u_variant_guard", email: fixture.email } },
+			async () => {
+				const response = await commercialRulesPost({
+					request: makeAuthedFormRequest({
+						path: "/api/rates/commercial-rules",
+						token: fixture.token,
+						form,
+					}),
+				} as any)
+				expect(response.status).toBe(303)
+				expect(response.headers.get("location")).toContain("Cambia+la+vigencia+o+el+valor")
+			}
+		)
+
+		const after = await listCommercialPriceRulesByRatePlan(fixture.ratePlanAId)
+		expect(after).toHaveLength(before.length)
 	})
 })
