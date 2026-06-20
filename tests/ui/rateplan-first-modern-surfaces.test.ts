@@ -158,20 +158,17 @@ describe("ui/rateplan-first modern surfaces", () => {
 	})
 
 	it("condiciones no expone rutas ni presets legacy visibles", () => {
-		const policyBuilder = read("src/components/policy/PolicyBuilder.astro")
-		const policyIndex = read("src/pages/provider/policies/index.astro")
 		const assignmentOptions = read("src/pages/api/policies/assignment-options.ts")
 		const presets = read("src/data/policy/policy-presets.ts")
 		const criticalRoutes = read("src/lib/dashboard-critical-routes.ts")
 
-		expect(existsSync(resolve(process.cwd(), "src/pages/provider/policies/rate-plans.astro"))).toBe(
+		expect(existsSync(resolve(process.cwd(), "src/pages/provider/policies/index.astro"))).toBe(
 			false
 		)
-		expect(criticalRoutes).not.toContain("/provider/policies/rate-plans")
-		expect(policyBuilder).not.toContain("strict_legacy")
-		expect(policyBuilder).not.toContain("heredada")
-		expect(policyIndex).not.toContain("strict_legacy")
-		expect(policyIndex).not.toContain("heredada")
+		expect(existsSync(resolve(process.cwd(), "src/components/policy/PolicyBuilder.astro"))).toBe(
+			false
+		)
+		expect(criticalRoutes).not.toContain("/provider/policies")
 		expect(assignmentOptions).not.toContain("strict_legacy")
 		expect(assignmentOptions).not.toContain("heredada")
 		expect(presets).toContain('key: "strict"')
@@ -179,62 +176,34 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(presets).not.toContain("Estricta heredada")
 	})
 
-	it("condiciones organiza operacion diaria por tabs y reserva detalle para pro", () => {
-		const policyIndex = read("src/pages/provider/policies/index.astro")
+	it("condiciones se operan dentro de tarifa y Multicalendario", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
+		const ratePlanSurface = read("src/components/policy/RatePlanPoliciesSurface.astro")
+		const multiCalendar = read("src/pages/rates/multi-calendar.astro")
 
-		expect(policyIndex).toContain("data-policy-operations-matrix")
-		expect(policyIndex).toContain("Centro operativo por tarifa, hotel y canal")
-		expect(policyIndex).not.toContain("Tarifas/listings/canales vs condiciones")
-		expect(policyIndex).toContain("Centro operativo")
-		expect(policyIndex).toContain("data-policy-tabs")
-		expect(policyIndex).toContain('data-policy-tab="incomplete"')
-		expect(policyIndex).toContain('aria-selected="true"')
-		expect(policyIndex).toContain("Tarifas incompletas")
-		expect(policyIndex).toContain("Listas para vender")
-		expect(policyIndex).toContain("Cancelación")
-		expect(policyIndex).toContain("Pago")
-		expect(policyIndex).toContain("No presentación")
-		expect(policyIndex).toContain("Ingreso/salida")
-		expect(policyIndex).toContain("Matriz profesional")
-		expect(policyIndex).toContain("Biblioteca básica")
-		expect(policyIndex).toContain("Biblioteca Pro")
-		expect(policyIndex).toContain("Historial avanzado")
-		expect(policyIndex).toContain('data-policy-tab-panel="library"')
-		expect(policyIndex).toContain('data-policy-tab-panel="history"')
-		expect(policyIndex).not.toContain("data-policy-library-secondary")
-		expect(policyIndex).not.toContain("Biblioteca secundaria")
-		expect(policyIndex.indexOf("data-policy-operations-matrix")).toBeLessThan(
-			policyIndex.indexOf('data-policy-tab-panel="library"')
-		)
-		expect(policyIndex).toContain("data-assignment-channel")
+		expect(ratePlanSurface).toContain("Contrato base")
+		expect(ratePlanSurface).toContain("Elegir plantilla")
+		expect(ratePlanSurface).toContain("Cambiar")
+		expect(ratePlanSurface).not.toContain("/provider/policies")
+		expect(multiCalendar).toContain("renderConditionsPanel")
+		expect(multiCalendar).toContain("Completar condiciones")
+		expect(multiCalendar).toContain("Editar contrato")
 		expect(assignmentFlow).toContain("defaultChannel")
 		expect(assignmentFlow).toContain("channelSelect.value = defaultChannel")
 	})
 
-	it("builder de condiciones es wizard real y preview viene del backend", () => {
-		const policyBuilder = read("src/components/policy/PolicyBuilder.astro")
+	it("asignacion contextual usa preview obligatorio del backend", () => {
+		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 		const previewEndpoint = read("src/pages/api/policies/preview.ts")
 
-		expect(policyBuilder).toContain("data-policy-builder-steps")
-		expect(policyBuilder).toContain('data-wizard-panel="0"')
-		expect(policyBuilder).toContain('data-wizard-panel="1"')
-		expect(policyBuilder).toContain('data-wizard-panel="2"')
-		expect(policyBuilder).toContain('data-wizard-panel="3"')
-		expect(policyBuilder).toContain('fetch("/api/policies/preview"')
-		expect(policyBuilder).toContain('mode: "draft"')
-		expect(policyBuilder).toContain("previewReady")
-		expect(policyBuilder).toContain("Preview backend obligatorio")
-		expect(policyBuilder).toContain("Avanzado técnico")
-		expect(policyBuilder).not.toContain("Excepciones legales JSON")
-		expect(policyBuilder).not.toContain("penaltyAtDays")
-		expect(policyBuilder).not.toContain("refundFromPenalty")
+		expect(assignmentFlow).toContain('fetch("/api/policies/preview"')
+		expect(assignmentFlow).toContain("assignmentState.previewReady")
+		expect(assignmentFlow).toContain("Calcula y revisa el preview obligatorio")
 		expect(previewEndpoint).toContain('mode?: "existing" | "preset" | "draft"')
 		expect(previewEndpoint).toContain("loadDraftPolicy")
 	})
 
-	it("preview financiero completo es unico para builder, asignacion, quote y cancelacion", () => {
-		const policyBuilder = read("src/components/policy/PolicyBuilder.astro")
+	it("preview financiero completo es unico para asignacion, quote y cancelacion", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 		const previewEndpoint = read("src/pages/api/policies/preview.ts")
 		const quoteEndpoint = read("src/pages/api/internal/financial/refund-quotes.ts")
@@ -243,7 +212,6 @@ describe("ui/rateplan-first modern surfaces", () => {
 			"src/modules/financial/application/use-cases/build-policy-financial-preview.ts"
 		)
 
-		expect(policyBuilder).toContain('fetch("/api/policies/preview"')
 		expect(assignmentFlow).toContain('fetch("/api/policies/preview"')
 		expect(previewEndpoint).toContain("buildPolicyFinancialPreviewFromResolution")
 		expect(quoteEndpoint).toContain("buildPolicyFinancialPreviewFromSnapshot")

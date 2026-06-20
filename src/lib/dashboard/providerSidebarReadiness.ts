@@ -78,7 +78,10 @@ async function getProviderVariantIds(providerId: string): Promise<string[]> {
 	return rows.map((row) => String(row.variantId))
 }
 
-async function getRatesSummary(ratePlanIds: string[]) {
+async function getRatesSummary(
+	ratePlanIds: string[],
+	policyReadiness: Awaited<ReturnType<typeof getProviderPolicyReadiness>>
+) {
 	if (!ratePlanIds.length) return "0 tarifas: crea tarifas antes de vender."
 
 	const baseRows = await db
@@ -96,13 +99,13 @@ async function getRatesSummary(ratePlanIds: string[]) {
 		(ratePlanId) => !pricedRatePlanIds.has(ratePlanId)
 	).length
 	if (missingBasePrice > 0) {
-		return `${plural(missingBasePrice, "tarifa")} sin precio base.`
+		return `${plural(missingBasePrice, "tarifa")} sin precio base · ${plural(policyReadiness.incompleteRatePlans, "tarifa")} con condiciones incompletas.`
 	}
 
 	const activeRules = (await listCommercialPriceRulesByRatePlans(ratePlanIds)).filter(
 		(rule) => rule.isActive
 	).length
-	return `${plural(ratePlanIds.length, "tarifa")} con precio base · ${plural(activeRules, "regla")} de precio.`
+	return `${plural(ratePlanIds.length, "tarifa")} con precio base · ${plural(policyReadiness.readyRatePlans, "tarifa")} con condiciones completas · ${plural(activeRules, "regla")} de precio.`
 }
 
 async function getPricingCalendarSummary(ratePlanIds: string[]) {
@@ -240,7 +243,7 @@ export async function getProviderSidebarData(
 				: false
 
 	const [ratesSummary, pricingSummary, restrictionsSummary] = await Promise.all([
-		getRatesSummary(ratePlanIds),
+		getRatesSummary(ratePlanIds, policyReadiness),
 		getPricingCalendarSummary(ratePlanIds),
 		getRestrictionsSummary(normalizedProviderId, ratePlanIds, variantIds),
 	])
@@ -263,7 +266,6 @@ export async function getProviderSidebarData(
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.pricing()]: pricingSummary,
 			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} disponibles para operación Pro. ${restrictionsSummary}`,
-			[routes.providerPolicies()]: policyReadiness.summary,
 		},
 	}
 }

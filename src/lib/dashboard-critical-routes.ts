@@ -7,11 +7,7 @@
 export const DASHBOARD_CRITICAL_ROUTES = {
 	deepNavigation: ["/rates/calendar"],
 	highBusinessImpact: ["/booking", "/api/inventory/hold", "/api/booking/confirm"],
-	policyAndRates: [
-		"/provider/policies",
-		"/provider/policies/:policyId/edit",
-		"/provider/policies/audit",
-	],
+	policyAndRates: ["/rates/plans/:ratePlanId/policies", "/rates/multi-calendar?tab=conditions"],
 	nonBreakableCompatibility: ["/product", "/product/:id", "/product/:id/rooms"],
 } as const
 

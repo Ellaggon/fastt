@@ -232,8 +232,8 @@ const checks = [
 		key: "booking-policies",
 		label: "Condiciones de reserva",
 		complete: missingPolicies.length === 0 && !policyResolutionError,
-		href: routes.providerPolicies(),
-		cta: "Revisar condiciones",
+		href: routes.ratePlansList(),
+		cta: "Revisar tarifas",
 		detail: policyResolutionError
 			? "No se pudieron resolver las condiciones."
 			: missingPolicies.length
@@ -508,7 +508,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 
 		<Section
 			title="Condiciones que verá el huésped"
-			description="Las condiciones de reserva viven en Condiciones. Esta vista solo confirma cómo se leen."
+			description="El contrato de reserva se configura dentro de cada tarifa. Esta vista confirma cómo lo verá el huésped."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				{

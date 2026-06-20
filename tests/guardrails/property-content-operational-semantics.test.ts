@@ -278,7 +278,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(preview).toContain("Condiciones que verá el huésped")
 		expect(preview).toContain("Reglas para huéspedes")
 		expect(preview).toContain("routes.providerHouseRules()")
-		expect(preview).toContain("routes.providerPolicies()")
+		expect(preview).toContain("routes.ratePlansList()")
 		expect(preview).not.toContain("/api/pricing/")
 		expect(preview).not.toContain("/api/inventory/")
 

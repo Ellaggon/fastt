@@ -49,11 +49,6 @@ export interface PolicyCommandRepositoryPortCapa6 {
 		metadata?: PolicyProfessionalMetadata
 	}): Promise<{ policyId: string }>
 
-	updatePolicyStatus(params: {
-		policyId: string
-		status: PolicyLibraryStatus
-	}): Promise<{ policyId: string; status: PolicyLibraryStatus }>
-
 	replacePolicyRules(params: {
 		policyId: string
 		rules: Array<{ ruleKey: string; ruleValue: unknown }>
@@ -79,8 +74,6 @@ export interface PolicyCommandRepositoryPortCapa6 {
 			| "policy_version_created"
 			| "assignment_replaced"
 			| "assignment_created"
-			| "policy_published"
-			| "policy_archived"
 			| "policy_exception_created"
 			| "policy_exception_updated"
 			| "policy_exception_approved"

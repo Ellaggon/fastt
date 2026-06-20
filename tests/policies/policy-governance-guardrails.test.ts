@@ -15,7 +15,6 @@ function commandRepo(overrides: Record<string, unknown> = {}) {
 		getMaxPolicyVersionByGroupId: vi.fn(async () => 0),
 		createPolicyGroup: vi.fn(async () => ({ groupId: "grp_1" })),
 		createPolicyVersion: vi.fn(async () => ({ policyId: "pol_1" })),
-		updatePolicyStatus: vi.fn(),
 		replacePolicyRules: vi.fn(async () => undefined),
 		replaceCancellationTiers: vi.fn(async () => undefined),
 		listActivePoliciesByGroupId: vi.fn(async () => []),

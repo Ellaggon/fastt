@@ -370,28 +370,12 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Operación financiera y conciliación con instantáneas seguras; no es contabilidad ni pasarela de pago.",
 	},
 	{
-		pattern: "/provider/policies/audit",
-		status: "transitional",
-		context: "governance",
-		owner: "Administration & Governance",
-		rationale:
-			"La auditoría de condiciones es gobernanza y trazabilidad, no operación diaria de tarifas.",
-	},
-	{
 		pattern: "/provider/house-rules",
 		status: "canonical",
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale:
 			"Reglas visibles para huéspedes; no son precios, reglas de venta ni condiciones de reserva.",
-	},
-	{
-		pattern: "/provider/policies/**",
-		status: "canonical",
-		context: "enterprise-operations",
-		owner: "Rooms & Rates",
-		rationale:
-			"La gestión de condiciones pertenece a Habitaciones y tarifas como contrato de reserva por tarifa.",
 	},
 	{
 		pattern: "/provider/tax-fees",
@@ -872,7 +856,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Operaciones comerciales",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona tarifas, calendario, condiciones y herramientas avanzadas de inventario, reglas de venta y operaciones masivas cuando el proveedor tiene escala.",
+			"Gestiona tarifas, su contrato, el calendario y herramientas avanzadas de reglas de venta cuando el proveedor tiene escala.",
 		maturity: "operational",
 		items: [
 			{
@@ -887,14 +871,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.pricing(),
 				status: "canonical",
 				summary: "Precio, cupo y venta diaria desde una superficie operativa.",
-			},
-			{
-				label: "Condiciones",
-				href: routes.providerPolicies(),
-				status: "canonical",
-				level: 2,
-				summary:
-					"Readiness real por tarifa: cancelación, pagos, no presentación, ingreso y salida.",
 			},
 			{
 				label: "Multicalendario",
@@ -1049,19 +1025,13 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				status: "transitional",
 				summary: "Flujo de verificación del proveedor.",
 			},
-			{
-				label: "Auditoría",
-				href: routes.providerPoliciesAudit(),
-				status: "transitional",
-				summary: "Trazabilidad y resolución de condiciones para gobernanza.",
-			},
 		],
 		planned: ["RBAC administrativo", "Operación de soporte"],
 	},
 ]
 
 function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
-	return [routes.ratesMultiCalendar(), routes.providerPoliciesAudit()].includes(item.href)
+	return item.href === routes.ratesMultiCalendar()
 }
 
 function shouldShowSectionForDisclosure(
@@ -1167,8 +1137,16 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		ownership: "commercial",
 		status: "operational",
 		intent:
-			"Multicalendario controla reglas de venta y vendibilidad en escala; Condiciones controla los términos contractuales de reserva.",
+			"Tarifas controla el contrato base y Multicalendario permite inspeccionarlo o completarlo en escala junto con las reglas de venta.",
 		surfaces: [
+			{
+				label: "Tarifas",
+				href: routes.ratePlansList(),
+				status: "canonical",
+				owner: "Habitaciones y tarifas",
+				description:
+					"Centro comercial donde cada tarifa administra cancelación, pago, no presentación y llegada/salida.",
+			},
 			{
 				label: "Multicalendario",
 				href: routes.ratesMultiCalendar(),
@@ -1176,14 +1154,6 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				owner: "Habitaciones y tarifas",
 				description:
 					"Herramienta Pro para aplicar estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y reglas de vendibilidad en múltiples tarifas.",
-			},
-			{
-				label: "Condiciones",
-				href: routes.providerPolicies(),
-				status: "canonical",
-				owner: "Habitaciones y tarifas",
-				description:
-					"Biblioteca contractual para cancelación, pago, no presentación, ingreso y salida; auditoría vive dentro de cada condición y los impuestos/cargos se referencian solo cuando afectan reembolso.",
 			},
 		],
 	},

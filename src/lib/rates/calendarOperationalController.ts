@@ -138,7 +138,7 @@ export function initRatesCalendar() {
 		inventoryPreview: "/api/inventory/bulk-preview",
 		inventoryApply: "/api/inventory/bulk-apply",
 		restrictionsSurface: "/api/rates/commercial-rules",
-		policiesSurface: "/provider/policies",
+		policiesSurface: "/rates/plans/manage",
 	}
 
 	function setInventoryFeedback(message) {

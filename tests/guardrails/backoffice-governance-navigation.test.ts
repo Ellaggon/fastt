@@ -317,7 +317,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(titles).toContain("Habitaciones y tarifas")
 		expect(titles).not.toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).not.toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -340,12 +340,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Multicalendario"])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
-		expect(labels).toContain("Auditoría")
+		expect(labels).not.toContain("Auditoría")
 		expect(
 			visible.find((section) => section.title === "Habitaciones y tarifas")?.planned
 		).toBeUndefined()
@@ -363,12 +363,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones", "Multicalendario"])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
-		expect(labels).toContain("Auditoría")
+		expect(labels).not.toContain("Auditoría")
 	})
 
 	it("keeps bulk operations contextual instead of a primary sidebar destination", () => {
@@ -403,7 +403,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 					.find((section) => section.title === "Habitaciones y tarifas")
 					?.items.map((item) => item.label) ?? []
 
-			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Condiciones"])
+			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario"])
 		}
 	})
 
@@ -612,7 +612,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining(["Calendario", "Multicalendario", "Tarifas", "Condiciones"])
+			expect.arrayContaining(["Calendario", "Multicalendario", "Tarifas"])
 		)
 		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(

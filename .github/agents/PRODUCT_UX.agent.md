@@ -35,7 +35,6 @@ For small providers, Habitaciones y tarifas should show:
 
 - Tarifas
 - Calendario
-- Condiciones
 
 Professional tools may appear only by role, scale, or explicit preference:
 
@@ -54,7 +53,8 @@ Use this mental model:
 
 - Tarifas: commercial readiness and blockers.
 - Calendario: daily operation for price, availability, restrictions, sellability, reservations/holds, and condition signals.
-- Condiciones: contractual library, assignment matrix, previews, audit, and overrides context.
+- Condiciones: contract editor inside each Tarifa and contextual inspection/assignment inside
+  Multicalendario. Do not recreate a standalone conditions library page.
 
 Do not split daily work into separate pages when the provider needs one operational answer: "Can this date/rate be sold?"
 
@@ -62,16 +62,14 @@ Do not split daily work into separate pages when the provider needs one operatio
 
 Provider-facing conditions should be understandable without reading technical rules.
 
-Show:
+Inside a tariff or Multicalendar selection, show:
 
 - human category names
 - preset/name
 - status
-- usage
-- last version
 - guest-facing summary
 - financial or operational impact
-- clear actions: Ver, Publicar, Asignar, Archivar, Historial
+- clear actions: Completar, Cambiar, Ver impacto, Historial contextual
 
 For assignment:
 

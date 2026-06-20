@@ -702,10 +702,10 @@ function formatHotelDateRange(
 			</a>
 			<a
 				id="multiCalendarDrawerPoliciesLink"
-				href={routes.providerPolicies()}
+				href={routes.ratePlansList()}
 				class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
 			>
-				Resolver condiciones
+				Abrir tarifas
 			</a>
 		</div>
 
@@ -2024,7 +2024,7 @@ function formatHotelDateRange(
 		rulesLink?.setAttribute("href", rulesHref)
 		policiesLink?.setAttribute(
 			"href",
-			firstCell.getAttribute("data-policies-href") || "/provider/policies?vista=incomplete"
+			firstCell.getAttribute("data-policies-href") || "/rates/plans/manage"
 		)
 		setActionPanels(action)
 		if (action === "rules") renderRulesView(activeAction)

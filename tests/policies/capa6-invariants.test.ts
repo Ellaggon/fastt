@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-	changePolicyLibraryStatusCapa6,
 	createPolicyVersionCapa6,
 	replacePolicyAssignmentCapa6,
 	togglePolicyAssignmentCapa6,
@@ -159,35 +158,5 @@ describe("policies/capa6 invariants (unit)", () => {
 		)
 		expect(out).toEqual({ assignmentId: "asg_toggle_1", isActive: false })
 		expect(assignmentRepo.setAssignmentActiveById).toHaveBeenCalledWith("asg_toggle_1", false)
-	})
-
-	it("publishes draft policies before assignment", async () => {
-		const repo = {
-			getPolicyById: vi.fn(async () => ({
-				id: "pol_draft",
-				groupId: "grp_draft",
-				category: "Payment",
-				status: "draft",
-				version: 1,
-				effectiveFrom: null,
-				effectiveTo: null,
-			})),
-			updatePolicyStatus: vi.fn(async () => ({ policyId: "pol_draft", status: "active" })),
-			createAuditLog: vi.fn(async () => undefined),
-		} as any
-
-		const result = await changePolicyLibraryStatusCapa6(
-			{ commandRepo: repo },
-			{ policyId: "pol_draft", status: "active", actorUserId: "user_1" }
-		)
-
-		expect(result).toEqual({ policyId: "pol_draft", status: "active" })
-		expect(repo.updatePolicyStatus).toHaveBeenCalledWith({
-			policyId: "pol_draft",
-			status: "active",
-		})
-		expect(repo.createAuditLog).toHaveBeenCalledWith(
-			expect.objectContaining({ eventType: "policy_published", policyId: "pol_draft" })
-		)
 	})
 })

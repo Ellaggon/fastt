@@ -110,14 +110,6 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		return { policyId }
 	}
 
-	async updatePolicyStatus(params: { policyId: string; status: PolicyLibraryStatus }) {
-		await db
-			.update(Policy)
-			.set({ status: params.status } as any)
-			.where(eq(Policy.id, params.policyId))
-		return { policyId: params.policyId, status: params.status }
-	}
-
 	async replacePolicyRules(params: {
 		policyId: string
 		rules: Array<{ ruleKey: string; ruleValue: unknown }>
@@ -178,8 +170,6 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			| "policy_version_created"
 			| "assignment_replaced"
 			| "assignment_created"
-			| "policy_published"
-			| "policy_archived"
 			| "policy_exception_created"
 			| "policy_exception_updated"
 			| "policy_exception_approved"

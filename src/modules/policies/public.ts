@@ -39,7 +39,6 @@ export * from "./application/services/RestrictionService"
 // CAPA 6 write path (isolated)
 export * from "./application/use-cases/capa6/create-policy"
 export * from "./application/use-cases/capa6/create-policy-version"
-export * from "./application/use-cases/capa6/change-policy-library-status"
 export * from "./application/use-cases/capa6/assign-policy"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-calculation-snapshot"
@@ -95,14 +94,6 @@ export async function assignPolicyCapa6(
 ) {
 	const { assignPolicyCapa6UseCase } = await import("@/container/policies-write.container")
 	return assignPolicyCapa6UseCase(params)
-}
-
-export async function changePolicyLibraryStatusCapa6(
-	params: import("./application/use-cases/capa6/change-policy-library-status").ChangePolicyLibraryStatusInput
-) {
-	const { changePolicyLibraryStatusCapa6UseCase } =
-		await import("@/container/policies-write.container")
-	return changePolicyLibraryStatusCapa6UseCase(params)
 }
 
 export async function replacePolicyAssignmentCapa6(

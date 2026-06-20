@@ -13,6 +13,5 @@ export type {
 } from "./application/ports/PolicyResolutionRepositoryPort"
 
 export { createPolicyVersionCapa6 } from "./application/use-cases/capa6/create-policy-version"
-export { changePolicyLibraryStatusCapa6 } from "./application/use-cases/capa6/change-policy-library-status"
 export { replacePolicyAssignmentCapa6 } from "./application/use-cases/capa6/replace-policy-assignment"
 export { togglePolicyAssignmentCapa6 } from "./application/use-cases/capa6/toggle-policy-assignment"

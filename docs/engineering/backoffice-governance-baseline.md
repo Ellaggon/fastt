@@ -68,7 +68,6 @@ Mandatory coverage:
 | /pricing, /pricing/rules, /pricing/calendar                            | Legacy                   | Enterprise Operations        | Rooms & Rates               |
 | /inventory, /inventory/bulk                                            | Legacy redirect          | Enterprise Operations        | Rooms & Rates               |
 | /booking/\*\*                                                          | Canonical                | Enterprise Operations        | Reservations                |
-| /provider/policies/\*\*                                                | Canonical                | Enterprise Operations        | Rooms & Rates               |
 | /provider/tax-fees                                                     | Transitional             | Enterprise Operations        | Payments & Finance          |
 | /analytics/\*\*                                                        | Transitional             | Enterprise Operations        | Analytics & Performance     |
 | /system/integrations                                                   | Transitional             | Enterprise Operations        | Connectivity                |
@@ -138,12 +137,12 @@ They are collapsed by default to avoid roadmap clutter.
 Habitaciones y tarifas is calendar-first. It is not a generic ARI hub and it must not expose
 future maturity as primary navigation. The provider-facing mental model is:
 
-- **Tarifas:** commercial rate plans attached to rooms, including price base, commercial
-  readiness and links to resolve missing setup.
+- **Tarifas:** commercial rate plans attached to rooms, including price base, contractual
+  conditions, commercial readiness and links to resolve missing setup.
 - **Calendario:** daily operating surface for price, available units, sellability, sales
   rules, reservations/holds and applicable conditions.
-- **Condiciones:** contractual matrix and library for cancellation, payment, no-show and
-  check-in/check-out terms by rate, room, hotel and channel scope.
+- **Multicalendario > Condiciones:** professional inspection and contextual completion of
+  cancellation, payment, no-show and check-in/check-out terms across several rates.
 
 Advanced tools exist only by progressive disclosure: role, provider scale or explicit
 professional-tools preference. They may appear as contextual or professional surfaces, but
@@ -168,7 +167,7 @@ provider navigation stays calendar-first.
 - Do not export `routes.pricingCalendar()` as a normal helper.
 - Keep `/rates/calendar` as the daily operating surface for price, cupo, sale rules and
   applicable conditions.
-- Keep the small-provider sidebar focused on Tarifas, Calendario and Condiciones.
+- Keep the small-provider sidebar focused on Tarifas and Calendario.
 - Expose Reglas de venta and Operaciones masivas only through progressive disclosure.
 - Do not expose Inventario físico as provider navigation; redirect legacy inventory URLs to
   `/rates/calendar?focus=availability`.
@@ -192,8 +191,8 @@ provider navigation stays calendar-first.
 - Provider-facing `/api/internal/*` BFF/read endpoints are explicitly classified; true internal ops remain internal-only.
 - `/pricing/**` routes are legacy redirect/contextual compatibility, removed from primary navigation.
 - `routes.catalog()` was removed because no `/catalog` surface exists.
-- Condiciones runs as a canonical Rooms & Rates surface; taxes/fees run as a transitional
-  Payments & Finance surface.
+- Contractual conditions run inside each rate and Multicalendar; taxes/fees run as a
+  transitional Payments & Finance surface.
 - Internal admin pages run on `InternalAdminLayout`.
 - Internal admin product review no longer depends on provider context or redirects to provider workspace.
 - `DashboardLayout` no longer owns navigation; it may exist only as WorkspaceLayout compatibility.
@@ -205,8 +204,8 @@ provider navigation stays calendar-first.
 - Planned modules are collapsed roadmap markers, not active workspaces.
 - Topbar uses human-readable operational context labels instead of raw governance enums.
 - WorkspaceLayout renders a shared page-level context panel for all workspace pages.
-- Habitaciones y tarifas exposes Tarifas, Calendario and Condiciones as the primary operating
-  flow, with advanced inventory/rules/bulk operations behind progressive disclosure.
+- Habitaciones y tarifas exposes Tarifas and Calendario as the primary operating flow;
+  Multicalendario adds professional condition/rule operations through progressive disclosure.
 
 ## Residual debt accepted after Capa 0
 

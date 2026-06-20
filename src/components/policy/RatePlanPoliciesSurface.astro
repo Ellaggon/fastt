@@ -3,7 +3,7 @@ import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import { routes } from "@/lib/routes"
-import { ArrowRight, Check, Hotel, Pencil, TriangleAlert } from "@lucide/astro"
+import { ArrowRight, Check, Hotel, TriangleAlert } from "@lucide/astro"
 
 interface PolicyPlanView {
 	ratePlanId: string
@@ -126,7 +126,6 @@ const houseRulesHref = productId
 					{orderedCategories.map((category) => {
 						const config = categoryConfig[category]
 						const missing = plan.missingCategories.includes(category)
-						const policyId = plan.policyIdByCategory[category]
 						const inherited = plan.inheritanceByCategory[category]
 						return (
 							<section class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -196,16 +195,6 @@ const houseRulesHref = productId
 										</Button>
 									) : (
 										<>
-											{policyId && (
-												<Button
-													href={`/provider/policies/${encodeURIComponent(policyId)}/edit`}
-													variant="secondary"
-													size="sm"
-												>
-													<Pencil class="h-4 w-4" />
-													Editar
-												</Button>
-											)}
 											<Button
 												type="button"
 												variant="secondary"

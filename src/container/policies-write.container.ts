@@ -3,7 +3,6 @@ import { createPolicyVersionCapa6 } from "@/modules/policies/application/use-cas
 import { assignPolicyCapa6 } from "@/modules/policies/application/use-cases/capa6/assign-policy"
 import { replacePolicyAssignmentCapa6 } from "@/modules/policies/application/use-cases/capa6/replace-policy-assignment"
 import { togglePolicyAssignmentCapa6 } from "@/modules/policies/application/use-cases/capa6/toggle-policy-assignment"
-import { changePolicyLibraryStatusCapa6 } from "@/modules/policies/application/use-cases/capa6/change-policy-library-status"
 
 import { PolicyCommandRepositoryCapa6 } from "@/modules/policies/infrastructure/repositories/PolicyCommandRepositoryCapa6"
 import { PolicyAssignmentRepositoryCapa6 } from "@/modules/policies/infrastructure/repositories/PolicyAssignmentRepositoryCapa6"
@@ -52,10 +51,4 @@ export async function togglePolicyAssignmentCapa6UseCase(
 		},
 		input
 	)
-}
-
-export async function changePolicyLibraryStatusCapa6UseCase(
-	input: Parameters<typeof changePolicyLibraryStatusCapa6>[1]
-) {
-	return changePolicyLibraryStatusCapa6({ commandRepo: policyCommandRepoCapa6 }, input)
 }

@@ -452,8 +452,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			label: "Condiciones",
 			complete: policiesComplete,
 			summary: policiesSummary,
-			actionLabel: "Abrir Condiciones",
-			actionHref: "/provider/policies",
+			actionLabel: "Abrir tarifas",
+			actionHref: "/rates/plans/manage",
 			externalOwner: true,
 		},
 	]
