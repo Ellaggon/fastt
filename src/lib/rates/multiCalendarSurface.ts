@@ -34,6 +34,7 @@ export type MultiCalendarCell = {
 	conditionsComplete: boolean
 	conditionsSummary: string
 	conditionsMissingSummary: string
+	conditionsMissingCategories: string[]
 }
 
 export type MultiCalendarRow = {
@@ -250,6 +251,7 @@ export async function buildRatesMultiCalendarSurface(input: {
 				conditionsSummary:
 					row.policySummary || (conditionsComplete ? "Condiciones listas" : "Faltan condiciones"),
 				conditionsMissingSummary,
+				conditionsMissingCategories: row.policyCoverage?.missingCategories ?? [],
 			}))
 			const readiness = computeReadiness(cells, row)
 			return {
@@ -262,7 +264,7 @@ export async function buildRatesMultiCalendarSurface(input: {
 				status: row.status,
 				isDefault: row.isDefault,
 				calendarHref: `${routes.pricing()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}&month=${encodeURIComponent(surface.month)}&focus=${tab === "availability" ? "availability" : tab === "sellability" || tab === "stay" || tab === "arrival_departure" || tab === "rules" ? "restrictions" : "price"}`,
-				policiesHref: `${routes.providerPolicies()}?vista=incomplete&ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
+				policiesHref: routes.ratePlanPolicies(String(row.ratePlanId)),
 				rulesHref: `${routes.ratesMultiCalendar()}?tab=rules&ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
 				readiness,
 				cells,

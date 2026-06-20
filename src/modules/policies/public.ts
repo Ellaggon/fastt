@@ -112,3 +112,11 @@ export async function replacePolicyAssignmentCapa6(
 		await import("@/container/policies-write.container")
 	return replacePolicyAssignmentCapa6UseCase(params)
 }
+
+export async function togglePolicyAssignmentCapa6(
+	params: import("./application/use-cases/capa6/toggle-policy-assignment").TogglePolicyAssignmentInput
+) {
+	const { togglePolicyAssignmentCapa6UseCase } =
+		await import("@/container/policies-write.container")
+	return togglePolicyAssignmentCapa6UseCase(params)
+}

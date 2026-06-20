@@ -289,6 +289,13 @@ const historyToneClasses: Record<string, string> = {
 										>
 											Resolver
 										</Button>
+										<Button
+											href={routes.ratePlanPolicies(String(row.ratePlanId))}
+											variant="secondary"
+											size="sm"
+										>
+											Condiciones
+										</Button>
 									</div>
 								</article>
 							)
@@ -412,15 +419,9 @@ const historyToneClasses: Record<string, string> = {
 		<div
 			class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-600"
 		>
-			<p>
-				Reglas de venta y condiciones siguen separadas para evitar mezclar precio, vendibilidad y
-				contrato. Usa Resolver para abrir el bloqueo correcto.
-			</p>
+			<p>Usa Resolver para abrir el primer bloqueo o entra a Condiciones desde cada tarifa.</p>
 			<div class="flex flex-wrap gap-2">
 				<Button href={routes.pricing()} variant="secondary" size="sm">Calendario</Button>
-				<Button href={routes.providerPolicies()} variant="secondary" size="sm">
-					Condiciones
-				</Button>
 			</div>
 		</div>
 

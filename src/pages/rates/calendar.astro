@@ -255,7 +255,10 @@ const extensionTargetOptions = await Promise.all(
 					) : (
 						<>
 							<div class="space-y-5">
-								<CalendarOperationalPanel isProfessionalCalendar={isProfessionalCalendar} />
+								<CalendarOperationalPanel
+									isProfessionalCalendar={isProfessionalCalendar}
+									ratePlanId={selectedRatePlanId}
+								/>
 								<div class="space-y-5" data-pricing-two-month-calendar>
 									{pricingCalendarMonths.map((monthGroup, monthIndex) => (
 										<section

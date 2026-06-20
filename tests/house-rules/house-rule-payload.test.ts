@@ -37,4 +37,22 @@ describe("house rule structured payloads", () => {
 			"validation_error:allowed_required"
 		)
 	})
+
+	it("models hotel arrival as a contractual local-time window", () => {
+		const payload = normalizeHouseRulePayload("CheckIn", {
+			method: "front_desk",
+			checkInFrom: "15:00",
+			checkInUntil: "22:00",
+		})
+
+		expect(() => validateHouseRulePayload("CheckIn", payload)).not.toThrow()
+		expect(buildHouseRuleGuestSummary("CheckIn", payload)).toContain("Llegada de 15:00 a 22:00.")
+	})
+
+	it("rejects check-in configuration without a complete time window", () => {
+		const payload = normalizeHouseRulePayload("CheckIn", { method: "front_desk" })
+		expect(() => validateHouseRulePayload("CheckIn", payload)).toThrow(
+			"validation_error:checkin_details_required"
+		)
+	})
 })

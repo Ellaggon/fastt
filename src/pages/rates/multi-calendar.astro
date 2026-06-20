@@ -2,6 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -564,6 +565,11 @@ function formatHotelDateRange(
 												data-product-id={row.productId}
 												data-product-name={row.productName}
 												data-variant-name={row.variantName}
+												data-policies-href={row.policiesHref}
+												data-policy-summary={cell.conditionsSummary}
+												data-missing-policy-categories={JSON.stringify(
+													cell.conditionsMissingCategories
+												)}
 												data-context-title={`${cell.date} · ${row.ratePlanName}`}
 												data-context-summary={`${row.productName} · ${row.variantName}`}
 												data-context-primary={cellPrimary(cell)}
@@ -663,6 +669,22 @@ function formatHotelDateRange(
 			</div>
 		</div>
 
+		<section id="multiCalendarConditionsPanel" class="mt-5 hidden space-y-4">
+			<div class="border-b border-slate-200 pb-3">
+				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+					Contrato efectivo
+				</p>
+				<h3 id="multiCalendarConditionsTitle" class="mt-1 text-base font-semibold text-slate-950">
+					Condiciones de las tarifas
+				</h3>
+				<p id="multiCalendarConditionsSummary" class="mt-1 text-sm leading-5 text-slate-500">
+					La selección muestra qué contrato aplica. Los cambios de contrato base afectan reservas
+					futuras de la tarifa completa.
+				</p>
+			</div>
+			<div id="multiCalendarConditionsContent" class="space-y-3"></div>
+		</section>
+
 		<div class="mt-5 grid gap-2" data-multi-calendar-navigation-actions>
 			<a
 				id="multiCalendarDrawerCalendarLink"
@@ -704,7 +726,7 @@ function formatHotelDateRange(
 				action={routes.ratesCommercialRulesApi()}
 				class="hidden space-y-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4"
 			>
-				<input type="hidden" name="action" value="update-rule" />
+				<input type="hidden" name="action" value="update-rule" data-rule-editor-action />
 				<input type="hidden" name="ruleId" data-rule-editor-id />
 				<input type="hidden" name="category" data-rule-editor-category />
 				<input type="hidden" name="scope" data-rule-editor-scope />
@@ -713,7 +735,12 @@ function formatHotelDateRange(
 				<input type="hidden" name="type" data-rule-editor-type />
 				<input type="hidden" name="contextKey" data-rule-editor-context-key />
 				<div>
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Editar regla</p>
+					<p
+						data-rule-editor-eyebrow
+						class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+					>
+						Editar regla
+					</p>
 					<h4 data-rule-editor-title class="mt-1 text-base font-semibold text-slate-950"></h4>
 					<p data-rule-editor-context class="mt-1 text-sm text-slate-500"></p>
 				</div>
@@ -771,6 +798,7 @@ function formatHotelDateRange(
 					</button>
 					<button
 						type="submit"
+						data-rule-editor-submit
 						class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
 					>
 						Guardar cambios
@@ -934,6 +962,7 @@ function formatHotelDateRange(
 		</form>
 	</aside>
 	<script id="multiCalendarAppliedRulesData" type="application/json" set:html={appliedRulesJson} />
+	<PolicyAssignmentFlow defaultScope="rate_plan" isProfessionalMode={true} />
 </WorkspaceLayout>
 
 <script>
@@ -985,6 +1014,10 @@ function formatHotelDateRange(
 	const ruleFormDescription = document.getElementById("multiCalendarRuleFormDescription")
 	const ruleImpact = document.getElementById("multiCalendarRuleImpact")
 	const rulesPanel = document.getElementById("multiCalendarRulesPanel")
+	const conditionsPanel = document.getElementById("multiCalendarConditionsPanel")
+	const conditionsContent = document.getElementById("multiCalendarConditionsContent")
+	const conditionsTitle = document.getElementById("multiCalendarConditionsTitle")
+	const conditionsSummary = document.getElementById("multiCalendarConditionsSummary")
 	const rulesPanelTitle = document.getElementById("multiCalendarRulesPanelTitle")
 	const rulesPanelSummary = document.getElementById("multiCalendarRulesPanelSummary")
 	const rulesContent = document.getElementById("multiCalendarRulesContent")
@@ -1053,10 +1086,7 @@ function formatHotelDateRange(
 			{ id: "arrival_block", label: "Bloquear llegada", kind: "rule" },
 			{ id: "departure_block", label: "Bloquear salida", kind: "rule" },
 		],
-		conditions: [
-			{ id: "conditions_resolve", label: "Resolver faltantes", kind: "conditions" },
-			{ id: "conditions_view", label: "Ver contrato", kind: "conditions" },
-		],
+		conditions: [{ id: "conditions_manage", label: "Ver condiciones", kind: "conditions" }],
 		rules: [
 			{ id: "rules_manage", label: "Ver reglas", kind: "rules" },
 			{ id: "rules_conflicts", label: "Ver conflictos", kind: "rules" },
@@ -1420,7 +1450,10 @@ function formatHotelDateRange(
 			].join(" ")
 			button.disabled = cells.length === 0
 			button.setAttribute("aria-pressed", String(activeAction === action.id))
-			button.textContent = action.label
+			button.textContent =
+				activeTab === "conditions" && action.id === "conditions_manage"
+					? conditionsActionLabel(cells)
+					: action.label
 			button.addEventListener("click", () => {
 				activeAction = action.id
 				syncContextualActionState()
@@ -1510,6 +1543,112 @@ function formatHotelDateRange(
 			.replaceAll("'", "&#039;")
 	}
 
+	function parseMissingPolicyCategories(cell: HTMLElement): string[] {
+		try {
+			const parsed = JSON.parse(cell.dataset.missingPolicyCategories || "[]")
+			return Array.isArray(parsed) ? parsed.map(String) : []
+		} catch {
+			return []
+		}
+	}
+
+	function conditionsSelectionState(cells: HTMLElement[]): "incomplete" | "complete" | "mixed" {
+		const states = new Map<string, boolean>()
+		cells.forEach((cell) => {
+			const ratePlanId = cell.dataset.ratePlanId || ""
+			if (ratePlanId && !states.has(ratePlanId)) {
+				states.set(ratePlanId, parseMissingPolicyCategories(cell).length > 0)
+			}
+		})
+		const values = [...states.values()]
+		if (values.length && values.every(Boolean)) return "incomplete"
+		if (values.length && values.every((value) => !value)) return "complete"
+		return "mixed"
+	}
+
+	function conditionsActionLabel(cells: HTMLElement[]): string {
+		const state = conditionsSelectionState(cells)
+		if (state === "incomplete") return "Completar condiciones"
+		if (state === "complete") return "Ver condiciones"
+		return "Revisar condiciones"
+	}
+
+	function renderConditionsPanel() {
+		if (!conditionsContent) return
+		const categoryLabels: Record<string, string> = {
+			Cancellation: "Cancelación",
+			Payment: "Pago y depósito",
+			NoShow: "No presentación",
+			CheckIn: "Llegada y salida",
+		}
+		const byRatePlan = new Map<string, HTMLElement>()
+		selectedCells().forEach((cell) => {
+			const ratePlanId = cell.dataset.ratePlanId || ""
+			if (ratePlanId && !byRatePlan.has(ratePlanId)) byRatePlan.set(ratePlanId, cell)
+		})
+		if (!byRatePlan.size) {
+			conditionsContent.innerHTML =
+				'<p class="text-sm text-slate-500">Selecciona al menos una tarifa.</p>'
+			return
+		}
+		const state = conditionsSelectionState([...byRatePlan.values()])
+		if (conditionsTitle) {
+			conditionsTitle.textContent =
+				state === "incomplete"
+					? "Completar condiciones"
+					: state === "complete"
+						? "Condiciones aplicables"
+						: "Revisar condiciones"
+		}
+		if (conditionsSummary) {
+			conditionsSummary.textContent =
+				state === "incomplete"
+					? "Completa el contrato antes de vender. Los cambios se aplican a reservas futuras de la tarifa completa."
+					: state === "complete"
+						? "Consulta el contrato que verá el huésped. La fecha seleccionada aporta contexto y no modifica el contrato por noche."
+						: "Las tarifas incompletas aparecen primero. Los cambios se aplican a reservas futuras de la tarifa completa."
+		}
+		conditionsContent.innerHTML = [...byRatePlan.entries()]
+			.sort(
+				([, left], [, right]) =>
+					parseMissingPolicyCategories(right).length - parseMissingPolicyCategories(left).length
+			)
+			.map(([ratePlanId, cell]) => {
+				const missing = parseMissingPolicyCategories(cell)
+				const ratePlanName = cell.dataset.ratePlanName || "Tarifa"
+				const context = [cell.dataset.productName, cell.dataset.variantName]
+					.filter(Boolean)
+					.join(" · ")
+				const summary = cell.dataset.policySummary || "Sin resumen contractual."
+				const policiesHref =
+					cell.dataset.policiesHref || `/rates/plans/${encodeURIComponent(ratePlanId)}/policies`
+				const productId = cell.dataset.productId || ""
+				const completedCount = Math.max(0, 4 - missing.length)
+				const missingActions = missing
+					.map((category, index) => {
+						const actionClass =
+							index === 0
+								? "bg-slate-950 text-white hover:bg-slate-800"
+								: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+						if (category === "CheckIn") {
+							return `<a class="inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold ${actionClass}" href="/provider/house-rules?productId=${encodeURIComponent(productId)}&focus=arrival">Configurar llegada y salida</a>`
+						}
+						return `<button type="button" class="policy-assignment-open inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold ${actionClass}" data-assignment-mode="preset" data-assignment-scope="rate_plan" data-assignment-scope-id="${escapeHtml(ratePlanId)}" data-assignment-category="${escapeHtml(category)}">Completar ${escapeHtml(categoryLabels[category] || category)}</button>`
+					})
+					.join("")
+				return `<article class="rounded-xl border ${missing.length ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"} p-4">
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0"><p class="font-semibold text-slate-950">${escapeHtml(ratePlanName)}</p><p class="mt-1 truncate text-xs text-slate-500">${escapeHtml(context)}</p></div>
+						<span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${missing.length ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}">${missing.length ? `${completedCount} de 4 completas` : "4 de 4 completas"}</span>
+					</div>
+					<p class="mt-3 text-sm leading-5 text-slate-700">${escapeHtml(summary)}</p>
+					${missing.length ? `<p class="mt-2 text-xs font-medium text-amber-800">Falta: ${escapeHtml(missing.map((category) => categoryLabels[category] || category).join(", "))}</p>` : ""}
+					<div class="mt-3 flex flex-wrap gap-2">${missingActions}<a class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" href="${escapeHtml(policiesHref)}">${missing.length ? "Abrir contrato completo" : "Editar contrato"}</a></div>
+				</article>`
+			})
+			.join("")
+	}
+
 	function ruleDateLabel(rule: AppliedRule): string {
 		if (!rule.startDate && !rule.endDate) return "Siempre activa"
 		if (!rule.endDate || rule.startDate === rule.endDate) {
@@ -1547,6 +1686,10 @@ function formatHotelDateRange(
 		const statusClass = rule.isActive
 			? "border-emerald-200 bg-emerald-50 text-emerald-700"
 			: "border-slate-200 bg-slate-100 text-slate-600"
+		const variantAction =
+			rule.category === "price"
+				? `<button type="button" data-rule-governance-action="variant" data-rule-id="${escapeHtml(rule.id)}" class="rule-overflow-action">Crear variante</button>`
+				: ""
 		return `
 			<article class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
 				<div class="flex items-start justify-between gap-3">
@@ -1567,8 +1710,13 @@ function formatHotelDateRange(
 				<div class="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
 					<button type="button" data-rule-governance-action="edit" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">Editar</button>
 					<button type="button" data-rule-governance-action="toggle" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">${rule.isActive ? "Pausar" : "Activar"}</button>
-					<button type="button" data-rule-governance-action="duplicate" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button">Duplicar</button>
-					<button type="button" data-rule-governance-action="delete" data-rule-id="${escapeHtml(rule.id)}" class="rule-governance-button is-danger">Eliminar</button>
+					<details class="rule-overflow-menu relative ml-auto">
+						<summary class="rule-governance-button cursor-pointer list-none" aria-label="Más acciones">•••</summary>
+						<div class="absolute right-0 z-20 mt-1 min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+							${variantAction}
+							<button type="button" data-rule-governance-action="delete" data-rule-id="${escapeHtml(rule.id)}" class="rule-overflow-action is-danger">Eliminar</button>
+						</div>
+					</details>
 				</div>
 			</article>`
 	}
@@ -1624,7 +1772,9 @@ function formatHotelDateRange(
 					const action = button.dataset.ruleGovernanceAction
 					if (action === "edit") openRuleEditor(rule)
 					if (action === "toggle") void mutateRule(rule, "toggle-rule")
-					if (action === "duplicate") void mutateRule(rule, "duplicate-rule")
+					if (action === "variant" && rule.category === "price") {
+						openRuleEditor(rule, "variant")
+					}
 					if (action === "delete" && window.confirm(`Eliminar ${rule.typeLabel}?`)) {
 						void mutateRule(rule, "delete-rule")
 					}
@@ -1684,7 +1834,7 @@ function formatHotelDateRange(
 		if (input) input.value = value
 	}
 
-	function openRuleEditor(rule: AppliedRule) {
+	function openRuleEditor(rule: AppliedRule, mode: "edit" | "variant" = "edit") {
 		editingRule = rule
 		rulesContent?.classList.add("hidden")
 		ruleEditor?.classList.remove("hidden")
@@ -1696,16 +1846,29 @@ function formatHotelDateRange(
 		setEditorInput("[data-rule-editor-rate-plan-id]", rule.ratePlanId)
 		setEditorInput("[data-rule-editor-type]", rule.type)
 		setEditorInput("[data-rule-editor-context-key]", rule.contextKey || "")
+		setEditorInput(
+			"[data-rule-editor-action]",
+			mode === "variant" ? "create-variant" : "update-rule"
+		)
 		setEditorInput("[data-rule-editor-start]", rule.startDate || today)
 		setEditorInput("[data-rule-editor-end]", rule.endDate || rule.startDate || today)
 		setEditorInput("[data-rule-editor-value]", rule.value == null ? "" : String(rule.value))
 		setEditorInput("[data-rule-editor-priority]", String(rule.priority))
 		const title = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-title]")
 		const context = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-context]")
+		const eyebrow = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-eyebrow]")
+		const submit = ruleEditor?.querySelector<HTMLButtonElement>("[data-rule-editor-submit]")
 		const valueField = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-value-field]")
 		const valueLabel = ruleEditor?.querySelector<HTMLElement>("[data-rule-editor-value-label]")
 		if (title) title.textContent = rule.typeLabel
-		if (context) context.textContent = `${rule.targetName} · ${rule.categoryLabel}`
+		if (eyebrow) eyebrow.textContent = mode === "variant" ? "Crear variante" : "Editar regla"
+		if (submit) submit.textContent = mode === "variant" ? "Guardar variante" : "Guardar cambios"
+		if (context) {
+			context.textContent =
+				mode === "variant"
+					? `Basada en ${rule.typeLabel} · cambia la vigencia o el valor`
+					: `${rule.targetName} · ${rule.categoryLabel}`
+		}
 		if (valueLabel) valueLabel.textContent = rule.category === "price" ? "Valor" : rule.valueLabel
 		valueField?.classList.toggle("hidden", rule.value == null)
 		if (ruleEditorFeedback) ruleEditorFeedback.textContent = ""
@@ -1740,11 +1903,29 @@ function formatHotelDateRange(
 	ruleEditor?.addEventListener("submit", async (event) => {
 		event.preventDefault()
 		if (!editingRule || !(ruleEditor instanceof HTMLFormElement)) return
+		const submit = ruleEditor.querySelector<HTMLButtonElement>("[data-rule-editor-submit]")
+		if (submit?.disabled) return
+		const idleLabel = submit?.textContent || "Guardar cambios"
+		if (submit) {
+			submit.disabled = true
+			submit.textContent = "Guardando..."
+		}
 		if (ruleEditorFeedback) ruleEditorFeedback.textContent = "Guardando cambios..."
-		const form = new FormData(ruleEditor)
-		editingRule.validDays.forEach((day) => form.append("validDays", String(day)))
-		const response = await fetch(ruleEditor.action, { method: "POST", body: form })
-		window.location.href = response.url || "/rates/multi-calendar?tab=rules"
+		try {
+			const form = new FormData(ruleEditor)
+			editingRule.validDays.forEach((day) => form.append("validDays", String(day)))
+			const response = await fetch(ruleEditor.action, { method: "POST", body: form })
+			window.location.href = response.url || "/rates/multi-calendar?tab=rules"
+		} catch {
+			if (ruleEditorFeedback) {
+				ruleEditorFeedback.textContent =
+					"No se pudo guardar. Revisa la conexión e inténtalo otra vez."
+			}
+			if (submit) {
+				submit.disabled = false
+				submit.textContent = idleLabel
+			}
+		}
 	})
 
 	function setActionPanels(
@@ -1754,10 +1935,15 @@ function formatHotelDateRange(
 		availabilityForm?.classList.toggle("hidden", action !== "availability")
 		ruleForm?.classList.toggle("hidden", action !== "rule")
 		rulesPanel?.classList.toggle("hidden", action !== "rules")
+		conditionsPanel?.classList.toggle("hidden", action !== "conditions")
 		selectionOverview?.classList.toggle("hidden", action === "rules")
 		navigationActions?.classList.toggle(
 			"hidden",
-			action === "price" || action === "availability" || action === "rule" || action === "rules"
+			action === "price" ||
+				action === "availability" ||
+				action === "rule" ||
+				action === "rules" ||
+				action === "conditions"
 		)
 		if (action !== "price") {
 			pricePayload = null
@@ -1842,6 +2028,7 @@ function formatHotelDateRange(
 		)
 		setActionPanels(action)
 		if (action === "rules") renderRulesView(activeAction)
+		if (action === "conditions") renderConditionsPanel()
 		setDrawerOpen(true)
 	}
 
@@ -2367,6 +2554,31 @@ function formatHotelDateRange(
 
 	.rule-governance-button.is-danger {
 		border-color: #fecaca;
+		color: #b91c1c;
+	}
+
+	.rule-overflow-menu > summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.rule-overflow-action {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		border-radius: 0.375rem;
+		padding: 0.5rem 0.625rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #334155;
+		transition: background-color 160ms ease;
+	}
+
+	.rule-overflow-action:hover {
+		background: #f8fafc;
+		color: #0f172a;
+	}
+
+	.rule-overflow-action.is-danger {
 		color: #b91c1c;
 	}
 </style>

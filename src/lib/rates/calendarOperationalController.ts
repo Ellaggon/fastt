@@ -348,8 +348,8 @@ export function initRatesCalendar() {
 		}
 		if (policiesAction) {
 			policiesAction.textContent = day.conditionsIncomplete
-				? "Resolver condiciones"
-				: "Ver condiciones"
+				? "Completar contrato"
+				: "Revisar contrato"
 		}
 		setOperationalPanelTab(activeOperationalTab)
 	}

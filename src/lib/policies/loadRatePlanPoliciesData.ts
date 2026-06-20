@@ -14,6 +14,8 @@ export type LoadedRatePlanPoliciesData =
 	| { redirectTo: string }
 	| {
 			context: {
+				productId: string
+				variantId: string
 				productName: string
 				variantName: string
 				ratePlanName: string
@@ -77,6 +79,8 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 
 	return {
 		context: {
+			productId: String(loaded.productId),
+			variantId: String(loaded.variantId),
 			productName: String(loadedRatePlan.displayContext.productName),
 			variantName: String(loadedRatePlan.displayContext.variantName),
 			ratePlanName: String(targetRatePlan.name),

@@ -62,10 +62,10 @@ if (Astro.request.method === "POST") {
 <WorkspaceLayout title="Tarifa · Condiciones">
 	<section class="space-y-8 text-neutral-100">
 		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarifas</p>
-			<h1 class="text-3xl font-semibold text-slate-100">Condiciones de la tarifa</h1>
+			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarifa · Contrato</p>
+			<h1 class="text-3xl font-semibold text-slate-100">{context.ratePlanName}</h1>
 			<p class="text-sm text-slate-400">
-				{context.productName} · {context.variantName} · {context.ratePlanName}
+				{context.productName} · {context.variantName}
 			</p>
 			<div class="flex flex-wrap items-center gap-2 pt-2">
 				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
@@ -76,13 +76,14 @@ if (Astro.request.method === "POST") {
 		</header>
 
 		<RatePlanPoliciesSurface
-			title="Condiciones de reserva"
-			description={`Cobertura contractual para ${context.ratePlanName} · ${checkIn} → ${checkOut}.`}
+			title="Condiciones de la tarifa"
+			description="Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
 			policyPlans={policyPlans}
 			wizardPlans={wizardPlans}
 			checkIn={checkIn}
 			checkOut={checkOut}
 			requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+			productId={context.productId}
 		/>
 	</section>
 </WorkspaceLayout>

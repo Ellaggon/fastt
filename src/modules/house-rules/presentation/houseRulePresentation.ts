@@ -161,7 +161,16 @@ export const houseRuleQuickSetups: Array<{
 			{ type: "Smoking", payload: { kind: "Smoking", allowed: false, area: "not_allowed" } },
 			{ type: "Parties", payload: { kind: "Parties", allowed: false } },
 			{ type: "QuietHours", payload: { kind: "QuietHours", start: "22:00", end: "08:00" } },
-			{ type: "CheckIn", payload: { kind: "CheckIn", method: "front_desk", idRequired: true } },
+			{
+				type: "CheckIn",
+				payload: {
+					kind: "CheckIn",
+					method: "front_desk",
+					checkInFrom: "15:00",
+					checkInUntil: "22:00",
+					idRequired: true,
+				},
+			},
 			{
 				type: "Checkout",
 				payload: { kind: "Checkout", time: "11:00", tasks: ["devolver llaves o acceso"] },
@@ -182,6 +191,8 @@ export const houseRuleQuickSetups: Array<{
 				payload: {
 					kind: "CheckIn",
 					method: "self",
+					checkInFrom: "15:00",
+					checkInUntil: "23:00",
 					instructions: "Las instrucciones de llegada se comparten antes del check-in.",
 				},
 			},

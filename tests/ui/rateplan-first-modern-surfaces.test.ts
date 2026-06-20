@@ -263,19 +263,21 @@ describe("ui/rateplan-first modern surfaces", () => {
 		}
 	})
 
-	it("tarifa muestra condiciones como contrato vendible con snapshot y overrides", () => {
+	it("tarifa presenta el contrato en lenguaje humano y reserva trazabilidad para detalle", () => {
 		const surface = read("src/components/policy/RatePlanPoliciesSurface.astro")
 		const useCase = read("src/modules/policies/application/use-cases/rate-plan-policies-surface.ts")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
 
 		expect(surface).toContain("data-contract-sellability")
-		expect(surface).toContain("No lista para vender")
+		expect(surface).toContain("Contrato completo")
+		expect(surface).toContain("Falta completar")
 		expect(surface).toContain("Contrato aplicable")
-		expect(surface).toContain("Herencia:")
-		expect(surface).toContain("Override:")
-		expect(surface).toContain("Snapshot:")
+		expect(surface).toContain("Heredada de")
+		expect(surface).toContain("Detalle técnico y versiones")
 		expect(surface).toContain("Snapshot preview")
 		expect(surface).toContain("snapshotVersionIds")
+		expect(surface).toContain("Configurar hotel")
+		expect(surface).toContain("Elegir plantilla")
 		expect(useCase).toContain("buildPolicySnapshot")
 		expect(useCase).toContain("PolicyExceptionRuleRepository")
 		expect(useCase).toContain("inheritanceByCategory")

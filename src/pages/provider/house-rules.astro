@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
 import { routes } from "@/lib/routes"
 import {
 	essentialHouseRuleTypes,
@@ -123,6 +124,8 @@ function payloadFromForm(type: HouseRuleType, form: FormData): HouseRulePayload 
 			return {
 				...base,
 				method: (String(form.get("checkInMethod") ?? "").trim() || undefined) as any,
+				checkInFrom: String(form.get("checkInFrom") ?? "").trim() || undefined,
+				checkInUntil: String(form.get("checkInUntil") ?? "").trim() || undefined,
 				instructions: String(form.get("instructions") ?? "").trim() || undefined,
 				idRequired: form.get("idRequired") === "on",
 				cardRequired: form.get("cardRequired") === "on",
@@ -165,6 +168,14 @@ if (Astro.request.method === "POST") {
 			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
 			if (!houseRuleTypes.includes(type)) throw new Error("Tipo de regla no compatible")
 			await createHouseRule({ productId, type, payload })
+			if (type === "CheckIn" || type === "Checkout") {
+				await syncHotelArrivalPolicy({
+					providerId: auth.providerId,
+					productId,
+					actorUserId: auth.user.id,
+					rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
+				})
+			}
 			return redirectToHouseRules("created", productId)
 		}
 		if (action === "apply-quick-setup") {
@@ -183,6 +194,12 @@ if (Astro.request.method === "POST") {
 				await createHouseRule({ productId, type: item.type, payload: item.payload })
 				existingTypes.add(item.type)
 			}
+			await syncHotelArrivalPolicy({
+				providerId: auth.providerId,
+				productId,
+				actorUserId: auth.user.id,
+				rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
+			})
 			return redirectToHouseRules("preset-applied", productId)
 		}
 		if (action === "delete-house-rule") {
@@ -193,6 +210,14 @@ if (Astro.request.method === "POST") {
 				.find((rule) => String(rule.id) === ruleId)
 			if (!ownedRule) throw new Error("La regla no está disponible")
 			await deleteHouseRule(ruleId)
+			if (ownedRule.type === "CheckIn" || ownedRule.type === "Checkout") {
+				await syncHotelArrivalPolicy({
+					providerId: auth.providerId,
+					productId: ownedRule.productId,
+					actorUserId: auth.user.id,
+					rules: (await listHouseRulesByProduct(ownedRule.productId)) as HouseRule[],
+				})
+			}
 			return redirectToHouseRules("deleted", ownedRule.productId)
 		}
 	} catch (error) {
@@ -204,6 +229,7 @@ const products = await loadProviderProducts(auth.providerId)
 const rulesByProduct = await loadRulesByProduct(products)
 const allRules = Array.from(rulesByProduct.values()).flat()
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+const focus = String(Astro.url.searchParams.get("focus") ?? "").trim()
 const selectedProduct =
 	products.find((product) => product.id === requestedProductId) ?? products[0] ?? null
 const selectedProductId = selectedProduct?.id ?? ""
@@ -352,6 +378,11 @@ const internalRuleCount = allRules.length
 									))}
 								</div>
 							) : null}
+							{focus === "arrival" ? (
+								<p class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+									Estos horarios se aplican al hotel y se heredan automáticamente en sus tarifas.
+								</p>
+							) : null}
 						</Card>
 
 						<div class="grid gap-3">
@@ -361,8 +392,14 @@ const internalRuleCount = allRules.length
 								const isEssential = essentialHouseRuleTypes.includes(type)
 								const isComplete = rules.length > 0
 								return (
-									<Card className="bg-white text-slate-800">
-										<details class="group" open={!isComplete && isEssential}>
+									<Card className="bg-white text-slate-800" data-house-rule-type={type}>
+										<details
+											class="group"
+											open={
+												(!isComplete && isEssential) ||
+												(focus === "arrival" && (type === "CheckIn" || type === "Checkout"))
+											}
+										>
 											<summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3">
 												<div class="min-w-0">
 													<div class="flex flex-wrap items-center gap-2">
@@ -573,6 +610,26 @@ const internalRuleCount = allRules.length
 
 													{type === "CheckIn" || type === "Access" ? (
 														<>
+															<label class="space-y-1 text-sm">
+																<span class="font-medium text-slate-700">Llegada desde</span>
+																<input
+																	type="time"
+																	name="checkInFrom"
+																	value="15:00"
+																	class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																	required={type === "CheckIn"}
+																/>
+															</label>
+															<label class="space-y-1 text-sm">
+																<span class="font-medium text-slate-700">Llegada hasta</span>
+																<input
+																	type="time"
+																	name="checkInUntil"
+																	value="22:00"
+																	class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																	required={type === "CheckIn"}
+																/>
+															</label>
 															<label class="space-y-1 text-sm">
 																<span class="font-medium text-slate-700">
 																	Cómo entra el huésped

@@ -28,6 +28,8 @@ export type HouseRulePayload = {
 	available?: boolean
 	parkingType?: ParkingType
 	method?: CheckInMethod
+	checkInFrom?: string
+	checkInUntil?: string
 	instructions?: string
 	idRequired?: boolean
 	cardRequired?: boolean
@@ -54,6 +56,8 @@ const STRING_FIELDS = new Set([
 	"end",
 	"parkingType",
 	"method",
+	"checkInFrom",
+	"checkInUntil",
 	"instructions",
 	"time",
 ])
@@ -115,6 +119,10 @@ export function validateHouseRulePayload(type: HouseRuleType, payload: HouseRule
 		throw new Error("validation_error:quiet_hours_end_invalid")
 	if (payload.time && !TIME_PATTERN.test(payload.time))
 		throw new Error("validation_error:checkout_time_invalid")
+	if (payload.checkInFrom && !TIME_PATTERN.test(payload.checkInFrom))
+		throw new Error("validation_error:checkin_from_invalid")
+	if (payload.checkInUntil && !TIME_PATTERN.test(payload.checkInUntil))
+		throw new Error("validation_error:checkin_until_invalid")
 
 	if (
 		["Pets", "Children", "Smoking", "Parties"].includes(type) &&
@@ -128,7 +136,10 @@ export function validateHouseRulePayload(type: HouseRuleType, payload: HouseRule
 	if (type === "Parking" && typeof payload.available !== "boolean") {
 		throw new Error("validation_error:parking_availability_required")
 	}
-	if (type === "CheckIn" && !payload.method && !payload.instructions) {
+	if (
+		type === "CheckIn" &&
+		(!payload.checkInFrom || !payload.checkInUntil || (!payload.method && !payload.instructions))
+	) {
 		throw new Error("validation_error:checkin_details_required")
 	}
 	if (type === "Checkout" && !payload.time && !payload.instructions && !payload.tasks?.length) {
@@ -220,6 +231,9 @@ export function buildHouseRuleGuestSummary(
 		case "CheckIn":
 		case "Access":
 			return joinParts([
+				payload.checkInFrom && payload.checkInUntil
+					? `Llegada de ${payload.checkInFrom} a ${payload.checkInUntil}.`
+					: undefined,
 				checkInMethodLabel(payload.method),
 				payload.idRequired ? "Puede solicitarse documento de identidad al llegar." : undefined,
 				payload.cardRequired ? "Puede solicitarse tarjeta de pago al llegar." : undefined,
