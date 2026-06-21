@@ -179,14 +179,14 @@ describe("ui/rateplan-first modern surfaces", () => {
 	it("condiciones se operan dentro de tarifa y Multicalendario", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 		const ratePlanSurface = read("src/components/policy/RatePlanPoliciesSurface.astro")
-		const multiCalendar = read("src/pages/rates/multi-calendar.astro")
+		const multiCalendar = read("src/components/rates/MultiCalendarWorkspace.tsx")
 
 		expect(ratePlanSurface).toContain("Contrato base")
 		expect(ratePlanSurface).toContain("Elegir plantilla")
 		expect(ratePlanSurface).toContain("Cambiar")
 		expect(ratePlanSurface).not.toContain("/provider/policies")
-		expect(multiCalendar).toContain("renderConditionsPanel")
-		expect(multiCalendar).toContain("Completar condiciones")
+		expect(multiCalendar).toContain('activeTab === "conditions"')
+		expect(multiCalendar).toContain("policy-assignment-open")
 		expect(multiCalendar).toContain("Editar contrato")
 		expect(assignmentFlow).toContain("defaultChannel")
 		expect(assignmentFlow).toContain("channelSelect.value = defaultChannel")

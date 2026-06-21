@@ -57,6 +57,13 @@ function redirectToMultiCalendar(
 	request: Request,
 	params: Record<string, string | number | undefined>
 ) {
+	if (request.headers.get("accept")?.includes("application/json")) {
+		const hasError = Boolean(params.error)
+		return new Response(JSON.stringify({ ok: !hasError, ...params }), {
+			status: hasError ? 400 : 200,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
 	const target = new URL(routes.ratesMultiCalendar(), request.url)
 	target.searchParams.set("tab", String(params.tab ?? "rules"))
 	for (const [key, value] of Object.entries(params)) {

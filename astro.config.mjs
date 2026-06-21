@@ -10,6 +10,17 @@ import tailwindcss from "@tailwindcss/vite"
 dotenv.config()
 
 const isVercel = process.env.VERCEL === "1"
+const reactDevelopmentRuntime = {
+	name: "fastt:react-development-runtime",
+	configResolved(config) {
+		if (config.command !== "serve") return
+		config.optimizeDeps.esbuildOptions ??= {}
+		config.optimizeDeps.esbuildOptions.define = {
+			...config.optimizeDeps.esbuildOptions.define,
+			"process.env.NODE_ENV": JSON.stringify("development"),
+		}
+	},
+}
 
 // https://astro.build/config
 export default defineConfig({
@@ -28,9 +39,8 @@ export default defineConfig({
 		service: passthroughImageService(),
 	},
 	vite: {
-		plugins: [tailwindcss()],
+		plugins: [reactDevelopmentRuntime, tailwindcss()],
 		optimizeDeps: {
-			force: true,
 			include: ["zod"],
 		},
 		resolve: {

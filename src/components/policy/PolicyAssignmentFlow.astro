@@ -570,7 +570,17 @@ const {
 				? "Condición asignada. Se reemplazó una asignación activa."
 				: "Condición asignada. No había asignación previa para este alcance."
 		)
-		window.setTimeout(() => window.location.reload(), 700)
+		const savedEvent = new CustomEvent("policy-assignment-saved", {
+			cancelable: true,
+			detail: {
+				scope: selected.scope,
+				scopeId: selected.scopeId,
+				category: selected.category,
+				policyId: payload?.policyId,
+			},
+		})
+		const shouldReload = document.dispatchEvent(savedEvent)
+		if (shouldReload) window.setTimeout(() => window.location.reload(), 700)
 	}
 
 	document.addEventListener("click", (event) => {
