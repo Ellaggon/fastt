@@ -851,38 +851,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Habitaciones y tarifas",
-		subtitle: "Precios, inventario y venta",
-		owner: "Operaciones comerciales",
-		context: "enterprise-operations",
-		operationalIntent:
-			"Gestiona tarifas, su contrato, el calendario y herramientas avanzadas de reglas de venta cuando el proveedor tiene escala.",
-		maturity: "operational",
-		items: [
-			{
-				label: "Tarifas",
-				href: routes.ratePlansList(),
-				status: "canonical",
-				summary:
-					"Tarifas comerciales vinculadas a habitaciones: precio base, condiciones y estado.",
-			},
-			{
-				label: "Calendario",
-				href: routes.pricing(),
-				status: "canonical",
-				summary: "Precio, cupo y venta diaria desde una superficie operativa.",
-			},
-			{
-				label: "Multicalendario",
-				href: routes.ratesMultiCalendar(),
-				status: "canonical",
-				level: 2,
-				summary:
-					"Vista Pro para operar varias tarifas, fechas y reglas de venta sin entrar una por una.",
-			},
-		],
-	},
-	{
 		title: "Reservas",
 		subtitle: "Ciclo de vida y seguimiento",
 		owner: "Operación de reservas",
@@ -895,15 +863,44 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				label: "Reservas",
 				href: routes.bookingList(),
 				status: "canonical",
-				summary: "Llegadas, estadías, salidas, cancelaciones y seguimiento operativo.",
+				summary: "Llegadas, estadías, salidas y cancelaciones.",
 			},
 		],
-		planned: ["Cambios de reserva", "Relación con huéspedes", "Reembolsos"],
 	},
 	{
-		title: "Catálogo de ofertas",
+		title: "Habitaciones y tarifas",
+		subtitle: "Precios, inventario y venta",
+		owner: "Operaciones comerciales",
+		context: "enterprise-operations",
+		operationalIntent:
+			"Gestiona tarifas, su contrato, el calendario y herramientas avanzadas de reglas de venta cuando el proveedor tiene escala.",
+		maturity: "operational",
+		items: [
+			{
+				label: "Tarifas",
+				href: routes.ratePlansList(),
+				status: "canonical",
+				summary: "Precio base y cobertura contractual.",
+			},
+			{
+				label: "Calendario",
+				href: routes.pricing(),
+				status: "canonical",
+				summary: "Precio, cupo y venta diaria.",
+			},
+			{
+				label: "Multicalendario",
+				href: routes.ratesMultiCalendar(),
+				status: "canonical",
+				level: 2,
+				summary: "Operación Pro para varias tarifas.",
+			},
+		],
+	},
+	{
+		title: "Alojamientos y contenido",
 		subtitle: "Presentación, verticales y readiness",
-		owner: "Property Content",
+		owner: "Contenido del alojamiento",
 		context: "provider-workspace",
 		operationalIntent:
 			"Gestiona ofertas de catálogo: hoteles, tours y paquetes con contenido, fotos, ubicación, detalles y vista previa.",
@@ -930,10 +927,9 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 					"Mascotas, fumar, horarios de silencio, llegada, salida y expectativas de estadía.",
 			},
 		],
-		planned: ["Revisión de fotos", "Metadata SEO", "Flujo de calidad de contenido"],
 	},
 	{
-		title: "Pagos y finanzas",
+		title: "Finanzas",
 		subtitle: "Conciliación y visibilidad financiera",
 		owner: "Finanzas",
 		context: "enterprise-operations",
@@ -955,7 +951,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Configuración de cargos visibles para huéspedes.",
 			},
 		],
-		planned: ["Pasarelas de pago", "Facturación", "Automatización de pagos"],
 	},
 	{
 		title: "Analítica",
@@ -985,25 +980,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Reporte inicial de ocupación.",
 			},
 		],
-		planned: ["Revenue management", "Oportunidades"],
-	},
-	{
-		title: "Conectividad",
-		subtitle: "Sistemas externos e integraciones",
-		owner: "Integraciones",
-		context: "enterprise-operations",
-		operationalIntent:
-			"Superficie transicional para planificar integraciones; todavía no hay sync activo de canales.",
-		maturity: "transitional",
-		items: [
-			{
-				label: "Integraciones",
-				href: routes.systemIntegrations(),
-				status: "transitional",
-				summary: "Planificación de conectores; channel sync todavía no está activo.",
-			},
-		],
-		planned: ["Channel manager", "APIs de proveedor"],
 	},
 	{
 		title: "Administración",
@@ -1026,7 +1002,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Flujo de verificación del proveedor.",
 			},
 		],
-		planned: ["RBAC administrativo", "Operación de soporte"],
 	},
 ]
 
@@ -1039,7 +1014,7 @@ function shouldShowSectionForDisclosure(
 	context: SidebarDisclosureContext
 ): boolean {
 	if (context.mode !== "small-provider") return true
-	return !["Analítica", "Conectividad"].includes(section.title)
+	return section.title !== "Analítica"
 }
 
 function shouldShowItemForDisclosure(
@@ -1048,18 +1023,6 @@ function shouldShowItemForDisclosure(
 ): boolean {
 	if (context.mode !== "small-provider") return true
 	return !isAdvancedSidebarItem(item)
-}
-
-function shouldShowPlannedForDisclosure(context: SidebarDisclosureContext): boolean {
-	return context.mode !== "small-provider"
-}
-
-function shouldShowSectionPlannedForDisclosure(
-	section: EnterpriseNavigationSection,
-	context: SidebarDisclosureContext
-): boolean {
-	if (section.title === "Habitaciones y tarifas") return false
-	return shouldShowPlannedForDisclosure(context)
 }
 
 export function filterEnterpriseNavigationForDisclosure(
@@ -1073,9 +1036,7 @@ export function filterEnterpriseNavigationForDisclosure(
 			return {
 				...section,
 				items,
-				planned: shouldShowSectionPlannedForDisclosure(section, context)
-					? section.planned
-					: undefined,
+				planned: undefined,
 			}
 		})
 		.filter((section) => section.items.length > 0)

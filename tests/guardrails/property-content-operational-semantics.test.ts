@@ -198,16 +198,17 @@ describe("Guardrail: Property Content operational semantics", () => {
 		)
 	})
 
-	it("keeps Property Content navigation honest about planned maturity", () => {
+	it("keeps accommodation content navigation operational and free of roadmap copy", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
+		const sidebar = read("src/components/dashboard/DashboardSidebar.astro")
 
+		expect(governance).toContain("Alojamientos y contenido")
+		expect(governance).toContain("Contenido del alojamiento")
 		expect(governance).toContain("Alojamientos")
 		expect(governance).toContain("Habitaciones")
 		expect(governance).toContain("Reglas para huéspedes")
-		expect(governance).toContain("Revisión de fotos")
-		expect(governance).toContain("Metadata SEO")
-		expect(governance).toContain("Flujo de calidad de contenido")
 		expect(governance).toContain("Gestiona alojamientos")
+		expect(sidebar).not.toContain("Próximamente")
 		expect(governance).not.toContain("Property Content NO")
 	})
 

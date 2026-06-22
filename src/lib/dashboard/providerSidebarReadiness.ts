@@ -51,6 +51,10 @@ function plural(value: number, singular: string, pluralLabel: string = `${singul
 	return `${value} ${value === 1 ? singular : pluralLabel}`
 }
 
+function compactContractCount(value: number) {
+	return `${value} ${value === 1 ? "contrato incompleto" : "contratos incompletos"}`
+}
+
 async function getProviderRatePlanIds(providerId: string): Promise<string[]> {
 	const rows = await db
 		.select({ ratePlanId: RatePlan.id })
@@ -82,7 +86,7 @@ async function getRatesSummary(
 	ratePlanIds: string[],
 	policyReadiness: Awaited<ReturnType<typeof getProviderPolicyReadiness>>
 ) {
-	if (!ratePlanIds.length) return "0 tarifas: crea tarifas antes de vender."
+	if (!ratePlanIds.length) return "0 tarifas · crea la primera"
 
 	const baseRows = await db
 		.select({
@@ -99,17 +103,20 @@ async function getRatesSummary(
 		(ratePlanId) => !pricedRatePlanIds.has(ratePlanId)
 	).length
 	if (missingBasePrice > 0) {
-		return `${plural(missingBasePrice, "tarifa")} sin precio base · ${plural(policyReadiness.incompleteRatePlans, "tarifa")} con condiciones incompletas.`
+		return `${missingBasePrice} sin precio · ${compactContractCount(policyReadiness.incompleteRatePlans)}`
 	}
 
 	const activeRules = (await listCommercialPriceRulesByRatePlans(ratePlanIds)).filter(
 		(rule) => rule.isActive
 	).length
-	return `${plural(ratePlanIds.length, "tarifa")} con precio base · ${plural(policyReadiness.readyRatePlans, "tarifa")} con condiciones completas · ${plural(activeRules, "regla")} de precio.`
+	if (policyReadiness.incompleteRatePlans > 0) {
+		return `${plural(ratePlanIds.length, "tarifa")} con precio · ${compactContractCount(policyReadiness.incompleteRatePlans)}`
+	}
+	return `${plural(ratePlanIds.length, "tarifa")} listas · ${plural(activeRules, "regla")} de precio`
 }
 
 async function getPricingCalendarSummary(ratePlanIds: string[]) {
-	if (!ratePlanIds.length) return "Sin tarifas para calendarizar precios."
+	if (!ratePlanIds.length) return "0 tarifas · crea la primera"
 	const baseRows = await db
 		.select({
 			ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
@@ -123,9 +130,10 @@ async function getPricingCalendarSummary(ratePlanIds: string[]) {
 	)
 	const ready = pricedRatePlanIds.size
 	const missing = Math.max(ratePlanIds.length - ready, 0)
-	if (missing > 0)
-		return `${plural(ready, "tarifa")} listas, ${plural(missing, "tarifa")} sin precio base.`
-	return `${plural(ready, "tarifa")} listas para calendario de precios.`
+	if (missing > 0) {
+		return `${plural(ready, "tarifa lista", "tarifas listas")} · ${plural(missing, "requiere", "requieren")} atención`
+	}
+	return plural(ready, "tarifa lista", "tarifas listas")
 }
 
 async function getRestrictionsSummary(
@@ -143,13 +151,13 @@ async function getRestrictionsSummary(
 		...variantIds,
 		...productRows.map((row) => String(row.productId)),
 	].filter(Boolean)
-	if (!scopeIds.length) return "Sin alcances activos para reglas de venta."
+	if (!scopeIds.length) return "sin reglas activas"
 
 	const activeRestrictions = (await listCommercialSellabilityRulesForScopes({ scopeIds })).filter(
 		(rule) => rule.isActive
 	).length
-	if (activeRestrictions === 0) return "Sin reglas de venta activas: venta abierta por defecto."
-	return `${plural(activeRestrictions, "regla de venta", "reglas de venta")} activas en tarifas, habitaciones u hotel.`
+	if (activeRestrictions === 0) return "sin reglas activas"
+	return plural(activeRestrictions, "regla activa", "reglas activas")
 }
 
 function hasScaleForAdvancedTools(metrics: ProviderSidebarMetrics): boolean {
@@ -265,7 +273,7 @@ export async function getProviderSidebarData(
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.pricing()]: pricingSummary,
-			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} disponibles para operación Pro. ${restrictionsSummary}`,
+			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} · ${restrictionsSummary}`,
 		},
 	}
 }

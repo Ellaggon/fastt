@@ -53,9 +53,9 @@ try {
 } catch {
 	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
 	sidebarReadiness = {
-		[routes.ratePlansList()]: "Tarifas: readiness no disponible.",
-		[routes.pricing()]: "Calendario: readiness no disponible.",
-		[routes.ratesMultiCalendar()]: "Multicalendario: readiness no disponible.",
+		[routes.ratePlansList()]: "Estado no disponible",
+		[routes.pricing()]: "Estado no disponible",
+		[routes.ratesMultiCalendar()]: "Estado no disponible",
 	}
 }
 const visibleNavigation = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
@@ -87,7 +87,7 @@ function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number
 				title={section.title}
 				owner={section.owner}
 				active={isSectionActive(section.items)}
-				subtitle={isSectionActive(section.items) ? "Sección activa" : section.subtitle}
+				subtitle={section.subtitle}
 			>
 				{section.items.map((item) => (
 					<DashboardSidebarItem
@@ -100,20 +100,6 @@ function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number
 						level={item.level ?? 1}
 					/>
 				))}
-				{section.planned?.length ? (
-					<details class="border-t border-slate-800/80 px-3 pt-2">
-						<summary class="cursor-pointer text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase hover:text-slate-400">
-							Próximamente ({section.planned.length})
-						</summary>
-						<div class="mt-2 flex flex-wrap gap-1.5">
-							{section.planned.map((label) => (
-								<span class="rounded-full border border-slate-700/80 px-2 py-1 text-[10px] font-medium text-slate-500">
-									{label}
-								</span>
-							))}
-						</div>
-					</details>
-				) : null}
 			</DashboardSidebarSection>
 		))
 	}

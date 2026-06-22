@@ -154,9 +154,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 	it("keeps navigation organized by enterprise ownership instead of generic buckets", () => {
 		const sectionTitles = enterpriseNavigation.map((section) => section.title)
-		expect(sectionTitles).toContain("Habitaciones y tarifas")
-		expect(sectionTitles).toContain("Administración")
-		expect(sectionTitles).toContain("Conectividad")
+		expect(sectionTitles).toEqual([
+			"Inicio",
+			"Reservas",
+			"Habitaciones y tarifas",
+			"Alojamientos y contenido",
+			"Finanzas",
+			"Analítica",
+			"Administración",
+		])
+		expect(sectionTitles).not.toContain("Conectividad")
 		expect(sectionTitles).not.toContain("System")
 		expect(sectionTitles).not.toContain("Financial Control")
 
@@ -249,9 +256,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Inicio": ["Command Center"],
 			"Habitaciones y tarifas": ["Rooms & Rates"],
 			"Reservas": ["Reservations"],
-			"Catálogo de ofertas": ["Property Content", "Contenido de alojamiento"],
-			"Contenido del alojamiento": ["Property Content", "Contenido de alojamiento"],
-			"Pagos y finanzas": ["Payments & Finance"],
+			"Alojamientos y contenido": ["Property Content", "Contenido de alojamiento"],
+			"Finanzas": ["Payments & Finance"],
 			"Analítica": ["Analytics & Performance"],
 			"Conectividad": ["Connectivity"],
 			"Administración": ["Administration & Governance"],
@@ -286,7 +292,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
-	it("keeps planned enterprise modules visible but non-navigable", () => {
+	it("keeps roadmap modules out of operational navigation", () => {
 		const violations = enterpriseNavigation.flatMap((section) =>
 			(section.planned ?? []).flatMap((label) => {
 				if (!label.trim()) return [`${section.title}: empty planned module label`]
@@ -299,8 +305,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(
 			violations,
-			`Planned modules must stay as non-clickable maturity markers:\n${violations.join("\n")}`
+			`Operational navigation must not expose roadmap modules:\n${violations.join("\n")}`
 		).toEqual([])
+		expect(enterpriseNavigation.flatMap((section) => section.planned ?? [])).toEqual([])
 	})
 
 	it("uses progressive disclosure so small providers see an operational sidebar instead of roadmap", () => {
@@ -339,7 +346,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const planned = visible.flatMap((section) => section.planned ?? [])
 
 		expect(titles).toContain("Analítica")
-		expect(titles).toContain("Conectividad")
+		expect(titles).not.toContain("Conectividad")
 		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
@@ -349,8 +356,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(
 			visible.find((section) => section.title === "Habitaciones y tarifas")?.planned
 		).toBeUndefined()
-		expect(planned).toContain("Revenue management")
-		expect(planned).toContain("Channel manager")
+		expect(planned).toEqual([])
 	})
 
 	it("reveals professional surfaces when tools are explicitly activated", () => {
@@ -741,9 +747,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).toContain("getProviderSidebarData")
 		expect(sidebarSource).toContain("filterEnterpriseNavigationForDisclosure")
 		expect(sidebarSource).toContain("sidebarReadiness[item.href]")
-		expect(sidebarSource).toContain("section.planned")
-		expect(sidebarSource).toContain("Próximamente")
-		expect(governanceSource).toContain('section.title === "Habitaciones y tarifas"')
+		expect(sidebarSource).not.toContain("section.planned")
+		expect(sidebarSource).not.toContain("Próximamente")
+		expect(sidebarSource).not.toContain("Sección activa")
+		expect(governanceSource).toContain('title: "Alojamientos y contenido"')
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain("12 tarifas")
