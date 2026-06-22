@@ -1,1 +1,287 @@
 @import "tailwindcss";
+
+:root {
+	--calendar-motion-fast: 140ms;
+	--calendar-motion-standard: 180ms;
+	--calendar-motion-sheet: 240ms;
+	--calendar-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--calendar-ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+	--calendar-radius: 0.5rem;
+	--calendar-selection: #2563eb;
+	--calendar-selection-soft: rgb(239 246 255 / 82%);
+	--calendar-selection-shadow: rgb(37 99 235 / 20%);
+}
+
+.calendar-control {
+	border-radius: var(--calendar-radius);
+	transition:
+		background-color var(--calendar-motion-fast) ease,
+		border-color var(--calendar-motion-fast) ease,
+		color var(--calendar-motion-fast) ease,
+		box-shadow var(--calendar-motion-fast) ease,
+		transform var(--calendar-motion-fast) var(--calendar-ease-standard);
+}
+
+.calendar-control:not(:disabled):active {
+	transform: scale(0.98);
+}
+
+.calendar-cell {
+	transition:
+		background-color var(--calendar-motion-fast) ease,
+		border-color var(--calendar-motion-fast) ease,
+		box-shadow var(--calendar-motion-fast) var(--calendar-ease-standard),
+		transform var(--calendar-motion-fast) var(--calendar-ease-standard),
+		filter var(--calendar-motion-fast) ease;
+}
+
+.calendar-cell:not(:disabled):hover {
+	position: relative;
+	z-index: 2;
+	transform: translateY(-1px);
+	box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+}
+
+.calendar-cell[data-selected="true"] {
+	position: relative;
+	z-index: 3;
+	border-color: var(--calendar-selection);
+	background-image: linear-gradient(var(--calendar-selection-soft), var(--calendar-selection-soft));
+	box-shadow: inset 0 0 0 1px var(--calendar-selection);
+}
+
+.calendar-cell[data-selection-edge="start"],
+.calendar-cell[data-selection-edge="end"],
+.calendar-cell[data-selection-edge="single"] {
+	box-shadow:
+		inset 0 0 0 2px var(--calendar-selection),
+		0 6px 18px var(--calendar-selection-shadow);
+}
+
+.calendar-cell-content {
+	animation: calendar-content-enter var(--calendar-motion-fast) var(--calendar-ease-standard) both;
+}
+
+.calendar-grid-enter {
+	animation: calendar-grid-enter var(--calendar-motion-standard) var(--calendar-ease-standard) both;
+}
+
+.calendar-grid-enter[data-direction="previous"] {
+	--calendar-grid-offset: -10px;
+}
+.calendar-grid-enter[data-direction="next"] {
+	--calendar-grid-offset: 10px;
+}
+
+.calendar-updated {
+	animation: calendar-updated 700ms var(--calendar-ease-settle) both;
+}
+
+.calendar-loading-bar {
+	position: absolute;
+	inset: 0 0 auto;
+	z-index: 30;
+	height: 2px;
+	overflow: hidden;
+	background: rgb(226 232 240 / 70%);
+}
+
+.calendar-loading-bar::after {
+	display: block;
+	width: 38%;
+	height: 100%;
+	content: "";
+	background: #0f172a;
+	animation: calendar-loading 900ms ease-in-out infinite;
+}
+
+.calendar-backdrop {
+	animation: calendar-backdrop-enter var(--calendar-motion-standard) ease both;
+	backdrop-filter: blur(2px);
+}
+.calendar-backdrop[data-closing="true"] {
+	animation: calendar-backdrop-exit var(--calendar-motion-standard) ease both;
+}
+
+.calendar-drawer {
+	animation: calendar-drawer-enter var(--calendar-motion-standard) var(--calendar-ease-standard)
+		both;
+}
+.calendar-drawer[data-closing="true"] {
+	animation: calendar-drawer-exit var(--calendar-motion-standard) var(--calendar-ease-standard) both;
+}
+.calendar-drawer-handle {
+	display: none;
+}
+
+.calendar-dialog[open] {
+	animation: calendar-dialog-enter var(--calendar-motion-standard) var(--calendar-ease-settle) both;
+}
+
+.calendar-dialog::backdrop {
+	background: rgb(15 23 42 / 58%);
+	backdrop-filter: blur(2px);
+}
+
+.rate-history-grid {
+	display: grid;
+	grid-template-rows: 0fr;
+	opacity: 0;
+	transition:
+		grid-template-rows var(--calendar-motion-standard) var(--calendar-ease-standard),
+		opacity var(--calendar-motion-fast) ease;
+}
+
+.rate-history-panel[open] .rate-history-grid {
+	grid-template-rows: 1fr;
+	opacity: 1;
+}
+
+@keyframes calendar-content-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+@keyframes calendar-grid-enter {
+	from {
+		opacity: 0.72;
+		transform: translateX(var(--calendar-grid-offset, 0));
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+@keyframes calendar-updated {
+	0%,
+	100% {
+		box-shadow: inherit;
+	}
+	35% {
+		border-color: #10b981;
+		box-shadow: inset 0 0 0 2px rgb(16 185 129 / 55%);
+	}
+}
+@keyframes calendar-loading {
+	from {
+		transform: translateX(-120%);
+	}
+	to {
+		transform: translateX(360%);
+	}
+}
+@keyframes calendar-backdrop-enter {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes calendar-backdrop-exit {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+@keyframes calendar-drawer-enter {
+	from {
+		opacity: 0;
+		transform: translateX(18px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+@keyframes calendar-drawer-exit {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(18px);
+	}
+}
+@keyframes calendar-dialog-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.99);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@media (max-width: 639px) {
+	.calendar-drawer {
+		inset: auto 0 0;
+		width: 100%;
+		max-width: none;
+		max-height: min(86dvh, 48rem);
+		height: auto;
+		padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+		border-top: 1px solid #e2e8f0;
+		border-left: 0;
+		border-radius: 0.75rem 0.75rem 0 0;
+		animation-name: calendar-sheet-enter;
+		animation-duration: var(--calendar-motion-sheet);
+		animation-timing-function: var(--calendar-ease-settle);
+	}
+	.calendar-drawer[data-closing="true"] {
+		animation-name: calendar-sheet-exit;
+		animation-duration: var(--calendar-motion-standard);
+	}
+	.calendar-drawer-handle {
+		display: block;
+		width: 2.5rem;
+		height: 0.25rem;
+		margin: 0 auto 0.75rem;
+		border-radius: 999px;
+		background: #cbd5e1;
+	}
+	@keyframes calendar-sheet-enter {
+		from {
+			opacity: 0;
+			transform: translateY(24px) scale(0.99);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+	}
+	@keyframes calendar-sheet-exit {
+		from {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+		to {
+			opacity: 0;
+			transform: translateY(20px) scale(0.99);
+		}
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.calendar-control,
+	.calendar-cell,
+	.calendar-cell-content,
+	.calendar-grid-enter,
+	.calendar-updated,
+	.calendar-backdrop,
+	.calendar-drawer,
+	.calendar-loading-bar::after,
+	.calendar-dialog {
+		animation: none !important;
+		transition-duration: 0.01ms !important;
+	}
+}

@@ -207,6 +207,8 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	it("keeps Tarifas as the visible client-first surface without a duplicate hub", () => {
 		const manage = read("src/pages/rates/plans/manage.astro")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		const actionMenu = read("src/components/rates/RatePlanActionMenu.astro")
+		const policySummary = read("src/modules/policies/application/mappers/derivePolicySummary.ts")
 		const intents = read("src/lib/rates/ratePlanIntentPresets.ts")
 		const routes = read("src/lib/routes.ts")
 		const subnav = read("src/components/pricing/PricingSubnav.astro")
@@ -225,6 +227,13 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(manage).toContain("Lista")
 		expect(manage).toContain("Inactiva")
 		expect(manage).toContain("Resolver")
+		expect(manage).toContain("md:hidden")
+		expect(manage).toContain("shortPolicySummary")
+		expect(manage).toContain("Cambios recientes de tarifa")
+		expect(actionMenu).toContain("Editar")
+		expect(actionMenu).toContain("Desactivar")
+		expect(actionMenu).toContain("Eliminar")
+		expect(policySummary).not.toContain('return "No-show')
 		expect(manage).toContain('calendarResolveHref(ratePlanId, "price")')
 		expect(manage).toContain('calendarResolveHref(ratePlanId, "availability")')
 		expect(manage).toContain("routes.ratePlanPolicies")
@@ -357,6 +366,22 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(ratePlanQueryRepository).toContain('scope === "product"')
 	})
 
+	it("keeps Multicalendario dense, neutral, and task-focused across breakpoints", () => {
+		const workspace = read("src/components/rates/MultiCalendarWorkspace.tsx")
+
+		expect(workspace).toContain('ok: "border-slate-200 bg-white')
+		expect(workspace).toContain("border-l-amber-400")
+		expect(workspace).toContain("Base ${cell.basePrice}")
+		expect(workspace).not.toContain("secondary: cell.hasPrice ? cell.basePrice")
+		expect(workspace).toContain("activeFilterCount")
+		expect(workspace).toContain("Tarifa visible")
+		expect(workspace).toContain("surface.days.slice(0, 7)")
+		expect(workspace).toContain("visibleRows.flatMap")
+		expect(workspace).toContain("Gestionar regla")
+		expect(workspace).toContain("Resolver pendientes")
+		expect(workspace).toContain("Seleccionar ${row.ratePlanName}")
+	})
+
 	it("keeps Calendar as an interactive single-rate workspace with contextual Pro handoffs", () => {
 		const calendar = read("src/pages/rates/calendar.astro")
 		const workspace = read("src/components/rates/SingleCalendarWorkspace.tsx")
@@ -391,7 +416,9 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(workspace).toContain('fetch("/api/inventory/bulk-preview"')
 		expect(workspace).toContain('fetch("/api/inventory/bulk-apply"')
 		expect(workspace).toContain('fetch("/api/rates/commercial-rules"')
-		expect(workspace).toContain("La condición general pertenece a la tarifa")
+		expect(workspace).toContain("surface.conditions.summary")
+		expect(workspace).not.toContain("Sin excepción")
+		expect(workspace).not.toContain("La condición general pertenece a la tarifa")
 		expect(endpoint).toContain("requireProvider")
 		expect(endpoint).toContain('"Cache-Control": "private, no-store"')
 		expect(endpoint).toContain("loadRatePlansReadModel")
@@ -403,6 +430,28 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(existsSync(join(process.cwd(), "src/lib/rates/calendarOperationalController.ts"))).toBe(
 			false
 		)
+	})
+
+	it("keeps both calendars on one responsive motion and selection system", () => {
+		const singleCalendar = read("src/components/rates/SingleCalendarWorkspace.tsx")
+		const multiCalendar = read("src/components/rates/MultiCalendarWorkspace.tsx")
+		const drawer = read("src/components/rates/CalendarResponsiveDrawer.tsx")
+		const globalStyles = read("src/styles/global.css")
+
+		for (const workspace of [singleCalendar, multiCalendar]) {
+			expect(workspace).toContain("CalendarResponsiveDrawer")
+			expect(workspace).toContain("calendar-cell")
+			expect(workspace).toContain("calendar-grid-enter")
+			expect(workspace).toContain("calendar-loading-bar")
+			expect(workspace).toContain("data-selection-edge")
+		}
+
+		expect(drawer).toContain('role="dialog"')
+		expect(drawer).toContain('aria-modal="true"')
+		expect(drawer).toContain('event.key === "Escape"')
+		expect(globalStyles).toContain("--calendar-motion-standard")
+		expect(globalStyles).toContain("calendar-sheet-enter")
+		expect(globalStyles).toContain("prefers-reduced-motion")
 	})
 
 	it("keeps legacy catalog restriction HTTP APIs removed from the product tree", () => {

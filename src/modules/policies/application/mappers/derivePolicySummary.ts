@@ -148,30 +148,32 @@ function describePayment(policy: SnapshotPolicy | null): string {
 }
 
 function describeNoShow(policy: SnapshotPolicy | null): string {
-	if (!policy) return "No-show pendiente"
+	if (!policy) return "No presentación pendiente"
 
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
 		.toLowerCase()
 	const presetLabels: Record<string, string> = {
-		no_show_first_night: "No-show: primera noche",
-		no_show_full_stay: "No-show: estadía completa",
-		no_show_percentage_100: "No-show listo",
+		no_show_first_night: "No presentación: primera noche",
+		no_show_full_stay: "No presentación: estadía completa",
+		no_show_percentage_100: "No presentación configurada",
 	}
 	if (presetLabels[presetKey]) return presetLabels[presetKey]
 
 	const rules = toRuleMap(policy)
 	const penaltyType = String(rules.penaltyType ?? "").toLowerCase()
 	const penaltyAmount = Number(rules.penaltyAmount ?? NaN)
-	if (penaltyType === "first_night") return "No-show: primera noche"
-	if (penaltyType === "full") return "No-show: estadía completa"
+	if (penaltyType === "first_night") return "No presentación: primera noche"
+	if (penaltyType === "full") return "No presentación: estadía completa"
 	if (penaltyType === "percentage" && Number.isFinite(penaltyAmount)) {
-		return penaltyAmount >= 100 ? "No-show listo" : `No-show ${Math.round(penaltyAmount)}%`
+		return penaltyAmount >= 100
+			? "No presentación configurada"
+			: `No presentación ${Math.round(penaltyAmount)}%`
 	}
 
 	const description = String(policy.policy?.description ?? "").trim()
-	if (!description) return "No-show listo"
-	return "No-show listo"
+	if (!description) return "No presentación configurada"
+	return "No presentación configurada"
 }
 
 export function derivePolicySummaryFromResolvedPolicies(resolved: PolicyResolutionDTO): string {

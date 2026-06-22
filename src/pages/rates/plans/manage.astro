@@ -1,7 +1,8 @@
 ---
-import { Plus, CalendarDays, Ellipsis, X } from "@lucide/astro"
+import { Plus, CalendarDays, X } from "@lucide/astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -35,13 +36,6 @@ const [rows, variantChoices] = await Promise.all([
 	loadProviderRatePlanVariants(auth.providerId),
 ])
 
-const policyCategoryLabels: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	CheckIn: "Ingreso/salida",
-	NoShow: "No presentación",
-}
-
 function money(value: number | null | undefined, currency: string | null | undefined) {
 	if (value == null || !Number.isFinite(Number(value))) return "Sin precio"
 	return new Intl.NumberFormat("es-BO", {
@@ -49,6 +43,14 @@ function money(value: number | null | undefined, currency: string | null | undef
 		currency: String(currency ?? "BOB"),
 		maximumFractionDigits: 0,
 	}).format(Number(value))
+}
+
+function shortPolicySummary(value: string | null | undefined) {
+	const normalized = String(value ?? "")
+		.replaceAll("No-show", "No presentación")
+		.trim()
+	if (!normalized) return "Sin resumen contractual"
+	return normalized.split(" · ")[0] || normalized
 }
 
 function calendarResolveHref(ratePlanId: string, focus: "price" | "availability" | "restrictions") {
@@ -61,8 +63,8 @@ function commercialState(row: (typeof rows)[number]) {
 	if (!row.isActive) {
 		return {
 			key: "inactive",
-			label: "Inactiva",
-			reason: "Está fuera de venta y conserva su configuración.",
+			label: "Fuera de venta",
+			reason: "No acepta reservas nuevas.",
 			href: `${routes.ratePlanDetail(ratePlanId)}?vista=details`,
 			badge: "neutral" as const,
 		}
@@ -70,8 +72,8 @@ function commercialState(row: (typeof rows)[number]) {
 	if (!row.pricingReadiness?.hasBasePrice) {
 		return {
 			key: "price",
-			label: "Falta precio",
-			reason: "Define el precio base.",
+			label: "No vendible",
+			reason: "Sin precio base.",
 			href: calendarResolveHref(ratePlanId, "price"),
 			badge: "warning" as const,
 		}
@@ -79,28 +81,25 @@ function commercialState(row: (typeof rows)[number]) {
 	if (!row.inventoryReadiness?.isReady) {
 		return {
 			key: "inventory",
-			label: "Falta disponibilidad",
-			reason: "Completa el cupo para los próximos 30 días.",
+			label: "No vendible",
+			reason: "Sin disponibilidad suficiente.",
 			href: calendarResolveHref(ratePlanId, "availability"),
 			badge: "warning" as const,
 		}
 	}
 	if (!row.policyCoverage?.isComplete) {
-		const missing = row.policyCoverage?.missingCategories ?? []
 		return {
 			key: "policies",
-			label: "Faltan condiciones",
-			reason: missing.length
-				? missing.map((category) => policyCategoryLabels[category] ?? category).join(", ")
-				: "Completa el contrato de la tarifa.",
+			label: "No vendible",
+			reason: "No disponible para nuevas reservas.",
 			href: routes.ratePlanPolicies(ratePlanId),
 			badge: "warning" as const,
 		}
 	}
 	return {
 		key: "ready",
-		label: "Lista",
-		reason: "Lista para vender en el periodo evaluado.",
+		label: "Vendible",
+		reason: "Disponible en el periodo evaluado.",
 		href: routes.ratePlanDetail(ratePlanId),
 		badge: "success" as const,
 	}
@@ -159,7 +158,7 @@ const tabs = [
 				</Button>
 				<button
 					type="button"
-					class="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700"
+					class="calendar-control inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 shadow-sm hover:bg-slate-100"
 					data-open-rate-plan-dialog
 				>
 					<Plus class="mr-2 size-4" /> Nueva tarifa
@@ -171,17 +170,21 @@ const tabs = [
 			<div
 				class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
 			>
-				<nav class="flex gap-1 overflow-x-auto" aria-label="Estado de tarifas" data-rate-plan-tabs>
+				<nav
+					class="mb-3 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1"
+					aria-label="Estado de tarifas"
+					data-rate-plan-tabs
+				>
 					{
 						tabs.map((tab) => (
 							<a
 								href={`?vista=${tab.id}`}
 								data-rate-plan-tab={tab.id}
 								aria-current={activeView === tab.id ? "page" : undefined}
-								class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
+								class={`calendar-control border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap ${
 									activeView === tab.id
-										? "border-blue-600 text-blue-700"
-										: "border-transparent text-slate-500 hover:text-slate-900"
+										? "border-slate-200 bg-white text-slate-950 shadow-sm"
+										: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
 								}`}
 							>
 								{tab.label} <span class="ml-1 text-xs opacity-70">{tab.count}</span>
@@ -199,125 +202,225 @@ const tabs = [
 				<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
 				<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
 			</div>
+			<p class="hidden border-b border-slate-200 px-4 py-2 text-sm" data-rate-plan-action-feedback>
+			</p>
 
 			{
 				rows.length > 0 && (
-					<div class={`overflow-x-auto ${visibleRowsCount ? "" : "hidden"}`} data-rate-plan-table>
-						<table class="w-full min-w-[920px] text-left text-sm">
-							<thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-								<tr>
-									<th class="px-4 py-3">Tarifa</th>
-									<th class="px-4 py-3">Precio base</th>
-									<th class="px-4 py-3">Contrato</th>
-									<th class="px-4 py-3">Disponibilidad</th>
-									<th class="px-4 py-3">Estado</th>
-									<th class="px-4 py-3 text-right">Acciones</th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-slate-100">
-								{rows.map((row) => {
-									const state = rowStates.get(String(row.ratePlanId))!
-									const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
-									const total = Number(row.policyCoverage?.totalCategories ?? 4)
-									const restrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
-									return (
-										<tr
-											class={`align-middle hover:bg-slate-50/70 ${matchesView(state.key, activeView) ? "" : "hidden"}`}
-											data-rate-plan-row
-											data-rate-plan-state={state.key}
-										>
-											<td class="px-4 py-4">
-												<div class="flex items-center gap-2">
+					<>
+						<div
+							class={`space-y-2 p-3 md:hidden ${visibleRowsCount ? "" : "hidden"}`}
+							data-rate-plan-table
+						>
+							{rows.map((row) => {
+								const state = rowStates.get(String(row.ratePlanId))!
+								const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
+								const total = Number(row.policyCoverage?.totalCategories ?? 4)
+								const ratePlanId = String(row.ratePlanId)
+								return (
+									<details
+										class={`rounded-lg border border-slate-200 bg-white ${matchesView(state.key, activeView) ? "" : "hidden"}`}
+										data-rate-plan-row
+										data-rate-plan-id={ratePlanId}
+										data-rate-plan-state={state.key}
+									>
+										<summary class="calendar-control flex cursor-pointer list-none items-start justify-between gap-3 p-4">
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
 													<p class="font-semibold text-slate-950">{row.ratePlanName}</p>
 													{row.isDefault && <Badge variant="info">Principal</Badge>}
 												</div>
-												<p class="mt-1 text-xs text-slate-500">
+												<p class="mt-1 truncate text-xs text-slate-500">
 													{row.productName} · {row.variantName}
 												</p>
-											</td>
-											<td class="px-4 py-4">
-												<p class="font-semibold text-slate-950">
+											</div>
+											<div class="flex shrink-0 items-center gap-2">
+												<Badge variant={state.badge}>{state.label}</Badge>
+												<span class="text-slate-400" aria-hidden="true">
+													⌄
+												</span>
+											</div>
+										</summary>
+										<div class="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-100 p-4 text-sm">
+											<div>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Precio base</p>
+												<p class="mt-1 font-semibold text-slate-950">
 													{money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency)}
 												</p>
-												<p class="mt-1 text-xs text-slate-500">por noche</p>
-											</td>
-											<td class="px-4 py-4">
-												<p class="font-medium text-slate-900">
-													{row.policySummary ?? `${covered}/${total} completas`}
+											</div>
+											<div>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Contrato</p>
+												<p class="mt-1 font-medium text-slate-900">
+													{covered}/{total} completas
 												</p>
-												<p class="mt-1 text-xs text-slate-500">
-													{covered}/{total} categorías
-												</p>
-											</td>
-											<td class="px-4 py-4">
-												<p class="font-medium text-slate-900">
+											</div>
+											<div>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Disponibilidad</p>
+												<p class="mt-1 font-medium text-slate-900">
 													{row.inventoryReadiness?.availableDays ?? 0}/
 													{row.inventoryReadiness?.expectedDays ?? 30} noches
 												</p>
-												<p class="mt-1 text-xs text-slate-500">
-													{restrictions ? `${restrictions} reglas activas` : "Venta estándar"}
-												</p>
-											</td>
-											<td class="px-4 py-4">
-												<Badge variant={state.badge}>{state.label}</Badge>
-												<p class="mt-1.5 max-w-48 text-xs leading-5 text-slate-500">
-													{state.reason}
-												</p>
-											</td>
-											<td class="px-4 py-4">
-												<div class="flex items-center justify-end gap-2">
-													<Button
-														href={state.href}
-														variant={state.key === "ready" ? "secondary" : "primary"}
-														size="sm"
-													>
-														{state.key === "ready" ? "Ver" : "Resolver"}
-													</Button>
-													<a
-														href={`${routes.ratePlanDetail(String(row.ratePlanId))}?vista=details`}
-														class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-														aria-label={`Más acciones para ${row.ratePlanName}`}
-													>
-														<Ellipsis class="size-4" />
-													</a>
-												</div>
-											</td>
-										</tr>
-									)
-								})}
-							</tbody>
-						</table>
-					</div>
+											</div>
+											<div>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Venta</p>
+												<p class="mt-1 text-slate-700">{state.reason}</p>
+											</div>
+											<p class="col-span-2 line-clamp-2 text-xs text-slate-500">
+												{shortPolicySummary(row.policySummary)}
+											</p>
+											<div class="col-span-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+												<Button
+													href={state.href}
+													variant={state.key === "ready" ? "secondary" : "primary"}
+													size="sm"
+												>
+													{state.key === "ready" ? "Ver" : "Resolver"}
+												</Button>
+												<RatePlanActionMenu
+													ratePlanId={ratePlanId}
+													name={row.ratePlanName}
+													description={row.description}
+													isActive={Boolean(row.isActive)}
+													isDefault={Boolean(row.isDefault)}
+												/>
+											</div>
+										</div>
+									</details>
+								)
+							})}
+						</div>
+						<div
+							class={`hidden overflow-x-auto md:block xl:overflow-visible ${visibleRowsCount ? "" : "hidden"}`}
+							data-rate-plan-table
+						>
+							<table class="w-full min-w-[920px] text-left text-sm">
+								<thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									<tr>
+										<th class="px-4 py-3">Tarifa</th>
+										<th class="px-4 py-3">Precio base</th>
+										<th class="px-4 py-3">Contrato</th>
+										<th class="px-4 py-3">Disponibilidad</th>
+										<th class="px-4 py-3">Estado</th>
+										<th class="px-4 py-3 text-right">Acciones</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-slate-100">
+									{rows.map((row) => {
+										const state = rowStates.get(String(row.ratePlanId))!
+										const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
+										const total = Number(row.policyCoverage?.totalCategories ?? 4)
+										const restrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
+										return (
+											<tr
+												class={`align-middle hover:bg-slate-50/70 ${matchesView(state.key, activeView) ? "" : "hidden"}`}
+												data-rate-plan-row
+												data-rate-plan-id={String(row.ratePlanId)}
+												data-rate-plan-state={state.key}
+											>
+												<td class="px-4 py-4">
+													<div class="flex items-center gap-2">
+														<p class="font-semibold text-slate-950">{row.ratePlanName}</p>
+														{row.isDefault && <Badge variant="info">Principal</Badge>}
+													</div>
+													<p class="mt-1 text-xs text-slate-500">
+														{row.productName} · {row.variantName}
+													</p>
+												</td>
+												<td class="px-4 py-4">
+													<p class="font-semibold text-slate-950">
+														{money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency)}
+													</p>
+													<p class="mt-1 text-xs text-slate-500">por noche</p>
+												</td>
+												<td class="px-4 py-4">
+													<p class="max-w-56 truncate font-medium text-slate-900">
+														{shortPolicySummary(row.policySummary)}
+													</p>
+													<p class="mt-1 text-xs text-slate-500">
+														{covered}/{total} completas
+													</p>
+												</td>
+												<td class="px-4 py-4">
+													<p class="font-medium text-slate-900">
+														{row.inventoryReadiness?.availableDays ?? 0}/
+														{row.inventoryReadiness?.expectedDays ?? 30} noches
+													</p>
+													<p class="mt-1 text-xs text-slate-500">
+														{restrictions ? `${restrictions} reglas activas` : "Venta estándar"}
+													</p>
+												</td>
+												<td class="px-4 py-4">
+													<Badge variant={state.badge}>{state.label}</Badge>
+													<p class="mt-1.5 max-w-48 text-xs leading-5 text-slate-500">
+														{state.reason}
+													</p>
+												</td>
+												<td class="px-4 py-4">
+													<div class="flex items-center justify-end gap-2">
+														<Button
+															href={state.href}
+															variant={state.key === "ready" ? "secondary" : "primary"}
+															size="sm"
+														>
+															{state.key === "ready" ? "Ver" : "Resolver"}
+														</Button>
+														<RatePlanActionMenu
+															ratePlanId={String(row.ratePlanId)}
+															name={row.ratePlanName}
+															description={row.description}
+															isActive={Boolean(row.isActive)}
+															isDefault={Boolean(row.isDefault)}
+														/>
+													</div>
+												</td>
+											</tr>
+										)
+									})}
+								</tbody>
+							</table>
+						</div>
+					</>
 				)
 			}
 		</section>
 
-		<details class="rounded-lg border border-slate-700 bg-slate-900 text-slate-100">
-			<summary class="cursor-pointer px-4 py-3 text-sm font-semibold">Cambios recientes</summary>
-			<div class="border-t border-slate-700 px-4 py-4">
-				{
-					ratePlanHistory.length ? (
-						<ol class="divide-y divide-slate-800">
-							{ratePlanHistory.map((item) => (
-								<li class="flex flex-wrap justify-between gap-3 py-3 first:pt-0 last:pb-0">
-									<div>
-										<p class="text-sm font-semibold">{item.title}</p>
-										<p class="mt-1 text-xs text-slate-400">{item.description}</p>
-									</div>
-									<time class="text-xs text-slate-400">{formatHistoryDate(item.createdAt)}</time>
-								</li>
-							))}
-						</ol>
-					) : (
-						<p class="text-sm text-slate-400">Todavía no hay cambios registrados.</p>
-					)
-				}
+		<details
+			class="rate-history-panel rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm"
+		>
+			<summary
+				class="calendar-control cursor-pointer px-4 py-3 text-sm font-semibold hover:bg-slate-50"
+				>Cambios recientes de tarifa</summary
+			>
+			<div class="rate-history-grid">
+				<div class="overflow-hidden">
+					<div class="border-t border-slate-200 px-4 py-4">
+						{
+							ratePlanHistory.length ? (
+								<ol class="divide-y divide-slate-100">
+									{ratePlanHistory.map((item) => (
+										<li class="flex flex-wrap justify-between gap-3 py-3 first:pt-0 last:pb-0">
+											<div>
+												<p class="text-sm font-semibold">{item.title}</p>
+												<p class="mt-1 text-xs text-slate-500">{item.description}</p>
+											</div>
+											<time class="text-xs text-slate-500">
+												{formatHistoryDate(item.createdAt)}
+											</time>
+										</li>
+									))}
+								</ol>
+							) : (
+								<p class="text-sm text-slate-500">Todavía no hay cambios registrados.</p>
+							)
+						}
+					</div>
+				</div>
 			</div>
 		</details>
 	</div>
 
 	<dialog
-		class="m-auto w-[min(720px,calc(100%-2rem))] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/70"
+		class="calendar-dialog m-auto w-[min(720px,calc(100%-2rem))] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl"
 		data-rate-plan-dialog
 	>
 		<form data-rate-plan-create-form class="max-h-[90vh] overflow-y-auto">
@@ -481,11 +584,12 @@ const tabs = [
 	const ratePlanTabs = Array.from(
 		document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
 	)
-	const ratePlanRows = Array.from(
-		document.querySelectorAll<HTMLTableRowElement>("[data-rate-plan-row]")
-	)
+	const ratePlanRows = Array.from(document.querySelectorAll<HTMLElement>("[data-rate-plan-row]"))
 	const ratePlanEmpty = document.querySelector<HTMLElement>("[data-rate-plan-empty]")
-	const ratePlanTable = document.querySelector<HTMLElement>("[data-rate-plan-table]")
+	const ratePlanTables = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-rate-plan-table]")
+	)
+	const actionFeedback = document.querySelector<HTMLElement>("[data-rate-plan-action-feedback]")
 
 	function ratePlanMatchesView(state: string, view: string) {
 		if (view === "all") return true
@@ -496,21 +600,24 @@ const tabs = [
 
 	function renderRatePlanView(view: string, updateUrl = false) {
 		view = view === "drafts" ? "inactive" : view
-		let visibleCount = 0
+		const visibleRatePlanIds = new Set<string>()
 		for (const row of ratePlanRows) {
 			const visible = ratePlanMatchesView(String(row.dataset.ratePlanState ?? ""), view)
 			row.classList.toggle("hidden", !visible)
-			if (visible) visibleCount += 1
+			if (visible) visibleRatePlanIds.add(String(row.dataset.ratePlanId ?? ""))
 		}
 
-		ratePlanEmpty?.classList.toggle("hidden", visibleCount > 0)
-		ratePlanTable?.classList.toggle("hidden", visibleCount === 0)
+		const hasVisibleRows = visibleRatePlanIds.size > 0
+		ratePlanEmpty?.classList.toggle("hidden", hasVisibleRows)
+		for (const surface of ratePlanTables) surface.classList.toggle("hidden", !hasVisibleRows)
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
-			tab.classList.toggle("border-blue-600", active)
-			tab.classList.toggle("text-blue-700", active)
-			tab.classList.toggle("border-transparent", !active)
+			tab.classList.toggle("border-slate-200", active)
+			tab.classList.toggle("bg-white", active)
+			tab.classList.toggle("text-slate-950", active)
+			tab.classList.toggle("shadow-sm", active)
 			tab.classList.toggle("text-slate-500", !active)
+			tab.classList.toggle("hover:bg-white/70", !active)
 			tab.classList.toggle("hover:text-slate-900", !active)
 			if (active) tab.setAttribute("aria-current", "page")
 			else tab.removeAttribute("aria-current")
@@ -532,6 +639,54 @@ const tabs = [
 	window.addEventListener("popstate", () => {
 		renderRatePlanView(new URL(window.location.href).searchParams.get("vista") ?? "attention")
 	})
+
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		for (const menu of document.querySelectorAll<HTMLDetailsElement>(
+			"[data-rate-plan-action-menu]"
+		)) {
+			if (!menu.contains(target)) menu.removeAttribute("open")
+		}
+	})
+
+	for (const button of document.querySelectorAll<HTMLButtonElement>(
+		"[data-rate-plan-toggle-inline]"
+	)) {
+		button.addEventListener("click", async () => {
+			const nextActive = button.dataset.nextActive === "true"
+			button.disabled = true
+			if (actionFeedback) {
+				actionFeedback.classList.remove("hidden", "text-rose-700", "text-emerald-700")
+				actionFeedback.classList.add("text-slate-600")
+				actionFeedback.textContent = nextActive ? "Activando tarifa..." : "Desactivando tarifa..."
+			}
+			try {
+				const response = await fetch("/api/rateplans/update", {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						id: button.dataset.ratePlanId,
+						name: button.dataset.ratePlanName,
+						description: button.dataset.ratePlanDescription || "",
+						isActive: nextActive,
+						isDefault: button.dataset.ratePlanIsDefault === "true",
+					}),
+				})
+				const result = await response.json().catch(() => null)
+				if (!response.ok) throw new Error(result?.error || "No se pudo cambiar el estado")
+				window.location.reload()
+			} catch (error) {
+				if (actionFeedback) {
+					actionFeedback.classList.remove("text-slate-600")
+					actionFeedback.classList.add("text-rose-700")
+					actionFeedback.textContent =
+						error instanceof Error ? error.message : "No se pudo cambiar el estado"
+				}
+				button.disabled = false
+			}
+		})
+	}
 
 	const dialog = document.querySelector<HTMLDialogElement>("[data-rate-plan-dialog]")
 	const form = document.querySelector<HTMLFormElement>("[data-rate-plan-create-form]")

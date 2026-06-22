@@ -1,6 +1,7 @@
 /** @jsxRuntime classic */
-import React, { startTransition, useMemo, useState } from "react"
+import React, { startTransition, useEffect, useMemo, useState } from "react"
 
+import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
 import {
 	CALENDAR_CONTROL_MODES,
 	type CalendarControlMode,
@@ -17,6 +18,19 @@ type Props = {
 type DrawerAction = "manual_price" | "inventory_units" | "stop_sell" | "min_los" | null
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+const RANGE_PRESETS = [
+	["visible_weekend", "Fin de semana"],
+	["visible_month", "Vista visible"],
+	["next_7", "Prox. 7 días"],
+	["next_30", "Prox. 30 días"],
+] as const
+
+function localIsoDate() {
+	const date = new Date()
+	const month = String(date.getMonth() + 1).padStart(2, "0")
+	const day = String(date.getDate()).padStart(2, "0")
+	return `${date.getFullYear()}-${month}-${day}`
+}
 
 function addDays(value: string, days: number) {
 	const date = new Date(`${value}T12:00:00.000Z`)
@@ -44,11 +58,12 @@ function formatRange(from: string, to: string, weekday = false) {
 }
 
 function monthLabel(value: string) {
-	return new Intl.DateTimeFormat("es-BO", {
+	const label = new Intl.DateTimeFormat("es-BO", {
 		month: "long",
 		year: "numeric",
 		timeZone: "UTC",
 	}).format(new Date(`${value}-01T12:00:00.000Z`))
+	return `${label.charAt(0).toUpperCase()}${label.slice(1)}`
 }
 
 function money(value: number | null, currency: string) {
@@ -61,7 +76,7 @@ function cellPresentation(
 	showComparison: boolean,
 	showInventoryDetail: boolean
 ) {
-	if (day.isPast) return { primary: "Pasado", secondary: "", tone: "past" }
+	if (day.isPast) return { primary: "", secondary: "", tone: "past" }
 	if (mode === "availability") {
 		return {
 			primary: `${day.availableUnits}/${day.totalUnits} cupos`,
@@ -90,8 +105,8 @@ function cellPresentation(
 	}
 	if (mode === "conditions") {
 		return {
-			primary: "Sin excepción",
-			secondary: "La condición general pertenece a la tarifa",
+			primary: "",
+			secondary: "",
 			tone: "neutral",
 		}
 	}
@@ -101,7 +116,7 @@ function cellPresentation(
 			showComparison && day.finalPrice != null
 				? `Base ${money(day.baseComponent, day.currency)}`
 				: day.finalPrice == null
-					? "Completar precio"
+					? ""
 					: day.ruleAdjustment
 						? `Ajuste ${day.ruleAdjustment > 0 ? "+" : ""}${day.ruleAdjustment}`
 						: "Precio final",
@@ -109,15 +124,15 @@ function cellPresentation(
 	}
 }
 
-function toneClass(tone: string, selected: boolean) {
+function toneClass(tone: string) {
 	const tones: Record<string, string> = {
-		past: "border-slate-200 bg-slate-50 text-slate-400",
+		past: "border-slate-100 bg-slate-50/50 text-slate-300",
 		neutral: "border-slate-200 bg-white text-slate-950",
-		warning: "border-amber-300 bg-amber-50 text-amber-950",
+		warning: "border-slate-200 border-l-2 border-l-amber-400 bg-white text-slate-950",
 		danger: "border-red-300 bg-red-50 text-red-950",
 		info: "border-blue-300 bg-blue-50 text-blue-950",
 	}
-	return `${tones[tone] || tones.neutral} ${selected ? "relative z-[1] ring-2 ring-slate-950 ring-inset" : ""}`
+	return tones[tone] || tones.neutral
 }
 
 function actionTitle(action: DrawerAction) {
@@ -144,6 +159,9 @@ export default function SingleCalendarWorkspace({
 	const [reviewed, setReviewed] = useState(false)
 	const [loading, setLoading] = useState(false)
 	const [feedback, setFeedback] = useState("")
+	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
+	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
+	const today = localIsoDate()
 
 	const selected = useMemo(() => [...selectedDates].sort(), [selectedDates])
 	const selection = {
@@ -153,6 +171,14 @@ export default function SingleCalendarWorkspace({
 	}
 
 	async function loadSurface(params: { ratePlanId?: string; month?: string } = {}) {
+		const requestedMonth = params.month || surface.month
+		setGridDirection(
+			requestedMonth < surface.month
+				? "previous"
+				: requestedMonth > surface.month
+					? "next"
+					: "neutral"
+		)
 		setLoading(true)
 		setFeedback("")
 		try {
@@ -175,6 +201,12 @@ export default function SingleCalendarWorkspace({
 			setLoading(false)
 		}
 	}
+
+	useEffect(() => {
+		if (!updatedDates.size) return
+		const timeout = window.setTimeout(() => setUpdatedDates(new Set()), 850)
+		return () => window.clearTimeout(timeout)
+	}, [updatedDates])
 
 	function selectDate(day: SingleCalendarDay) {
 		if (day.isPast) return
@@ -362,7 +394,9 @@ export default function SingleCalendarWorkspace({
 			if (!response.ok || Number(body?.summary?.failed || 0) > 0) {
 				throw new Error(body?.failures?.[0]?.error || body?.error || "No se pudo guardar")
 			}
+			const changedDates = new Set(selected)
 			await loadSurface()
+			setUpdatedDates(changedDates)
 			setDrawerAction(null)
 			setFeedback("Cambio guardado.")
 		} catch (error) {
@@ -396,14 +430,15 @@ export default function SingleCalendarWorkspace({
 
 	return (
 		<div className="space-y-4" aria-busy={loading}>
-			<section className="rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+			<section className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
 				<div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-end">
 					<label className="space-y-1 text-sm">
 						<span className="text-xs font-semibold text-slate-500">Tarifa</span>
 						<select
 							value={surface.selectedRatePlanId}
 							onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
-							className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+							className="calendar-control w-full rounded-md border border-slate-300 bg-white px-3 py-2"
 						>
 							{surface.ratePlans.map((ratePlan) => (
 								<option key={ratePlan.id} value={ratePlan.id}>
@@ -415,7 +450,7 @@ export default function SingleCalendarWorkspace({
 					{isProfessional && (
 						<a
 							href={multiCalendarHref(mode === "sellability" ? "sellability" : mode)}
-							className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+							className="calendar-control inline-flex h-10 items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
 						>
 							Multicalendario
 						</a>
@@ -428,31 +463,49 @@ export default function SingleCalendarWorkspace({
 							<p className="font-semibold text-slate-950">
 								{selection.count
 									? formatRange(selection.from, selection.to, true)
-									: "Selecciona una fecha o rango"}
+									: mode === "conditions"
+										? surface.conditions.summary
+										: "Selecciona una fecha o rango"}
 							</p>
-							<p className="text-xs text-slate-500">
-								{selection.count
-									? `${selection.count} ${selection.count === 1 ? "noche" : "noches"} · ${surface.selectedRatePlanName}`
-									: summary}
-							</p>
+							{selection.count > 0 && (
+								<p className="text-xs text-slate-500">
+									{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
+									{surface.selectedRatePlanName}
+								</p>
+							)}
 						</div>
-						<div className="flex flex-wrap gap-1.5" aria-label="Atajos de rango">
-							{[
-								["visible_weekend", "Fin de semana"],
-								["visible_month", "Vista visible"],
-								["next_7", "Prox. 7 días"],
-								["next_30", "Prox. 30 días"],
-							].map(([id, label]) => (
+						<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
+							{RANGE_PRESETS.map(([id, label]) => (
 								<button
 									key={id}
 									type="button"
 									onClick={() => applyPreset(id)}
-									className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+									className="calendar-control rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
 								>
 									{label}
 								</button>
 							))}
 						</div>
+						<details className="relative sm:hidden">
+							<summary className="calendar-control cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+								Rangos
+							</summary>
+							<div className="absolute top-full left-0 z-30 mt-2 w-40 space-y-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-lg">
+								{RANGE_PRESETS.map(([id, label]) => (
+									<button
+										key={id}
+										type="button"
+										onClick={(event) => {
+											applyPreset(id)
+											event.currentTarget.closest("details")?.removeAttribute("open")
+										}}
+										className="calendar-control block w-full px-2.5 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-100"
+									>
+										{label}
+									</button>
+								))}
+							</div>
+						</details>
 					</div>
 
 					<div className="mt-3 flex gap-1 overflow-x-auto rounded-md bg-white p-1" role="tablist">
@@ -463,7 +516,7 @@ export default function SingleCalendarWorkspace({
 								role="tab"
 								aria-selected={mode === item.key}
 								onClick={() => setMode(item.key)}
-								className={`min-w-28 rounded-md px-3 py-2 text-left text-xs transition ${mode === item.key ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+								className={`calendar-control min-w-28 rounded-md px-3 py-2 text-left text-xs ${mode === item.key ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
 							>
 								<span className="block font-semibold">{item.label}</span>
 								<span
@@ -481,7 +534,7 @@ export default function SingleCalendarWorkspace({
 								key={action.id}
 								type="button"
 								onClick={() => openAction(action.id)}
-								className={`rounded-md border px-3 py-2 text-xs font-semibold ${action.kind === "mutation" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+								className={`calendar-control rounded-md border px-3 py-2 text-xs font-semibold ${action.kind === "mutation" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
 							>
 								{action.id === "price_comparison" && showComparison
 									? "Ocultar base y final"
@@ -510,18 +563,16 @@ export default function SingleCalendarWorkspace({
 						<button
 							type="button"
 							onClick={() => void loadSurface({ month: surface.previousMonth })}
-							className="h-8 w-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+							className="calendar-control h-8 w-8 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
 							aria-label="Mes anterior"
 						>
 							‹
 						</button>
-						<h2 className="text-base font-semibold text-slate-950 capitalize">
-							{monthLabel(surface.month)}
-						</h2>
+						<h2 className="text-base font-semibold text-slate-950">{monthLabel(surface.month)}</h2>
 						<button
 							type="button"
 							onClick={() => void loadSurface({ month: surface.nextMonth })}
-							className="h-8 w-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+							className="calendar-control h-8 w-8 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
 							aria-label="Mes siguiente"
 						>
 							›
@@ -537,33 +588,61 @@ export default function SingleCalendarWorkspace({
 						<div key={weekday}>{weekday}</div>
 					))}
 				</div>
-				<div className="mt-1 grid grid-cols-7 gap-1 md:gap-2">
+				<div
+					key={`${surface.selectedRatePlanId}:${surface.month}`}
+					data-direction={gridDirection}
+					className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
+				>
 					{Array.from({ length: surface.leadingBlankDays }).map((_, index) => (
 						<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
 					))}
 					{surface.days.map((day) => {
 						const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
 						const isSelected = selectedDates.has(day.date)
+						const isToday = day.date === today
+						const selectionEdge = !isSelected
+							? undefined
+							: selection.count === 1
+								? "single"
+								: day.date === selection.from
+									? "start"
+									: day.date === selection.to
+										? "end"
+										: "middle"
 						return (
 							<button
 								key={day.date}
 								type="button"
 								disabled={day.isPast}
 								onClick={() => selectDate(day)}
+								aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}`}
 								aria-pressed={isSelected}
-								className={`min-h-20 rounded-md border p-1.5 text-left transition hover:shadow-sm disabled:cursor-default md:min-h-28 md:p-2 ${toneClass(presentation.tone, isSelected)}`}
+								data-selected={isSelected}
+								data-selection-edge={selectionEdge}
+								data-today={isToday}
+								className={`calendar-cell min-h-20 rounded-md border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${toneClass(presentation.tone)}`}
 							>
-								<div className="flex items-start justify-between gap-1">
-									<span className="text-[10px] text-slate-500 md:text-xs">{day.weekday}</span>
-									<span className="text-sm font-semibold md:text-base">{day.day}</span>
+								<div className="flex items-start justify-end gap-1.5">
+									{isToday && (
+										<span className="mt-1.5 size-1.5 rounded-full bg-blue-600" aria-label="Hoy" />
+									)}
+									<span
+										className={`text-sm font-semibold md:text-base ${isToday ? "text-blue-700" : ""}`}
+									>
+										{day.day}
+									</span>
 								</div>
-								<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
-									{presentation.primary}
-								</p>
-								{presentation.secondary && (
-									<p className="mt-1 line-clamp-2 hidden text-[9px] leading-4 opacity-65 sm:block md:text-[11px]">
-										{presentation.secondary}
-									</p>
+								{!day.isPast && presentation.primary && (
+									<div key={mode} className="calendar-cell-content">
+										<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
+											{presentation.primary}
+										</p>
+										{presentation.secondary && (
+											<p className="mt-1 line-clamp-2 hidden text-[9px] leading-4 opacity-65 sm:block md:text-[11px]">
+												{presentation.secondary}
+											</p>
+										)}
+									</div>
 								)}
 							</button>
 						)
@@ -576,76 +655,56 @@ export default function SingleCalendarWorkspace({
 			)}
 
 			{drawerAction && (
-				<>
-					<button
-						type="button"
-						aria-label="Cerrar panel"
-						className="fixed inset-0 z-40 bg-slate-950/40"
-						onClick={() => setDrawerAction(null)}
-					/>
-					<aside className="fixed top-0 right-0 z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl">
-						<div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-							<div>
-								<p className="text-xs font-semibold text-slate-500 uppercase">Selección</p>
-								<h2 className="mt-1 text-xl font-semibold">{actionTitle(drawerAction)}</h2>
-								<p className="mt-1 text-sm text-slate-500">
-									{formatRange(selection.from, selection.to, true)} · {surface.selectedRatePlanName}
-								</p>
-							</div>
+				<CalendarResponsiveDrawer
+					title={actionTitle(drawerAction)}
+					meta={`${formatRange(selection.from, selection.to, true)} · ${surface.selectedRatePlanName}`}
+					onClose={() => setDrawerAction(null)}
+				>
+					<div className="mt-5 space-y-4">
+						{drawerAction === "stop_sell" ? (
+							<p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+								Cerrará la venta de esta tarifa durante el rango seleccionado.
+							</p>
+						) : (
+							<label className="block text-sm font-medium text-slate-700">
+								{drawerAction === "manual_price"
+									? "Precio final"
+									: drawerAction === "inventory_units"
+										? "Cupo físico total"
+										: "Noches mínimas"}
+								<input
+									type="number"
+									min="0"
+									value={value}
+									onChange={(event) => {
+										setValue(event.target.value)
+										setReviewed(false)
+									}}
+									className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
+								/>
+							</label>
+						)}
+						{feedback && <p className="text-sm text-slate-600">{feedback}</p>}
+						<div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
 							<button
 								type="button"
-								onClick={() => setDrawerAction(null)}
-								className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600"
+								disabled={loading}
+								onClick={() => void reviewMutation()}
+								className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40"
 							>
-								Cerrar
+								Revisar
+							</button>
+							<button
+								type="button"
+								disabled={loading || !reviewed}
+								onClick={() => void saveMutation()}
+								className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+							>
+								Guardar
 							</button>
 						</div>
-						<div className="mt-5 space-y-4">
-							{drawerAction === "stop_sell" ? (
-								<p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-									Cerrará la venta de esta tarifa durante el rango seleccionado.
-								</p>
-							) : (
-								<label className="block text-sm font-medium text-slate-700">
-									{drawerAction === "manual_price"
-										? "Precio final"
-										: drawerAction === "inventory_units"
-											? "Cupo físico total"
-											: "Noches mínimas"}
-									<input
-										type="number"
-										min="0"
-										value={value}
-										onChange={(event) => {
-											setValue(event.target.value)
-											setReviewed(false)
-										}}
-										className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
-									/>
-								</label>
-							)}
-							{feedback && <p className="text-sm text-slate-600">{feedback}</p>}
-							<div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
-								<button
-									type="button"
-									disabled={loading}
-									onClick={() => void reviewMutation()}
-									className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40"
-								>
-									Revisar
-								</button>
-								<button
-									type="button"
-									disabled={loading || !reviewed}
-									onClick={() => void saveMutation()}
-									className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-								>
-									Guardar
-								</button>
-							</div>
-						</div>
-					</aside>
-				</>
+					</div>
+				</CalendarResponsiveDrawer>
 			)}
 		</div>
 	)

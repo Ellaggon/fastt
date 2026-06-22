@@ -1,6 +1,7 @@
 /** @jsxRuntime classic */
 import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react"
 
+import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
 import { CALENDAR_CONTROL_MODES } from "@/lib/rates/calendarControlCatalog"
 import type {
 	MultiCalendarCell,
@@ -114,6 +115,13 @@ const PRICE_ACTIONS: Record<
 	},
 }
 
+const CONDITION_LABELS: Record<string, string> = {
+	Cancellation: "Cancelación",
+	Payment: "Pago",
+	NoShow: "No presentación",
+	CheckIn: "Llegada y salida",
+}
+
 function addDays(value: string, days: number) {
 	const date = new Date(`${value}T12:00:00.000Z`)
 	date.setUTCDate(date.getUTCDate() + days)
@@ -183,20 +191,26 @@ function cellText(tab: MultiCalendarTab, cell: MultiCalendarCell) {
 		}
 	return {
 		primary: cell.price,
-		secondary: cell.hasPrice ? cell.basePrice : "Completar precio",
+		secondary:
+			cell.hasPrice &&
+			cell.basePrice &&
+			cell.basePrice !== cell.price &&
+			!cell.basePrice.endsWith(" 0")
+				? `Base ${cell.basePrice}`
+				: "",
 		tone: cell.hasPrice ? "ok" : "warning",
 	}
 }
 
-function toneClass(tone: string, selected: boolean) {
+function toneClass(tone: string) {
 	const tones: Record<string, string> = {
-		past: "border-slate-200 bg-slate-50 text-slate-400",
-		ok: "border-emerald-200 bg-emerald-50 text-emerald-950",
-		warning: "border-amber-200 bg-amber-50 text-amber-950",
-		danger: "border-red-200 bg-red-50 text-red-950",
-		info: "border-blue-200 bg-blue-50 text-blue-950",
+		past: "border-slate-200 bg-slate-50/70 text-slate-400",
+		ok: "border-slate-200 bg-white text-slate-950",
+		warning: "border-slate-200 border-l-2 border-l-amber-400 bg-white text-slate-950",
+		danger: "border-slate-200 border-l-2 border-l-red-500 bg-white text-slate-950",
+		info: "border-slate-200 border-l-2 border-l-blue-500 bg-white text-slate-950",
 	}
-	return `${tones[tone] || tones.ok} ${selected ? "relative z-[1] ring-2 ring-slate-950 ring-inset" : ""}`
+	return tones[tone] || tones.ok
 }
 
 function statsFromRows(rows: MultiCalendarRow[]) {
@@ -233,6 +247,9 @@ type CalendarRowProps = {
 	selected: Set<string>
 	onToggle: (ratePlanId: string, date: string) => void
 	onToggleRow: (ratePlanId: string) => void
+	recentlyUpdated: Set<string>
+	showLabel: boolean
+	compact: boolean
 }
 
 function rowSelectionChanged(previous: CalendarRowProps, next: CalendarRowProps) {
@@ -244,46 +261,93 @@ function rowSelectionChanged(previous: CalendarRowProps, next: CalendarRowProps)
 
 const CalendarRow = memo(
 	function CalendarRow(props: CalendarRowProps) {
-		const { row, tab, selected, onToggle, onToggleRow } = props
+		const { row, tab, selected, onToggle, onToggleRow, recentlyUpdated, showLabel, compact } = props
+		const selectableKeys = row.cells
+			.filter((cell) => !cell.isPast)
+			.map((cell) => `${row.ratePlanId}:${cell.date}`)
+		const wholeRowSelected =
+			selectableKeys.length > 0 && selectableKeys.every((key) => selected.has(key))
 		return (
 			<>
-				<div className="sticky left-0 z-10 border-r border-b border-slate-200 bg-white/95 p-3 backdrop-blur">
-					<p className="truncate text-sm font-semibold text-slate-950">{row.ratePlanName}</p>
-					<p className="truncate text-xs text-slate-500">
-						{row.productName} · {row.variantName}
-					</p>
-					<div className="mt-2 flex items-center gap-2">
-						<span
-							className={`rounded-md px-2 py-1 text-[11px] font-semibold ${row.readiness.priceReady && row.readiness.availabilityReady && row.readiness.conditionsReady ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}
-						>
-							{row.readiness.priceReady &&
-							row.readiness.availabilityReady &&
-							row.readiness.conditionsReady
-								? "Lista"
-								: "Con pendientes"}
-						</span>
-						<button
-							type="button"
-							onClick={() => onToggleRow(row.ratePlanId)}
-							className="text-xs font-semibold text-slate-600 hover:text-slate-950"
-						>
-							Seleccionar fila
-						</button>
+				{showLabel && (
+					<div className="sticky left-0 z-10 border-r border-b border-slate-200 bg-white/95 p-3 backdrop-blur">
+						<p className="truncate text-sm font-semibold text-slate-950">{row.ratePlanName}</p>
+						<p className="truncate text-xs text-slate-500">
+							{row.productName} · {row.variantName}
+						</p>
+						<div className="mt-2 flex items-center gap-2">
+							<span
+								className={`rounded-md px-2 py-1 text-[11px] font-semibold ${row.readiness.priceReady && row.readiness.availabilityReady && row.readiness.conditionsReady ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}
+							>
+								{row.readiness.priceReady &&
+								row.readiness.availabilityReady &&
+								row.readiness.conditionsReady
+									? "Lista"
+									: "Con pendientes"}
+							</span>
+							<label className="calendar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">
+								<input
+									type="checkbox"
+									checked={wholeRowSelected}
+									onChange={() => onToggleRow(row.ratePlanId)}
+									aria-label={`Seleccionar ${row.ratePlanName}`}
+									className="size-3.5 accent-blue-600"
+								/>
+								Fila
+							</label>
+						</div>
 					</div>
-				</div>
+				)}
 				{row.cells.map((cell) => {
 					const key = `${row.ratePlanId}:${cell.date}`
 					const text = cellText(tab, cell)
+					const isSelected = selected.has(key)
+					const selectedDates = row.cells.filter((item) =>
+						selected.has(`${row.ratePlanId}:${item.date}`)
+					)
+					const firstSelectedDate = selectedDates[0]?.date
+					const lastSelectedDate = selectedDates.at(-1)?.date
+					const selectionEdge = !isSelected
+						? undefined
+						: firstSelectedDate === lastSelectedDate
+							? "single"
+							: cell.date === firstSelectedDate
+								? "start"
+								: cell.date === lastSelectedDate
+									? "end"
+									: "middle"
 					return (
 						<button
 							key={key}
 							type="button"
 							disabled={cell.isPast}
 							onClick={() => onToggle(row.ratePlanId, cell.date)}
-							className={`min-h-20 border-r border-b p-2 text-left transition-colors duration-150 ${toneClass(text.tone, selected.has(key))} ${cell.isPast ? "cursor-default" : "hover:brightness-[0.98]"}`}
+							data-selected={isSelected}
+							data-selection-edge={selectionEdge}
+							className={`calendar-cell border-r border-b ${compact ? "min-h-16 p-1 text-center" : "min-h-20 p-2 text-left"} ${recentlyUpdated.has(key) ? "calendar-updated" : ""} ${toneClass(text.tone)} ${cell.isPast ? "cursor-default" : "hover:brightness-[0.98]"}`}
 						>
-							<p className="truncate text-sm font-semibold">{text.primary}</p>
-							<p className="mt-1 line-clamp-2 text-xs opacity-75">{text.secondary}</p>
+							<div key={tab} className="calendar-cell-content">
+								<p
+									className={
+										compact
+											? "text-[10px] leading-3 font-semibold"
+											: "truncate text-sm font-semibold"
+									}
+								>
+									{text.primary}
+								</p>
+								{text.secondary && (
+									<p
+										className={
+											compact
+												? "mt-1 line-clamp-2 text-[9px] leading-3 text-slate-500"
+												: "mt-1 line-clamp-2 text-xs text-slate-500"
+										}
+									>
+										{text.secondary}
+									</p>
+								)}
+							</div>
 						</button>
 					)
 				})}
@@ -291,7 +355,12 @@ const CalendarRow = memo(
 		)
 	},
 	(previous, next) =>
-		previous.row === next.row && previous.tab === next.tab && !rowSelectionChanged(previous, next)
+		previous.row === next.row &&
+		previous.tab === next.tab &&
+		previous.showLabel === next.showLabel &&
+		previous.compact === next.compact &&
+		previous.recentlyUpdated === next.recentlyUpdated &&
+		!rowSelectionChanged(previous, next)
 )
 
 export default function MultiCalendarWorkspace({ initialSurface, initialRules }: Props) {
@@ -303,16 +372,33 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const [drawerOpen, setDrawerOpen] = useState(false)
 	const [loading, setLoading] = useState(false)
 	const [feedback, setFeedback] = useState("")
+	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
+	const [recentlyUpdated, setRecentlyUpdated] = useState<Set<string>>(new Set())
 	const [priceMode, setPriceMode] = useState("percentage_discount")
 	const [value, setValue] = useState("")
 	const [previewReady, setPreviewReady] = useState(false)
 	const [editingRule, setEditingRule] = useState<MultiCalendarAppliedRule | null>(null)
 	const [editingMode, setEditingMode] = useState<"edit" | "variant">("edit")
 	const [filters, setFilters] = useState(initialSurface.filters)
+	const [isMobile, setIsMobile] = useState(false)
+	const [mobileRatePlanId, setMobileRatePlanId] = useState(initialSurface.rows[0]?.ratePlanId || "")
 	const requestRef = useRef<AbortController | null>(null)
 	const cacheRef = useRef(
 		new Map<string, { surface: MultiCalendarSurface; appliedRules: MultiCalendarAppliedRule[] }>()
 	)
+
+	useEffect(() => {
+		const media = window.matchMedia("(max-width: 639px)")
+		const sync = () => setIsMobile(media.matches)
+		sync()
+		media.addEventListener("change", sync)
+		return () => media.removeEventListener("change", sync)
+	}, [])
+
+	useEffect(() => {
+		if (surface.rows.some((row) => row.ratePlanId === mobileRatePlanId)) return
+		setMobileRatePlanId(surface.rows[0]?.ratePlanId || "")
+	}, [mobileRatePlanId, surface.rows])
 
 	const selection = useMemo<Selection>(() => {
 		const cells: Selection["cells"] = []
@@ -346,6 +432,15 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	}
 
 	async function loadWorkspace(overrides: Record<string, string> = {}, patchIds: string[] = []) {
+		if (overrides.month) {
+			setGridDirection(
+				overrides.month < surface.month
+					? "previous"
+					: overrides.month > surface.month
+						? "next"
+						: "neutral"
+			)
+		}
 		const url = queryUrl(overrides)
 		if (patchIds.length) {
 			url.searchParams.delete("ratePlanId")
@@ -404,6 +499,12 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			if (requestRef.current === controller) setLoading(false)
 		}
 	}
+
+	useEffect(() => {
+		if (!recentlyUpdated.size) return
+		const timeout = window.setTimeout(() => setRecentlyUpdated(new Set()), 850)
+		return () => window.clearTimeout(timeout)
+	}, [recentlyUpdated])
 
 	useEffect(() => {
 		const listener = (event: Event) => {
@@ -511,6 +612,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			if (!response.ok || Number(body?.summary?.failed || 0) > 0)
 				throw new Error(body?.failures?.[0]?.error || body?.error || "No se pudo guardar")
 			await loadWorkspace({}, selection.ratePlanIds)
+			setRecentlyUpdated(new Set(selected))
 			setFeedback("Precio actualizado.")
 			setPreviewReady(false)
 		} catch (error) {
@@ -541,6 +643,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			const body = await response.json().catch(() => ({}))
 			if (!response.ok) throw new Error(body?.error || "No se pudo guardar")
 			await loadWorkspace({}, selection.ratePlanIds)
+			setRecentlyUpdated(new Set(selected))
 			setFeedback("Cupo actualizado.")
 			setPreviewReady(false)
 		} catch (error) {
@@ -570,6 +673,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			const body = await response.json().catch(() => ({}))
 			if (!response.ok) throw new Error(body?.error || "No se pudo guardar la regla")
 			await loadWorkspace({}, selection.ratePlanIds)
+			setRecentlyUpdated(new Set(selected))
 			setFeedback("Regla guardada.")
 			setPreviewReady(false)
 		} catch (error) {
@@ -665,82 +769,109 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const selectedRows = [
 		...new Map(selection.cells.map(({ row }) => [row.ratePlanId, row])).values(),
 	]
+	const activeFilterCount = [
+		filters.productId,
+		filters.variantId,
+		filters.ratePlanId,
+		filters.status === "all" ? "" : filters.status,
+	].filter(Boolean).length
+	const visibleDays = isMobile ? surface.days.slice(0, 7) : surface.days
+	const visibleDateSet = new Set(visibleDays.map((day) => day.date))
+	const baseVisibleRows = isMobile
+		? surface.rows.filter((row) => row.ratePlanId === mobileRatePlanId)
+		: surface.rows
+	const visibleRows = baseVisibleRows.map((row) => ({
+		...row,
+		cells: row.cells.filter((cell) => visibleDateSet.has(cell.date)),
+	}))
 
 	return (
 		<div className="space-y-5" aria-busy={loading}>
-			<section className="rounded-xl border border-white/70 bg-white/95 p-4 text-slate-900 shadow-xl shadow-slate-950/5">
-				<form
-					onSubmit={(event) => {
-						event.preventDefault()
-						void loadWorkspace({
-							productId: filters.productId,
-							variantId: filters.variantId,
-							ratePlanId: filters.ratePlanId,
-							status: filters.status,
-						})
-					}}
-					className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_0.8fr_auto] lg:items-end"
-				>
-					{(["productId", "variantId", "ratePlanId"] as const).map((key) => (
-						<label key={key} className="space-y-1 text-sm">
-							<span className="text-xs font-semibold text-slate-500">
-								{key === "productId" ? "Hotel" : key === "variantId" ? "Habitación" : "Tarifa"}
-							</span>
-							<select
-								value={filters[key]}
-								onChange={(event) => setFilters({ ...filters, [key]: event.target.value })}
-								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
-							>
-								<option value="">
-									{key === "productId"
-										? "Todos los hoteles"
-										: key === "variantId"
-											? "Todas las habitaciones"
-											: "Todas las tarifas"}
-								</option>
-								{(key === "productId"
-									? surface.options.products
-									: key === "variantId"
-										? surface.options.variants
-										: surface.options.ratePlans
-								).map((option) => (
-									<option key={option.id} value={option.id}>
-										{"productName" in option
-											? `${option.productName} · ${option.name}`
-											: option.name}
+			<section className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
+				<details className="group rounded-md border border-slate-200 bg-slate-50/70">
+					<summary className="calendar-control flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+						<span>Filtros{activeFilterCount ? ` · ${activeFilterCount} activos` : ""}</span>
+						<span className="text-xs font-medium text-slate-500 group-open:hidden">
+							{surface.stats.totalRows} tarifas visibles
+						</span>
+						<span className="hidden text-xs font-medium text-slate-500 group-open:inline">
+							Cerrar
+						</span>
+					</summary>
+					<form
+						onSubmit={(event) => {
+							event.preventDefault()
+							void loadWorkspace({
+								productId: filters.productId,
+								variantId: filters.variantId,
+								ratePlanId: filters.ratePlanId,
+								status: filters.status,
+							})
+						}}
+						className="grid gap-3 border-t border-slate-200 bg-white p-3 lg:grid-cols-[1fr_1fr_1fr_0.8fr_auto] lg:items-end"
+					>
+						{(["productId", "variantId", "ratePlanId"] as const).map((key) => (
+							<label key={key} className="space-y-1 text-sm">
+								<span className="text-xs font-semibold text-slate-500">
+									{key === "productId" ? "Hotel" : key === "variantId" ? "Habitación" : "Tarifa"}
+								</span>
+								<select
+									value={filters[key]}
+									onChange={(event) => setFilters({ ...filters, [key]: event.target.value })}
+									className="calendar-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+								>
+									<option value="">
+										{key === "productId"
+											? "Todos los hoteles"
+											: key === "variantId"
+												? "Todas las habitaciones"
+												: "Todas las tarifas"}
 									</option>
-								))}
+									{(key === "productId"
+										? surface.options.products
+										: key === "variantId"
+											? surface.options.variants
+											: surface.options.ratePlans
+									).map((option) => (
+										<option key={option.id} value={option.id}>
+											{"productName" in option
+												? `${option.productName} · ${option.name}`
+												: option.name}
+										</option>
+									))}
+								</select>
+							</label>
+						))}
+						<label className="space-y-1 text-sm">
+							<span className="text-xs font-semibold text-slate-500">Estado</span>
+							<select
+								value={filters.status}
+								onChange={(event) =>
+									setFilters({ ...filters, status: event.target.value as typeof filters.status })
+								}
+								className="calendar-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+							>
+								<option value="all">Todas</option>
+								<option value="ready">Listas</option>
+								<option value="attention">Con pendientes</option>
 							</select>
 						</label>
-					))}
-					<label className="space-y-1 text-sm">
-						<span className="text-xs font-semibold text-slate-500">Estado</span>
-						<select
-							value={filters.status}
-							onChange={(event) =>
-								setFilters({ ...filters, status: event.target.value as typeof filters.status })
-							}
-							className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+						<button
+							className="calendar-control rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+							disabled={loading}
 						>
-							<option value="all">Todas</option>
-							<option value="ready">Listas</option>
-							<option value="attention">Con pendientes</option>
-						</select>
-					</label>
-					<button
-						className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-						disabled={loading}
-					>
-						Filtrar
-					</button>
-				</form>
+							Filtrar
+						</button>
+					</form>
+				</details>
 				<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
 					<div className="flex items-center gap-2">
 						<button
 							type="button"
 							disabled={!surface.previousMonth || loading}
 							onClick={() => void loadWorkspace({ month: surface.previousMonth })}
-							className="h-9 w-9 rounded-lg border border-slate-200 disabled:opacity-30"
+							className="calendar-control h-9 w-9 rounded-lg border border-slate-200 disabled:opacity-30"
 							aria-label="Mes anterior"
 						>
 							‹
@@ -757,7 +888,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							type="button"
 							disabled={loading}
 							onClick={() => void loadWorkspace({ month: surface.nextMonth })}
-							className="h-9 w-9 rounded-lg border border-slate-200"
+							className="calendar-control h-9 w-9 rounded-lg border border-slate-200"
 							aria-label="Mes siguiente"
 						>
 							›
@@ -774,7 +905,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 								key={id}
 								type="button"
 								onClick={() => applyPreset(id)}
-								className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+								className="calendar-control rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
 							>
 								{label}
 							</button>
@@ -782,7 +913,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 					</div>
 				</div>
 				<div
-					className="mt-4 flex gap-1.5 overflow-x-auto border-t border-slate-200 pt-4"
+					className="mt-4 flex gap-1 overflow-x-auto border-t border-slate-200 pt-4"
 					role="tablist"
 				>
 					{TABS.map((tab) => (
@@ -792,14 +923,14 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							role="tab"
 							onClick={() => changeTab(tab.key)}
 							aria-selected={activeTab === tab.key}
-							className={`min-w-36 rounded-lg border px-3 py-2 text-left text-sm transition ${activeTab === tab.key ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+							className={`calendar-control min-w-max rounded-md border px-3 py-2 text-left text-xs ${activeTab === tab.key ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-transparent bg-slate-50 text-slate-600 hover:border-slate-200 hover:bg-white"}`}
 						>
 							<span className="block font-semibold">{tab.label}</span>
-							<span
-								className={`mt-0.5 block text-xs ${activeTab === tab.key ? "text-slate-300" : "text-slate-500"}`}
-							>
-								{tab.helper}
-							</span>
+							{activeTab === tab.key && (
+								<span className="mt-0.5 hidden text-[10px] text-slate-300 lg:block">
+									{tab.helper}
+								</span>
+							)}
 						</button>
 					))}
 				</div>
@@ -821,7 +952,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 									key={action.id}
 									type="button"
 									onClick={() => openAction(action.id)}
-									className={`rounded-lg border px-3 py-2 text-xs font-semibold ${activeAction === action.id ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+									className={`calendar-control rounded-lg border px-3 py-2 text-xs font-semibold ${activeAction === action.id ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
 								>
 									{action.label}
 								</button>
@@ -839,7 +970,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 				{feedback && !drawerOpen && <p className="mt-3 text-sm text-red-700">{feedback}</p>}
 			</section>
 
-			<section className="overflow-hidden rounded-xl border border-white/70 bg-white text-slate-900 shadow-xl shadow-slate-950/5">
+			<section className="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm">
 				<div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
 					<div>
 						<h2 className="font-semibold text-slate-950">Operación por tarifa</h2>
@@ -854,130 +985,225 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						No hay tarifas para esta vista.
 					</div>
 				) : (
-					<div className="overflow-x-auto">
-						<div
-							className="grid min-w-max bg-slate-100/70"
-							style={{
-								gridTemplateColumns: `18rem repeat(${surface.days.length}, minmax(6.25rem, 1fr))`,
-							}}
-						>
-							<div className="sticky left-0 z-20 border-r border-b border-slate-200 bg-white p-3 text-xs font-semibold text-slate-500 uppercase">
-								Tarifa
-							</div>
-							{surface.days.map((day) => (
-								<div
-									key={day.date}
-									className="border-b border-slate-200 bg-slate-50 p-2 text-center"
-								>
-									<button
-										type="button"
-										onClick={() =>
-											toggleMany(
-												surface.rows.flatMap((row) =>
-													row.cells.some((cell) => cell.date === day.date && !cell.isPast)
-														? [`${row.ratePlanId}:${day.date}`]
-														: []
+					<>
+						<label className="block border-b border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 sm:hidden">
+							Tarifa visible
+							<select
+								value={mobileRatePlanId}
+								onChange={(event) => {
+									setMobileRatePlanId(event.target.value)
+									setSelected(new Set())
+								}}
+								className="calendar-control mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							>
+								{surface.rows.map((row) => (
+									<option key={row.ratePlanId} value={row.ratePlanId}>
+										{row.ratePlanName} · {row.variantName}
+									</option>
+								))}
+							</select>
+						</label>
+						<div className="overflow-x-auto">
+							<div
+								key={`${surface.startDate}:${surface.endDate}:${mobileRatePlanId}:${isMobile}`}
+								data-direction={gridDirection}
+								className={`calendar-grid-enter grid bg-slate-100/70 ${isMobile ? "w-full" : "min-w-max"}`}
+								style={{
+									gridTemplateColumns: isMobile
+										? `repeat(${visibleDays.length}, minmax(0, 1fr))`
+										: `18rem repeat(${visibleDays.length}, minmax(6.25rem, 1fr))`,
+								}}
+							>
+								{!isMobile && (
+									<div className="sticky left-0 z-20 border-r border-b border-slate-200 bg-white p-3 text-xs font-semibold text-slate-500 uppercase">
+										Tarifa
+									</div>
+								)}
+								{visibleDays.map((day) => (
+									<div
+										key={day.date}
+										className="border-b border-slate-200 bg-slate-50 p-2 text-center"
+									>
+										<button
+											type="button"
+											onClick={() =>
+												toggleMany(
+													visibleRows.flatMap((row) =>
+														row.cells.some((cell) => cell.date === day.date && !cell.isPast)
+															? [`${row.ratePlanId}:${day.date}`]
+															: []
+													)
 												)
+											}
+											className="rounded-md px-2 py-1 hover:bg-white"
+										>
+											<p className="text-[10px] font-semibold text-slate-500 uppercase">
+												{day.weekday}
+											</p>
+											<p className="text-sm font-semibold text-slate-950">{day.day}</p>
+											<p className="text-[10px] text-slate-400">{day.monthLabel}</p>
+										</button>
+									</div>
+								))}
+								{visibleRows.map((row) => (
+									<CalendarRow
+										key={row.ratePlanId}
+										row={row}
+										tab={activeTab}
+										selected={selected}
+										onToggle={toggleCell}
+										onToggleRow={(id) =>
+											toggleMany(
+												row.cells.filter((cell) => !cell.isPast).map((cell) => `${id}:${cell.date}`)
 											)
 										}
-										className="rounded-md px-2 py-1 hover:bg-white"
-									>
-										<p className="text-[10px] font-semibold text-slate-500 uppercase">
-											{day.weekday}
-										</p>
-										<p className="text-sm font-semibold text-slate-950">{day.day}</p>
-										<p className="text-[10px] text-slate-400">{day.monthLabel}</p>
-									</button>
-								</div>
-							))}
-							{surface.rows.map((row) => (
-								<CalendarRow
-									key={row.ratePlanId}
-									row={row}
-									tab={activeTab}
-									selected={selected}
-									onToggle={toggleCell}
-									onToggleRow={(id) =>
-										toggleMany(
-											row.cells.filter((cell) => !cell.isPast).map((cell) => `${id}:${cell.date}`)
-										)
-									}
-								/>
-							))}
+										recentlyUpdated={recentlyUpdated}
+										showLabel={!isMobile}
+										compact={isMobile}
+									/>
+								))}
+							</div>
 						</div>
-					</div>
+					</>
 				)}
 			</section>
 
 			{drawerOpen && (
-				<>
-					<button
-						type="button"
-						aria-label="Cerrar panel"
-						className="fixed inset-0 z-40 bg-slate-950/40"
-						onClick={() => setDrawerOpen(false)}
-					/>
-					<aside className="fixed top-0 right-0 z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl">
-						<div className="flex items-start justify-between gap-4">
-							<div>
-								<p className="text-xs font-semibold text-slate-500 uppercase">Selección</p>
-								<h2 className="mt-1 text-xl font-semibold text-slate-950">
-									{PRICE_ACTIONS[activeAction]?.title ||
-										ACTIONS[activeTab].find((item) => item.id === activeAction)?.label ||
-										"Detalle"}
-								</h2>
-								<p className="mt-1 text-sm text-slate-500">
-									{formatRange(selection.from, selection.to, true)} · {selection.ratePlanIds.length}{" "}
-									{selection.ratePlanIds.length === 1 ? "tarifa" : "tarifas"}
-								</p>
+				<CalendarResponsiveDrawer
+					title={
+						PRICE_ACTIONS[activeAction]?.title ||
+						ACTIONS[activeTab].find((item) => item.id === activeAction)?.label ||
+						"Detalle"
+					}
+					meta={`${formatRange(selection.from, selection.to, true)} · ${selection.ratePlanIds.length} ${selection.ratePlanIds.length === 1 ? "tarifa" : "tarifas"}`}
+					onClose={() => setDrawerOpen(false)}
+				>
+					<div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+						<p className="text-sm font-semibold text-slate-950">
+							{selection.ratePlanIds.length === 1
+								? selection.cells[0]?.row.ratePlanName
+								: `${selection.ratePlanIds.length} tarifas seleccionadas`}
+						</p>
+						<p className="shrink-0 text-xs text-slate-500">
+							{selection.cells.length} noches-tarifa impactadas
+						</p>
+					</div>
+					{PRICE_ACTIONS[activeAction] && (
+						<div className="mt-5 space-y-4">
+							<div className="grid grid-cols-3 gap-2">
+								{(!PRICE_ACTIONS[activeAction].fixedMode
+									? [
+											["percentage_markup", "Subir %"],
+											["percentage_discount", "Bajar %"],
+											["fixed_override", "Precio fijo"],
+										]
+									: [[PRICE_ACTIONS[activeAction].fixedMode!, "% descuento"]]
+								).map(([mode, label]) => (
+									<button
+										key={mode}
+										type="button"
+										onClick={() => {
+											setPriceMode(mode)
+											setPreviewReady(false)
+										}}
+										className={`rounded-lg border px-3 py-2 text-sm font-semibold ${priceMode === mode ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200"}`}
+									>
+										{label}
+									</button>
+								))}
 							</div>
-							<button
-								type="button"
-								onClick={() => setDrawerOpen(false)}
-								className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600"
-							>
-								Cerrar
-							</button>
+							<label className="block text-sm font-medium text-slate-700">
+								Valor
+								<input
+									type="number"
+									min="0"
+									value={value}
+									onChange={(event) => {
+										setValue(event.target.value)
+										setPreviewReady(false)
+									}}
+									className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+							</label>
+							<div className="grid grid-cols-2 gap-2">
+								<button
+									type="button"
+									onClick={() => {
+										setPreviewReady(true)
+										setFeedback(`Se aplicará a ${selection.cells.length} noches-tarifa.`)
+									}}
+									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+								>
+									Revisar
+								</button>
+								<button
+									type="button"
+									disabled={loading || !previewReady}
+									onClick={() => void savePrice()}
+									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+								>
+									Guardar
+								</button>
+							</div>
 						</div>
-						<div className="mt-5 rounded-lg border border-slate-200 p-4">
-							<p className="font-semibold text-slate-950">
-								{selection.ratePlanIds.length === 1
-									? selection.cells[0]?.row.ratePlanName
-									: `${selection.ratePlanIds.length} tarifas seleccionadas`}
-							</p>
-							<p className="mt-1 text-sm text-slate-600">
-								{selection.cells.length} noches-tarifa impactadas
-							</p>
+					)}
+					{activeAction === "availability_units" && (
+						<div className="mt-5 space-y-4">
+							<label className="block text-sm font-medium text-slate-700">
+								Cupo físico total
+								<input
+									type="number"
+									min="0"
+									value={value}
+									onChange={(event) => {
+										setValue(event.target.value)
+										setPreviewReady(false)
+									}}
+									className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
+								/>
+							</label>
+							<div className="grid grid-cols-2 gap-2">
+								<button
+									type="button"
+									onClick={() => {
+										setPreviewReady(true)
+										setFeedback(`Se actualizarán ${selection.variantIds.length} habitaciones.`)
+									}}
+									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+								>
+									Revisar
+								</button>
+								<button
+									type="button"
+									disabled={loading || !previewReady}
+									onClick={() => void saveAvailability()}
+									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+								>
+									Guardar
+								</button>
+							</div>
 						</div>
-						{PRICE_ACTIONS[activeAction] && (
-							<div className="mt-5 space-y-4">
-								<div className="grid grid-cols-3 gap-2">
-									{(!PRICE_ACTIONS[activeAction].fixedMode
-										? [
-												["percentage_markup", "Subir %"],
-												["percentage_discount", "Bajar %"],
-												["fixed_override", "Precio fijo"],
-											]
-										: [[PRICE_ACTIONS[activeAction].fixedMode!, "% descuento"]]
-									).map(([mode, label]) => (
-										<button
-											key={mode}
-											type="button"
-											onClick={() => {
-												setPriceMode(mode)
-												setPreviewReady(false)
-											}}
-											className={`rounded-lg border px-3 py-2 text-sm font-semibold ${priceMode === mode ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200"}`}
-										>
-											{label}
-										</button>
-									))}
-								</div>
+					)}
+					{[
+						"availability_block",
+						"stop_sell",
+						"min_lead_time",
+						"max_lead_time",
+						"min_los",
+						"max_los",
+						"cta",
+						"ctd",
+					].includes(activeAction) && (
+						<div className="mt-5 space-y-4">
+							<p className="text-sm text-slate-600">
+								La regla se aplicará a la selección y permanecerá activa durante este periodo.
+							</p>
+							{["min_lead_time", "max_lead_time", "min_los", "max_los"].includes(activeAction) && (
 								<label className="block text-sm font-medium text-slate-700">
 									Valor
 									<input
 										type="number"
-										min="0"
+										min="1"
 										value={value}
 										onChange={(event) => {
 											setValue(event.target.value)
@@ -986,204 +1212,129 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 										className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
 									/>
 								</label>
-								<div className="grid grid-cols-2 gap-2">
-									<button
-										type="button"
-										onClick={() => {
-											setPreviewReady(true)
-											setFeedback(`Se aplicará a ${selection.cells.length} noches-tarifa.`)
-										}}
-										className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
-									>
-										Revisar
-									</button>
-									<button
-										type="button"
-										disabled={loading || !previewReady}
-										onClick={() => void savePrice()}
-										className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-									>
-										Guardar
-									</button>
-								</div>
+							)}
+							<div className="grid grid-cols-2 gap-2">
+								<button
+									type="button"
+									onClick={() => {
+										setPreviewReady(true)
+										setFeedback(`La regla afectará ${selection.cells.length} noches-tarifa.`)
+									}}
+									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+								>
+									Revisar
+								</button>
+								<button
+									type="button"
+									disabled={loading || !previewReady}
+									onClick={() => void saveSellabilityRule()}
+									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+								>
+									Guardar regla
+								</button>
 							</div>
-						)}
-						{activeAction === "availability_units" && (
-							<div className="mt-5 space-y-4">
-								<label className="block text-sm font-medium text-slate-700">
-									Cupo físico total
-									<input
-										type="number"
-										min="0"
-										value={value}
-										onChange={(event) => {
-											setValue(event.target.value)
-											setPreviewReady(false)
-										}}
-										className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
-									/>
-								</label>
-								<div className="grid grid-cols-2 gap-2">
-									<button
-										type="button"
-										onClick={() => {
-											setPreviewReady(true)
-											setFeedback(`Se actualizarán ${selection.variantIds.length} habitaciones.`)
-										}}
-										className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
-									>
-										Revisar
-									</button>
-									<button
-										type="button"
-										disabled={loading || !previewReady}
-										onClick={() => void saveAvailability()}
-										className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-									>
-										Guardar
-									</button>
-								</div>
-							</div>
-						)}
-						{[
-							"availability_block",
-							"stop_sell",
-							"min_lead_time",
-							"max_lead_time",
-							"min_los",
-							"max_los",
-							"cta",
-							"ctd",
-						].includes(activeAction) && (
-							<div className="mt-5 space-y-4">
-								<p className="text-sm text-slate-600">
-									La regla se aplicará a la selección y permanecerá activa durante este periodo.
+						</div>
+					)}
+					{activeTab === "conditions" && (
+						<div className="mt-5 space-y-3">
+							{selectedRows.map((row) => {
+								const missing = row.cells[0]?.conditionsMissingCategories || []
+								return (
+									<article key={row.ratePlanId} className="rounded-lg border border-slate-200 p-4">
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<p className="font-semibold text-slate-950">{row.ratePlanName}</p>
+												<p className="text-xs text-slate-500">
+													{row.productName} · {row.variantName}
+												</p>
+											</div>
+											<span
+												className={`rounded-md px-2 py-1 text-xs font-semibold ${missing.length ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}
+											>
+												{missing.length ? `${missing.length} pendientes` : "Completo"}
+											</span>
+										</div>
+										<p className="mt-2 line-clamp-2 text-sm text-slate-600">
+											{row.cells[0]?.conditionsSummary}
+										</p>
+										{missing.length > 0 && (
+											<details className="mt-3 rounded-md border border-slate-200 bg-slate-50">
+												<summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700">
+													Resolver pendientes
+												</summary>
+												<div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
+													{missing.map((category) =>
+														category === "CheckIn" ? (
+															<a
+																key={category}
+																href={`/provider/house-rules?productId=${encodeURIComponent(row.productId)}&focus=arrival`}
+																className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+															>
+																Configurar llegada y salida
+															</a>
+														) : (
+															<button
+																key={category}
+																type="button"
+																className="policy-assignment-open rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+																data-assignment-mode="preset"
+																data-assignment-scope="rate_plan"
+																data-assignment-scope-id={row.ratePlanId}
+																data-assignment-category={category}
+															>
+																Completar {CONDITION_LABELS[category] ?? category}
+															</button>
+														)
+													)}
+												</div>
+											</details>
+										)}
+										<div className="mt-3 flex justify-end">
+											<a
+												href={row.policiesHref}
+												className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+											>
+												{missing.length ? "Ver contrato" : "Editar contrato"}
+											</a>
+										</div>
+									</article>
+								)
+							})}
+						</div>
+					)}
+					{activeTab === "rules" && (
+						<div className="mt-5 space-y-3">
+							{visibleRules.length === 0 ? (
+								<p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+									{activeAction === "conflicts"
+										? "No hay conflictos en esta selección."
+										: "No hay reglas en esta selección."}
 								</p>
-								{["min_lead_time", "max_lead_time", "min_los", "max_los"].includes(
-									activeAction
-								) && (
-									<label className="block text-sm font-medium text-slate-700">
-										Valor
-										<input
-											type="number"
-											min="1"
-											value={value}
-											onChange={(event) => {
-												setValue(event.target.value)
-												setPreviewReady(false)
-											}}
-											className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
-										/>
-									</label>
-								)}
-								<div className="grid grid-cols-2 gap-2">
-									<button
-										type="button"
-										onClick={() => {
-											setPreviewReady(true)
-											setFeedback(`La regla afectará ${selection.cells.length} noches-tarifa.`)
-										}}
-										className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
-									>
-										Revisar
-									</button>
-									<button
-										type="button"
-										disabled={loading || !previewReady}
-										onClick={() => void saveSellabilityRule()}
-										className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-									>
-										Guardar regla
-									</button>
-								</div>
-							</div>
-						)}
-						{activeTab === "conditions" && (
-							<div className="mt-5 space-y-3">
-								{selectedRows.map((row) => {
-									const missing = row.cells[0]?.conditionsMissingCategories || []
-									return (
-										<article
-											key={row.ratePlanId}
-											className={`rounded-lg border p-4 ${missing.length ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}
-										>
-											<div className="flex items-start justify-between gap-3">
-												<div>
-													<p className="font-semibold text-slate-950">{row.ratePlanName}</p>
-													<p className="text-xs text-slate-500">
-														{row.productName} · {row.variantName}
-													</p>
-												</div>
-												<span className="text-xs font-semibold">{4 - missing.length}/4</span>
-											</div>
-											<p className="mt-3 text-sm text-slate-700">
-												{row.cells[0]?.conditionsSummary}
-											</p>
-											<div className="mt-3 flex flex-wrap gap-2">
-												{missing.map((category) =>
-													category === "CheckIn" ? (
-														<a
-															key={category}
-															href={`/provider/house-rules?productId=${encodeURIComponent(row.productId)}&focus=arrival`}
-															className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
-														>
-															Configurar llegada y salida
-														</a>
-													) : (
-														<button
-															key={category}
-															type="button"
-															className="policy-assignment-open rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
-															data-assignment-mode="preset"
-															data-assignment-scope="rate_plan"
-															data-assignment-scope-id={row.ratePlanId}
-															data-assignment-category={category}
-														>
-															Completar {category}
-														</button>
-													)
-												)}
-												<a
-													href={row.policiesHref}
-													className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+							) : (
+								visibleRules.map((rule) => (
+									<article key={rule.id} className="rounded-lg border border-slate-200 p-4">
+										<div className="flex justify-between gap-3">
+											<div>
+												<span
+													className={`rounded-md px-2 py-1 text-[11px] font-semibold ${rule.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
 												>
-													{missing.length ? "Abrir contrato completo" : "Editar contrato"}
-												</a>
-											</div>
-										</article>
-									)
-								})}
-							</div>
-						)}
-						{activeTab === "rules" && (
-							<div className="mt-5 space-y-3">
-								{visibleRules.length === 0 ? (
-									<p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-										{activeAction === "conflicts"
-											? "No hay conflictos en esta selección."
-											: "No hay reglas en esta selección."}
-									</p>
-								) : (
-									visibleRules.map((rule) => (
-										<article key={rule.id} className="rounded-lg border border-slate-200 p-4">
-											<div className="flex justify-between gap-3">
-												<div>
-													<span
-														className={`rounded-md px-2 py-1 text-[11px] font-semibold ${rule.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
-													>
-														{rule.isActive ? "Activa" : "Pausada"}
-													</span>
-													<h3 className="mt-2 font-semibold text-slate-950">{rule.typeLabel}</h3>
-													<p className="text-xs text-slate-500">{rule.targetName}</p>
-												</div>
-												<span className="text-xs font-semibold text-slate-700">
-													{rule.valueLabel}
+													{rule.isActive ? "Activa" : "Pausada"}
 												</span>
+												<h3 className="mt-2 font-semibold text-slate-950">{rule.typeLabel}</h3>
+												<p className="text-xs text-slate-500">{rule.targetName}</p>
 											</div>
-											<p className="mt-3 text-xs text-slate-600">
-												Vigencia: {formatRange(rule.startDate, rule.endDate)}
-											</p>
-											<div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+											<span className="text-xs font-semibold text-slate-700">
+												{rule.valueLabel}
+											</span>
+										</div>
+										<p className="mt-3 text-xs text-slate-600">
+											Vigencia: {formatRange(rule.startDate, rule.endDate)}
+										</p>
+										<details className="mt-3 border-t border-slate-100 pt-3">
+											<summary className="cursor-pointer list-none text-xs font-semibold text-slate-600 hover:text-slate-950">
+												Gestionar regla
+											</summary>
+											<div className="mt-3 flex flex-wrap gap-2">
 												<button
 													type="button"
 													onClick={() => {
@@ -1239,18 +1390,18 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 													}
 												/>
 											)}
-										</article>
-									))
-								)}
-							</div>
-						)}
-						{feedback && (
-							<p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-								{feedback}
-							</p>
-						)}
-					</aside>
-				</>
+										</details>
+									</article>
+								))
+							)}
+						</div>
+					)}
+					{feedback && (
+						<p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+							{feedback}
+						</p>
+					)}
+				</CalendarResponsiveDrawer>
 			)}
 		</div>
 	)
