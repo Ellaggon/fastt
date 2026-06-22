@@ -27,7 +27,8 @@ const horizonEnd = new Date(today)
 horizonEnd.setUTCDate(horizonEnd.getUTCDate() + 30)
 const checkIn = Astro.url.searchParams.get("checkIn") || isoDate(today)
 const checkOut = Astro.url.searchParams.get("checkOut") || isoDate(horizonEnd)
-const activeView = String(Astro.url.searchParams.get("vista") ?? "attention")
+const requestedView = String(Astro.url.searchParams.get("vista") ?? "attention")
+const activeView = requestedView === "drafts" ? "inactive" : requestedView
 
 const [rows, variantChoices] = await Promise.all([
 	loadRatePlansReadModel({ request: Astro.request, checkIn, checkOut, channel: "web" }),
@@ -59,10 +60,10 @@ function commercialState(row: (typeof rows)[number]) {
 	const ratePlanId = String(row.ratePlanId)
 	if (!row.isActive) {
 		return {
-			key: "draft",
-			label: "Borrador",
-			reason: "Revisa la tarifa y publícala cuando esté lista.",
-			href: routes.ratePlanDetail(ratePlanId),
+			key: "inactive",
+			label: "Inactiva",
+			reason: "Está fuera de venta y conserva su configuración.",
+			href: `${routes.ratePlanDetail(ratePlanId)}?vista=details`,
 			badge: "neutral" as const,
 		}
 	}
@@ -110,15 +111,15 @@ const readyRatePlans = rows.filter(
 	(row) => rowStates.get(String(row.ratePlanId))?.key === "ready"
 ).length
 const draftRatePlans = rows.filter(
-	(row) => rowStates.get(String(row.ratePlanId))?.key === "draft"
+	(row) => rowStates.get(String(row.ratePlanId))?.key === "inactive"
 ).length
 const needsAttention = rows.length - readyRatePlans - draftRatePlans
 
 function matchesView(state: string | undefined, view: string) {
 	if (view === "all") return true
 	if (view === "ready") return state === "ready"
-	if (view === "drafts") return state === "draft"
-	return state !== "ready" && state !== "draft"
+	if (view === "inactive" || view === "drafts") return state === "inactive"
+	return state !== "ready" && state !== "inactive"
 }
 
 const visibleRowsCount = rows.filter((row) =>
@@ -135,7 +136,7 @@ const ratePlanHistory = await loadRatesContextualHistory({
 const tabs = [
 	{ id: "attention", label: "Requieren atención", count: needsAttention },
 	{ id: "ready", label: "Listas", count: readyRatePlans },
-	{ id: "drafts", label: "Borradores", count: draftRatePlans },
+	{ id: "inactive", label: "Inactivas", count: draftRatePlans },
 	{ id: "all", label: "Todas", count: rows.length },
 ]
 ---
@@ -273,7 +274,7 @@ const tabs = [
 														{state.key === "ready" ? "Ver" : "Resolver"}
 													</Button>
 													<a
-														href={routes.ratePlanDetail(String(row.ratePlanId))}
+														href={`${routes.ratePlanDetail(String(row.ratePlanId))}?vista=details`}
 														class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
 														aria-label={`Más acciones para ${row.ratePlanName}`}
 													>
@@ -489,11 +490,12 @@ const tabs = [
 	function ratePlanMatchesView(state: string, view: string) {
 		if (view === "all") return true
 		if (view === "ready") return state === "ready"
-		if (view === "drafts") return state === "draft"
-		return state !== "ready" && state !== "draft"
+		if (view === "inactive" || view === "drafts") return state === "inactive"
+		return state !== "ready" && state !== "inactive"
 	}
 
 	function renderRatePlanView(view: string, updateUrl = false) {
+		view = view === "drafts" ? "inactive" : view
 		let visibleCount = 0
 		for (const row of ratePlanRows) {
 			const visible = ratePlanMatchesView(String(row.dataset.ratePlanState ?? ""), view)

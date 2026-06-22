@@ -1,15 +1,20 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
+import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
+import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
 import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
-import { resolvePolicyDateRange } from "@/modules/policies/public"
+import {
+	handleRatePlanPoliciesPost,
+	REQUIRED_POLICY_CATEGORIES,
+	resolvePolicyDateRange,
+} from "@/modules/policies/public"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -18,256 +23,419 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
-void auth
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.ratePlansList())
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
-const row = await loadRatePlanReadModelById({
-	request: Astro.request,
-	ratePlanId,
-	checkIn,
-	checkOut,
-	channel: "web",
-})
+const requestedView = String(Astro.url.searchParams.get("vista") ?? "conditions")
+const activeView = ["conditions", "price", "details"].includes(requestedView)
+	? requestedView
+	: "conditions"
+
+const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
+	loadRatePlanReadModelById({
+		request: Astro.request,
+		ratePlanId,
+		checkIn,
+		checkOut,
+		channel: "web",
+	}),
+	loadRatePlanPricingData({ request: Astro.request, ratePlanId }),
+	loadRatePlanPoliciesData({ request: Astro.request, ratePlanId, checkIn, checkOut }),
+])
 
 if (!row) {
 	return new Response("Tarifa no encontrada", { status: 404 })
 }
 
-const loadedRatePlan = await loadRatePlanPricingData({
-	request: Astro.request,
-	ratePlanId,
-})
 if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
 const { loaded } = loadedRatePlan
+if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirectTo)
+const { context, selectedRatePlans, policyPlans, wizardPlans } = loadedPolicies
+
+if (Astro.request.method === "POST") {
+	return handleRatePlanPoliciesPost({
+		request: Astro.request,
+		ratePlans: selectedRatePlans,
+		userId: auth.user.id,
+		requestId: String(Astro.request.headers.get("x-request-id") ?? crypto.randomUUID()),
+	})
+}
 
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
-const policyReady = Boolean(row.policyCoverage?.isComplete)
-const policyMissingCategories = row.policyCoverage?.missingCategories ?? []
-const hasCommercialBaseline = Number(String(loaded.initialBasePrice ?? 0)) > 0
-const restrictionCount = Number(row.summary?.activeRestrictionsCount ?? 0)
-const saleStatusLabel = row.isActive
-	? policyReady && hasCommercialBaseline
-		? "Lista para vender"
-		: "Necesita revisión"
-	: "Inactiva"
-const saleStatusVariant =
-	row.isActive && policyReady && hasCommercialBaseline ? "success" : "warning"
-const policyCategoryLabels: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	CheckIn: "Ingreso/salida",
-	NoShow: "No presentación",
-}
+const removalReadiness = await getRatePlanRemovalReadiness({
+	ratePlanId,
+	variantId: String(row.variantId),
+	isActive: Boolean(row.isActive),
+	isDefault: Boolean(row.isDefault),
+})
+const tabs = [
+	{ id: "conditions", label: "Condiciones", meta: `${policyCoverageDone}/4` },
+	{
+		id: "price",
+		label: "Precio base",
+		meta: Number(String(loaded.initialBasePrice ?? 0)) > 0 ? "Listo" : "Falta",
+	},
+	{ id: "details", label: "Datos de tarifa", meta: row.isActive ? "Activa" : "Inactiva" },
+]
 ---
 
-<WorkspaceLayout title="Tarifa · Detalle">
-	<div class="space-y-8">
-		<header class="flex flex-wrap items-start justify-between gap-4">
-			<div class="space-y-2">
+<WorkspaceLayout title={`Tarifa · ${row.ratePlanName}`}>
+	<div class="space-y-5">
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="space-y-1.5">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Habitaciones y tarifas · Tarifa
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
+				<div class="flex flex-wrap items-center gap-2">
+					<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
+					<Badge variant={row.isActive ? "success" : "warning"}>
+						{row.isActive ? "Activa" : "Inactiva"}
+					</Badge>
+					{row.isDefault && <Badge variant="info">Principal</Badge>}
+				</div>
 				<p class="text-sm text-slate-300">{row.productName} · {row.variantName}</p>
 			</div>
-			<div class="flex items-center gap-2">
+			<div class="flex flex-wrap gap-2">
 				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
 				<Button href={routes.pricing()} variant="primary">Calendario</Button>
-				<Button href={routes.ratePlanPolicies(String(row.ratePlanId))} variant="secondary"
-					>Condiciones</Button
-				>
 			</div>
 		</header>
 
-		<Section
-			title="Ficha de tarifa"
-			description="Resumen operativo de la oferta que el huésped puede comprar."
+		<section
+			class="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm"
 		>
-			<Card className="space-y-6 bg-white text-slate-800">
-				<div class="flex flex-wrap items-start justify-between gap-4">
-					<div class="space-y-2">
-						<div class="flex flex-wrap items-center gap-2">
-							<Badge variant={saleStatusVariant}>{saleStatusLabel}</Badge>
-							<Badge variant={row.isActive ? "success" : "warning"}>
-								{row.isActive ? "Activa" : "Inactiva"}
-							</Badge>
-							{row.isDefault && <Badge variant="info">Principal</Badge>}
-						</div>
-						<div>
-							<p class="text-xs uppercase tracking-wide text-slate-500">Tarifa</p>
-							<p class="mt-1 text-xl font-semibold text-slate-950">{row.ratePlanName}</p>
-							<p class="mt-1 text-sm text-slate-600">
-								{row.productName} · {row.variantName}
-							</p>
-						</div>
-					</div>
-					<div class="flex flex-wrap items-center gap-2">
-						<Button href={routes.pricing()} variant="primary" size="sm"> Calendario </Button>
-						<Button
-							href={routes.ratePlanPolicies(String(row.ratePlanId))}
-							variant="secondary"
-							size="sm"
+			<nav
+				class="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-4"
+				aria-label="Configurar tarifa"
+				data-rate-plan-tabs
+			>
+				{
+					tabs.map((tab) => (
+						<a
+							href={`?vista=${tab.id}`}
+							data-rate-plan-tab={tab.id}
+							aria-current={activeView === tab.id ? "page" : undefined}
+							class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
+								activeView === tab.id
+									? "border-blue-600 text-blue-700"
+									: "border-transparent text-slate-500 hover:text-slate-900"
+							}`}
 						>
-							Condiciones
-						</Button>
-						<Button href={`${routes.ratesMultiCalendar()}?tab=rules`} variant="secondary" size="sm">
-							Multicalendario
-						</Button>
-					</div>
+							{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
+						</a>
+					))
+				}
+			</nav>
+
+			<div
+				class={activeView === "conditions" ? "p-5" : "hidden p-5"}
+				data-rate-plan-panel="conditions"
+			>
+				<RatePlanPoliciesSurface
+					title="Condiciones de la tarifa"
+					description="Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
+					policyPlans={policyPlans}
+					wizardPlans={wizardPlans}
+					checkIn={checkIn}
+					checkOut={checkOut}
+					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+					productId={context.productId}
+				/>
+			</div>
+
+			<div class={activeView === "price" ? "p-5" : "hidden p-5"} data-rate-plan-panel="price">
+				<div class="mx-auto max-w-2xl space-y-1">
+					<h2 class="text-xl font-semibold text-slate-950">Editar precio base</h2>
+					<p class="pb-4 text-sm text-slate-500">
+						Define el punto de partida por noche. Los ajustes por fecha se gestionan en Calendario.
+					</p>
+					<RatePlanPricingSurface
+						ratePlanId={String(row.ratePlanId)}
+						initialCurrency={loaded.initialCurrency}
+						initialBasePrice={loaded.initialBasePrice}
+						backHref={routes.ratePlansList()}
+					/>
 				</div>
+			</div>
 
-				<div class="grid gap-3 md:grid-cols-4">
-					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-						<p class="text-xs uppercase tracking-wide text-slate-500">Precio base</p>
-						<p class="mt-1 text-lg font-semibold text-slate-950">
-							{loaded.initialCurrency}
-							{loaded.initialBasePrice || "Sin configurar"}
-						</p>
-						<p class="mt-1 text-xs text-slate-500">Punto de partida de esta tarifa.</p>
-					</div>
-					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-						<p class="text-xs uppercase tracking-wide text-slate-500">Condiciones</p>
-						<p class="mt-1 text-lg font-semibold text-slate-950">
-							{policyCoverageDone}/4
-						</p>
-						<p class="mt-1 text-xs text-slate-500">
-							{
-								policyReady
-									? "Contrato listo para vender."
-									: "No lista para vender por contrato incompleto."
-							}
-						</p>
-					</div>
-					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-						<p class="text-xs uppercase tracking-wide text-slate-500">Reglas de venta</p>
-						<p class="mt-1 text-lg font-semibold text-slate-950">{restrictionCount}</p>
-						<p class="mt-1 text-xs text-slate-500">
-							{restrictionCount > 0 ? "Hay controles activos." : "Sin controles activos."}
-						</p>
-					</div>
-					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-						<p class="text-xs uppercase tracking-wide text-slate-500">Ayudas recurrentes</p>
-						<p class="mt-1 text-lg font-semibold text-slate-950">
-							{row.summary?.priceRulesCount ?? 0}
-						</p>
-						<p class="mt-1 text-xs text-slate-500">Actúan después sobre el calendario.</p>
-					</div>
-				</div>
-
-				<p class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
-					{row.policySummary ?? "Sin resumen de condiciones todavía."}
-				</p>
-
-				<div
-					class:list={[
-						"rounded-lg border p-4",
-						policyReady
-							? "border-emerald-200 bg-emerald-50 text-emerald-900"
-							: "border-rose-200 bg-rose-50 text-rose-900",
-					]}
-					data-rate-plan-contract-lock
+			<div class={activeView === "details" ? "p-5" : "hidden p-5"} data-rate-plan-panel="details">
+				<form
+					class="mx-auto max-w-2xl space-y-5"
+					data-rate-plan-edit-form
+					data-rate-plan-id={String(row.ratePlanId)}
 				>
-					<p class="text-sm font-semibold">
-						{policyReady ? "Tarifa lista por contrato" : "Tarifa no lista para vender"}
-					</p>
-					<p class="mt-1 text-sm">
-						{
-							policyReady
-								? "Las condiciones que verá el huésped están completas. Puedes revisarlas o cambiarlas desde esta tarifa."
-								: "Completa las condiciones obligatorias antes de permitir venta pública de esta tarifa."
-						}
-					</p>
-					{
-						policyMissingCategories.length > 0 && (
-							<ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
-								{policyMissingCategories.map((category) => (
-									<li>Falta {policyCategoryLabels[category] ?? category}</li>
-								))}
-							</ul>
-						)
-					}
-					<div class="mt-3">
-						<Button
-							href={routes.ratePlanPolicies(String(row.ratePlanId))}
-							variant={policyReady ? "secondary" : "primary"}
-							size="sm"
-						>
-							Revisar contrato de tarifa
-						</Button>
+					<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
+					<div>
+						<h2 class="text-xl font-semibold text-slate-950">Editar datos de tarifa</h2>
+						<p class="mt-1 text-sm text-slate-500">Identidad y estado comercial de esta tarifa.</p>
 					</div>
-				</div>
-
-				<details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-					<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-						Editar precio base
-					</summary>
-					<div class="mt-4">
-						<RatePlanPricingSurface
-							ratePlanId={String(row.ratePlanId)}
-							initialCurrency={loaded.initialCurrency}
-							initialBasePrice={loaded.initialBasePrice}
-							backHref={routes.ratePlansList()}
+					<label class="block space-y-1.5 text-sm">
+						<span class="font-medium text-slate-700">Nombre visible</span>
+						<input
+							name="name"
+							class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
+							value={row.ratePlanName}
+							required
 						/>
-					</div>
-				</details>
-
-				<details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-					<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-						Editar datos de tarifa
-					</summary>
-					<form
-						class="mt-4 space-y-4"
-						data-rate-plan-edit-form
-						data-rate-plan-id={String(row.ratePlanId)}
-					>
-						<div class="grid gap-3 md:grid-cols-2">
-							<label class="space-y-1 text-sm">
-								<span class="font-medium text-slate-700">Nombre visible</span>
-								<input
-									name="name"
-									class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-									value={row.ratePlanName}
-									required
-								/>
-							</label>
-							<label class="space-y-1 text-sm">
-								<span class="font-medium text-slate-700">Descripción interna</span>
-								<input
-									name="description"
-									class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-									value={row.description ?? ""}
-								/>
-							</label>
-						</div>
-						<label class="flex items-center gap-2 text-sm text-slate-700">
-							<input name="isActive" type="checkbox" class="h-4 w-4" checked={row.isActive} />
-							Tarifa activa
-						</label>
-						<label class="flex items-center gap-2 text-sm text-slate-700">
-							<input name="isDefault" type="checkbox" class="h-4 w-4" checked={row.isDefault} />
-							Tarifa principal de la habitación
-						</label>
-						<div class="flex items-center justify-between gap-3">
-							<p class="text-sm text-slate-500" data-rate-plan-edit-feedback>
-								Las reglas y condiciones se editan en sus controles propios.
-							</p>
-							<button
-								type="submit"
-								class="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
-								>Guardar</button
+					</label>
+					<label class="block space-y-1.5 text-sm">
+						<span class="font-medium text-slate-700">Descripción interna</span>
+						<textarea
+							name="description"
+							rows="3"
+							class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+							>{row.description ?? ""}</textarea
+						>
+					</label>
+					<div class="divide-y divide-slate-100 rounded-lg border border-slate-200">
+						<label class="flex items-center justify-between gap-4 p-4 text-sm text-slate-700">
+							<span
+								><strong class="block text-slate-950">Tarifa principal</strong>Referencia de esta
+								habitación.</span
 							>
+							<input name="isDefault" type="checkbox" class="size-4" checked={row.isDefault} />
+						</label>
+					</div>
+					<div
+						class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
+					>
+						<p class="text-sm text-slate-500" data-rate-plan-edit-feedback></p>
+						<button
+							type="submit"
+							class="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
+							>Guardar cambios</button
+						>
+					</div>
+				</form>
+
+				<div class="mx-auto mt-8 max-w-2xl space-y-6 border-t border-slate-200 pt-6">
+					<section class="flex flex-wrap items-center justify-between gap-4">
+						<div>
+							<div class="flex items-center gap-2">
+								<h3 class="font-semibold text-slate-950">Estado de venta</h3>
+								<Badge variant={row.isActive ? "success" : "neutral"}>
+									{row.isActive ? "Activa" : "Inactiva"}
+								</Badge>
+							</div>
+							<p class="mt-1 max-w-xl text-sm text-slate-500">
+								{
+									row.isActive
+										? "Desactivar detiene reservas nuevas sin borrar precio, condiciones ni historial."
+										: "La tarifa está fuera de venta y puede reactivarse conservando su configuración."
+								}
+							</p>
+							{
+								row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0 && (
+									<p class="mt-2 text-sm text-amber-700">
+										Designa otra tarifa principal antes de desactivar esta.
+									</p>
+								)
+							}
 						</div>
-					</form>
-				</details>
-			</Card>
-		</Section>
+						<button
+							type="button"
+							class="h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+							data-rate-plan-toggle-status
+							data-next-active={row.isActive ? "false" : "true"}
+							disabled={row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0}
+						>
+							{row.isActive ? "Desactivar tarifa" : "Activar tarifa"}
+						</button>
+					</section>
+
+					<section class="rounded-lg border border-rose-200 bg-rose-50 p-4">
+						<div class="flex flex-wrap items-start justify-between gap-4">
+							<div>
+								<h3 class="font-semibold text-rose-950">Eliminar tarifa</h3>
+								<p class="mt-1 max-w-xl text-sm text-rose-800">
+									Solo puede eliminarse si está inactiva y nunca tuvo reservas ni retenciones.
+								</p>
+								{
+									removalReadiness.blockers.length > 0 && (
+										<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-800">
+											{removalReadiness.blockers.map((blocker) => (
+												<li>{blocker}</li>
+											))}
+										</ul>
+									)
+								}
+							</div>
+							<button
+								type="button"
+								class="h-10 rounded-lg border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+								data-open-rate-plan-delete
+								disabled={!removalReadiness.canDelete}
+							>
+								Eliminar definitivamente
+							</button>
+						</div>
+					</section>
+				</div>
+			</div>
+		</section>
 	</div>
+
+	<dialog
+		class="m-auto w-[min(520px,calc(100%-2rem))] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/70"
+		data-rate-plan-delete-dialog
+	>
+		<form
+			class="space-y-5 p-5"
+			data-rate-plan-delete-form
+			data-rate-plan-id={ratePlanId}
+			data-rate-plan-name={row.ratePlanName}
+		>
+			<div>
+				<h2 class="text-lg font-semibold text-slate-950">Eliminar {row.ratePlanName}</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Se eliminarán su precio, reglas y asignaciones. Esta acción no puede deshacerse.
+				</p>
+			</div>
+			<label class="block space-y-1.5 text-sm">
+				<span class="font-medium">Escribe <strong>{row.ratePlanName}</strong> para confirmar</span>
+				<input
+					class="h-11 w-full rounded-lg border border-slate-300 px-3"
+					data-rate-plan-delete-confirmation
+					autocomplete="off"
+				/>
+			</label>
+			<p class="text-sm text-rose-700" data-rate-plan-delete-feedback></p>
+			<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+				<button
+					type="button"
+					class="h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold"
+					data-close-rate-plan-delete>Cancelar</button
+				>
+				<button
+					type="submit"
+					class="h-10 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+					data-confirm-rate-plan-delete
+					disabled>Eliminar tarifa</button
+				>
+			</div>
+		</form>
+	</dialog>
 </WorkspaceLayout>
 
 <script>
+	const ratePlanTabs = Array.from(
+		document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
+	)
+	const ratePlanPanels = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-rate-plan-panel]")
+	)
+
+	function renderRatePlanTab(view: string, updateUrl = false) {
+		for (const panel of ratePlanPanels) {
+			panel.classList.toggle("hidden", panel.dataset.ratePlanPanel !== view)
+		}
+		for (const tab of ratePlanTabs) {
+			const active = tab.dataset.ratePlanTab === view
+			tab.classList.toggle("border-blue-600", active)
+			tab.classList.toggle("text-blue-700", active)
+			tab.classList.toggle("border-transparent", !active)
+			tab.classList.toggle("text-slate-500", !active)
+			tab.classList.toggle("hover:text-slate-900", !active)
+			if (active) tab.setAttribute("aria-current", "page")
+			else tab.removeAttribute("aria-current")
+		}
+		if (updateUrl) {
+			const url = new URL(window.location.href)
+			url.searchParams.set("vista", view)
+			window.history.pushState({ ratePlanView: view }, "", url)
+		}
+	}
+
+	for (const tab of ratePlanTabs) {
+		tab.addEventListener("click", (event) => {
+			event.preventDefault()
+			renderRatePlanTab(String(tab.dataset.ratePlanTab ?? "conditions"), true)
+		})
+	}
+	window.addEventListener("popstate", () => {
+		renderRatePlanTab(new URL(window.location.href).searchParams.get("vista") ?? "conditions")
+	})
+
+	const editForm = document.querySelector<HTMLFormElement>("[data-rate-plan-edit-form]")
+	const statusButton = document.querySelector<HTMLButtonElement>("[data-rate-plan-toggle-status]")
+	statusButton?.addEventListener("click", async () => {
+		if (!editForm) return
+		const feedback = editForm.querySelector<HTMLElement>("[data-rate-plan-edit-feedback]")
+		const formData = new FormData(editForm)
+		const nextActive = statusButton.dataset.nextActive === "true"
+		statusButton.disabled = true
+		if (feedback)
+			feedback.textContent = nextActive ? "Activando tarifa..." : "Desactivando tarifa..."
+		try {
+			const response = await fetch("/api/rateplans/update", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					id: editForm.dataset.ratePlanId,
+					name: String(formData.get("name") || ""),
+					description: String(formData.get("description") || ""),
+					isActive: nextActive,
+					isDefault: Boolean(formData.get("isDefault")),
+				}),
+			})
+			const result = await response.json().catch(() => null)
+			if (!response.ok) throw new Error(result?.error || "No se pudo cambiar el estado")
+			window.location.reload()
+		} catch (error) {
+			if (feedback)
+				feedback.textContent =
+					error instanceof Error ? error.message : "No se pudo cambiar el estado"
+			statusButton.disabled = false
+		}
+	})
+
+	const deleteDialog = document.querySelector<HTMLDialogElement>("[data-rate-plan-delete-dialog]")
+	const deleteForm = document.querySelector<HTMLFormElement>("[data-rate-plan-delete-form]")
+	const deleteInput = deleteForm?.querySelector<HTMLInputElement>(
+		"[data-rate-plan-delete-confirmation]"
+	)
+	const deleteSubmit = deleteForm?.querySelector<HTMLButtonElement>(
+		"[data-confirm-rate-plan-delete]"
+	)
+	document
+		.querySelector("[data-open-rate-plan-delete]")
+		?.addEventListener("click", () => deleteDialog?.showModal())
+	document
+		.querySelector("[data-close-rate-plan-delete]")
+		?.addEventListener("click", () => deleteDialog?.close())
+	deleteDialog?.addEventListener("click", (event) => {
+		if (event.target === deleteDialog) deleteDialog.close()
+	})
+	deleteInput?.addEventListener("input", () => {
+		if (deleteSubmit)
+			deleteSubmit.disabled =
+				deleteInput.value.trim() !== String(deleteForm?.dataset.ratePlanName ?? "")
+	})
+	deleteForm?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!deleteSubmit || deleteSubmit.disabled) return
+		const feedback = deleteForm.querySelector<HTMLElement>("[data-rate-plan-delete-feedback]")
+		deleteSubmit.disabled = true
+		if (feedback) feedback.textContent = "Eliminando tarifa..."
+		try {
+			const response = await fetch("/api/rateplans/delete", {
+				method: "DELETE",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ id: deleteForm.dataset.ratePlanId }),
+			})
+			const result = await response.json().catch(() => null)
+			if (!response.ok) throw new Error(result?.error || "No se pudo eliminar la tarifa")
+			window.location.href = "/rates/plans/manage?vista=all"
+		} catch (error) {
+			if (feedback)
+				feedback.textContent =
+					error instanceof Error ? error.message : "No se pudo eliminar la tarifa"
+			deleteSubmit.disabled = false
+		}
+	})
+
 	document.querySelectorAll<HTMLFormElement>("[data-rate-plan-edit-form]").forEach((form) => {
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault()

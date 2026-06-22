@@ -1,6 +1,7 @@
 /** @jsxRuntime classic */
 import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react"
 
+import { CALENDAR_CONTROL_MODES } from "@/lib/rates/calendarControlCatalog"
 import type {
 	MultiCalendarCell,
 	MultiCalendarRow,
@@ -25,12 +26,23 @@ type Selection = {
 }
 
 const TABS: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
-	{ key: "price", label: "Precio", helper: "Ajustes, descuentos y promociones." },
-	{ key: "availability", label: "Disponibilidad", helper: "Cupos y bloqueo físico." },
-	{ key: "sellability", label: "Venta", helper: "Vendible, cerrado o ventana de reserva." },
+	...CALENDAR_CONTROL_MODES.filter((mode) => mode.key !== "conditions").map((mode) => ({
+		key: mode.key as MultiCalendarTab,
+		label: mode.label,
+		helper:
+			mode.key === "price"
+				? "Ajustes, descuentos y promociones."
+				: mode.key === "availability"
+					? "Cupos y bloqueo físico."
+					: "Vendible, cerrado o ventana de reserva.",
+	})),
 	{ key: "stay", label: "Estancia", helper: "Mínimo, máximo y huecos." },
 	{ key: "arrival_departure", label: "Llegada/salida", helper: "Check-in y check-out permitidos." },
-	{ key: "conditions", label: "Condiciones", helper: "Contrato de cada tarifa." },
+	{
+		key: "conditions",
+		label: CALENDAR_CONTROL_MODES.find((mode) => mode.key === "conditions")?.label ?? "Condiciones",
+		helper: "Contrato de cada tarifa.",
+	},
 	{ key: "rules", label: "Reglas aplicadas", helper: "Automatizaciones activas y conflictos." },
 ]
 

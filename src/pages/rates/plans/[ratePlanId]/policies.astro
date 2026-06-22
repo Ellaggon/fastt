@@ -1,89 +1,13 @@
 ---
-import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
-import Button from "@/components/ui/Button.astro"
-import { getFeatureFlags } from "@/config/featureFlags"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
-import { logFeatureFlagEvaluation } from "@/lib/observability/migration-logger"
-import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { routes } from "@/lib/routes"
-import {
-	handleRatePlanPoliciesPost,
-	REQUIRED_POLICY_CATEGORIES,
-	resolvePolicyDateRange,
-} from "@/modules/policies/public"
-
-const auth = await requireProvider(Astro.request).catch((e: any) => {
-	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
-	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
-	throw e
-})
-if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
-const { user } = auth
-const requestId = String(Astro.request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
-const runtimeFlags = getFeatureFlags({
-	request: Astro.request,
-	query: Astro.url.searchParams,
-})
-logFeatureFlagEvaluation({
-	requestId,
-	domain: "ssr",
-	endpoint: "/rates/plans/[ratePlanId]/policies",
-	flags: runtimeFlags,
-	overrides: {
-		queryFlag: Astro.url.searchParams.get("flag"),
-		headerFlag: Astro.request.headers.get("x-flag"),
-	},
-})
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.ratePlansList())
-const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
-const loadedPolicies = await loadRatePlanPoliciesData({
-	request: Astro.request,
-	ratePlanId,
-	checkIn,
-	checkOut,
-})
-if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirectTo)
-const { context, selectedRatePlans, policyPlans, wizardPlans } = loadedPolicies
 
-if (Astro.request.method === "POST") {
-	return handleRatePlanPoliciesPost({
-		request: Astro.request,
-		ratePlans: selectedRatePlans,
-		userId: user.id,
-		requestId,
-	})
+const target = new URL(routes.ratePlanPolicies(ratePlanId), Astro.url)
+for (const [key, value] of Astro.url.searchParams) {
+	if (key !== "vista") target.searchParams.set(key, value)
 }
+
+return Astro.redirect(`${target.pathname}${target.search}`, 308)
 ---
-
-<WorkspaceLayout title="Tarifa · Condiciones">
-	<section class="space-y-8 text-neutral-100">
-		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarifa · Contrato</p>
-			<h1 class="text-3xl font-semibold text-slate-100">{context.ratePlanName}</h1>
-			<p class="text-sm text-slate-400">
-				{context.productName} · {context.variantName}
-			</p>
-			<div class="flex flex-wrap items-center gap-2 pt-2">
-				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
-				<Button href={routes.ratePlanDetail(ratePlanId)} variant="secondary"
-					>Volver al detalle</Button
-				>
-			</div>
-		</header>
-
-		<RatePlanPoliciesSurface
-			title="Condiciones de la tarifa"
-			description="Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
-			policyPlans={policyPlans}
-			wizardPlans={wizardPlans}
-			checkIn={checkIn}
-			checkOut={checkOut}
-			requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
-			productId={context.productId}
-		/>
-	</section>
-</WorkspaceLayout>

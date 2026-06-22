@@ -1,8 +1,23 @@
-import { db, Product, RatePlan, Variant, eq, sql } from "astro:db"
+import {
+	and,
+	CommercialRule,
+	CommercialRuleApplication,
+	CommercialRuleSet,
+	db,
+	EffectivePricingV2,
+	EffectiveRestriction,
+	eq,
+	inArray,
+	Product,
+	RatePlan,
+	RatePlanOccupancyPolicy,
+	SearchUnitView,
+	sql,
+	Variant,
+} from "astro:db"
 import {
 	createCommercialPriceRule,
 	createCommercialSellabilityRule,
-	deleteCommercialRulesForScope,
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import { hasCompressedRatePlanSchema } from "@/lib/rates/ratePlanSchemaCompat"
 import type {
@@ -159,21 +174,26 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	}
 
 	async deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok"> {
-		let notFound = false
 		const compressedSchema = await hasCompressedRatePlanSchema()
+		const existing = await db
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.where(eq(RatePlan.id, ratePlanId))
+			.get()
+		if (!existing) return "not_found"
 
 		await db.transaction(async (tx) => {
-			const ratePlan = await tx
-				.select({ id: RatePlan.id })
-				.from(RatePlan)
-				.where(eq(RatePlan.id, ratePlanId))
-				.get()
-
-			if (!ratePlan) {
-				notFound = true
-				return
+			async function removeOptional<T>(run: () => Promise<T>): Promise<T | undefined> {
+				try {
+					return await run()
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error)
+					if (!message.includes("no such table") && !message.includes("no such column")) {
+						throw error
+					}
+					return undefined
+				}
 			}
-
 			const legacyTemplate = compressedSchema
 				? null
 				: await tx
@@ -181,7 +201,84 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						.from(RatePlan)
 						.where(eq(RatePlan.id, ratePlanId))
 						.get()
-			await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: ratePlanId })
+			const ruleApplications = await removeOptional(async () =>
+				tx
+					.select({
+						id: CommercialRuleApplication.id,
+						ruleId: CommercialRuleApplication.ruleId,
+						ruleSetId: CommercialRuleApplication.ruleSetId,
+					})
+					.from(CommercialRuleApplication)
+					.where(
+						and(
+							eq(CommercialRuleApplication.scope, "rate_plan"),
+							eq(CommercialRuleApplication.scopeId, ratePlanId)
+						)
+					)
+					.all()
+			)
+			if (Array.isArray(ruleApplications) && ruleApplications.length > 0) {
+				const applicationIds = ruleApplications.map((row) => String(row.id))
+				const ruleIds = [...new Set(ruleApplications.map((row) => String(row.ruleId)))]
+				const ruleSetIds = [...new Set(ruleApplications.map((row) => String(row.ruleSetId)))]
+				await tx
+					.delete(CommercialRuleApplication)
+					.where(inArray(CommercialRuleApplication.id, applicationIds))
+				for (const ruleId of ruleIds) {
+					const remaining = await tx
+						.select({ id: CommercialRuleApplication.id })
+						.from(CommercialRuleApplication)
+						.where(eq(CommercialRuleApplication.ruleId, ruleId))
+						.get()
+					if (!remaining) await tx.delete(CommercialRule).where(eq(CommercialRule.id, ruleId))
+				}
+				for (const ruleSetId of ruleSetIds) {
+					const remaining = await tx
+						.select({ id: CommercialRule.id })
+						.from(CommercialRule)
+						.where(eq(CommercialRule.ruleSetId, ruleSetId))
+						.get()
+					if (!remaining) {
+						await tx.delete(CommercialRuleSet).where(eq(CommercialRuleSet.id, ruleSetId))
+					}
+				}
+			}
+			await removeOptional(() =>
+				tx.delete(EffectivePricingV2).where(eq(EffectivePricingV2.ratePlanId, ratePlanId))
+			)
+			await removeOptional(() =>
+				tx.delete(EffectiveRestriction).where(eq(EffectiveRestriction.ratePlanId, ratePlanId))
+			)
+			await removeOptional(() =>
+				tx.delete(RatePlanOccupancyPolicy).where(eq(RatePlanOccupancyPolicy.ratePlanId, ratePlanId))
+			)
+			await removeOptional(() =>
+				tx.run(sql`delete from "PriceRule" where "ratePlanId" = ${ratePlanId}`)
+			)
+			await removeOptional(() =>
+				tx.run(sql`delete from "RatePlanOccupancyOverride" where "ratePlanId" = ${ratePlanId}`)
+			)
+			await removeOptional(() =>
+				tx.delete(SearchUnitView).where(eq(SearchUnitView.ratePlanId, ratePlanId))
+			)
+			await removeOptional(() =>
+				tx.run(sql`
+					delete from "PolicyAssignment"
+					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
+				`)
+			)
+			await removeOptional(() =>
+				tx.run(sql`
+					delete from "PolicyExceptionRule"
+					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
+				`)
+			)
+			await removeOptional(() =>
+				tx.run(sql`
+					delete from "TaxFeeAssignment"
+					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
+				`)
+			)
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
 			if (legacyTemplate?.templateId) {
 				await tx.run(sql`
@@ -194,6 +291,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			}
 		})
 
-		return notFound ? "not_found" : "ok"
+		return "ok"
 	}
 }

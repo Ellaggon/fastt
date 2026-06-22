@@ -56,16 +56,33 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(manage).toContain("event.preventDefault()")
 	})
 
+	it("gestiona el retiro de tarifas con desactivacion reversible y borrado protegido", () => {
+		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		const deleteEndpoint = read("src/pages/api/rateplans/delete.ts")
+		const readiness = read("src/lib/rates/getRatePlanRemovalReadiness.ts")
+
+		expect(detail).toContain("Desactivar tarifa")
+		expect(detail).toContain("Activar tarifa")
+		expect(detail).toContain("Eliminar definitivamente")
+		expect(detail).toContain("data-rate-plan-delete-confirmation")
+		expect(deleteEndpoint).toContain("getRatePlanRemovalReadiness")
+		expect(deleteEndpoint).toContain("readiness.canDelete")
+		expect(readiness).toContain("BookingRoomDetail")
+		expect(readiness).toContain("Hold")
+		expect(readiness).toContain("Desactiva la tarifa antes de eliminarla")
+	})
+
 	it("pricing surface moderna envía solo ratePlanId", () => {
 		const source = read("src/components/pricing/RatePlanPricingSurface.astro")
 		expect(source).toContain('<Input type="hidden" name="ratePlanId" value={ratePlanId} />')
 		expect(source).not.toContain('name="variantId"')
 	})
 
-	it("policies page moderna no inyecta variantId en el use-case POST", () => {
-		const source = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
+	it("condiciones viven en la ficha unificada sin inyectar variantId en el POST", () => {
+		const source = read("src/pages/rates/plans/[ratePlanId].astro")
 		expect(source).toContain("handleRatePlanPoliciesPost({")
 		expect(source).toContain("ratePlans: selectedRatePlans")
+		expect(source).toContain('data-rate-plan-panel="conditions"')
 		expect(source).not.toContain("expectedOwnerContext")
 		expect(source).not.toContain("variantId: ownerContext.variantId")
 	})
@@ -272,8 +289,8 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(useCase).toContain("overrideSummaryByCategory")
 		expect(useCase).toContain("snapshotPreviewByCategory")
 		expect(useCase).toContain("sellabilityBlockers")
-		expect(detail).toContain("data-rate-plan-contract-lock")
-		expect(detail).toContain("Tarifa no lista para vender")
-		expect(detail).toContain("Revisar contrato de tarifa")
+		expect(detail).toContain("RatePlanPoliciesSurface")
+		expect(detail).toContain('data-rate-plan-panel="conditions"')
+		expect(detail).toContain("policyPlans={policyPlans}")
 	})
 })

@@ -6,6 +6,7 @@ import { invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
+import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
 
 const updateRatePlanSchema = z.object({
 	id: z.string().trim().min(1),
@@ -29,7 +30,10 @@ export const PUT: APIRoute = async ({ request }) => {
 		const owner = await resolveRatePlanOwnerContext(body.id)
 		if (!owner || owner.providerId !== providerId)
 			return json(404, { error: "Tarifa no encontrada." })
-		const current = (await getRatePlanById(body.id)) as { isActive?: boolean } | null
+		const current = (await getRatePlanById(body.id)) as {
+			isActive?: boolean
+			isDefault?: boolean
+		} | null
 		if (body.isActive && !current?.isActive) {
 			const publication = await validateRatePlanPublication({
 				ratePlanId: body.id,
@@ -39,6 +43,19 @@ export const PUT: APIRoute = async ({ request }) => {
 			if (!publication.canPublish) {
 				return json(409, {
 					error: `No puede publicarse. Falta: ${publication.blockers.join(", ")}.`,
+				})
+			}
+		}
+		if (!body.isActive && current?.isActive && current.isDefault && body.isDefault !== false) {
+			const readiness = await getRatePlanRemovalReadiness({
+				ratePlanId: body.id,
+				variantId: owner.variantId,
+				isActive: true,
+				isDefault: true,
+			})
+			if (readiness.activeAlternatives > 0) {
+				return json(409, {
+					error: "Designa otra tarifa principal antes de desactivar esta.",
 				})
 			}
 		}

@@ -33,8 +33,12 @@ describe("audit/rateplan-first modern flows", () => {
 		expect(detailPage).not.toContain("routes.ratePlanPricing")
 		expect(detailPage).not.toMatch(/variantId=\{/)
 
-		const policiesPage = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
-		expect(policiesPage).toContain("ratePlanId")
-		expect(policiesPage).not.toMatch(/variantId=\{/)
+		expect(detailPage).toContain("RatePlanPoliciesSurface")
+		expect(detailPage).toContain("loadRatePlanPoliciesData")
+		expect(detailPage).not.toMatch(/variantId=\{/)
+
+		const policiesRedirect = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
+		expect(policiesRedirect).toContain("routes.ratePlanPolicies")
+		expect(policiesRedirect).toContain("308")
 	})
 })
