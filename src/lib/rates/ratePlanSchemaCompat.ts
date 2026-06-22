@@ -5,13 +5,16 @@ import {
 	ratePlanNameColumn,
 } from "@/lib/rates/ratePlanDbColumns"
 
-export async function hasCompressedRatePlanSchema(): Promise<boolean> {
-	const columns = await db
+async function listRatePlanColumns(): Promise<Set<string>> {
+	const rows = await db
 		.select({ name: sql<string>`name` })
 		.from(sql`pragma_table_info('RatePlan')`)
 		.all()
+	return new Set(rows.map((column) => String(column.name)))
+}
 
-	return columns.some((column) => String(column.name) === "name")
+export async function hasCompressedRatePlanSchema(): Promise<boolean> {
+	return (await listRatePlanColumns()).has("name")
 }
 
 export const legacyRatePlanNameColumn = sql<string>`(
@@ -27,22 +30,35 @@ export const legacyRatePlanDescriptionColumn = sql<string>`(
 )`
 
 export async function resolveRatePlanNameColumn() {
-	return (await hasCompressedRatePlanSchema()) ? ratePlanNameColumn : legacyRatePlanNameColumn
+	const columns = await listRatePlanColumns()
+	if (columns.has("name")) return ratePlanNameColumn
+	if (columns.has("templateId")) return legacyRatePlanNameColumn
+	return sql<string>`'Tarifa'`
 }
 
 export async function resolveRatePlanDescriptionColumn() {
-	return (await hasCompressedRatePlanSchema())
-		? ratePlanDescriptionColumn
-		: legacyRatePlanDescriptionColumn
+	const columns = await listRatePlanColumns()
+	if (columns.has("description")) return ratePlanDescriptionColumn
+	if (columns.has("templateId")) return legacyRatePlanDescriptionColumn
+	return sql<string | null>`null`
 }
 
 export async function resolveRatePlanBaseSelect() {
-	if (await hasCompressedRatePlanSchema()) return ratePlanBaseSelect
+	const columns = await listRatePlanColumns()
+	if (columns.has("name") && columns.has("description")) return ratePlanBaseSelect
 	return {
 		id: RatePlan.id,
 		variantId: RatePlan.variantId,
-		name: legacyRatePlanNameColumn,
-		description: legacyRatePlanDescriptionColumn,
+		name: columns.has("name")
+			? ratePlanNameColumn
+			: columns.has("templateId")
+				? legacyRatePlanNameColumn
+				: sql<string>`'Tarifa'`,
+		description: columns.has("description")
+			? ratePlanDescriptionColumn
+			: columns.has("templateId")
+				? legacyRatePlanDescriptionColumn
+				: sql<string | null>`null`,
 		isDefault: RatePlan.isDefault,
 		isActive: RatePlan.isActive,
 		createdAt: RatePlan.createdAt,

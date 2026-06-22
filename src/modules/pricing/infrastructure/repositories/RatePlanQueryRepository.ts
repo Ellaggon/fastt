@@ -6,6 +6,7 @@ import {
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	resolveRatePlanBaseSelect,
+	resolveRatePlanDescriptionColumn,
 	resolveRatePlanNameColumn,
 } from "@/lib/rates/ratePlanSchemaCompat"
 import type { RatePlanQueryRepositoryPort } from "../../application/ports/RatePlanQueryRepositoryPort"
@@ -61,7 +62,10 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 	}
 
 	async listByProvider(providerId: string): Promise<unknown[]> {
-		const ratePlanName = await resolveRatePlanNameColumn()
+		const [ratePlanName, ratePlanDescription] = await Promise.all([
+			resolveRatePlanNameColumn(),
+			resolveRatePlanDescriptionColumn(),
+		])
 		const rows = await db
 			.select({
 				ratePlanId: RatePlan.id,
@@ -70,6 +74,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 				productId: Product.id,
 				productName: Product.name,
 				ratePlanName,
+				description: ratePlanDescription,
 				isActive: RatePlan.isActive,
 				isDefault: RatePlan.isDefault,
 			})
@@ -121,6 +126,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 				return {
 					ratePlanId,
 					ratePlanName: String(row.ratePlanName ?? "Rate plan"),
+					description: row.description == null ? null : String(row.description),
 					productId: String(row.productId),
 					productName: String(row.productName ?? ""),
 					variantId: String(row.variantId),

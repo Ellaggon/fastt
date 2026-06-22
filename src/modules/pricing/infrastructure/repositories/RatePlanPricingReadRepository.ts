@@ -6,6 +6,7 @@ import {
 	desc,
 	EffectivePricingV2,
 	eq,
+	inArray,
 	lte,
 	RatePlan,
 	RatePlanOccupancyPolicy,
@@ -104,6 +105,87 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			effectivePricingDays,
 			coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
 		}
+	}
+
+	async listRatePlanPricingSummaries(ratePlanIds: string[]) {
+		const ids = [...new Set(ratePlanIds.map((id) => String(id).trim()).filter(Boolean))]
+		if (!ids.length) return []
+		const targetDate = new Date()
+		const [policies, effectiveRows, coverageRows] = await Promise.all([
+			db
+				.select({
+					ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
+					currency: RatePlanOccupancyPolicy.baseCurrency,
+					basePrice: RatePlanOccupancyPolicy.baseAmount,
+					effectiveFrom: RatePlanOccupancyPolicy.effectiveFrom,
+					id: RatePlanOccupancyPolicy.id,
+				})
+				.from(RatePlanOccupancyPolicy)
+				.where(
+					and(
+						inArray(RatePlanOccupancyPolicy.ratePlanId, ids),
+						lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+						sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+					)
+				)
+				.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+				.all(),
+			db
+				.select({
+					ratePlanId: EffectivePricingV2.ratePlanId,
+					currency: EffectivePricingV2.currency,
+					basePrice: EffectivePricingV2.baseComponent,
+					date: EffectivePricingV2.date,
+				})
+				.from(EffectivePricingV2)
+				.where(
+					and(
+						inArray(EffectivePricingV2.ratePlanId, ids),
+						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+					)
+				)
+				.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt))
+				.all(),
+			db
+				.select({ ratePlanId: EffectivePricingV2.ratePlanId, value: count() })
+				.from(EffectivePricingV2)
+				.where(
+					and(
+						inArray(EffectivePricingV2.ratePlanId, ids),
+						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+					)
+				)
+				.groupBy(EffectivePricingV2.ratePlanId)
+				.all(),
+		])
+
+		const policyByRatePlan = new Map<string, (typeof policies)[number]>()
+		for (const policy of policies) {
+			const id = String(policy.ratePlanId)
+			if (!policyByRatePlan.has(id)) policyByRatePlan.set(id, policy)
+		}
+		const effectiveByRatePlan = new Map<string, (typeof effectiveRows)[number]>()
+		for (const row of effectiveRows) {
+			const id = String(row.ratePlanId)
+			if (!effectiveByRatePlan.has(id)) effectiveByRatePlan.set(id, row)
+		}
+		const coverageByRatePlan = new Map(
+			coverageRows.map((row) => [String(row.ratePlanId), Number(row.value ?? 0)])
+		)
+
+		return ids.flatMap((ratePlanId) => {
+			const source = policyByRatePlan.get(ratePlanId) ?? effectiveByRatePlan.get(ratePlanId)
+			if (!source) return []
+			return [
+				{
+					ratePlanId,
+					currency: String(source.currency ?? "USD"),
+					basePrice: Number(source.basePrice ?? 0),
+					effectivePricingDays: coverageByRatePlan.get(ratePlanId) ?? 0,
+					coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
+				},
+			]
+		})
 	}
 
 	async listRatePlanModifierSummaryByVariant(

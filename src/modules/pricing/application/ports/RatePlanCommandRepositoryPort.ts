@@ -36,19 +36,9 @@ export interface RatePlanCommandRepositoryPort {
 	updateRatePlan(params: {
 		ratePlanId: string
 		isActive: boolean
+		isDefault?: boolean
 		name: string
 		description: string | null
-		priceRule: null | {
-			id: string
-			ratePlanId: string
-			name: string | null
-			type: string
-			value: number
-			priority: number
-			isActive: boolean
-			createdAt: Date
-		}
-		restrictions: Array<{ type: string; value: number }>
 	}): Promise<"not_found" | "ok">
 	deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok">
 }

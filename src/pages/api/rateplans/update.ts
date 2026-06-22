@@ -1,86 +1,64 @@
 import type { APIRoute } from "astro"
+import { z, ZodError } from "zod"
 import { ratePlanCommandRepository } from "@/container"
+import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
-import { buildCreateRatePlanSpec, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
-import { randomUUID } from "node:crypto"
+import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
+
+const updateRatePlanSchema = z.object({
+	id: z.string().trim().min(1),
+	name: z.string().trim().min(2).max(120),
+	description: z.string().trim().max(500).nullable().optional(),
+	isActive: z.boolean(),
+	isDefault: z.boolean().optional(),
+})
+
+function json(status: number, payload: Record<string, unknown>) {
+	return new Response(JSON.stringify(payload), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	})
+}
 
 export const PUT: APIRoute = async ({ request }) => {
 	try {
-		const body = (await request.json()) as {
-			id?: string
-			variantId?: string
-			isActive?: boolean
-			name?: string
-			description?: string | null
-			type?: string
-			value?: number
-			minNights?: number
-			maxNights?: number
-			minAdvanceDays?: number
-			maxAdvanceDays?: number
-		}
-		if (!body?.id) {
-			return new Response(JSON.stringify({ error: "Missing ratePlanId" }), { status: 400 })
-		}
-		const type = String(body.type ?? "")
-		const allowedTypes = new Set([
-			"percentage_discount",
-			"percentage_markup",
-			"fixed_adjustment",
-			"override",
-			"package",
-		])
-		if (!allowedTypes.has(type)) {
-			return new Response(JSON.stringify({ error: "Invalid type" }), { status: 400 })
-		}
-		const specResult = buildCreateRatePlanSpec({
-			minNights: body.minNights,
-			maxNights: body.maxNights,
-			minAdvanceDays: body.minAdvanceDays,
-			maxAdvanceDays: body.maxAdvanceDays,
-			type,
-			value: body.value,
-		})
-		if (!specResult.ok) {
-			return new Response(JSON.stringify({ error: specResult.error.message }), { status: 400 })
-		}
-		const priceRule =
-			type === "package"
-				? null
-				: {
-						id: randomUUID(),
-						ratePlanId: body.id,
-						name: body.name ?? null,
-						type,
-						value: Number(body.value),
-						priority: 10,
-						isActive: true,
-						createdAt: new Date(),
-					}
-		const result = await ratePlanCommandRepository.updateRatePlan({
-			ratePlanId: body.id,
-			isActive: Boolean(body.isActive),
-			name: String(body.name ?? ""),
-			description: body.description ?? null,
-			priceRule,
-			restrictions: specResult.spec.restrictions.items.map((item) => ({
-				type: String(item.type),
-				value: Number(item.value),
-			})),
-		})
-		if (result === "not_found") {
-			return new Response(JSON.stringify({ error: "RatePlan not found" }), { status: 404 })
+		const { providerId } = await requireProvider(request)
+		const body = updateRatePlanSchema.parse(await request.json())
+		const owner = await resolveRatePlanOwnerContext(body.id)
+		if (!owner || owner.providerId !== providerId)
+			return json(404, { error: "Tarifa no encontrada." })
+		const current = (await getRatePlanById(body.id)) as { isActive?: boolean } | null
+		if (body.isActive && !current?.isActive) {
+			const publication = await validateRatePlanPublication({
+				ratePlanId: body.id,
+				variantId: owner.variantId,
+				productId: owner.productId,
+			})
+			if (!publication.canPublish) {
+				return json(409, {
+					error: `No puede publicarse. Falta: ${publication.blockers.join(", ")}.`,
+				})
+			}
 		}
 
-		const ownerContext = await resolveRatePlanOwnerContext(body.id)
-		if (ownerContext) {
-			invalidateAggregateCache({ variantId: ownerContext.variantId })
-			await invalidateVariant(ownerContext.variantId, ownerContext.productId)
-		}
-		return new Response(JSON.stringify({ success: true }), { status: 200 })
-	} catch (err) {
-		console.error("rateplans:update", err)
-		return new Response(JSON.stringify({ error: "Update failed" }), { status: 500 })
+		const result = await ratePlanCommandRepository.updateRatePlan({
+			ratePlanId: body.id,
+			isActive: body.isActive,
+			isDefault: body.isDefault,
+			name: body.name,
+			description: body.description ?? null,
+		})
+		if (result === "not_found") return json(404, { error: "Tarifa no encontrada." })
+
+		invalidateAggregateCache({ variantId: owner.variantId })
+		await invalidateVariant(owner.variantId, owner.productId)
+		return json(200, { success: true })
+	} catch (error) {
+		if (error instanceof Response) return error
+		if (error instanceof ZodError) return json(400, { error: "Revisa los datos de la tarifa." })
+		console.error("rateplans:update", error)
+		return json(500, { error: "No se pudo actualizar la tarifa." })
 	}
 }

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, count, db, EffectiveAvailability, eq, gte, lt, sql } from "astro:db"
+import { and, count, db, EffectiveAvailability, gte, inArray, lt, sql } from "astro:db"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -42,32 +42,42 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const channel = String(requestUrl.searchParams.get("channel") ?? "").trim() || "web"
 	const requiredCategories = [...REQUIRED_POLICY_CATEGORIES]
 	const expectedInventoryDays = countNights(checkIn, checkOut)
+	const ratePlanIds = rows.map((row: any) => String(row?.ratePlanId ?? "")).filter(Boolean)
+	const variantIds = [
+		...new Set(rows.map((row: any) => String(row?.variantId ?? "")).filter(Boolean)),
+	]
+	const [pricingSummaries, inventorySummaries] = await Promise.all([
+		ratePlanPricingReadRepository.listRatePlanPricingSummaries(ratePlanIds),
+		variantIds.length
+			? db
+					.select({
+						variantId: EffectiveAvailability.variantId,
+						coverageDays: count(),
+						availableDays: sql<number>`sum(case when ${EffectiveAvailability.availableUnits} > 0 then 1 else 0 end)`,
+						totalUnits: sql<number>`sum(${EffectiveAvailability.totalUnits})`,
+					})
+					.from(EffectiveAvailability)
+					.where(
+						and(
+							inArray(EffectiveAvailability.variantId, variantIds),
+							gte(EffectiveAvailability.date, checkIn),
+							lt(EffectiveAvailability.date, checkOut)
+						)
+					)
+					.groupBy(EffectiveAvailability.variantId)
+					.all()
+			: Promise.resolve([]),
+	])
+	const pricingByRatePlan = new Map(pricingSummaries.map((row) => [row.ratePlanId, row]))
+	const inventoryByVariant = new Map(inventorySummaries.map((row) => [String(row.variantId), row]))
 
 	const rowsWithPolicySummary = await Promise.all(
 		rows.map(async (row: any) => {
 			const ratePlanId = String(row?.ratePlanId ?? "")
 			const productId = String(row?.productId ?? "")
 			const variantId = String(row?.variantId ?? "")
-			const pricingSummary = ratePlanId
-				? await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
-				: null
-			const inventorySummary = variantId
-				? await db
-						.select({
-							coverageDays: count(),
-							availableDays: sql<number>`sum(case when ${EffectiveAvailability.availableUnits} > 0 then 1 else 0 end)`,
-							totalUnits: sql<number>`sum(${EffectiveAvailability.totalUnits})`,
-						})
-						.from(EffectiveAvailability)
-						.where(
-							and(
-								eq(EffectiveAvailability.variantId, variantId),
-								gte(EffectiveAvailability.date, checkIn),
-								lt(EffectiveAvailability.date, checkOut)
-							)
-						)
-						.get()
-				: null
+			const pricingSummary = pricingByRatePlan.get(ratePlanId) ?? null
+			const inventorySummary = inventoryByVariant.get(variantId) ?? null
 			const inventoryCoverageDays = Number(inventorySummary?.coverageDays ?? 0)
 			const inventoryAvailableDays = Number(inventorySummary?.availableDays ?? 0)
 			const inventoryTotalUnits = Number(inventorySummary?.totalUnits ?? 0)

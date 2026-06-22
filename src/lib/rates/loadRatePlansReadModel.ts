@@ -3,6 +3,7 @@ import { GET as listRatePlansGet } from "@/pages/api/rates/plans"
 export type RatePlanListItem = {
 	ratePlanId: string
 	ratePlanName: string
+	description?: string | null
 	productId: string
 	productName: string
 	variantId: string
@@ -41,7 +42,7 @@ export async function loadRatePlansReadModel(input: {
 	checkOut?: string
 	channel?: string
 }): Promise<RatePlanListItem[]> {
-	const url = new URL("http://localhost:4321/api/rates/plans")
+	const url = new URL("/api/rates/plans", input.request.url)
 	if (input.checkIn) url.searchParams.set("checkIn", input.checkIn)
 	if (input.checkOut) url.searchParams.set("checkOut", input.checkOut)
 	if (input.channel) url.searchParams.set("channel", input.channel)
@@ -59,10 +60,14 @@ export async function loadRatePlansReadModel(input: {
 		}),
 		url,
 	} as any)
-	if (!response.ok) return []
+	if (!response.ok) {
+		throw new Error(`No se pudieron cargar las tarifas (${response.status}).`)
+	}
 
 	const payload = await response.json().catch(() => null)
-	if (!Array.isArray(payload?.ratePlans)) return []
+	if (!Array.isArray(payload?.ratePlans)) {
+		throw new Error("La respuesta de tarifas no tiene el formato esperado.")
+	}
 	return payload.ratePlans as RatePlanListItem[]
 }
 

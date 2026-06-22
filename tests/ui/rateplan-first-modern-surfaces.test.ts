@@ -18,22 +18,42 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(detail).not.toContain("routes.ratePlanPricing")
 	})
 
-	it("crear y editar tarifas empieza por intención humana", () => {
+	it("crear tarifas completa oferta, precio y contrato sin mezclar reglas al editar", () => {
 		const manage = read("src/pages/rates/plans/manage.astro")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
+		const createEndpoint = read("src/pages/api/rateplans/create.ts")
+		const updateRepository = read(
+			"src/modules/pricing/infrastructure/repositories/RatePlanCommandRepository.ts"
+		)
 		const presets = read("src/lib/rates/ratePlanIntentPresets.ts")
 
 		expect(presets).toContain("Tarifa flexible")
 		expect(presets).toContain("No reembolsable")
 		expect(presets).toContain("Estadía larga")
 		expect(presets).toContain("Anticipada")
-		expect(manage).toContain("Elige una intención comercial")
-		expect(manage).toContain("data-rate-plan-intent-form")
-		expect(manage).toContain("data-rate-plan-intent-card")
+		expect(manage).toContain("data-rate-plan-create-form")
+		expect(manage).toContain("Precio base por noche")
+		expect(manage).toContain("Guardar borrador")
+		expect(manage).toContain("Publicar")
 		expect(manage).not.toContain("Nombre del plan")
-		expect(detail).toContain("Editar intención de tarifa")
-		expect(detail).toContain("data-rate-plan-intent-edit-form")
-		expect(detail).toContain("El precio base se edita aparte")
+		expect(detail).toContain("Editar datos de tarifa")
+		expect(detail).not.toContain("Editar intención de tarifa")
+		expect(createEndpoint).toContain("requireProvider")
+		expect(createEndpoint).toContain("setRatePlanPricingBaseline")
+		expect(createEndpoint).toContain("createRatePlanContract")
+		expect(updateRepository).not.toContain(
+			'await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: params.ratePlanId })'
+		)
+	})
+
+	it("filtra estados de tarifas sin volver a cargar lecturas comerciales", () => {
+		const manage = read("src/pages/rates/plans/manage.astro")
+
+		expect(manage).toContain("data-rate-plan-tab")
+		expect(manage).toContain("data-rate-plan-row")
+		expect(manage).toContain("renderRatePlanView")
+		expect(manage).toContain("window.history.pushState")
+		expect(manage).toContain("event.preventDefault()")
 	})
 
 	it("pricing surface moderna envía solo ratePlanId", () => {

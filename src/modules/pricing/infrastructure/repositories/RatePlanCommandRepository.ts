@@ -1,9 +1,10 @@
-import { db, Product, RatePlan, Variant, eq } from "astro:db"
+import { db, Product, RatePlan, Variant, eq, sql } from "astro:db"
 import {
 	createCommercialPriceRule,
 	createCommercialSellabilityRule,
 	deleteCommercialRulesForScope,
 } from "@/lib/commercial-rules/commercialRulesRepository"
+import { hasCompressedRatePlanSchema } from "@/lib/rates/ratePlanSchemaCompat"
 import type {
 	CreateRatePlanCommand,
 	RatePlanCommandRepositoryPort,
@@ -12,6 +13,7 @@ import type {
 export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort {
 	async createRatePlan(cmd: CreateRatePlanCommand): Promise<void> {
 		let providerId: string | null = null
+		const compressedSchema = await hasCompressedRatePlanSchema()
 		await db.transaction(async (tx) => {
 			// INVARIANT:
 			// A variant can have only one default rate plan.
@@ -24,15 +26,43 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			}
 
 			/* ---------------- RATE PLAN ---------------- */
-			await tx.insert(RatePlan).values({
-				id: cmd.ratePlan.id,
-				variantId: cmd.ratePlan.variantId,
-				name: cmd.ratePlan.name,
-				description: cmd.ratePlan.description,
-				isDefault: Boolean(cmd.ratePlan.isDefault),
-				isActive: cmd.ratePlan.isActive,
-				createdAt: cmd.ratePlan.createdAt,
-			})
+			if (compressedSchema) {
+				await tx.insert(RatePlan).values({
+					id: cmd.ratePlan.id,
+					variantId: cmd.ratePlan.variantId,
+					name: cmd.ratePlan.name,
+					description: cmd.ratePlan.description,
+					isDefault: Boolean(cmd.ratePlan.isDefault),
+					isActive: cmd.ratePlan.isActive,
+					createdAt: cmd.ratePlan.createdAt,
+				})
+			} else {
+				const createdAt = cmd.ratePlan.createdAt.toISOString()
+				await tx.run(sql`
+					insert into "RatePlanTemplate" (
+						"id", "name", "description", "paymentType", "refundable", "createdAt"
+					)
+					values (
+						${cmd.ratePlan.id},
+						${cmd.ratePlan.name},
+						${cmd.ratePlan.description},
+						'prepaid',
+						0,
+						${createdAt}
+					)
+				`)
+				await tx.run(sql`
+					insert into "RatePlan" ("id", "templateId", "variantId", "isDefault", "isActive", "createdAt")
+					values (
+						${cmd.ratePlan.id},
+						${cmd.ratePlan.id},
+						${cmd.ratePlan.variantId},
+						${cmd.ratePlan.isDefault ? 1 : 0},
+						${cmd.ratePlan.isActive ? 1 : 0},
+						${createdAt}
+					)
+				`)
+			}
 		})
 		const owner = await db
 			.select({ providerId: Product.providerId })
@@ -70,26 +100,19 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	async updateRatePlan(params: {
 		ratePlanId: string
 		isActive: boolean
+		isDefault?: boolean
 		name: string
 		description: string | null
-		priceRule: null | {
-			id: string
-			ratePlanId: string
-			name: string | null
-			type: string
-			value: number
-			priority: number
-			isActive: boolean
-			createdAt: Date
-		}
-		restrictions: Array<{ type: string; value: number }>
 	}): Promise<"not_found" | "ok"> {
 		let notFound = false
-
-		let providerId: string | null = null
+		const compressedSchema = await hasCompressedRatePlanSchema()
 		await db.transaction(async (tx) => {
 			const ratePlan = await tx
-				.select()
+				.select({
+					id: RatePlan.id,
+					variantId: RatePlan.variantId,
+					isDefault: RatePlan.isDefault,
+				})
 				.from(RatePlan)
 				.where(eq(RatePlan.id, params.ratePlanId))
 				.get()
@@ -98,66 +121,77 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				notFound = true
 				return
 			}
+			if (params.isDefault) {
+				await tx
+					.update(RatePlan)
+					.set({ isDefault: false })
+					.where(eq(RatePlan.variantId, ratePlan.variantId))
+			}
 
-			await tx
-				.update(RatePlan)
-				.set({
-					isActive: Boolean(params.isActive),
-					name: params.name,
-					description: params.description ?? null,
-				})
-				.where(eq(RatePlan.id, params.ratePlanId))
+			if (compressedSchema) {
+				await tx
+					.update(RatePlan)
+					.set({
+						isActive: Boolean(params.isActive),
+						isDefault: params.isDefault ?? Boolean(ratePlan.isDefault),
+						name: params.name,
+						description: params.description ?? null,
+					})
+					.where(eq(RatePlan.id, params.ratePlanId))
+			} else {
+				await tx
+					.update(RatePlan)
+					.set({
+						isActive: Boolean(params.isActive),
+						isDefault: params.isDefault ?? Boolean(ratePlan.isDefault),
+					})
+					.where(eq(RatePlan.id, params.ratePlanId))
+				await tx.run(sql`
+					update "RatePlanTemplate"
+					set "name" = ${params.name}, "description" = ${params.description}
+					where "id" = (
+						select "templateId" from "RatePlan" where "id" = ${params.ratePlanId}
+					)
+				`)
+			}
 		})
-		const owner = await db
-			.select({ providerId: Product.providerId })
-			.from(RatePlan)
-			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
-			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.where(eq(RatePlan.id, params.ratePlanId))
-			.get()
-		providerId = owner?.providerId ? String(owner.providerId) : null
-		if (!notFound && providerId) {
-			await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: params.ratePlanId })
-			if (params.priceRule) {
-				await createCommercialPriceRule({
-					providerId,
-					ratePlanId: params.ratePlanId,
-					name: params.priceRule.name ?? null,
-					type: params.priceRule.type,
-					value: Number(params.priceRule.value),
-					priority: params.priceRule.priority ?? 10,
-				})
-			}
-			for (const r of params.restrictions) {
-				await createCommercialSellabilityRule({
-					providerId,
-					scope: "rate_plan",
-					scopeId: params.ratePlanId,
-					type: r.type,
-					value: Number(r.value),
-					startDate: new Date().toISOString().slice(0, 10),
-					endDate: "2099-12-31",
-					validDays: [],
-				})
-			}
-		}
-
 		return notFound ? "not_found" : "ok"
 	}
 
 	async deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok"> {
 		let notFound = false
+		const compressedSchema = await hasCompressedRatePlanSchema()
 
 		await db.transaction(async (tx) => {
-			const ratePlan = await tx.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)).get()
+			const ratePlan = await tx
+				.select({ id: RatePlan.id })
+				.from(RatePlan)
+				.where(eq(RatePlan.id, ratePlanId))
+				.get()
 
 			if (!ratePlan) {
 				notFound = true
 				return
 			}
 
+			const legacyTemplate = compressedSchema
+				? null
+				: await tx
+						.select({ templateId: sql<string>`"RatePlan"."templateId"` })
+						.from(RatePlan)
+						.where(eq(RatePlan.id, ratePlanId))
+						.get()
 			await deleteCommercialRulesForScope({ scope: "rate_plan", scopeId: ratePlanId })
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
+			if (legacyTemplate?.templateId) {
+				await tx.run(sql`
+					delete from "RatePlanTemplate"
+					where "id" = ${legacyTemplate.templateId}
+						and not exists (
+							select 1 from "RatePlan" where "templateId" = ${legacyTemplate.templateId}
+						)
+				`)
+			}
 		})
 
 		return notFound ? "not_found" : "ok"

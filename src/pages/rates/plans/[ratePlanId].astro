@@ -8,7 +8,6 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
 import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
-import { guessRatePlanIntentId, ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
 
@@ -49,7 +48,6 @@ const policyReady = Boolean(row.policyCoverage?.isComplete)
 const policyMissingCategories = row.policyCoverage?.missingCategories ?? []
 const hasCommercialBaseline = Number(String(loaded.initialBasePrice ?? 0)) > 0
 const restrictionCount = Number(row.summary?.activeRestrictionsCount ?? 0)
-const guessedIntentId = guessRatePlanIntentId(row.ratePlanName)
 const saleStatusLabel = row.isActive
 	? policyReady && hasCommercialBaseline
 		? "Lista para vender"
@@ -218,46 +216,14 @@ const policyCategoryLabels: Record<string, string> = {
 
 				<details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
 					<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-						Editar intención de tarifa
+						Editar datos de tarifa
 					</summary>
 					<form
 						class="mt-4 space-y-4"
-						data-rate-plan-intent-edit-form
+						data-rate-plan-edit-form
 						data-rate-plan-id={String(row.ratePlanId)}
 					>
-						<p class="text-sm leading-6 text-slate-600">
-							Usa esto cuando la oferta cambia de propósito: flexible, no reembolsable, estadía
-							larga o anticipada. El precio base se edita aparte.
-						</p>
-						<div class="grid gap-3 md:grid-cols-4">
-							{
-								ratePlanIntentPresets.map((preset) => {
-									const active = preset.id === guessedIntentId
-									return (
-										<button
-											type="button"
-											class={`rounded-2xl border p-3 text-left text-sm transition hover:border-slate-400 ${
-												active
-													? "border-slate-950 bg-slate-950 text-white"
-													: "border-slate-200 bg-white text-slate-800"
-											}`}
-											data-rate-plan-intent-edit-card
-											data-intent-id={preset.id}
-											data-name={preset.name}
-											data-description={preset.description}
-											data-type={preset.type}
-											data-value={String(preset.value)}
-											data-min-nights={String(preset.minNights ?? "")}
-											data-min-advance-days={String(preset.minAdvanceDays ?? "")}
-										>
-											<span class="block font-semibold">{preset.name}</span>
-											<span class="mt-1 block text-xs leading-5 opacity-80">{preset.summary}</span>
-										</button>
-									)
-								})
-							}
-						</div>
-						<div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+						<div class="grid gap-3 md:grid-cols-2">
 							<label class="space-y-1 text-sm">
 								<span class="font-medium text-slate-700">Nombre visible</span>
 								<input
@@ -267,56 +233,33 @@ const policyCategoryLabels: Record<string, string> = {
 									required
 								/>
 							</label>
-							<button
-								type="submit"
-								class="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-							>
-								Guardar intención
-							</button>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Descripción interna</span>
+								<input
+									name="description"
+									class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+									value={row.description ?? ""}
+								/>
+							</label>
 						</div>
 						<label class="flex items-center gap-2 text-sm text-slate-700">
 							<input name="isActive" type="checkbox" class="h-4 w-4" checked={row.isActive} />
 							Tarifa activa
 						</label>
-						<input
-							type="hidden"
-							name="description"
-							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
-								?.description ?? ratePlanIntentPresets[0].description}
-						/>
-						<input
-							type="hidden"
-							name="type"
-							value={ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.type ??
-								ratePlanIntentPresets[0].type}
-						/>
-						<input
-							type="hidden"
-							name="value"
-							value={String(
-								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.value ??
-									ratePlanIntentPresets[0].value
-							)}
-						/>
-						<input
-							type="hidden"
-							name="minNights"
-							value={String(
-								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)?.minNights ??
-									""
-							)}
-						/>
-						<input
-							type="hidden"
-							name="minAdvanceDays"
-							value={String(
-								ratePlanIntentPresets.find((preset) => preset.id === guessedIntentId)
-									?.minAdvanceDays ?? ""
-							)}
-						/>
-						<p class="text-sm text-slate-500" data-rate-plan-intent-edit-feedback>
-							La intención cambia cómo se presenta y qué reglas simples acompañan la tarifa.
-						</p>
+						<label class="flex items-center gap-2 text-sm text-slate-700">
+							<input name="isDefault" type="checkbox" class="h-4 w-4" checked={row.isDefault} />
+							Tarifa principal de la habitación
+						</label>
+						<div class="flex items-center justify-between gap-3">
+							<p class="text-sm text-slate-500" data-rate-plan-edit-feedback>
+								Las reglas y condiciones se editan en sus controles propios.
+							</p>
+							<button
+								type="submit"
+								class="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+								>Guardar</button
+							>
+						</div>
 					</form>
 				</details>
 			</Card>
@@ -325,75 +268,37 @@ const policyCategoryLabels: Record<string, string> = {
 </WorkspaceLayout>
 
 <script>
-	function setEditHiddenValue(
-		form: Element | null | undefined,
-		name: string,
-		value: string | undefined
-	) {
-		const input = form?.querySelector<HTMLInputElement>(`[name="${name}"]`)
-		if (input) input.value = value ?? ""
-	}
-
-	function applyEditIntentPreset(card: HTMLElement) {
-		const form = card.closest("[data-rate-plan-intent-edit-form]")
-		if (!form) return
-		form.querySelectorAll("[data-rate-plan-intent-edit-card]").forEach((item) => {
-			const active = item === card
-			item.classList.toggle("border-slate-950", active)
-			item.classList.toggle("bg-slate-950", active)
-			item.classList.toggle("text-white", active)
-			item.classList.toggle("border-slate-200", !active)
-			item.classList.toggle("bg-white", !active)
-			item.classList.toggle("text-slate-800", !active)
+	document.querySelectorAll<HTMLFormElement>("[data-rate-plan-edit-form]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const feedback = form.querySelector("[data-rate-plan-edit-feedback]")
+			const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+			const formData = new FormData(form)
+			const payload = {
+				id: form.dataset.ratePlanId,
+				name: String(formData.get("name") || ""),
+				description: String(formData.get("description") || ""),
+				isActive: Boolean(formData.get("isActive")),
+				isDefault: Boolean(formData.get("isDefault")),
+			}
+			if (feedback) feedback.textContent = "Guardando..."
+			submit?.setAttribute("disabled", "true")
+			try {
+				const response = await fetch("/api/rateplans/update", {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(payload),
+				})
+				const result = await response.json().catch(() => null)
+				if (!response.ok) throw new Error(result?.error || "No se pudo guardar la tarifa")
+				window.location.reload()
+			} catch (error) {
+				if (feedback) {
+					feedback.textContent =
+						error instanceof Error ? error.message : "No se pudo guardar la tarifa"
+				}
+				submit?.removeAttribute("disabled")
+			}
 		})
-		setEditHiddenValue(form, "name", card.dataset.name)
-		setEditHiddenValue(form, "description", card.dataset.description)
-		setEditHiddenValue(form, "type", card.dataset.type)
-		setEditHiddenValue(form, "value", card.dataset.value)
-		setEditHiddenValue(form, "minNights", card.dataset.minNights)
-		setEditHiddenValue(form, "minAdvanceDays", card.dataset.minAdvanceDays)
-	}
-
-	document.querySelectorAll<HTMLElement>("[data-rate-plan-intent-edit-card]").forEach((card) => {
-		card.addEventListener("click", () => applyEditIntentPreset(card))
 	})
-
-	document
-		.querySelectorAll<HTMLFormElement>("[data-rate-plan-intent-edit-form]")
-		.forEach((form) => {
-			form.addEventListener("submit", async (event) => {
-				event.preventDefault()
-				const feedback = form.querySelector("[data-rate-plan-intent-edit-feedback]")
-				const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
-				const formData = new FormData(form)
-				const payload = {
-					id: form.dataset.ratePlanId,
-					name: String(formData.get("name") || ""),
-					description: String(formData.get("description") || ""),
-					type: String(formData.get("type") || "package"),
-					value: Number(formData.get("value") || 0),
-					minNights: Number(formData.get("minNights") || 0) || undefined,
-					minAdvanceDays: Number(formData.get("minAdvanceDays") || 0) || undefined,
-					isActive: Boolean(formData.get("isActive")),
-				}
-				if (feedback) feedback.textContent = "Guardando intención..."
-				submit?.setAttribute("disabled", "true")
-				try {
-					const response = await fetch("/api/rateplans/update", {
-						method: "PUT",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify(payload),
-					})
-					const result = await response.json().catch(() => null)
-					if (!response.ok) throw new Error(result?.error || "No se pudo guardar la intención")
-					window.location.reload()
-				} catch (error) {
-					if (feedback) {
-						feedback.textContent =
-							error instanceof Error ? error.message : "No se pudo guardar la intención"
-					}
-					submit?.removeAttribute("disabled")
-				}
-			})
-		})
 </script>

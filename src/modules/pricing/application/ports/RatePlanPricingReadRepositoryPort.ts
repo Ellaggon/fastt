@@ -32,6 +32,7 @@ export interface RatePlanPricingReadRepositoryPort {
 		variantId: string
 	): Promise<RatePlanPricingSummary | null>
 	getRatePlanPricingSummary(ratePlanId: string): Promise<RatePlanPricingSummary | null>
+	listRatePlanPricingSummaries(ratePlanIds: string[]): Promise<RatePlanPricingSummary[]>
 	listRatePlanModifierSummaryByVariant(variantId: string): Promise<RatePlanPricingModifierSummary[]>
 	listActiveRulesForRatePlan(ratePlanId: string): Promise<PricingRuleUiSummary[]>
 }

@@ -29,6 +29,7 @@ export * from "./application/use-cases/preview-pricing-rules"
 export type { RatePlanPricingContext } from "./application/use-cases/rate-plan-pricing-surface"
 export * from "./application/use-cases/get-rateplan-owner-context"
 export * from "./application/use-cases/bulk-pricing-service"
+export * from "./application/schemas/commercial-rate-plan.schemas"
 
 // Application ports
 export * from "./application/ports/PricingRepositoryPort"
