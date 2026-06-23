@@ -92,11 +92,14 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId,
 			ratePlanId,
-			checkInDate: new Date("2026-03-10"),
-			checkOutDate: new Date("2026-03-11"),
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
 			numAdults: 2,
 			numChildren: 0,
+			totalAmount: 100,
+			currency: "USD",
 		})
 
 		const line: TaxFeeLine = {
@@ -176,11 +179,14 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId,
 			ratePlanId,
-			checkInDate: new Date("2026-03-12"),
-			checkOutDate: new Date("2026-03-14"),
+			checkInDate: "2026-03-12",
+			checkOutDate: "2026-03-14",
 			numAdults: 2,
 			numChildren: 0,
+			totalAmount: 200,
+			currency: "USD",
 		})
 
 		const breakdown = computeTaxBreakdown({

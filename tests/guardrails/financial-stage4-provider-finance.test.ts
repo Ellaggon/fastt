@@ -164,7 +164,7 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 		expect(materialization).toContain("lifecycle")
 		expect(materialization).toContain("invalidationReasons")
 		expect(materialization).toContain("nextOperationalAction")
-		expect(materialization).toContain("BookingRoomDetail.totalPrice")
+		expect(materialization).toContain("BookingRoomDetail.totalAmount")
 		expect(materialization).toContain("ProviderPayableSnapshot")
 		expect(materialization).not.toMatch(/\.insert\(|\.update\(|\.delete\(|FinancialShadowRecord/)
 	})

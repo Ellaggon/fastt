@@ -53,12 +53,15 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId: "prov_test",
 			userId: null,
 			ratePlanId,
-			checkInDate: new Date("2026-03-10"),
-			checkOutDate: new Date("2026-03-11"),
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
 			numAdults: 2,
 			numChildren: 0,
+			totalAmount: 0,
+			currency: "USD",
 			status: "confirmed",
 			source: "web",
 		} as any)
@@ -143,12 +146,15 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId: "prov_test",
 			userId: null,
 			ratePlanId,
-			checkInDate: new Date("2026-03-10"),
-			checkOutDate: new Date("2026-03-11"),
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
 			numAdults: 2,
 			numChildren: 0,
+			totalAmount: 0,
+			currency: "USD",
 			status: "confirmed",
 			source: "web",
 		} as any)
@@ -201,12 +207,15 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId: "prov_test",
 			userId: null,
 			ratePlanId,
-			checkInDate: new Date("2026-03-10"),
-			checkOutDate: new Date("2026-03-11"),
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
 			numAdults: 2,
 			numChildren: 0,
+			totalAmount: 0,
+			currency: "USD",
 			status: "confirmed",
 			source: "web",
 		} as any)

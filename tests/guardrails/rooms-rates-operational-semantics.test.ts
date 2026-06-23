@@ -147,7 +147,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 
 		expect(taxonomy).toContain("## Source Of Truth")
 		expect(taxonomy).toContain("## Derived / Read Model")
-		expect(taxonomy).toContain("## Snapshot")
+		expect(taxonomy).toContain("## Booking Contract And Snapshot")
 		expect(taxonomy).toContain("New provider-facing mutations must target source-of-truth")
 		expect(taxonomy).toContain("BookingTaxFee")
 		expect(taxonomy).toContain("not the removed legacy `TaxFee` table")

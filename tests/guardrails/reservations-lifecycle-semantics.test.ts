@@ -18,6 +18,8 @@ const reservationBffs = [
 	"src/pages/api/internal/provider-bookings-summary.ts",
 	"src/pages/api/internal/booking-summary.ts",
 ]
+const bookingOperationsRepository =
+	"src/modules/booking/infrastructure/repositories/BookingOperationsQueryRepository.ts"
 
 const bannedPricingCalls = new Set([
 	"computeEffectivePricingV2",
@@ -205,7 +207,7 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 	})
 
 	it("keeps booking read models snapshot-first when exposing labels and guest contact", () => {
-		const violations = reservationBffs.flatMap((relativePath) => {
+		const violations = [bookingOperationsRepository].flatMap((relativePath) => {
 			const keys = new Set(collectObjectKeys(relativePath))
 			const source = read(relativePath)
 			const requiredKeys = [
@@ -236,20 +238,22 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 	})
 
 	it("labels date-based lifecycle as derived visibility, not persisted operations", () => {
-		const violations = [...reservationBffs, ...reservationPages].flatMap((relativePath) => {
-			const source = read(relativePath)
-			const missingDerivedSignal = source.includes("derived_from_snapshot")
-				? [`${relativePath}: uses deprecated derived_from_snapshot lifecycle label`]
-				: []
-			const fakePersistedLifecycle =
-				/persisted operational lifecycle|persisted lifecycle state/i.test(source)
-					? [`${relativePath}: claims persisted lifecycle operations without runtime support`]
+		const violations = [bookingOperationsRepository, ...reservationPages].flatMap(
+			(relativePath) => {
+				const source = read(relativePath)
+				const missingDerivedSignal = source.includes("derived_from_snapshot")
+					? [`${relativePath}: uses deprecated derived_from_snapshot lifecycle label`]
 					: []
-			const missingVisibilitySignal = source.includes("derived_visibility")
-				? []
-				: [`${relativePath}: missing derived_visibility lifecycle semantics`]
-			return [...missingDerivedSignal, ...fakePersistedLifecycle, ...missingVisibilitySignal]
-		})
+				const fakePersistedLifecycle =
+					/persisted operational lifecycle|persisted lifecycle state/i.test(source)
+						? [`${relativePath}: claims persisted lifecycle operations without runtime support`]
+						: []
+				const missingVisibilitySignal = source.includes("derived_visibility")
+					? []
+					: [`${relativePath}: missing derived_visibility lifecycle semantics`]
+				return [...missingDerivedSignal, ...fakePersistedLifecycle, ...missingVisibilitySignal]
+			}
+		)
 
 		expect(
 			violations,

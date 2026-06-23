@@ -1,6 +1,7 @@
 import {
 	db,
 	Destination,
+	Provider,
 	Product,
 	Variant,
 	VariantCapacity,
@@ -41,6 +42,13 @@ export async function upsertProduct(row: {
 	destinationId: string
 	providerId?: string | null
 }) {
+	const providerId = row.providerId === undefined ? "prov_test" : row.providerId
+	if (providerId) {
+		await db
+			.insert(Provider)
+			.values({ id: providerId, legalName: `Provider ${providerId}` })
+			.onConflictDoNothing()
+	}
 	await db
 		.insert(Product)
 		.values({
@@ -48,7 +56,7 @@ export async function upsertProduct(row: {
 			name: row.name,
 			productType: row.productType,
 			destinationId: row.destinationId,
-			providerId: row.providerId ?? null,
+			providerId,
 		})
 		.onConflictDoUpdate({
 			target: [Product.id],
@@ -56,7 +64,7 @@ export async function upsertProduct(row: {
 				name: row.name,
 				productType: row.productType,
 				destinationId: row.destinationId,
-				providerId: row.providerId ?? null,
+				providerId,
 				lastUpdated: new Date(),
 			},
 		})

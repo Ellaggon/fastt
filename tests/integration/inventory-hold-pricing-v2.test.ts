@@ -96,7 +96,7 @@ async function seedFixture(params: {
 		name: "Hold V2 Product",
 		productType: "Hotel",
 		destinationId,
-		providerId: null,
+		providerId: "prov_test",
 	})
 
 	await db.insert(Variant).values({
@@ -298,8 +298,8 @@ describe("integration/hold pricing V2 snapshot", () => {
 
 			const detail = await db
 				.select({
-					totalPrice: BookingRoomDetail.totalPrice,
-					basePrice: BookingRoomDetail.basePrice,
+					totalPrice: BookingRoomDetail.totalAmount,
+					basePrice: BookingRoomDetail.subtotalAmount,
 					pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
 				})
 				.from(BookingRoomDetail)

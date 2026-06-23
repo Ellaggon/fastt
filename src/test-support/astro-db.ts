@@ -91,6 +91,7 @@ export let BookingPolicySnapshot: any
 export let BookingTaxFee: any
 export let RefundQuote: any
 export let RefundLedger: any
+export let PaymentTransaction: any
 
 async function init() {
 	// Ensure local folder exists
@@ -229,6 +230,7 @@ async function init() {
 	BookingTaxFee = drizzleTables.BookingTaxFee
 	RefundQuote = drizzleTables.RefundQuote
 	RefundLedger = drizzleTables.RefundLedger
+	PaymentTransaction = drizzleTables.PaymentTransaction
 }
 
 // Top-level await so imports are ready before tests execute.

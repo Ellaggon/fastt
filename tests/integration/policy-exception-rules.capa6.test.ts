@@ -308,12 +308,15 @@ describe("integration/policy exception rules CAPA6", () => {
 
 		await db.insert(Booking).values({
 			id: bookingId,
+			providerId: "prov_test",
 			userId: null,
 			ratePlanId,
-			checkInDate: new Date(`${checkIn}T00:00:00.000Z`),
-			checkOutDate: new Date(`${checkOut}T00:00:00.000Z`),
+			checkInDate: checkIn,
+			checkOutDate: checkOut,
 			numAdults: 1,
 			numChildren: 0,
+			totalAmount: 0,
+			currency: "USD",
 			status: "confirmed",
 			source: "web",
 		} as any)

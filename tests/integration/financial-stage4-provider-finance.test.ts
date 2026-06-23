@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { buildProviderFinanceMaterialization } from "@/modules/financial/application/use-cases/build-provider-finance-materialization"
-import { buildProviderFinanceSummary } from "@/modules/financial/application/use-cases/build-provider-finance-summary"
 import type {
 	CommissionSnapshot,
 	FinancialSettlementRecord,
 	ProviderFinancialProfile,
 	ProviderPayableSnapshot,
 	ReconciliationMatch,
+} from "@/modules/financial/public"
+import {
+	buildProviderFinanceMaterialization,
+	buildProviderFinanceSummary,
 } from "@/modules/financial/public"
 
 const providerId = "provider_stage4"
@@ -21,8 +23,8 @@ const bookingRows = [
 		currency: "USD",
 		confirmedAt: now,
 		detailId: "detail_stage4_1",
-		detailTotalPrice: 160,
-		detailTaxes: 16,
+		detailTotalAmount: 160,
+		detailTaxAmount: 16,
 		providerIdSnapshot: providerId,
 		productNameSnapshot: "Snapshot Stay",
 		variantNameSnapshot: "Suite",
@@ -35,8 +37,8 @@ const bookingRows = [
 		currency: "USD",
 		confirmedAt: now,
 		detailId: "detail_stage4_2",
-		detailTotalPrice: 40,
-		detailTaxes: 4,
+		detailTotalAmount: 40,
+		detailTaxAmount: 4,
 		providerIdSnapshot: providerId,
 		productNameSnapshot: "Snapshot Stay",
 		variantNameSnapshot: "Room",

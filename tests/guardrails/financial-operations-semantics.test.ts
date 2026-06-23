@@ -128,7 +128,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			source.includes("const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal")
 				? null
 				: `${financialReviewBuilder}: contract total must prefer room snapshot totals before booking fallback totals`,
-			source.includes("const contractTotal = Number(first.detailTotalPrice")
+			source.includes("const contractTotal = Number(first.detailTotalAmount")
 				? `${financialReviewBuilder}: contract total must not use only the first room detail`
 				: null,
 		].filter(Boolean)

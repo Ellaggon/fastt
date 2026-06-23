@@ -105,7 +105,7 @@ async function seedVariantWithInventory(params: {
 		name: "Hold Product",
 		productType: "Hotel",
 		destinationId,
-		providerId: null,
+		providerId: "prov_test",
 	})
 
 	await db.insert(Variant).values({

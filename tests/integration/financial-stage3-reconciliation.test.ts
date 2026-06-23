@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildFinancialReconciliationMatch } from "@/modules/financial/application/use-cases/build-financial-reconciliation-match"
+import { buildFinancialReconciliationMatch } from "@/modules/financial/public"
 import type { FinancialSettlementRecord, PaymentTransaction } from "@/modules/financial/public"
 
 const baseGroup = [
@@ -8,16 +8,15 @@ const baseGroup = [
 		bookingId: "booking_stage3_1",
 		status: "confirmed",
 		currency: "USD",
-		totalAmountUSD: 200,
-		totalAmountBOB: 0,
+		totalAmount: 200,
 		confirmedAt: new Date("2026-06-01T00:00:00Z"),
 		checkInDate: "2026-06-10",
 		checkOutDate: "2026-06-12",
 		refundHandoffSnapshotJson: null,
 		contractSnapshotVersion: "booking_contract_v1",
 		detailId: "detail_1",
-		detailTotalPrice: 120,
-		detailTaxes: 12,
+		detailTotalAmount: 120,
+		detailTaxAmount: 12,
 		providerIdSnapshot: "provider_stage3",
 		productNameSnapshot: "Snapshot Hotel",
 		variantNameSnapshot: "Room A",
@@ -29,16 +28,15 @@ const baseGroup = [
 		bookingId: "booking_stage3_1",
 		status: "confirmed",
 		currency: "USD",
-		totalAmountUSD: 200,
-		totalAmountBOB: 0,
+		totalAmount: 200,
 		confirmedAt: new Date("2026-06-01T00:00:00Z"),
 		checkInDate: "2026-06-10",
 		checkOutDate: "2026-06-12",
 		refundHandoffSnapshotJson: null,
 		contractSnapshotVersion: "booking_contract_v1",
 		detailId: "detail_2",
-		detailTotalPrice: 80,
-		detailTaxes: 8,
+		detailTotalAmount: 80,
+		detailTaxAmount: 8,
 		providerIdSnapshot: "provider_stage3",
 		productNameSnapshot: "Snapshot Hotel",
 		variantNameSnapshot: "Room B",

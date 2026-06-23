@@ -11,6 +11,7 @@ import {
 	eq,
 	InventoryLock,
 	Product,
+	Provider,
 	RatePlan,
 	Variant,
 } from "astro:db"
@@ -95,6 +96,10 @@ async function seedBookingReadyVariant(params: {
 	dates: string[]
 }) {
 	const destinationId = `dest_bk_inv_${crypto.randomUUID()}`
+	await db
+		.insert(Provider)
+		.values({ id: "prov_test", legalName: "Provider prov_test" })
+		.onConflictDoNothing()
 
 	await db.insert(Destination).values({
 		id: destinationId,
@@ -109,7 +114,7 @@ async function seedBookingReadyVariant(params: {
 		name: "Booking Inv Product",
 		productType: "Hotel",
 		destinationId,
-		providerId: null,
+		providerId: "prov_test",
 	} as any)
 
 	await db.insert(Variant).values({
