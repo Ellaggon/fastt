@@ -7,3 +7,9 @@ export * from "./application/use-cases/create-booking-from-hold"
 export * from "./application/errors/bookingValidationError"
 export * from "./application/errors/bookingPolicySnapshotMissingError"
 export * from "./application/ports/BookingPolicySnapshotRepositoryPort"
+export {
+	BookingOperationsQueryRepository,
+	bookingOperationsQueryRepository,
+	deriveBookingLifecycle,
+} from "./infrastructure/repositories/BookingOperationsQueryRepository"
+export type { BookingLifecycleState } from "./infrastructure/repositories/BookingOperationsQueryRepository"

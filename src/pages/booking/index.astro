@@ -233,7 +233,7 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 				for (const item of items) {
 					const row = document.createElement("tr")
 					row.className = "border-t border-slate-200 align-top"
-					const total = `${String(item?.currency ?? "USD")} ${Number(item?.totalPrice ?? 0).toFixed(2)}`
+					const total = `${String(item?.currency ?? "USD")} ${Number(item?.totalAmount ?? 0).toFixed(2)}`
 					const productVariant = `${String(item?.productName ?? "Producto sin nombre")} · ${String(item?.variantName ?? "Allocation")}`
 					const checkIn = String(item?.checkIn ?? "—")
 					const checkOut = String(item?.checkOut ?? "—")
