@@ -40,24 +40,31 @@ wrong, fix the source table or recompute the projection.
 | `EffectiveRestriction`  | `CommercialRule*`                                        | Daily restriction projection for search/sellability. |
 | `SearchUnitView`        | Availability, pricing, restrictions, policy signals      | Search-ready sellability read model.                 |
 
-## Snapshot
+## Booking Contract And Snapshot
 
-Snapshot tables are immutable booking or hold records. They preserve the contract that was
-shown or applied at a point in time. They are not configuration tables and should not be
+The booking aggregate preserves the sold contract. `Booking` also carries the small set of
+persisted front-desk lifecycle fields; its child snapshots remain immutable and must not be
 edited to change future behavior.
 
-| Table                   | Captures                                       | Role                                             |
-| ----------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `Hold`                  | Temporary inventory hold plus policy snapshot  | Pre-booking contract and inventory lock context. |
-| `BookingRoomDetail`     | Room/rate/occupancy/pricing labels and amounts | Booking line-item snapshot.                      |
-| `BookingPolicySnapshot` | Policy contract at booking time                | Immutable condition snapshot.                    |
-| `BookingTaxFee`         | Tax/fee breakdown at booking time              | Immutable tax/fee snapshot.                      |
+| Table                   | Captures                                            | Role                                                         |
+| ----------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| `Hold`                  | Temporary inventory hold plus policy snapshot       | Pre-booking contract and inventory lock context.             |
+| `Booking`               | Provider, stay dates, total, currency and lifecycle | Contract header plus persisted check-in/check-out/no-show.   |
+| `BookingRoomDetail`     | Room/rate/occupancy/pricing labels and amounts      | Immutable multi-room line-item snapshot.                     |
+| `BookingPolicySnapshot` | One frozen condition per booking/category           | Immutable condition snapshot with booking FK and uniqueness. |
+| `BookingTaxFee`         | Tax/fee breakdown at booking time                   | Immutable tax/fee snapshot with booking FK.                  |
 
 ## Guardrails
 
 - New provider-facing mutations must target source-of-truth tables only.
 - Recompute jobs may write derived/read-model tables.
 - Booking and cancellation flows may write snapshot tables.
+- Operational booking reads must use `BookingOperationsQueryRepository`; it is a query
+  repository, not a database table or another source of truth.
+- `Booking.status` is contractual. Check-in, check-out and no-show use
+  `Booking.operationalStatus` plus their actor/timestamp fields.
+- A booking stores one `totalAmount` in its contractual ISO `currency`; never add
+  currency-specific amount columns.
 - Do not reintroduce legacy contractual tables when a source already exists.
 - `BookingTaxFee` is a booking snapshot. It is not the removed legacy `TaxFee` table.
 - `TaxFeeDefinition` and `TaxFeeAssignment` are the only configurable taxes/fees contract.

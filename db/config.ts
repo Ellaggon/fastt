@@ -696,18 +696,25 @@ const TaxFeeAssignment = defineTable({
 const Booking = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
 		userId: column.text({ references: () => User.columns.id, optional: true }), // Optional for guest bookings
 		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
 		bookingDate: column.date({ default: NOW }),
-		checkInDate: column.date(),
-		checkOutDate: column.date(),
+		checkInDate: column.text(), // Local hotel date: YYYY-MM-DD
+		checkOutDate: column.text(), // Local hotel date: YYYY-MM-DD, exclusive
 		numAdults: column.number({ default: 1 }),
 		numChildren: column.number({ default: 0 }),
-		totalAmountUSD: column.number({ optional: true }),
-		totalAmountBOB: column.number({ optional: true }),
+		totalAmount: column.number(),
 		status: column.text({ default: "draft" }), // e.g., "draft"(recién creado) | "locked"(inventario bloqueado) | "confirmed"(pago OK) | "cancelled" | "expired"(lock vencido)
+		operationalStatus: column.text({ default: "pending_arrival" }),
+		checkedInAt: column.date({ optional: true }),
+		checkedInBy: column.text({ references: () => User.columns.id, optional: true }),
+		checkedOutAt: column.date({ optional: true }),
+		checkedOutBy: column.text({ references: () => User.columns.id, optional: true }),
+		noShowAt: column.date({ optional: true }),
+		noShowBy: column.text({ references: () => User.columns.id, optional: true }),
 		notes: column.text({ optional: true }),
-		currency: column.text({ optional: true }), // "USD" | "BOB"
+		currency: column.text(), // ISO 4217 contractual currency
 		source: column.text({ default: "web" }),
 		confirmedAt: column.date({ optional: true }),
 		// Capa 4 hardening: immutable guest/lifecycle metadata for contract audit.
@@ -718,6 +725,11 @@ const Booking = defineTable({
 		refundHandoffSnapshotJson: column.json({ optional: true }),
 		contractSnapshotVersion: column.text({ optional: true }),
 	},
+	indexes: [
+		{ on: ["providerId", "status", "checkInDate"] },
+		{ on: ["providerId", "operationalStatus", "checkOutDate"] },
+		{ on: ["ratePlanId"] },
+	],
 })
 const BookingRoomDetail = defineTable({
 	columns: {
@@ -729,9 +741,9 @@ const BookingRoomDetail = defineTable({
 		checkOut: column.text(),
 		adults: column.number(),
 		children: column.number(),
-		basePrice: column.number(),
-		taxes: column.number(),
-		totalPrice: column.number(),
+		subtotalAmount: column.number(),
+		taxAmount: column.number(),
+		totalAmount: column.number(),
 		// CAPA 4/6: immutable pricing snapshot consumed by booking confirmation.
 		pricingBreakdownJson: column.json({ optional: true }),
 		// Capa 4 hardening: immutable labels/context so booking audit survives catalog edits.
@@ -743,6 +755,7 @@ const BookingRoomDetail = defineTable({
 		occupancySnapshotJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [{ on: ["bookingId"] }, { on: ["variantId"] }, { on: ["ratePlanId"] }],
 })
 const InventoryLock = defineTable({
 	columns: {
@@ -779,19 +792,19 @@ const Hold = defineTable({
 const BookingPolicySnapshot = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
-		bookingId: column.text(),
+		bookingId: column.text({ references: () => Booking.columns.id }),
 		category: column.text(),
 		policyId: column.text({ optional: true }),
 		policySnapshotJson: column.json(),
 		createdAt: column.date({ optional: true }),
 	},
+	indexes: [{ on: ["bookingId", "category"], unique: true }],
 })
 const BookingTaxFee = defineTable({
 	// CAPA 7: immutable tax/fee snapshot at booking confirmation.
 	columns: {
 		id: column.text({ primaryKey: true }),
-		// Keep as plain text for now to avoid FK-related remote reset failures during CAPA 7 rollout.
-		bookingId: column.text(),
+		bookingId: column.text({ references: () => Booking.columns.id }),
 		name: column.text({ optional: true }),
 		breakdownJson: column.json(),
 		totalAmount: column.number(),
