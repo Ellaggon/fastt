@@ -121,19 +121,26 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 		).toEqual([])
 	})
 
-	it("keeps booking pages framed as lifecycle and contract audit surfaces", () => {
+	it("keeps booking pages framed as reception operations with technical detail isolated", () => {
 		const requiredSignals: Record<string, string[]> = {
 			"src/pages/booking/index.astro": [
-				"Reservations Lifecycle Hub",
-				"Contract-safe lifecycle visibility",
-				"Refund handoff",
-				"visibilidad derivada",
+				"Reservas",
+				"Hoy",
+				"Próximas",
+				"En estancia",
+				"Salidas",
+				"Próxima acción",
+				"Buscar huésped o reserva",
 			],
 			"src/pages/booking/[id].astro": [
-				"Reservation operational workspace",
-				"Contract snapshot audit",
-				"Room allocation visibility",
-				"visibilidad derivada",
+				"Detalle de reserva",
+				"Resumen",
+				"Huéspedes",
+				"Habitación",
+				"Condiciones",
+				"Pagos",
+				"Historial",
+				"Detalle técnico",
 			],
 		}
 
@@ -146,7 +153,31 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 
 		expect(
 			violations,
-			`Reservations pages must communicate lifecycle operations and immutable contract snapshots:\n${violations.join("\n")}`
+			`Reservations pages must communicate reception operations first and keep audit internals isolated:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
+	it("keeps technical reservations copy out of the default provider surface", () => {
+		const forbiddenDefaultCopy = [
+			"Reservations Lifecycle Hub",
+			"Contract-safe lifecycle visibility",
+			"Reservation operational workspace",
+			"Contract snapshot audit",
+			"Room allocation visibility",
+			"Stay snapshot",
+			"Audit / handoff",
+			"Ver workspace",
+		]
+		const violations = reservationPages.flatMap((relativePath) => {
+			const source = read(relativePath)
+			return forbiddenDefaultCopy.flatMap((copy) =>
+				source.includes(copy) ? [`${relativePath}: visible technical copy "${copy}"`] : []
+			)
+		})
+
+		expect(
+			violations,
+			`Reservations provider UI should use hotel/reception language, not architecture labels:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
@@ -237,27 +268,25 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 		).toEqual([])
 	})
 
-	it("labels date-based lifecycle as derived visibility, not persisted operations", () => {
-		const violations = [bookingOperationsRepository, ...reservationPages].flatMap(
-			(relativePath) => {
-				const source = read(relativePath)
-				const missingDerivedSignal = source.includes("derived_from_snapshot")
-					? [`${relativePath}: uses deprecated derived_from_snapshot lifecycle label`]
+	it("labels date-based lifecycle as derived visibility inside the read model", () => {
+		const violations = [bookingOperationsRepository].flatMap((relativePath) => {
+			const source = read(relativePath)
+			const missingDerivedSignal = source.includes("derived_from_snapshot")
+				? [`${relativePath}: uses deprecated derived_from_snapshot lifecycle label`]
+				: []
+			const fakePersistedLifecycle =
+				/persisted operational lifecycle|persisted lifecycle state/i.test(source)
+					? [`${relativePath}: claims persisted lifecycle operations without runtime support`]
 					: []
-				const fakePersistedLifecycle =
-					/persisted operational lifecycle|persisted lifecycle state/i.test(source)
-						? [`${relativePath}: claims persisted lifecycle operations without runtime support`]
-						: []
-				const missingVisibilitySignal = source.includes("derived_visibility")
-					? []
-					: [`${relativePath}: missing derived_visibility lifecycle semantics`]
-				return [...missingDerivedSignal, ...fakePersistedLifecycle, ...missingVisibilitySignal]
-			}
-		)
+			const missingVisibilitySignal = source.includes("derived_visibility")
+				? []
+				: [`${relativePath}: missing derived_visibility lifecycle semantics`]
+			return [...missingDerivedSignal, ...fakePersistedLifecycle, ...missingVisibilitySignal]
+		})
 
 		expect(
 			violations,
-			`Reservations must separate lifecycle visibility from real operational lifecycle state:\n${violations.join("\n")}`
+			`Booking read model must separate date-derived visibility from persisted operations:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 })
