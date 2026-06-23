@@ -17,8 +17,8 @@ export type ProviderFinanceBookingSnapshotRow = {
 	currency: unknown
 	confirmedAt: unknown
 	detailId: unknown
-	detailTotalPrice: unknown
-	detailTaxes: unknown
+	detailTotalAmount: unknown
+	detailTaxAmount: unknown
 	providerIdSnapshot: unknown
 	productNameSnapshot: unknown
 	variantNameSnapshot: unknown
@@ -329,12 +329,12 @@ export function buildProviderFinanceSummary(params: {
 		const materialized = materializationByBooking.get(bookingId)
 		const currency = firstCurrency(rows)
 		const grossAmount = roundMoney(
-			rows.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
+			rows.reduce((sum, row) => sum + Number(row.detailTotalAmount ?? 0), 0)
 		)
 		const taxSnapshotTotal = taxByBooking
 			.get(bookingId)
 			?.reduce((sum, row) => sum + Number(row.totalAmount ?? 0), 0)
-		const detailTaxTotal = rows.reduce((sum, row) => sum + Number(row.detailTaxes ?? 0), 0)
+		const detailTaxTotal = rows.reduce((sum, row) => sum + Number(row.detailTaxAmount ?? 0), 0)
 		const taxAmount = roundMoney(Number(taxSnapshotTotal ?? detailTaxTotal ?? 0))
 		const commission = commissionByBooking.get(bookingId) ?? null
 		const payable = payableByBooking.get(bookingId) ?? null
@@ -468,8 +468,8 @@ export function buildProviderFinanceSummary(params: {
 				freshness,
 			},
 			explainability: materialized?.explainability ?? {
-				grossAmountSource: "BookingRoomDetail.totalPrice",
-				taxAmountSource: "BookingRoomDetail.taxes",
+				grossAmountSource: "BookingRoomDetail.totalAmount",
+				taxAmountSource: "BookingRoomDetail.taxAmount",
 				commissionSource: "missing_commission_snapshot",
 				payableSource: "pending_provider_payable_snapshot",
 				reconciliationSource: "ReconciliationMatch",

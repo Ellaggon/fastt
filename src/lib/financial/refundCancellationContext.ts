@@ -6,9 +6,6 @@ import {
 	BookingTaxFee,
 	db,
 	eq,
-	Product,
-	sql,
-	Variant,
 } from "astro:db"
 
 import type { RefundQuoteMoneyLine } from "@/modules/financial/public"
@@ -99,40 +96,32 @@ export async function loadRefundCancellationContext(params: {
 	const booking = await db
 		.select({
 			id: Booking.id,
+			providerId: Booking.providerId,
 			status: Booking.status,
 			currency: Booking.currency,
-			totalAmountUSD: Booking.totalAmountUSD,
-			totalAmountBOB: Booking.totalAmountBOB,
+			totalAmount: Booking.totalAmount,
 			checkInDate: Booking.checkInDate,
 			checkOutDate: Booking.checkOutDate,
 			bookingDate: Booking.bookingDate,
 			confirmedAt: Booking.confirmedAt,
 		})
 		.from(Booking)
-		.where(eq(Booking.id, bookingId))
+		.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, providerId)))
 		.get()
 	if (!booking) return null
 
 	const roomRows = await db
 		.select({
 			id: BookingRoomDetail.id,
-			basePrice: BookingRoomDetail.basePrice,
-			taxes: BookingRoomDetail.taxes,
-			totalPrice: BookingRoomDetail.totalPrice,
+			basePrice: BookingRoomDetail.subtotalAmount,
+			taxes: BookingRoomDetail.taxAmount,
+			totalPrice: BookingRoomDetail.totalAmount,
 			checkIn: BookingRoomDetail.checkIn,
 			checkOut: BookingRoomDetail.checkOut,
 			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
-			productProviderId: Product.providerId,
 		})
 		.from(BookingRoomDetail)
-		.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
-		.leftJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				eq(BookingRoomDetail.bookingId, bookingId),
-				sql`(${BookingRoomDetail.providerIdSnapshot} = ${providerId} OR ${Product.providerId} = ${providerId})`
-			)
-		)
+		.where(eq(BookingRoomDetail.bookingId, bookingId))
 		.all()
 	if (!roomRows.length) return null
 
@@ -159,11 +148,7 @@ export async function loadRefundCancellationContext(params: {
 			.trim()
 			.toUpperCase() || "USD"
 	const fallbackTotal = roomRows.reduce((sum, row) => sum + Number(row.totalPrice ?? 0), 0)
-	const grossAmount = roundMoney(
-		currency === "BOB"
-			? Number(booking.totalAmountBOB ?? fallbackTotal)
-			: Number(booking.totalAmountUSD ?? fallbackTotal)
-	)
+	const grossAmount = roundMoney(Number(booking.totalAmount ?? fallbackTotal))
 	const taxAmount = roundMoney(
 		roomRows.reduce((sum, row) => sum + Number(row.taxes ?? 0), 0) ||
 			taxRows.reduce((sum, row) => sum + Number(row.totalAmount ?? 0), 0)

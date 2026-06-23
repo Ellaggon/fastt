@@ -1,4 +1,4 @@
-import { and, BookingRoomDetail, db, eq, Product, sql, Variant } from "astro:db"
+import { and, Booking, db, eq } from "astro:db"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -31,16 +31,9 @@ export async function bookingBelongsToProvider(
 	providerId: string
 ): Promise<boolean> {
 	const row = await db
-		.select({ id: BookingRoomDetail.id })
-		.from(BookingRoomDetail)
-		.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
-		.leftJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				eq(BookingRoomDetail.bookingId, bookingId),
-				sql`(${Product.providerId} = ${providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${providerId})`
-			)
-		)
+		.select({ id: Booking.id })
+		.from(Booking)
+		.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, providerId)))
 		.get()
 	return Boolean(row)
 }

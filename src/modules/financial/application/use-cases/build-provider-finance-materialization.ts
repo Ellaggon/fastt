@@ -58,8 +58,8 @@ export type ProviderFinanceMaterializationItem = {
 		count: number
 	}
 	explainability: {
-		grossAmountSource: "BookingRoomDetail.totalPrice"
-		taxAmountSource: "BookingTaxFee.totalAmount" | "BookingRoomDetail.taxes"
+		grossAmountSource: "BookingRoomDetail.totalAmount"
+		taxAmountSource: "BookingTaxFee.totalAmount" | "BookingRoomDetail.taxAmount"
 		commissionSource: "CommissionSnapshot" | "missing_commission_snapshot"
 		payableSource: "ProviderPayableSnapshot" | "pending_provider_payable_snapshot"
 		reconciliationSource: "ReconciliationMatch"
@@ -206,12 +206,12 @@ export function buildProviderFinanceMaterialization(params: {
 	const items = [...groupedBookings.entries()].map(([bookingId, rows]) => {
 		const currency = firstCurrency(rows)
 		const grossAmount = roundMoney(
-			rows.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
+			rows.reduce((sum, row) => sum + Number(row.detailTotalAmount ?? 0), 0)
 		)
 		const taxRows = taxByBooking.get(bookingId) ?? []
 		const hasTaxSnapshot = taxRows.length > 0
 		const taxSnapshotTotal = taxRows.reduce((sum, row) => sum + Number(row.totalAmount ?? 0), 0)
-		const detailTaxTotal = rows.reduce((sum, row) => sum + Number(row.detailTaxes ?? 0), 0)
+		const detailTaxTotal = rows.reduce((sum, row) => sum + Number(row.detailTaxAmount ?? 0), 0)
 		const taxAmount = roundMoney(hasTaxSnapshot ? taxSnapshotTotal : detailTaxTotal)
 		const roomSnapshotCount = rows.filter((row) => row.detailId != null).length
 		const contractFingerprint = stableFingerprint({
@@ -317,10 +317,10 @@ export function buildProviderFinanceMaterialization(params: {
 				count: (settlementByBooking.get(bookingId) ?? []).length,
 			},
 			explainability: {
-				grossAmountSource: "BookingRoomDetail.totalPrice" as const,
+				grossAmountSource: "BookingRoomDetail.totalAmount" as const,
 				taxAmountSource: hasTaxSnapshot
 					? ("BookingTaxFee.totalAmount" as const)
-					: ("BookingRoomDetail.taxes" as const),
+					: ("BookingRoomDetail.taxAmount" as const),
 				commissionSource: commission
 					? ("CommissionSnapshot" as const)
 					: ("missing_commission_snapshot" as const),

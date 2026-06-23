@@ -31,16 +31,15 @@ export type FinancialOperationBookingRow = {
 	bookingId: string
 	status: unknown
 	currency: unknown
-	totalAmountUSD: unknown
-	totalAmountBOB: unknown
+	totalAmount: unknown
 	confirmedAt: unknown
 	checkInDate: unknown
 	checkOutDate: unknown
 	refundHandoffSnapshotJson: unknown
 	contractSnapshotVersion: unknown
 	detailId: unknown
-	detailTotalPrice: unknown
-	detailTaxes: unknown
+	detailTotalAmount: unknown
+	detailTaxAmount: unknown
 	providerIdSnapshot: unknown
 	productNameSnapshot: unknown
 	variantNameSnapshot: unknown
@@ -199,11 +198,10 @@ export function buildFinancialOperationReview(params: {
 		String(first.currency ?? "USD")
 			.trim()
 			.toUpperCase() || "USD"
-	const fallbackTotal =
-		currency === "BOB" ? Number(first.totalAmountBOB ?? 0) : Number(first.totalAmountUSD ?? 0)
-	const detailTotal = params.group.reduce((sum, row) => sum + Number(row.detailTotalPrice ?? 0), 0)
+	const fallbackTotal = Number(first.totalAmount ?? 0)
+	const detailTotal = params.group.reduce((sum, row) => sum + Number(row.detailTotalAmount ?? 0), 0)
 	const contractTotal = detailTotal > 0 ? detailTotal : fallbackTotal
-	const taxesTotal = params.group.reduce((sum, row) => sum + Number(row.detailTaxes ?? 0), 0)
+	const taxesTotal = params.group.reduce((sum, row) => sum + Number(row.detailTaxAmount ?? 0), 0)
 	const paymentIntents = params.financialEvidenceRows.filter((row) => row.type === "payment_intent")
 	const settlementRecords = params.financialEvidenceRows.filter(
 		(row) => row.type === "settlement_record"

@@ -9,7 +9,6 @@ import {
 	eq,
 	inArray,
 	Product,
-	sql,
 	Variant,
 } from "astro:db"
 
@@ -22,7 +21,7 @@ import {
 import {
 	buildDuplicateExternalReferenceSignals,
 	buildFinancialReconciliationMatch,
-} from "@/modules/financial/application/use-cases/build-financial-reconciliation-match"
+} from "@/modules/financial/public"
 
 import { json, requireFinancialProvider } from "./_stage2"
 
@@ -37,16 +36,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			bookingId: Booking.id,
 			status: Booking.status,
 			currency: Booking.currency,
-			totalAmountUSD: Booking.totalAmountUSD,
-			totalAmountBOB: Booking.totalAmountBOB,
+			totalAmount: Booking.totalAmount,
 			confirmedAt: Booking.confirmedAt,
 			checkInDate: Booking.checkInDate,
 			checkOutDate: Booking.checkOutDate,
 			refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
 			contractSnapshotVersion: Booking.contractSnapshotVersion,
 			detailId: BookingRoomDetail.id,
-			detailTotalPrice: BookingRoomDetail.totalPrice,
-			detailTaxes: BookingRoomDetail.taxes,
+			detailTotalAmount: BookingRoomDetail.totalAmount,
+			detailTaxAmount: BookingRoomDetail.taxAmount,
 			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
 			productNameSnapshot: BookingRoomDetail.productNameSnapshot,
 			variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
@@ -58,11 +56,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
 		.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				sql`(${Product.providerId} = ${auth.providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${auth.providerId})`
-			)
-		)
+		.where(and(eq(Booking.providerId, auth.providerId)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 		.all()
 	const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]

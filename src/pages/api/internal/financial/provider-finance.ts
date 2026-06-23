@@ -9,7 +9,6 @@ import {
 	eq,
 	inArray,
 	Product,
-	sql,
 	Variant,
 } from "astro:db"
 
@@ -37,8 +36,8 @@ export const GET: APIRoute = async ({ request }) => {
 			currency: Booking.currency,
 			confirmedAt: Booking.confirmedAt,
 			detailId: BookingRoomDetail.id,
-			detailTotalPrice: BookingRoomDetail.totalPrice,
-			detailTaxes: BookingRoomDetail.taxes,
+			detailTotalAmount: BookingRoomDetail.totalAmount,
+			detailTaxAmount: BookingRoomDetail.taxAmount,
 			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
 			productNameSnapshot: BookingRoomDetail.productNameSnapshot,
 			variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
@@ -49,11 +48,7 @@ export const GET: APIRoute = async ({ request }) => {
 		.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
 		.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				sql`(${Product.providerId} = ${auth.providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${auth.providerId})`
-			)
-		)
+		.where(and(eq(Booking.providerId, auth.providerId)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 		.all()
 	const bookingIds = [...new Set(bookingRows.map((row) => String(row.bookingId)).filter(Boolean))]

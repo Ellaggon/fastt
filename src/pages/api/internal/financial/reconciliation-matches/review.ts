@@ -8,7 +8,6 @@ import {
 	desc,
 	eq,
 	Product,
-	sql,
 	Variant,
 } from "astro:db"
 
@@ -19,7 +18,7 @@ import {
 	paymentTransactionRepository,
 	reconciliationMatchRepository,
 } from "@/container/financial.container"
-import { buildFinancialReconciliationMatch } from "@/modules/financial/application/use-cases/build-financial-reconciliation-match"
+import { buildFinancialReconciliationMatch } from "@/modules/financial/public"
 
 import { bookingBelongsToProvider, json, readJson, requireFinancialProvider } from "../_stage2"
 
@@ -40,16 +39,15 @@ export const POST: APIRoute = async ({ request }) => {
 				bookingId: Booking.id,
 				status: Booking.status,
 				currency: Booking.currency,
-				totalAmountUSD: Booking.totalAmountUSD,
-				totalAmountBOB: Booking.totalAmountBOB,
+				totalAmount: Booking.totalAmount,
 				confirmedAt: Booking.confirmedAt,
 				checkInDate: Booking.checkInDate,
 				checkOutDate: Booking.checkOutDate,
 				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
 				contractSnapshotVersion: Booking.contractSnapshotVersion,
 				detailId: BookingRoomDetail.id,
-				detailTotalPrice: BookingRoomDetail.totalPrice,
-				detailTaxes: BookingRoomDetail.taxes,
+				detailTotalAmount: BookingRoomDetail.totalAmount,
+				detailTaxAmount: BookingRoomDetail.taxAmount,
 				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
 				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
 				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
@@ -61,12 +59,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
 			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
-			.where(
-				and(
-					eq(Booking.id, bookingId),
-					sql`(${Product.providerId} = ${auth.providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${auth.providerId})`
-				)
-			)
+			.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, auth.providerId)))
 			.orderBy(desc(BookingRoomDetail.id))
 			.all()
 		if (!rows.length) return json({ error: "not_found" }, 404)

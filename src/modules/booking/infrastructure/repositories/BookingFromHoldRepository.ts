@@ -271,6 +271,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				.where(eq(Product.id, variant.productId))
 				.get()
 			if (!product) throw new Error("HOLD_NOT_FOUND")
+			if (!product.providerId) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
 
 			let holdSnapshot: HoldPolicySnapshot | null | undefined = null
 			try {
@@ -360,16 +361,17 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				.insert(Booking)
 				.values({
 					id: bookingId,
+					providerId: product.providerId,
 					userId: params.input.userId ?? null,
 					ratePlanId: snapshot.ratePlanId,
 					bookingDate: now,
-					checkInDate: new Date(`${snapshot.from}T00:00:00.000Z`),
-					checkOutDate: new Date(`${snapshot.to}T00:00:00.000Z`),
+					checkInDate: snapshot.from,
+					checkOutDate: snapshot.to,
 					numAdults: Math.max(1, adults),
 					numChildren: Math.max(0, children),
-					totalAmountUSD: snapshot.currency === "USD" ? finalTotal : null,
-					totalAmountBOB: snapshot.currency === "BOB" ? finalTotal : null,
+					totalAmount: finalTotal,
 					status: "confirmed",
+					operationalStatus: "pending_arrival",
 					currency: snapshot.currency,
 					source: String(params.input.source ?? "web"),
 					confirmedAt: now,
@@ -397,9 +399,9 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					checkOut: snapshot.to,
 					adults: Math.max(1, adults),
 					children: Math.max(0, children),
-					basePrice: Number(baseTotal.toFixed(2)),
-					taxes: taxesAmount,
-					totalPrice: finalTotal,
+					subtotalAmount: Number(baseTotal.toFixed(2)),
+					taxAmount: taxesAmount,
+					totalAmount: finalTotal,
 					pricingBreakdownJson: {
 						nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
 						totalPrice: Number(baseTotal.toFixed(2)),

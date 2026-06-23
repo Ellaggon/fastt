@@ -9,13 +9,12 @@ import {
 	eq,
 	inArray,
 	Product,
-	sql,
 	Variant,
 } from "astro:db"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { buildFinancialOperationReview } from "@/modules/financial/application/use-cases/build-financial-operation-review"
+import { buildFinancialOperationReview } from "@/modules/financial/public"
 type FinancialExceptionCode =
 	| "refund_handoff_required"
 	| "evidence_unknown"
@@ -51,16 +50,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 				bookingId: Booking.id,
 				status: Booking.status,
 				currency: Booking.currency,
-				totalAmountUSD: Booking.totalAmountUSD,
-				totalAmountBOB: Booking.totalAmountBOB,
+				totalAmount: Booking.totalAmount,
 				confirmedAt: Booking.confirmedAt,
 				checkInDate: Booking.checkInDate,
 				checkOutDate: Booking.checkOutDate,
 				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
 				contractSnapshotVersion: Booking.contractSnapshotVersion,
 				detailId: BookingRoomDetail.id,
-				detailTotalPrice: BookingRoomDetail.totalPrice,
-				detailTaxes: BookingRoomDetail.taxes,
+				detailTotalAmount: BookingRoomDetail.totalAmount,
+				detailTaxAmount: BookingRoomDetail.taxAmount,
 				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
 				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
 				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
@@ -74,11 +72,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
 			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
-			.where(
-				and(
-					sql`(${Product.providerId} = ${providerId} OR ${BookingRoomDetail.providerIdSnapshot} = ${providerId})`
-				)
-			)
+			.where(and(eq(Booking.providerId, providerId)))
 			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 			.all()
 
