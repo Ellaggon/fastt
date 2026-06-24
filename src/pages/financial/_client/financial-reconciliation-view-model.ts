@@ -20,8 +20,8 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 	if (!match) {
 		return {
 			visible: false,
-			statusLabel: "Not visible",
-			explanation: "No proof comparison is visible for this booking yet.",
+			statusLabel: "Sin información suficiente",
+			explanation: "Todavía no hay importes suficientes para comparar esta reserva.",
 			contractAmount: null,
 			paymentAmount: null,
 			settlementAmount: null,
@@ -31,7 +31,7 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 			reviewState: "unknown",
 			reviewStatus: "unreviewed",
 			providerFinanceBlocker:
-				"Provider payable checks may stay stuck until comparison proof is visible.",
+				"El pago al proveedor puede seguir bloqueado hasta que existan importes comparables.",
 		}
 	}
 	const reasons = Array.isArray(match.mismatchReasons)
@@ -51,7 +51,7 @@ export function buildReconciliationViewModel(match: any): FinancialReconciliatio
 		reviewStatus: String(match.reviewStatus || "unreviewed"),
 		providerFinanceBlocker:
 			match.status === "matched" && match.reviewState !== "stale"
-				? "Provider payable checks can continue when the remaining inputs are ready."
-				: "Provider payable checks stay stuck until this proof comparison is reviewed.",
+				? "El pago al proveedor puede continuar cuando estén listos los demás datos."
+				: "El pago al proveedor seguirá bloqueado hasta revisar esta diferencia.",
 	}
 }

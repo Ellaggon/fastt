@@ -24,41 +24,50 @@ export function buildEvidenceGroups(
 	return [
 		{
 			key: "payment",
-			label: "Payment proof",
+			label: "Comprobante de cobro",
 			state: hasDuplicates ? "duplicate" : payment ? "visible" : "missing",
 			count: payment,
-			description: payment ? "Payment proof is visible." : "Payment proof is not visible yet.",
+			description: payment
+				? "El comprobante de cobro está disponible."
+				: "Todavía no hay un comprobante de cobro.",
 		},
 		{
 			key: "settlement",
-			label: "Settlement proof",
+			label: "Comprobante de liquidación",
 			state: settlement ? "visible" : "missing",
 			count: settlement,
 			description: settlement
-				? "Settlement proof is visible."
-				: "Settlement proof is not visible yet.",
+				? "El comprobante de liquidación está disponible."
+				: "Todavía no hay un comprobante de liquidación.",
 		},
 		{
 			key: "refund",
-			label: "Refund proof",
+			label: "Comprobante de reembolso",
 			state: refund ? "visible" : "missing",
 			count: refund,
 			description: refund
-				? "Refund proof is visible."
-				: "Refund proof is not visible for this booking.",
+				? "El comprobante de reembolso está disponible."
+				: "No hay un comprobante de reembolso para esta reserva.",
 		},
 		{
 			key: "reference",
-			label: "External references saved",
+			label: "Referencias externas registradas",
 			state: references ? "visible" : "missing",
 			count: references,
 			description: references
-				? `${references} external reference(s) are available for review.`
-				: "No stable external reference is visible yet.",
+				? `${references} referencia(s) externa(s) disponibles para revisión.`
+				: "Todavía no hay una referencia externa estable.",
 		},
 	]
 }
 
 export function evidenceStateCopy(state: string): string {
-	return humanize(state || "missing")
+	const labels: Record<string, string> = {
+		visible: "Disponible",
+		missing: "Faltante",
+		duplicate: "Duplicado",
+		stale: "Requiere otra revisión",
+		waiting_external: "Esperando respuesta",
+	}
+	return labels[state] || humanize(state || "missing")
 }

@@ -152,7 +152,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "financial_ops",
 		urgency: "high",
 		expectedQueue: "needs_action_today",
-		expectedHumanSignal: "Payment proof is missing.",
+		expectedHumanSignal: "Falta el comprobante de cobro.",
 		item: reviewItem({
 			id: "fx-payment-proof-missing",
 			bookingId: "BK-1001",
@@ -175,7 +175,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "reconciliation_ops",
 		urgency: "high",
 		expectedQueue: "blocked",
-		expectedHumanSignal: "The same external reference appears on more than one booking.",
+		expectedHumanSignal: "La misma referencia externa aparece en más de una reserva.",
 		item: {
 			id: "evidence-duplicate:PSP-7788",
 			bookingId: "BK-1002",
@@ -192,11 +192,11 @@ export const financialOperationalWorld: OperationalCase[] = [
 			}),
 			evidenceIssue: {
 				kind: "duplicate_reference",
-				title: "Duplicate external reference",
+				title: "Referencia externa duplicada",
 				description:
-					"External reference PSP-7788 appears on multiple booking records. Confirm which booking owns this proof.",
-				blocker: "The same external reference appears on more than one booking.",
-				nextAction: "Confirm which booking owns this reference before closing.",
+					"La referencia externa PSP-7788 aparece en varias reservas. Confirma a cuál corresponde.",
+				blocker: "La misma referencia externa aparece en más de una reserva.",
+				nextAction: "Confirma a qué reserva corresponde antes de cerrar el caso.",
 				owner: "reconciliation_ops",
 				severity: "review",
 			},
@@ -208,7 +208,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "reconciliation_ops",
 		urgency: "medium",
 		expectedQueue: "blocked",
-		expectedHumanSignal: "Proof changed after the last review",
+		expectedHumanSignal: "Los comprobantes cambiaron después de la última revisión",
 		item: reviewItem({
 			id: "fx-stale-review",
 			bookingId: "BK-1003",
@@ -241,7 +241,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "financial_ops",
 		urgency: "medium",
 		expectedQueue: "waiting_external",
-		expectedHumanSignal: "Waiting on someone else",
+		expectedHumanSignal: "Esperando respuesta",
 		item: reviewItem({
 			id: "fx-waiting-provider",
 			bookingId: "BK-1004",
@@ -265,7 +265,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "provider_ops",
 		urgency: "high",
 		expectedQueue: "blocked",
-		expectedHumanSignal: "Provider payable check is stuck",
+		expectedHumanSignal: "Los montos deben revisarse primero",
 		item: providerFinanceItem({
 			bookingId: "BK-1005",
 			providerId: "PV-ATACAMA",
@@ -285,7 +285,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "provider_ops",
 		urgency: "medium",
 		expectedQueue: "blocked",
-		expectedHumanSignal: "Statement draft needs another look",
+		expectedHumanSignal: "El resumen del proveedor quedó desactualizado",
 		item: providerFinanceItem({
 			bookingId: "BK-1006",
 			providerId: "PV-CENTRO",
@@ -307,7 +307,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "financial_ops",
 		urgency: "low",
 		expectedQueue: "ready_to_close",
-		expectedHumanSignal: "Start, close, or dismiss this case.",
+		expectedHumanSignal: "Inicia la revisión, cierra el caso o descártalo con una nota.",
 		item: reviewItem({
 			id: "fx-ready-close",
 			bookingId: "BK-1007",
@@ -330,7 +330,7 @@ export const financialOperationalWorld: OperationalCase[] = [
 		persona: "support",
 		urgency: "medium",
 		expectedQueue: "needs_action_today",
-		expectedHumanSignal: "Review the refund follow-up evidence.",
+		expectedHumanSignal: "Revisa los comprobantes y el seguimiento del reembolso.",
 		item: reviewItem({
 			id: "fx-refund-follow-up",
 			bookingId: "BK-1008",
@@ -355,26 +355,27 @@ export const financialOperatorDrills = [
 	{
 		id: "new-operator-cold-start",
 		persona: "new_operator",
-		prompt: "Find the first case that needs attention without knowing internal queue names.",
-		successSignals: ["Needs attention", "What is stopping it", "What to do next"],
+		prompt:
+			"Encuentra el primer caso que requiere atención sin conocer nombres internos del sistema.",
+		successSignals: ["Requiere atención", "Qué impide avanzar", "Próxima acción"],
 	},
 	{
 		id: "financial-ops-15-minute-triage",
 		persona: "financial_ops",
-		prompt: "Separate cases you can act on from cases waiting on someone else.",
-		successSignals: ["Payment proof is missing", "Waiting on someone else", "Can be closed"],
+		prompt: "Separa los casos accionables de los que esperan una respuesta externa.",
+		successSignals: ["Falta el comprobante de cobro", "Esperando respuesta", "Listo para cerrar"],
 	},
 	{
 		id: "proof-comparison-risk-check",
 		persona: "reconciliation_ops",
-		prompt: "Find the riskiest proof comparison issue and name what blocks progress.",
-		successSignals: ["Proof does not line up", "Duplicate external reference", "Proof changed"],
+		prompt: "Encuentra la liquidación más riesgosa e identifica qué impide avanzar.",
+		successSignals: ["Los importes no coinciden", "Referencia externa duplicada", "cambiaron"],
 	},
 	{
 		id: "provider-payable-check",
 		persona: "provider_ops",
-		prompt: "Find which provider payable check is stuck and what other team must act first.",
-		successSignals: ["Provider payable check is stuck", "Proof must be reviewed first"],
+		prompt: "Encuentra qué pago al proveedor está bloqueado y qué equipo debe actuar primero.",
+		successSignals: ["Pago pendiente bloqueado", "Los montos deben revisarse primero"],
 	},
 ]
 
@@ -383,7 +384,7 @@ export function rowForOperationalCase(entry: OperationalCase): FinancialRowViewM
 		item: entry.item,
 		reconciliation: entry.reconciliation || null,
 		referenceCounts: entry.referenceCounts || { payment: 0, settlement: 0, refund: 0, invoice: 0 },
-		ageLabel: "opened 3d ago",
+		ageLabel: "abierto hace 3 días",
 		sourceKind: "visibility only",
 	})
 }

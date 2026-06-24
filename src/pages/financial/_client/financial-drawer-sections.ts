@@ -1,5 +1,10 @@
 import { evidenceStateCopy } from "./financial-evidence-view-model"
-import { providerFinanceBlockerLabel } from "./financial-provider-finance-copy"
+import { operationalCategoryLabels } from "./financial-labels"
+import {
+	providerFinanceBlockerAction,
+	providerFinanceBlockerLabel,
+	providerFinanceBlockerReason,
+} from "./financial-provider-finance-copy"
 import type { FinancialDrawerViewModel } from "./financial-drawer-view-model"
 
 type DrawerRenderDeps = {
@@ -34,12 +39,42 @@ function section(title: string, body: string, options: { muted?: boolean } = {})
 
 function humanFreshness(value: unknown): string {
 	const state = String(value || "").toLowerCase()
-	if (state === "fresh") return "Up to date"
-	if (state === "stale") return "Needs another look"
-	if (state === "waiting_external") return "Waiting on someone else"
-	if (state === "not_visible") return "Not visible yet"
-	if (state === "unknown") return "Unclear"
-	return state ? state.replaceAll("_", " ") : "Unclear"
+	if (state === "fresh") return "Información actualizada"
+	if (state === "stale") return "La información cambió; revisar otra vez"
+	if (state === "waiting_external") return "Esperando respuesta"
+	if (state === "not_visible") return "Todavía no disponible"
+	if (state === "unknown") return "Por confirmar"
+	if (state === "snapshot_ready" || state === "evidence_matched") return "Información suficiente"
+	if (state === "evidence_partial") return "Faltan comprobantes"
+	if (state === "evidence_unknown") return "Comprobantes por confirmar"
+	if (state === "handoff_pending") return "Esperando seguimiento"
+	if (state === "evidence_visible" || state === "visible") return "Comprobante disponible"
+	return "Por confirmar"
+}
+
+function referenceTypeLabel(value: unknown): string {
+	const labels: Record<string, string> = {
+		payment_evidence: "Comprobante de cobro",
+		settlement_evidence: "Comprobante de liquidación",
+		refund_evidence: "Comprobante de reembolso",
+		invoice_reference: "Referencia de documento",
+	}
+	return labels[String(value || "")] || "Referencia externa"
+}
+
+function reviewEventLabel(value: unknown): string {
+	const labels: Record<string, string> = {
+		exception_acknowledged: "Revisión iniciada",
+		exception_resolved: "Caso cerrado",
+		exception_dismissed: "Caso descartado",
+		reference_recorded: "Comprobante registrado",
+		refund_handoff_acknowledged: "Seguimiento de reembolso iniciado",
+		refund_handoff_closed: "Seguimiento de reembolso cerrado",
+		refund_handoff_dismissed: "Seguimiento de reembolso descartado",
+		reconciliation_reviewed: "Importes revisados",
+		reconciliation_review_marked_stale: "La revisión quedó desactualizada",
+	}
+	return labels[String(value || "")] || "Actualización del caso"
 }
 
 function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
@@ -48,25 +83,25 @@ function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 	return `<section class="rounded-xl border border-amber-200 bg-amber-50 p-4">
 		<div class="flex items-start justify-between gap-3">
 			<div>
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">What needs attention</p>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Requiere atención</p>
 				<h2 class="mt-1 text-lg font-semibold text-slate-950">${deps.escapeHtml(row.title)}</h2>
 				<p class="mt-2 text-sm leading-6 text-amber-900">${deps.escapeHtml(row.description)}</p>
 			</div>
-			<span class="rounded-full border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-900">${deps.escapeHtml(deps.label(row.queue))}</span>
+			<span class="rounded-full border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-900">${deps.escapeHtml(operationalCategoryLabels[row.operationalCategory] || "Caso financiero")}</span>
 		</div>
 		<div class="mt-3 grid gap-2 sm:grid-cols-2">
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Owner:</span> ${deps.escapeHtml(row.ownerLabel)}</div>
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Aging:</span> ${deps.escapeHtml(row.ageLabel)}</div>
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Current read:</span> ${deps.escapeHtml(humanFreshness(row.staleState))}</div>
-			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Do next:</span> ${deps.escapeHtml(row.nextAction)}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Responsable:</span> ${deps.escapeHtml(row.ownerLabel)}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Antigüedad:</span> ${deps.escapeHtml(row.ageLabel)}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Estado de la información:</span> ${deps.escapeHtml(humanFreshness(row.staleState))}</div>
+			<div class="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs"><span class="font-semibold text-amber-900">Próxima acción:</span> ${deps.escapeHtml(row.nextAction)}</div>
 		</div>
-		<div class="mt-3 rounded-lg border border-amber-200 bg-white/70 p-2 text-xs text-amber-900"><span class="font-semibold">What is stopping it:</span> ${deps.escapeHtml(row.blocker)}</div>
+		<div class="mt-3 rounded-lg border border-amber-200 bg-white/70 p-2 text-xs text-amber-900"><span class="font-semibold">Qué impide avanzar:</span> ${deps.escapeHtml(row.blocker)}</div>
 	</section>`
 }
 
 function renderWhy(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	return section(
-		"Why this needs attention",
+		"Por qué requiere atención",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(input.viewModel.whyThisNeedsReview)}</p>`
 	)
 }
@@ -75,12 +110,12 @@ function renderContext(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 	const item = input.viewModel.item
 	const operation = input.viewModel.operation
 	return section(
-		"Operational context",
+		"Contexto operativo",
 		`<div class="grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Booking id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${deps.escapeHtml(item.bookingId)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Provider id</div><div class="mt-1 break-all font-mono text-xs text-slate-900">${deps.escapeHtml(item.providerId)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Operational amount</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(operation?.currency || item?.providerFinance?.currency, operation?.contractAmount || item?.providerFinance?.grossAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Product / variant</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(operation?.productName || operation?.variantName || "-")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reserva</div><div class="mt-1 break-all text-sm font-semibold text-slate-900">${deps.escapeHtml(item.bookingId || "Sin reserva asociada")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Proveedor</div><div class="mt-1 break-all text-sm text-slate-900">${deps.escapeHtml(item.providerId || "Sin proveedor asociado")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">${deps.escapeHtml(input.viewModel.row.amountLabel)}</div><div class="mt-1 text-sm font-semibold text-slate-900">${input.viewModel.row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(input.viewModel.row.amountCurrency, input.viewModel.row.amount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Producto</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(operation?.contract?.productName || operation?.productName || operation?.variantName || "-")}</div></div>
 		</div>`
 	)
 }
@@ -105,23 +140,22 @@ function renderEvidence(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 					(reference) => `<li class="rounded-lg border border-slate-200 bg-white p-3">
 						<div class="flex items-start justify-between gap-3">
 							<div>
-								<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${deps.escapeHtml(reference.type)}</div>
+								<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${deps.escapeHtml(referenceTypeLabel(reference.type))}</div>
 								<div class="mt-1 font-mono text-xs text-slate-800">${deps.escapeHtml(reference.referenceValue)}</div>
 							</div>
-							<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "reference saved" : "proof visible"}</span>
+							<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "referencia registrada" : "comprobante visible"}</span>
 						</div>
 						<div class="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
-							<div>System: ${deps.escapeHtml(reference.externalSystem || "-")}</div>
-							<div>Recorded: ${deps.escapeHtml(deps.formatDate(reference.recordedAt))}</div>
-							<div>Source: ${deps.escapeHtml(deps.label(reference.source || "shadow visibility"))}</div>
-							<div>Amount: ${reference.amount == null ? "-" : deps.escapeHtml(deps.money(reference.currency, reference.amount))}</div>
+							<div>Sistema externo: ${deps.escapeHtml(reference.externalSystem || "-")}</div>
+							<div>Registrado: ${deps.escapeHtml(deps.formatDate(reference.recordedAt))}</div>
+							<div>Importe: ${reference.amount == null ? "-" : deps.escapeHtml(deps.money(reference.currency, reference.amount))}</div>
 						</div>
 					</li>`
 				)
 				.join("")}</ul>`
-		: '<p class="mt-3 text-sm text-slate-500">No stable external reference is visible yet.</p>'
+		: '<p class="mt-3 text-sm text-slate-500">Todavía no hay una referencia externa estable.</p>'
 	return section(
-		"Proof and external references",
+		"Comprobantes y referencias externas",
 		`<ul class="space-y-2">${groupHtml}</ul>${referenceHtml}`
 	)
 }
@@ -130,59 +164,57 @@ function renderReconciliation(input: DrawerRenderInput, deps: DrawerRenderDeps):
 	const reconciliation = input.viewModel.reconciliation
 	if (!reconciliation.visible) {
 		return section(
-			"Proof comparison",
+			"Revisión de importes",
 			`<p class="text-sm text-slate-500">${deps.escapeHtml(reconciliation.explanation)}</p>`
 		)
 	}
 	return section(
-		"Proof comparison",
+		"Revisión de importes",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(reconciliation.explanation)}</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Contract amount</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.contractAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Payment proof amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.paymentAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Settlement proof amount</div><div class="mt-1 text-sm text-slate-900">${reconciliation.settlementAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Visible difference</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.differenceAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Importe confirmado de la reserva</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.contractAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Cobro registrado</div><div class="mt-1 text-sm text-slate-900">${reconciliation.paymentAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Liquidación registrada</div><div class="mt-1 text-sm text-slate-900">${reconciliation.settlementAmount == null ? "-" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Diferencia visible</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.differenceAmount))}</div></div>
 		</div>
 		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">${deps.escapeHtml(reconciliation.providerFinanceBlocker)}</div>
-		<label class="mt-3 block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Case note</label>
-		<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Optional note for this proof comparison">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
-		<p class="mt-2 text-xs text-slate-500">Marks this proof comparison as reviewed only; it does not reconcile funds or move money.</p>
-		<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Mark proof reviewed</button>`
+		<label class="mt-3 block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Nota de revisión</label>
+		<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Nota opcional sobre la diferencia encontrada">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
+		<p class="mt-2 text-xs text-slate-500">Esta acción solo confirma la revisión de los importes; no mueve dinero.</p>
+		<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Confirmar revisión</button>`
 	)
 }
 
 function renderRefund(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	const handoff = input.refundHandoff
-	const derivedState = input.viewModel.operation?.refund?.state || "not_applicable"
 	if (!handoff) {
 		return section(
-			"Refund follow-up",
+			"Seguimiento de reembolso",
 			`<div class="flex items-start justify-between gap-3">
-				<p class="text-sm text-slate-600">Derived visibility: ${deps.escapeHtml(deps.label(derivedState))}</p>
-				<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">derived only</span>
+				<p class="text-sm text-slate-600">No hay un seguimiento operativo abierto para este reembolso.</p>
 			</div>
-			<p class="mt-3 text-xs text-slate-500">No persisted refund handoff is open for this booking. GET views do not create handoffs automatically.</p>`
+			<p class="mt-3 text-xs text-slate-500">La información calculada está disponible en el detalle técnico. Esta vista no crea seguimientos automáticamente.</p>`
 		)
 	}
 	return section(
-		"Refund follow-up",
+		"Seguimiento de reembolso",
 		`<div class="flex items-start justify-between gap-3">
-			<p class="text-sm text-slate-600">Follow-up visibility only. Closing this case does not execute a refund.</p>
+			<p class="text-sm text-slate-600">Este caso permite revisar y documentar el seguimiento. Cerrar la revisión no ejecuta un reembolso.</p>
 			${deps.handoffStatusChip(handoff.status)}
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${deps.ownerChip(handoff.nextOwner)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Age</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.refundHandoffAge(handoff))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Expected amount</div><div class="mt-1 text-sm text-slate-900">${handoff.expectedAmount == null ? "-" : deps.escapeHtml(deps.money(handoff.currency, handoff.expectedAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Refund proof</div><div class="mt-1 text-sm text-slate-900">${input.refundEvidence.length ? "Refund proof visible" : "No refund proof visible"}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Responsable</div><div class="mt-1">${deps.ownerChip(handoff.nextOwner)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Antigüedad</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.refundHandoffAge(handoff))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Importe esperado</div><div class="mt-1 text-sm text-slate-900">${handoff.expectedAmount == null ? "-" : deps.escapeHtml(deps.money(handoff.currency, handoff.expectedAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Comprobante</div><div class="mt-1 text-sm text-slate-900">${input.refundEvidence.length ? "Comprobante disponible" : "Comprobante faltante"}</div></div>
 		</div>
-		<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Refund follow-up note</label>
-		<textarea id="refundHandoffNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for close or dismiss">${deps.escapeHtml(handoff.notes || "")}</textarea>
-		<p class="mt-2 text-xs text-slate-500">Review closed means operational refund review closed, not refund execution.</p>
+		<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Nota de seguimiento</label>
+		<textarea id="refundHandoffNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(handoff.notes || "")}</textarea>
+		<p class="mt-2 text-xs text-slate-500">Cerrar este caso finaliza la revisión operativa, no ejecuta el reembolso.</p>
 		<div class="mt-3 flex flex-wrap gap-2">
-			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Start follow-up</button>
-			<button type="button" data-refund-handoff-action="close" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Close review</button>
-			<button type="button" data-refund-handoff-action="dismiss" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss handoff</button>
+			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Iniciar seguimiento</button>
+			<button type="button" data-refund-handoff-action="close" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Cerrar revisión</button>
+			<button type="button" data-refund-handoff-action="dismiss" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Descartar caso</button>
 		</div>`
 	)
 }
@@ -197,30 +229,30 @@ function renderProviderFinance(input: DrawerRenderInput, deps: DrawerRenderDeps)
 				.map(
 					(detail: any) => `<li class="rounded-lg border border-amber-200 bg-amber-50 p-3">
 						<div class="text-sm font-semibold text-amber-900">${deps.escapeHtml(providerFinanceBlockerLabel(detail))}</div>
-						<div class="mt-1 text-xs leading-5 text-amber-800">${deps.escapeHtml(detail.reason)}</div>
-						<div class="mt-2 text-xs font-semibold text-amber-900">Do next: ${deps.escapeHtml(detail.nextOperationalAction)}</div>
+						<div class="mt-1 text-xs leading-5 text-amber-800">${deps.escapeHtml(providerFinanceBlockerReason(detail))}</div>
+						<div class="mt-2 text-xs font-semibold text-amber-900">Próxima acción: ${deps.escapeHtml(providerFinanceBlockerAction(detail))}</div>
 					</li>`
 				)
 				.join("")
-		: '<li class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No blocking reason visible.</li>'
+		: '<li class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">No hay bloqueos visibles.</li>'
 	return section(
-		"Provider payable check",
+		"Pago pendiente al proveedor",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(copy.blocker)}</p>
-		<div class="mt-3 grid gap-3 sm:grid-cols-4">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Gross</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.grossAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Commission</div><div class="mt-1 text-sm text-slate-900">${finance.commissionAmount == null ? "snapshot missing" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Tax</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.taxAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Net payable for review</div><div class="mt-1 text-sm text-slate-900">${finance.netPayable == null ? "snapshot missing" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable))}</div></div>
+		<div class="mt-3 grid gap-3 sm:grid-cols-2">
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Importe bruto</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.grossAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Comisión</div><div class="mt-1 text-sm text-slate-900">${finance.commissionAmount == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Impuestos</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.taxAmount))}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Pendiente al proveedor</div><div class="mt-1 text-sm font-semibold text-slate-900">${finance.netPayable == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable))}</div></div>
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Owner</div><div class="mt-1">${deps.ownerChip(finance.operationalOwner || "provider_finance")}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Proof check</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.reconciliationDependency)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Statement draft</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.statementFreshness)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Do next</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.nextAction)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Responsable</div><div class="mt-1">${deps.ownerChip(finance.operationalOwner || "provider_finance")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Revisión de importes</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.reconciliationDependency)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Resumen del proveedor</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.statementFreshness)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Próxima acción</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.nextAction)}</div></div>
 		</div>
 		<ul class="mt-3 space-y-2">${detailHtml}</ul>
-		${copy.freshnessNote ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Why this needs another look:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
-		<p class="mt-3 text-xs text-slate-500">Visibility only: this does not initiate provider disbursement, create accounting entries, or move funds.</p>`
+		${copy.freshnessNote ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Por qué debe revisarse otra vez:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
+		<p class="mt-3 text-xs text-slate-500">Esta pantalla solo informa y permite revisar. No envía pagos ni mueve dinero.</p>`
 	)
 }
 
@@ -232,37 +264,37 @@ function renderStatement(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 		.join("")
 	const staleHtml = statement.staleReasons.length
 		? statement.staleReasons.map((reason) => `<li>${deps.escapeHtml(reason)}</li>`).join("")
-		: "<li>No reason to review again is visible.</li>"
+		: "<li>No hay motivos visibles para revisar otra vez.</li>"
 	return section(
-		"Provider statement draft",
-		`<p class="text-sm text-slate-700">Statement draft visibility is a read artifact for operational review. It is not a ledger, invoice, balance, or accounting statement.</p>
+		"Resumen del proveedor",
+		`<p class="text-sm text-slate-700">Este resumen agrupa información operativa para revisión. No confirma ni ejecuta pagos.</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Statement draft</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.state)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Needs another look?</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.freshness)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Included bookings</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.includedBookings)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Excluded bookings</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.excludedBookings)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Estado</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.state)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Vigencia de la información</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.freshness)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reservas incluidas</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.includedBookings)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reservas excluidas</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.excludedBookings)}</div></div>
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">What it depends on</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Why it needs another look</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Qué debe estar listo</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Por qué requiere otra revisión</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
 		</div>
-		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span class="font-semibold">Do next:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
+		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span class="font-semibold">Próxima acción:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
 	)
 }
 
 function renderTimeline(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	if (!input.events.length)
 		return section(
-			"Timeline",
-			'<p class="text-sm text-slate-500">No review events recorded yet.</p>'
+			"Historial",
+			'<p class="text-sm text-slate-500">Todavía no hay movimientos de revisión registrados.</p>'
 		)
 	return section(
-		"Timeline",
+		"Historial",
 		`<ol class="space-y-3">${input.events
 			.map(
 				(event) => `<li class="border-l border-slate-200 pl-3">
-					<div class="text-sm font-semibold text-slate-900">${deps.escapeHtml(deps.label(event.type))}</div>
-					<div class="text-xs text-slate-500">${deps.escapeHtml(deps.formatDate(event.createdAt))} · ${deps.escapeHtml(deps.label(event.actorType || "operator"))}</div>
+					<div class="text-sm font-semibold text-slate-900">${deps.escapeHtml(reviewEventLabel(event.type))}</div>
+					<div class="text-xs text-slate-500">${deps.escapeHtml(deps.formatDate(event.createdAt))} · Operador</div>
 				</li>`
 			)
 			.join("")}</ol>`
@@ -272,30 +304,30 @@ function renderTimeline(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	const item = input.viewModel.item
 	return section(
-		"Actions",
+		"Acciones",
 		`<div>
-			<div class="text-sm font-semibold text-slate-950">Record evidence</div>
-			<p class="mt-1 text-xs text-slate-500">Reference recorded here stays visible as proof for review; it does not close the review automatically.</p>
+			<div class="text-sm font-semibold text-slate-950">Registrar comprobante</div>
+			<p class="mt-1 text-xs text-slate-500">La referencia quedará disponible para revisión y no cerrará el caso automáticamente.</p>
 			<div class="mt-3 grid gap-3 sm:grid-cols-2">
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Type</span><select id="financialReferenceType" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"><option value="payment_evidence">Payment proof</option><option value="refund_evidence">Refund proof</option><option value="settlement_evidence">Settlement proof</option><option value="invoice_reference">Invoice reference</option></select></label>
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Reference value</span><input id="financialReferenceValue" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="External reference id" /></label>
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>External system</span><input id="financialReferenceSystem" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" /></label>
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Amount</span><input id="financialReferenceAmount" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional" /></label>
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Currency</span><input id="financialReferenceCurrency" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm uppercase text-slate-800" placeholder="USD" maxlength="8" /></label>
-				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Note</span><input id="financialReferenceNote" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Optional review note" /></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Tipo</span><select id="financialReferenceType" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"><option value="payment_evidence">Comprobante de cobro</option><option value="refund_evidence">Comprobante de reembolso</option><option value="settlement_evidence">Comprobante de liquidación</option><option value="invoice_reference">Referencia de documento</option></select></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Referencia externa</span><input id="financialReferenceValue" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Identificador de la referencia" /></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Sistema externo</span><input id="financialReferenceSystem" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Opcional" /></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Importe</span><input id="financialReferenceAmount" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Opcional" /></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Moneda</span><input id="financialReferenceCurrency" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm uppercase text-slate-800" placeholder="USD" maxlength="8" /></label>
+				<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Nota</span><input id="financialReferenceNote" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Contexto opcional para la revisión" /></label>
 			</div>
-			<button type="button" data-reference-action="record" class="mt-3 rounded-lg border border-slate-300 bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Record evidence</button>
+			<button type="button" data-reference-action="record" class="mt-3 rounded-lg border border-slate-300 bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Registrar comprobante</button>
 		</div>
 		<div class="mt-4 border-t border-slate-200 pt-4">
-			<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Resolution note</label>
-			<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Required for resolve or dismiss">${deps.escapeHtml(item.resolutionNote || "")}</textarea>
-			<p class="mt-2 text-xs text-slate-500">Resolved means operational review closed, not financially matched.</p>
+			<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Nota de cierre</label>
+			<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(item.resolutionNote || "")}</textarea>
+			<p class="mt-2 text-xs text-slate-500">Cerrar finaliza la revisión operativa; no confirma movimientos de dinero.</p>
 			<div class="mt-3 flex flex-wrap gap-2">
-				<button type="button" data-review-action="acknowledge" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Acknowledge</button>
-				<button type="button" data-review-action="resolve" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Resolve review</button>
-				<button type="button" data-review-action="dismiss" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Dismiss</button>
+				<button type="button" data-review-action="acknowledge" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Iniciar revisión</button>
+				<button type="button" data-review-action="resolve" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Cerrar caso</button>
+				<button type="button" data-review-action="dismiss" ${input.canReview ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Descartar</button>
 			</div>
-			${item.persistedId ? "" : '<p class="mt-3 text-xs text-slate-500">Derived-only item: persisted review actions become available after an operator opens a persisted record.</p>'}
+			${item.persistedId ? "" : '<p class="mt-3 text-xs text-slate-500">Este caso es solo informativo. Las acciones estarán disponibles cuando exista una revisión registrada.</p>'}
 		</div>`
 	)
 }
@@ -305,9 +337,9 @@ function renderTechnical(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 		? input.viewModel.technicalDetails
 				.map((detail) => `<li>${deps.escapeHtml(detail)}</li>`)
 				.join("")
-		: "<li>No internal detail visible.</li>"
+		: "<li>No hay detalle interno disponible.</li>"
 	return `<details class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-		<summary class="cursor-pointer text-sm font-semibold text-slate-800">Technical details</summary>
+		<summary class="cursor-pointer text-sm font-semibold text-slate-800">Detalle técnico</summary>
 		<ul class="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-600">${details}</ul>
 	</details>`
 }

@@ -17,9 +17,25 @@ export type FinancialOperationalQueue =
 	| "resolved_history"
 	| "advanced_all"
 
+export type FinancialOperationalCategory =
+	| "collections"
+	| "provider_payables"
+	| "refunds"
+	| "settlements"
+	| "exceptions"
+
+export type FinancialAttentionState =
+	| "needs_attention"
+	| "waiting_external"
+	| "blocked"
+	| "ready_to_close"
+	| "closed"
+
 export type FinancialRowViewModel = {
 	id: string
 	queue: FinancialOperationalQueue
+	operationalCategory: FinancialOperationalCategory
+	attentionState: FinancialAttentionState
 	title: string
 	description: string
 	bookingId: string
@@ -33,6 +49,11 @@ export type FinancialRowViewModel = {
 	severity: string
 	ageLabel: string
 	operationalState: string
+	isBlocked: boolean
+	canClose: boolean
+	amount: number | null
+	amountCurrency: string
+	amountLabel: string
 	sourceKind: string
 	item: any
 }
@@ -62,13 +83,15 @@ function primaryBlocker(item: any, reconciliation: any): string {
 	if (financeDetail?.reason) return financeDetail.reason
 	const reconciliationIssue = reconciliationIssueLabel(reconciliation)
 	if (reconciliationIssue) return reconciliationIssue
-	if (hasAnyCode(item, ["refund_handoff_required"])) return "Refund handoff needs review."
-	if (hasAnyCode(item, ["missing_payment_reference"])) return "Payment proof is missing."
-	if (hasAnyCode(item, ["missing_settlement_reference"])) return "Settlement proof is missing."
-	if (hasAnyCode(item, ["missing_refund_reference"])) return "Refund proof is missing."
-	if (hasAnyCode(item, ["incomplete_contract_snapshot"])) return "Booking proof needs another look."
-	if (item?.code === "clean_record") return "Nothing is stopping this case."
-	return item?.reason || "This case needs an operator to review it."
+	if (hasAnyCode(item, ["refund_handoff_required"])) return "El reembolso necesita seguimiento."
+	if (hasAnyCode(item, ["missing_payment_reference"])) return "Falta el comprobante de cobro."
+	if (hasAnyCode(item, ["missing_settlement_reference"]))
+		return "Falta el comprobante de liquidación."
+	if (hasAnyCode(item, ["missing_refund_reference"])) return "Falta el comprobante de reembolso."
+	if (hasAnyCode(item, ["incomplete_contract_snapshot"]))
+		return "Faltan datos confirmados de la reserva."
+	if (item?.code === "clean_record") return "Este caso no tiene bloqueos visibles."
+	return item?.reason || "Este caso necesita revisión de un operador."
 }
 
 function nextActionFor(item: any, reconciliation: any): string {
@@ -77,10 +100,11 @@ function nextActionFor(item: any, reconciliation: any): string {
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.nextOperationalAction) return financeDetail.nextOperationalAction
 	if (reconciliation?.reviewState === "stale")
-		return "Look at the new evidence and mark this case reviewed."
+		return "Revisa los comprobantes nuevos y confirma la revisión."
 	if (reconciliation && reconciliation.status !== "matched")
-		return "Compare the visible evidence before closing the case."
-	if (hasAnyCode(item, ["refund_handoff_required"])) return "Review the refund follow-up evidence."
+		return "Compara los importes visibles antes de cerrar el caso."
+	if (hasAnyCode(item, ["refund_handoff_required"]))
+		return "Revisa los comprobantes y el seguimiento del reembolso."
 	if (
 		hasAnyCode(item, [
 			"missing_payment_reference",
@@ -88,11 +112,11 @@ function nextActionFor(item: any, reconciliation: any): string {
 			"missing_refund_reference",
 		])
 	)
-		return "Add the external reference when it becomes available."
+		return "Registra la referencia externa cuando esté disponible."
 	if (item?.persistedId && !["resolved", "dismissed"].includes(String(item.status || "open")))
-		return "Start, close, or dismiss this case."
-	if (item?.code === "clean_record") return "No action needed."
-	return "Open the case details."
+		return "Inicia la revisión, cierra el caso o descártalo con una nota."
+	if (item?.code === "clean_record") return "No requiere acción."
+	return "Abre el detalle y revisa el contexto."
 }
 
 function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
@@ -122,16 +146,157 @@ function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
 	return "needs_review"
 }
 
+function operationalCategoryFor(item: any, reconciliation: any): FinancialOperationalCategory {
+	const evidenceKind = String(item?.evidenceIssue?.kind || "")
+	if (item?.providerFinance) return "provider_payables"
+	if (
+		hasAnyCode(item, ["refund_handoff_required", "missing_refund_reference"]) ||
+		evidenceKind === "refund"
+	) {
+		return "refunds"
+	}
+	if (
+		(reconciliation &&
+			(reconciliation.status !== "matched" ||
+				reconciliation.reviewState === "stale" ||
+				reconciliation.mismatchReasons?.length)) ||
+		hasAnyCode(item, ["missing_settlement_reference"]) ||
+		["duplicate_reference", "unmatched_settlement"].includes(evidenceKind)
+	) {
+		return "settlements"
+	}
+	if (hasAnyCode(item, ["missing_payment_reference"]) || evidenceKind === "unmatched_payment") {
+		return "collections"
+	}
+	return "exceptions"
+}
+
+function operationalAmount(params: {
+	item: any
+	reconciliation: any
+	refundHandoff?: any
+	category: FinancialOperationalCategory
+}): { amount: number | null; currency: string; label: string } {
+	const { item, reconciliation, refundHandoff, category } = params
+	const operation = item?.operation || {}
+	const currency = String(
+		item?.providerFinance?.currency ||
+			refundHandoff?.currency ||
+			reconciliation?.currency ||
+			operation?.currency ||
+			"USD"
+	)
+	if (category === "provider_payables") {
+		return {
+			amount: item?.providerFinance?.netPayable ?? null,
+			currency,
+			label: "Pendiente al proveedor",
+		}
+	}
+	if (category === "refunds" && refundHandoff?.expectedAmount != null) {
+		return {
+			amount: Number(refundHandoff.expectedAmount),
+			currency,
+			label: "Reembolso esperado",
+		}
+	}
+	if (category === "settlements" && reconciliation) {
+		const difference = Number(reconciliation?.differenceAmount || 0)
+		return {
+			amount:
+				difference !== 0
+					? Math.abs(difference)
+					: Number(reconciliation?.contractAmount ?? operation?.contractTotal ?? 0),
+			currency,
+			label: difference !== 0 ? "Diferencia por revisar" : "Importe revisado",
+		}
+	}
+	const amount = operation?.contractTotal ?? item?.amount ?? null
+	return {
+		amount: amount == null ? null : Number(amount),
+		currency,
+		label: category === "collections" ? "Importe del cobro" : "Importe de la reserva",
+	}
+}
+
+function operationalFlags(params: {
+	item: any
+	queue: FinancialOperationalQueue
+	financeView: ReturnType<typeof buildProviderFinanceRowViewModel> | null
+	reconciliation: any
+}): {
+	isBlocked: boolean
+	canClose: boolean
+	attentionState: FinancialAttentionState
+} {
+	const { item, queue, financeView, reconciliation } = params
+	const status = String(item?.status || "open")
+	const isClosed = ["resolved", "dismissed"].includes(status) || queue === "resolved_history"
+	const isWaiting = status === "waiting_external" || queue === "waiting_external"
+	const hasSpecificEvidenceBlock = hasAnyCode(item, [
+		"missing_payment_reference",
+		"missing_settlement_reference",
+		"missing_refund_reference",
+		"evidence_unknown",
+		"refund_handoff_required",
+	])
+	const isBlocked =
+		!isClosed &&
+		!isWaiting &&
+		(Boolean(item?.evidenceIssue) ||
+			hasSpecificEvidenceBlock ||
+			Boolean(
+				reconciliation &&
+				(reconciliation.status !== "matched" ||
+					reconciliation.reviewState === "stale" ||
+					reconciliation.mismatchReasons?.length)
+			) ||
+			Boolean(financeView && financeView.subqueue !== "provider_finance_review"))
+	const canClose =
+		!isClosed && !isWaiting && !isBlocked && Boolean(item?.persistedId) && status === "acknowledged"
+	const attentionState: FinancialAttentionState = isClosed
+		? "closed"
+		: isWaiting
+			? "waiting_external"
+			: canClose
+				? "ready_to_close"
+				: isBlocked
+					? "blocked"
+					: "needs_attention"
+	return { isBlocked, canClose, attentionState }
+}
+
 function evidenceSummaryFor(item: any, referenceCounts: any): string {
-	if (item?.evidenceIssue?.kind === "duplicate_reference") return "Duplicate proof visible"
-	if (item?.evidenceIssue?.kind === "unmatched_payment") return "Unmatched payment proof"
-	if (item?.evidenceIssue?.kind === "unmatched_settlement") return "Unmatched settlement proof"
-	return `Payment: ${referenceCounts.payment} · Settlement: ${referenceCounts.settlement} · Refund: ${referenceCounts.refund} · Invoice: ${referenceCounts.invoice}`
+	if (item?.evidenceIssue?.kind === "duplicate_reference")
+		return "La referencia aparece en más de una reserva"
+	if (item?.evidenceIssue?.kind === "unmatched_payment") return "Cobro sin reserva asociada"
+	if (item?.evidenceIssue?.kind === "unmatched_settlement")
+		return "Liquidación sin reserva asociada"
+	return `Cobro: ${referenceCounts.payment} · Liquidación: ${referenceCounts.settlement} · Reembolso: ${referenceCounts.refund} · Documento: ${referenceCounts.invoice}`
+}
+
+function operationalDescriptionFor(item: any): string {
+	if (hasAnyCode(item, ["missing_payment_reference"]))
+		return "El cobro necesita una referencia externa para poder revisarse."
+	if (hasAnyCode(item, ["missing_settlement_reference"]))
+		return "La reserva todavía no tiene una liquidación externa asociada."
+	if (hasAnyCode(item, ["missing_refund_reference"]))
+		return "El seguimiento del reembolso todavía no tiene un comprobante asociado."
+	if (hasAnyCode(item, ["refund_handoff_required"]))
+		return "El reembolso necesita seguimiento y una decisión operativa."
+	if (hasAnyCode(item, ["incomplete_contract_snapshot"]))
+		return "Faltan datos confirmados de la reserva para completar la revisión."
+	if (hasAnyCode(item, ["evidence_unknown"]))
+		return "Los comprobantes disponibles no permiten confirmar qué ocurrió."
+	if (item?.code === "clean_record")
+		return "No hay excepciones abiertas ni acciones pendientes para esta reserva."
+	return "Revisa la información disponible y decide el siguiente paso."
 }
 
 export function buildFinancialRowViewModel(params: {
 	item: any
 	reconciliation: any
+	refundHandoff?: any
 	referenceCounts: any
 	ageLabel: string
 	sourceKind: string
@@ -148,14 +313,14 @@ export function buildFinancialRowViewModel(params: {
 			? financeView.title
 			: item?.code
 				? labelFrom(workItemLabels, item.code)
-				: "Case needs review"
+				: "Caso por revisar"
 	const description = evidenceIssue
 		? evidenceIssue.description
 		: financeView
 			? financeView.blocker
 			: reconciliation && reconciliation.status !== "matched"
 				? reconciliationIssueDescription(reconciliation)
-				: item?.reason || "Review the proof available for this booking."
+				: operationalDescriptionFor(item)
 	const owner = String(
 		evidenceIssue?.owner ||
 			financeView?.owner ||
@@ -164,9 +329,19 @@ export function buildFinancialRowViewModel(params: {
 			"financial_operations"
 	)
 	const queue = queueFor(item, reconciliation)
+	const operationalCategory = operationalCategoryFor(item, reconciliation)
+	const amount = operationalAmount({
+		item,
+		reconciliation,
+		refundHandoff: params.refundHandoff,
+		category: operationalCategory,
+	})
+	const flags = operationalFlags({ item, queue, financeView, reconciliation })
 	return {
 		id: String(item?.id || `${item?.bookingId || ""}:${item?.code || "review"}`),
 		queue,
+		operationalCategory,
+		attentionState: flags.attentionState,
 		title,
 		description,
 		bookingId: String(item?.bookingId || ""),
@@ -190,6 +365,11 @@ export function buildFinancialRowViewModel(params: {
 		operationalState: String(
 			financeView?.operationalState || item?.status || reconciliation?.status || "open"
 		),
+		isBlocked: flags.isBlocked,
+		canClose: flags.canClose,
+		amount: amount.amount,
+		amountCurrency: amount.currency,
+		amountLabel: amount.label,
 		sourceKind: params.sourceKind,
 		item,
 	}
@@ -208,10 +388,10 @@ export function buildDuplicateReferenceWorkItem(signal: any): any {
 		overlaySource: "visibility_only",
 		evidenceIssue: {
 			kind: "duplicate_reference",
-			title: "Duplicate external reference",
+			title: "Referencia externa duplicada",
 			description: duplicateReferenceDescription(signal),
-			blocker: "The same external reference appears on more than one booking.",
-			nextAction: "Confirm which booking owns this reference before closing.",
+			blocker: "La misma referencia externa aparece en más de una reserva.",
+			nextAction: "Confirma a qué reserva corresponde antes de cerrar el caso.",
 			owner: "reconciliation_ops",
 			severity: "review",
 		},
@@ -235,10 +415,10 @@ export function buildUnmatchedEvidenceWorkItem(kind: "payment" | "settlement", r
 		overlaySource: "visibility_only",
 		evidenceIssue: {
 			kind: kind === "payment" ? "unmatched_payment" : "unmatched_settlement",
-			title: kind === "payment" ? "Unmatched payment proof" : "Unmatched settlement proof",
+			title: kind === "payment" ? "Cobro sin reserva asociada" : "Liquidación sin reserva asociada",
 			description: unmatchedEvidenceDescription(kind, row),
-			blocker: "Proof is visible but not linked to a booking yet.",
-			nextAction: "Find the booking that owns this proof before closing.",
+			blocker: "El comprobante está visible, pero todavía no está asociado a una reserva.",
+			nextAction: "Identifica la reserva correspondiente antes de cerrar el caso.",
 			owner: "reconciliation_ops",
 			severity: "review",
 		},

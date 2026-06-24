@@ -49,7 +49,7 @@ export function buildProviderFinanceRowViewModel(finance: any): ProviderFinanceR
 	const owner = String(finance?.operationalOwner || finance?.nextOwner || "provider_finance")
 	const blocker = explainProviderFinanceBlocker(finance)
 	return {
-		title: labelFrom(providerFinanceQueueLabels, subqueue, "Provider payable check"),
+		title: labelFrom(providerFinanceQueueLabels, subqueue, "Pago pendiente al proveedor"),
 		blocker,
 		freshness: String(finance?.snapshotLifecycle?.freshness || statementState || "unknown"),
 		nextAction: explainProviderFinanceNextAction(finance),

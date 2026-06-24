@@ -10,13 +10,13 @@ export type FinancialActorFilter =
 	| "admin"
 
 export const actorFilterOptions: Array<{ value: FinancialActorFilter; label: string }> = [
-	{ value: "all", label: "All operators" },
-	{ value: "financial_operations", label: "Financial ops" },
-	{ value: "reconciliation_ops", label: "Proof comparison" },
-	{ value: "provider_finance", label: "Provider payable checks" },
-	{ value: "provider_followup", label: "Provider follow-up" },
-	{ value: "support", label: "Support" },
-	{ value: "admin", label: "Admin review" },
+	{ value: "all", label: "Todos los equipos" },
+	{ value: "financial_operations", label: "Operaciones financieras" },
+	{ value: "reconciliation_ops", label: "Liquidaciones" },
+	{ value: "provider_finance", label: "Pagos a proveedores" },
+	{ value: "provider_followup", label: "Seguimiento con proveedores" },
+	{ value: "support", label: "Soporte" },
+	{ value: "admin", label: "Revisión administrativa" },
 ]
 
 function issueKind(row: FinancialRowViewModel): string {
@@ -67,13 +67,13 @@ export function actorMatchesRow(actor: FinancialActorFilter, row: FinancialRowVi
 
 export function actorNoiseHint(actor: FinancialActorFilter): string {
 	const hints: Record<FinancialActorFilter, string> = {
-		all: "All visible cases that may need attention.",
-		financial_operations: "Open cases, missing proof, and items waiting on someone else.",
-		reconciliation_ops: "Amounts that do not line up, duplicate references, and unmatched proof.",
-		provider_finance: "Provider payable checks, statement drafts, and evidence dependencies.",
-		provider_followup: "Provider or external finance follow-up work.",
-		support: "Refund follow-ups, refund proof, and cases waiting on someone else.",
-		admin: "System inconsistencies and records that need careful inspection.",
+		all: "Todos los casos visibles que pueden requerir atención.",
+		financial_operations: "Excepciones abiertas, comprobantes faltantes y respuestas pendientes.",
+		reconciliation_ops: "Montos que no coinciden, referencias duplicadas y registros sin reserva.",
+		provider_finance: "Pagos pendientes, resúmenes desactualizados y dependencias por resolver.",
+		provider_followup: "Casos que requieren respuesta del proveedor o de un equipo externo.",
+		support: "Seguimiento de reembolsos y casos que esperan información externa.",
+		admin: "Inconsistencias del sistema que requieren una revisión cuidadosa.",
 	}
 	return hints[actor] || hints.all
 }

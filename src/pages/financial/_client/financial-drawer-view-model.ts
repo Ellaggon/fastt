@@ -47,6 +47,32 @@ export function buildFinancialDrawerViewModel(params: {
 		? buildProviderFinanceCopy(item.providerFinance)
 		: null
 	const statement = buildFinancialStatementViewModel(item?.providerFinance)
+	const allEvidenceGroups = buildEvidenceGroups(evidenceEntries, duplicateSignals)
+	const evidenceKeysByCategory: Record<string, string[]> = {
+		collections: ["payment", "reference"],
+		settlements: ["payment", "settlement", "reference"],
+		refunds: ["refund", "reference"],
+		provider_payables: ["payment", "settlement", "reference"],
+		exceptions: ["reference"],
+	}
+	const allowedEvidenceKeys = evidenceKeysByCategory[row.operationalCategory] || ["reference"]
+	const evidenceGroups = allEvidenceGroups.filter((group) =>
+		allowedEvidenceKeys.includes(group.key)
+	)
+	const sections: FinancialDrawerSectionId[] = ["attention", "why", "context"]
+	const shouldShowEvidence =
+		evidenceEntries.length > 0 ||
+		duplicateSignals.length > 0 ||
+		["collections", "settlements", "refunds"].includes(row.operationalCategory)
+	const shouldShowReconciliation =
+		reconciliation.visible || ["settlements", "provider_payables"].includes(row.operationalCategory)
+	if (shouldShowEvidence) sections.push("evidence")
+	if (shouldShowReconciliation) sections.push("reconciliation")
+	if (row.operationalCategory === "refunds") sections.push("refund")
+	if (row.operationalCategory === "provider_payables") {
+		sections.push("provider_finance", "statement")
+	}
+	sections.push("timeline", "actions", "technical")
 	const whyParts = [
 		row.description,
 		row.blocker && row.blocker !== row.description ? row.blocker : "",
@@ -62,24 +88,13 @@ export function buildFinancialDrawerViewModel(params: {
 		reconciliationMatch,
 		providerFinance,
 		statement,
-		evidenceGroups: buildEvidenceGroups(evidenceEntries, duplicateSignals),
+		evidenceGroups,
 		evidenceEntries,
 		duplicateSignals,
-		sections: [
-			"attention",
-			"why",
-			"context",
-			"evidence",
-			"reconciliation",
-			"refund",
-			"provider_finance",
-			"statement",
-			"timeline",
-			"actions",
-			"technical",
-		],
+		sections,
 		whyThisNeedsReview:
-			whyParts.join(" ") || "Review the visible evidence and decide the next operational step.",
+			whyParts.join(" ") ||
+			"Revisa los comprobantes visibles y decide el siguiente paso operativo.",
 		technicalDetails: [
 			item?.basis ? `Basis: ${item.basis}` : "",
 			item?.overlaySource ? `Source: ${item.overlaySource}` : "",

@@ -42,22 +42,24 @@ if (!user) return Astro.redirect("/SignInPage")
 */
 ---
 
-<WorkspaceLayout title="Financial Operations">
+<WorkspaceLayout title="Finanzas">
 	<section>
 		<Card class="overflow-hidden bg-slate-100 p-0">
 			<div class="border-b border-slate-200 p-4">
 				<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 					<div class="space-y-1">
 						<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-							Financial inbox
+							Bandeja de Finanzas
 						</p>
 						<p id="financialListSummary" class="text-sm text-slate-700">
-							Loading cases that need attention, follow-up, or closure...
+							Cargando casos que requieren atención, seguimiento o cierre...
 						</p>
 					</div>
 					<div class="grid gap-3 sm:grid-cols-3">
 						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Who is working</span>
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
+								>Equipo responsable</span
+							>
 							<Select id="financialActorFilter" name="actor" value="all">
 								{
 									actorFilterOptions.map((option) => (
@@ -67,8 +69,7 @@ if (!user) return Astro.redirect("/SignInPage")
 							</Select>
 						</label>
 						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
-								>What needs doing</span
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Tipo de trabajo</span
 							>
 							<Select id="financialQueueFilter" name="queue" value="needs_action_today">
 								{
@@ -79,7 +80,8 @@ if (!user) return Astro.redirect("/SignInPage")
 							</Select>
 						</label>
 						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Proof available</span
+							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
+								>Comprobantes disponibles</span
 							>
 							<Select id="financialStateFilter" name="state" value="all">
 								{
@@ -94,11 +96,11 @@ if (!user) return Astro.redirect("/SignInPage")
 				<div id="financialSummary" class="mt-4 flex flex-wrap gap-2">
 					{
 						[
-							"Needs attention",
-							"Waiting on someone else",
-							"Stuck until fixed",
-							"Can be closed",
-							"Closed recently",
+							"Requieren atención",
+							"Esperando respuesta",
+							"Bloqueados",
+							"Listos para cerrar",
+							"Cerrados recientemente",
 						].map((label) => (
 							<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
 								<span class="text-xs font-semibold text-slate-500">{label}</span>
@@ -111,11 +113,11 @@ if (!user) return Astro.redirect("/SignInPage")
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead>
 						<tr class="text-left text-slate-700">
-							<th class="px-3 py-2">Work item</th>
-							<th class="px-3 py-2">What is stopping it</th>
-							<th class="px-3 py-2">Owner / aging</th>
-							<th class="px-3 py-2">What to do next</th>
-							<th class="px-3 py-2">Context</th>
+							<th class="px-3 py-2">Qué ocurrió</th>
+							<th class="px-3 py-2">Comprobantes y bloqueo</th>
+							<th class="px-3 py-2">Responsable</th>
+							<th class="px-3 py-2">Próxima acción</th>
+							<th class="px-3 py-2">Importe y reserva</th>
 						</tr>
 					</thead>
 					<tbody id="financialRows">
@@ -153,16 +155,16 @@ if (!user) return Astro.redirect("/SignInPage")
 	>
 		<div class="mb-4 flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
 			<div>
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Case detail</p>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Detalle del caso</p>
 				<p class="text-sm text-slate-600">
-					What happened, why it matters, what proof exists, and what to do next.
+					Qué ocurrió, cuánto dinero está involucrado, qué comprobantes existen y qué sigue.
 				</p>
 			</div>
 			<button
 				id="financialReviewDrawerClose"
 				type="button"
 				class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-				>Close</button
+				>Cerrar</button
 			>
 		</div>
 		<div id="financialReviewDrawerBody"></div>

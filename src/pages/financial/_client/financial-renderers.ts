@@ -12,55 +12,51 @@ type RowRenderDeps = {
 }
 
 export function renderPriorityBadge(row: FinancialRowViewModel): string {
-	if (
-		row.queue === "provider_finance" &&
-		![
-			"No provider finance blocker is visible.",
-			"Nothing is stopping the provider payable check.",
-		].includes(row.blocker)
-	) {
-		return "Provider payable check is stuck"
-	}
-	if (row.queue === "reconciliation_issues") return "Proof does not line up"
-	if (row.queue === "evidence_issues") return "Proof needs attention"
-	if (row.queue === "waiting_external") return "Waiting on someone else"
-	return row.operationalState
+	if (row.attentionState === "waiting_external") return "Esperando respuesta"
+	if (row.attentionState === "ready_to_close") return "Listo para cerrar"
+	if (row.attentionState === "closed") return "Cerrado"
+	if (row.isBlocked && row.operationalCategory === "provider_payables")
+		return "Pago pendiente bloqueado"
+	if (row.isBlocked && row.operationalCategory === "settlements") return "Importes por revisar"
+	if (row.isBlocked && row.operationalCategory === "collections") return "Comprobante requerido"
+	if (row.isBlocked && row.operationalCategory === "refunds") return "Reembolso bloqueado"
+	return "Requiere atención"
 }
 
 function renderBookingProofLine(operation: any): string {
 	const roomState = operation?.snapshotIntegrity?.hasRoomSnapshots
-		? "room proof visible"
-		: "room proof missing"
+		? "alojamiento confirmado"
+		: "falta confirmar alojamiento"
 	const taxState = operation?.snapshotIntegrity?.hasTaxFeeSnapshots
-		? "tax proof visible"
-		: "tax proof missing"
-	return `Booking proof: ${roomState} · ${taxState} · ${Number(operation?.snapshotIntegrity?.multiRoomAllocationCount || 0)} room allocation(s)`
+		? "impuestos confirmados"
+		: "faltan impuestos"
+	return `${roomState} · ${taxState} · ${Number(operation?.snapshotIntegrity?.multiRoomAllocationCount || 0)} habitación(es)`
 }
 
-function renderInboxState(row: FinancialRowViewModel, item: any): string {
-	if (row.queue === "waiting_external" || String(item?.status || "") === "waiting_external") {
-		return "Waiting on someone else"
+function renderInboxState(row: FinancialRowViewModel): string {
+	const labels = {
+		needs_attention: "Requiere atención",
+		waiting_external: "Esperando respuesta",
+		blocked: "Bloqueado",
+		ready_to_close: "Listo para cerrar",
+		closed: "Cerrado",
 	}
-	if (row.queue === "resolved_history") return "Closed recently"
-	if (row.queue === "provider_finance" && row.operationalState !== "provider_finance_review") {
-		return "Stuck"
-	}
-	if (["reconciliation_issues", "evidence_issues", "refund_handoffs"].includes(row.queue)) {
-		return "Needs attention"
-	}
-	if (String(item?.status || "") === "acknowledged") return "Can be closed"
-	if (row.nextAction.toLowerCase().includes("resolve")) return "Can be closed"
-	return "Needs attention"
+	return labels[row.attentionState]
 }
 
 function renderHumanFreshness(value: unknown): string {
 	const state = String(value || "").toLowerCase()
-	if (state === "fresh") return "Up to date"
-	if (state === "stale") return "Needs another look"
-	if (state === "waiting_external") return "Waiting on someone else"
-	if (state === "not_visible") return "Not visible yet"
-	if (state === "unknown") return "Unclear"
-	return state ? state.replaceAll("_", " ") : "Unclear"
+	if (state === "fresh") return "Información actualizada"
+	if (state === "stale") return "La información cambió; revisar otra vez"
+	if (state === "waiting_external") return "Esperando respuesta"
+	if (state === "not_visible") return "Todavía no disponible"
+	if (state === "unknown") return "Por confirmar"
+	if (state === "snapshot_ready" || state === "evidence_matched") return "Información suficiente"
+	if (state === "evidence_partial") return "Faltan comprobantes"
+	if (state === "evidence_unknown") return "Comprobantes por confirmar"
+	if (state === "handoff_pending") return "Esperando seguimiento"
+	if (state === "evidence_visible" || state === "visible") return "Comprobante disponible"
+	return "Por confirmar"
 }
 
 export function renderFinancialRowHtml(params: {
@@ -81,12 +77,12 @@ export function renderFinancialRowHtml(params: {
 		? buildProviderFinanceRowViewModel(item.providerFinance)
 		: null
 	const providerFinanceLine = financeView
-		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(financeView.title)} · Statement draft: ${deps.escapeHtml(renderHumanFreshness(financeView.statementState))}</div>`
+		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(financeView.title)} · Resumen: ${deps.escapeHtml(renderHumanFreshness(financeView.statementState))}</div>`
 		: ""
-	const inboxState = renderInboxState(row, item)
+	const inboxState = renderInboxState(row)
 	const bookingContext = item.bookingId
 		? `<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(item.bookingId || "-")}</a>`
-		: `<div class="font-medium text-slate-950">Unmatched evidence</div>`
+		: `<div class="font-medium text-slate-950">Sin reserva asociada</div>`
 	return `
 		<td class="px-3 py-3 text-slate-700 ${blockerClass}">
 			<div class="flex items-start justify-between gap-2">
@@ -111,13 +107,13 @@ export function renderFinancialRowHtml(params: {
 		</td>
 		<td class="px-3 py-3">
 			<div class="mb-2 max-w-56 text-xs font-semibold leading-5 text-slate-800">${deps.escapeHtml(row.nextAction)}</div>
-			<button type="button" data-review-key="${deps.escapeHtml(deps.itemKey(item))}" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Open case</button>
+			<button type="button" data-review-key="${deps.escapeHtml(deps.itemKey(item))}" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Abrir caso</button>
 		</td>
 		<td class="px-3 py-3 text-slate-700">
+			<div class="text-xs text-slate-500">${deps.escapeHtml(row.amountLabel)}</div>
+			<div class="mt-1 text-sm font-semibold text-slate-950">${row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(row.amountCurrency, row.amount))}</div>
 			${bookingContext}
-			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(operation?.contract?.productName || "Property")} · ${deps.escapeHtml(operation?.contract?.variantName || "Allocation")}</div>
-			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(deps.money(operation.currency, operation.contractTotal))}</div>
+			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(operation?.contract?.productName || "Alojamiento")} · ${deps.escapeHtml(operation?.contract?.variantName || "Asignación")}</div>
 			<div class="mt-2 text-xs leading-5 text-slate-400">${deps.escapeHtml(renderBookingProofLine(operation))}</div>
-			<div class="mt-1 text-xs text-slate-400">${deps.escapeHtml(row.sourceKind)}</div>
 		</td>`
 }

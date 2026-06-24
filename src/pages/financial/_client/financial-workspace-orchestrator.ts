@@ -12,8 +12,8 @@ function operationFallbackForProviderFinance(financeItem: any): any {
 		currency: financeItem.currency,
 		contractTotal: financeItem.grossAmount,
 		contract: {
-			productName: "Provider payable check",
-			variantName: "Review-only amount",
+			productName: "Pago pendiente al proveedor",
+			variantName: "Importe para revisión",
 			version: "snapshot",
 		},
 		evidenceAlignment: { state: "snapshot_ready" },
@@ -40,7 +40,7 @@ function evidenceIssueOperation(params: {
 		providerId: params.issue.providerId,
 		currency: params.currency || "",
 		contractTotal: params.contractTotal ?? null,
-		contract: { productName: "Evidence issue", variantName: params.variantName },
+		contract: { productName: "Comprobante por revisar", variantName: params.variantName },
 		evidenceAlignment: { state: "evidence_partial" },
 		snapshotIntegrity: { hasRoomSnapshots: true, hasTaxFeeSnapshots: true },
 		taxFeeVisibility: { lines: 0 },
@@ -90,7 +90,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 			severity: "review",
 			status: "open",
 			basis: "contract_snapshot",
-			reason: "Financial evidence is visible with no open review exception.",
+			reason: "Los comprobantes visibles no presentan excepciones abiertas.",
 			nextOwner: "none",
 			overlaySource: "visibility_only",
 			persistedId: null,
@@ -114,7 +114,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 				(financeItem.blockingDetails || [])
 					.map((detail: any) => detail.reason)
 					.filter(Boolean)
-					.join(" ") || "Provider payable check needs an operator review.",
+					.join(" ") || "El pago pendiente al proveedor necesita revisión.",
 			nextOwner: financeItem.operationalOwner || "provider_finance",
 			overlaySource: "visibility_only",
 			persistedId: null,
@@ -131,7 +131,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 		const issue = buildDuplicateReferenceWorkItem(signal)
 		issue.operation =
 			operationByBooking.get(String(issue.bookingId)) ||
-			evidenceIssueOperation({ issue, variantName: "Duplicate reference" })
+			evidenceIssueOperation({ issue, variantName: "Referencia duplicada" })
 		merged.push(issue)
 	}
 
@@ -141,7 +141,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 			issue,
 			currency: row.currency,
 			contractTotal: row.amount,
-			variantName: "Unmatched payment",
+			variantName: "Cobro sin reserva asociada",
 			financialEvidence: { paymentEvidence: "evidence_visible" },
 		})
 		merged.push(issue)
@@ -153,7 +153,7 @@ export function mergeFinancialWorkspaceItems(state: FinancialWorkspaceState): an
 			issue,
 			currency: row.currency,
 			contractTotal: row.amount,
-			variantName: "Unmatched settlement",
+			variantName: "Liquidación sin reserva asociada",
 			financialEvidence: { paymentEvidence: "evidence_visible" },
 		})
 		merged.push(issue)

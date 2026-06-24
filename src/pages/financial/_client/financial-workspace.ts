@@ -136,7 +136,7 @@ import {
 		rows.innerHTML = ""
 		if (!Array.isArray(items) || !items.length) {
 			rows.innerHTML =
-				'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No cases match this view. Try waiting, closed, or all records if you need more context.</td></tr>'
+				'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No hay casos en esta vista. Revisa los casos en espera, cerrados o todos los casos si necesitas más contexto.</td></tr>'
 			return
 		}
 		for (const item of items) {
@@ -221,7 +221,7 @@ import {
 		if (!selectedItem?.persistedId) return
 		const note = fieldValue("financialResolutionNote").trim()
 		if (action !== "acknowledge" && !note) {
-			alert("Resolution note is required.")
+			alert("La nota de cierre es obligatoria.")
 			return
 		}
 		const response = await submitFinancialReviewAction({
@@ -230,7 +230,7 @@ import {
 			resolutionNote: note,
 		})
 		if (!response.ok) {
-			alert("Review action could not be saved.")
+			alert("No se pudo guardar la acción de revisión.")
 			return
 		}
 		await fetchWorkspace()
@@ -247,12 +247,12 @@ import {
 		const currency = fieldValue("financialReferenceCurrency").trim().toUpperCase() || null
 		const note = fieldValue("financialReferenceNote").trim()
 		if (!referenceValue) {
-			alert("Reference value is required.")
+			alert("La referencia externa es obligatoria.")
 			return
 		}
 		const amount = amountInput ? Number(amountInput) : null
 		if (amountInput && !Number.isFinite(amount)) {
-			alert("Amount must be numeric when provided.")
+			alert("El importe debe ser numérico.")
 			return
 		}
 		const response = await submitFinancialReference({
@@ -266,10 +266,10 @@ import {
 			linkedExceptionId: selectedItem.persistedId || null,
 		})
 		if (!response.ok) {
-			alert("Reference could not be recorded.")
+			alert("No se pudo registrar la referencia.")
 			return
 		}
-		alert("Reference recorded. Evidence visible for review.")
+		alert("Referencia registrada. El comprobante ya está disponible para revisión.")
 		await fetchWorkspace()
 		await reopenSelectedOrClose()
 	}
@@ -279,7 +279,7 @@ import {
 		if (!handoff?.id) return
 		const note = fieldValue("refundHandoffNote").trim()
 		if (action !== "acknowledge" && !note) {
-			alert("Refund handoff note is required.")
+			alert("La nota de seguimiento del reembolso es obligatoria.")
 			return
 		}
 		const response = await submitRefundHandoffReview({
@@ -288,7 +288,7 @@ import {
 			resolutionNote: note,
 		})
 		if (!response.ok) {
-			alert("Refund handoff review could not be saved.")
+			alert("No se pudo guardar la revisión del reembolso.")
 			return
 		}
 		await fetchWorkspace()
@@ -304,7 +304,7 @@ import {
 			reviewNote: reviewNote || null,
 		})
 		if (!response.ok) {
-			alert("Evidence review could not be saved.")
+			alert("No se pudo guardar la revisión de los importes.")
 			return
 		}
 		await fetchWorkspace()
@@ -320,7 +320,7 @@ import {
 			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
-			listSummary.textContent = `${openCount} case(s) need attention. Showing ${shownCount} case(s). ${actorNoiseHint(actor)}`
+			listSummary.textContent = `${openCount} caso(s) requieren atención. Mostrando ${shownCount}. ${actorNoiseHint(actor)}`
 		}
 	}
 
@@ -399,7 +399,7 @@ import {
 			resetFinancialWorkspaceState(workspaceState)
 			renderSummary([])
 			renderRows([])
-			if (listSummary) listSummary.textContent = "No se pudo cargar financial operations."
+			if (listSummary) listSummary.textContent = "No se pudo cargar la bandeja de Finanzas."
 		}
 	}
 

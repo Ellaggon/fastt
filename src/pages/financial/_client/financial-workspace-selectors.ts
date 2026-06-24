@@ -82,10 +82,12 @@ export function isTerminalReview(item: any): boolean {
 export function operationalAge(item: any): string {
 	const opened = item?.openedAt || item?.workflow?.openedAt
 	const openedAge = ageDays(opened)
-	if (openedAge != null) return `${statusLabel(item?.status)} ${openedAge}d`
+	if (openedAge != null)
+		return `${statusLabel(item?.status)} · ${openedAge} ${openedAge === 1 ? "día" : "días"}`
 	const confirmedAge = ageDays(item?.operation?.confirmedAt)
-	if (confirmedAge != null) return `booking confirmed ${confirmedAge}d ago`
-	return "age unavailable"
+	if (confirmedAge != null)
+		return `reserva confirmada hace ${confirmedAge} ${confirmedAge === 1 ? "día" : "días"}`
+	return "antigüedad no disponible"
 }
 
 export function refundHandoffsFor(state: FinancialWorkspaceState, item: any): any[] {
@@ -99,8 +101,8 @@ export function refundHandoffFor(state: FinancialWorkspaceState, item: any): any
 
 export function refundHandoffAge(handoff: any): string {
 	const openedAge = ageDays(handoff?.openedAt)
-	if (openedAge == null) return "age unavailable"
-	return `${handoffStatusLabel(handoff.status)} ${openedAge}d`
+	if (openedAge == null) return "antigüedad no disponible"
+	return `${handoffStatusLabel(handoff.status)} · ${openedAge} ${openedAge === 1 ? "día" : "días"}`
 }
 
 export function refundHandoffDerivedSuppressed(state: FinancialWorkspaceState, item: any): boolean {
@@ -167,6 +169,7 @@ export function rowViewFor(state: FinancialWorkspaceState, item: any) {
 	return buildFinancialRowViewModel({
 		item,
 		reconciliation: reconciliationFor(state, item),
+		refundHandoff: refundHandoffFor(state, item),
 		referenceCounts: referenceCounts(state, item),
 		ageLabel: operationalAge(item),
 		sourceKind: sourceLabel(item),

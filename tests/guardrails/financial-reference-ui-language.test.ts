@@ -4,8 +4,12 @@ import { read } from "./financial-stage2-guardrail-utils"
 
 describe("Guardrail: financial reference UI uses evidence language only", () => {
 	it("keeps reference workflow evidence-only and blocks execution wording", () => {
-		const ui = read("src/pages/financial/index.astro")
-		const required = ["Record evidence", "Reference recorded", "Evidence visible"]
+		const ui = [
+			read("src/pages/financial/index.astro"),
+			read("src/pages/financial/_client/financial-drawer-sections.ts"),
+			read("src/pages/financial/_client/financial-workspace.ts"),
+		].join("\n")
+		const required = ["Registrar comprobante", "Referencia registrada", "comprobante"]
 		const forbidden = [
 			/Payment completed/i,
 			/Refund processed/i,
