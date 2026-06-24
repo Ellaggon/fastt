@@ -3,6 +3,10 @@
  *
  * ProviderStatement aggregates visibility for operations. It is not an invoice, ledger, or
  * accounting statement.
+ *
+ * TODO(Stage 4 follow-up): persist minimal version, provenance, included-booking fingerprint,
+ * superseded, and invalidation metadata only after the operational workflow proves it is needed.
+ * The artifact must remain read-only and must not become an accounting statement.
  */
 export const PROVIDER_STATEMENT_STATUSES = ["pending", "visible", "recorded", "unknown"] as const
 
