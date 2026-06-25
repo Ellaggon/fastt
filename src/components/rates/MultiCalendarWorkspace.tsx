@@ -775,7 +775,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		filters.ratePlanId,
 		filters.status === "all" ? "" : filters.status,
 	].filter(Boolean).length
-	const visibleDays = isMobile ? surface.days.slice(0, 7) : surface.days
+	const visibleDays = surface.days
 	const visibleDateSet = new Set(visibleDays.map((day) => day.date))
 	const baseVisibleRows = isMobile
 		? surface.rows.filter((row) => row.ratePlanId === mobileRatePlanId)
@@ -865,22 +865,22 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						</button>
 					</form>
 				</details>
-				<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-					<div className="flex items-center gap-2">
+				<div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 sm:justify-between">
+					<div className="flex w-full min-w-0 items-center justify-center gap-2 sm:w-auto sm:justify-start">
 						<button
 							type="button"
 							disabled={!surface.previousMonth || loading}
 							onClick={() => void loadWorkspace({ month: surface.previousMonth })}
-							className="calendar-control h-9 w-9 rounded-lg border border-slate-200 disabled:opacity-30"
+							className="calendar-control h-9 w-9 shrink-0 rounded-lg border border-slate-200 disabled:opacity-30"
 							aria-label="Mes anterior"
 						>
 							‹
 						</button>
-						<div>
-							<p className="font-semibold text-slate-950">
+						<div className="min-w-0 text-center">
+							<p className="font-semibold whitespace-nowrap text-slate-950">
 								{formatRange(surface.startDate, surface.endDate)}
 							</p>
-							<p className="text-xs text-slate-500">
+							<p className="text-xs whitespace-nowrap text-slate-500">
 								{surface.stats.totalRows} tarifas · {surface.stats.attentionRows} con pendientes
 							</p>
 						</div>
@@ -888,13 +888,16 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							type="button"
 							disabled={loading}
 							onClick={() => void loadWorkspace({ month: surface.nextMonth })}
-							className="calendar-control h-9 w-9 rounded-lg border border-slate-200"
+							className="calendar-control h-9 w-9 shrink-0 rounded-lg border border-slate-200"
 							aria-label="Mes siguiente"
 						>
 							›
 						</button>
 					</div>
-					<div className="flex flex-wrap gap-1.5">
+					<div
+						className="hidden flex-wrap justify-end gap-1.5 sm:flex"
+						data-multi-calendar-range-presets
+					>
 						{[
 							["visible_weekend", "Fin de semana"],
 							["visible_month", "Vista visible"],
@@ -1007,10 +1010,10 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							<div
 								key={`${surface.startDate}:${surface.endDate}:${mobileRatePlanId}:${isMobile}`}
 								data-direction={gridDirection}
-								className={`calendar-grid-enter grid bg-slate-100/70 ${isMobile ? "w-full" : "min-w-max"}`}
+								className="calendar-grid-enter grid min-w-max bg-slate-100/70"
 								style={{
 									gridTemplateColumns: isMobile
-										? `repeat(${visibleDays.length}, minmax(0, 1fr))`
+										? `repeat(${visibleDays.length}, minmax(4.5rem, 1fr))`
 										: `18rem repeat(${visibleDays.length}, minmax(6.25rem, 1fr))`,
 								}}
 							>

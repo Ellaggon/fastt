@@ -375,11 +375,17 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(workspace).not.toContain("secondary: cell.hasPrice ? cell.basePrice")
 		expect(workspace).toContain("activeFilterCount")
 		expect(workspace).toContain("Tarifa visible")
-		expect(workspace).toContain("surface.days.slice(0, 7)")
+		expect(workspace).toContain("const visibleDays = surface.days")
+		expect(workspace).toContain("repeat(${visibleDays.length}, minmax(4.5rem, 1fr))")
 		expect(workspace).toContain("visibleRows.flatMap")
 		expect(workspace).toContain("Gestionar regla")
 		expect(workspace).toContain("Resolver pendientes")
 		expect(workspace).toContain("Seleccionar ${row.ratePlanName}")
+		expect(workspace).toContain(
+			"w-full min-w-0 items-center justify-center gap-2 sm:w-auto sm:justify-start"
+		)
+		expect(workspace).toContain("data-multi-calendar-range-presets")
+		expect(workspace).toContain("hidden flex-wrap justify-end gap-1.5 sm:flex")
 	})
 
 	it("keeps Calendar as an interactive single-rate workspace with contextual Pro handoffs", () => {
