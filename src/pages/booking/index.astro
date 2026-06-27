@@ -39,7 +39,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 			</div>
 		</header>
 
-		<div id="bookingMetrics" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+		<div id="bookingMetrics" class="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
 			{
 				[
 					["Llegan hoy", "—", "Check-ins esperados"],
@@ -47,10 +47,14 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					["En estancia", "—", "Huéspedes alojados"],
 					["Pago pendiente", "—", "Reservas con saldo"],
 				].map(([label, value, detail]) => (
-					<Card class="border-blue-950/50 bg-slate-800 p-4 text-white shadow-sm">
-						<p class="text-xs font-semibold tracking-wide text-blue-100/75 uppercase">{label}</p>
-						<p class="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</p>
-						<p class="mt-1 text-xs text-blue-100/75">{detail}</p>
+					<Card class="border-blue-950/50 bg-slate-800 p-3 text-white shadow-sm sm:p-4">
+						<p class="text-[11px] font-semibold tracking-wide text-blue-100/75 uppercase sm:text-xs">
+							{label}
+						</p>
+						<p class="mt-1 text-xl font-semibold tracking-tight text-white sm:mt-2 sm:text-2xl">
+							{value}
+						</p>
+						<p class="mt-1 hidden text-xs text-blue-100/75 sm:block">{detail}</p>
 					</Card>
 				))
 			}
