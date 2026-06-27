@@ -277,7 +277,35 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 			const money = (currency, value) =>
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
 			const guestName = (item) =>
-				String(item?.guestName || item?.guestEmail || "Huésped sin nombre")
+				String(item?.guestName || item?.guestEmail || "Huésped por registrar")
+			const parseIsoDate = (value) => {
+				const raw = String(value || "").trim()
+				if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
+				const parsed = new Date(`${raw}T00:00:00.000Z`)
+				if (Number.isNaN(parsed.getTime())) return null
+				return parsed
+			}
+			const shortDate = (value, includeYear = false) => {
+				const date = parseIsoDate(value)
+				if (!date) return "—"
+				return date.toLocaleDateString("es-CL", {
+					day: "numeric",
+					month: "short",
+					year: includeYear ? "numeric" : undefined,
+					timeZone: "UTC",
+				})
+			}
+			const stayLabel = (item) => {
+				const checkIn = String(item?.checkIn || "")
+				const checkOut = String(item?.checkOut || "")
+				const inDate = parseIsoDate(checkIn)
+				const outDate = parseIsoDate(checkOut)
+				const includeYear =
+					Boolean(inDate && outDate && inDate.getUTCFullYear() !== outDate.getUTCFullYear()) ||
+					Boolean(inDate && inDate.getUTCFullYear() !== new Date().getUTCFullYear()) ||
+					Boolean(outDate && outDate.getUTCFullYear() !== new Date().getUTCFullYear())
+				return `${shortDate(checkIn, includeYear)} → ${shortDate(checkOut, includeYear)}`
+			}
 			const paymentLabel = (item) => {
 				const pending = Number(item?.payment?.pendingAmount || 0)
 				const total = money(item?.currency, item?.totalAmount)
@@ -425,12 +453,11 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 				rows.innerHTML = items
 					.map((item) => {
 						const [label, badge] = statusCopy(item)
-						const stay = `${String(item?.checkIn || "—")} → ${String(item?.checkOut || "—")}`
+						const stay = stayLabel(item)
 						const accommodation = `${String(item?.productName || "Alojamiento")} · ${String(item?.variantName || "Habitación")}`
 						return `<tr class="border-b border-slate-100 align-top hover:bg-slate-50">
 							<td class="px-4 py-4">
 								<p class="font-semibold text-slate-950">${guestName(item)}</p>
-								<p class="mt-1 text-xs text-slate-500">${String(item?.bookingId || "—")}</p>
 							</td>
 							<td class="px-4 py-4">
 								<p class="text-slate-800">${accommodation}</p>
@@ -453,12 +480,11 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 				cards.innerHTML = items
 					.map((item) => {
 						const [label, badge] = statusCopy(item)
-						const stay = `${String(item?.checkIn || "—")} → ${String(item?.checkOut || "—")}`
+						const stay = stayLabel(item)
 						return `<article class="rounded-lg border border-slate-200 bg-white p-4">
 							<div class="flex items-start justify-between gap-3">
 								<div>
 									<p class="font-semibold text-slate-950">${guestName(item)}</p>
-									<p class="mt-1 text-xs text-slate-500">${String(item?.bookingId || "—")}</p>
 								</div>
 								<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${badge}">${label}</span>
 							</div>
