@@ -2,7 +2,6 @@
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
-import FormField from "@/components/ui/FormField.astro"
 import Section from "@/components/ui/Section.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -116,23 +115,65 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					</button>
 				</div>
 				<div id="bookingAdvancedFilters" class="hidden border-t border-slate-200 bg-slate-50 p-3">
-					<div class="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-						<FormField label="Desde" htmlFor="from">
-							<DatesModal id="from" name="from" value={initialFrom} />
-						</FormField>
-						<FormField label="Hasta" htmlFor="to">
-							<DatesModal id="to" name="to" value={initialTo} />
-						</FormField>
-						<FormField label="Estado" htmlFor="status">
-							<Select id="status" name="status" value={initialStatus}>
+					<div
+						class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
+					>
+						<div class="flex min-w-0 flex-col">
+							<label
+								for="from"
+								class="mb-2 block h-5 text-sm font-medium leading-5 text-neutral-800"
+							>
+								Desde
+							</label>
+							<DatesModal
+								id="from"
+								name="from"
+								value={initialFrom}
+								class="h-10 rounded-md border-slate-200"
+							/>
+						</div>
+						<div class="flex min-w-0 flex-col">
+							<label for="to" class="mb-2 block h-5 text-sm font-medium leading-5 text-neutral-800">
+								Hasta
+							</label>
+							<DatesModal
+								id="to"
+								name="to"
+								value={initialTo}
+								class="h-10 rounded-md border-slate-200"
+							/>
+						</div>
+						<div class="flex min-w-0 flex-col">
+							<label
+								for="status"
+								class="mb-2 block h-5 text-sm font-medium leading-5 text-neutral-800"
+							>
+								Estado
+							</label>
+							<Select
+								id="status"
+								name="status"
+								value={initialStatus}
+								class="h-10 rounded-md border-slate-200 py-0"
+							>
 								<option value="all">Todos</option>
 								<option value="draft">Borrador</option>
 								<option value="confirmed">Confirmada</option>
 								<option value="cancelled">Cancelada</option>
 								<option value="expired">Expirada</option>
 							</Select>
-						</FormField>
-						<Button id="applyFiltersBtn" type="submit" variant="secondary">Aplicar</Button>
+						</div>
+						<div class="flex min-w-[7rem] flex-col">
+							<span class="mb-2 hidden h-5 md:block" aria-hidden="true"></span>
+							<Button
+								id="applyFiltersBtn"
+								type="submit"
+								variant="secondary"
+								class="h-10 w-full rounded-md"
+							>
+								Aplicar
+							</Button>
+						</div>
 					</div>
 				</div>
 			</form>
