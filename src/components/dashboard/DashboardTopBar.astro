@@ -9,6 +9,7 @@ import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfes
 
 const user = await getUserFromRequest(Astro.request)
 const email = user?.email?.trim() || "Sin sesión"
+const accountInitial = email.slice(0, 1).toUpperCase()
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`
 const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
 let showProfessionalToggle = false
@@ -59,11 +60,18 @@ if (professionalToolsParam === "saved") {
 
 <header class="border-b border-slate-800 bg-slate-950">
 	<div
-		class="mx-auto flex min-h-12 max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-end"
+		class="mx-auto flex min-h-14 max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6 lg:justify-end"
 	>
+		<a
+			href="/provider"
+			class="min-w-0 shrink-0 text-base font-semibold tracking-tight text-slate-100 lg:hidden"
+			data-astro-prefetch
+		>
+			Fastt
+		</a>
 		{
 			showProfessionalToggle ? (
-				<div class="flex w-full min-w-0 items-center gap-3 lg:mr-auto lg:w-auto">
+				<div class="flex min-w-0 flex-1 items-center justify-center gap-2 lg:mr-auto lg:flex-none">
 					<ProfessionalModeToggle
 						enabled={professionalToolsEnabled}
 						disclosureMode={disclosureMode}
@@ -72,7 +80,7 @@ if (professionalToolsParam === "saved") {
 					/>
 					{professionalToolsFeedback ? (
 						<span
-							class={`text-xs font-medium ${
+							class={`hidden text-xs font-medium sm:inline ${
 								professionalToolsParam === "error" ? "text-amber-300" : "text-slate-400"
 							}`}
 						>
@@ -82,8 +90,28 @@ if (professionalToolsParam === "saved") {
 				</div>
 			) : null
 		}
-		<div class="flex items-center justify-end gap-4 text-sm">
-			<span class="text-slate-300">{email}</span>
+		<details class="relative ml-auto lg:hidden">
+			<summary
+				class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-sm font-semibold text-slate-100 transition hover:bg-slate-800 [&::-webkit-details-marker]:hidden"
+				aria-label="Cuenta"
+			>
+				{accountInitial}
+			</summary>
+			<div
+				class="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-2xl"
+			>
+				<p class="truncate text-sm font-medium text-slate-100">{email}</p>
+				<p class="mt-1 text-xs text-slate-500">Cuenta del proveedor</p>
+				<a
+					href="/api/auth/logout"
+					class="mt-3 flex h-9 items-center justify-center rounded-md border border-slate-700 px-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+				>
+					Salir
+				</a>
+			</div>
+		</details>
+		<div class="hidden items-center justify-end gap-4 text-sm lg:flex">
+			<span class="max-w-[18rem] truncate text-slate-300">{email}</span>
 			<a
 				href="/api/auth/logout"
 				class="rounded-md border border-slate-700 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-800"
