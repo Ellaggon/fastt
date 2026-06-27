@@ -1,9 +1,29 @@
 ---
+import {
+	BadgeCheck,
+	BarChart3,
+	BedDouble,
+	BookOpen,
+	Building2,
+	CalendarDays,
+	CalendarRange,
+	ChartNoAxesColumnIncreasing,
+	CircleDollarSign,
+	ClipboardList,
+	Gauge,
+	House,
+	Layers3,
+	ReceiptText,
+	Settings,
+	WalletCards,
+} from "@lucide/astro"
+
 interface Props {
 	href: string
 	label: string
 	status?: "canonical" | "transitional"
 	summary?: string
+	summaryTone?: "neutral" | "success" | "warning" | "danger"
 	active?: boolean
 	prefetch?: boolean
 	level?: 1 | 2 | 3 | 4
@@ -15,28 +35,43 @@ const {
 	label,
 	status = "canonical",
 	summary = "",
+	summaryTone = "neutral",
 	active = false,
 	prefetch = false,
 	level = 1,
 	compact = false,
 } = Astro.props
-const levelClass =
-	level === 4
-		? "ml-8 text-xs font-medium"
-		: level === 3
-			? "ml-5 text-[13px] font-medium"
-			: level === 2
-				? "ml-2 text-sm font-medium"
-				: "ml-0 text-sm font-semibold"
-const compactClass = compact ? "py-1.5" : "py-2.5"
-const toneClass = level === 4 ? "text-slate-400" : level === 3 ? "text-slate-300" : "text-slate-200"
+
+const iconByLabel = {
+	"Resumen": House,
+	"Reservas": ClipboardList,
+	"Tarifas": Layers3,
+	"Calendario": CalendarDays,
+	"Multicalendario": CalendarRange,
+	"Catálogo": Building2,
+	"Habitaciones": BedDouble,
+	"Reglas para huéspedes": BookOpen,
+	"Operación financiera": WalletCards,
+	"Impuestos y cargos": ReceiptText,
+	"Ingresos": CircleDollarSign,
+	"Rendimiento": ChartNoAxesColumnIncreasing,
+	"Ocupación": BarChart3,
+	"Configuración": Settings,
+	"Verificación": BadgeCheck,
+} as const
+const Icon = iconByLabel[label as keyof typeof iconByLabel] ?? Gauge
+const compactClass = compact ? "py-1.5" : "py-2"
+const summaryToneClass = {
+	neutral: "text-slate-400",
+	success: "text-emerald-300",
+	warning: "text-amber-300",
+	danger: "text-rose-300",
+}[summaryTone]
 ---
 
 <div
-	class={`rounded-lg ${compactClass} transition ${levelClass} ${toneClass} ${
-		active
-			? "border-l-2 border-blue-500 bg-slate-800 text-white shadow-[inset_0_0_0_1px_rgba(96,165,250,0.25)]"
-			: "border-l-2 border-transparent hover:bg-slate-800/60"
+	class={`group rounded-lg ${compactClass} transition-colors ${
+		active ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/[0.055] hover:text-white"
 	}`}
 >
 	<a
@@ -45,16 +80,21 @@ const toneClass = level === 4 ? "text-slate-400" : level === 3 ? "text-slate-300
 		aria-current={active ? "page" : undefined}
 		data-astro-prefetch={prefetch ? true : undefined}
 		data-governance-status={status}
-		class="flex items-center justify-between gap-2 px-3 font-inherit text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
+		class="flex min-h-9 items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
 	>
-		<span>{label}</span>
-		{
-			status === "transitional" ? (
-				<span class="rounded-full border border-amber-400/30 px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em] text-amber-200 uppercase">
-					En transición
-				</span>
-			) : null
-		}
+		<Icon
+			size={17}
+			strokeWidth={active ? 2.2 : 1.8}
+			class={`shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`}
+			aria-hidden="true"
+		/>
+		<span class="min-w-0 flex-1 truncate">{label}</span>
 	</a>
-	{summary ? <p class="mt-1 px-3 text-[11px] leading-4 text-slate-500">{summary}</p> : null}
+	{
+		summary ? (
+			<p class={`-mt-0.5 truncate pr-2.5 pb-1 pl-[38px] text-xs leading-4 ${summaryToneClass}`}>
+				{summary}
+			</p>
+		) : null
+	}
 </div>

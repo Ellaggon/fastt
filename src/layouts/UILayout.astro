@@ -1,14 +1,16 @@
 ---
-import NavLayout from "@/components/nav/NavLayout.astro"
 import Sidebar from "@/components/nav/NavBurger.astro"
+import NavLayout from "@/components/nav/NavLayout.astro"
 import Layout from "@/layouts/Layout.astro"
 
 const { title } = Astro.props
 ---
 
 <Layout title={title}>
-	<NavLayout />
-	<Sidebar />
+	<div class="pt-12">
+		<NavLayout />
+		<Sidebar />
+	</div>
 
 	<slot />
 </Layout>

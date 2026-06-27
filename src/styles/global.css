@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+	--font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
 :root {
+	--font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 	--calendar-motion-fast: 140ms;
 	--calendar-motion-standard: 180ms;
 	--calendar-motion-sheet: 240ms;
@@ -10,6 +15,11 @@
 	--calendar-selection: #2563eb;
 	--calendar-selection-soft: rgb(239 246 255 / 82%);
 	--calendar-selection-shadow: rgb(37 99 235 / 20%);
+}
+
+html,
+body {
+	font-family: var(--font-sans);
 }
 
 .calendar-control {

@@ -1,41 +1,55 @@
 ---
 interface Props {
 	title: string
-	subtitle?: string
-	owner?: string
 	active?: boolean
-	withDivider?: boolean
+	collapsible?: boolean
+	defaultOpen?: boolean
 }
 
-const { title, subtitle = "", owner = "", active = false, withDivider = false } = Astro.props
+const { title, active = false, collapsible = false, defaultOpen = false } = Astro.props
 ---
 
-<section
-	data-nav-section
-	data-active={active ? "true" : "false"}
-	class={`space-y-3 rounded-xl border p-2 transition ${
-		active
-			? "border-blue-500/40 bg-blue-950/25 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.14)]"
-			: "border-slate-800/80 bg-slate-900/40"
-	} ${withDivider ? "mt-1" : ""}`}
->
-	<div class="space-y-1 px-3 pt-1">
-		<div class="flex items-center justify-between gap-2">
-			<p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</p>
-			{
-				active ? (
-					<span class="h-2 w-2 rounded-full bg-blue-400" aria-label="Active section" />
-				) : null
-			}
-		</div>
-		{
-			owner ? (
-				<p class="text-[10px] font-semibold tracking-[0.08em] text-slate-600 uppercase">{owner}</p>
-			) : null
-		}
-		{subtitle ? <p class="text-xs font-medium text-slate-300">{subtitle}</p> : null}
-	</div>
-	<div class="space-y-1 pb-1">
-		<slot />
-	</div>
-</section>
+{
+	collapsible ? (
+		<details
+			open={defaultOpen || active}
+			data-nav-section
+			data-active={active ? "true" : "false"}
+			class="group/section border-t border-white/[0.07] pt-4"
+		>
+			<summary class="flex cursor-pointer list-none items-center justify-between px-2.5 text-[11px] font-semibold tracking-[0.09em] text-slate-400 uppercase transition-colors hover:text-slate-200 [&::-webkit-details-marker]:hidden">
+				<span>{title}</span>
+				<svg
+					class="h-3.5 w-3.5 text-slate-600 transition-transform group-open/section:rotate-90"
+					viewBox="0 0 20 20"
+					fill="none"
+					aria-hidden="true"
+				>
+					<path
+						d="m7.5 5 5 5-5 5"
+						stroke="currentColor"
+						stroke-width="1.7"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+			</summary>
+			<div class="mt-2 space-y-0.5">
+				<slot />
+			</div>
+		</details>
+	) : (
+		<section
+			data-nav-section
+			data-active={active ? "true" : "false"}
+			class="border-t border-white/[0.07] pt-4"
+		>
+			<p class="px-2.5 text-[11px] font-semibold tracking-[0.09em] text-slate-400 uppercase">
+				{title}
+			</p>
+			<div class="mt-2 space-y-0.5">
+				<slot />
+			</div>
+		</section>
+	)
+}

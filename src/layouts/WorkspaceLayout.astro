@@ -14,7 +14,12 @@ const pathname = Astro.url.pathname
 <Layout title={title}>
 	<div class="min-h-screen bg-black text-slate-100">
 		<div class="flex min-h-screen">
-			<aside class="hidden w-80 shrink-0 border-r border-slate-800 bg-slate-950 p-4 xl:block">
+			<aside
+				class="sticky top-0 hidden h-screen w-68 shrink-0 overflow-y-auto border-r border-white/[0.07] bg-slate-950 px-3 py-4 lg:block xl:w-72"
+			>
+				<div class="mb-3.5 px-2.5">
+					<p class="truncate text-lg font-semibold text-slate-100">Fastt</p>
+				</div>
 				<DashboardSidebar pathname={pathname} />
 			</aside>
 
@@ -22,12 +27,12 @@ const pathname = Astro.url.pathname
 				<DashboardTopBar />
 				<main class="min-w-0 flex-1">
 					<div class="mx-auto max-w-7xl min-w-0 px-4 py-6 sm:px-6 sm:py-8">
-						<div class="mb-6 xl:hidden">
+						<div class="mb-6 lg:hidden">
 							<details
-								class="max-w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-3"
+								class="max-w-full overflow-hidden rounded-xl border border-white/10 bg-slate-950 p-3"
 							>
 								<summary class="cursor-pointer text-sm font-semibold text-slate-200">
-									Navegación del proveedor
+									Menú
 								</summary>
 								<div class="mt-4">
 									<DashboardSidebar pathname={pathname} />

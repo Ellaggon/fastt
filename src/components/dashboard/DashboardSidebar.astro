@@ -66,40 +66,81 @@ const isSectionActive = (items: (typeof visibleNavigation)[number]["items"]) =>
 	items.some((item) => item.href === activeHref || isActive(item.href))
 
 function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number]) {
-	if (sidebarReadiness[item.href]) return sidebarReadiness[item.href]
-	return item.summary
+	return sidebarReadiness[item.href] ?? ""
 }
+
+function summaryTone(summary: string): "neutral" | "success" | "warning" | "danger" {
+	const value = summary.toLocaleLowerCase("es")
+	if (
+		value.includes("sin precio") ||
+		value.includes("incompleto") ||
+		value.includes("no disponible")
+	) {
+		return "danger"
+	}
+	if (value.includes("requiere atención") || value.includes("pendiente")) return "warning"
+	if (value.includes("lista") && !value.includes("incomplet")) return "success"
+	return "neutral"
+}
+
+const sectionByTitle = new Map(visibleNavigation.map((section) => [section.title, section]))
+const navigationGroups = [
+	{
+		title: "Operación",
+		sections: ["Inicio", "Reservas", "Habitaciones y tarifas"],
+		collapsible: false,
+	},
+	{
+		title: "Alojamiento",
+		sections: ["Alojamientos y contenido"],
+		collapsible: false,
+	},
+	{
+		title: "Finanzas",
+		sections: ["Finanzas"],
+		collapsible: false,
+	},
+	{
+		title: "Análisis",
+		sections: ["Analítica"],
+		collapsible: true,
+	},
+	{
+		title: "Sistema",
+		sections: ["Administración"],
+		collapsible: true,
+	},
+]
+	.map((group) => ({
+		...group,
+		items: group.sections.flatMap((title) => sectionByTitle.get(title)?.items ?? []),
+	}))
+	.filter((group) => group.items.length > 0)
 ---
 
-<nav class="space-y-4" aria-label="Enterprise backoffice navigation">
-	<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-		<p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
-			Panel del proveedor
-		</p>
-		<p class="mt-1 text-xs leading-5 text-slate-400">
-			Gestiona alojamiento, habitaciones, tarifas, inventario, reservas y finanzas desde sus
-			secciones principales.
-		</p>
-	</div>
+<nav class="space-y-4 pb-5" aria-label="Navegación principal del proveedor">
 	{
-		visibleNavigation.map((section) => (
+		navigationGroups.map((group) => (
 			<DashboardSidebarSection
-				title={section.title}
-				owner={section.owner}
-				active={isSectionActive(section.items)}
-				subtitle={section.subtitle}
+				title={group.title}
+				active={isSectionActive(group.items)}
+				collapsible={group.collapsible}
+				defaultOpen={!group.collapsible}
 			>
-				{section.items.map((item) => (
-					<DashboardSidebarItem
-						href={item.href}
-						label={item.label}
-						status={item.status}
-						summary={itemSummary(item)}
-						active={item.href === activeHref}
-						prefetch={true}
-						level={item.level ?? 1}
-					/>
-				))}
+				{group.items.map((item) => {
+					const summary = itemSummary(item)
+					return (
+						<DashboardSidebarItem
+							href={item.href}
+							label={item.label}
+							status={item.status}
+							summary={summary}
+							summaryTone={summaryTone(summary)}
+							active={item.href === activeHref}
+							prefetch={true}
+						/>
+					)
+				})}
 			</DashboardSidebarSection>
 		))
 	}
