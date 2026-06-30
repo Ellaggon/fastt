@@ -390,17 +390,20 @@ export function rowForOperationalCase(entry: OperationalCase): FinancialRowViewM
 }
 
 export function filterOperationalWorld(filters: {
-	queue: string
+	segment?: string
+	workType?: string
 	actor?: any
-	evidenceState?: string
 }): OperationalCase[] {
 	const byItem = new Map(financialOperationalWorld.map((entry) => [entry.item, entry]))
 	const filtered = filterFinancialRows({
 		items: financialOperationalWorld.map((entry) => entry.item),
 		filters: {
-			queue: filters.queue,
+			segment: filters.segment || "needs_action_today",
+			workType: filters.workType || "all",
+			search: "",
+			lodging: "",
+			age: "all",
 			actor: filters.actor || "all",
-			evidenceState: filters.evidenceState || "all",
 		},
 		rowFor: (item) => rowForOperationalCase(byItem.get(item)!),
 		isTerminalReview: (item) => ["resolved", "dismissed"].includes(String(item?.status || "")),
@@ -416,7 +419,7 @@ export function renderOperationalRow(entry: OperationalCase): string {
 		row,
 		operation: entry.item.operation,
 		handoff: null,
-		ownerMarkup: `<span>${row.ownerLabel}</span><div>${row.ageLabel}</div>`,
+		ownerMarkup: `<span>${row.ownerLabel}</span>`,
 		deps: {
 			escapeHtml: (value) =>
 				String(value ?? "")

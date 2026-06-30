@@ -4,6 +4,7 @@ import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-fi
 import {
 	primaryQueueOptions,
 	primarySummaryQueues,
+	workTypeOptions,
 } from "@/pages/financial/_client/financial-queues"
 import { buildFinancialDrawerViewModel } from "@/pages/financial/_client/financial-drawer-view-model"
 import { buildProviderFinanceCopy } from "@/pages/financial/_client/financial-provider-finance-copy"
@@ -62,12 +63,12 @@ describe("integration/financial inbox UX validation", () => {
 	})
 
 	it("answers cold-start operator questions with human inbox facets", () => {
-		const needsAttention = filterOperationalWorld({ queue: "needs_action_today" }).map(
+		const needsAttention = filterOperationalWorld({ segment: "needs_action_today" }).map(
 			(entry) => entry.id
 		)
-		const waiting = filterOperationalWorld({ queue: "waiting_external" }).map((entry) => entry.id)
-		const stuck = filterOperationalWorld({ queue: "blocked" }).map((entry) => entry.id)
-		const closeable = filterOperationalWorld({ queue: "ready_to_close" }).map((entry) => entry.id)
+		const waiting = filterOperationalWorld({ segment: "waiting_external" }).map((entry) => entry.id)
+		const stuck = filterOperationalWorld({ segment: "blocked" }).map((entry) => entry.id)
+		const closeable = filterOperationalWorld({ segment: "ready_to_close" }).map((entry) => entry.id)
 
 		expect(needsAttention).toContain("payment-proof-missing")
 		expect(needsAttention).toContain("refund-follow-up-pending")
@@ -81,15 +82,19 @@ describe("integration/financial inbox UX validation", () => {
 			])
 		)
 		expect(closeable).toContain("ready-to-close")
-		expect(filterOperationalWorld({ queue: "collections" }).map((entry) => entry.id)).toContain(
-			"payment-proof-missing"
-		)
-		expect(filterOperationalWorld({ queue: "settlements" }).map((entry) => entry.id)).toEqual(
+		expect(
+			filterOperationalWorld({ segment: "all", workType: "collections" }).map((entry) => entry.id)
+		).toContain("payment-proof-missing")
+		expect(
+			filterOperationalWorld({ segment: "all", workType: "settlements" }).map((entry) => entry.id)
+		).toEqual(
 			expect.arrayContaining(["duplicate-provider-reference", "stale-review-after-proof-arrived"])
 		)
-		expect(filterOperationalWorld({ queue: "provider_payables" }).map((entry) => entry.id)).toEqual(
-			expect.arrayContaining(["provider-payable-blocked", "statement-needs-another-look"])
-		)
+		expect(
+			filterOperationalWorld({ segment: "all", workType: "provider_payables" }).map(
+				(entry) => entry.id
+			)
+		).toEqual(expect.arrayContaining(["provider-payable-blocked", "statement-needs-another-look"]))
 	})
 
 	it("keeps row scanning useful before opening the drawer", () => {
@@ -108,20 +113,24 @@ describe("integration/financial inbox UX validation", () => {
 	it("keeps primary controls human-first and moves advanced/debug language out of the main inbox", () => {
 		expect(primarySummaryQueues.map((queue) => queue.label)).toEqual([
 			"Requieren atención",
-			"Esperando respuesta",
 			"Bloqueados",
+			"Esperando respuesta",
 			"Listos para cerrar",
 			"Cerrados recientemente",
 		])
 		expect(primarySummaryQueues.some((queue) => /advanced|debug|queue/i.test(queue.label))).toBe(
 			false
 		)
-		expect(primaryQueueOptions.find((option) => option.value === "advanced_all")?.label).toBe(
-			"Todos los casos"
-		)
 		expect(actorFilterOptions.map((option) => option.label)).toContain("Liquidaciones")
 		expect(actorFilterOptions.map((option) => option.label)).toContain("Pagos a proveedores")
-		expect(primaryQueueOptions.map((option) => option.value)).toEqual(
+		expect(primaryQueueOptions.map((option) => option.value)).toEqual([
+			"needs_action_today",
+			"blocked",
+			"waiting_external",
+			"ready_to_close",
+			"recently_closed",
+		])
+		expect(workTypeOptions.map((option) => option.value)).toEqual(
 			expect.arrayContaining([
 				"collections",
 				"provider_payables",
