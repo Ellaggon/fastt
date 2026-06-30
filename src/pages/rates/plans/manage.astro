@@ -196,7 +196,7 @@ const tabs = [
 			</div>
 
 			<div
-				class={`px-6 py-12 text-center ${visibleRowsCount ? "hidden" : ""}`}
+				class={`px-6 py-12 text-center md:hidden ${visibleRowsCount ? "hidden" : ""}`}
 				data-rate-plan-empty
 			>
 				<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
@@ -210,7 +210,7 @@ const tabs = [
 					<>
 						<div
 							class={`space-y-2 p-3 md:hidden ${visibleRowsCount ? "" : "hidden"}`}
-							data-rate-plan-table
+							data-rate-plan-mobile-table
 						>
 							{rows.map((row) => {
 								const state = rowStates.get(String(row.ratePlanId))!
@@ -290,8 +290,8 @@ const tabs = [
 							})}
 						</div>
 						<div
-							class={`hidden overflow-x-auto md:block xl:overflow-visible ${visibleRowsCount ? "" : "hidden"}`}
-							data-rate-plan-table
+							class="hidden overflow-x-auto md:block xl:overflow-visible"
+							data-rate-plan-desktop-table
 						>
 							<table class="w-full min-w-[920px] text-left text-sm">
 								<thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -305,6 +305,14 @@ const tabs = [
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
+									<tr class={visibleRowsCount ? "hidden" : ""} data-rate-plan-empty-row>
+										<td colspan="6" class="px-6 py-14 text-center">
+											<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
+											<p class="mt-1 text-sm text-slate-500">
+												Cambia de estado o crea una nueva tarifa.
+											</p>
+										</td>
+									</tr>
 									{rows.map((row) => {
 										const state = rowStates.get(String(row.ratePlanId))!
 										const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
@@ -586,8 +594,11 @@ const tabs = [
 	)
 	const ratePlanRows = Array.from(document.querySelectorAll<HTMLElement>("[data-rate-plan-row]"))
 	const ratePlanEmpty = document.querySelector<HTMLElement>("[data-rate-plan-empty]")
-	const ratePlanTables = Array.from(
-		document.querySelectorAll<HTMLElement>("[data-rate-plan-table]")
+	const ratePlanMobileTables = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-rate-plan-mobile-table]")
+	)
+	const ratePlanEmptyRows = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-rate-plan-empty-row]")
 	)
 	const actionFeedback = document.querySelector<HTMLElement>("[data-rate-plan-action-feedback]")
 
@@ -609,7 +620,8 @@ const tabs = [
 
 		const hasVisibleRows = visibleRatePlanIds.size > 0
 		ratePlanEmpty?.classList.toggle("hidden", hasVisibleRows)
-		for (const surface of ratePlanTables) surface.classList.toggle("hidden", !hasVisibleRows)
+		for (const surface of ratePlanMobileTables) surface.classList.toggle("hidden", !hasVisibleRows)
+		for (const row of ratePlanEmptyRows) row.classList.toggle("hidden", hasVisibleRows)
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
 			tab.classList.toggle("border-slate-200", active)
