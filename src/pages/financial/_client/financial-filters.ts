@@ -3,8 +3,11 @@ import { actorMatchesRow } from "./financial-actor-filters"
 import type { FinancialRowViewModel } from "./financial-row-view-model"
 
 export type FinancialWorkspaceFilterState = {
-	queue: string
-	evidenceState: string
+	segment: string
+	workType: string
+	search: string
+	lodging: string
+	age: string
 	actor: FinancialActorFilter
 }
 
@@ -112,21 +115,90 @@ export function filterFinancialRows(params: {
 	return items.filter((item) => {
 		if (isSuppressed(item)) return false
 		const row = rowFor(item)
-		const stateMatches =
-			filters.evidenceState === "all" ||
-			Boolean(item?.providerFinance) ||
-			item?.operation?.evidenceAlignment?.state === filters.evidenceState
+		const searchMatches = textMatches(item, filters.search)
+		const lodgingMatches = lodgingTextMatches(item, filters.lodging)
+		const ageMatches = ageFilterMatches(row, filters.age)
 		return (
-			stateMatches &&
+			searchMatches &&
+			lodgingMatches &&
+			ageMatches &&
 			queueMatchesRow({
 				item,
 				row,
-				queue: filters.queue,
+				queue: filters.segment,
 				isTerminalReview: isTerminalReview(item),
 			}) &&
+			workTypeMatchesRow(row, filters.workType) &&
 			actorMatchesRow(filters.actor, row)
 		)
 	})
+}
+
+function normalize(value: unknown): string {
+	return String(value ?? "")
+		.toLowerCase()
+		.trim()
+}
+
+function searchableValues(item: any): string[] {
+	return [
+		item?.bookingId,
+		item?.providerId,
+		item?.providerFinance?.providerId,
+		item?.providerFinance?.bookingId,
+		item?.operation?.bookingId,
+		item?.operation?.contract?.productName,
+		item?.operation?.contract?.variantName,
+		item?.operation?.contract?.ratePlanName,
+		...(Array.isArray(item?.operation?.references)
+			? item.operation.references.map((row: any) => row?.referenceValue)
+			: []),
+		...(Array.isArray(item?.references)
+			? item.references.map((row: any) => row?.referenceValue)
+			: []),
+		...(Array.isArray(item?.payment?.transactions)
+			? item.payment.transactions.map((row: any) => row?.externalReference)
+			: []),
+		...(Array.isArray(item?.settlement?.records)
+			? item.settlement.records.map((row: any) => row?.settlementReference)
+			: []),
+	]
+		.map((value) => String(value ?? ""))
+		.filter(Boolean)
+}
+
+function textMatches(item: any, query: string): boolean {
+	const normalized = normalize(query)
+	if (!normalized) return true
+	return searchableValues(item).some((value) => normalize(value).includes(normalized))
+}
+
+function lodgingTextMatches(item: any, query: string): boolean {
+	const normalized = normalize(query)
+	if (!normalized) return true
+	const values = [
+		item?.operation?.contract?.productName,
+		item?.operation?.contract?.variantName,
+		item?.operation?.contract?.ratePlanName,
+		item?.contract?.productName,
+		item?.contract?.variantName,
+	]
+	return values.some((value) => normalize(value).includes(normalized))
+}
+
+function ageFilterMatches(row: FinancialRowViewModel, age: string): boolean {
+	if (!age || age === "all") return true
+	const days = Number.parseInt(String(row.ageLabel || "").match(/\d+/)?.[0] || "0", 10)
+	if (age === "today") return days === 0
+	if (age === "over_3") return days >= 3
+	if (age === "over_7") return days >= 7
+	if (age === "over_14") return days >= 14
+	return true
+}
+
+function workTypeMatchesRow(row: FinancialRowViewModel, workType: string): boolean {
+	if (!workType || workType === "all") return true
+	return row.operationalCategory === workType
 }
 
 export function countFinancialQueue(params: {

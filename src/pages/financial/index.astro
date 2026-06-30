@@ -1,11 +1,11 @@
 ---
+import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
 import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { actorFilterOptions } from "./_client/financial-actor-filters"
-import { evidenceStateLabels } from "./_client/financial-labels"
-import { primaryQueueOptions } from "./_client/financial-queues"
+import { workTypeOptions } from "./_client/financial-queues"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -43,70 +43,110 @@ if (!user) return Astro.redirect("/SignInPage")
 ---
 
 <WorkspaceLayout title="Finanzas">
-	<section>
+	<FinancialWorkspaceShell
+		title="Finanzas"
+		description="Casos que requieren revisión, seguimiento o cierre."
+		note="Fastt organiza evidencia y revisiones financieras. No ejecuta cobros, pagos ni reembolsos."
+	>
 		<Card class="overflow-hidden bg-slate-100 p-0">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-					<div class="space-y-1">
-						<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-							Bandeja de Finanzas
-						</p>
+				<div class="space-y-4">
+					<label class="block">
+						<span class="sr-only">Buscar reserva o referencia</span>
+						<input
+							id="financialSearchFilter"
+							type="search"
+							placeholder="Buscar reserva, referencia o proveedor..."
+							class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
+						/>
+					</label>
+					<div id="financialSummary" class="flex flex-wrap gap-2">
+						{
+							[
+								"Requieren atención",
+								"Bloqueados",
+								"Esperando respuesta",
+								"Listos para cerrar",
+								"Cerrados recientemente",
+							].map((label) => (
+								<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
+									<span class="text-xs font-semibold text-slate-500">{label}</span>
+								</div>
+							))
+						}
+					</div>
+					<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 						<p id="financialListSummary" class="text-sm text-slate-700">
-							Cargando casos que requieren atención, seguimiento o cierre...
+							Cargando casos que requieren atención, espera o cierre...
 						</p>
-					</div>
-					<div class="grid gap-3 sm:grid-cols-3">
-						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
-								>Equipo responsable</span
+						<details class="group rounded-2xl border border-slate-200 bg-white">
+							<summary
+								class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800"
 							>
-							<Select id="financialActorFilter" name="actor" value="all">
-								{
-									actorFilterOptions.map((option) => (
-										<option value={option.value}>{option.label}</option>
-									))
-								}
-							</Select>
-						</label>
-						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Tipo de trabajo</span
-							>
-							<Select id="financialQueueFilter" name="queue" value="needs_action_today">
-								{
-									primaryQueueOptions.map((option) => (
-										<option value={option.value}>{option.label}</option>
-									))
-								}
-							</Select>
-						</label>
-						<label class="w-full min-w-56 space-y-1 text-sm font-medium text-slate-700">
-							<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
-								>Comprobantes disponibles</span
-							>
-							<Select id="financialStateFilter" name="state" value="all">
-								{
-									Object.entries(evidenceStateLabels).map(([value, label]) => (
-										<option value={value}>{label}</option>
-									))
-								}
-							</Select>
-						</label>
-					</div>
-				</div>
-				<div id="financialSummary" class="mt-4 flex flex-wrap gap-2">
-					{
-						[
-							"Requieren atención",
-							"Esperando respuesta",
-							"Bloqueados",
-							"Listos para cerrar",
-							"Cerrados recientemente",
-						].map((label) => (
-							<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
-								<span class="text-xs font-semibold text-slate-500">{label}</span>
+								<span>Filtros</span>
+								<span id="financialFilterSummary" class="text-xs text-slate-500 group-open:hidden"
+									>Todos los tipos · Todos los equipos</span
+								>
+								<span class="hidden text-xs text-slate-500 group-open:inline">Ocultar filtros</span>
+							</summary>
+							<div class="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-4">
+								<label class="space-y-1 text-sm font-medium text-slate-700">
+									<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
+										>Equipo responsable</span
+									>
+									<Select id="financialActorFilter" name="actor" value="all">
+										{
+											actorFilterOptions.map((option) => (
+												<option value={option.value}>{option.label}</option>
+											))
+										}
+									</Select>
+								</label>
+								<label class="space-y-1 text-sm font-medium text-slate-700">
+									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Alojamiento</span
+									>
+									<input
+										id="financialLodgingFilter"
+										type="search"
+										placeholder="Nombre o asignación"
+										class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
+									/>
+								</label>
+								<label class="space-y-1 text-sm font-medium text-slate-700">
+									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Antigüedad</span>
+									<Select id="financialAgeFilter" name="age" value="all">
+										<option value="all">Todas</option>
+										<option value="today">Hoy</option>
+										<option value="over_3">Más de 3 días</option>
+										<option value="over_7">Más de 7 días</option>
+										<option value="over_14">Más de 14 días</option>
+									</Select>
+								</label>
+								<div class="space-y-2 sm:col-span-2 xl:col-span-1">
+									<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+										Tipo de trabajo
+									</p>
+									<div id="financialWorkTypeFilters" class="flex flex-wrap gap-2">
+										{
+											workTypeOptions.map((option) => (
+												<button
+													type="button"
+													data-work-type={option.value}
+													class={
+														option.value === "all"
+															? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+															: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+													}
+												>
+													{option.label}
+												</button>
+											))
+										}
+									</div>
+								</div>
 							</div>
-						))
-					}
+						</details>
+					</div>
 				</div>
 			</div>
 			<div class="overflow-x-auto">
@@ -114,10 +154,11 @@ if (!user) return Astro.redirect("/SignInPage")
 					<thead>
 						<tr class="text-left text-slate-700">
 							<th class="px-3 py-2">Qué ocurrió</th>
-							<th class="px-3 py-2">Comprobantes y bloqueo</th>
+							<th class="px-3 py-2">Importe involucrado</th>
+							<th class="px-3 py-2">Qué impide avanzar</th>
 							<th class="px-3 py-2">Responsable</th>
+							<th class="px-3 py-2">Antigüedad</th>
 							<th class="px-3 py-2">Próxima acción</th>
-							<th class="px-3 py-2">Importe y reserva</th>
 						</tr>
 					</thead>
 					<tbody id="financialRows">
@@ -131,13 +172,16 @@ if (!user) return Astro.redirect("/SignInPage")
 										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
 									</td>
 									<td class="px-3 py-2">
-										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
 										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
 									</td>
 									<td class="px-3 py-2">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
 										<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-2">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
 									</td>
 								</tr>
 							))
@@ -146,7 +190,7 @@ if (!user) return Astro.redirect("/SignInPage")
 				</table>
 			</div>
 		</Card>
-	</section>
+	</FinancialWorkspaceShell>
 
 	<div id="financialReviewBackdrop" class="hidden fixed inset-0 z-40 bg-slate-950/30"></div>
 	<aside
@@ -169,6 +213,4 @@ if (!user) return Astro.redirect("/SignInPage")
 		</div>
 		<div id="financialReviewDrawerBody"></div>
 	</aside>
-
-	<script src="./_client/financial-workspace.ts"></script>
 </WorkspaceLayout>

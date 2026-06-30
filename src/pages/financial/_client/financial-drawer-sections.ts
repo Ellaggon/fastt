@@ -83,7 +83,7 @@ function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 	return `<section class="rounded-xl border border-amber-200 bg-amber-50 p-4">
 		<div class="flex items-start justify-between gap-3">
 			<div>
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Requiere atención</p>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Resumen</p>
 				<h2 class="mt-1 text-lg font-semibold text-slate-950">${deps.escapeHtml(row.title)}</h2>
 				<p class="mt-2 text-sm leading-6 text-amber-900">${deps.escapeHtml(row.description)}</p>
 			</div>

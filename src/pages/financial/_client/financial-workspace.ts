@@ -6,7 +6,7 @@ import {
 } from "./financial-actions"
 import { actorNoiseHint } from "./financial-actor-filters"
 import { countFinancialQueue, filterFinancialRows } from "./financial-filters"
-import { primarySummaryQueues } from "./financial-queues"
+import { primarySummaryQueues, workTypeOptions } from "./financial-queues"
 import { renderFinancialRowHtml } from "./financial-renderers"
 import {
 	createFinancialWorkspaceState,
@@ -29,20 +29,24 @@ import {
 	money,
 	operationalAge,
 	ownerLabel,
-	refundHandoffAge,
 	refundHandoffDerivedSuppressed,
 	refundHandoffFor,
 	rowViewFor,
 	statusLabel,
 } from "./financial-workspace-selectors"
-;(function () {
+export function initFinancialWorkspace(): void {
 	const workspaceState = createFinancialWorkspaceState()
 	const actorFilter = document.getElementById("financialActorFilter") as HTMLSelectElement | null
-	const queueFilter = document.getElementById("financialQueueFilter") as HTMLSelectElement | null
-	const stateFilter = document.getElementById("financialStateFilter") as HTMLSelectElement | null
+	const lodgingFilter = document.getElementById("financialLodgingFilter") as HTMLInputElement | null
+	const ageFilter = document.getElementById("financialAgeFilter") as HTMLSelectElement | null
+	const searchFilter = document.getElementById("financialSearchFilter") as HTMLInputElement | null
+	const workTypeFilters = document.getElementById("financialWorkTypeFilters")
 	const summary = document.getElementById("financialSummary")
 	const rows = document.getElementById("financialRows")
+	if (!rows || rows.dataset.financialWorkspaceReady === "true") return
+	rows.dataset.financialWorkspaceReady = "true"
 	const listSummary = document.getElementById("financialListSummary")
+	const filterSummary = document.getElementById("financialFilterSummary")
 	const drawer = document.getElementById("financialReviewDrawer")
 	const drawerBackdrop = document.getElementById("financialReviewBackdrop")
 	const drawerBody = document.getElementById("financialReviewDrawerBody")
@@ -79,6 +83,10 @@ import {
 		String(
 			(document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null)?.value || ""
 		)
+	const inboxState = {
+		segment: "needs_action_today",
+		workType: "all",
+	}
 
 	const rowFor = (item: any) => rowViewFor(workspaceState, item)
 	const refundFor = (item: any) => refundHandoffFor(workspaceState, item)
@@ -86,8 +94,11 @@ import {
 	function currentFilters() {
 		return {
 			actor: String(actorFilter?.value || "all") as any,
-			queue: String(queueFilter?.value || "needs_action_today"),
-			evidenceState: String(stateFilter?.value || "all"),
+			segment: inboxState.segment,
+			workType: inboxState.workType,
+			search: String(searchFilter?.value || ""),
+			lodging: String(lodgingFilter?.value || ""),
+			age: String(ageFilter?.value || "all"),
 		}
 	}
 
@@ -112,20 +123,79 @@ import {
 			value: countQueue(items, metric.queue),
 		}))
 		summary.innerHTML = metrics
-			.map(
-				(
-					metric
-				) => `<button type="button" data-queue="${metric.queue}" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-white">
-					<span class="text-slate-950">${metric.value}</span>
+			.map((metric) => {
+				const active = metric.queue === inboxState.segment
+				const buttonClass = active
+					? "rounded-full border border-slate-950 bg-slate-950 px-3 py-2 text-left text-xs font-semibold text-white transition"
+					: "rounded-full border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-white"
+				const countClass = active ? "font-bold text-white" : "font-bold text-slate-950"
+				return `<button type="button" data-queue="${metric.queue}" class="${buttonClass}">
+					<span class="${countClass}">${metric.value}</span>
 					<span class="ml-1">${metric.label}</span>
 				</button>`
-			)
+			})
 			.join("")
 		summary.querySelectorAll("[data-queue]").forEach((button) => {
 			button.addEventListener("click", () => {
-				if (queueFilter) {
-					queueFilter.value = String(button.getAttribute("data-queue") || "needs_action_today")
-				}
+				inboxState.segment = String(button.getAttribute("data-queue") || "needs_action_today")
+				renderFinancialView()
+			})
+		})
+	}
+
+	function renderWorkTypeFilters(): void {
+		if (!workTypeFilters) return
+		workTypeFilters.querySelectorAll<HTMLElement>("[data-work-type]").forEach((button) => {
+			const active = String(button.dataset.workType || "all") === inboxState.workType
+			button.className = active
+				? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+				: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+		})
+	}
+
+	function selectedOptionLabel(select: HTMLSelectElement | null, fallback: string): string {
+		return select?.selectedOptions?.[0]?.textContent?.trim() || fallback
+	}
+
+	function renderFilterSummary(): void {
+		if (!filterSummary) return
+		const workTypeLabel =
+			workTypeOptions.find((option) => option.value === inboxState.workType)?.label || "Todos"
+		const actorLabel = selectedOptionLabel(actorFilter, "Todos los equipos")
+		const ageLabel = selectedOptionLabel(ageFilter, "Todas")
+		const lodgingValue = lodgingFilter?.value.trim() || ""
+		const parts = [
+			workTypeLabel === "Todos" ? "Todos los tipos" : workTypeLabel,
+			actorLabel,
+			ageLabel === "Todas" ? "" : ageLabel,
+			lodgingValue ? `Alojamiento: ${lodgingValue}` : "",
+		].filter(Boolean)
+		filterSummary.textContent = parts.join(" · ")
+	}
+
+	function renderEmptyRows(): void {
+		if (!rows) return
+		const nextSegment = primarySummaryQueues.find(
+			(metric) =>
+				metric.queue !== inboxState.segment &&
+				countQueue(workspaceState.combinedItems, metric.queue) > 0
+		)
+		const action = nextSegment
+			? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
+			: ""
+		const message = nextSegment
+			? `No hay casos en esta vista. Hay casos en ${nextSegment.label.toLowerCase()}.`
+			: "No hay casos para estos filtros."
+		rows.innerHTML = `<tr><td colspan="6" class="px-3 py-10 text-center text-slate-500">
+			<div class="mx-auto max-w-md">
+				<p class="text-sm font-semibold text-slate-700">${escapeHtml(message)}</p>
+				<p class="mt-1 text-xs text-slate-500">Cambia de segmento o ajusta filtros solo si necesitas buscar un caso específico.</p>
+				${action}
+			</div>
+		</td></tr>`
+		rows.querySelectorAll("[data-empty-queue]").forEach((button) => {
+			button.addEventListener("click", () => {
+				inboxState.segment = String(button.getAttribute("data-empty-queue") || "needs_action_today")
 				renderFinancialView()
 			})
 		})
@@ -135,8 +205,7 @@ import {
 		if (!rows) return
 		rows.innerHTML = ""
 		if (!Array.isArray(items) || !items.length) {
-			rows.innerHTML =
-				'<tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No hay casos en esta vista. Revisa los casos en espera, cerrados o todos los casos si necesitas más contexto.</td></tr>'
+			renderEmptyRows()
 			return
 		}
 		for (const item of items) {
@@ -147,8 +216,8 @@ import {
 			const handoff = refundFor(item)
 			const ownerMarkup =
 				handoff && hasAnyCode(item, ["refund_handoff_required"])
-					? `${ownerChip(handoff.nextOwner)}<div class="mt-2 text-xs text-slate-500">${escapeHtml(refundHandoffAge(handoff))}</div>`
-					: `${ownerChip(rowView.owner)}<div class="mt-2 text-xs text-slate-500">${escapeHtml(rowView.ageLabel)}</div>`
+					? ownerChip(handoff.nextOwner)
+					: ownerChip(rowView.owner)
 			tr.innerHTML = renderFinancialRowHtml({
 				item,
 				row: rowView,
@@ -315,6 +384,8 @@ import {
 		mergeFinancialWorkspaceItems(workspaceState)
 		const filteredItems = applyFilters(workspaceState.combinedItems)
 		renderSummary(workspaceState.combinedItems)
+		renderWorkTypeFilters()
+		renderFilterSummary()
 		renderRows(filteredItems)
 		if (listSummary) {
 			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
@@ -404,9 +475,16 @@ import {
 	}
 
 	actorFilter?.addEventListener("change", renderFinancialView)
-	queueFilter?.addEventListener("change", renderFinancialView)
-	stateFilter?.addEventListener("change", renderFinancialView)
+	lodgingFilter?.addEventListener("input", renderFinancialView)
+	ageFilter?.addEventListener("change", renderFinancialView)
+	searchFilter?.addEventListener("input", renderFinancialView)
+	workTypeFilters?.querySelectorAll("[data-work-type]").forEach((button) => {
+		button.addEventListener("click", () => {
+			inboxState.workType = String((button as HTMLElement).dataset.workType || "all")
+			renderFinancialView()
+		})
+	})
 	drawerClose?.addEventListener("click", closeDrawer)
 	drawerBackdrop?.addEventListener("click", closeDrawer)
 	void fetchOperations()
-})()
+}
