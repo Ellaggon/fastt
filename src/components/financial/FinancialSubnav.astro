@@ -1,0 +1,60 @@
+---
+import {
+	financialNavGroupLabels,
+	financialNavigationItems,
+	type FinancialNavGroup,
+} from "@/lib/financial/financialNavigation"
+
+interface Props {
+	pathname?: string
+	showConfiguration?: boolean
+}
+
+const { pathname = Astro.url.pathname, showConfiguration = true } = Astro.props
+const groups: FinancialNavGroup[] = showConfiguration
+	? ["operation", "configuration"]
+	: ["operation"]
+const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+---
+
+<nav
+	aria-label="Navegación financiera"
+	class="mb-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"
+>
+	<div class="flex min-w-max gap-1">
+		{
+			groups.map((group) => {
+				const items = financialNavigationItems.filter((item) => item.group === group)
+				return (
+					<div class="min-w-0">
+						{showConfiguration ? (
+							<p class="px-2 pb-1 text-[11px] font-bold tracking-[0.14em] text-slate-500 uppercase">
+								{financialNavGroupLabels[group]}
+							</p>
+						) : null}
+						<div class="flex flex-wrap gap-1">
+							{items.map((item) => {
+								const active = isActive(item.href)
+								return (
+									<a
+										href={item.href}
+										data-workspace-nav
+										data-astro-prefetch="hover"
+										aria-current={active ? "page" : undefined}
+										class={`inline-flex rounded-xl px-3 py-2 text-sm font-semibold transition ${
+											active
+												? "bg-slate-950 text-white shadow-sm"
+												: "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+										}`}
+									>
+										{item.label}
+									</a>
+								)
+							})}
+						</div>
+					</div>
+				)
+			})
+		}
+	</div>
+</nav>

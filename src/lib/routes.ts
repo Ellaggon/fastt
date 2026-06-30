@@ -27,6 +27,11 @@ export const routes = {
 		`/rates/calendar?variantId=${encodeURIComponent(String(roomId))}&focus=availability`,
 	bookingList: () => "/booking",
 	financialOperations: () => "/financial",
+	financialCollections: () => "/financial/collections",
+	financialSettlements: () => "/financial/settlements",
+	financialProviderPayables: () => "/financial/provider-payables",
+	financialRefunds: () => "/financial/refunds",
+	financialExceptions: () => "/financial/exceptions",
 	ratePlansList: () => "/rates/plans/manage",
 	ratesCommercialRulesApi: () => "/api/rates/commercial-rules",
 	ratePlanPolicies: (id: string) =>

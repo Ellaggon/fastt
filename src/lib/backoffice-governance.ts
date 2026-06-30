@@ -37,6 +37,7 @@ export type EnterpriseNavigationItem = {
 	href: string
 	status: Extract<GovernanceStatus, "canonical" | "transitional">
 	level?: 1 | 2 | 3 | 4
+	navGroup?: string
 	summary?: string
 }
 
@@ -938,17 +939,10 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		maturity: "transitional",
 		items: [
 			{
-				label: "Operación financiera",
+				label: "Finanzas",
 				href: routes.financialOperations(),
 				status: "canonical",
-				summary:
-					"Instantáneas contractuales, visibilidad de pagos, reembolsos, comisiones y conciliación.",
-			},
-			{
-				label: "Impuestos y cargos",
-				href: routes.providerTaxFees(),
-				status: "transitional",
-				summary: "Configuración de cargos visibles para huéspedes.",
+				summary: "Bandeja, cobros, liquidaciones, pagos pendientes, reembolsos y excepciones.",
 			},
 		],
 	},

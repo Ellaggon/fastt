@@ -98,7 +98,7 @@ const navigationGroups = [
 	{
 		title: "Finanzas",
 		sections: ["Finanzas"],
-		collapsible: false,
+		collapsible: true,
 	},
 	{
 		title: "Análisis",
@@ -116,6 +116,15 @@ const navigationGroups = [
 		items: group.sections.flatMap((title) => sectionByTitle.get(title)?.items ?? []),
 	}))
 	.filter((group) => group.items.length > 0)
+
+function shouldShowNavGroupHeading(
+	item: (typeof enterpriseNavigation)[number]["items"][number],
+	index: number,
+	items: (typeof enterpriseNavigation)[number]["items"]
+) {
+	if (!item.navGroup) return false
+	return index === 0 || items[index - 1]?.navGroup !== item.navGroup
+}
 ---
 
 <nav class="space-y-4 pb-5" aria-label="Navegación principal del proveedor">
@@ -127,18 +136,25 @@ const navigationGroups = [
 				collapsible={group.collapsible}
 				defaultOpen={!group.collapsible}
 			>
-				{group.items.map((item) => {
+				{group.items.map((item, index) => {
 					const summary = itemSummary(item)
 					return (
-						<DashboardSidebarItem
-							href={item.href}
-							label={item.label}
-							status={item.status}
-							summary={summary}
-							summaryTone={summaryTone(summary)}
-							active={item.href === activeHref}
-							prefetch={true}
-						/>
+						<>
+							{shouldShowNavGroupHeading(item, index, group.items) ? (
+								<p class="px-2.5 pt-2 text-[10px] font-semibold tracking-[0.12em] text-slate-600 uppercase first:pt-0">
+									{item.navGroup}
+								</p>
+							) : null}
+							<DashboardSidebarItem
+								href={item.href}
+								label={item.label}
+								status={item.status}
+								summary={summary}
+								summaryTone={summaryTone(summary)}
+								active={item.href === activeHref}
+								prefetch={true}
+							/>
+						</>
 					)
 				})}
 			</DashboardSidebarSection>

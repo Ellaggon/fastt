@@ -1,0 +1,98 @@
+---
+import Card from "@/components/ui/Card.astro"
+import { routes } from "@/lib/routes"
+
+export type FinancialPageAction = {
+	label: string
+	description: string
+}
+
+interface Props {
+	title: string
+	eyebrow: string
+	description: string
+	primaryQuestion: string
+	moneyFocus: string
+	ownerFocus: string
+	evidenceFocus: string
+	nextActionFocus: string
+	actions: FinancialPageAction[]
+}
+
+const {
+	title,
+	eyebrow,
+	description,
+	primaryQuestion,
+	moneyFocus,
+	ownerFocus,
+	evidenceFocus,
+	nextActionFocus,
+	actions,
+} = Astro.props
+---
+
+<section class="space-y-5">
+	<Card class="bg-white text-slate-900">
+		<div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+			<div class="max-w-3xl">
+				<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{eyebrow}</p>
+				<h1 class="mt-2 text-3xl font-bold tracking-tight text-slate-950">{title}</h1>
+				<p class="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+			</div>
+			<a
+				href={routes.financialOperations()}
+				data-workspace-nav
+				class="inline-flex w-fit items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-500 hover:text-slate-950"
+			>
+				Volver a la bandeja
+			</a>
+		</div>
+	</Card>
+
+	<div class="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+		<Card class="bg-slate-950 text-white">
+			<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Pregunta principal</p>
+			<p class="mt-3 text-2xl font-semibold leading-tight">{primaryQuestion}</p>
+			<p class="mt-4 text-sm leading-6 text-slate-300">
+				Esta página será una vista enfocada. No ejecuta cobros, pagos, reembolsos ni liquidaciones;
+				organiza casos para que el operador sepa qué revisar primero.
+			</p>
+		</Card>
+
+		<Card class="bg-white text-slate-900">
+			<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+				Cada caso debe explicar
+			</p>
+			<ul class="mt-4 space-y-3 text-sm text-slate-700">
+				<li><strong class="text-slate-950">Qué ocurrió:</strong> {primaryQuestion}</li>
+				<li><strong class="text-slate-950">Monto:</strong> {moneyFocus}</li>
+				<li><strong class="text-slate-950">Quién actúa:</strong> {ownerFocus}</li>
+				<li><strong class="text-slate-950">Comprobantes:</strong> {evidenceFocus}</li>
+				<li><strong class="text-slate-950">Próxima acción:</strong> {nextActionFocus}</li>
+			</ul>
+		</Card>
+	</div>
+
+	<Card class="bg-white text-slate-900">
+		<div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+			<div>
+				<p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+					Estructura inicial
+				</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-950">Cómo se organizará esta página</h2>
+			</div>
+			<p class="text-sm text-slate-500">Esqueleto UX; la lógica seguirá viviendo en la bandeja.</p>
+		</div>
+		<div class="mt-5 grid gap-3 md:grid-cols-2">
+			{
+				actions.map((action) => (
+					<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+						<h3 class="text-sm font-bold text-slate-950">{action.label}</h3>
+						<p class="mt-2 text-sm leading-6 text-slate-600">{action.description}</p>
+					</div>
+				))
+			}
+		</div>
+	</Card>
+</section>
