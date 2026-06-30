@@ -3,6 +3,7 @@ import {
 	financialRouteEndpointMap,
 	prewarmFinancialEndpoints,
 } from "./financial-data-cache"
+import { initFinancialWorkspaceRouter } from "./financial-workspace-router"
 
 type WorkspaceLoader = () => Promise<Record<string, unknown>>
 
@@ -49,7 +50,6 @@ export async function bootFinancialPage(): Promise<void> {
 		const module = await workspace.load()
 		const init = module[workspace.initName]
 		if (typeof init === "function") init()
-		return
 	}
 }
 
@@ -69,6 +69,7 @@ export function wireFinancialNavigationPrewarm(): void {
 }
 
 export function bootFinancialExperience(): void {
+	initFinancialWorkspaceRouter()
 	prewarmCurrentFinancialPage()
 	wireFinancialNavigationPrewarm()
 	void bootFinancialPage()

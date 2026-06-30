@@ -53,7 +53,7 @@ export async function fetchFinancialJson<T = unknown>(
 	const key = cacheKey(url)
 	const existing = store.entries.get(key)
 	if (!options.force && existing?.data != null) return existing.data as T
-	if (!options.force && existing?.inFlight) return existing.inFlight as Promise<T>
+	if (existing?.inFlight) return existing.inFlight as Promise<T>
 
 	const request = fetch(url, { headers }).then(async (response) => {
 		if (!response.ok) throw new Error(`financial_fetch_failed:${url}`)

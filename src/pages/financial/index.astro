@@ -1,11 +1,7 @@
 ---
-import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
-import Card from "@/components/ui/Card.astro"
-import Select from "@/components/ui/Select.astro"
+import FinancialUnifiedWorkspace from "@/components/financial/FinancialUnifiedWorkspace.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { actorFilterOptions } from "./_client/financial-actor-filters"
-import { workTypeOptions } from "./_client/financial-queues"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -36,6 +32,7 @@ if (!user) return Astro.redirect("/SignInPage")
 	Review closed means operational refund review closed
 	Booking id, Provider id, Basis, Evidence references, Resolution note
 	Timeline
+	financialReviewDrawer, financialReviewDrawerBody
 	data-review-action="acknowledge", data-review-action="resolve",
 	data-review-action="dismiss", Resolve review
 	blockingDetails, nextOperationalAction, statement freshness
@@ -43,174 +40,5 @@ if (!user) return Astro.redirect("/SignInPage")
 ---
 
 <WorkspaceLayout title="Finanzas">
-	<FinancialWorkspaceShell
-		title="Finanzas"
-		description="Casos que requieren revisión, seguimiento o cierre."
-		note="Fastt organiza evidencia y revisiones financieras. No ejecuta cobros, pagos ni reembolsos."
-	>
-		<Card class="overflow-hidden bg-slate-100 p-0">
-			<div class="border-b border-slate-200 p-4">
-				<div class="space-y-4">
-					<label class="block">
-						<span class="sr-only">Buscar reserva o referencia</span>
-						<input
-							id="financialSearchFilter"
-							type="search"
-							placeholder="Buscar reserva, referencia o proveedor..."
-							class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
-						/>
-					</label>
-					<div id="financialSummary" class="flex flex-wrap gap-2">
-						{
-							[
-								"Requieren atención",
-								"Bloqueados",
-								"Esperando respuesta",
-								"Listos para cerrar",
-								"Cerrados recientemente",
-							].map((label) => (
-								<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
-									<span class="text-xs font-semibold text-slate-500">{label}</span>
-								</div>
-							))
-						}
-					</div>
-					<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-						<p id="financialListSummary" class="text-sm text-slate-700">
-							Cargando casos que requieren atención, espera o cierre...
-						</p>
-						<details class="group rounded-2xl border border-slate-200 bg-white">
-							<summary
-								class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800"
-							>
-								<span>Filtros</span>
-								<span id="financialFilterSummary" class="text-xs text-slate-500 group-open:hidden"
-									>Todos los tipos · Todos los equipos</span
-								>
-								<span class="hidden text-xs text-slate-500 group-open:inline">Ocultar filtros</span>
-							</summary>
-							<div class="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-4">
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
-										>Equipo responsable</span
-									>
-									<Select id="financialActorFilter" name="actor" value="all">
-										{
-											actorFilterOptions.map((option) => (
-												<option value={option.value}>{option.label}</option>
-											))
-										}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Alojamiento</span
-									>
-									<input
-										id="financialLodgingFilter"
-										type="search"
-										placeholder="Nombre o asignación"
-										class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
-									/>
-								</label>
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Antigüedad</span>
-									<Select id="financialAgeFilter" name="age" value="all">
-										<option value="all">Todas</option>
-										<option value="today">Hoy</option>
-										<option value="over_3">Más de 3 días</option>
-										<option value="over_7">Más de 7 días</option>
-										<option value="over_14">Más de 14 días</option>
-									</Select>
-								</label>
-								<div class="space-y-2 sm:col-span-2 xl:col-span-1">
-									<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-										Tipo de trabajo
-									</p>
-									<div id="financialWorkTypeFilters" class="flex flex-wrap gap-2">
-										{
-											workTypeOptions.map((option) => (
-												<button
-													type="button"
-													data-work-type={option.value}
-													class={
-														option.value === "all"
-															? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-															: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-													}
-												>
-													{option.label}
-												</button>
-											))
-										}
-									</div>
-								</div>
-							</div>
-						</details>
-					</div>
-				</div>
-			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead>
-						<tr class="text-left text-slate-700">
-							<th class="px-3 py-2">Qué ocurrió</th>
-							<th class="px-3 py-2">Importe involucrado</th>
-							<th class="px-3 py-2">Qué impide avanzar</th>
-							<th class="px-3 py-2">Responsable</th>
-							<th class="px-3 py-2">Antigüedad</th>
-							<th class="px-3 py-2">Próxima acción</th>
-						</tr>
-					</thead>
-					<tbody id="financialRows">
-						{
-							Array.from({ length: 5 }).map(() => (
-								<tr class="border-t border-slate-200">
-									<td class="px-3 py-2">
-										<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
-										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
-										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
-										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
-										<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
-									</td>
-									<td class="px-3 py-2">
-										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
-									</td>
-								</tr>
-							))
-						}
-					</tbody>
-				</table>
-			</div>
-		</Card>
-	</FinancialWorkspaceShell>
-
-	<div id="financialReviewBackdrop" class="hidden fixed inset-0 z-40 bg-slate-950/30"></div>
-	<aside
-		id="financialReviewDrawer"
-		class="fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl transition-transform duration-200"
-	>
-		<div class="mb-4 flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
-			<div>
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Detalle del caso</p>
-				<p class="text-sm text-slate-600">
-					Qué ocurrió, cuánto dinero está involucrado, qué comprobantes existen y qué sigue.
-				</p>
-			</div>
-			<button
-				id="financialReviewDrawerClose"
-				type="button"
-				class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-				>Cerrar</button
-			>
-		</div>
-		<div id="financialReviewDrawerBody"></div>
-	</aside>
+	<FinancialUnifiedWorkspace />
 </WorkspaceLayout>

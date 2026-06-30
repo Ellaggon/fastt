@@ -14,7 +14,8 @@ const { pathname = Astro.url.pathname, showConfiguration = true } = Astro.props
 const groups: FinancialNavGroup[] = showConfiguration
 	? ["operation", "configuration"]
 	: ["operation"]
-const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+const isActive = (href: string) =>
+	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 ---
 
 <nav
