@@ -1,4 +1,5 @@
 ---
+import FinancialSubnav from "@/components/financial/FinancialSubnav.astro"
 import TaxFeePage from "@/components/tax-fees/TaxFeePage"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -21,7 +22,9 @@ const hasDefinitions = Array.isArray(initialDefinitions) && initialDefinitions.l
 const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : "idle"
 ---
 
-<WorkspaceLayout title="Taxes & Fees">
+<WorkspaceLayout title="Impuestos y cargos">
+	<FinancialSubnav />
+
 	<main class="min-h-screen bg-black text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-8 px-6">
 			<header
