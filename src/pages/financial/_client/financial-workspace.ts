@@ -5,6 +5,12 @@ import {
 	submitRefundHandoffReview,
 } from "./financial-actions"
 import { actorNoiseHint } from "./financial-actor-filters"
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "./financial-data-cache"
 import { countFinancialQueue, filterFinancialRows } from "./financial-filters"
 import { primarySummaryQueues, workTypeOptions } from "./financial-queues"
 import { renderFinancialRowHtml } from "./financial-renderers"
@@ -34,6 +40,17 @@ import {
 	rowViewFor,
 	statusLabel,
 } from "./financial-workspace-selectors"
+
+type WorkspacePayloads = {
+	operationsPayload: any
+	exceptionsPayload: any
+	eventsPayload: any
+	referencesPayload: any
+	handoffsPayload: any
+	reconciliationPayload: any
+	providerFinancePayload: any
+}
+
 export function initFinancialWorkspace(): void {
 	const workspaceState = createFinancialWorkspaceState()
 	const actorFilter = document.getElementById("financialActorFilter") as HTMLSelectElement | null
@@ -395,50 +412,16 @@ export function initFinancialWorkspace(): void {
 		}
 	}
 
-	async function readWorkspaceJson(response: Response, fallback: any): Promise<any> {
-		if (response.ok) return response.json()
-		if (response.status === 404) return fallback
-		throw new Error("financial_workspace_load_failed")
-	}
-
-	async function fetchWorkspace(): Promise<void> {
-		const [
-			operationsResponse,
-			exceptionsResponse,
-			eventsResponse,
-			referencesResponse,
-			handoffsResponse,
-			reconciliationResponse,
-			providerFinanceResponse,
-		] = await Promise.all([
-			fetch("/api/internal/financial/operations", { headers: { accept: "application/json" } }),
-			fetch("/api/internal/financial/exceptions?status=all&limit=250", {
-				headers: { accept: "application/json" },
-			}),
-			fetch("/api/internal/financial/review-events?limit=250", {
-				headers: { accept: "application/json" },
-			}),
-			fetch("/api/internal/financial/references?limit=500", {
-				headers: { accept: "application/json" },
-			}),
-			fetch("/api/internal/financial/refund-handoffs?status=all&limit=500", {
-				headers: { accept: "application/json" },
-			}),
-			fetch("/api/internal/financial/reconciliation-queue?limit=250", {
-				headers: { accept: "application/json" },
-			}),
-			fetch("/api/internal/financial/provider-finance", {
-				headers: { accept: "application/json" },
-			}),
-		])
-		const emptyPayload = { items: [], degraded: true }
-		const operationsPayload = await readWorkspaceJson(operationsResponse, emptyPayload)
-		const exceptionsPayload = await readWorkspaceJson(exceptionsResponse, emptyPayload)
-		const eventsPayload = await readWorkspaceJson(eventsResponse, emptyPayload)
-		const referencesPayload = await readWorkspaceJson(referencesResponse, emptyPayload)
-		const handoffsPayload = await readWorkspaceJson(handoffsResponse, emptyPayload)
-		const reconciliationPayload = await readWorkspaceJson(reconciliationResponse, emptyPayload)
-		const providerFinancePayload = await readWorkspaceJson(providerFinanceResponse, emptyPayload)
+	function applyWorkspacePayloads(payloads: WorkspacePayloads): void {
+		const {
+			operationsPayload,
+			exceptionsPayload,
+			eventsPayload,
+			referencesPayload,
+			handoffsPayload,
+			reconciliationPayload,
+			providerFinancePayload,
+		} = payloads
 		Object.assign(workspaceState, {
 			operationsItems: Array.isArray(operationsPayload?.items) ? operationsPayload.items : [],
 			workflowItems: Array.isArray(exceptionsPayload?.items) ? exceptionsPayload.items : [],
@@ -461,6 +444,81 @@ export function initFinancialWorkspace(): void {
 					: { paymentTransactions: [], settlementRecords: [] },
 		})
 		renderFinancialView()
+	}
+
+	function cachedWorkspacePayloads(): WorkspacePayloads | null {
+		const operationsPayload = getCachedFinancialJson(financialEndpointUrls.operations)
+		const exceptionsPayload = getCachedFinancialJson(financialEndpointUrls.exceptions)
+		const eventsPayload = getCachedFinancialJson(financialEndpointUrls.reviewEvents)
+		const referencesPayload = getCachedFinancialJson(financialEndpointUrls.references)
+		const handoffsPayload = getCachedFinancialJson(financialEndpointUrls.refundHandoffs)
+		const reconciliationPayload = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
+		const providerFinancePayload = getCachedFinancialJson(financialEndpointUrls.providerFinance)
+		if (
+			!operationsPayload &&
+			!exceptionsPayload &&
+			!eventsPayload &&
+			!referencesPayload &&
+			!handoffsPayload &&
+			!reconciliationPayload &&
+			!providerFinancePayload
+		) {
+			return null
+		}
+		return {
+			operationsPayload: operationsPayload || { items: [], degraded: true },
+			exceptionsPayload: exceptionsPayload || { items: [], degraded: true },
+			eventsPayload: eventsPayload || { items: [], degraded: true },
+			referencesPayload: referencesPayload || { items: [], degraded: true },
+			handoffsPayload: handoffsPayload || { items: [], degraded: true },
+			reconciliationPayload: reconciliationPayload || { items: [], degraded: true },
+			providerFinancePayload: providerFinancePayload || { items: [], degraded: true },
+		}
+	}
+
+	async function getWorkspacePayloads(
+		options: { force?: boolean } = {}
+	): Promise<WorkspacePayloads> {
+		const load = options.force ? refreshFinancialJson : fetchFinancialJson
+		const emptyPayload = { items: [], degraded: true }
+		const [
+			operationsPayload,
+			exceptionsPayload,
+			eventsPayload,
+			referencesPayload,
+			handoffsPayload,
+			reconciliationPayload,
+			providerFinancePayload,
+		] = await Promise.all([
+			load(financialEndpointUrls.operations).catch(() => emptyPayload),
+			load(financialEndpointUrls.exceptions).catch(() => emptyPayload),
+			load(financialEndpointUrls.reviewEvents).catch(() => emptyPayload),
+			load(financialEndpointUrls.references).catch(() => emptyPayload),
+			load(financialEndpointUrls.refundHandoffs).catch(() => emptyPayload),
+			load(financialEndpointUrls.reconciliationQueue).catch(() => emptyPayload),
+			load(financialEndpointUrls.providerFinance).catch(() => emptyPayload),
+		])
+		return {
+			operationsPayload,
+			exceptionsPayload,
+			eventsPayload,
+			referencesPayload,
+			handoffsPayload,
+			reconciliationPayload,
+			providerFinancePayload,
+		}
+	}
+
+	async function fetchWorkspace(): Promise<void> {
+		const cachedPayloads = cachedWorkspacePayloads()
+		if (cachedPayloads) {
+			applyWorkspacePayloads(cachedPayloads)
+			void getWorkspacePayloads({ force: true })
+				.then(applyWorkspacePayloads)
+				.catch(() => {})
+			return
+		}
+		applyWorkspacePayloads(await getWorkspacePayloads())
 	}
 
 	async function fetchOperations(): Promise<void> {

@@ -1,4 +1,9 @@
-export {}
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "../../_client/financial-data-cache"
 
 type ProviderPayablesSegment =
 	| "blocked"
@@ -294,11 +299,21 @@ function closeDrawer(): void {
 
 async function loadProviderPayables(): Promise<void> {
 	try {
-		const response = await fetch("/api/internal/financial/provider-finance", {
-			headers: { accept: "application/json" },
-		})
-		if (!response.ok) throw new Error("provider_payables_load_failed")
-		const payload = await response.json()
+		const cached = getCachedFinancialJson(financialEndpointUrls.providerFinance)
+		if (cached) {
+			state.items = buildItems(cached)
+			renderSegments()
+			renderRows()
+			void refreshFinancialJson(financialEndpointUrls.providerFinance)
+				.then((payload) => {
+					state.items = buildItems(payload)
+					renderSegments()
+					renderRows()
+				})
+				.catch(() => {})
+			return
+		}
+		const payload = await fetchFinancialJson(financialEndpointUrls.providerFinance)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -312,26 +327,29 @@ async function loadProviderPayables(): Promise<void> {
 	}
 }
 
-document.addEventListener("click", (event) => {
-	const target = event.target
-	if (!(target instanceof Element)) return
-	const segmentButton = target.closest(
-		"[data-provider-payables-segment]"
-	) as HTMLButtonElement | null
-	if (segmentButton?.dataset.providerPayablesSegment) {
-		state.segment = segmentButton.dataset.providerPayablesSegment as ProviderPayablesSegment
-		renderSegments()
-		renderRows()
-		return
-	}
-	const row = target.closest("[data-provider-payable-id]") as HTMLElement | null
-	if (row?.dataset.providerPayableId) {
-		const item = state.items.find((entry) => entry.id === row.dataset.providerPayableId)
-		if (item) openDrawer(item)
-	}
-})
-
-document.getElementById("providerPayablesDrawerClose")?.addEventListener("click", closeDrawer)
-document.getElementById("providerPayablesDrawerBackdrop")?.addEventListener("click", closeDrawer)
-
-void loadProviderPayables()
+export function initProviderPayablesWorkspace(): void {
+	const rows = document.getElementById("providerPayablesRows")
+	if (!rows || rows.dataset.providerPayablesReady === "true") return
+	rows.dataset.providerPayablesReady = "true"
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		const segmentButton = target.closest(
+			"[data-provider-payables-segment]"
+		) as HTMLButtonElement | null
+		if (segmentButton?.dataset.providerPayablesSegment) {
+			state.segment = segmentButton.dataset.providerPayablesSegment as ProviderPayablesSegment
+			renderSegments()
+			renderRows()
+			return
+		}
+		const row = target.closest("[data-provider-payable-id]") as HTMLElement | null
+		if (row?.dataset.providerPayableId) {
+			const item = state.items.find((entry) => entry.id === row.dataset.providerPayableId)
+			if (item) openDrawer(item)
+		}
+	})
+	document.getElementById("providerPayablesDrawerClose")?.addEventListener("click", closeDrawer)
+	document.getElementById("providerPayablesDrawerBackdrop")?.addEventListener("click", closeDrawer)
+	void loadProviderPayables()
+}

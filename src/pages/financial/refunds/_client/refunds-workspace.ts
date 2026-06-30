@@ -1,4 +1,9 @@
-export {}
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "../../_client/financial-data-cache"
 
 type RefundSegment =
 	| "needs_review"
@@ -337,18 +342,32 @@ async function submitRefundAction(action: RefundAction): Promise<void> {
 		return
 	}
 	if (message) message.textContent = "Revisión actualizada."
-	await loadRefunds()
+	await loadRefunds({ force: true })
 	const updated = state.items.find((entry) => entry.id === item.id)
 	if (updated) openDrawer(updated)
 }
 
-async function loadRefunds(): Promise<void> {
+async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 	try {
-		const response = await fetch("/api/internal/financial/refund-handoffs?status=all&limit=500", {
-			headers: { accept: "application/json" },
-		})
-		if (!response.ok) throw new Error("refunds_load_failed")
-		const payload = await response.json()
+		const cached = options.force
+			? null
+			: getCachedFinancialJson(financialEndpointUrls.refundHandoffs)
+		if (cached) {
+			state.items = buildItems(cached)
+			renderSegments()
+			renderRows()
+			void refreshFinancialJson(financialEndpointUrls.refundHandoffs)
+				.then((payload) => {
+					state.items = buildItems(payload)
+					renderSegments()
+					renderRows()
+				})
+				.catch(() => {})
+			return
+		}
+		const payload = options.force
+			? await refreshFinancialJson(financialEndpointUrls.refundHandoffs)
+			: await fetchFinancialJson(financialEndpointUrls.refundHandoffs)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -361,29 +380,32 @@ async function loadRefunds(): Promise<void> {
 	}
 }
 
-document.addEventListener("click", (event) => {
-	const target = event.target
-	if (!(target instanceof Element)) return
-	const segmentButton = target.closest("[data-refunds-segment]") as HTMLButtonElement | null
-	if (segmentButton?.dataset.refundsSegment) {
-		state.segment = segmentButton.dataset.refundsSegment as RefundSegment
-		renderSegments()
-		renderRows()
-		return
-	}
-	const row = target.closest("[data-refund-id]") as HTMLElement | null
-	if (row?.dataset.refundId) {
-		const item = state.items.find((entry) => entry.id === row.dataset.refundId)
-		if (item) openDrawer(item)
-		return
-	}
-	const actionButton = target.closest("[data-refund-action]") as HTMLButtonElement | null
-	if (actionButton?.dataset.refundAction) {
-		void submitRefundAction(actionButton.dataset.refundAction as RefundAction)
-	}
-})
-
-document.getElementById("refundsDrawerClose")?.addEventListener("click", closeDrawer)
-document.getElementById("refundsDrawerBackdrop")?.addEventListener("click", closeDrawer)
-
-void loadRefunds()
+export function initRefundsWorkspace(): void {
+	const rows = document.getElementById("refundsRows")
+	if (!rows || rows.dataset.refundsReady === "true") return
+	rows.dataset.refundsReady = "true"
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		const segmentButton = target.closest("[data-refunds-segment]") as HTMLButtonElement | null
+		if (segmentButton?.dataset.refundsSegment) {
+			state.segment = segmentButton.dataset.refundsSegment as RefundSegment
+			renderSegments()
+			renderRows()
+			return
+		}
+		const row = target.closest("[data-refund-id]") as HTMLElement | null
+		if (row?.dataset.refundId) {
+			const item = state.items.find((entry) => entry.id === row.dataset.refundId)
+			if (item) openDrawer(item)
+			return
+		}
+		const actionButton = target.closest("[data-refund-action]") as HTMLButtonElement | null
+		if (actionButton?.dataset.refundAction) {
+			void submitRefundAction(actionButton.dataset.refundAction as RefundAction)
+		}
+	})
+	document.getElementById("refundsDrawerClose")?.addEventListener("click", closeDrawer)
+	document.getElementById("refundsDrawerBackdrop")?.addEventListener("click", closeDrawer)
+	void loadRefunds()
+}

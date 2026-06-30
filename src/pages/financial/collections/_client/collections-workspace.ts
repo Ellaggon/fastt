@@ -1,4 +1,9 @@
-export {}
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "../../_client/financial-data-cache"
 
 type CollectionSegment = "requires_proof" | "unmatched" | "duplicate" | "in_review"
 
@@ -285,11 +290,21 @@ function closeDrawer(): void {
 
 async function loadCollections(): Promise<void> {
 	try {
-		const response = await fetch("/api/internal/financial/reconciliation-queue?limit=250", {
-			headers: { accept: "application/json" },
-		})
-		if (!response.ok) throw new Error("collections_load_failed")
-		const payload = await response.json()
+		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
+		if (cached) {
+			state.items = buildItems(cached)
+			renderSegments()
+			renderRows()
+			void refreshFinancialJson(financialEndpointUrls.reconciliationQueue)
+				.then((payload) => {
+					state.items = buildItems(payload)
+					renderSegments()
+					renderRows()
+				})
+				.catch(() => {})
+			return
+		}
+		const payload = await fetchFinancialJson(financialEndpointUrls.reconciliationQueue)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -303,24 +318,27 @@ async function loadCollections(): Promise<void> {
 	}
 }
 
-document.addEventListener("click", (event) => {
-	const target = event.target
-	if (!(target instanceof Element)) return
-	const segmentButton = target.closest("[data-collections-segment]") as HTMLButtonElement | null
-	if (segmentButton?.dataset.collectionsSegment) {
-		state.segment = segmentButton.dataset.collectionsSegment as CollectionSegment
-		renderSegments()
-		renderRows()
-		return
-	}
-	const row = target.closest("[data-collection-id]") as HTMLElement | null
-	if (row?.dataset.collectionId) {
-		const item = state.items.find((entry) => entry.id === row.dataset.collectionId)
-		if (item) openDrawer(item)
-	}
-})
-
-document.getElementById("collectionsDrawerClose")?.addEventListener("click", closeDrawer)
-document.getElementById("collectionsDrawerBackdrop")?.addEventListener("click", closeDrawer)
-
-void loadCollections()
+export function initCollectionsWorkspace(): void {
+	const rows = document.getElementById("collectionsRows")
+	if (!rows || rows.dataset.collectionsReady === "true") return
+	rows.dataset.collectionsReady = "true"
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		const segmentButton = target.closest("[data-collections-segment]") as HTMLButtonElement | null
+		if (segmentButton?.dataset.collectionsSegment) {
+			state.segment = segmentButton.dataset.collectionsSegment as CollectionSegment
+			renderSegments()
+			renderRows()
+			return
+		}
+		const row = target.closest("[data-collection-id]") as HTMLElement | null
+		if (row?.dataset.collectionId) {
+			const item = state.items.find((entry) => entry.id === row.dataset.collectionId)
+			if (item) openDrawer(item)
+		}
+	})
+	document.getElementById("collectionsDrawerClose")?.addEventListener("click", closeDrawer)
+	document.getElementById("collectionsDrawerBackdrop")?.addEventListener("click", closeDrawer)
+	void loadCollections()
+}

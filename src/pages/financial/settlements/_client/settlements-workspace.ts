@@ -1,4 +1,9 @@
-export {}
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "../../_client/financial-data-cache"
 
 type SettlementSegment =
 	| "amount_mismatch"
@@ -317,11 +322,21 @@ function closeDrawer(): void {
 
 async function loadSettlements(): Promise<void> {
 	try {
-		const response = await fetch("/api/internal/financial/reconciliation-queue?limit=250", {
-			headers: { accept: "application/json" },
-		})
-		if (!response.ok) throw new Error("settlements_load_failed")
-		const payload = await response.json()
+		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
+		if (cached) {
+			state.items = buildItems(cached)
+			renderSegments()
+			renderRows()
+			void refreshFinancialJson(financialEndpointUrls.reconciliationQueue)
+				.then((payload) => {
+					state.items = buildItems(payload)
+					renderSegments()
+					renderRows()
+				})
+				.catch(() => {})
+			return
+		}
+		const payload = await fetchFinancialJson(financialEndpointUrls.reconciliationQueue)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -335,24 +350,27 @@ async function loadSettlements(): Promise<void> {
 	}
 }
 
-document.addEventListener("click", (event) => {
-	const target = event.target
-	if (!(target instanceof Element)) return
-	const segmentButton = target.closest("[data-settlements-segment]") as HTMLButtonElement | null
-	if (segmentButton?.dataset.settlementsSegment) {
-		state.segment = segmentButton.dataset.settlementsSegment as SettlementSegment
-		renderSegments()
-		renderRows()
-		return
-	}
-	const row = target.closest("[data-settlement-id]") as HTMLElement | null
-	if (row?.dataset.settlementId) {
-		const item = state.items.find((entry) => entry.id === row.dataset.settlementId)
-		if (item) openDrawer(item)
-	}
-})
-
-document.getElementById("settlementsDrawerClose")?.addEventListener("click", closeDrawer)
-document.getElementById("settlementsDrawerBackdrop")?.addEventListener("click", closeDrawer)
-
-void loadSettlements()
+export function initSettlementsWorkspace(): void {
+	const rows = document.getElementById("settlementsRows")
+	if (!rows || rows.dataset.settlementsReady === "true") return
+	rows.dataset.settlementsReady = "true"
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		const segmentButton = target.closest("[data-settlements-segment]") as HTMLButtonElement | null
+		if (segmentButton?.dataset.settlementsSegment) {
+			state.segment = segmentButton.dataset.settlementsSegment as SettlementSegment
+			renderSegments()
+			renderRows()
+			return
+		}
+		const row = target.closest("[data-settlement-id]") as HTMLElement | null
+		if (row?.dataset.settlementId) {
+			const item = state.items.find((entry) => entry.id === row.dataset.settlementId)
+			if (item) openDrawer(item)
+		}
+	})
+	document.getElementById("settlementsDrawerClose")?.addEventListener("click", closeDrawer)
+	document.getElementById("settlementsDrawerBackdrop")?.addEventListener("click", closeDrawer)
+	void loadSettlements()
+}

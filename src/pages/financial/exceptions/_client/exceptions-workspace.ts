@@ -1,4 +1,9 @@
-export {}
+import {
+	fetchFinancialJson,
+	financialEndpointUrls,
+	getCachedFinancialJson,
+	refreshFinancialJson,
+} from "../../_client/financial-data-cache"
 
 type ExceptionSegment =
 	| "needs_review"
@@ -263,18 +268,27 @@ function render(): void {
 
 async function load(): Promise<void> {
 	try {
-		const [operationsResponse, exceptionsResponse] = await Promise.all([
-			fetch("/api/internal/financial/operations", { headers: { accept: "application/json" } }),
-			fetch("/api/internal/financial/exceptions?status=all&limit=250", {
-				headers: { accept: "application/json" },
-			}),
+		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
+		const cachedExceptions = getCachedFinancialJson(financialEndpointUrls.exceptions)
+		if (cachedOperations || cachedExceptions) {
+			state.items = buildItems([
+				cachedOperations || { items: [] },
+				cachedExceptions || { items: [] },
+			])
+			render()
+			void Promise.all([
+				refreshFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+				refreshFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
+			]).then(([operationsPayload, exceptionsPayload]) => {
+				state.items = buildItems([operationsPayload, exceptionsPayload])
+				render()
+			})
+			return
+		}
+		const [operationsPayload, exceptionsPayload] = await Promise.all([
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+			fetchFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
 		])
-		const operationsPayload = operationsResponse.ok
-			? await operationsResponse.json()
-			: { items: [] }
-		const exceptionsPayload = exceptionsResponse.ok
-			? await exceptionsResponse.json()
-			: { items: [] }
 		state.items = buildItems([operationsPayload, exceptionsPayload])
 		render()
 	} catch {
@@ -287,12 +301,19 @@ async function load(): Promise<void> {
 	}
 }
 
-document.querySelectorAll<HTMLButtonElement>("[data-exceptions-segment]").forEach((button) => {
-	button.addEventListener("click", () => {
-		state.segment = button.dataset.exceptionsSegment as ExceptionSegment
-		render()
+export function initFinancialExceptionsWorkspace(): void {
+	const rows = document.getElementById("financialExceptionsRows")
+	if (!rows || rows.dataset.financialExceptionsReady === "true") return
+	rows.dataset.financialExceptionsReady = "true"
+	document.querySelectorAll<HTMLButtonElement>("[data-exceptions-segment]").forEach((button) => {
+		button.addEventListener("click", () => {
+			state.segment = button.dataset.exceptionsSegment as ExceptionSegment
+			render()
+		})
 	})
-})
-document.getElementById("financialExceptionsDrawerClose")?.addEventListener("click", closeDrawer)
-document.getElementById("financialExceptionsDrawerBackdrop")?.addEventListener("click", closeDrawer)
-void load()
+	document.getElementById("financialExceptionsDrawerClose")?.addEventListener("click", closeDrawer)
+	document
+		.getElementById("financialExceptionsDrawerBackdrop")
+		?.addEventListener("click", closeDrawer)
+	void load()
+}
