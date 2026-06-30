@@ -1,0 +1,140 @@
+---
+import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+---
+
+<WorkspaceLayout title="Finanzas · Excepciones">
+	<FinancialWorkspaceShell
+		title="Excepciones"
+		description="Casos financieros que requieren revisión y no encajan en un flujo único."
+		note="Esta vista ayuda a ordenar revisiones operativas. No crea contabilidad, pagos ni automatizaciones."
+	>
+		<Card class="overflow-hidden bg-white p-0 text-slate-900">
+			<div class="border-b border-slate-200 p-4">
+				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p id="financialExceptionsSummary" class="text-sm font-semibold text-slate-950">
+							Cargando excepciones...
+						</p>
+						<p class="mt-1 text-sm text-slate-600">
+							Usa esta vista para datos faltantes, referencias inconsistentes y revisiones vencidas.
+						</p>
+					</div>
+					<div
+						id="financialExceptionsSegments"
+						class="flex flex-wrap gap-2"
+						aria-label="Segmentos de excepciones financieras"
+					>
+						<button
+							type="button"
+							data-exceptions-segment="needs_review"
+							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+							>Requieren revisión</button
+						>
+						<button
+							type="button"
+							data-exceptions-segment="missing_data"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Datos faltantes</button
+						>
+						<button
+							type="button"
+							data-exceptions-segment="reference_issue"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Referencia inconsistente</button
+						>
+						<button
+							type="button"
+							data-exceptions-segment="review_overdue"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Revisión vencida</button
+						>
+						<button
+							type="button"
+							data-exceptions-segment="closed"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Cerradas</button
+						>
+					</div>
+				</div>
+			</div>
+
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-slate-200 text-sm">
+					<thead>
+						<tr class="text-left text-slate-700">
+							<th class="px-3 py-2">Caso</th>
+							<th class="px-3 py-2">Reserva</th>
+							<th class="px-3 py-2">Qué ocurrió</th>
+							<th class="px-3 py-2">Impacto</th>
+							<th class="px-3 py-2">Responsable</th>
+							<th class="px-3 py-2">Antigüedad</th>
+							<th class="px-3 py-2">Próxima acción</th>
+						</tr>
+					</thead>
+					<tbody id="financialExceptionsRows">
+						{
+							Array.from({ length: 5 }).map(() => (
+								<tr class="border-t border-slate-200">
+									<td class="px-3 py-3">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-48 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
+									</td>
+								</tr>
+							))
+						}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	</FinancialWorkspaceShell>
+
+	<div id="financialExceptionsDrawerBackdrop" class="hidden fixed inset-0 z-40 bg-slate-950/30">
+	</div>
+	<aside
+		id="financialExceptionsDrawer"
+		class="fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl transition-transform duration-200"
+	>
+		<div class="mb-4 flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
+			<div>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+					Detalle de excepción
+				</p>
+				<p class="text-sm text-slate-600">
+					Resumen, impacto, comprobantes visibles y próxima acción.
+				</p>
+			</div>
+			<button
+				id="financialExceptionsDrawerClose"
+				type="button"
+				class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+				>Cerrar</button
+			>
+		</div>
+		<div id="financialExceptionsDrawerBody"></div>
+	</aside>
+
+	<script src="./_client/exceptions-workspace.ts"></script>
+</WorkspaceLayout>

@@ -1,0 +1,139 @@
+---
+import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+---
+
+<WorkspaceLayout title="Finanzas · Reembolsos">
+	<FinancialWorkspaceShell
+		title="Reembolsos"
+		description="Seguimiento de reembolsos asociados a cancelaciones, modificaciones o revisión manual."
+		note="Solo organiza seguimiento, comprobantes y decisiones de revisión. No ejecuta reembolsos ni integra pagos."
+	>
+		<Card class="overflow-hidden bg-white p-0 text-slate-900">
+			<div class="border-b border-slate-200 p-4">
+				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p id="refundsSummary" class="text-sm font-semibold text-slate-950">
+							Cargando reembolsos...
+						</p>
+						<p class="mt-1 text-sm text-slate-600">
+							Prioriza casos por revisar, respuestas externas pendientes y comprobantes faltantes.
+						</p>
+					</div>
+					<div
+						id="refundsSegments"
+						class="flex flex-wrap gap-2"
+						aria-label="Segmentos de reembolsos"
+					>
+						<button
+							type="button"
+							data-refunds-segment="needs_review"
+							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+							>Requieren revisión</button
+						>
+						<button
+							type="button"
+							data-refunds-segment="waiting_response"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Esperando respuesta</button
+						>
+						<button
+							type="button"
+							data-refunds-segment="missing_proof"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Comprobante faltante</button
+						>
+						<button
+							type="button"
+							data-refunds-segment="proof_received"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Comprobante recibido</button
+						>
+						<button
+							type="button"
+							data-refunds-segment="ready_to_close"
+							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							>Listos para cerrar</button
+						>
+					</div>
+				</div>
+			</div>
+
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-slate-200 text-sm">
+					<thead>
+						<tr class="text-left text-slate-700">
+							<th class="px-3 py-2">Reserva</th>
+							<th class="px-3 py-2">Motivo</th>
+							<th class="px-3 py-2">Importe esperado</th>
+							<th class="px-3 py-2">Comprobante</th>
+							<th class="px-3 py-2">Responsable</th>
+							<th class="px-3 py-2">Antigüedad</th>
+							<th class="px-3 py-2">Próxima acción</th>
+						</tr>
+					</thead>
+					<tbody id="refundsRows">
+						{
+							Array.from({ length: 5 }).map(() => (
+								<tr class="border-t border-slate-200">
+									<td class="px-3 py-3">
+										<div class="h-4 w-36 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-32 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-28 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-20 animate-pulse rounded bg-slate-200" />
+									</td>
+									<td class="px-3 py-3">
+										<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
+									</td>
+								</tr>
+							))
+						}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	</FinancialWorkspaceShell>
+
+	<div id="refundsDrawerBackdrop" class="hidden fixed inset-0 z-40 bg-slate-950/30"></div>
+	<aside
+		id="refundsDrawer"
+		class="fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl transition-transform duration-200"
+	>
+		<div class="mb-4 flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
+			<div>
+				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+					Detalle de reembolso
+				</p>
+				<p class="text-sm text-slate-600">
+					Qué ocurrió, reserva, política, importe, comprobante, historial y acciones.
+				</p>
+			</div>
+			<button
+				id="refundsDrawerClose"
+				type="button"
+				class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+				>Cerrar</button
+			>
+		</div>
+		<div id="refundsDrawerBody"></div>
+	</aside>
+
+	<script src="./_client/refunds-workspace.ts"></script>
+</WorkspaceLayout>
