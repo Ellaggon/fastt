@@ -45,28 +45,4 @@ const pathname = Astro.url.pathname
 			</div>
 		</div>
 	</div>
-	<script is:inline>
-		;(function () {
-			if (typeof document === "undefined") return
-			if (typeof window === "undefined") return
-			if (!("startViewTransition" in document)) return
-
-			document.addEventListener("click", (event) => {
-				const target = event.target
-				if (!(target instanceof Element)) return
-				const anchor = target.closest("a[data-workspace-nav], a[data-astro-prefetch]")
-				if (!(anchor instanceof HTMLAnchorElement)) return
-				if (event.defaultPrevented) return
-				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-				if (anchor.target && anchor.target !== "_self") return
-				if (anchor.origin !== window.location.origin) return
-				if (anchor.href === window.location.href) return
-
-				event.preventDefault()
-				document.startViewTransition(() => {
-					window.location.assign(anchor.href)
-				})
-			})
-		})()
-	</script>
 </Layout>
