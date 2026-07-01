@@ -6,6 +6,12 @@ import {
 	providerFinanceBlockerReason,
 } from "./financial-provider-finance-copy"
 import type { FinancialDrawerViewModel } from "./financial-drawer-view-model"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	providerDisplayName,
+	technicalReference,
+} from "./financial-human-display"
 
 type DrawerRenderDeps = {
 	escapeHtml: (value: unknown) => string
@@ -109,13 +115,16 @@ function renderWhy(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 function renderContext(input: DrawerRenderInput, deps: DrawerRenderDeps): string {
 	const item = input.viewModel.item
 	const operation = input.viewModel.operation
+	const bookingLabel = bookingDisplayName(item.bookingId, { operation, ...item })
+	const providerLabel = providerDisplayName(item.providerId, { operation, ...item })
+	const productLabel = bookingSubtitle({ operation, ...item })
 	return section(
 		"Contexto operativo",
 		`<div class="grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reserva</div><div class="mt-1 break-all text-sm font-semibold text-slate-900">${deps.escapeHtml(item.bookingId || "Sin reserva asociada")}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Proveedor</div><div class="mt-1 break-all text-sm text-slate-900">${deps.escapeHtml(item.providerId || "Sin proveedor asociado")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reserva</div><div class="mt-1 text-sm font-semibold text-slate-900">${deps.escapeHtml(bookingLabel)}</div><div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(productLabel)}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Proveedor</div><div class="mt-1 text-sm font-semibold text-slate-900">${deps.escapeHtml(providerLabel)}</div></div>
 			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">${deps.escapeHtml(input.viewModel.row.amountLabel)}</div><div class="mt-1 text-sm font-semibold text-slate-900">${input.viewModel.row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(input.viewModel.row.amountCurrency, input.viewModel.row.amount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Producto</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(operation?.contract?.productName || operation?.productName || operation?.variantName || "-")}</div></div>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Identificadores internos</div><div class="mt-1 text-xs text-slate-500">Disponibles en detalle técnico.</div></div>
 		</div>`
 	)
 }
@@ -141,7 +150,7 @@ function renderEvidence(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 						<div class="flex items-start justify-between gap-3">
 							<div>
 								<div class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${deps.escapeHtml(referenceTypeLabel(reference.type))}</div>
-								<div class="mt-1 font-mono text-xs text-slate-800">${deps.escapeHtml(reference.referenceValue)}</div>
+								<div class="mt-1 font-mono text-xs text-slate-800">${deps.escapeHtml(technicalReference(reference.referenceValue))}</div>
 							</div>
 							<span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${reference.isPersisted ? "referencia registrada" : "comprobante visible"}</span>
 						</div>

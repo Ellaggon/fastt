@@ -1,5 +1,11 @@
 import type { FinancialRowViewModel } from "./financial-row-view-model"
 import { buildProviderFinanceRowViewModel } from "./financial-provider-finance-view-model"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	providerDisplayName,
+	statePillClass,
+} from "./financial-human-display"
 
 type RowRenderDeps = {
 	escapeHtml: (value: unknown) => string
@@ -57,7 +63,7 @@ export function renderFinancialRowHtml(params: {
 	ownerMarkup: string
 	deps: RowRenderDeps
 }): string {
-	const { item, row, operation, handoff, ownerMarkup, deps } = params
+	const { item, row, operation, ownerMarkup, deps } = params
 	const priority = renderPriorityBadge(row)
 	const blockerClass =
 		row.queue === "provider_finance" || row.queue === "reconciliation_issues"
@@ -70,28 +76,39 @@ export function renderFinancialRowHtml(params: {
 		? `<div class="mt-1 text-xs font-semibold text-amber-800">${deps.escapeHtml(financeView.title)} · Resumen: ${deps.escapeHtml(renderHumanFreshness(financeView.statementState))}</div>`
 		: ""
 	const inboxState = renderInboxState(row)
+	const bookingLabel = bookingDisplayName(item.bookingId, { operation, ...item })
 	const bookingContext = item.bookingId
-		? `<a class="font-medium text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(item.bookingId || "-")}</a>`
-		: `<div class="font-medium text-slate-950">Sin reserva asociada</div>`
+		? `<a class="font-semibold text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(bookingLabel)}</a>`
+		: `<div class="font-semibold text-slate-950">Sin reserva asociada</div>`
+	const subtitle = bookingSubtitle({ operation, ...item })
+	const providerLabel = providerDisplayName(item.providerId, { operation, ...item })
+	const pillKind =
+		row.attentionState === "waiting_external"
+			? "waiting"
+			: row.attentionState === "ready_to_close"
+				? "ready"
+				: row.attentionState === "closed"
+					? "closed"
+					: row.isBlocked
+						? "blocked"
+						: "neutral"
 	return `
-		<td class="px-3 py-3 text-slate-700 ${blockerClass}">
-			<div class="flex items-start justify-between gap-2">
-				<div class="font-medium ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${deps.escapeHtml(row.title)}</div>
-				<span class="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600">${deps.escapeHtml(inboxState)}</span>
+		<td class="px-3 py-4 text-slate-700 ${blockerClass}">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<div class="font-semibold ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${deps.escapeHtml(row.title)}</div>
+					<div class="mt-1 text-xs font-medium text-slate-600">${bookingContext}</div>
+					<div class="mt-1 max-w-md text-xs leading-5 text-slate-500">${deps.escapeHtml(subtitle)} · ${deps.escapeHtml(providerLabel)}</div>
+				</div>
+				<span class="shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold ${statePillClass(pillKind)}">${deps.escapeHtml(inboxState)}</span>
 			</div>
-			<div class="mt-1 max-w-xs text-xs leading-5 text-slate-500">${deps.escapeHtml(row.description)}</div>
+			<div class="mt-2 max-w-xl text-xs leading-5 text-slate-600">${deps.escapeHtml(row.description)}</div>
 			${providerFinanceLine}
-			<div class="mt-2 flex flex-wrap gap-1 text-xs">
-				<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 font-semibold text-slate-600">${deps.escapeHtml(deps.label(priority))}</span>
-				${deps.statusChip(item.status)}
-				${handoff ? deps.handoffStatusChip(handoff.status) : ""}
-			</div>
 		</td>
-		<td class="px-3 py-3 text-slate-700">
+		<td class="px-3 py-4 text-slate-700">
 			<div class="text-xs text-slate-500">${deps.escapeHtml(row.amountLabel)}</div>
-			<div class="mt-1 text-sm font-semibold text-slate-950">${row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(row.amountCurrency, row.amount))}</div>
-			${bookingContext}
-			<div class="mt-1 text-xs text-slate-500">${deps.escapeHtml(operation?.contract?.productName || "Alojamiento")} · ${deps.escapeHtml(operation?.contract?.variantName || "Asignación")}</div>
+			<div class="mt-1 text-base font-semibold text-slate-950">${row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(row.amountCurrency, row.amount))}</div>
+			<div class="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">${deps.escapeHtml(deps.label(priority))}</div>
 		</td>
 		<td class="px-3 py-3 text-slate-700">
 			<div class="max-w-xs text-sm font-semibold text-slate-950">${deps.escapeHtml(row.blocker)}</div>

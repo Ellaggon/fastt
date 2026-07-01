@@ -139,8 +139,8 @@ const viewClass = (view: FinancialViewId) =>
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead>
 						<tr class="text-left text-slate-700">
-							<th class="px-3 py-2">Qué ocurrió</th>
-							<th class="px-3 py-2">Importe involucrado</th>
+							<th class="px-3 py-2">Caso</th>
+							<th class="px-3 py-2">Importe</th>
 							<th class="px-3 py-2">Qué impide avanzar</th>
 							<th class="px-3 py-2">Responsable</th>
 							<th class="px-3 py-2">Antigüedad</th>
@@ -206,18 +206,17 @@ const viewClass = (view: FinancialViewId) =>
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead
 						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Reserva</th><th class="px-3 py-2">Importe</th><th
-								class="px-3 py-2">Referencia externa</th
-							><th class="px-3 py-2">Procesador</th><th class="px-3 py-2">Comprobante</th><th
-								class="px-3 py-2">Responsable</th
-							><th class="px-3 py-2">Próxima acción</th></tr
+							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importe</th><th
+								class="px-3 py-2">Comprobante</th
+							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
 						></thead
 					><tbody id="collectionsRows"
 						><tr
-							><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500"
+							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
 								>Cargando cobros...</td
 							></tr
-						></tbody>
+						></tbody
+					>
 				</table>
 			</div>
 		</Card>
@@ -263,7 +262,8 @@ const viewClass = (view: FinancialViewId) =>
 							type="button"
 							data-settlements-segment="no_difference"
 							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Sin diferencia</button>
+							>Sin diferencia</button
+						>
 					</div>
 				</div>
 			</div>
@@ -271,18 +271,17 @@ const viewClass = (view: FinancialViewId) =>
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead
 						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Reserva</th><th class="px-3 py-2">Importe confirmado</th><th
-								class="px-3 py-2">Cobro</th
-							><th class="px-3 py-2">Liquidación</th><th class="px-3 py-2">Diferencia</th><th
-								class="px-3 py-2">Estado revisión</th
+							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importes visibles</th><th
+								class="px-3 py-2">Diferencia</th
 							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
 						></thead
 					><tbody id="settlementsRows"
 						><tr
-							><td colspan="8" class="px-3 py-8 text-center text-sm text-slate-500"
+							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
 								>Cargando liquidaciones...</td
 							></tr
-						></tbody>
+						></tbody
+					>
 				</table>
 			</div>
 		</Card>
@@ -327,7 +326,8 @@ const viewClass = (view: FinancialViewId) =>
 							type="button"
 							data-provider-payables-segment="ready"
 							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Sin bloqueo principal</button>
+							>Sin bloqueo principal</button
+						>
 					</div>
 				</div>
 			</div>
@@ -336,19 +336,18 @@ const viewClass = (view: FinancialViewId) =>
 					<thead
 						><tr class="text-left text-slate-700"
 							><th class="px-3 py-2">Proveedor</th><th class="px-3 py-2">Reserva</th><th
-								class="px-3 py-2">Bruto</th
-							><th class="px-3 py-2">Comisión</th><th class="px-3 py-2">Impuestos</th><th
 								class="px-3 py-2">Pendiente proveedor</th
-							><th class="px-3 py-2">Bloqueo</th><th class="px-3 py-2">Responsable</th><th
+							><th class="px-3 py-2">Qué lo bloquea</th><th class="px-3 py-2">Responsable</th><th
 								class="px-3 py-2">Próxima acción</th
 							></tr
 						></thead
 					><tbody id="providerPayablesRows"
 						><tr
-							><td colspan="9" class="px-3 py-8 text-center text-sm text-slate-500"
+							><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500"
 								>Cargando pagos pendientes...</td
 							></tr
-						></tbody>
+						></tbody
+					>
 				</table>
 			</div>
 		</Card>
@@ -393,7 +392,8 @@ const viewClass = (view: FinancialViewId) =>
 							type="button"
 							data-refunds-segment="ready_to_close"
 							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Listos para cerrar</button>
+							>Listos para cerrar</button
+						>
 					</div>
 				</div>
 			</div>
@@ -401,18 +401,17 @@ const viewClass = (view: FinancialViewId) =>
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead
 						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Reserva</th><th class="px-3 py-2">Motivo</th><th
-								class="px-3 py-2">Importe esperado</th
-							><th class="px-3 py-2">Comprobante</th><th class="px-3 py-2">Responsable</th><th
-								class="px-3 py-2">Antigüedad</th
-							><th class="px-3 py-2">Próxima acción</th></tr
+							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importe esperado</th><th
+								class="px-3 py-2">Comprobante</th
+							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
 						></thead
 					><tbody id="refundsRows"
 						><tr
-							><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500"
+							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
 								>Cargando reembolsos...</td
 							></tr
-						></tbody>
+						></tbody
+					>
 				</table>
 			</div>
 		</Card>
@@ -457,7 +456,8 @@ const viewClass = (view: FinancialViewId) =>
 							type="button"
 							data-exceptions-segment="closed"
 							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Cerradas</button>
+							>Cerradas</button
+						>
 					</div>
 				</div>
 			</div>
@@ -465,18 +465,17 @@ const viewClass = (view: FinancialViewId) =>
 				<table class="min-w-full divide-y divide-slate-200 text-sm">
 					<thead
 						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Reserva</th><th
-								class="px-3 py-2">Qué ocurrió</th
-							><th class="px-3 py-2">Impacto</th><th class="px-3 py-2">Responsable</th><th
-								class="px-3 py-2">Antigüedad</th
-							><th class="px-3 py-2">Próxima acción</th></tr
+							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Estado</th><th class="px-3 py-2"
+								>Impacto</th
+							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
 						></thead
 					><tbody id="financialExceptionsRows"
 						><tr
-							><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500"
+							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
 								>Cargando excepciones...</td
 							></tr
-						></tbody>
+						></tbody
+					>
 				</table>
 			</div>
 		</Card>
@@ -499,7 +498,8 @@ const viewClass = (view: FinancialViewId) =>
 			id="financialReviewDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="financialReviewDrawerBody"></div>
 </aside>
 
@@ -519,7 +519,8 @@ const viewClass = (view: FinancialViewId) =>
 			id="collectionsDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="collectionsDrawerBody"></div>
 </aside>
 
@@ -539,7 +540,8 @@ const viewClass = (view: FinancialViewId) =>
 			id="settlementsDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="settlementsDrawerBody"></div>
 </aside>
 
@@ -559,7 +561,8 @@ const viewClass = (view: FinancialViewId) =>
 			id="providerPayablesDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="providerPayablesDrawerBody"></div>
 </aside>
 
@@ -579,7 +582,8 @@ const viewClass = (view: FinancialViewId) =>
 			id="refundsDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="refundsDrawerBody"></div>
 </aside>
 
@@ -599,6 +603,7 @@ const viewClass = (view: FinancialViewId) =>
 			id="financialExceptionsDrawerClose"
 			type="button"
 			class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-			>Cerrar</button>
+			>Cerrar</button
+		>
 	</div><div id="financialExceptionsDrawerBody"></div>
 </aside>
