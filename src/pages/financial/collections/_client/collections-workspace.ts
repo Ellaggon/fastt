@@ -4,6 +4,16 @@ import {
 	getCachedFinancialJson,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	buildBookingContextIndex,
+	maskExternalReference,
+	resolveBookingContext,
+	statePillClass,
+	technicalReference,
+	type FinancialHumanContext,
+} from "../../_client/financial-human-display"
 
 type CollectionSegment = "requires_proof" | "unmatched" | "duplicate" | "in_review"
 
@@ -24,9 +34,14 @@ type CollectionItem = {
 	raw: any
 }
 
-const state: { segment: CollectionSegment; items: CollectionItem[] } = {
+const state: {
+	segment: CollectionSegment
+	items: CollectionItem[]
+	bookingContext: Map<string, FinancialHumanContext>
+} = {
 	segment: "requires_proof",
 	items: [],
+	bookingContext: new Map(),
 }
 
 const segmentLabels: Record<CollectionSegment, string> = {
@@ -224,25 +239,31 @@ function renderRows(): void {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">No hay cobros en este segmento.</td></tr>`
+		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay cobros en este segmento.</td></tr>`
 		return
 	}
 	rows.innerHTML = visible
-		.map(
-			(item) => `
+		.map((item) => {
+			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
+			const booking = bookingDisplayName(item.bookingId, context)
+			const subtitle = bookingSubtitle(context)
+			const reference = maskExternalReference(item.externalReference, item.processor)
+			const stateClass = item.proof.includes("Falta")
+				? statePillClass("blocked")
+				: statePillClass("neutral")
+			return `
 			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-collection-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-3">
-					<div class="font-semibold text-slate-950">${escapeHtml(item.bookingId)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.title)}</div>
+				<td class="px-3 py-4">
+					<div class="font-semibold text-slate-950">${escapeHtml(booking)}</div>
+					<div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div>
+					<div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.title)}</div>
 				</td>
-				<td class="px-3 py-3 font-semibold text-slate-900">${escapeHtml(formatMoney(item.amount, item.currency))}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.externalReference)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.processor)}</td>
-				<td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(item.proof)}</span></td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.nextAction)}</td>
+				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.amount, item.currency))}</td>
+				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.proof)}</span><div class="mt-2 text-xs text-slate-500">${escapeHtml(reference)}</div></td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
+				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
 			</tr>`
-		)
+		})
 		.join("")
 }
 
@@ -255,6 +276,7 @@ function openDrawer(item: CollectionItem): void {
 	const backdrop = document.getElementById("collectionsDrawerBackdrop")
 	const body = document.getElementById("collectionsDrawerBody")
 	if (!drawer || !backdrop || !body) return
+	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
 			<div class="rounded-3xl bg-slate-950 p-5 text-white">
@@ -263,10 +285,12 @@ function openDrawer(item: CollectionItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.description)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", item.bookingId)}
+				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
+				${detailRow("Alojamiento", bookingSubtitle(context))}
 				${detailRow("Importe", formatMoney(item.amount, item.currency))}
-				${detailRow("Referencia externa", item.externalReference)}
+				${detailRow("Referencia", maskExternalReference(item.externalReference, item.processor))}
 				${detailRow("Procesador", item.processor)}
+				${detailRow("ID interno", "Disponible en detalle técnico")}
 				${detailRow("Comprobante", item.proof)}
 				${detailRow("Responsable", item.owner)}
 			</div>
@@ -276,7 +300,7 @@ function openDrawer(item: CollectionItem): void {
 			</div>
 			<details class="rounded-2xl border border-slate-200 bg-white p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
-				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
+				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify({ ...item.raw, technicalReference: technicalReference(item.externalReference) }, null, 2))}</pre>
 			</details>
 		</section>`
 	backdrop.classList.remove("hidden")
@@ -291,12 +315,20 @@ function closeDrawer(): void {
 async function loadCollections(): Promise<void> {
 	try {
 		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
+		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
+			state.bookingContext = buildBookingContextIndex(cachedOperations)
 			state.items = buildItems(cached)
 			renderSegments()
 			renderRows()
-			void refreshFinancialJson(financialEndpointUrls.reconciliationQueue)
-				.then((payload) => {
+			void Promise.all([
+				refreshFinancialJson(financialEndpointUrls.reconciliationQueue),
+				fetchFinancialJson(financialEndpointUrls.operations).catch(
+					() => cachedOperations || { items: [] }
+				),
+			])
+				.then(([payload, operationsPayload]) => {
+					state.bookingContext = buildBookingContextIndex(operationsPayload)
 					state.items = buildItems(payload)
 					renderSegments()
 					renderRows()
@@ -304,7 +336,11 @@ async function loadCollections(): Promise<void> {
 				.catch(() => {})
 			return
 		}
-		const payload = await fetchFinancialJson(financialEndpointUrls.reconciliationQueue)
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(financialEndpointUrls.reconciliationQueue),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		state.bookingContext = buildBookingContextIndex(operationsPayload)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -313,7 +349,7 @@ async function loadCollections(): Promise<void> {
 		const summary = document.getElementById("collectionsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la revisión de cobros."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún cobro.</td></tr>`
+			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún cobro.</td></tr>`
 		}
 	}
 }

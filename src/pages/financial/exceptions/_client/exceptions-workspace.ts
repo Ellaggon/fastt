@@ -4,6 +4,14 @@ import {
 	getCachedFinancialJson,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	buildBookingContextIndex,
+	resolveBookingContext,
+	statePillClass,
+	type FinancialHumanContext,
+} from "../../_client/financial-human-display"
 
 type ExceptionSegment =
 	| "needs_review"
@@ -26,9 +34,14 @@ type ExceptionItem = {
 	raw: any
 }
 
-const state: { segment: ExceptionSegment; items: ExceptionItem[] } = {
+const state: {
+	segment: ExceptionSegment
+	items: ExceptionItem[]
+	bookingContext: Map<string, FinancialHumanContext>
+} = {
 	segment: "needs_review",
 	items: [],
+	bookingContext: new Map(),
 }
 
 const segmentLabels: Record<ExceptionSegment, string> = {
@@ -187,22 +200,28 @@ function renderRows(): void {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">No hay excepciones en este segmento.</td></tr>`
+		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay excepciones en este segmento.</td></tr>`
 		return
 	}
 	rows.innerHTML = visible
-		.map(
-			(item) => `
+		.map((item) => {
+			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
+			const booking = bookingDisplayName(item.bookingId, context)
+			const stateClass =
+				item.segment === "closed"
+					? statePillClass("closed")
+					: item.segment === "review_overdue"
+						? statePillClass("blocked")
+						: statePillClass("neutral")
+			return `
 			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-exception-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-3 font-semibold text-slate-950">${escapeHtml(item.caseLabel)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.bookingId)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.whatHappened)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.impact)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.ageLabel)}</td>
-				<td class="px-3 py-3 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
+				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(item.caseLabel)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(booking)}</div><div class="mt-2 text-sm text-slate-700">${escapeHtml(item.whatHappened)}</div></td>
+				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(segmentLabels[item.segment])}</span></td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.impact)}</td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</div></td>
+				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
 			</tr>`
-		)
+		})
 		.join("")
 }
 
@@ -215,6 +234,7 @@ function openDrawer(item: ExceptionItem): void {
 	const backdrop = document.getElementById("financialExceptionsDrawerBackdrop")
 	const body = document.getElementById("financialExceptionsDrawerBody")
 	if (!drawer || !backdrop || !body) return
+	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
 			<div class="rounded-3xl bg-slate-950 p-5 text-white">
@@ -223,7 +243,8 @@ function openDrawer(item: ExceptionItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.impact)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", item.bookingId)}
+				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
+				${detailRow("Alojamiento", bookingSubtitle(context))}
 				${detailRow("Responsable", item.owner)}
 				${detailRow("Antigüedad", item.ageLabel)}
 				${detailRow("Estado", item.status)}
@@ -271,6 +292,7 @@ async function load(): Promise<void> {
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		const cachedExceptions = getCachedFinancialJson(financialEndpointUrls.exceptions)
 		if (cachedOperations || cachedExceptions) {
+			state.bookingContext = buildBookingContextIndex(cachedOperations)
 			state.items = buildItems([
 				cachedOperations || { items: [] },
 				cachedExceptions || { items: [] },
@@ -280,6 +302,7 @@ async function load(): Promise<void> {
 				refreshFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 				refreshFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
 			]).then(([operationsPayload, exceptionsPayload]) => {
+				state.bookingContext = buildBookingContextIndex(operationsPayload)
 				state.items = buildItems([operationsPayload, exceptionsPayload])
 				render()
 			})
@@ -289,6 +312,7 @@ async function load(): Promise<void> {
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 			fetchFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
 		])
+		state.bookingContext = buildBookingContextIndex(operationsPayload)
 		state.items = buildItems([operationsPayload, exceptionsPayload])
 		render()
 	} catch {
@@ -296,7 +320,7 @@ async function load(): Promise<void> {
 		const summary = document.getElementById("financialExceptionsSummary")
 		if (summary) summary.textContent = "No se pudieron cargar las excepciones."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">No se pudieron cargar las excepciones financieras.</td></tr>`
+			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No se pudieron cargar las excepciones financieras.</td></tr>`
 		}
 	}
 }

@@ -4,6 +4,14 @@ import {
 	getCachedFinancialJson,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	buildBookingContextIndex,
+	resolveBookingContext,
+	statePillClass,
+	type FinancialHumanContext,
+} from "../../_client/financial-human-display"
 
 type SettlementSegment =
 	| "amount_mismatch"
@@ -31,9 +39,14 @@ type SettlementItem = {
 	raw: any
 }
 
-const state: { segment: SettlementSegment; items: SettlementItem[] } = {
+const state: {
+	segment: SettlementSegment
+	items: SettlementItem[]
+	bookingContext: Map<string, FinancialHumanContext>
+} = {
 	segment: "amount_mismatch",
 	items: [],
+	bookingContext: new Map(),
 }
 
 const segmentLabels: Record<SettlementSegment, string> = {
@@ -249,26 +262,30 @@ function renderRows(): void {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="8" class="px-3 py-8 text-center text-sm text-slate-500">No hay casos en este segmento.</td></tr>`
+		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay casos en este segmento.</td></tr>`
 		return
 	}
 	rows.innerHTML = visible
-		.map(
-			(item) => `
+		.map((item) => {
+			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
+			const booking = bookingDisplayName(item.bookingId, context)
+			const subtitle = bookingSubtitle(context)
+			const diff = formatMoney(item.differenceAmount, item.currency)
+			const stateClass =
+				item.segment === "no_difference" ? statePillClass("ready") : statePillClass("blocked")
+			return `
 			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-settlement-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-3">
-					<div class="font-semibold text-slate-950">${escapeHtml(item.bookingId)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.title)}</div>
+				<td class="px-3 py-4">
+					<div class="font-semibold text-slate-950">${escapeHtml(booking)}</div>
+					<div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div>
+					<div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.title)}</div>
 				</td>
-				<td class="px-3 py-3 font-semibold text-slate-900">${escapeHtml(formatMoney(item.confirmedAmount, item.currency))}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(formatMoney(item.collectionAmount, item.currency))}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(formatMoney(item.settlementAmount, item.currency))}</td>
-				<td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(formatMoney(item.differenceAmount, item.currency))}</span></td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.reviewState)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-3 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
+				<td class="px-3 py-4 text-xs leading-5 text-slate-700"><span class="font-semibold text-slate-950">Confirmado:</span> ${escapeHtml(formatMoney(item.confirmedAmount, item.currency))}<br/><span class="font-semibold text-slate-950">Cobro:</span> ${escapeHtml(formatMoney(item.collectionAmount, item.currency))}<br/><span class="font-semibold text-slate-950">Externo:</span> ${escapeHtml(formatMoney(item.settlementAmount, item.currency))}</td>
+				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(diff)}</span><div class="mt-2 text-xs text-slate-500">${escapeHtml(item.reviewState)}</div></td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
+				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
 			</tr>`
-		)
+		})
 		.join("")
 }
 
@@ -281,6 +298,7 @@ function openDrawer(item: SettlementItem): void {
 	const backdrop = document.getElementById("settlementsDrawerBackdrop")
 	const body = document.getElementById("settlementsDrawerBody")
 	if (!drawer || !backdrop || !body) return
+	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
 			<div class="rounded-3xl bg-slate-950 p-5 text-white">
@@ -289,6 +307,8 @@ function openDrawer(item: SettlementItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.description)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
+				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
+				${detailRow("Alojamiento", bookingSubtitle(context))}
 				${detailRow("Reserva confirmada", formatMoney(item.confirmedAmount, item.currency))}
 				${detailRow("Cobro registrado", formatMoney(item.collectionAmount, item.currency))}
 				${detailRow("Liquidación registrada", formatMoney(item.settlementAmount, item.currency))}
@@ -323,12 +343,20 @@ function closeDrawer(): void {
 async function loadSettlements(): Promise<void> {
 	try {
 		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
+		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
+			state.bookingContext = buildBookingContextIndex(cachedOperations)
 			state.items = buildItems(cached)
 			renderSegments()
 			renderRows()
-			void refreshFinancialJson(financialEndpointUrls.reconciliationQueue)
-				.then((payload) => {
+			void Promise.all([
+				refreshFinancialJson(financialEndpointUrls.reconciliationQueue),
+				fetchFinancialJson(financialEndpointUrls.operations).catch(
+					() => cachedOperations || { items: [] }
+				),
+			])
+				.then(([payload, operationsPayload]) => {
+					state.bookingContext = buildBookingContextIndex(operationsPayload)
 					state.items = buildItems(payload)
 					renderSegments()
 					renderRows()
@@ -336,7 +364,11 @@ async function loadSettlements(): Promise<void> {
 				.catch(() => {})
 			return
 		}
-		const payload = await fetchFinancialJson(financialEndpointUrls.reconciliationQueue)
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(financialEndpointUrls.reconciliationQueue),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		state.bookingContext = buildBookingContextIndex(operationsPayload)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -345,7 +377,7 @@ async function loadSettlements(): Promise<void> {
 		const summary = document.getElementById("settlementsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la comparación de liquidaciones."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún movimiento.</td></tr>`
+			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún movimiento.</td></tr>`
 		}
 	}
 }

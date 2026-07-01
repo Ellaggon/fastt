@@ -4,6 +4,15 @@ import {
 	getCachedFinancialJson,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	buildBookingContextIndex,
+	providerDisplayName,
+	resolveBookingContext,
+	statePillClass,
+	type FinancialHumanContext,
+} from "../../_client/financial-human-display"
 
 type ProviderPayablesSegment =
 	| "blocked"
@@ -33,9 +42,14 @@ type ProviderPayableItem = {
 	raw: any
 }
 
-const state: { segment: ProviderPayablesSegment; items: ProviderPayableItem[] } = {
+const state: {
+	segment: ProviderPayablesSegment
+	items: ProviderPayableItem[]
+	bookingContext: Map<string, FinancialHumanContext>
+} = {
 	segment: "blocked",
 	items: [],
+	bookingContext: new Map(),
 }
 
 const segmentLabels: Record<ProviderPayablesSegment, string> = {
@@ -168,7 +182,7 @@ function buildItem(item: any): ProviderPayableItem {
 	return {
 		id: `provider-payable:${item?.bookingId || crypto.randomUUID()}`,
 		segment,
-		provider: String(item?.providerId || "Proveedor actual"),
+		provider: providerDisplayName(item?.providerId || "Proveedor actual", item),
 		bookingId: String(item?.bookingId || "Sin reserva"),
 		grossAmount: numeric(item?.grossAmount ?? item?.contract?.grossAmount),
 		commissionAmount: numeric(item?.commissionAmount),
@@ -181,7 +195,7 @@ function buildItem(item: any): ProviderPayableItem {
 		blockerSummary: blockerSummary(item),
 		commissionSummary: commissionSummary(item),
 		taxSummary: taxSummary(item),
-		relatedBookings: [String(item?.bookingId || "Sin reserva")],
+		relatedBookings: [bookingDisplayName(item?.bookingId || "Sin reserva", item)],
 		description:
 			segment === "ready"
 				? "El importe pendiente tiene información suficiente para seguimiento operativo."
@@ -221,27 +235,28 @@ function renderRows(): void {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="9" class="px-3 py-8 text-center text-sm text-slate-500">No hay pagos pendientes en este segmento.</td></tr>`
+		rows.innerHTML = `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500">No hay pagos pendientes en este segmento.</td></tr>`
 		return
 	}
 	rows.innerHTML = visible
-		.map(
-			(item) => `
+		.map((item) => {
+			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
+			const booking = bookingDisplayName(item.bookingId, context)
+			const subtitle = bookingSubtitle(context)
+			const stateClass =
+				item.blocker === "Sin bloqueo principal"
+					? statePillClass("ready")
+					: statePillClass("blocked")
+			return `
 			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-provider-payable-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.provider)}</td>
-				<td class="px-3 py-3">
-					<div class="font-semibold text-slate-950">${escapeHtml(item.bookingId)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.description)}</div>
-				</td>
-				<td class="px-3 py-3 font-semibold text-slate-900">${escapeHtml(formatMoney(item.grossAmount, item.currency))}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(formatMoney(item.commissionAmount, item.currency))}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(formatMoney(item.taxAmount, item.currency))}</td>
-				<td class="px-3 py-3 font-semibold text-slate-900">${escapeHtml(formatMoney(item.providerPendingAmount, item.currency))}</td>
-				<td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(item.blocker)}</span></td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-3 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
+				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(item.provider)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div></td>
+				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(booking)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(item.description)}</div></td>
+				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.providerPendingAmount, item.currency))}</td>
+				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.blocker)}</span></td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
+				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
 			</tr>`
-		)
+		})
 		.join("")
 }
 
@@ -254,6 +269,7 @@ function openDrawer(item: ProviderPayableItem): void {
 	const backdrop = document.getElementById("providerPayablesDrawerBackdrop")
 	const body = document.getElementById("providerPayablesDrawerBody")
 	if (!drawer || !backdrop || !body) return
+	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
 			<div class="rounded-3xl bg-slate-950 p-5 text-white">
@@ -262,6 +278,9 @@ function openDrawer(item: ProviderPayableItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.blockerSummary)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
+				${detailRow("Proveedor", providerDisplayName(item.raw?.providerId || item.provider, context))}
+				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
+				${detailRow("Alojamiento", bookingSubtitle(context))}
 				${detailRow("Bruto", formatMoney(item.grossAmount, item.currency))}
 				${detailRow("Comisión", formatMoney(item.commissionAmount, item.currency))}
 				${detailRow("Impuestos", formatMoney(item.taxAmount, item.currency))}
@@ -282,6 +301,7 @@ function openDrawer(item: ProviderPayableItem): void {
 			<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Próxima acción</p>
 				<p class="mt-2 text-sm font-semibold text-amber-950">${escapeHtml(item.nextAction)}</p>
+				<p class="mt-3 text-xs text-amber-800">Esta vista solo explica el pendiente y sus bloqueos. No ejecuta pagos ni mueve dinero.</p>
 			</div>
 			<details class="rounded-2xl border border-slate-200 bg-white p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
@@ -300,12 +320,20 @@ function closeDrawer(): void {
 async function loadProviderPayables(): Promise<void> {
 	try {
 		const cached = getCachedFinancialJson(financialEndpointUrls.providerFinance)
+		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
+			state.bookingContext = buildBookingContextIndex(cachedOperations)
 			state.items = buildItems(cached)
 			renderSegments()
 			renderRows()
-			void refreshFinancialJson(financialEndpointUrls.providerFinance)
-				.then((payload) => {
+			void Promise.all([
+				refreshFinancialJson(financialEndpointUrls.providerFinance),
+				fetchFinancialJson(financialEndpointUrls.operations).catch(
+					() => cachedOperations || { items: [] }
+				),
+			])
+				.then(([payload, operationsPayload]) => {
+					state.bookingContext = buildBookingContextIndex(operationsPayload)
 					state.items = buildItems(payload)
 					renderSegments()
 					renderRows()
@@ -313,7 +341,11 @@ async function loadProviderPayables(): Promise<void> {
 				.catch(() => {})
 			return
 		}
-		const payload = await fetchFinancialJson(financialEndpointUrls.providerFinance)
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(financialEndpointUrls.providerFinance),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		state.bookingContext = buildBookingContextIndex(operationsPayload)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -322,7 +354,7 @@ async function loadProviderPayables(): Promise<void> {
 		const summary = document.getElementById("providerPayablesSummary")
 		if (summary) summary.textContent = "No se pudo cargar pagos pendientes a proveedores."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="8" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún pago.</td></tr>`
+			rows.innerHTML = `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún pago.</td></tr>`
 		}
 	}
 }

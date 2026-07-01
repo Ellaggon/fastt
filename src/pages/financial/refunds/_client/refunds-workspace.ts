@@ -4,6 +4,14 @@ import {
 	getCachedFinancialJson,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
+import {
+	bookingDisplayName,
+	bookingSubtitle,
+	buildBookingContextIndex,
+	resolveBookingContext,
+	statePillClass,
+	type FinancialHumanContext,
+} from "../../_client/financial-human-display"
 
 type RefundSegment =
 	| "needs_review"
@@ -35,10 +43,16 @@ type RefundItem = {
 	raw: any
 }
 
-const state: { segment: RefundSegment; items: RefundItem[]; selectedItem: RefundItem | null } = {
+const state: {
+	segment: RefundSegment
+	items: RefundItem[]
+	selectedItem: RefundItem | null
+	bookingContext: Map<string, FinancialHumanContext>
+} = {
 	segment: "needs_review",
 	items: [],
 	selectedItem: null,
+	bookingContext: new Map(),
 }
 
 const segmentLabels: Record<RefundSegment, string> = {
@@ -230,25 +244,26 @@ function renderRows(): void {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">No hay reembolsos en este segmento.</td></tr>`
+		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay reembolsos en este segmento.</td></tr>`
 		return
 	}
 	rows.innerHTML = visible
-		.map(
-			(item) => `
+		.map((item) => {
+			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
+			const booking = bookingDisplayName(item.bookingId, context)
+			const stateClass =
+				item.proof.includes("faltante") || item.proof.includes("Faltante")
+					? statePillClass("blocked")
+					: statePillClass("ready")
+			return `
 			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-refund-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-3">
-					<div class="font-semibold text-slate-950">${escapeHtml(item.bookingId)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.refundType)}</div>
-				</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.reason)}</td>
-				<td class="px-3 py-3 font-semibold text-slate-900">${escapeHtml(formatMoney(item.expectedAmount, item.currency))}</td>
-				<td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(item.proof)}</span></td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-3 text-slate-700">${escapeHtml(item.ageLabel)}</td>
-				<td class="px-3 py-3 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
+				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(booking)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(item.refundType)} · ${escapeHtml(item.reason)}</div><div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.whatHappened)}</div></td>
+				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.expectedAmount, item.currency))}</td>
+				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.proof)}</span></td>
+				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</div></td>
+				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
 			</tr>`
-		)
+		})
 		.join("")
 }
 
@@ -266,6 +281,7 @@ function openDrawer(item: RefundItem): void {
 	const backdrop = document.getElementById("refundsDrawerBackdrop")
 	const body = document.getElementById("refundsDrawerBody")
 	if (!drawer || !backdrop || !body) return
+	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	const disabled = canAct(item) ? "" : "disabled"
 	body.innerHTML = `
 		<section class="space-y-4">
@@ -275,7 +291,8 @@ function openDrawer(item: RefundItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.whatHappened)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", item.bookingId)}
+				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
+				${detailRow("Alojamiento", bookingSubtitle(context))}
 				${detailRow("Cancelación", item.cancellation)}
 				${detailRow("Política aplicada", item.policyApplied)}
 				${detailRow("Importe", formatMoney(item.expectedAmount, item.currency))}
@@ -297,7 +314,7 @@ function openDrawer(item: RefundItem): void {
 				<textarea id="refundsReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Obligatoria para cerrar o descartar">${escapeHtml(item.notes)}</textarea>
 				<div class="mt-3 flex flex-wrap gap-2">
 					<button type="button" data-refund-action="acknowledge" ${disabled} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Iniciar seguimiento</button>
-					<button type="button" data-refund-action="close" ${disabled} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Cerrar revisión</button>
+					<button type="button" data-refund-action="close" ${disabled} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Marcar revisión como cerrada</button>
 					<button type="button" data-refund-action="dismiss" ${disabled} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Descartar caso</button>
 				</div>
 				<p id="refundsActionMessage" class="mt-3 text-sm text-slate-500"></p>
@@ -352,12 +369,20 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 		const cached = options.force
 			? null
 			: getCachedFinancialJson(financialEndpointUrls.refundHandoffs)
+		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
+			state.bookingContext = buildBookingContextIndex(cachedOperations)
 			state.items = buildItems(cached)
 			renderSegments()
 			renderRows()
-			void refreshFinancialJson(financialEndpointUrls.refundHandoffs)
-				.then((payload) => {
+			void Promise.all([
+				refreshFinancialJson(financialEndpointUrls.refundHandoffs),
+				fetchFinancialJson(financialEndpointUrls.operations).catch(
+					() => cachedOperations || { items: [] }
+				),
+			])
+				.then(([payload, operationsPayload]) => {
+					state.bookingContext = buildBookingContextIndex(operationsPayload)
 					state.items = buildItems(payload)
 					renderSegments()
 					renderRows()
@@ -365,9 +390,13 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 				.catch(() => {})
 			return
 		}
-		const payload = options.force
-			? await refreshFinancialJson(financialEndpointUrls.refundHandoffs)
-			: await fetchFinancialJson(financialEndpointUrls.refundHandoffs)
+		const [payload, operationsPayload] = await Promise.all([
+			options.force
+				? refreshFinancialJson(financialEndpointUrls.refundHandoffs)
+				: fetchFinancialJson(financialEndpointUrls.refundHandoffs),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		state.bookingContext = buildBookingContextIndex(operationsPayload)
 		state.items = buildItems(payload)
 		renderSegments()
 		renderRows()
@@ -376,7 +405,7 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 		const summary = document.getElementById("refundsSummary")
 		if (summary) summary.textContent = "No se pudo cargar el seguimiento de reembolsos."
 		if (rows)
-			rows.innerHTML = `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún reembolso.</td></tr>`
+			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún reembolso.</td></tr>`
 	}
 }
 
