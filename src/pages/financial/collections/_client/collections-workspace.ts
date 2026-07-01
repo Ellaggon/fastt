@@ -10,7 +10,7 @@ import {
 	buildBookingContextIndex,
 	maskExternalReference,
 	resolveBookingContext,
-	statePillClass,
+	stateDotClass,
 	technicalReference,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
@@ -219,6 +219,15 @@ function segmentCount(segment: CollectionSegment): number {
 	return state.items.filter((item) => item.segment === segment).length
 }
 
+function sortCollectionItems(items: CollectionItem[]): CollectionItem[] {
+	return [...items].sort((left, right) => {
+		const leftBlocked = left.proof.includes("Falta") ? 1 : 0
+		const rightBlocked = right.proof.includes("Falta") ? 1 : 0
+		if (leftBlocked !== rightBlocked) return rightBlocked - leftBlocked
+		return (right.amount || 0) - (left.amount || 0)
+	})
+}
+
 function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-collections-segment]").forEach((button) => {
 		const segment = button.dataset.collectionsSegment as CollectionSegment
@@ -226,7 +235,7 @@ function renderSegments(): void {
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
 		button.className = active
 			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 	})
 }
 
@@ -234,12 +243,18 @@ function renderRows(): void {
 	const rows = document.getElementById("collectionsRows")
 	const summary = document.getElementById("collectionsSummary")
 	if (!rows) return
-	const visible = state.items.filter((item) => item.segment === state.segment)
+	const visible = sortCollectionItems(state.items.filter((item) => item.segment === state.segment))
 	if (summary) {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay cobros en este segmento.</td></tr>`
+		const emptyMessages: Record<CollectionSegment, string> = {
+			requires_proof: "No hay cobros que requieran comprobante.",
+			unmatched: "No hay cobros sin reserva asociada.",
+			duplicate: "No hay referencias duplicadas visibles.",
+			in_review: "No hay cobros en revisión ahora.",
+		}
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
@@ -248,21 +263,35 @@ function renderRows(): void {
 			const booking = bookingDisplayName(item.bookingId, context)
 			const subtitle = bookingSubtitle(context)
 			const reference = maskExternalReference(item.externalReference, item.processor)
-			const stateClass = item.proof.includes("Falta")
-				? statePillClass("blocked")
-				: statePillClass("neutral")
+			const stateKind: "blocked" | "neutral" = item.proof.includes("Falta") ? "blocked" : "neutral"
 			return `
-			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-collection-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-4">
-					<div class="font-semibold text-slate-950">${escapeHtml(booking)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div>
-					<div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.title)}</div>
-				</td>
-				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.amount, item.currency))}</td>
-				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.proof)}</span><div class="mt-2 text-xs text-slate-500">${escapeHtml(reference)}</div></td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
-			</tr>`
+			<article class="cursor-pointer px-4 py-4 transition hover:bg-slate-50" data-collection-id="${escapeHtml(item.id)}">
+				<div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_160px_minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
+					<div>
+						<div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+							<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
+							<span>${escapeHtml(item.proof)}</span>
+						</div>
+						<h3 class="mt-2 text-base font-semibold text-slate-950">${escapeHtml(item.title)}</h3>
+						<p class="mt-1 text-sm font-medium text-slate-700">${escapeHtml(booking)}</p>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(subtitle)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Importe</p>
+						<p class="mt-1 text-lg font-bold text-slate-950">${escapeHtml(formatMoney(item.amount, item.currency))}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Cobro visible</p>
+						<p class="mt-1 text-sm font-semibold text-slate-900">${escapeHtml(reference)}</p>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(item.description)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Próxima acción</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-900">${escapeHtml(item.nextAction)}</p>
+						<p class="mt-3 text-xs text-slate-500">Responsable: <span class="font-semibold text-slate-700">${escapeHtml(item.owner)}</span></p>
+					</div>
+				</div>
+			</article>`
 		})
 		.join("")
 }
@@ -349,7 +378,7 @@ async function loadCollections(): Promise<void> {
 		const summary = document.getElementById("collectionsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la revisión de cobros."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún cobro.</td></tr>`
+			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún cobro.</div>`
 		}
 	}
 }

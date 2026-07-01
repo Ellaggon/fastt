@@ -121,7 +121,7 @@ const viewClass = (view: FinancialViewId) =>
 													class={
 														option.value === "all"
 															? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-															: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+															: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 													}
 												>
 													{option.label}
@@ -135,26 +135,8 @@ const viewClass = (view: FinancialViewId) =>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead>
-						<tr class="text-left text-slate-700">
-							<th class="px-3 py-2">Caso</th>
-							<th class="px-3 py-2">Importe</th>
-							<th class="px-3 py-2">Qué impide avanzar</th>
-							<th class="px-3 py-2">Responsable</th>
-							<th class="px-3 py-2">Antigüedad</th>
-							<th class="px-3 py-2">Próxima acción</th>
-						</tr>
-					</thead>
-					<tbody id="financialRows">
-						<tr
-							><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando casos...</td
-							></tr
-						>
-					</tbody>
-				</table>
+			<div id="financialRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando casos...</div>
 			</div>
 		</Card>
 	</section>
@@ -184,40 +166,26 @@ const viewClass = (view: FinancialViewId) =>
 						<button
 							type="button"
 							data-collections-segment="unmatched"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Sin reserva asociada</button
 						>
 						<button
 							type="button"
 							data-collections-segment="duplicate"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Referencias duplicadas</button
 						>
 						<button
 							type="button"
 							data-collections-segment="in_review"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>En revisión</button
 						>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead
-						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importe</th><th
-								class="px-3 py-2">Comprobante</th
-							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
-						></thead
-					><tbody id="collectionsRows"
-						><tr
-							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando cobros...</td
-							></tr
-						></tbody
-					>
-				</table>
+			<div id="collectionsRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando cobros...</div>
 			</div>
 		</Card>
 	</section>
@@ -246,43 +214,29 @@ const viewClass = (view: FinancialViewId) =>
 						><button
 							type="button"
 							data-settlements-segment="missing_payment"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Falta cobro</button
 						><button
 							type="button"
 							data-settlements-segment="missing_settlement"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Falta liquidación</button
 						><button
 							type="button"
 							data-settlements-segment="duplicate_reference"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Referencia duplicada</button
 						><button
 							type="button"
 							data-settlements-segment="no_difference"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Sin diferencia</button
 						>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead
-						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importes visibles</th><th
-								class="px-3 py-2">Diferencia</th
-							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
-						></thead
-					><tbody id="settlementsRows"
-						><tr
-							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando liquidaciones...</td
-							></tr
-						></tbody
-					>
-				</table>
+			<div id="settlementsRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando liquidaciones...</div>
 			</div>
 		</Card>
 	</section>
@@ -310,45 +264,29 @@ const viewClass = (view: FinancialViewId) =>
 						><button
 							type="button"
 							data-provider-payables-segment="commission_missing"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Falta comisión</button
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+							>Falta comisión acordada</button
 						><button
 							type="button"
 							data-provider-payables-segment="review_amounts"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Revisar importes</button
 						><button
 							type="button"
 							data-provider-payables-segment="statement_review"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Resumen pendiente</button
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+							>Resumen del proveedor pendiente</button
 						><button
 							type="button"
 							data-provider-payables-segment="ready"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
-							>Sin bloqueo principal</button
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+							>Sin acción urgente</button
 						>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead
-						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Proveedor</th><th class="px-3 py-2">Reserva</th><th
-								class="px-3 py-2">Pendiente proveedor</th
-							><th class="px-3 py-2">Qué lo bloquea</th><th class="px-3 py-2">Responsable</th><th
-								class="px-3 py-2">Próxima acción</th
-							></tr
-						></thead
-					><tbody id="providerPayablesRows"
-						><tr
-							><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando pagos pendientes...</td
-							></tr
-						></tbody
-					>
-				</table>
+			<div id="providerPayablesRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando pagos pendientes...</div>
 			</div>
 		</Card>
 	</section>
@@ -376,43 +314,29 @@ const viewClass = (view: FinancialViewId) =>
 						><button
 							type="button"
 							data-refunds-segment="waiting_response"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Esperando respuesta</button
 						><button
 							type="button"
 							data-refunds-segment="missing_proof"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Comprobante faltante</button
 						><button
 							type="button"
 							data-refunds-segment="proof_received"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Comprobante recibido</button
 						><button
 							type="button"
 							data-refunds-segment="ready_to_close"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Listos para cerrar</button
 						>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead
-						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Importe esperado</th><th
-								class="px-3 py-2">Comprobante</th
-							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
-						></thead
-					><tbody id="refundsRows"
-						><tr
-							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando reembolsos...</td
-							></tr
-						></tbody
-					>
-				</table>
+			<div id="refundsRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando reembolsos...</div>
 			</div>
 		</Card>
 	</section>
@@ -440,43 +364,29 @@ const viewClass = (view: FinancialViewId) =>
 						><button
 							type="button"
 							data-exceptions-segment="missing_data"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Datos faltantes</button
 						><button
 							type="button"
 							data-exceptions-segment="reference_issue"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Referencia inconsistente</button
 						><button
 							type="button"
 							data-exceptions-segment="review_overdue"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Revisión vencida</button
 						><button
 							type="button"
 							data-exceptions-segment="closed"
-							class="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 							>Cerradas</button
 						>
 					</div>
 				</div>
 			</div>
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
-					<thead
-						><tr class="text-left text-slate-700"
-							><th class="px-3 py-2">Caso</th><th class="px-3 py-2">Estado</th><th class="px-3 py-2"
-								>Impacto</th
-							><th class="px-3 py-2">Responsable</th><th class="px-3 py-2">Próxima acción</th></tr
-						></thead
-					><tbody id="financialExceptionsRows"
-						><tr
-							><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500"
-								>Cargando excepciones...</td
-							></tr
-						></tbody
-					>
-				</table>
+			<div id="financialExceptionsRows" class="divide-y divide-slate-200 bg-white">
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando excepciones...</div>
 			</div>
 		</Card>
 	</section>

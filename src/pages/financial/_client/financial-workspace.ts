@@ -120,12 +120,33 @@ export function initFinancialWorkspace(): void {
 	}
 
 	function applyFilters(items: any[]): any[] {
-		return filterFinancialRows({
-			items,
-			filters: currentFilters(),
-			rowFor,
-			isTerminalReview,
-			isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
+		return sortOperationalRows(
+			filterFinancialRows({
+				items,
+				filters: currentFilters(),
+				rowFor,
+				isTerminalReview,
+				isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
+			})
+		)
+	}
+
+	function ageDays(labelText: string): number {
+		const match = labelText.match(/\d+/)
+		return match ? Number(match[0]) : 0
+	}
+
+	function sortOperationalRows(items: any[]): any[] {
+		return [...items].sort((left, right) => {
+			const leftRow = rowFor(left)
+			const rightRow = rowFor(right)
+			const leftBlocked = leftRow.isBlocked ? 1 : 0
+			const rightBlocked = rightRow.isBlocked ? 1 : 0
+			if (leftBlocked !== rightBlocked) return rightBlocked - leftBlocked
+			const leftAmount = Number(leftRow.amount || 0)
+			const rightAmount = Number(rightRow.amount || 0)
+			if (leftAmount !== rightAmount) return rightAmount - leftAmount
+			return ageDays(rightRow.ageLabel) - ageDays(leftRow.ageLabel)
 		})
 	}
 
@@ -166,7 +187,7 @@ export function initFinancialWorkspace(): void {
 			const active = String(button.dataset.workType || "all") === inboxState.workType
 			button.className = active
 				? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-				: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+				: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 		})
 	}
 
@@ -200,16 +221,23 @@ export function initFinancialWorkspace(): void {
 		const action = nextSegment
 			? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
 			: ""
+		const emptyMessages: Record<string, string> = {
+			needs_action_today: "No hay casos que requieran atención ahora.",
+			blocked: "No hay casos bloqueados en esta vista.",
+			waiting_external: "No hay casos esperando respuesta externa.",
+			ready_to_close: "No hay casos listos para cerrar.",
+			recently_closed: "No hay casos cerrados recientemente.",
+		}
 		const message = nextSegment
-			? `No hay casos en esta vista. Hay casos en ${nextSegment.label.toLowerCase()}.`
-			: "No hay casos para estos filtros."
-		rows.innerHTML = `<tr><td colspan="6" class="px-3 py-10 text-center text-slate-500">
+			? `${emptyMessages[inboxState.segment] || "No hay casos en esta vista"} Hay casos en ${nextSegment.label.toLowerCase()}.`
+			: emptyMessages[inboxState.segment] || "No hay casos para estos filtros."
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-slate-500">
 			<div class="mx-auto max-w-md">
 				<p class="text-sm font-semibold text-slate-700">${escapeHtml(message)}</p>
 				<p class="mt-1 text-xs text-slate-500">Cambia de segmento o ajusta filtros solo si necesitas buscar un caso específico.</p>
 				${action}
 			</div>
-		</td></tr>`
+		</div>`
 		rows.querySelectorAll("[data-empty-queue]").forEach((button) => {
 			button.addEventListener("click", () => {
 				inboxState.segment = String(button.getAttribute("data-empty-queue") || "needs_action_today")
@@ -227,15 +255,14 @@ export function initFinancialWorkspace(): void {
 		}
 		for (const item of items) {
 			const operation = item.operation || {}
-			const tr = document.createElement("tr")
-			tr.className = "border-t border-slate-200 align-top hover:bg-white"
+			const wrapper = document.createElement("div")
 			const rowView = rowFor(item)
 			const handoff = refundFor(item)
 			const ownerMarkup =
 				handoff && hasAnyCode(item, ["refund_handoff_required"])
 					? ownerChip(handoff.nextOwner)
 					: ownerChip(rowView.owner)
-			tr.innerHTML = renderFinancialRowHtml({
+			wrapper.innerHTML = renderFinancialRowHtml({
 				item,
 				row: rowView,
 				operation,
@@ -251,11 +278,12 @@ export function initFinancialWorkspace(): void {
 					itemKey,
 				},
 			})
-			rows.appendChild(tr)
+			const card = wrapper.firstElementChild
+			if (card) rows.appendChild(card)
 		}
-		rows.querySelectorAll("[data-review-key]").forEach((button) => {
-			button.addEventListener("click", () => {
-				const key = String(button.getAttribute("data-review-key") || "")
+		rows.querySelectorAll<HTMLElement>("[data-review-key]").forEach((card) => {
+			card.addEventListener("click", () => {
+				const key = String(card.getAttribute("data-review-key") || "")
 				const item = workspaceState.combinedItems.find((entry) => itemKey(entry) === key)
 				if (item) openDrawer(item)
 			})

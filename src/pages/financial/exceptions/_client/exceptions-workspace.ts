@@ -9,7 +9,7 @@ import {
 	bookingSubtitle,
 	buildBookingContextIndex,
 	resolveBookingContext,
-	statePillClass,
+	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 
@@ -143,6 +143,26 @@ function nextActionFor(segment: ExceptionSegment): string {
 	return "Abrir el detalle y decidir si corresponde seguimiento, cierre o descarte."
 }
 
+function passiveStateLabel(segment: ExceptionSegment): string {
+	const labels: Record<ExceptionSegment, string> = {
+		needs_review: "Necesita revisión humana",
+		missing_data: "Faltan datos",
+		reference_issue: "Referencia inconsistente",
+		review_overdue: "Revisión desactualizada",
+		closed: "Cerrada",
+	}
+	return labels[segment]
+}
+
+function passiveStateKind(
+	segment: ExceptionSegment
+): "blocked" | "waiting" | "ready" | "closed" | "neutral" {
+	if (segment === "closed") return "closed"
+	if (segment === "review_overdue" || segment === "missing_data") return "blocked"
+	if (segment === "reference_issue") return "waiting"
+	return "neutral"
+}
+
 function buildItem(item: any): ExceptionItem {
 	const segment = segmentFor(item)
 	const bookingId = String(item?.bookingId || item?.operation?.bookingId || "Sin reserva")
@@ -180,6 +200,26 @@ function segmentCount(segment: ExceptionSegment): number {
 	return state.items.filter((item) => item.segment === segment).length
 }
 
+function ageDays(label: string): number {
+	const match = label.match(/\d+/)
+	return match ? Number(match[0]) : 0
+}
+
+function sortExceptionItems(items: ExceptionItem[]): ExceptionItem[] {
+	return [...items].sort((left, right) => {
+		const severity: Record<ExceptionSegment, number> = {
+			review_overdue: 4,
+			missing_data: 3,
+			reference_issue: 2,
+			needs_review: 1,
+			closed: 0,
+		}
+		const severityDiff = severity[right.segment] - severity[left.segment]
+		if (severityDiff !== 0) return severityDiff
+		return ageDays(right.ageLabel) - ageDays(left.ageLabel)
+	})
+}
+
 function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-exceptions-segment]").forEach((button) => {
 		const segment = button.dataset.exceptionsSegment as ExceptionSegment
@@ -187,7 +227,7 @@ function renderSegments(): void {
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
 		button.className = active
 			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 	})
 }
 
@@ -195,32 +235,55 @@ function renderRows(): void {
 	const rows = document.getElementById("financialExceptionsRows")
 	const summary = document.getElementById("financialExceptionsSummary")
 	if (!rows) return
-	const visible = state.items.filter((item) => item.segment === state.segment)
+	const visible = sortExceptionItems(state.items.filter((item) => item.segment === state.segment))
 	if (summary) {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay excepciones en este segmento.</td></tr>`
+		const emptyMessages: Record<ExceptionSegment, string> = {
+			needs_review: "No hay excepciones que requieran revisión.",
+			missing_data: "No hay casos con datos faltantes.",
+			reference_issue: "No hay referencias inconsistentes visibles.",
+			review_overdue: "No hay revisiones desactualizadas.",
+			closed: "No hay excepciones cerradas en esta vista.",
+		}
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
 		.map((item) => {
 			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 			const booking = bookingDisplayName(item.bookingId, context)
-			const stateClass =
-				item.segment === "closed"
-					? statePillClass("closed")
-					: item.segment === "review_overdue"
-						? statePillClass("blocked")
-						: statePillClass("neutral")
+			const passiveState = passiveStateLabel(item.segment)
+			const stateKind = passiveStateKind(item.segment)
 			return `
-			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-exception-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(item.caseLabel)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(booking)}</div><div class="mt-2 text-sm text-slate-700">${escapeHtml(item.whatHappened)}</div></td>
-				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(segmentLabels[item.segment])}</span></td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.impact)}</td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</div></td>
-				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
-			</tr>`
+			<article class="cursor-pointer px-4 py-4 transition hover:bg-slate-50" data-exception-id="${escapeHtml(item.id)}">
+				<div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.95fr)] lg:items-start">
+					<div>
+						<div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+							<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
+							<span>${escapeHtml(passiveState)}</span>
+						</div>
+						<h3 class="mt-2 text-base font-semibold text-slate-950">${escapeHtml(item.caseLabel)}</h3>
+						<p class="mt-1 text-sm font-medium text-slate-700">${escapeHtml(booking)}</p>
+						<p class="mt-2 text-sm leading-6 text-slate-700">${escapeHtml(item.whatHappened)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Qué pasa</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-950">${escapeHtml(passiveState)}</p>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(item.impact)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Responsable</p>
+						<p class="mt-1 text-sm font-semibold text-slate-900">${escapeHtml(item.owner)}</p>
+						<p class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Próxima acción</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-900">${escapeHtml(item.nextAction)}</p>
+					</div>
+				</div>
+			</article>`
 		})
 		.join("")
 }
@@ -320,7 +383,7 @@ async function load(): Promise<void> {
 		const summary = document.getElementById("financialExceptionsSummary")
 		if (summary) summary.textContent = "No se pudieron cargar las excepciones."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No se pudieron cargar las excepciones financieras.</td></tr>`
+			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-slate-500">No se pudieron cargar las excepciones financieras.</div>`
 		}
 	}
 }

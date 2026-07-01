@@ -208,15 +208,15 @@ export function technicalReference(value: unknown): string {
 	return raw || "Sin referencia visible"
 }
 
-export function statePillClass(
+export function stateDotClass(
 	kind: "blocked" | "waiting" | "ready" | "closed" | "neutral"
 ): string {
 	const classes = {
-		blocked: "border-amber-200 bg-amber-50 text-amber-900",
-		waiting: "border-sky-200 bg-sky-50 text-sky-900",
-		ready: "border-emerald-200 bg-emerald-50 text-emerald-900",
-		closed: "border-slate-200 bg-slate-100 text-slate-600",
-		neutral: "border-slate-200 bg-white text-slate-700",
+		blocked: "bg-amber-500",
+		waiting: "bg-sky-500",
+		ready: "bg-emerald-500",
+		closed: "bg-slate-400",
+		neutral: "bg-slate-400",
 	}
 	return classes[kind]
 }

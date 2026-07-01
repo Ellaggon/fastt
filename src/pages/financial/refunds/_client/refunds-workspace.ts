@@ -9,7 +9,7 @@ import {
 	bookingSubtitle,
 	buildBookingContextIndex,
 	resolveBookingContext,
-	statePillClass,
+	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 
@@ -224,6 +224,21 @@ function segmentCount(segment: RefundSegment): number {
 	return state.items.filter((item) => item.segment === segment).length
 }
 
+function ageDays(label: string): number {
+	const match = label.match(/\d+/)
+	return match ? Number(match[0]) : 0
+}
+
+function sortRefundItems(items: RefundItem[]): RefundItem[] {
+	return [...items].sort((left, right) => {
+		const leftBlocked = left.proof.includes("faltante") || left.proof.includes("Faltante") ? 1 : 0
+		const rightBlocked =
+			right.proof.includes("faltante") || right.proof.includes("Faltante") ? 1 : 0
+		if (leftBlocked !== rightBlocked) return rightBlocked - leftBlocked
+		return ageDays(right.ageLabel) - ageDays(left.ageLabel)
+	})
+}
+
 function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-refunds-segment]").forEach((button) => {
 		const segment = button.dataset.refundsSegment as RefundSegment
@@ -231,7 +246,7 @@ function renderSegments(): void {
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
 		button.className = active
 			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 	})
 }
 
@@ -239,30 +254,54 @@ function renderRows(): void {
 	const rows = document.getElementById("refundsRows")
 	const summary = document.getElementById("refundsSummary")
 	if (!rows) return
-	const visible = state.items.filter((item) => item.segment === state.segment)
+	const visible = sortRefundItems(state.items.filter((item) => item.segment === state.segment))
 	if (summary) {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay reembolsos en este segmento.</td></tr>`
+		const emptyMessages: Record<RefundSegment, string> = {
+			needs_review: "No hay reembolsos que requieran revisión.",
+			waiting_response: "No hay reembolsos esperando respuesta externa.",
+			missing_proof: "No hay reembolsos con comprobante faltante.",
+			proof_received: "No hay reembolsos con comprobante recibido para revisar.",
+			ready_to_close: "No hay reembolsos listos para cerrar.",
+		}
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
 		.map((item) => {
 			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 			const booking = bookingDisplayName(item.bookingId, context)
-			const stateClass =
-				item.proof.includes("faltante") || item.proof.includes("Faltante")
-					? statePillClass("blocked")
-					: statePillClass("ready")
+			const stateKind: "blocked" | "ready" =
+				item.proof.includes("faltante") || item.proof.includes("Faltante") ? "blocked" : "ready"
 			return `
-			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-refund-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(booking)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(item.refundType)} · ${escapeHtml(item.reason)}</div><div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.whatHappened)}</div></td>
-				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.expectedAmount, item.currency))}</td>
-				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.proof)}</span></td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}<div class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</div></td>
-				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
-			</tr>`
+			<article class="cursor-pointer px-4 py-4 transition hover:bg-slate-50" data-refund-id="${escapeHtml(item.id)}">
+				<div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_160px_minmax(0,0.85fr)_minmax(0,0.95fr)] lg:items-start">
+					<div>
+						<div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+							<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
+							<span>${escapeHtml(item.proof)}</span>
+						</div>
+						<h3 class="mt-2 text-base font-semibold text-slate-950">${escapeHtml(booking)} · ${escapeHtml(item.reason)}</h3>
+						<p class="mt-1 text-xs text-slate-500">${escapeHtml(item.refundType)} · ${escapeHtml(item.cancellation)}</p>
+						<p class="mt-2 text-sm leading-6 text-slate-700">${escapeHtml(item.whatHappened)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Importe esperado</p>
+						<p class="mt-1 text-lg font-bold text-slate-950">${escapeHtml(formatMoney(item.expectedAmount, item.currency))}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Responsable</p>
+						<p class="mt-1 text-sm font-semibold text-slate-900">${escapeHtml(item.owner)}</p>
+						<p class="mt-1 text-xs text-slate-500">${escapeHtml(item.ageLabel)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Próxima acción</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-900">${escapeHtml(item.nextAction)}</p>
+					</div>
+				</div>
+			</article>`
 		})
 		.join("")
 }
@@ -405,7 +444,7 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 		const summary = document.getElementById("refundsSummary")
 		if (summary) summary.textContent = "No se pudo cargar el seguimiento de reembolsos."
 		if (rows)
-			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún reembolso.</td></tr>`
+			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún reembolso.</div>`
 	}
 }
 

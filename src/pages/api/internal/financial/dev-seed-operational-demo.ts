@@ -2,7 +2,9 @@ import type { APIRoute } from "astro"
 
 import seedFinancialOperationalDemo from "@/scripts/seed-financial-operational-demo"
 
-export const POST: APIRoute = async () => {
+import { requireFinancialProvider } from "./_stage2"
+
+export const POST: APIRoute = async ({ request }) => {
 	if (process.env.NODE_ENV === "production") {
 		return new Response(JSON.stringify({ error: "not_found" }), {
 			status: 404,
@@ -10,6 +12,7 @@ export const POST: APIRoute = async () => {
 		})
 	}
 
+	await requireFinancialProvider(request)
 	await seedFinancialOperationalDemo()
 
 	return new Response(

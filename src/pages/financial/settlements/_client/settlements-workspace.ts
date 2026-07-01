@@ -9,7 +9,7 @@ import {
 	bookingSubtitle,
 	buildBookingContextIndex,
 	resolveBookingContext,
-	statePillClass,
+	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 
@@ -242,6 +242,17 @@ function segmentCount(segment: SettlementSegment): number {
 	return state.items.filter((item) => item.segment === segment).length
 }
 
+function sortSettlementItems(items: SettlementItem[]): SettlementItem[] {
+	return [...items].sort((left, right) => {
+		const leftDifference = Math.abs(Number(left.differenceAmount || 0))
+		const rightDifference = Math.abs(Number(right.differenceAmount || 0))
+		if (leftDifference !== rightDifference) return rightDifference - leftDifference
+		const leftMissing = left.settlementAmount == null || left.collectionAmount == null ? 1 : 0
+		const rightMissing = right.settlementAmount == null || right.collectionAmount == null ? 1 : 0
+		return rightMissing - leftMissing
+	})
+}
+
 function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-settlements-segment]").forEach((button) => {
 		const segment = button.dataset.settlementsSegment as SettlementSegment
@@ -249,7 +260,7 @@ function renderSegments(): void {
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
 		button.className = active
 			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 	})
 }
 
@@ -257,12 +268,19 @@ function renderRows(): void {
 	const rows = document.getElementById("settlementsRows")
 	const summary = document.getElementById("settlementsSummary")
 	if (!rows) return
-	const visible = state.items.filter((item) => item.segment === state.segment)
+	const visible = sortSettlementItems(state.items.filter((item) => item.segment === state.segment))
 	if (summary) {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No hay casos en este segmento.</td></tr>`
+		const emptyMessages: Record<SettlementSegment, string> = {
+			amount_mismatch: "No hay diferencias de monto visibles.",
+			missing_payment: "No hay reservas con cobro faltante.",
+			missing_settlement: "No hay liquidaciones externas faltantes en esta vista.",
+			duplicate_reference: "No hay referencias duplicadas visibles.",
+			no_difference: "No hay comparaciones sin diferencia en este segmento.",
+		}
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
@@ -271,20 +289,36 @@ function renderRows(): void {
 			const booking = bookingDisplayName(item.bookingId, context)
 			const subtitle = bookingSubtitle(context)
 			const diff = formatMoney(item.differenceAmount, item.currency)
-			const stateClass =
-				item.segment === "no_difference" ? statePillClass("ready") : statePillClass("blocked")
+			const stateKind: "ready" | "blocked" = item.segment === "no_difference" ? "ready" : "blocked"
 			return `
-			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-settlement-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-4">
-					<div class="font-semibold text-slate-950">${escapeHtml(booking)}</div>
-					<div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div>
-					<div class="mt-2 text-sm font-medium text-slate-800">${escapeHtml(item.title)}</div>
-				</td>
-				<td class="px-3 py-4 text-xs leading-5 text-slate-700"><span class="font-semibold text-slate-950">Confirmado:</span> ${escapeHtml(formatMoney(item.confirmedAmount, item.currency))}<br/><span class="font-semibold text-slate-950">Cobro:</span> ${escapeHtml(formatMoney(item.collectionAmount, item.currency))}<br/><span class="font-semibold text-slate-950">Externo:</span> ${escapeHtml(formatMoney(item.settlementAmount, item.currency))}</td>
-				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(diff)}</span><div class="mt-2 text-xs text-slate-500">${escapeHtml(item.reviewState)}</div></td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
-			</tr>`
+			<article class="cursor-pointer px-4 py-4 transition hover:bg-slate-50" data-settlement-id="${escapeHtml(item.id)}">
+				<div class="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.1fr)_150px_minmax(0,0.9fr)] lg:items-start">
+					<div>
+						<div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+							<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
+							<span>${escapeHtml(item.title)}</span>
+						</div>
+						<h3 class="mt-2 text-base font-semibold text-slate-950">${escapeHtml(booking)}</h3>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(subtitle)}</p>
+						<p class="mt-2 text-sm leading-6 text-slate-700">${escapeHtml(item.description)}</p>
+					</div>
+					<div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3 lg:grid-cols-1">
+						<div><span class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Confirmado</span><p class="font-semibold text-slate-950">${escapeHtml(formatMoney(item.confirmedAmount, item.currency))}</p></div>
+						<div><span class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Cobro</span><p class="font-semibold text-slate-950">${escapeHtml(formatMoney(item.collectionAmount, item.currency))}</p></div>
+						<div><span class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Comprobante externo</span><p class="font-semibold text-slate-950">${escapeHtml(formatMoney(item.settlementAmount, item.currency))}</p></div>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Diferencia</p>
+						<p class="mt-1 text-lg font-bold text-slate-950">${escapeHtml(diff)}</p>
+						<p class="mt-1 text-xs text-slate-500">${escapeHtml(item.reviewState)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Próxima acción</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-900">${escapeHtml(item.nextAction)}</p>
+						<p class="mt-3 text-xs text-slate-500">Responsable: <span class="font-semibold text-slate-700">${escapeHtml(item.owner)}</span></p>
+					</div>
+				</div>
+			</article>`
 		})
 		.join("")
 }
@@ -377,7 +411,7 @@ async function loadSettlements(): Promise<void> {
 		const summary = document.getElementById("settlementsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la comparación de liquidaciones."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún movimiento.</td></tr>`
+			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún movimiento.</div>`
 		}
 	}
 }

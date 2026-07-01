@@ -10,7 +10,7 @@ import {
 	buildBookingContextIndex,
 	providerDisplayName,
 	resolveBookingContext,
-	statePillClass,
+	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 
@@ -54,10 +54,10 @@ const state: {
 
 const segmentLabels: Record<ProviderPayablesSegment, string> = {
 	blocked: "Bloqueados",
-	commission_missing: "Falta comisión",
+	commission_missing: "Falta comisión acordada",
 	review_amounts: "Revisar importes",
-	statement_review: "Resumen pendiente",
-	ready: "Sin bloqueo principal",
+	statement_review: "Resumen del proveedor pendiente",
+	ready: "Sin acción urgente",
 }
 
 const segmentHints: Record<ProviderPayablesSegment, string> = {
@@ -163,6 +163,10 @@ function blockerSummary(item: any): string {
 	return `${blocker}. Revisa el detalle y completa la próxima acción antes de avanzar.`
 }
 
+function displayBlocker(blocker: string): string {
+	return blocker === "Sin bloqueo principal" ? "Sin acción urgente" : blocker
+}
+
 function commissionSummary(item: any): string {
 	if (item?.commission?.missing || item?.commissionAmount == null) {
 		return "Falta confirmar la comisión acordada para esta reserva."
@@ -213,6 +217,15 @@ function segmentCount(segment: ProviderPayablesSegment): number {
 	return state.items.filter((item) => item.segment === segment).length
 }
 
+function sortProviderPayableItems(items: ProviderPayableItem[]): ProviderPayableItem[] {
+	return [...items].sort((left, right) => {
+		const leftBlocked = left.blocker === "Sin bloqueo principal" ? 0 : 1
+		const rightBlocked = right.blocker === "Sin bloqueo principal" ? 0 : 1
+		if (leftBlocked !== rightBlocked) return rightBlocked - leftBlocked
+		return (right.providerPendingAmount || 0) - (left.providerPendingAmount || 0)
+	})
+}
+
 function renderSegments(): void {
 	document
 		.querySelectorAll<HTMLButtonElement>("[data-provider-payables-segment]")
@@ -222,7 +235,7 @@ function renderSegments(): void {
 			button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
 			button.className = active
 				? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-				: "rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
+				: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
 		})
 }
 
@@ -230,12 +243,21 @@ function renderRows(): void {
 	const rows = document.getElementById("providerPayablesRows")
 	const summary = document.getElementById("providerPayablesSummary")
 	if (!rows) return
-	const visible = state.items.filter((item) => item.segment === state.segment)
+	const visible = sortProviderPayableItems(
+		state.items.filter((item) => item.segment === state.segment)
+	)
 	if (summary) {
 		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
 	}
 	if (!visible.length) {
-		rows.innerHTML = `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500">No hay pagos pendientes en este segmento.</td></tr>`
+		const emptyMessages: Record<ProviderPayablesSegment, string> = {
+			blocked: "No hay pagos pendientes bloqueados.",
+			commission_missing: "No hay casos con comisión faltante.",
+			review_amounts: "No hay importes que requieran revisión ahora.",
+			statement_review: "No hay resúmenes de proveedor pendientes.",
+			ready: "No hay pagos pendientes sin acción urgente en esta vista.",
+		}
+		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
@@ -243,19 +265,37 @@ function renderRows(): void {
 			const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 			const booking = bookingDisplayName(item.bookingId, context)
 			const subtitle = bookingSubtitle(context)
-			const stateClass =
-				item.blocker === "Sin bloqueo principal"
-					? statePillClass("ready")
-					: statePillClass("blocked")
+			const stateKind: "ready" | "blocked" =
+				item.blocker === "Sin bloqueo principal" ? "ready" : "blocked"
+			const blocker = displayBlocker(item.blocker)
 			return `
-			<tr class="cursor-pointer border-t border-slate-200 align-top transition hover:bg-slate-50" data-provider-payable-id="${escapeHtml(item.id)}">
-				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(item.provider)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</div></td>
-				<td class="px-3 py-4"><div class="font-semibold text-slate-950">${escapeHtml(booking)}</div><div class="mt-1 text-xs text-slate-500">${escapeHtml(item.description)}</div></td>
-				<td class="px-3 py-4 text-base font-semibold text-slate-950">${escapeHtml(formatMoney(item.providerPendingAmount, item.currency))}</td>
-				<td class="px-3 py-4"><span class="rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}">${escapeHtml(item.blocker)}</span></td>
-				<td class="px-3 py-4 text-slate-700">${escapeHtml(item.owner)}</td>
-				<td class="px-3 py-4 text-xs font-semibold leading-5 text-slate-800">${escapeHtml(item.nextAction)}</td>
-			</tr>`
+			<article class="cursor-pointer px-4 py-4 transition hover:bg-slate-50" data-provider-payable-id="${escapeHtml(item.id)}">
+				<div class="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_160px_minmax(0,1fr)_minmax(0,0.95fr)] lg:items-start">
+					<div>
+						<div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+							<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
+							<span>${escapeHtml(blocker)}</span>
+						</div>
+						<h3 class="mt-2 text-base font-semibold text-slate-950">${escapeHtml(item.provider)}</h3>
+						<p class="mt-1 text-sm font-medium text-slate-700">${escapeHtml(booking)}</p>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(subtitle)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Pendiente proveedor</p>
+						<p class="mt-1 text-lg font-bold text-slate-950">${escapeHtml(formatMoney(item.providerPendingAmount, item.currency))}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Qué lo detiene</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-950">${escapeHtml(blocker)}</p>
+						<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(item.description)}</p>
+					</div>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Próxima acción</p>
+						<p class="mt-1 text-sm font-semibold leading-6 text-slate-900">${escapeHtml(item.nextAction)}</p>
+						<p class="mt-3 text-xs text-slate-500">Responsable: <span class="font-semibold text-slate-700">${escapeHtml(item.owner)}</span></p>
+					</div>
+				</div>
+			</article>`
 		})
 		.join("")
 }
@@ -274,7 +314,7 @@ function openDrawer(item: ProviderPayableItem): void {
 		<section class="space-y-4">
 			<div class="rounded-3xl bg-slate-950 p-5 text-white">
 				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">${escapeHtml(segmentLabels[item.segment])}</p>
-				<h2 class="mt-2 text-2xl font-bold">${escapeHtml(item.blocker)}</h2>
+				<h2 class="mt-2 text-2xl font-bold">${escapeHtml(displayBlocker(item.blocker))}</h2>
 				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.blockerSummary)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
@@ -354,7 +394,7 @@ async function loadProviderPayables(): Promise<void> {
 		const summary = document.getElementById("providerPayablesSummary")
 		if (summary) summary.textContent = "No se pudo cargar pagos pendientes a proveedores."
 		if (rows) {
-			rows.innerHTML = `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún pago.</td></tr>`
+			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún pago.</div>`
 		}
 	}
 }
