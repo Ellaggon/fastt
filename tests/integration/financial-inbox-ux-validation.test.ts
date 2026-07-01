@@ -9,6 +9,7 @@ import {
 import { buildFinancialDrawerViewModel } from "@/pages/financial/_client/financial-drawer-view-model"
 import { buildProviderFinanceCopy } from "@/pages/financial/_client/financial-provider-finance-copy"
 import { buildFinancialRowViewModel } from "@/pages/financial/_client/financial-row-view-model"
+import { renderFinancialRowHtml } from "@/pages/financial/_client/financial-renderers"
 import { buildFinancialStatementViewModel } from "@/pages/financial/_client/financial-statement-view-model"
 import {
 	filterOperationalWorld,
@@ -251,6 +252,65 @@ describe("integration/financial inbox UX validation", () => {
 			pattern.test(renderedRows) ? [`rendered row leaked ${pattern}`] : []
 		)
 		expect(violations).toEqual([])
+	})
+
+	it("does not expose full UUID or provider identifiers as primary row text", () => {
+		const bookingUuid = "d8fc3c30-1045-422b-b68c-6312284c3fbd"
+		const providerUuid = "provider-4ca2f810-7b2c-4bd2-8790-095b71e7c51f"
+		const item = {
+			id: "uuid-row-regression",
+			bookingId: bookingUuid,
+			providerId: providerUuid,
+			code: "missing_payment_reference",
+			status: "open",
+			reason: "Missing payment proof.",
+			openedAt: "2026-06-24T12:00:00.000Z",
+			operation: {
+				bookingId: bookingUuid,
+				providerId: providerUuid,
+				currency: "USD",
+				contractTotal: 320,
+				contract: { productName: "Hotel Sol", variantName: "Suite Norte" },
+				stay: { checkIn: "2026-07-12", checkOut: "2026-07-15" },
+				operationalException: {
+					hasOpenException: true,
+					all: [
+						{ code: "missing_payment_reference", bookingId: bookingUuid, providerId: providerUuid },
+					],
+				},
+				evidenceAlignment: { state: "evidence_partial" },
+			},
+		}
+		const row = buildFinancialRowViewModel({
+			item,
+			reconciliation: null,
+			refundHandoff: null,
+			referenceCounts: { payment: 0, settlement: 1, refund: 0, invoice: 0 },
+			ageLabel: "abierto hace 6 días",
+			sourceKind: "persisted",
+		})
+		const html = renderFinancialRowHtml({
+			item,
+			row,
+			operation: item.operation,
+			handoff: null,
+			ownerMarkup: "<span>Finanzas</span>",
+			deps: {
+				escapeHtml: (value) => String(value ?? ""),
+				money: (currency, amount) => `${currency} ${amount}`,
+				label: (value) => String(value ?? ""),
+				statusChip: () => "",
+				handoffStatusChip: () => "",
+				ownerChip: (value) => `<span>${String(value ?? "")}</span>`,
+				itemKey: (value) => String(value?.id ?? ""),
+			},
+		})
+		const text = visibleText(html)
+
+		expect(text).toContain("Hotel Sol")
+		expect(text).toContain("Suite Norte")
+		expect(text).not.toContain(bookingUuid)
+		expect(text).not.toContain(providerUuid)
 	})
 
 	it("documents walkthrough drills that cannot be proven by unit tests alone", () => {
