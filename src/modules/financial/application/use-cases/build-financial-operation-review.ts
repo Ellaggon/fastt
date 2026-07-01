@@ -33,6 +33,9 @@ export type FinancialOperationBookingRow = {
 	currency: unknown
 	totalAmount: unknown
 	confirmedAt: unknown
+	guestNameSnapshot?: unknown
+	providerDisplayName?: unknown
+	providerLegalName?: unknown
 	checkInDate: unknown
 	checkOutDate: unknown
 	refundHandoffSnapshotJson: unknown
@@ -269,6 +272,8 @@ export function buildFinancialOperationReview(params: {
 		contractTotal,
 		taxesTotal,
 		confirmedAt: first.confirmedAt ?? null,
+		guestName: first.guestNameSnapshot ?? null,
+		providerName: first.providerDisplayName ?? first.providerLegalName ?? null,
 		stay: {
 			checkIn: dateOnly(first.checkInDate),
 			checkOut: dateOnly(first.checkOutDate),
