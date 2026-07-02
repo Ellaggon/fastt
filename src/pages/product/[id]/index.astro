@@ -51,7 +51,7 @@ const statusBadgeVariant =
 const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
 ---
 
-<WorkspaceLayout title={`Catálogo · ${vertical.labels.workspaceSingular}`}>
+<WorkspaceLayout title={`${detailTitle} · ${owned.name}`}>
 	<section class="space-y-6">
 		<header class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-sm">
 			<div class="grid gap-0 lg:grid-cols-[280px_1fr]">
@@ -79,7 +79,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 							Cargando ubicación y tipo de oferta...
 						</p>
 						<p id="productHeaderSummary" class="max-w-3xl text-sm leading-6 text-slate-400">
-							{vertical.readiness.publishSummary}
+							Completa la información que el viajero verá antes de reservar.
 						</p>
 					</div>
 					<div class="flex flex-wrap gap-2">
@@ -90,7 +90,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 							data-astro-prefetch
 							variant="secondary"
 						>
-							Editar detalles
+							Editar características
 						</Button>
 					</div>
 				</div>
@@ -173,7 +173,6 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 									Cargando...
 								</Badge>
 							</div>
-							<p id="summaryCoordinates" class="text-sm text-slate-500">Coordenadas: —</p>
 						</div>
 						<div class="flex justify-end">
 							<Button
@@ -443,7 +442,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 										data-astro-prefetch
 										variant="secondary"
 									>
-										Editar detalles
+										Editar características
 									</Button>
 								</div>
 							</div>
@@ -492,6 +491,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					{isPackage ? <span>Itinerario: cargando</span> : null}
 					<span>Características: cargando</span>
 				</div>
+				<p id="summaryCoordinates" class="text-xs text-slate-500">Coordenadas: —</p>
 				<p class="text-xs text-slate-500">ID interno: {productId}</p>
 			</div>
 		</details>
@@ -598,7 +598,6 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const summaryDescription = document.getElementById("summaryDescription")
 					const summaryHighlights = document.getElementById("summaryHighlights")
 					const summaryAddress = document.getElementById("summaryAddress")
-					const summaryCoordinates = document.getElementById("summaryCoordinates")
 					const summaryImagesCount = document.getElementById("summaryImagesCount")
 					const summaryProductType = document.getElementById("summaryProductType")
 					const summarySubtype = document.getElementById("summarySubtype")
@@ -610,8 +609,10 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					if (summaryHighlights)
 						summaryHighlights.textContent = `Destacados: ${Number(payload?.content?.highlightsCount ?? 0)}`
 					if (summaryAddress) summaryAddress.textContent = address
-					if (summaryCoordinates)
-						summaryCoordinates.textContent = String(payload?.location?.coordinates ?? "")
+					setText(
+						"summaryCoordinates",
+						`Coordenadas: ${String(payload?.location?.coordinates ?? "sin coordenadas")}`
+					)
 					if (summaryImagesCount)
 						summaryImagesCount.textContent = `${Number(payload?.images?.count ?? 0)} fotos cargadas`
 					if (summaryProductType) summaryProductType.textContent = productType

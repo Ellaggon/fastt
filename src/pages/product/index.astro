@@ -24,10 +24,10 @@ if (!providerId) return Astro.redirect("/provider")
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
 const requestedStorageType = normalizeProductTypeForStorage(requestedType)
 const activeVertical = getProductVerticalDefinition(requestedStorageType)
-const pageTitle = activeVertical ? activeVertical.labels.plural : "Catálogo"
+const pageTitle = activeVertical ? activeVertical.labels.plural : "Alojamientos"
 const pageDescription = activeVertical
-	? `Gestiona tus ${activeVertical.labels.plural.toLowerCase()} con contenido, fotos, configuración y vista previa antes de publicar.`
-	: "Gestiona alojamientos, tours y paquetes desde una sola raíz de catálogo. Cada oferta mantiene su propio flujo vertical."
+	? `Prepara tus ${activeVertical.labels.plural.toLowerCase()} con fotos, descripción, ubicación y vista previa antes de publicar.`
+	: "Prepara tus alojamientos con la información que verá el huésped antes de reservar."
 
 const products = await db
 	.select({
@@ -79,18 +79,18 @@ const getStatusMeta = (rawState: string | undefined) => {
 }
 ---
 
-<WorkspaceLayout title={`Catálogo · ${pageTitle}`}>
-	<section class="space-y-8">
+<WorkspaceLayout title={pageTitle}>
+	<section class="space-y-6">
 		<header class="space-y-2">
-			<p class="text-sm font-medium text-slate-400">Catálogo</p>
+			<p class="text-sm font-medium text-slate-400">Alojamientos</p>
 			<h1 class="text-3xl font-semibold text-slate-100">{pageTitle}</h1>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">{pageDescription}</p>
-			<nav class="flex flex-wrap gap-2 pt-2" aria-label="Filtros de catálogo">
+			<nav class="flex flex-wrap gap-2 pt-2" aria-label="Filtros de alojamientos">
 				<a
 					href="/product"
 					class={`rounded-full border px-3 py-1 text-sm ${!requestedStorageType ? "border-blue-400 bg-blue-500/10 text-blue-100" : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"}`}
 				>
-					Todos
+					Todo
 				</a>
 				{
 					PRODUCT_VERTICAL_OPTIONS.map((vertical) => (
@@ -109,40 +109,40 @@ const getStatusMeta = (rawState: string | undefined) => {
 			</nav>
 		</header>
 
-		<section class="grid gap-4 md:grid-cols-4">
+		<section class="grid gap-3 md:grid-cols-4">
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">{pageTitle}</p>
 				<p class="mt-2 text-2xl font-semibold">{totalProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Ofertas bajo edición de contenido</p>
+				<p class="mt-1 text-xs text-slate-400">Fichas en preparación</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Publicados</p>
 				<p class="mt-2 text-2xl font-semibold">{publishedProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Presentación pública activa</p>
+				<p class="mt-1 text-xs text-slate-400">Visibles para huéspedes</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Listos</p>
 				<p class="mt-2 text-2xl font-semibold">{readyProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Contenido preparado para operación</p>
+				<p class="mt-1 text-xs text-slate-400">Preparados para revisar</p>
 			</Card>
 			<Card className="border-slate-800 bg-slate-950 text-slate-100">
 				<p class="text-xs uppercase tracking-wide text-slate-500">Borradores</p>
 				<p class="mt-2 text-2xl font-semibold">{draftProducts}</p>
-				<p class="mt-1 text-xs text-slate-400">Requiere readiness editorial</p>
+				<p class="mt-1 text-xs text-slate-400">Faltan datos visibles</p>
 			</Card>
 		</section>
 
 		<Section
-			title={`Lista de ${activeVertical ? activeVertical.labels.plural.toLowerCase() : "ofertas"}`}
-			description="Accede a cada oferta para revisar contenido, fotos, ubicación, detalles y vista previa."
+			title={`Tus ${activeVertical ? activeVertical.labels.plural.toLowerCase() : "alojamientos"}`}
+			description="Abre cada ficha para revisar fotos, descripción, ubicación, habitaciones, reglas y vista previa."
 		>
 			{
 				products.length === 0 ? (
 					<Card class="space-y-4 bg-slate-100">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes productos</h2>
+							<h2 class="text-xl font-semibold text-slate-900">Aún no tienes alojamientos</h2>
 							<p class="text-sm text-slate-600">
-								Crea tu primera oferta para preparar contenido, configuración y publicación.
+								Crea la primera ficha para agregar fotos, descripción, ubicación y vista previa.
 							</p>
 						</div>
 						<div class="flex justify-end">
@@ -151,7 +151,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 								data-astro-prefetch
 								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 							>
-								{activeVertical ? activeVertical.labels.createCta : "Crear oferta"}
+								{activeVertical ? activeVertical.labels.createCta : "Crear alojamiento"}
 							</Button>
 						</div>
 					</Card>
@@ -168,7 +168,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 												Tipo: {productTypeLabel(product.productType, "Oferta")}
 											</p>
 											<p class="text-sm text-slate-500">
-												Contenido, fotos y configuración vertical se revisan antes de publicar.
+												Fotos, descripción, ubicación y vista previa antes de publicar.
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center justify-end gap-3">
@@ -198,13 +198,13 @@ const getStatusMeta = (rawState: string | undefined) => {
 		</Section>
 
 		<Section
-			title="Flujo de publicación"
-			description="Catálogo concentra presentación, configuración vertical y vista previa; precios, inventario y restricciones mantienen ownership propio."
+			title="Preparación para publicar"
+			description="La ficha concentra lo que verá el huésped. Tarifas, calendario y condiciones viven en Habitaciones y tarifas."
 		>
 			<Card class="flex flex-wrap items-center justify-between gap-4 bg-slate-100">
 				<p class="text-sm text-slate-600">
-					Cada oferta prepara su presentación vendible con lenguaje propio: alojamientos, tours y
-					paquetes no comparten el mismo flujo mental aunque vivan en Catálogo.
+					Empieza por una ficha clara. Después conecta habitaciones, tarifas, calendario y
+					condiciones sin mezclar contenido con operación comercial.
 				</p>
 				<div class="flex flex-wrap gap-2">
 					<Button href="/provider/house-rules" data-astro-prefetch variant="secondary">
@@ -215,7 +215,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 						data-astro-prefetch
 						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 					>
-						Crear oferta
+						Crear alojamiento
 					</Button>
 				</div>
 			</Card>

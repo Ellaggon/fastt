@@ -232,7 +232,7 @@ const checks = [
 		key: "booking-policies",
 		label: "Condiciones de reserva",
 		complete: missingPolicies.length === 0 && !policyResolutionError,
-		href: routes.ratePlansList(),
+		href: routes.rates(),
 		cta: "Revisar tarifas",
 		detail: policyResolutionError
 			? "No se pudieron resolver las condiciones."
@@ -247,12 +247,12 @@ const readyToPublish = completedChecks === checks.length
 const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 ---
 
-<WorkspaceLayout title="Catálogo · Vista previa">
+<WorkspaceLayout title="Alojamientos · Vista previa">
 	<section class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Catálogo · Revisión antes de publicar
+					Alojamientos · Revisión antes de publicar
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Vista previa</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
@@ -508,7 +508,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 
 		<Section
 			title="Condiciones que verá el huésped"
-			description="El contrato de reserva se configura dentro de cada tarifa. Esta vista confirma cómo lo verá el huésped."
+			description="Las condiciones de reserva se configuran dentro de cada tarifa. Esta vista confirma cómo las verá el huésped."
 		>
 			<div class="grid gap-4 md:grid-cols-2">
 				{
