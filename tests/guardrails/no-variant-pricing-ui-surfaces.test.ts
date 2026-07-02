@@ -36,6 +36,6 @@ describe("Guardrail: no variant-pricing UI surfaces", () => {
 		expect(subnavSource).not.toMatch(/routes\.variantPricing/i)
 		expect(subnavSource).not.toMatch(/\/variants\/\[variantId\]\/pricing/i)
 		expect(subnavSource).not.toContain("routes.ratePlansHub()")
-		expect(subnavSource).toContain("routes.ratePlansList()")
+		expect(subnavSource).toContain("routes.rates()")
 	})
 })

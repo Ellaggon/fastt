@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest"
+import { Booking, db } from "astro:db"
 
 import {
 	assignPolicyCapa6,
@@ -60,6 +61,20 @@ describe("integration/policies CAPA 6 Step 9 (full flow + booking snapshot immut
 			isActive: true,
 			isDefault: true,
 		})
+		await db.insert(Booking).values({
+			id: bookingId,
+			providerId: "prov_test",
+			userId: null,
+			ratePlanId,
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
+			numAdults: 2,
+			numChildren: 0,
+			totalAmount: 0,
+			currency: "USD",
+			status: "confirmed",
+			source: "web",
+		} as any)
 
 		// 1) Create policies for all booking-level categories.
 		const cancellation = await createPolicyCapa6({

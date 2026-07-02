@@ -21,10 +21,10 @@ const editorialSurfaces = [
 ]
 
 describe("Guardrail: Property Content operational semantics", () => {
-	it("keeps Property Content framed as catalog readiness instead of generic CRUD", () => {
+	it("keeps Property Content framed as a client-first accommodation shell", () => {
 		const requiredSignals: Record<string, string[]> = {
-			"src/pages/product/index.astro": ["Catálogo", "Lista de", "Flujo de publicación"],
-			"src/pages/product/create.astro": ["Crear oferta", "Tipo de oferta"],
+			"src/pages/product/index.astro": ["Alojamientos", "Tus", "Preparación para publicar"],
+			"src/pages/product/create.astro": ["Crear alojamiento", "Tipo de oferta"],
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
 				"Descripción",
@@ -46,8 +46,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Experiencia de descanso de",
 				"Nueva habitación",
 				"Editar habitación",
-				"Disponibilidad",
+				"Calendario",
 				"Tarifas",
+				"Condiciones",
 				"Siguiente paso recomendado",
 			],
 		}
@@ -61,7 +62,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 		expect(
 			violations,
-			`Property Content surfaces must communicate editorial/catalog ownership and readiness boundaries:\n${violations.join("\n")}`
+			`Property Content surfaces must communicate accommodation ownership and client-first publishing boundaries:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
@@ -202,7 +203,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const sidebar = read("src/components/dashboard/DashboardSidebar.astro")
 
-		expect(governance).toContain("Alojamientos y contenido")
+		expect(governance).toContain("Alojamientos")
 		expect(governance).toContain("Contenido del alojamiento")
 		expect(governance).toContain("Alojamientos")
 		expect(governance).toContain("Habitaciones")
@@ -226,7 +227,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(registry).toContain('storageType: "Tour"')
 		expect(registry).toContain('storageType: "Package"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
-		expect(productList).toContain("Catálogo")
+		expect(productList).toContain("Alojamientos")
 		expect(productList).toContain("PRODUCT_VERTICAL_OPTIONS")
 		expect(productCreate).toContain("PRODUCT_VERTICAL_OPTIONS")
 		expect(productCreate).toContain("Crear oferta")
@@ -279,7 +280,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(preview).toContain("Condiciones que verá el huésped")
 		expect(preview).toContain("Reglas para huéspedes")
 		expect(preview).toContain("routes.providerHouseRules()")
-		expect(preview).toContain("routes.ratePlansList()")
+		expect(preview).toContain("routes.rates()")
 		expect(preview).not.toContain("/api/pricing/")
 		expect(preview).not.toContain("/api/inventory/")
 
@@ -324,7 +325,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 		expect(roomsSurface).toContain("Experiencia de descanso")
 		expect(roomsSurface).toContain("Tarifas")
-		expect(roomsSurface).toContain("Disponibilidad")
+		expect(roomsSurface).toContain("Calendario")
+		expect(roomsSurface).toContain("Condiciones")
 		expect(roomsSurface).toContain("Siguiente paso recomendado")
 		expect(roomsSurface).not.toContain("Inventario base")
 		expect(roomsSurface).not.toContain("Detalle interno")

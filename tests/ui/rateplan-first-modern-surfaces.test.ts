@@ -18,7 +18,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(detail).not.toContain("routes.ratePlanPricing")
 	})
 
-	it("crear tarifas completa oferta, precio y contrato sin mezclar reglas al editar", () => {
+	it("crear tarifas completa oferta, precio y condiciones sin mezclar reglas al editar", () => {
 		const manage = read("src/pages/rates/plans/manage.astro")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
 		const createEndpoint = read("src/pages/api/rateplans/create.ts")
@@ -218,13 +218,13 @@ describe("ui/rateplan-first modern surfaces", () => {
 		const ratePlanSurface = read("src/components/policy/RatePlanPoliciesSurface.astro")
 		const multiCalendar = read("src/components/rates/MultiCalendarWorkspace.tsx")
 
-		expect(ratePlanSurface).toContain("Contrato base")
+		expect(ratePlanSurface).toContain("Condiciones base")
 		expect(ratePlanSurface).toContain("Elegir plantilla")
 		expect(ratePlanSurface).toContain("Cambiar")
 		expect(ratePlanSurface).not.toContain("/provider/policies")
 		expect(multiCalendar).toContain('activeTab === "conditions"')
 		expect(multiCalendar).toContain("policy-assignment-open")
-		expect(multiCalendar).toContain("Editar contrato")
+		expect(multiCalendar).toContain("Editar condiciones")
 		expect(assignmentFlow).toContain("defaultChannel")
 		expect(assignmentFlow).toContain("channelSelect.value = defaultChannel")
 	})
@@ -268,15 +268,15 @@ describe("ui/rateplan-first modern surfaces", () => {
 		}
 	})
 
-	it("tarifa presenta el contrato en lenguaje humano y reserva trazabilidad para detalle", () => {
+	it("tarifa presenta las condiciones en lenguaje humano y reserva trazabilidad para detalle", () => {
 		const surface = read("src/components/policy/RatePlanPoliciesSurface.astro")
 		const useCase = read("src/modules/policies/application/use-cases/rate-plan-policies-surface.ts")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
 
 		expect(surface).toContain("data-contract-sellability")
-		expect(surface).toContain("Contrato completo")
+		expect(surface).toContain("Condiciones completas")
 		expect(surface).toContain("Falta completar")
-		expect(surface).toContain("Contrato aplicable")
+		expect(surface).toContain("Condiciones aplicables")
 		expect(surface).toContain("Heredada de")
 		expect(surface).toContain("Detalle técnico y versiones")
 		expect(surface).toContain("Snapshot preview")

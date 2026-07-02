@@ -68,9 +68,10 @@ function patternToRegExp(pattern: string): RegExp {
 }
 
 function matchingClassification(route: string): BackofficeRouteClassification | null {
-	const routeWithoutHash = route.split("#")[0] ?? route
+	const routeWithoutTransientParts = route.split(/[?#]/)[0] ?? route
 	for (const classification of backofficeRouteClassifications) {
-		if (patternToRegExp(classification.pattern).test(routeWithoutHash)) return classification
+		if (patternToRegExp(classification.pattern).test(routeWithoutTransientParts))
+			return classification
 	}
 	return null
 }
@@ -131,12 +132,18 @@ describe("Guardrail: backoffice governance navigation", () => {
 	it("keeps provider sidebar free of internal-only and legacy pricing destinations", () => {
 		const hrefs = flattenNavigationHrefs()
 		const violations = hrefs.filter(
-			(href) => href.startsWith("/api/") || href === "/pricing" || href.startsWith("/pricing/")
+			(href) =>
+				href.startsWith("/api/") ||
+				href === "/pricing" ||
+				href.startsWith("/pricing/") ||
+				href === "/inventory" ||
+				href.startsWith("/inventory/") ||
+				href === "/product/rooms"
 		)
 
 		expect(
 			violations,
-			`Enterprise navigation must not expose internal APIs, standalone pricing rules, or legacy pricing routes:\n${violations.join("\n")}`
+			`Enterprise navigation must not expose internal APIs or legacy provider routes:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 
@@ -158,10 +165,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Inicio",
 			"Reservas",
 			"Habitaciones y tarifas",
-			"Alojamientos y contenido",
+			"Alojamientos",
 			"Finanzas",
 			"Analítica",
-			"Administración",
+			"Configuración",
 		])
 		expect(sectionTitles).not.toContain("Conectividad")
 		expect(sectionTitles).not.toContain("System")
@@ -256,11 +263,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Inicio": ["Command Center"],
 			"Habitaciones y tarifas": ["Rooms & Rates"],
 			"Reservas": ["Reservations"],
-			"Alojamientos y contenido": ["Property Content", "Contenido de alojamiento"],
+			"Alojamientos": ["Property Content", "Contenido de alojamiento"],
 			"Finanzas": ["Payments & Finance"],
 			"Analítica": ["Analytics & Performance"],
 			"Conectividad": ["Connectivity"],
-			"Administración": ["Administration & Governance"],
+			"Configuración": ["Administration & Governance", "Payments & Finance", "Connectivity"],
 		}
 		const violations = enterpriseNavigation.flatMap((section) =>
 			section.items.flatMap((item) => {
@@ -324,7 +331,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(titles).toContain("Habitaciones y tarifas")
 		expect(titles).not.toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario"])
+		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).not.toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -347,7 +354,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Multicalendario"])
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario de precios",
+			"Condiciones",
+			"Multicalendario",
+		])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -369,7 +381,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 				.find((section) => section.title === "Habitaciones y tarifas")
 				?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario", "Multicalendario"])
+		expect(roomsAndRatesLabels).toEqual([
+			"Tarifas",
+			"Calendario de precios",
+			"Condiciones",
+			"Multicalendario",
+		])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -409,7 +426,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 					.find((section) => section.title === "Habitaciones y tarifas")
 					?.items.map((item) => item.label) ?? []
 
-			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario"])
+			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
 		}
 	})
 
@@ -618,12 +635,12 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(roomsAndRates?.nextMaturity).toBeUndefined()
 		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
 		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining(["Calendario", "Multicalendario", "Tarifas"])
+			expect.arrayContaining(["Calendario de precios", "Condiciones", "Multicalendario", "Tarifas"])
 		)
 		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
-		expect(roomsAndRates?.items.find((item) => item.label === "Calendario")?.status).toEqual(
-			"canonical"
-		)
+		expect(
+			roomsAndRates?.items.find((item) => item.label === "Calendario de precios")?.status
+		).toEqual("canonical")
 		expect(roomsAndRates?.items.find((item) => item.label === "Inventario físico")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
 		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
@@ -746,14 +763,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("Panel del proveedor")
 		expect(sidebarSource).toContain('title: "Operación"')
 		expect(sidebarSource).toContain('title: "Alojamiento"')
-		expect(sidebarSource).toContain('title: "Sistema"')
+		expect(sidebarSource).toContain('title: "Configuración"')
 		expect(sidebarSource).toContain("getProviderSidebarData")
 		expect(sidebarSource).toContain("filterEnterpriseNavigationForDisclosure")
 		expect(sidebarSource).toContain("sidebarReadiness[item.href]")
 		expect(sidebarSource).not.toContain("section.planned")
 		expect(sidebarSource).not.toContain("Próximamente")
 		expect(sidebarSource).not.toContain("Sección activa")
-		expect(governanceSource).toContain('title: "Alojamientos y contenido"')
+		expect(governanceSource).toContain('title: "Alojamientos"')
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain("12 tarifas")
