@@ -14,6 +14,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
+    "check:ui": "node scripts/check-ui-raw-objects.mjs",
     "prepare": "husky",
     "test:search": "vitest tests/search tests/integration/search-v2.test.ts tests/integration/search-availability.test.ts",
     "test:search:synthetic": "vitest tests/search/search-synthetic-preprod-validation.test.ts",
