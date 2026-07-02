@@ -1,6 +1,9 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
 
 const { isProviderAvailable, profile } = Astro.props
 ---
@@ -12,19 +15,14 @@ const { isProviderAvailable, profile } = Astro.props
 			Configure los valores operativos por defecto del proveedor.
 		</p>
 	</header>
-	<Card class="bg-slate-100">
+	<Card>
 		{
 			!isProviderAvailable && (
 				<div class="space-y-4">
 					<p class="text-sm text-slate-600">
 						Complete primero la identidad para habilitar el perfil operativo.
 					</p>
-					<Button
-						href="/provider?step=register"
-						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-					>
-						Ir a identidad
-					</Button>
+					<Button href="/provider?step=register">Ir a identidad</Button>
 				</div>
 			)
 		}
@@ -38,16 +36,8 @@ const { isProviderAvailable, profile } = Astro.props
 								Estos campos son obligatorios para alcanzar estado listo.
 							</p>
 						</div>
-						<div class="space-y-2">
-							<label for="timezone" class="text-sm font-medium text-slate-700">
-								Zona horaria *
-							</label>
-							<select
-								id="timezone"
-								name="timezone"
-								required
-								class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-							>
+						<FormField label="Zona horaria" htmlFor="timezone" required>
+							<Select id="timezone" name="timezone" required>
 								<option
 									value="America/Santiago"
 									selected={(profile?.timezone ?? "America/Santiago") === "America/Santiago"}
@@ -63,18 +53,10 @@ const { isProviderAvailable, profile } = Astro.props
 								<option value="Europe/Madrid" selected={profile?.timezone === "Europe/Madrid"}>
 									Europe/Madrid
 								</option>
-							</select>
-						</div>
-						<div class="space-y-2">
-							<label for="defaultCurrency" class="text-sm font-medium text-slate-700">
-								Moneda por defecto *
-							</label>
-							<select
-								id="defaultCurrency"
-								name="defaultCurrency"
-								required
-								class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-							>
+							</Select>
+						</FormField>
+						<FormField label="Moneda por defecto" htmlFor="defaultCurrency" required>
+							<Select id="defaultCurrency" name="defaultCurrency" required>
 								<option value="USD" selected={(profile?.defaultCurrency ?? "USD") === "USD"}>
 									USD
 								</option>
@@ -84,48 +66,29 @@ const { isProviderAvailable, profile } = Astro.props
 								<option value="CLP" selected={profile?.defaultCurrency === "CLP"}>
 									CLP
 								</option>
-							</select>
-						</div>
-						<div class="space-y-2">
-							<label for="supportEmail" class="text-sm font-medium text-slate-700">
-								Correo de soporte
-							</label>
-							<p class="text-xs text-slate-600">
-								Opcional si ya existe un correo de contacto configurado.
-							</p>
-							<input
+							</Select>
+						</FormField>
+						<FormField
+							label="Correo de soporte"
+							htmlFor="supportEmail"
+							description="Opcional si ya existe un correo de contacto configurado."
+						>
+							<Input
 								id="supportEmail"
 								type="email"
 								name="supportEmail"
 								value={profile?.supportEmail ?? ""}
-								class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
 							/>
-						</div>
-						<div class="space-y-2">
-							<label for="supportPhone" class="text-sm font-medium text-slate-700">
-								Teléfono de soporte
-							</label>
-							<input
-								id="supportPhone"
-								name="supportPhone"
-								value={profile?.supportPhone ?? ""}
-								class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-							/>
-						</div>
+						</FormField>
+						<FormField label="Teléfono de soporte" htmlFor="supportPhone">
+							<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
+						</FormField>
 					</div>
 					<div class="flex items-center justify-end gap-3">
-						<a
-							href="/provider"
-							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
-						>
+						<Button href="/provider" variant="secondary">
 							Volver
-						</a>
-						<button
-							type="submit"
-							class="inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
-						>
-							Guardar perfil
-						</button>
+						</Button>
+						<Button type="submit">Guardar perfil</Button>
 					</div>
 				</form>
 			)

@@ -1,5 +1,8 @@
 ---
+import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
 
 const { provider, hasProvider = false } = Astro.props
 const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}` : "/api/providers"
@@ -12,7 +15,7 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 			Cree o complete los datos de identidad de su cuenta de proveedor.
 		</p>
 	</header>
-	<Card class="bg-slate-100">
+	<Card>
 		<form method="POST" action={formAction} class="max-w-3xl space-y-6">
 			<div class="space-y-4">
 				<div class="space-y-1">
@@ -21,42 +24,16 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 						Aquí solo se solicitan los campos mínimos obligatorios.
 					</p>
 				</div>
-				<div class="space-y-2">
-					<label for="displayName" class="text-sm font-medium text-slate-700"
-						>Nombre comercial *</label
-					>
-					<input
-						id="displayName"
-						name="displayName"
-						required
-						value={provider?.displayName ?? ""}
-						class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-					/>
-				</div>
-				<div class="space-y-2">
-					<label for="legalName" class="text-sm font-medium text-slate-700">Razón social *</label>
-					<input
-						id="legalName"
-						name="legalName"
-						required
-						value={provider?.legalName ?? ""}
-						class="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-					/>
-				</div>
+				<FormField label="Nombre comercial" htmlFor="displayName" required>
+					<Input id="displayName" name="displayName" required value={provider?.displayName ?? ""} />
+				</FormField>
+				<FormField label="Razón social" htmlFor="legalName" required>
+					<Input id="legalName" name="legalName" required value={provider?.legalName ?? ""} />
+				</FormField>
 			</div>
 			<div class="flex items-center justify-end gap-3">
-				<a
-					href="/provider"
-					class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
-				>
-					Volver
-				</a>
-				<button
-					type="submit"
-					class="inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
-				>
-					Guardar identidad
-				</button>
+				<Button href="/provider" variant="secondary"> Volver </Button>
+				<Button type="submit"> Guardar identidad </Button>
 			</div>
 		</form>
 	</Card>

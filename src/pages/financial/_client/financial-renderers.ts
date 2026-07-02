@@ -67,7 +67,7 @@ export function renderFinancialRowHtml(params: {
 	const priority = renderPriorityBadge(row)
 	const blockerClass =
 		row.queue === "provider_finance" || row.queue === "reconciliation_issues"
-			? "financial-row-card-alert"
+			? "fastt-row-card-alert"
 			: ""
 	const financeView = item.providerFinance
 		? buildProviderFinanceRowViewModel(item.providerFinance)
@@ -93,7 +93,7 @@ export function renderFinancialRowHtml(params: {
 						? "blocked"
 						: "neutral"
 	return `
-		<article class="financial-row-card group cursor-pointer p-4 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
+		<article class="fastt-row-card group cursor-pointer p-4 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
 			<div class="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.55fr)_minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
 				<div>
 					<div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">

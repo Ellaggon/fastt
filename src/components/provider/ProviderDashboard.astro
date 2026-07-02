@@ -1,4 +1,5 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 
@@ -30,28 +31,22 @@ const {
 			<p class="text-xs text-slate-400">Propietario: {ownerEmail}</p>
 		</div>
 		<div class="flex items-center gap-3">
-			<span
-				class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-					badgeVariant === "success"
-						? "bg-green-100 text-green-800 border-green-200"
-						: badgeVariant === "warning"
-							? "bg-orange-100 text-orange-800 border-orange-200"
-							: badgeVariant === "info"
-								? "bg-blue-100 text-blue-800 border-blue-200"
-								: "bg-neutral-100 text-neutral-800 border-neutral-200"
-				}`}
+			<Badge
+				variant={badgeVariant === "success"
+					? "success"
+					: badgeVariant === "warning"
+						? "warning"
+						: badgeVariant === "info"
+							? "info"
+							: "neutral"}
 			>
 				{stateLabel}
-			</span>
+			</Badge>
 			{
 				derivedState === "active" ? (
-					<Button disabled className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-						Cuenta activa
-					</Button>
+					<Button disabled>Cuenta activa</Button>
 				) : (
-					<Button href={primaryCtaAction} className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-						{primaryCtaLabel}
-					</Button>
+					<Button href={primaryCtaAction}>{primaryCtaLabel}</Button>
 				)
 			}
 		</div>
@@ -60,12 +55,12 @@ const {
 
 <div class="mx-auto max-w-7xl space-y-8">
 	<section class="space-y-4">
-		<Card class="border-slate-700 bg-slate-900 text-white">
+		<Card class="border-slate-800 bg-slate-950 text-white">
 			<div class="space-y-4">
 				<h2 class="text-xl font-semibold text-white">Lista de verificación de activación</h2>
 				<div class="h-2 w-full overflow-hidden rounded-full bg-slate-700">
 					<div
-						class="h-full bg-[#1E3A8A]"
+						class="h-full bg-white"
 						style={`width: ${Math.max(0, Math.min(100, Number(progressPercent ?? 0)))}%`}
 					>
 					</div>
@@ -76,7 +71,7 @@ const {
 			</div>
 		</Card>
 		<div class="space-y-4">
-			<Card class="bg-slate-100">
+			<Card>
 				<div class="space-y-6">
 					<div class="flex items-start justify-between gap-4">
 						<div class="space-y-1">
@@ -84,21 +79,10 @@ const {
 							<p class="text-sm text-slate-600">Nombre comercial y razón social.</p>
 						</div>
 						<div class="flex items-center gap-3">
-							<span
-								class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-									identityComplete
-										? "bg-green-100 text-green-800 border-green-200"
-										: "bg-orange-100 text-orange-800 border-orange-200"
-								}`}
-							>
+							<Badge variant={identityComplete ? "success" : "warning"}>
 								{identityComplete ? "✅ Completo" : "⚠️ Incompleto"}
-							</span>
-							<Button
-								href="/provider?step=register"
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-							>
-								Editar
-							</Button>
+							</Badge>
+							<Button href="/provider?step=register"> Editar </Button>
 						</div>
 					</div>
 					<div class="grid gap-4 md:grid-cols-2">
@@ -114,7 +98,7 @@ const {
 				</div>
 			</Card>
 
-			<Card class="bg-slate-100">
+			<Card>
 				<div class="space-y-6">
 					<div class="flex items-start justify-between gap-4">
 						<div class="space-y-1">
@@ -124,21 +108,10 @@ const {
 							</p>
 						</div>
 						<div class="flex items-center gap-3">
-							<span
-								class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-									operationalComplete
-										? "bg-green-100 text-green-800 border-green-200"
-										: "bg-orange-100 text-orange-800 border-orange-200"
-								}`}
-							>
+							<Badge variant={operationalComplete ? "success" : "warning"}>
 								{operationalComplete ? "✅ Completo" : "⚠️ Incompleto"}
-							</span>
-							<Button
-								href="/provider?step=profile"
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-							>
-								Editar
-							</Button>
+							</Badge>
+							<Button href="/provider?step=profile"> Editar </Button>
 						</div>
 					</div>
 					<div class="grid gap-4 md:grid-cols-2">
@@ -158,7 +131,7 @@ const {
 				</div>
 			</Card>
 
-			<Card class="bg-slate-100">
+			<Card>
 				<div class="space-y-6">
 					<div class="flex items-start justify-between gap-4">
 						<div class="space-y-1">
@@ -166,21 +139,10 @@ const {
 							<p class="text-sm text-slate-600">Estado de verificación de solo lectura.</p>
 						</div>
 						<div class="flex items-center gap-3">
-							<span
-								class={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
-									verificationComplete
-										? "bg-green-100 text-green-800 border-green-200"
-										: "bg-orange-100 text-orange-800 border-orange-200"
-								}`}
-							>
+							<Badge variant={verificationComplete ? "success" : "warning"}>
 								{verificationComplete ? "✅ Aprobado" : "⚠️ Incompleto"}
-							</span>
-							<Button
-								href="/provider?step=verification"
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-							>
-								Ver detalles
-							</Button>
+							</Badge>
+							<Button href="/provider?step=verification"> Ver detalles </Button>
 						</div>
 					</div>
 					<div class="grid gap-4 md:grid-cols-2">
@@ -213,7 +175,7 @@ const {
 				Próximamente se habilitará la gestión de accesos del equipo.
 			</p>
 		</header>
-		<Card class="bg-slate-100">
+		<Card>
 			<div class="flex items-start justify-between gap-4">
 				<div class="space-y-2">
 					<p class="text-xl font-semibold text-slate-900">Próximamente</p>
@@ -221,11 +183,7 @@ const {
 						Los roles y permisos del equipo se gestionarán en esta sección.
 					</p>
 				</div>
-				<span
-					class="inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800"
-				>
-					Planificado
-				</span>
+				<Badge variant="info">Planificado</Badge>
 			</div>
 		</Card>
 	</section>

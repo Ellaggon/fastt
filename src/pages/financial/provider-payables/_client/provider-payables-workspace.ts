@@ -301,7 +301,7 @@ function renderRows(): void {
 }
 
 function detailRow(label: string, value: unknown): string {
-	return `<div class="financial-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
+	return `<div class="fastt-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
 }
 
 function openDrawer(item: ProviderPayableItem): void {
@@ -312,7 +312,7 @@ function openDrawer(item: ProviderPayableItem): void {
 	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
-			<div class="financial-drawer-attention p-5">
+			<div class="fastt-drawer-attention p-5">
 				<p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700/80">${escapeHtml(segmentLabels[item.segment])}</p>
 				<h2 class="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">${escapeHtml(displayBlocker(item.blocker))}</h2>
 				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.blockerSummary)}</p>
@@ -326,24 +326,24 @@ function openDrawer(item: ProviderPayableItem): void {
 				${detailRow("Impuestos", formatMoney(item.taxAmount, item.currency))}
 				${detailRow("Pendiente proveedor", formatMoney(item.providerPendingAmount, item.currency))}
 			</div>
-			<div class="financial-drawer-section p-4">
+			<div class="fastt-drawer-section p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Comisión</p>
 				<p class="mt-2 text-sm leading-6 text-slate-700">${escapeHtml(item.commissionSummary)}</p>
 			</div>
-			<div class="financial-drawer-section p-4">
+			<div class="fastt-drawer-section p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Impuestos</p>
 				<p class="mt-2 text-sm leading-6 text-slate-700">${escapeHtml(item.taxSummary)}</p>
 			</div>
-			<div class="financial-drawer-section p-4">
+			<div class="fastt-drawer-section p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Reservas relacionadas</p>
 				<p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(item.relatedBookings.join(", "))}</p>
 			</div>
-			<div class="financial-drawer-secondary-card p-4">
+			<div class="fastt-drawer-secondary-card p-4">
 				<p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Próxima acción</p>
 				<p class="mt-2 text-sm font-semibold text-slate-950">${escapeHtml(item.nextAction)}</p>
 				<p class="mt-3 text-xs leading-5 text-slate-500">Esta vista solo explica el pendiente y sus bloqueos. No ejecuta pagos ni mueve dinero.</p>
 			</div>
-			<details class="financial-drawer-section p-4">
+			<details class="fastt-drawer-section p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
 				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
 			</details>

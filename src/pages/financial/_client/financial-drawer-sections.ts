@@ -36,7 +36,7 @@ type DrawerRenderInput = {
 }
 
 function section(title: string, body: string, options: { muted?: boolean } = {}): string {
-	return `<section class="financial-drawer-section p-5" ${options.muted ? 'data-muted="true"' : ""}>
+	return `<section class="fastt-drawer-section p-5" ${options.muted ? 'data-muted="true"' : ""}>
 		<div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">${title}</div>
 		<div class="mt-4">${body}</div>
 	</section>`
@@ -158,7 +158,7 @@ function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 	const productLabel = bookingSubtitle({ operation, ...item })
 	const amountLabel =
 		row.amount == null ? "Importe no disponible" : deps.money(row.amountCurrency, row.amount)
-	return `<section class="financial-drawer-attention p-5">
+	return `<section class="fastt-drawer-attention p-5">
 		<div class="flex items-start justify-between gap-4">
 			<div>
 				<p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700/80">Caso abierto</p>
@@ -452,7 +452,7 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 			<p class="rounded-2xl bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500 ring-1 ring-slate-900/[0.04]">La referencia queda disponible para revisión. Esta acción no cierra el caso y no mueve dinero.</p>
 		</div>`
 		: canCompare
-			? `<div class="financial-drawer-soft-card p-4">
+			? `<div class="fastt-drawer-soft-card p-4">
 				<div class="flex items-start justify-between gap-4">
 					<div>
 						<div class="text-sm font-semibold text-slate-950">Confirmar revisión de importes</div>
@@ -461,20 +461,20 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 					<button type="button" data-open-panel="financialReconciliationReview" class="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Confirmar revisión</button>
 				</div>
 			</div>`
-			: `<div class="financial-drawer-soft-card p-4">
+			: `<div class="fastt-drawer-soft-card p-4">
 				<div class="text-sm font-semibold text-slate-950">Revisar opciones del caso</div>
 				<p class="mt-2 text-xs leading-5 text-slate-500">No hay una acción primaria única. Revisa las opciones secundarias solo si corresponde cerrar, descartar o iniciar revisión.</p>
 				<button type="button" data-open-panel="financialSecondaryActions" class="mt-3 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Ver opciones</button>
 			</div>`
 	const referenceModalHtml = missing
 		? `<div id="financialReferenceModal" data-financial-floating-panel class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
-			<div class="financial-floating-modal-card w-full max-w-[720px] text-slate-900">
+			<div class="fastt-floating-modal-card w-full max-w-[720px] text-slate-900">
 				<header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
 					<div>
 						<div class="text-lg font-semibold text-slate-950">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</div>
 						<p class="mt-1 text-sm text-slate-500">Comprobante para revisión operativa</p>
 					</div>
-					<button type="button" data-close-panel="financialReferenceModal" class="financial-reference-button p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
+					<button type="button" data-close-panel="financialReferenceModal" class="fastt-button p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
 						<svg aria-hidden="true" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M18 6 6 18"></path>
 							<path d="m6 6 12 12"></path>
@@ -488,14 +488,14 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 							<p class="mt-1 text-sm leading-6 text-slate-500">Copia el identificador que aparece en Stripe, banco o sistema externo. Guardarlo no cierra el caso ni mueve dinero.</p>
 						</div>
 					<div class="grid gap-3 sm:grid-cols-2">
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Tipo de comprobante</span><select id="financialReferenceType" class="financial-reference-field h-11 w-full bg-white px-3 text-sm text-slate-800">${option("payment_evidence", "Comprobante de cobro")}${option("settlement_evidence", "Comprobante externo")}${option("refund_evidence", "Comprobante de reembolso")}${option("invoice_reference", "Referencia de documento")}</select></label>
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Identificador externo</span><input id="financialReferenceValue" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Ej. R2D2, CH_9F2A..." /></label>
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Sistema externo</span><input id="financialReferenceSystem" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Stripe, banco, proveedor..." /></label>
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Importe</span><input id="financialReferenceAmount" type="number" step="0.01" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Opcional" /></label>
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Moneda</span><input id="financialReferenceCurrency" class="financial-reference-field h-11 w-full px-3 text-sm uppercase text-slate-800 placeholder:text-slate-400" placeholder="USD" maxlength="8" /></label>
-						<label class="block space-y-1.5 text-sm"><span class="font-medium">Nota</span><input id="financialReferenceNote" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Contexto opcional" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Tipo de comprobante</span><select id="financialReferenceType" class="fastt-field h-11 w-full bg-white px-3 text-sm text-slate-800">${option("payment_evidence", "Comprobante de cobro")}${option("settlement_evidence", "Comprobante externo")}${option("refund_evidence", "Comprobante de reembolso")}${option("invoice_reference", "Referencia de documento")}</select></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Identificador externo</span><input id="financialReferenceValue" class="fastt-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Ej. R2D2, CH_9F2A..." /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Sistema externo</span><input id="financialReferenceSystem" class="fastt-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Stripe, banco, proveedor..." /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Importe</span><input id="financialReferenceAmount" type="number" step="0.01" class="fastt-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Opcional" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Moneda</span><input id="financialReferenceCurrency" class="fastt-field h-11 w-full px-3 text-sm uppercase text-slate-800 placeholder:text-slate-400" placeholder="USD" maxlength="8" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Nota</span><input id="financialReferenceNote" class="fastt-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Contexto opcional" /></label>
 					</div>
-					<div class="financial-reference-soft-box bg-slate-50 p-4 text-sm text-slate-600">
+					<div class="fastt-soft-box bg-slate-50 p-4 text-sm text-slate-600">
 						La referencia queda disponible para comparar importes y revisar el caso. No ejecuta cobros, pagos ni reembolsos.
 					</div>
 					</section>
@@ -503,8 +503,8 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 				<footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
 					<p class="text-xs leading-5 text-slate-500">Solo registra evidencia para revisión. No ejecuta cobros ni pagos.</p>
 					<div class="flex shrink-0 gap-2">
-						<button type="button" data-close-panel="financialReferenceModal" class="financial-reference-button h-10 border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Cancelar</button>
-						<button type="button" data-reference-action="record" class="financial-reference-button h-10 bg-slate-950 px-4 text-sm font-semibold text-white">Guardar comprobante</button>
+						<button type="button" data-close-panel="financialReferenceModal" class="fastt-button h-10 border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Cancelar</button>
+						<button type="button" data-reference-action="record" class="fastt-button h-10 bg-slate-950 px-4 text-sm font-semibold text-white">Guardar comprobante</button>
 					</div>
 				</footer>
 			</div>
@@ -515,7 +515,7 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 		`${primaryActionHtml}${referenceModalHtml}
 		<details id="financialSecondaryActions" class="mt-5 border-t border-slate-200/70 pt-4">
 			<summary class="cursor-pointer text-sm font-medium text-slate-500 transition hover:text-slate-800">Opciones de cierre y revisión</summary>
-			<div class="financial-drawer-secondary-card mt-4 p-4">
+			<div class="fastt-drawer-secondary-card mt-4 p-4">
 				<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Nota de cierre</label>
 				<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(item.resolutionNote || "")}</textarea>
 				<p class="mt-2 text-xs leading-5 text-slate-500">Usa estas opciones solo cuando ya revisaste el caso o necesitas dejarlo marcado para seguimiento.</p>

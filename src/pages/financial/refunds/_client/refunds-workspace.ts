@@ -307,7 +307,7 @@ function renderRows(): void {
 }
 
 function detailRow(label: string, value: unknown): string {
-	return `<div class="financial-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
+	return `<div class="fastt-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
 }
 
 function canAct(item: RefundItem): boolean {
@@ -324,7 +324,7 @@ function openDrawer(item: RefundItem): void {
 	const disabled = canAct(item) ? "" : "disabled"
 	body.innerHTML = `
 		<section class="space-y-4">
-			<div class="financial-drawer-attention p-5">
+			<div class="fastt-drawer-attention p-5">
 				<p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700/80">${escapeHtml(segmentLabels[item.segment])}</p>
 				<h2 class="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">${escapeHtml(item.reason)}</h2>
 				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.whatHappened)}</p>
@@ -338,15 +338,15 @@ function openDrawer(item: RefundItem): void {
 				${detailRow("Comprobante", item.proof)}
 				${detailRow("Responsable", item.owner)}
 			</div>
-			<div class="financial-drawer-section p-4">
+			<div class="fastt-drawer-section p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Historial</p>
 				<ul class="mt-2 space-y-1 text-sm text-slate-700">${item.history.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul>
 			</div>
-			<div class="financial-drawer-secondary-card p-4">
+			<div class="fastt-drawer-secondary-card p-4">
 				<p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Próxima acción</p>
 				<p class="mt-2 text-sm font-semibold text-slate-950">${escapeHtml(item.nextAction)}</p>
 			</div>
-			<div class="financial-drawer-section p-4">
+			<div class="fastt-drawer-section p-4">
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Acciones</p>
 				<p class="mt-2 text-sm text-slate-600">Estas acciones solo actualizan la revisión operativa; no ejecutan reembolsos.</p>
 				<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundsReviewNote">Nota de seguimiento</label>
@@ -358,7 +358,7 @@ function openDrawer(item: RefundItem): void {
 				</div>
 				<p id="refundsActionMessage" class="mt-3 text-sm text-slate-500"></p>
 			</div>
-			<details class="financial-drawer-section p-4">
+			<details class="fastt-drawer-section p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
 				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
 			</details>
