@@ -1,15 +1,15 @@
 <div
 	data-modal="dates"
-	class="modal-overlay fixed inset-0 z-40 hidden items-end bg-black/60 backdrop-blur-sm md:items-center"
+	class="modal-overlay fixed inset-0 z-40 hidden items-end bg-slate-950/40 backdrop-blur-md md:items-center"
 >
 	<button
 		id="modal-close"
 		data-close-modal
-		class="absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-black/50 md:right-10 md:top-10 md:h-20 md:w-20 md:bg-transparent lg:border-0"
+		class="fastt-button absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center bg-white/12 text-white hover:bg-white/20 md:right-10 md:top-10"
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			class="h-6 w-6 text-2xl font-bold text-white hover:text-gray-400 md:h-12 md:w-12 md:text-5xl"
+			class="h-5 w-5 text-white"
 			viewBox="0 0 24 24"
 			fill="none"
 			stroke="currentColor"
@@ -21,26 +21,26 @@
 			<line x1="6" y1="6" x2="18" y2="18"></line>
 		</svg>
 	</button>
-	<div class="w-[98%] rounded-2xl bg-black p-4 md:max-w-md">
+	<div class="fastt-dialog w-[98%] border bg-white p-4 text-slate-900 md:max-w-md">
 		<header class="flex items-center justify-between">
 			<button
 				id="prevMonth"
-				class="hidden rounded-lg px-2 py-1 text-neutral-300 hover:bg-neutral-800 md:block"
+				class="fastt-button hidden px-2 py-1 text-slate-600 hover:bg-slate-100 md:block"
 			>
 				‹
 			</button>
 
-			<h3 id="monthLabel" class="text-2xl font-semibold text-white">Selecciona fechas</h3>
+			<h3 id="monthLabel" class="text-2xl font-semibold text-slate-950">Selecciona fechas</h3>
 
 			<button
 				id="nextMonth"
-				class="hidden rounded-lg px-2 py-1 text-neutral-300 hover:bg-neutral-800 md:block"
+				class="fastt-button hidden px-2 py-1 text-slate-600 hover:bg-slate-100 md:block"
 			>
 				›
 			</button>
 		</header>
 
-		<p id="dateStep" class="mb-3 text-sm text-neutral-400">Elige fecha de entrada</p>
+		<p id="dateStep" class="mb-3 text-sm text-slate-500">Elige fecha de entrada</p>
 
 		<div
 			id="calendar"
@@ -48,19 +48,19 @@
 			style="max-height: 65vh"
 		>
 			<div>
-				<h4 id="monthLabel1" class="mb-2 text-center font-semibold text-white"></h4>
+				<h4 id="monthLabel1" class="mb-2 text-center font-semibold text-slate-900"></h4>
 				<div id="calendar1" class="grid grid-cols-7 gap-1 text-center text-sm"></div>
 			</div>
 
 			<div>
-				<h4 id="monthLabel2" class="mb-2 text-center font-semibold text-white"></h4>
+				<h4 id="monthLabel2" class="mb-2 text-center font-semibold text-slate-900"></h4>
 				<div id="calendar2" class="grid grid-cols-7 gap-1 text-center text-sm"></div>
 			</div>
 		</div>
 
 		<button
 			id="confirmDates"
-			class="mt-4 w-full rounded-lg bg-blue-600 py-2 font-semibold text-white disabled:opacity-40"
+			class="fastt-button mt-4 w-full bg-slate-950 py-2 font-semibold text-white disabled:opacity-40"
 			disabled
 		>
 			Confirmar fechas
@@ -186,7 +186,7 @@
 
 			const btn = document.createElement("button")
 			btn.textContent = String(day)
-			btn.className = "h-10 rounded-lg text-white hover:bg-neutral-700"
+			btn.className = "h-10 rounded-lg text-slate-700 hover:bg-slate-100"
 
 			if (d < today && !sameDay(d, today)) {
 				btn.disabled = true
@@ -197,10 +197,10 @@
 				btn.classList.add("opacity-30")
 			}
 			if ((checkIn && sameDay(d, checkIn)) || (checkOut && sameDay(d, checkOut))) {
-				btn.classList.add("bg-blue-600", "font-semibold")
+				btn.classList.add("bg-slate-950", "font-semibold", "text-white")
 			}
 			if (checkIn && checkOut && d > checkIn && d < checkOut) {
-				btn.classList.add("bg-blue-500/40")
+				btn.classList.add("bg-slate-200")
 			}
 
 			btn.onclick = () => onDateClick(d)

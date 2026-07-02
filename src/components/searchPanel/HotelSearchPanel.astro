@@ -1,5 +1,7 @@
 ---
+import Button from "@/components/ui/Button.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
+import Input from "@/components/ui/Input.astro"
 ---
 
 <div class="sticky top-0 mx-auto w-full max-w-4xl">
@@ -7,26 +9,26 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 		id="searchForm"
 		action="/hotels/search"
 		method="get"
-		class="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-3"
+		class="fastt-card grid grid-cols-1 items-end gap-3 border bg-white p-4 md:grid-cols-3"
 	>
 		<!-- DESTINATION -->
 		<div class="col-span-1 md:col-span-1">
-			<label for="destinationInput" class="text-md mb-1 block text-left font-medium text-gray-800"
-				>Destino</label
+			<label
+				for="destinationInput"
+				class="mb-1 block text-left text-sm font-semibold text-slate-800">Destino</label
 			>
-			<div class="relative text-gray-500">
-				<input
+			<div class="relative text-slate-500">
+				<Input
 					id="destinationInput"
 					name="destinationQuery"
 					autocomplete="off"
 					type="search"
-					class="w-full rounded-md border border-gray-500 p-2 px-3 text-gray-500"
 					placeholder="Ciudad, departamento..."
 				/>
 				<input type="hidden" name="destinationId" id="destinationId" />
 				<ul
 					id="destinationsList"
-					class="absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto rounded border bg-white text-sm"
+					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
 				>
 				</ul>
 			</div>
@@ -34,81 +36,84 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 
 		<!-- DATES -->
 		<div class="col-span-1 md:col-span-1">
-			<label class="text-md mb-1 block text-left font-medium text-gray-800">Fechas</label>
-			<div class="flex gap-2 text-gray-400">
-				<DatesModal
-					id="checkin"
-					name="checkin"
-					className="w-1/2 rounded border border-gray-500 px-3 py-2"
-					required
-				/>
-				<DatesModal
-					id="checkout"
-					name="checkout"
-					className="w-1/2 rounded border border-gray-500 px-3 py-2"
-					required
-				/>
+			<label class="mb-1 block text-left text-sm font-semibold text-slate-800">Fechas</label>
+			<div class="flex gap-2 text-slate-500">
+				<DatesModal id="checkin" name="checkin" className="w-1/2" required />
+				<DatesModal id="checkout" name="checkout" className="w-1/2" required />
 			</div>
 		</div>
 
 		<!-- TRAVELERS -->
 		<div class="col-span-1 md:col-span-1">
-			<label class="text-md mb-1 block text-left font-medium text-gray-800">Viajeros</label>
+			<label class="mb-1 block text-left text-sm font-semibold text-slate-800">Viajeros</label>
 
 			<div class="relative">
-				<button
+				<Button
 					type="button"
 					id="openTravelers"
-					class="w-full rounded border border-gray-500 bg-white px-3 py-2 text-left text-gray-400"
+					variant="secondary"
+					class="w-full justify-start text-slate-500"
 				>
 					<span id="travelersSummary">2 adultos, 0 niños · 1 habitación</span>
-				</button>
+				</Button>
 
 				<div
 					id="travelersPanel"
-					class="absolute z-50 mt-1 hidden w-full rounded border bg-white p-3 text-gray-900"
+					class="fastt-soft-box absolute z-50 mt-1 hidden w-full border border-slate-200 bg-white p-3 text-slate-900 shadow-[var(--fastt-shadow-row-hover)]"
 				>
 					<div class="mb-2 flex items-center justify-between">
 						<div>
 							<div class="text-sm font-medium">Adultos</div>
-							<div class="text-xs text-gray-500">Edad 13+</div>
+							<div class="text-xs text-slate-500">Edad 13+</div>
 						</div>
 						<div class="flex items-center gap-2">
-							<button
+							<Button
 								type="button"
 								data-role="decrement"
 								data-target="adults"
-								class="rounded border px-2 py-1">-</button
+								variant="secondary"
+								size="sm"
 							>
+								-
+							</Button>
 							<span id="adultsCount">2</span>
-							<button
+							<Button
 								type="button"
 								data-role="increment"
 								data-target="adults"
-								class="rounded border px-2 py-1">+</button
+								variant="secondary"
+								size="sm"
 							>
+								+
+							</Button>
 						</div>
 					</div>
 
 					<div class="mb-2 flex items-center justify-between">
 						<div>
 							<div class="text-sm font-medium">Niños</div>
-							<div class="text-xs text-gray-500">0-12</div>
+							<div class="text-xs text-slate-500">0-12</div>
 						</div>
 						<div class="flex items-center gap-2">
-							<button
+							<Button
 								type="button"
 								data-role="decrement"
 								data-target="children"
-								class="rounded border px-2 py-1">-</button
+								variant="secondary"
+								size="sm"
 							>
+								-
+							</Button>
 							<span id="childrenCount">0</span>
-							<button
+							<Button
 								type="button"
 								data-role="increment"
 								data-target="children"
-								class="rounded border px-2 py-1">+</button
+								variant="secondary"
+								size="sm"
 							>
+								+
+							</Button>
 						</div>
 					</div>
 
@@ -117,19 +122,25 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 							<div class="text-sm font-medium">Habitaciones</div>
 						</div>
 						<div class="flex items-center gap-2">
-							<button
+							<Button
 								type="button"
 								data-role="decrement"
 								data-target="rooms"
-								class="rounded border px-2 py-1">-</button
+								variant="secondary"
+								size="sm"
 							>
+								-
+							</Button>
 							<span id="roomsCount">1</span>
-							<button
+							<Button
 								type="button"
 								data-role="increment"
 								data-target="rooms"
-								class="rounded border px-2 py-1">+</button
+								variant="secondary"
+								size="sm"
 							>
+								+
+							</Button>
 						</div>
 					</div>
 
@@ -143,11 +154,7 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 
 		<!-- SUBMIT -->
 		<div class="col-span-1 flex justify-center md:col-span-3">
-			<button
-				type="submit"
-				class="cursor-pointer rounded-lg bg-blue-500 px-8 py-3 text-lg font-medium text-white shadow-md transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-				>Buscar</button
-			>
+			<Button type="submit" size="lg" class="px-8">Buscar</Button>
 		</div>
 	</form>
 </div>
@@ -216,7 +223,7 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 				const li = document.createElement("li")
 				li.tabIndex = 0
 				li.className =
-					"px-3 py-2 hover:bg-gray-100 cursor-pointer whitespace-pre-line text-gray-800"
+					"cursor-pointer whitespace-pre-line px-3 py-2 text-slate-800 hover:bg-slate-100"
 				li.dataset.id = d.id
 				li.dataset.slug = d.slug || ""
 				li.dataset.latitude = d.latitude || ""

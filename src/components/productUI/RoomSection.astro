@@ -9,6 +9,8 @@ const {
 	policiesByRatePlanId = {},
 } = Astro.props
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import { Bath, BedDouble, User } from "@lucide/astro"
@@ -75,14 +77,12 @@ function policyStatusClass(status: string): string {
 }
 ---
 
-<header
-	class="flex flex-wrap items-end justify-between gap-6 rounded-2xl bg-neutral-900 p-4 md:p-6"
->
+<header class="fastt-workspace-panel flex flex-wrap items-end justify-between gap-6 p-4 md:p-6">
 	<div>
-		<span class="block text-xs font-medium uppercase tracking-wide text-neutral-400">
+		<span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
 			Revisa disponibilidad de
 		</span>
-		<h2 class="mt-1 text-2xl font-semibold text-white">Habitaciones</h2>
+		<h2 class="mt-1 text-2xl font-semibold text-slate-950">Habitaciones</h2>
 	</div>
 
 	<span id="guestsLabel" class="hidden"></span>
@@ -90,35 +90,35 @@ function policyStatusClass(status: string): string {
 	<div class="flex w-full flex-wrap items-end gap-3 md:w-auto">
 		<div class="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
 			<div class="flex flex-col gap-1">
-				<label class="text-xs text-neutral-400">Adultos</label>
-				<input
+				<label class="text-xs text-slate-500">Adultos</label>
+				<Input
 					id="adultsInput"
 					type="number"
 					min="1"
 					value={String(searchState.adults ?? 2)}
-					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
+					class="md:w-[110px]"
 				/>
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<label class="text-xs text-neutral-400">Niños</label>
-				<input
+				<label class="text-xs text-slate-500">Niños</label>
+				<Input
 					id="childrenInput"
 					type="number"
 					min="0"
 					value={String(searchState.children ?? 0)}
-					class="h-[44px] rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[110px]"
+					class="md:w-[110px]"
 				/>
 			</div>
 		</div>
 
 		<div
-			class="flex w-full overflow-hidden rounded-xl border border-neutral-700 bg-neutral-800 md:w-auto"
+			class="fastt-soft-box flex w-full overflow-hidden border border-slate-200 bg-white md:w-auto"
 			data-open-modal="dates"
 		>
 			<div class="relative flex w-1/2 items-center md:w-[160px]">
 				<svg
-					class="absolute left-3 h-4 w-4 text-neutral-400"
+					class="absolute left-3 h-4 w-4 text-slate-500"
 					xmlns="http://www.w3.org/2000/svg"
 					fill="none"
 					viewBox="0 0 24 24"
@@ -134,17 +134,17 @@ function policyStatusClass(status: string): string {
 				<button
 					id="checkinBtn"
 					value={searchState.checkIn}
-					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
+					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-slate-700 outline-none focus:bg-slate-50"
 				>
 					<span id="checkinText">Ingreso</span>
 				</button>
 			</div>
 
-			<div class="w-px bg-neutral-700"></div>
+			<div class="w-px bg-slate-200"></div>
 
 			<div class="relative flex w-1/2 items-center md:w-[160px]">
 				<svg
-					class="absolute left-3 h-4 w-4 text-neutral-400"
+					class="absolute left-3 h-4 w-4 text-slate-500"
 					xmlns="http://www.w3.org/2000/svg"
 					fill="none"
 					viewBox="0 0 24 24"
@@ -160,60 +160,42 @@ function policyStatusClass(status: string): string {
 				<button
 					id="checkoutBtn"
 					value={searchState.checkOut}
-					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none focus:bg-neutral-700"
+					class="h-[44px] w-full bg-transparent pl-9 pr-3 text-sm text-slate-700 outline-none focus:bg-slate-50"
 				>
 					<span id="checkoutText">Salida</span>
 				</button>
 			</div>
 		</div>
 
-		<button
-			id="searchBtn"
-			class="h-[44px] w-full rounded-lg bg-blue-600 px-6 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-500 active:scale-[0.97] md:w-auto"
-		>
-			Consultar disponibilidad
-		</button>
+		<Button id="searchBtn" class="w-full md:w-auto"> Consultar disponibilidad </Button>
 	</div>
 </header>
 
-<article class="rounded-2xl border border-neutral-200 bg-white p-4 md:p-6">
+<article class="fastt-card border bg-white p-4 md:p-6">
 	<div class="space-y-2">
-		<h3 class="text-lg font-semibold text-neutral-900">Resumen de disponibilidad</h3>
-		<p id="availabilitySummaryText" class="text-sm text-neutral-600">
+		<h3 class="text-lg font-semibold text-slate-950">Resumen de disponibilidad</h3>
+		<p id="availabilitySummaryText" class="text-sm text-slate-600">
 			Selecciona fechas para ver precio total y estado de venta.
 		</p>
 	</div>
 	<div class="mt-4 flex flex-wrap items-center gap-2">
-		<button
-			type="button"
-			id="reserveBtn"
-			class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-		>
-			Reservar
-		</button>
-		<button
-			type="button"
-			id="confirmBookingBtn"
-			disabled
-			class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			Confirmar reserva
-		</button>
-		<span id="holdStatusText" class="text-sm text-neutral-500"></span>
+		<Button type="button" id="reserveBtn"> Reservar </Button>
+		<Button type="button" id="confirmBookingBtn" disabled> Confirmar reserva </Button>
+		<span id="holdStatusText" class="text-sm text-slate-500"></span>
 	</div>
 </article>
 <DatesModal />
 
 {
 	guestRoomPreviews.length ? (
-		<section class="rounded-2xl border border-neutral-200 bg-white p-4 md:p-6">
+		<section class="fastt-card border bg-white p-4 md:p-6">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+					<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 						Experiencia de descanso
 					</p>
-					<h3 class="mt-1 text-xl font-semibold text-neutral-900">Dónde dormirás</h3>
-					<p class="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">
+					<h3 class="mt-1 text-xl font-semibold text-slate-950">Dónde dormirás</h3>
+					<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
 						Estas son las habitaciones y detalles que verá el huésped antes de reservar.
 					</p>
 				</div>
@@ -221,7 +203,7 @@ function policyStatusClass(status: string): string {
 
 			<GuestRoomPreviewCards
 				previews={guestRoomPreviews}
-				cardClass="border-neutral-200 bg-neutral-50 text-neutral-800"
+				cardClass="fastt-row-card bg-white text-slate-800"
 				enableModal={true}
 			/>
 		</section>
@@ -258,26 +240,26 @@ function policyStatusClass(status: string): string {
 					<article
 						data-room-id={variant.id}
 						data-capacity={variant.maxOccupancy ?? 0}
-						class="w-[360px] flex-shrink-0 snap-start rounded-3xl bg-neutral-100 shadow-[0_20px_50px_rgba(0,0,0,0.08)] backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-[0_30px_70px_rgba(0,0,0,0.12)]"
+						class="fastt-row-card w-[360px] flex-shrink-0 snap-start overflow-hidden"
 					>
 						<img
 							src={img}
 							alt={variant.name}
 							data-open-modal={`room-${variant.id}`}
-							class="h-48 w-full cursor-pointer rounded-t-2xl object-cover"
+							class="h-48 w-full cursor-pointer object-cover"
 						/>
 
 						<div class="p-5">
-							<h3 class="font-semibold text-neutral-800" data-open-modal={`room-${variant.id}`}>
+							<h3 class="font-semibold text-slate-950" data-open-modal={`room-${variant.id}`}>
 								{variant.name}
 							</h3>
 
-							<p class="mt-1 text-sm text-neutral-500">
+							<p class="mt-1 text-sm text-slate-500">
 								{entity.sizeM2 && `${entity.sizeM2} m²`}
 								{roomView(entity) && ` • Con vista ${roomView(entity)}`}
 							</p>
 
-							<div class="mt-4 grid grid-cols-2 gap-2 text-sm text-neutral-600">
+							<div class="mt-4 grid grid-cols-2 gap-2 text-sm text-slate-600">
 								<label class="flex items-center gap-1">
 									<BedDouble class={`h-4 w-4 ${bedsLabel(entity) !== "-" ? "block" : "hidden"}`} />
 									<span>{bedsLabel(entity)}</span>
@@ -327,15 +309,15 @@ function policyStatusClass(status: string): string {
 							<div class="mt-5 grid grid-cols-2 items-end gap-x-3 text-right">
 								{showBasePrice && (
 									<>
-										<span class="text-xs text-neutral-500">Precio normal:</span>
-										<span class="text-sm text-neutral-500 line-through opacity-60">
+										<span class="text-xs text-slate-500">Precio normal:</span>
+										<span class="text-sm text-slate-500 line-through opacity-60">
 											${variant.basePrice}
 										</span>
 									</>
 								)}
 
-								<span class="text-xs text-neutral-500">Desde:</span>
-								<span class="price-value text-xl font-semibold text-neutral-900">${fromPrice}</span>
+								<span class="text-xs text-slate-500">Desde:</span>
+								<span class="price-value text-xl font-semibold text-slate-950">${fromPrice}</span>
 							</div>
 
 							<div class="mt-4 space-y-3">
@@ -347,28 +329,29 @@ function policyStatusClass(status: string): string {
 
 									return (
 										<div
-											class="space-y-3 rounded-lg border bg-white px-3 py-3"
+											class="fastt-soft-box space-y-3 border border-slate-200 bg-white px-3 py-3"
 											data-rateplan-id={ratePlanId}
 										>
 											<div class="flex items-start justify-between gap-3">
 												<div>
-													<p class="text-sm font-medium text-neutral-800">{rp.name ?? "Tarifa"}</p>
-													<p class="mt-1 text-xs text-neutral-500">
+													<p class="text-sm font-medium text-slate-800">{rp.name ?? "Tarifa"}</p>
+													<p class="mt-1 text-xs text-slate-500">
 														Verdad contractual de esta tarifa
 													</p>
 												</div>
 
 												<div class="text-right">
-													<p class="text-sm font-semibold text-neutral-900">${finalPrice}</p>
+													<p class="text-sm font-semibold text-slate-950">${finalPrice}</p>
 
-													<button
+													<Button
 														type="button"
 														data-select-variant-id={variant.id}
 														data-select-rateplan-id={ratePlanId}
-														class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+														size="sm"
+														class="mt-1"
 													>
 														Reservar
-													</button>
+													</Button>
 												</div>
 											</div>
 
@@ -383,10 +366,10 @@ function policyStatusClass(status: string): string {
 												</p>
 											</div>
 
-											<div class="grid gap-2 text-xs text-neutral-700">
+											<div class="grid gap-2 text-xs text-slate-700">
 												{visibleCards.map((card: any) => (
-													<div class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
-														<p class="font-semibold text-neutral-900">{card.label}</p>
+													<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-3 py-2">
+														<p class="font-semibold text-slate-950">{card.label}</p>
 														<p class="mt-1">
 															{card.state === "missing"
 																? "Pendiente para esta tarifa."
@@ -401,22 +384,23 @@ function policyStatusClass(status: string): string {
 							</div>
 
 							<div class="mt-6 flex gap-3">
-								<button
+								<Button
 									type="button"
 									data-open-modal={`room-${variant.id}`}
-									class="flex-1 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+									variant="secondary"
+									class="flex-1"
 								>
 									Ver habitación
-								</button>
+								</Button>
 
-								<button
+								<Button
 									type="button"
 									data-select-variant-id={variant.id}
 									data-select-rateplan-id={ratePlanIdOf(ratePlans[0])}
-									class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
+									class="flex-1"
 								>
 									Reservar
-								</button>
+								</Button>
 							</div>
 						</div>
 					</article>

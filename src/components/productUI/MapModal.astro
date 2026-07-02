@@ -4,16 +4,16 @@ const { latitude, longitude, address } = Astro.props
 
 <div
 	data-modal="map"
-	class="modal-overlay fixed inset-0 z-30 flex hidden items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm transition-opacity duration-300 md:p-4"
+	class="modal-overlay fixed inset-0 z-30 flex hidden items-center justify-center bg-slate-950/78 backdrop-blur-md transition-opacity duration-300 md:p-4"
 >
 	<button
 		id="modal-close"
 		data-close-modal
-		class="absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-black/50 md:right-10 md:top-10 md:h-20 md:w-20 md:bg-transparent lg:border-0"
+		class="fastt-button absolute right-0 top-0 z-20 m-4 flex h-10 w-10 items-center justify-center bg-white/12 text-white hover:bg-white/20 md:right-10 md:top-10"
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			class="h-6 w-6 text-2xl font-bold text-white hover:text-gray-400 md:h-12 md:w-12 md:text-5xl"
+			class="h-5 w-5 text-white"
 			viewBox="0 0 24 24"
 			fill="none"
 			stroke="currentColor"
@@ -25,8 +25,11 @@ const { latitude, longitude, address } = Astro.props
 			<line x1="6" y1="6" x2="18" y2="18"></line>
 		</svg>
 	</button>
-	<div id="map-container" class="relative h-[70%] w-[96%] max-w-3xl rounded-3xl lg:static">
-		<div id="modal-map" class="h-full w-full rounded-3xl bg-neutral-100"></div>
+	<div
+		id="map-container"
+		class="fastt-dialog relative h-[70%] w-[96%] max-w-3xl overflow-hidden lg:static"
+	>
+		<div id="modal-map" class="h-full w-full bg-slate-100"></div>
 
 		<input
 			type="text"
@@ -37,7 +40,7 @@ const { latitude, longitude, address } = Astro.props
 
 		<div
 			id="modal-map-fallback"
-			class="flex hidden h-64 w-full items-center justify-center rounded-lg bg-neutral-100"
+			class="flex hidden h-64 w-full items-center justify-center bg-slate-100"
 		>
 			No localizada
 		</div>
@@ -46,7 +49,7 @@ const { latitude, longitude, address } = Astro.props
 		href={`https://www.google.com/maps?q=${latitude},${longitude}`}
 		target="_blank"
 		rel="noopener noreferrer"
-		class="absolute bottom-10 md:bottom-20 right-[50%] z-20 translate-x-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 px-4 py-2 text-sm font-medium text-white backdrop-blur hover:bg-black/90"
+		class="fastt-button absolute right-[50%] bottom-10 z-20 translate-x-1/2 items-center justify-center border border-white/20 bg-slate-950/78 px-4 py-2 text-sm font-medium text-white backdrop-blur hover:bg-slate-900 md:bottom-20"
 	>
 		Ver en Google Maps
 	</a>

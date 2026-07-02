@@ -67,11 +67,11 @@ function policyStatusClass(status: string): string {
 					data-close
 					class="fixed inset-0 flex items-start justify-center overflow-y-auto px-2 py-10 sm:p-12"
 				>
-					<div class="pointer-events-auto relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-neutral-100 shadow-2xl">
+					<div class="pointer-events-auto relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[var(--fastt-radius-dialog)] bg-slate-50 shadow-[var(--fastt-shadow-dialog)]">
 						{/* HEADER */}
 						<header class="border-b px-8 py-6">
-							<h2 class="text-2xl font-semibold text-neutral-900">{variant.name}</h2>
-							<p class="mt-2 text-sm text-neutral-500">
+							<h2 class="text-2xl font-semibold text-slate-950">{variant.name}</h2>
+							<p class="mt-2 text-sm text-slate-500">
 								{[preview?.roomTypeName, preview?.sizeSummary, preview?.viewSummary]
 									.filter(Boolean)
 									.join(" · ") || "Detalle de habitación"}
@@ -81,7 +81,10 @@ function policyStatusClass(status: string): string {
 						<div class="grid grid-cols-1 gap-8 md:p-8 lg:grid-cols-2">
 							{/* GALERÍA */}
 							<section>
-								<div class="relative h-[360px] overflow-hidden md:rounded-2xl" data-gallery>
+								<div
+									class="relative h-[360px] overflow-hidden md:rounded-[var(--fastt-radius-panel)]"
+									data-gallery
+								>
 									<img
 										src={mainImage}
 										class="h-full w-full object-cover transition-opacity duration-300"
@@ -115,7 +118,7 @@ function policyStatusClass(status: string): string {
 											<button type="button" data-thumb data-index={i}>
 												<img
 													src={img.url}
-													class="h-16 w-24 rounded-lg object-cover opacity-70 hover:opacity-100"
+													class="h-16 w-24 rounded-[var(--fastt-radius-control)] object-cover opacity-70 hover:opacity-100"
 												/>
 											</button>
 										))}
@@ -127,24 +130,24 @@ function policyStatusClass(status: string): string {
 							<section class="mx-8 space-y-8">
 								<div class="space-y-5">
 									<div>
-										<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 											Experiencia de descanso
 										</p>
-										<h3 class="mt-1 text-xl font-semibold text-neutral-900">Dónde dormirás</h3>
+										<h3 class="mt-1 text-xl font-semibold text-slate-950">Dónde dormirás</h3>
 									</div>
 
-									<div class="grid gap-3 text-sm text-neutral-700">
+									<div class="grid gap-3 text-sm text-slate-700">
 										<div class="flex items-start gap-2">
-											<BedDouble class="mt-0.5 h-4 w-4 text-neutral-500" />
+											<BedDouble class="mt-0.5 h-4 w-4 text-slate-500" />
 											<div>
-												<p class="font-medium text-neutral-900">
+												<p class="font-medium text-slate-950">
 													{preview?.sleepSummary ?? "Camas por confirmar"}
 												</p>
 												{preview?.sleepAreas?.length ? (
 													<div class="mt-2 grid gap-2">
 														{preview.sleepAreas.map((area) => (
-															<p class="rounded-lg bg-white px-3 py-2 text-neutral-600 ring-1 ring-neutral-200">
-																<span class="font-medium text-neutral-900">{area.label}:</span>{" "}
+															<p class="rounded-[var(--fastt-radius-control)] bg-white px-3 py-2 text-slate-600 ring-1 ring-slate-200">
+																<span class="font-medium text-slate-950">{area.label}:</span>{" "}
 																{area.summary}
 															</p>
 														))}
@@ -154,18 +157,18 @@ function policyStatusClass(status: string): string {
 										</div>
 
 										<div class="flex items-center gap-2">
-											<Bath class="h-4 w-4 text-neutral-500" />
+											<Bath class="h-4 w-4 text-slate-500" />
 											<span>{preview?.bathroomSummary ?? "Baño por confirmar"}</span>
 										</div>
 
 										<div class="flex items-center gap-2">
-											<User class="h-4 w-4 text-neutral-500" />
+											<User class="h-4 w-4 text-slate-500" />
 											<span>{preview?.occupancySummary ?? "Capacidad por confirmar"}</span>
 										</div>
 
 										{Number(room.totalRooms ?? 0) > 0 && (
 											<div class="flex items-center gap-2">
-												<DoorClosed class="h-4 w-4 text-neutral-500" />
+												<DoorClosed class="h-4 w-4 text-slate-500" />
 												{room.totalRooms} habitación
 												{room.totalRooms > 1 && "es"}
 											</div>
@@ -173,7 +176,7 @@ function policyStatusClass(status: string): string {
 
 										{preview?.sizeSummary ? (
 											<div class="flex items-center gap-2">
-												<Ruler class="h-4 w-4 text-neutral-500" />
+												<Ruler class="h-4 w-4 text-slate-500" />
 												{preview.sizeSummary}
 											</div>
 										) : null}
@@ -185,18 +188,18 @@ function policyStatusClass(status: string): string {
 
 									{preview?.amenityGroups?.length ? (
 										<div>
-											<p class="text-sm font-semibold text-neutral-900">
+											<p class="text-sm font-semibold text-slate-950">
 												Comodidades de la habitación
 											</p>
 											<div class="mt-3 grid gap-3">
 												{preview.amenityGroups.map((group) => (
-													<div class="rounded-xl border border-neutral-200 bg-white p-3">
-														<p class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+													<div class="rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-3">
+														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 															{group.category}
 														</p>
 														<div class="mt-2 flex flex-wrap gap-2">
 															{group.labels.map((label) => (
-																<span class="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+																<span class="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
 																	{label}
 																</span>
 															))}
@@ -208,9 +211,9 @@ function policyStatusClass(status: string): string {
 									) : null}
 
 									{preview?.guestFacingNotes ? (
-										<div class="rounded-xl border border-neutral-200 bg-white p-4">
-											<p class="text-sm font-semibold text-neutral-900">Notas para huéspedes</p>
-											<p class="mt-2 text-sm leading-6 text-neutral-600">
+										<div class="rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
+											<p class="text-sm font-semibold text-slate-950">Notas para huéspedes</p>
+											<p class="mt-2 text-sm leading-6 text-slate-600">
 												{preview.guestFacingNotes}
 											</p>
 										</div>
@@ -219,9 +222,9 @@ function policyStatusClass(status: string): string {
 
 								{/* TARIFAS */}
 								<div>
-									<h3 class="mb-3 font-semibold text-neutral-800">Tarifas disponibles</h3>
+									<h3 class="mb-3 font-semibold text-slate-800">Tarifas disponibles</h3>
 
-									<p class="text-right text-sm text-neutral-500">
+									<p class="text-right text-sm text-slate-500">
 										Referencia comercial: ${variant.basePrice}
 									</p>
 
@@ -233,24 +236,24 @@ function policyStatusClass(status: string): string {
 											const visibleCards = (contract?.cards ?? []).slice(0, 4)
 
 											return (
-												<div class="space-y-3 rounded-lg border bg-white px-4 py-3">
+												<div class="space-y-3 rounded-[var(--fastt-radius-control)] border bg-white px-4 py-3">
 													<div class="flex items-start justify-between gap-3">
 														<div>
-															<p class="text-sm font-medium text-neutral-800">
+															<p class="text-sm font-medium text-slate-800">
 																{rp.name ?? "Tarifa"}
 															</p>
-															<p class="mt-1 text-xs text-neutral-500">
+															<p class="mt-1 text-xs text-slate-500">
 																Verdad contractual de esta tarifa
 															</p>
 														</div>
 
 														<div class="text-right">
-															<p class="font-semibold text-neutral-800">${finalPrice}</p>
+															<p class="font-semibold text-slate-800">${finalPrice}</p>
 															<button
 																type="button"
 																data-select-variant-id={variant.id}
 																data-select-rateplan-id={ratePlanId}
-																class="mt-1 inline-block rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+																class="mt-1 inline-block rounded-md bg-slate-950 px-3 py-1 text-xs font-semibold text-white"
 															>
 																Reservar
 															</button>
@@ -268,10 +271,10 @@ function policyStatusClass(status: string): string {
 														</p>
 													</div>
 
-													<div class="grid gap-2 text-xs text-neutral-700">
+													<div class="grid gap-2 text-xs text-slate-700">
 														{visibleCards.map((card: any) => (
-															<div class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
-																<p class="font-semibold text-neutral-900">{card.label}</p>
+															<div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+																<p class="font-semibold text-slate-950">{card.label}</p>
 																<p class="mt-1">
 																	{card.state === "missing"
 																		? "Pendiente para esta tarifa."
