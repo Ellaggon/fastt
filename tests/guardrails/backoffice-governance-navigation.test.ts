@@ -9,7 +9,7 @@ import {
 	filterEnterpriseNavigationForDisclosure,
 	getGovernanceStatusMetadata,
 	getOperationalContextMetadata,
-	roomsAndRatesOperationalMap,
+	salesOperationalMap,
 } from "../../src/lib/backoffice-governance"
 import type { BackofficeRouteClassification } from "../../src/lib/backoffice-governance"
 import {
@@ -147,6 +147,31 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
+	it("keeps visible provider navigation labels free of internal domain names", () => {
+		const bannedVisibleTerms = [
+			/\bProduct\b/,
+			/\bVariant\b/,
+			/\bRatePlan\b/,
+			/\bPricing\b/,
+			/\bInventory\b/,
+		]
+		const visibleStrings = enterpriseNavigation.flatMap((section) => [
+			section.title,
+			section.subtitle,
+			...section.items.flatMap((item) => [item.label, item.summary ?? ""]),
+		])
+		const violations = visibleStrings.flatMap((value) =>
+			bannedVisibleTerms.flatMap((pattern) =>
+				pattern.test(value) ? [`${value} -> ${pattern}`] : []
+			)
+		)
+
+		expect(
+			violations,
+			`Visible provider IA must use human labels, not internal domain names:\n${violations.join("\n")}`
+		).toEqual([])
+	})
+
 	it("keeps pricing automation inside Pricing instead of standalone navigation", () => {
 		const hrefs = flattenNavigationHrefs()
 		const labels = enterpriseNavigation.flatMap((section) =>
@@ -163,9 +188,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const sectionTitles = enterpriseNavigation.map((section) => section.title)
 		expect(sectionTitles).toEqual([
 			"Inicio",
-			"Reservas",
-			"Habitaciones y tarifas",
 			"Alojamientos",
+			"Venta",
+			"Reservas",
 			"Finanzas",
 			"Analítica",
 			"Configuración",
@@ -258,16 +283,45 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
+	it("keeps Configuración as provider setup instead of daily operations", () => {
+		const settingsSection = enterpriseNavigation.find(
+			(section) => section.title === "Configuración"
+		)
+		expect(settingsSection?.owner).toBe("Provider Setup")
+		expect(settingsSection?.operationalIntent).toContain("fuera de la operación diaria")
+		expect(settingsSection?.items.map((item) => item.label)).toEqual([
+			"Perfil del proveedor",
+			"Verificación",
+			"Impuestos y cargos",
+			"Integraciones",
+		])
+
+		const forbiddenDailyLabels = [
+			"Reservas",
+			"Tarifas",
+			"Habitaciones",
+			"Calendario",
+			"Calendario de precios",
+			"Condiciones",
+			"Finanzas",
+		]
+		expect(
+			settingsSection?.items.flatMap((item) =>
+				forbiddenDailyLabels.includes(item.label) ? [item.label] : []
+			)
+		).toEqual([])
+	})
+
 	it("keeps enterprise navigation targets compatible with route classifications", () => {
 		const sectionOwnerAliases: Record<string, string[]> = {
-			"Inicio": ["Command Center"],
-			"Habitaciones y tarifas": ["Rooms & Rates"],
-			"Reservas": ["Reservations"],
-			"Alojamientos": ["Property Content", "Contenido de alojamiento"],
-			"Finanzas": ["Payments & Finance"],
-			"Analítica": ["Analytics & Performance"],
-			"Conectividad": ["Connectivity"],
-			"Configuración": ["Administration & Governance", "Payments & Finance", "Connectivity"],
+			Inicio: ["Command Center"],
+			Venta: ["Rooms & Rates", "Venta"],
+			Reservas: ["Reservations"],
+			Alojamientos: ["Property Content", "Contenido de alojamiento"],
+			Finanzas: ["Payments & Finance"],
+			Analítica: ["Analytics & Performance"],
+			Conectividad: ["Connectivity"],
+			Configuración: ["Provider Setup"],
 		}
 		const violations = enterpriseNavigation.flatMap((section) =>
 			section.items.flatMap((item) => {
@@ -323,15 +377,16 @@ describe("Guardrail: backoffice governance navigation", () => {
 		})
 		const titles = visible.map((section) => section.title)
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
-		const roomsAndRatesLabels =
-			visible
-				.find((section) => section.title === "Habitaciones y tarifas")
-				?.items.map((item) => item.label) ?? []
+		const hrefs = visible.flatMap((section) => section.items.map((item) => item.href))
+		const salesLabels =
+			visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 
-		expect(titles).toContain("Habitaciones y tarifas")
+		expect(titles).toContain("Venta")
 		expect(titles).not.toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
+		expect(hrefs).not.toContain("/rates/multi-calendar")
+		expect(hrefs.some((href) => href.startsWith("/analytics"))).toBe(false)
+		expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).not.toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -346,15 +401,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 		})
 		const titles = visible.map((section) => section.title)
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
-		const roomsAndRatesLabels =
-			visible
-				.find((section) => section.title === "Habitaciones y tarifas")
-				?.items.map((item) => item.label) ?? []
+		const salesLabels =
+			visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 		const planned = visible.flatMap((section) => section.planned ?? [])
 
 		expect(titles).toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(roomsAndRatesLabels).toEqual([
+		expect(salesLabels).toEqual([
 			"Tarifas",
 			"Calendario de precios",
 			"Condiciones",
@@ -365,9 +418,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(labels).not.toContain("Reglas de venta")
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).not.toContain("Auditoría")
-		expect(
-			visible.find((section) => section.title === "Habitaciones y tarifas")?.planned
-		).toBeUndefined()
+		expect(visible.find((section) => section.title === "Venta")?.planned).toBeUndefined()
 		expect(planned).toEqual([])
 	})
 
@@ -376,12 +427,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			mode: "professional-tools",
 		})
 		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
-		const roomsAndRatesLabels =
-			visible
-				.find((section) => section.title === "Habitaciones y tarifas")
-				?.items.map((item) => item.label) ?? []
+		const salesLabels =
+			visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 
-		expect(roomsAndRatesLabels).toEqual([
+		expect(salesLabels).toEqual([
 			"Tarifas",
 			"Calendario de precios",
 			"Condiciones",
@@ -397,36 +446,32 @@ describe("Guardrail: backoffice governance navigation", () => {
 	it("keeps bulk operations contextual instead of a primary sidebar destination", () => {
 		for (const mode of ["small-provider", "scaled-provider", "professional-tools"] as const) {
 			const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, { mode })
-			const roomsAndRates = visible.find((section) => section.title === "Habitaciones y tarifas")
-			const labels = roomsAndRates?.items.map((item) => item.label) ?? []
-			const hrefs = roomsAndRates?.items.map((item) => item.href) ?? []
+			const sales = visible.find((section) => section.title === "Venta")
+			const labels = sales?.items.map((item) => item.label) ?? []
+			const hrefs = sales?.items.map((item) => item.href) ?? []
 
 			expect(labels).not.toContain("Operaciones masivas")
 			expect(hrefs).not.toContain("/inventory/bulk")
 			expect(hrefs).not.toContain("/rates/calendar#pricing-automation")
 		}
 
-		const roomsAndRates = enterpriseNavigation.find(
-			(section) => section.title === "Habitaciones y tarifas"
-		)
-		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
-		expect(roomsAndRates?.items.map((item) => item.href)).not.toContain(
+		const sales = enterpriseNavigation.find((section) => section.title === "Venta")
+		expect(sales?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
+		expect(sales?.items.map((item) => item.href)).not.toContain(
 			"/rates/calendar#pricing-automation"
 		)
 	})
 
-	it("does not reveal advanced Rooms & Rates just because an advanced route is active", () => {
+	it("does not reveal advanced Venta just because an advanced route is active", () => {
 		for (const activeHref of ["/rates/multi-calendar"]) {
 			const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 				mode: "small-provider",
 				activeHref,
 			})
-			const roomsAndRatesLabels =
-				visible
-					.find((section) => section.title === "Habitaciones y tarifas")
-					?.items.map((item) => item.label) ?? []
+			const salesLabels =
+				visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 
-			expect(roomsAndRatesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
+			expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
 		}
 	})
 
@@ -622,45 +667,91 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(visible.flatMap((section) => section.items.map((item) => item.href))).not.toContain(
 			"/analytics/revenue"
 		)
+
+		const visibleFromMulticalendar = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			activeHref: "/rates/multi-calendar",
+		})
+		expect(
+			visibleFromMulticalendar.flatMap((section) => section.items.map((item) => item.href))
+		).not.toContain("/rates/multi-calendar")
 	})
 
-	it("keeps Rooms & Rates as an enterprise ARI hub with explicit ownership lanes", () => {
-		const roomsAndRates = enterpriseNavigation.find(
-			(section) => section.title === "Habitaciones y tarifas"
+	it("keeps House Rules out of contractual policy surfaces", () => {
+		const policySurface = readFileSync(
+			join(process.cwd(), "src/components/policy/RatePlanPoliciesSurface.astro"),
+			"utf8"
 		)
-		expect(roomsAndRates).toBeDefined()
-		expect(roomsAndRates?.maturity).toEqual("operational")
-		expect(roomsAndRates?.operationalIntent).toContain("tarifas")
-		expect(roomsAndRates?.operationalIntent).toContain("reglas de venta")
-		expect(roomsAndRates?.nextMaturity).toBeUndefined()
-		expect(roomsAndRates?.items[0]?.label).toEqual("Tarifas")
-		expect(roomsAndRates?.items.map((item) => item.label)).toEqual(
+		const assignmentFlow = readFileSync(
+			join(process.cwd(), "src/components/policy/PolicyAssignmentFlow.astro"),
+			"utf8"
+		)
+		const ratePlanDetail = readFileSync(
+			join(process.cwd(), "src/pages/rates/plans/[ratePlanId].astro"),
+			"utf8"
+		)
+		const policySources = [policySurface, assignmentFlow, ratePlanDetail].join("\n")
+
+		expect(policySources).not.toContain("providerHouseRules")
+		expect(policySources).not.toContain("Reglas para huéspedes")
+		expect(policySources).not.toContain("House Rules")
+	})
+
+	it("keeps Restrictions out of contractual Conditions surfaces", () => {
+		const policySurface = readFileSync(
+			join(process.cwd(), "src/components/policy/RatePlanPoliciesSurface.astro"),
+			"utf8"
+		)
+		const assignmentFlow = readFileSync(
+			join(process.cwd(), "src/components/policy/PolicyAssignmentFlow.astro"),
+			"utf8"
+		)
+		const ratePlanDetail = readFileSync(
+			join(process.cwd(), "src/pages/rates/plans/[ratePlanId].astro"),
+			"utf8"
+		)
+		const conditionSources = [policySurface, assignmentFlow, ratePlanDetail].join("\n")
+
+		expect(conditionSources).not.toContain("Restrictions")
+		expect(conditionSources).not.toContain("Restricciones")
+		expect(conditionSources).not.toContain("restrictions")
+	})
+
+	it("keeps Venta as an enterprise ARI hub with explicit ownership lanes", () => {
+		const sales = enterpriseNavigation.find((section) => section.title === "Venta")
+		expect(sales).toBeDefined()
+		expect(sales?.maturity).toEqual("operational")
+		expect(sales?.operationalIntent).toContain("tarifas")
+		expect(sales?.operationalIntent).toContain("calendario")
+		expect(sales?.nextMaturity).toBeUndefined()
+		expect(sales?.items[0]?.label).toEqual("Tarifas")
+		expect(sales?.items.map((item) => item.label)).toEqual(
 			expect.arrayContaining(["Calendario de precios", "Condiciones", "Multicalendario", "Tarifas"])
 		)
-		expect(roomsAndRates?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
-		expect(
-			roomsAndRates?.items.find((item) => item.label === "Calendario de precios")?.status
-		).toEqual("canonical")
-		expect(roomsAndRates?.items.find((item) => item.label === "Inventario físico")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
-		expect(roomsAndRates?.items.find((item) => item.label === "Reglas de venta")).toBeUndefined()
-		expect(roomsAndRates?.planned ?? []).toEqual([])
-		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing por ocupación")
-		expect(roomsAndRates?.planned ?? []).not.toContain("Historial de auditoría")
-		expect(roomsAndRates?.planned ?? []).not.toContain("Pricing Calendar")
-		expect(roomsAndRates?.planned ?? []).not.toContain("Inventory Calendar")
-		expect(roomsAndRates?.planned ?? []).not.toContain("Restrictions")
+		expect(sales?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
+		expect(sales?.items.find((item) => item.label === "Calendario de precios")?.status).toEqual(
+			"canonical"
+		)
+		expect(sales?.items.find((item) => item.label === "Inventario físico")).toBeUndefined()
+		expect(sales?.items.find((item) => item.label === "Bulk Pricing")).toBeUndefined()
+		expect(sales?.items.find((item) => item.label === "Bulk Inventory")).toBeUndefined()
+		expect(sales?.items.find((item) => item.label === "Hub de tarifas")).toBeUndefined()
+		expect(sales?.items.find((item) => item.label === "Reglas de venta")).toBeUndefined()
+		expect(sales?.planned ?? []).toEqual([])
+		expect(sales?.planned ?? []).not.toContain("Pricing por ocupación")
+		expect(sales?.planned ?? []).not.toContain("Historial de auditoría")
+		expect(sales?.planned ?? []).not.toContain("Pricing Calendar")
+		expect(sales?.planned ?? []).not.toContain("Inventory Calendar")
+		expect(sales?.planned ?? []).not.toContain("Restrictions")
 	})
 
-	it("enforces physical vs commercial ownership separation inside Rooms & Rates", () => {
-		const ownerships = new Set<string>(roomsAndRatesOperationalMap.map((lane) => lane.ownership))
+	it("enforces physical vs commercial ownership separation inside Venta", () => {
+		const ownerships = new Set<string>(salesOperationalMap.map((lane) => lane.ownership))
 		expect(ownerships.has("commercial")).toBe(true)
 		expect(ownerships.has("physical")).toBe(true)
 		expect(ownerships.has("planned")).toBe(false)
 
-		const physicalHrefViolations = roomsAndRatesOperationalMap
+		const physicalHrefViolations = salesOperationalMap
 			.filter((lane) => lane.ownership === "physical")
 			.flatMap((lane) =>
 				lane.surfaces.flatMap((surface) => {
@@ -671,7 +762,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 				})
 			)
 
-		const commercialHrefViolations = roomsAndRatesOperationalMap
+		const commercialHrefViolations = salesOperationalMap
 			.filter((lane) => lane.ownership === "commercial")
 			.flatMap((lane) =>
 				lane.surfaces.flatMap((surface) => {
@@ -684,7 +775,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 				})
 			)
 
-		const plannedHrefViolations = roomsAndRatesOperationalMap
+		const plannedHrefViolations = salesOperationalMap
 			.filter((lane) => lane.status === "planned")
 			.flatMap((lane) =>
 				lane.surfaces.flatMap((surface) =>
@@ -694,7 +785,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(
 			[...physicalHrefViolations, ...commercialHrefViolations, ...plannedHrefViolations],
-			`Rooms & Rates lanes must keep ARI ownership boundaries explicit:\n${[
+			`Venta lanes must keep ARI ownership boundaries explicit:\n${[
 				...physicalHrefViolations,
 				...commercialHrefViolations,
 				...plannedHrefViolations,
@@ -702,7 +793,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).toEqual([])
 	})
 
-	it("removes the visible Rooms & Rates hub page from provider navigation", () => {
+	it("removes the visible Venta hub page from provider navigation", () => {
 		const routes = readFileSync(join(process.cwd(), "src/lib/routes.ts"), "utf8")
 		const subnav = readFileSync(
 			join(process.cwd(), "src/components/pricing/PricingSubnav.astro"),
@@ -748,6 +839,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebarItem.astro"),
 			"utf8"
 		)
+		const sectionSource = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebarSection.astro"),
+			"utf8"
+		)
 
 		expect(workspaceSource).not.toContain("getBackofficeRouteClassification")
 		expect(workspaceSource).not.toContain("getEnterpriseNavigationSection")
@@ -761,9 +856,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
 		expect(sidebarSource).not.toContain("Panel del proveedor")
-		expect(sidebarSource).toContain('title: "Operación"')
-		expect(sidebarSource).toContain('title: "Alojamiento"')
+		expect(sidebarSource).not.toContain('title: "Operación"')
+		expect(sidebarSource).toContain('title: "Inicio"')
+		expect(sidebarSource).toContain('title: "Alojamientos"')
+		expect(sidebarSource).toContain('title: "Venta"')
 		expect(sidebarSource).toContain('title: "Configuración"')
+		expect(sidebarSource).toContain('sections: ["Configuración"]')
+		expect(sidebarSource).toContain("defaultOpen={!group.collapsible}")
+		expect(sectionSource).toContain("open={defaultOpen || active}")
 		expect(sidebarSource).toContain("getProviderSidebarData")
 		expect(sidebarSource).toContain("filterEnterpriseNavigationForDisclosure")
 		expect(sidebarSource).toContain("sidebarReadiness[item.href]")

@@ -1,6 +1,6 @@
 import { routes } from "@/lib/routes"
 
-export type FinancialNavGroup = "operation" | "configuration"
+export type FinancialNavGroup = "operation"
 
 export type FinancialNavItem = {
 	label: string
@@ -11,7 +11,6 @@ export type FinancialNavItem = {
 
 export const financialNavGroupLabels: Record<FinancialNavGroup, string> = {
 	operation: "Operación",
-	configuration: "Configuración",
 }
 
 export const financialNavigationItems: FinancialNavItem[] = [
@@ -50,11 +49,5 @@ export const financialNavigationItems: FinancialNavItem[] = [
 		href: routes.financialExceptions(),
 		group: "operation",
 		description: "Casos financieros que requieren revisión y no encajan en un flujo único.",
-	},
-	{
-		label: "Impuestos y cargos",
-		href: routes.taxFees(),
-		group: "configuration",
-		description: "Reglas comerciales visibles para huéspedes antes de reservar.",
 	},
 ]

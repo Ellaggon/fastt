@@ -381,10 +381,10 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	{
 		pattern: "/provider/tax-fees",
 		status: "transitional",
-		context: "enterprise-operations",
-		owner: "Payments & Finance",
+		context: "governance",
+		owner: "Provider Setup",
 		rationale:
-			"Impuestos y cargos son configuración financiera-comercial, no ajustes genéricos del proveedor.",
+			"Impuestos y cargos son setup comercial del proveedor; no pertenecen a la operación financiera diaria.",
 	},
 	{
 		pattern: "/analytics/**",
@@ -396,37 +396,37 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	{
 		pattern: "/system/integrations",
 		status: "transitional",
-		context: "enterprise-operations",
-		owner: "Connectivity",
-		rationale: "Superficie inicial de conectividad; no es un contenedor genérico de sistema.",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale: "Conexiones externas del proveedor; visibles como setup, no como operación diaria.",
 	},
 	{
 		pattern: "/provider",
 		status: "transitional",
 		context: "governance",
-		owner: "Administration & Governance",
-		rationale: "Configuración de organización del proveedor.",
+		owner: "Provider Setup",
+		rationale: "Perfil y configuración base del proveedor.",
 	},
 	{
 		pattern: "/provider/profile",
 		status: "legacy",
 		context: "governance",
-		owner: "Administration & Governance",
+		owner: "Provider Setup",
 		rationale: "Legacy redirect to provider settings step.",
 	},
 	{
 		pattern: "/provider/register",
 		status: "legacy",
 		context: "governance",
-		owner: "Administration & Governance",
+		owner: "Provider Setup",
 		rationale: "Legacy redirect to provider onboarding step.",
 	},
 	{
 		pattern: "/provider/verification",
 		status: "transitional",
 		context: "governance",
-		owner: "Administration & Governance",
-		rationale: "La verificación del proveedor pertenece a gobernanza, no a operación de sistema.",
+		owner: "Provider Setup",
+		rationale: "Verificación del proveedor como setup previo a operar con confianza.",
 	},
 	{
 		pattern: "/admin/**",
@@ -708,23 +708,23 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	{
 		pattern: "/api/provider/tax-fees/**",
 		status: "transitional",
-		context: "enterprise-operations",
-		owner: "Payments & Finance",
-		rationale: "Tax and fee setup APIs.",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale: "APIs de impuestos y cargos como setup del proveedor.",
 	},
 	{
 		pattern: "/api/provider/**",
 		status: "transitional",
 		context: "governance",
-		owner: "Administration & Governance",
-		rationale: "Provider organization APIs.",
+		owner: "Provider Setup",
+		rationale: "APIs de perfil y preferencias del proveedor.",
 	},
 	{
 		pattern: "/api/providers/**",
 		status: "transitional",
 		context: "governance",
-		owner: "Administration & Governance",
-		rationale: "Provider profile and verification APIs.",
+		owner: "Provider Setup",
+		rationale: "APIs de perfil y verificación del proveedor.",
 	},
 	{
 		pattern: "/api/product/**",
@@ -852,29 +852,42 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Reservas",
-		subtitle: "Ciclo de vida y seguimiento",
-		owner: "Operación de reservas",
-		context: "enterprise-operations",
+		title: "Alojamientos",
+		subtitle: "Ficha, habitaciones y reglas",
+		owner: "Contenido del alojamiento",
+		context: "provider-workspace",
 		operationalIntent:
-			"Coordinación del ciclo de vida de reservas con instantáneas contractuales, precios, inventario y pagos en sus dominios.",
+			"Gestiona alojamientos, habitaciones, reglas para huéspedes y vista previa con lenguaje cliente-first.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Reservas",
-				href: routes.bookingList(),
+				label: "Alojamientos",
+				href: routes.accommodations(),
 				status: "canonical",
-				summary: "Llegadas, estadías, salidas y cancelaciones.",
+				summary: "Ficha, fotos, descripción, ubicación, habitaciones y vista previa.",
+			},
+			{
+				label: "Habitaciones",
+				href: routes.rooms(),
+				status: "canonical",
+				summary: "Tipos de habitación, capacidad, fotos propias y contexto físico.",
+			},
+			{
+				label: "Reglas para huéspedes",
+				href: routes.providerHouseRules(),
+				status: "canonical",
+				summary:
+					"Mascotas, fumar, horarios de silencio, llegada, salida y expectativas de estadía.",
 			},
 		],
 	},
 	{
-		title: "Habitaciones y tarifas",
-		subtitle: "Precios, inventario y venta",
+		title: "Venta",
+		subtitle: "Tarifas, calendario y condiciones",
 		owner: "Operaciones comerciales",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona tarifas, su contrato, el calendario y herramientas avanzadas de reglas de venta cuando el proveedor tiene escala.",
+			"Gestiona cómo se venden las habitaciones: tarifas, calendario, condiciones y herramientas Pro cuando el proveedor tiene escala.",
 		maturity: "operational",
 		items: [
 			{
@@ -905,32 +918,19 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Alojamientos",
-		subtitle: "Ficha, habitaciones y reglas",
-		owner: "Contenido del alojamiento",
-		context: "provider-workspace",
+		title: "Reservas",
+		subtitle: "Ciclo de vida y seguimiento",
+		owner: "Operación de reservas",
+		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona alojamientos, habitaciones, reglas para huéspedes y vista previa con lenguaje cliente-first.",
+			"Coordinación del ciclo de vida de reservas con instantáneas contractuales, precios, inventario y pagos en sus dominios.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Alojamientos",
-				href: routes.accommodations(),
+				label: "Reservas",
+				href: routes.bookingList(),
 				status: "canonical",
-				summary: "Ficha, fotos, descripción, ubicación, habitaciones y vista previa.",
-			},
-			{
-				label: "Habitaciones",
-				href: routes.rooms(),
-				status: "canonical",
-				summary: "Tipos de habitación, capacidad, fotos propias y contexto físico.",
-			},
-			{
-				label: "Reglas para huéspedes",
-				href: routes.providerHouseRules(),
-				status: "canonical",
-				summary:
-					"Mascotas, fumar, horarios de silencio, llegada, salida y expectativas de estadía.",
+				summary: "Llegadas, estadías, salidas y cancelaciones.",
 			},
 		],
 	},
@@ -982,36 +982,36 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Configuración",
-		subtitle: "Cuenta, verificación e integraciones",
-		owner: "Gobernanza",
+		subtitle: "Setup del proveedor",
+		owner: "Provider Setup",
 		context: "governance",
 		operationalIntent:
-			"Datos del proveedor, verificación, impuestos, cargos e integraciones fuera de la operación diaria.",
+			"Setup del proveedor fuera de la operación diaria: perfil, verificación, impuestos, cargos e integraciones.",
 		maturity: "transitional",
 		items: [
 			{
 				label: "Perfil del proveedor",
 				href: routes.settings(),
 				status: "transitional",
-				summary: "Configuración de organización mientras RBAC está planificado.",
+				summary: "Datos de cuenta y negocio.",
 			},
 			{
 				label: "Verificación",
 				href: routes.verification(),
 				status: "transitional",
-				summary: "Flujo de verificación del proveedor.",
+				summary: "Identidad y aprobación.",
 			},
 			{
 				label: "Impuestos y cargos",
 				href: routes.taxFees(),
 				status: "transitional",
-				summary: "Configuración de cargos, impuestos y reglas de cobro.",
+				summary: "Cargos que se aplican al vender.",
 			},
 			{
 				label: "Integraciones",
 				href: routes.integrations(),
 				status: "transitional",
-				summary: "Conexiones externas y configuración técnica visible solo como setup.",
+				summary: "Conexiones externas.",
 			},
 		],
 	},
@@ -1054,7 +1054,7 @@ export function filterEnterpriseNavigationForDisclosure(
 		.filter((section) => section.items.length > 0)
 }
 
-export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
+export const salesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
 	{
 		title: "Capa comercial de producto y precios",
 		ownership: "commercial",
@@ -1066,7 +1066,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Tarifas",
 				href: routes.rates(),
 				status: "canonical",
-				owner: "Habitaciones y tarifas",
+				owner: "Venta",
 				description:
 					"Superficie explícita para mantener tarifas comerciales; precios por ocupación vive aquí como ajuste avanzado cuando esté disponible.",
 			},
@@ -1074,7 +1074,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Calendario de precios",
 				href: routes.calendar(),
 				status: "canonical",
-				owner: "Habitaciones y tarifas",
+				owner: "Venta",
 				description:
 					"Cobertura diaria de precios, brechas y edición rápida desde calendario; las reglas de precio pertenecen a este contexto.",
 			},
@@ -1082,7 +1082,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Multicalendario",
 				href: routes.ratesMultiCalendar(),
 				status: "canonical",
-				owner: "Habitaciones y tarifas",
+				owner: "Venta",
 				description:
 					"Superficie Pro para revisar muchas tarifas por fecha y abrir acciones masivas sin reemplazar el calendario individual.",
 			},
@@ -1116,7 +1116,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Tarifas",
 				href: routes.ratePlansList(),
 				status: "canonical",
-				owner: "Habitaciones y tarifas",
+				owner: "Venta",
 				description:
 					"Centro comercial donde cada tarifa administra cancelación, pago, no presentación y llegada/salida.",
 			},
@@ -1124,7 +1124,7 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 				label: "Multicalendario",
 				href: routes.ratesMultiCalendar(),
 				status: "canonical",
-				owner: "Habitaciones y tarifas",
+				owner: "Venta",
 				description:
 					"Herramienta Pro para aplicar estadía mínima, cierres de llegada/salida, stop-sell, ventanas de reserva y reglas de vendibilidad en múltiples tarifas.",
 			},

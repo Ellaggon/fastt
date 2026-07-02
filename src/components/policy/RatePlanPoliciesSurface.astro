@@ -2,8 +2,7 @@
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
-import { routes } from "@/lib/routes"
-import { ArrowRight, Check, Hotel, TriangleAlert } from "@lucide/astro"
+import { ArrowRight, Check, TriangleAlert } from "@lucide/astro"
 
 interface PolicyPlanView {
 	ratePlanId: string
@@ -51,7 +50,6 @@ const {
 	title = "Condiciones de la tarifa",
 	description,
 	policyPlans,
-	productId = "",
 	isProfessionalMode = false,
 } = Astro.props
 
@@ -70,14 +68,11 @@ const categoryConfig = {
 	},
 	CheckIn: {
 		label: "Llegada y salida",
-		helper: "Se configura en el hotel y se hereda en sus tarifas.",
+		helper: "Define horarios contractuales de llegada y salida para esta tarifa.",
 	},
 } as const
 
 const orderedCategories = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
-const houseRulesHref = productId
-	? `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}&focus=arrival`
-	: routes.providerHouseRules()
 ---
 
 <section class="space-y-5" aria-labelledby="rate-plan-contract-title">
@@ -156,32 +151,7 @@ const houseRulesHref = productId
 								</div>
 
 								<div class="flex flex-wrap gap-2 md:justify-end">
-									{category === "CheckIn" ? (
-										<>
-											<Button
-												href={houseRulesHref}
-												variant={missing ? "primary" : "secondary"}
-												size="sm"
-											>
-												<Hotel class="h-4 w-4" />
-												Configurar hotel
-											</Button>
-											{missing && (
-												<Button
-													type="button"
-													variant="secondary"
-													size="sm"
-													class="policy-assignment-open"
-													data-assignment-mode="preset"
-													data-assignment-scope="rate_plan"
-													data-assignment-scope-id={plan.ratePlanId}
-													data-assignment-category={category}
-												>
-													Usar horario estándar
-												</Button>
-											)}
-										</>
-									) : missing ? (
+									{missing ? (
 										<Button
 											type="button"
 											variant="primary"
