@@ -5,16 +5,21 @@ interface Props {
 	productId: string
 	variantId: string
 	pathname: string
+	currentPath?: string
 }
 
-const { pathname } = Astro.props
+const { pathname, currentPath = pathname } = Astro.props
 const items = [
-	{ href: routes.ratePlansList(), label: "Tarifas" },
-	{ href: routes.pricing(), label: "Calendario" },
+	{ href: routes.rates(), label: "Tarifas" },
+	{ href: routes.calendar(), label: "Calendario de precios" },
+	{ href: routes.conditions(), label: "Condiciones" },
 	{ href: routes.ratesMultiCalendar(), label: "Multicalendario" },
 ]
-const isActive = (href: string) =>
-	pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href
+const isActive = (href: string) => {
+	if (href.includes("?") || href.includes("#")) return currentPath === href
+	return pathname === hrefPath(href) || pathname.startsWith(`${hrefPath(href)}/`)
+}
 ---
 
 <nav class="flex flex-wrap gap-2">

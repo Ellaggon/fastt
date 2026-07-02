@@ -263,7 +263,7 @@ export async function buildRatesMultiCalendarSurface(input: {
 				variantName: String(row.variantName),
 				status: row.status,
 				isDefault: row.isDefault,
-				calendarHref: `${routes.pricing()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}&month=${encodeURIComponent(surface.month)}&focus=${tab === "availability" ? "availability" : tab === "sellability" || tab === "stay" || tab === "arrival_departure" || tab === "rules" ? "restrictions" : "price"}`,
+				calendarHref: `${routes.calendar()}?ratePlanId=${encodeURIComponent(String(row.ratePlanId))}&month=${encodeURIComponent(surface.month)}&focus=${tab === "availability" ? "availability" : tab === "sellability" || tab === "stay" || tab === "arrival_departure" || tab === "rules" ? "restrictions" : "price"}`,
 				policiesHref: routes.ratePlanPolicies(String(row.ratePlanId)),
 				rulesHref: `${routes.ratesMultiCalendar()}?tab=rules&ratePlanId=${encodeURIComponent(String(row.ratePlanId))}`,
 				readiness,

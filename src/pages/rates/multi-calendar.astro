@@ -23,7 +23,7 @@ const sidebarData = await getProviderSidebarData(auth.providerId, {
 		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
 })
 if (sidebarData.disclosureMode === "small-provider") {
-	return Astro.redirect(`${routes.pricing()}?focus=price&source=multi-calendar-simple-redirect`)
+	return Astro.redirect(`${routes.calendar()}?focus=price&source=multi-calendar-simple-redirect`)
 }
 
 const workspace = await loadMultiCalendarWorkspace({
@@ -47,7 +47,7 @@ const workspace = await loadMultiCalendarWorkspace({
 				</p>
 			</div>
 			<a
-				href={routes.pricing()}
+				href={routes.calendar()}
 				class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800"
 			>
 				Calendario
