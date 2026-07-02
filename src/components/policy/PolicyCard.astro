@@ -1,4 +1,6 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
+
 export type PolicyCardSource = "rate_plan" | "variant" | "product" | "global"
 export type PolicyCardState = "override" | "inherited" | "missing"
 
@@ -21,14 +23,11 @@ const sourceLabel = (() => {
 })()
 
 const badge = (() => {
-	if (state === "missing")
-		return { label: "Predeterminada", className: "bg-neutral-100 text-neutral-800" }
-	if (source === "rate_plan") return { label: "Definida", className: "bg-green-100 text-green-900" }
-	if (source === "variant")
-		return { label: "Heredada (variante)", className: "bg-yellow-100 text-yellow-900" }
-	if (source === "product")
-		return { label: "Heredada (producto)", className: "bg-blue-100 text-blue-900" }
-	return { label: "Predeterminada", className: "bg-neutral-100 text-neutral-800" }
+	if (state === "missing") return { label: "Predeterminada", variant: "neutral" }
+	if (source === "rate_plan") return { label: "Definida", variant: "success" }
+	if (source === "variant") return { label: "Heredada (variante)", variant: "warning" }
+	if (source === "product") return { label: "Heredada (producto)", variant: "info" }
+	return { label: "Predeterminada", variant: "neutral" }
 })()
 
 const lines = String(description ?? "")
@@ -37,28 +36,28 @@ const lines = String(description ?? "")
 	.filter(Boolean)
 ---
 
-<article class="space-y-2 rounded border p-3">
+<article class="fastt-row-card space-y-2 p-3">
 	<header class="flex items-start justify-between gap-3">
 		<div class="space-y-1">
 			<h3 class="font-semibold">{category}</h3>
-			<p class="text-xs text-neutral-600">
+			<p class="text-xs text-slate-500">
 				{sourceLabel} | Versión: {version ? `v${version}` : "—"}
 			</p>
 		</div>
-		<span class={`text-xs px-2 py-1 rounded ${badge.className}`}>{badge.label}</span>
+		<Badge variant={badge.variant} class="px-2 py-1 text-xs">{badge.label}</Badge>
 	</header>
 
 	{
 		state === "missing" ? (
-			<p class="text-sm text-neutral-700">Sin condición asignada.</p>
+			<p class="text-sm text-slate-600">Sin condición asignada.</p>
 		) : lines.length ? (
-			<ul class="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+			<ul class="list-disc space-y-1 pl-5 text-sm text-slate-600">
 				{lines.map((l) => (
 					<li>{l.replace(/^- /, "")}</li>
 				))}
 			</ul>
 		) : (
-			<p class="text-sm text-neutral-700">Sin detalles.</p>
+			<p class="text-sm text-slate-600">Sin detalles.</p>
 		)
 	}
 </article>

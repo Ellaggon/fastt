@@ -22,7 +22,7 @@ const {
 
 <form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
 	<Input type="hidden" name="ratePlanId" value={ratePlanId} />
-	<FormSection title="Precio base" class="text-neutral-800">
+	<FormSection title="Precio base">
 		<FormField label="Moneda" htmlFor="currency" required>
 			<Select id="currency" name="currency" value={initialCurrency} required>
 				<option value="USD">USD</option>
@@ -43,15 +43,8 @@ const {
 	</FormSection>
 	<p id="pricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 	<div class="flex items-center justify-between gap-3">
-		<a
-			href={backHref}
-			class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
-		>
-			Volver
-		</a>
-		<Button id="submitBtn" type="submit" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-			Guardar precio base
-		</Button>
+		<Button href={backHref} variant="secondary"> Volver </Button>
+		<Button id="submitBtn" type="submit"> Guardar precio base </Button>
 	</div>
 </form>
 

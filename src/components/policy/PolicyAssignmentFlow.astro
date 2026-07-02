@@ -1,4 +1,8 @@
 ---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+
 type Props = {
 	defaultScope?: "product" | "variant" | "rate_plan"
 	defaultScopeId?: string
@@ -16,13 +20,13 @@ const {
 
 <div
 	id="policyAssignmentOverlay"
-	class="fixed inset-0 z-[70] hidden bg-slate-950/70 p-4"
+	class="fixed inset-0 z-[70] hidden bg-slate-950/40 p-4 backdrop-blur-sm"
 	data-default-scope={defaultScope}
 	data-default-scope-id={defaultScopeId}
 	data-default-channel={defaultChannel}
 >
 	<div
-		class="mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl"
+		class="fastt-dialog mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col border bg-white text-slate-900"
 	>
 		<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
 			<div>
@@ -34,30 +38,27 @@ const {
 					Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar.
 				</p>
 			</div>
-			<button
-				type="button"
-				id="policyAssignmentClose"
-				class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-			>
-				Cerrar
-			</button>
+			<Button type="button" id="policyAssignmentClose" variant="secondary"> Cerrar </Button>
 		</div>
 
 		<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
 			<div class="grid gap-4 md:grid-cols-[1fr_320px]">
 				<form id="policyAssignmentForm" class="space-y-5">
 					<section
-						class:list={["rounded-lg border border-slate-200 p-4", !isProfessionalMode && "hidden"]}
+						class:list={[
+							"fastt-soft-box border border-slate-200 p-4",
+							!isProfessionalMode && "hidden",
+						]}
 						data-assignment-origin-section
 					>
 						<p class="text-sm font-semibold text-slate-900">1. Origen</p>
 						<div class="mt-3 grid gap-2 sm:grid-cols-2">
-							<label class="rounded-lg border border-slate-200 p-3 text-sm">
+							<label class="fastt-row-card cursor-pointer p-3 text-sm">
 								<input type="radio" name="assignmentMode" value="existing" />
 								<span class="ml-2 font-medium">Usar condición existente</span>
 								<span class="mt-1 block text-slate-500">Selecciona una condición publicada.</span>
 							</label>
-							<label class="rounded-lg border border-slate-200 p-3 text-sm">
+							<label class="fastt-row-card cursor-pointer p-3 text-sm">
 								<input type="radio" name="assignmentMode" value="preset" checked />
 								<span class="ml-2 font-medium">Crear desde plantilla</span>
 								<span class="mt-1 block text-slate-500">Crea y asigna una condición publicada.</span
@@ -66,7 +67,7 @@ const {
 						</div>
 					</section>
 
-					<section class="rounded-lg border border-slate-200 p-4">
+					<section class="fastt-soft-box border border-slate-200 p-4">
 						<p class="text-sm font-semibold text-slate-900">
 							{isProfessionalMode ? "2. Condición" : "1. Condición"}
 						</p>
@@ -77,10 +78,7 @@ const {
 							<label class="block text-sm font-medium text-slate-700" for="assignmentPolicyId">
 								Condición publicada
 							</label>
-							<select
-								id="assignmentPolicyId"
-								class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-							></select>
+							<Select id="assignmentPolicyId" />
 						</div>
 						<div
 							id="assignmentPresetFields"
@@ -88,56 +86,44 @@ const {
 						>
 							<label class="block text-sm font-medium text-slate-700">
 								Categoría
-								<select
-									id="assignmentCategory"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-								>
+								<Select id="assignmentCategory" class="mt-1">
 									<option value="Cancellation">Cancelación</option>
 									<option value="Payment">Pago</option>
 									<option value="CheckIn">Ingreso y salida</option>
 									<option value="NoShow">No presentación</option>
-								</select>
+								</Select>
 							</label>
 							<label class="block text-sm font-medium text-slate-700">
 								Plantilla
-								<select
-									id="assignmentPreset"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-								></select>
+								<Select id="assignmentPreset" class="mt-1" />
 							</label>
 							<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
 								Nombre de la condición
-								<input
+								<Input
 									id="assignmentDescription"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+									class="mt-1"
 									placeholder="Ej. Cancelación flexible para tarifa estándar"
 								/>
 							</label>
 						</div>
 					</section>
 
-					<section class="rounded-lg border border-slate-200 p-4">
+					<section class="fastt-soft-box border border-slate-200 p-4">
 						<p class="text-sm font-semibold text-slate-900">
 							{isProfessionalMode ? "3. Alcance" : "2. Alcance"}
 						</p>
 						<div class="mt-3 grid gap-3 sm:grid-cols-2">
 							<label class="block text-sm font-medium text-slate-700">
 								Aplicar a
-								<select
-									id="assignmentScope"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-								>
+								<Select id="assignmentScope" class="mt-1">
 									<option value="rate_plan">Tarifa</option>
 									<option value="variant">Habitación</option>
 									<option value="product">Hotel</option>
-								</select>
+								</Select>
 							</label>
 							<label class="block text-sm font-medium text-slate-700">
 								Selecciona destino
-								<select
-									id="assignmentScopeId"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-								></select>
+								<Select id="assignmentScopeId" class="mt-1" />
 							</label>
 							<label
 								class:list={[
@@ -147,20 +133,17 @@ const {
 								data-assignment-channel-row
 							>
 								Canal avanzado
-								<select
-									id="assignmentChannel"
-									class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-								>
+								<Select id="assignmentChannel" class="mt-1">
 									<option value="">Todos los canales</option>
 									<option value="web">Web</option>
 									<option value="mobile">Móvil</option>
 									<option value="b2b">B2B</option>
 									<option value="direct">Directo</option>
-								</select>
+								</Select>
 							</label>
 							{
 								!isProfessionalMode && (
-									<p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 sm:col-span-2">
+									<p class="fastt-soft-box border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 sm:col-span-2">
 										Canal: <span class="font-semibold text-slate-900">Todos los canales</span>
 									</p>
 								)
@@ -169,17 +152,17 @@ const {
 					</section>
 				</form>
 
-				<aside class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+				<aside class="fastt-drawer-soft-card space-y-3 p-4">
 					<p class="text-sm font-semibold text-slate-900">Impacto antes de confirmar</p>
 					<div id="assignmentImpact" class="space-y-2 text-sm text-slate-700">
 						Cargando opciones...
 					</div>
-					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+					<div class="fastt-drawer-secondary-card p-3">
 						<p class="text-sm font-semibold text-slate-950">Vista previa tipo OTA</p>
 						<p class="mt-1 text-xs text-slate-700">
 							Consecuencias visibles para operar sin leer reglas técnicas.
 						</p>
-						<div id="assignmentAirbnbPreview" class="mt-3 space-y-2 text-sm text-slate-950"></div>
+						<div id="assignmentGuestPreview" class="mt-3 space-y-2 text-sm text-slate-950"></div>
 					</div>
 					<div id="assignmentStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
 				</aside>
@@ -192,13 +175,7 @@ const {
 			<p class="text-sm text-slate-600">
 				La asignación reemplaza la condición activa de la misma categoría para este alcance y canal.
 			</p>
-			<button
-				type="button"
-				id="policyAssignmentSubmit"
-				class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-			>
-				Confirmar asignación
-			</button>
+			<Button type="button" id="policyAssignmentSubmit"> Confirmar asignación </Button>
 		</div>
 	</div>
 </div>
@@ -218,7 +195,7 @@ const {
 	const scopeIdSelect = document.getElementById("assignmentScopeId")
 	const channelSelect = document.getElementById("assignmentChannel")
 	const impactBox = document.getElementById("assignmentImpact")
-	const airbnbPreviewBox = document.getElementById("assignmentAirbnbPreview")
+	const guestPreviewBox = document.getElementById("assignmentGuestPreview")
 	const statusBox = document.getElementById("assignmentStatus")
 
 	const assignmentState = {
@@ -367,28 +344,28 @@ const {
 	}
 
 	async function renderBackendPreview() {
-		if (!airbnbPreviewBox) return false
+		if (!guestPreviewBox) return false
 		const selected = currentSelection()
 		assignmentState.previewReady = false
 		if (!selected.scopeId) {
-			airbnbPreviewBox.innerHTML =
-				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona un destino para calcular el preview real.</div>'
+			guestPreviewBox.innerHTML =
+				'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Selecciona un destino para calcular el preview real.</div>'
 			return false
 		}
 		if (selected.mode === "existing" && !selected.policy?.id) {
-			airbnbPreviewBox.innerHTML =
-				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona una condición publicada para calcular el preview real.</div>'
+			guestPreviewBox.innerHTML =
+				'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Selecciona una condición publicada para calcular el preview real.</div>'
 			return false
 		}
 		if (selected.mode === "preset" && !selected.preset?.key) {
-			airbnbPreviewBox.innerHTML =
-				'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Selecciona una plantilla para calcular el preview real.</div>'
+			guestPreviewBox.innerHTML =
+				'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Selecciona una plantilla para calcular el preview real.</div>'
 			return false
 		}
 
 		const seq = ++previewRequestSeq
-		airbnbPreviewBox.innerHTML =
-			'<div class="rounded-md border border-blue-200 bg-white/70 p-2">Calculando preview con snapshot y refund quote real...</div>'
+		guestPreviewBox.innerHTML =
+			'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Calculando preview con snapshot y refund quote real...</div>'
 		try {
 			const response = await fetch("/api/policies/preview", {
 				method: "POST",
@@ -398,7 +375,7 @@ const {
 			const payload = await response.json().catch(() => null)
 			if (seq !== previewRequestSeq) return false
 			if (!response.ok || !payload?.success) {
-				airbnbPreviewBox.innerHTML = `
+				guestPreviewBox.innerHTML = `
 					<div class="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-800">
 						No se pudo calcular el preview real: ${assignmentEscape(payload?.error || "error")}
 					</div>
@@ -406,10 +383,10 @@ const {
 				return false
 			}
 			const items = Array.isArray(payload.preview) ? payload.preview : []
-			airbnbPreviewBox.innerHTML = items
+			guestPreviewBox.innerHTML = items
 				.map(
 					(item) => `
-						<div class="rounded-md border border-blue-200 bg-white/70 p-2">
+						<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">
 							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${assignmentEscape(item.label)}</p>
 							<p class="mt-1">${assignmentEscape(item.value)}</p>
 							${item.detail ? `<p class="mt-1 text-xs text-slate-600">${assignmentEscape(item.detail)}</p>` : ""}
@@ -421,7 +398,7 @@ const {
 			return assignmentState.previewReady
 		} catch (error) {
 			if (seq !== previewRequestSeq) return false
-			airbnbPreviewBox.innerHTML = `
+			guestPreviewBox.innerHTML = `
 				<div class="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-800">
 					No se pudo contactar el backend para calcular el preview obligatorio.
 				</div>

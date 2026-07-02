@@ -1,44 +1,34 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
 import Section from "@/components/ui/Section.astro"
 ---
 
 <Section title="Calendario" description="Vista diaria de precios y estado vendible (solo lectura).">
-	<Card class="space-y-4 bg-slate-100">
+	<Card class="space-y-4">
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<div class="space-y-2">
 				<p class="text-sm text-slate-700">Cobertura diaria para los próximos 30 días.</p>
 				<div class="flex flex-wrap gap-2 text-[11px]">
-					<span
-						class="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-green-700"
-						>Normal</span
-					>
-					<span
-						class="inline-flex items-center rounded-full border border-red-200 bg-red-100 px-2 py-0.5 text-red-700"
-						>Gap</span
-					>
-					<span
-						class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-amber-700"
-						>Ajuste manual</span
-					>
-					<span
-						class="inline-flex items-center rounded-full border border-fuchsia-200 bg-fuchsia-100 px-2 py-0.5 text-fuchsia-700"
-						>Promoción</span
-					>
-					<span
-						class="inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-blue-700"
-						>Temporada</span
-					>
+					<Badge variant="success" class="px-2 py-0.5">Normal</Badge>
+					<Badge variant="error" class="px-2 py-0.5">Gap</Badge>
+					<Badge variant="warning" class="px-2 py-0.5">Ajuste manual</Badge>
+					<Badge variant="blocked" class="px-2 py-0.5">Promoción</Badge>
+					<Badge variant="info" class="px-2 py-0.5">Temporada</Badge>
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
-				<button
+				<Button
 					id="pricingCalendarRepairBtn"
 					type="button"
-					class="inline-flex hidden h-9 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-100"
+					variant="secondary"
+					size="sm"
+					class="hidden border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
 				>
 					Reparar precios
-				</button>
+				</Button>
 				<p id="pricingCalendarLatency" class="text-xs text-slate-500"></p>
 			</div>
 		</div>
@@ -46,7 +36,7 @@ import Section from "@/components/ui/Section.astro"
 		<div id="pricingCalendarSkeleton" class="space-y-2">
 			{
 				Array.from({ length: 6 }).map(() => (
-					<div class="grid min-h-[42px] grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr] gap-2 rounded-lg border border-slate-200 bg-white p-2">
+					<div class="fastt-soft-box grid min-h-[42px] grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr] gap-2 border border-slate-200 bg-white p-2">
 						<div class="h-4 animate-pulse rounded bg-slate-200" />
 						<div class="h-4 animate-pulse rounded bg-slate-200" />
 						<div class="h-4 animate-pulse rounded bg-slate-200" />
@@ -73,7 +63,7 @@ import Section from "@/components/ui/Section.astro"
 		</div>
 		<div
 			id="pricingCalendarInspector"
-			class="hidden space-y-2 rounded-lg border border-slate-200 bg-white p-4"
+			class="fastt-soft-box hidden space-y-2 border border-slate-200 bg-white p-4"
 		>
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div>
@@ -83,13 +73,13 @@ import Section from "@/components/ui/Section.astro"
 				<a
 					id="pricingCalendarInspectorAdvancedLink"
 					href="#pricing-rules-section"
-					class="text-xs font-medium text-blue-700 hover:text-blue-800"
+					class="text-xs font-semibold text-slate-700 hover:text-slate-950"
 				>
 					Editar avanzado
 				</a>
 			</div>
 			<div
-				class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 md:grid-cols-3"
+				class="fastt-soft-box grid gap-2 border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 md:grid-cols-3"
 			>
 				<div>
 					<p class="text-slate-500">Base</p>
@@ -104,7 +94,7 @@ import Section from "@/components/ui/Section.astro"
 					<p id="pricingCalendarInspectorSellable" class="font-semibold text-slate-900">—</p>
 				</div>
 			</div>
-			<div class="overflow-x-auto rounded-lg border border-slate-200">
+			<div class="fastt-soft-box overflow-x-auto border border-slate-200">
 				<table class="min-w-full text-xs">
 					<thead class="bg-slate-100 text-slate-700">
 						<tr>
@@ -123,63 +113,46 @@ import Section from "@/components/ui/Section.astro"
 			<div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
 				<label class="space-y-1 text-sm text-slate-700">
 					<span>Ajuste manual para fecha/rango seleccionado</span>
-					<input
+					<Input
 						id="pricingCalendarOverrideInput"
 						type="number"
 						step="0.01"
 						min="0"
-						class="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
 						placeholder="Precio final"
 					/>
 				</label>
-				<button
-					id="pricingCalendarOverrideBtn"
-					type="button"
-					class="inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
-				>
-					Crear ajuste
-				</button>
+				<Button id="pricingCalendarOverrideBtn" type="button"> Crear ajuste </Button>
 			</div>
 			<p id="pricingCalendarOverrideFeedback" class="text-sm text-slate-600"></p>
 			<div class="grid gap-3 md:grid-cols-2">
 				<label class="space-y-1 text-sm text-slate-700">
 					<span>Promoción rápida (%)</span>
-					<input
+					<Input
 						id="pricingCalendarPromoInput"
 						type="number"
 						step="0.01"
 						min="0"
-						class="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
 						placeholder="Ej. 15"
 					/>
 				</label>
 				<label class="space-y-1 text-sm text-slate-700">
 					<span>Temporada rápida (%)</span>
-					<input
+					<Input
 						id="pricingCalendarSeasonInput"
 						type="number"
 						step="0.01"
 						min="0"
-						class="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
 						placeholder="Ej. 10"
 					/>
 				</label>
 			</div>
 			<div class="flex flex-wrap justify-end gap-2">
-				<button
-					id="pricingCalendarPromoBtn"
-					type="button"
-					class="inline-flex h-10 items-center justify-center rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-3 text-sm font-medium text-fuchsia-800 hover:bg-fuchsia-100"
-				>
+				<Button id="pricingCalendarPromoBtn" type="button" variant="secondary">
 					Aplicar promoción
-				</button>
-				<button
-					id="pricingCalendarSeasonBtn"
-					type="button"
-					class="inline-flex h-10 items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 text-sm font-medium text-blue-800 hover:bg-blue-100"
-				>
+				</Button>
+				<Button id="pricingCalendarSeasonBtn" type="button" variant="secondary">
 					Aplicar temporada
-				</button>
+				</Button>
 			</div>
 		</div>
 	</Card>

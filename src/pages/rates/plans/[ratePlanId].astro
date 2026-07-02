@@ -1,8 +1,10 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
+import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
@@ -104,9 +106,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 			</div>
 		</header>
 
-		<section
-			class="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm"
-		>
+		<section class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<nav
 				class="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-4"
 				aria-label="Configurar tarifa"
@@ -120,7 +120,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 							aria-current={activeView === tab.id ? "page" : undefined}
 							class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
 								activeView === tab.id
-									? "border-blue-600 text-blue-700"
+									? "border-slate-950 text-slate-950"
 									: "border-transparent text-slate-500 hover:text-slate-900"
 							}`}
 						>
@@ -175,23 +175,13 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 					</div>
 					<label class="block space-y-1.5 text-sm">
 						<span class="font-medium text-slate-700">Nombre visible</span>
-						<input
-							name="name"
-							class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
-							value={row.ratePlanName}
-							required
-						/>
+						<Input name="name" value={row.ratePlanName} required />
 					</label>
 					<label class="block space-y-1.5 text-sm">
 						<span class="font-medium text-slate-700">Descripción interna</span>
-						<textarea
-							name="description"
-							rows="3"
-							class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-							>{row.description ?? ""}</textarea
-						>
+						<Textarea name="description" rows="3" value={row.description ?? ""} />
 					</label>
-					<div class="divide-y divide-slate-100 rounded-lg border border-slate-200">
+					<div class="fastt-soft-box divide-y divide-slate-100 border border-slate-200">
 						<label class="flex items-center justify-between gap-4 p-4 text-sm text-slate-700">
 							<span
 								><strong class="block text-slate-950">Tarifa principal</strong>Referencia de esta
@@ -204,11 +194,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 						class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
 					>
 						<p class="text-sm text-slate-500" data-rate-plan-edit-feedback></p>
-						<button
-							type="submit"
-							class="inline-flex h-10 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
-							>Guardar cambios</button
-						>
+						<Button type="submit">Guardar cambios</Button>
 					</div>
 				</form>
 
@@ -236,15 +222,15 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 								)
 							}
 						</div>
-						<button
+						<Button
 							type="button"
-							class="h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+							variant="secondary"
 							data-rate-plan-toggle-status
 							data-next-active={row.isActive ? "false" : "true"}
 							disabled={row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0}
 						>
 							{row.isActive ? "Desactivar tarifa" : "Activar tarifa"}
-						</button>
+						</Button>
 					</section>
 
 					<section id="eliminar-tarifa" class="rounded-lg border border-rose-200 bg-rose-50 p-4">
@@ -264,14 +250,14 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 									)
 								}
 							</div>
-							<button
+							<Button
 								type="button"
-								class="h-10 rounded-lg border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+								variant="danger"
 								data-open-rate-plan-delete
 								disabled={!removalReadiness.canDelete}
 							>
 								Eliminar definitivamente
-							</button>
+							</Button>
 						</div>
 					</section>
 				</div>
@@ -280,7 +266,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 	</div>
 
 	<dialog
-		class="calendar-dialog m-auto w-[min(520px,calc(100%-2rem))] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/70"
+		class="calendar-dialog fastt-dialog m-auto w-[min(520px,calc(100%-2rem))] border bg-white p-0 text-slate-900"
 		data-rate-plan-delete-dialog
 	>
 		<form
@@ -297,25 +283,14 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 			</div>
 			<label class="block space-y-1.5 text-sm">
 				<span class="font-medium">Escribe <strong>{row.ratePlanName}</strong> para confirmar</span>
-				<input
-					class="h-11 w-full rounded-lg border border-slate-300 px-3"
-					data-rate-plan-delete-confirmation
-					autocomplete="off"
-				/>
+				<Input data-rate-plan-delete-confirmation autocomplete="off" />
 			</label>
 			<p class="text-sm text-rose-700" data-rate-plan-delete-feedback></p>
 			<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
-				<button
-					type="button"
-					class="h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold"
-					data-close-rate-plan-delete>Cancelar</button
-				>
-				<button
-					type="submit"
-					class="h-10 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-					data-confirm-rate-plan-delete
-					disabled>Eliminar tarifa</button
-				>
+				<Button type="button" variant="secondary" data-close-rate-plan-delete> Cancelar </Button>
+				<Button type="submit" variant="danger" data-confirm-rate-plan-delete disabled>
+					Eliminar tarifa
+				</Button>
 			</div>
 		</form>
 	</dialog>
@@ -335,8 +310,8 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 		}
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
-			tab.classList.toggle("border-blue-600", active)
-			tab.classList.toggle("text-blue-700", active)
+			tab.classList.toggle("border-slate-950", active)
+			tab.classList.toggle("text-slate-950", active)
 			tab.classList.toggle("border-transparent", !active)
 			tab.classList.toggle("text-slate-500", !active)
 			tab.classList.toggle("hover:text-slate-900", !active)

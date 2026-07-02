@@ -1,4 +1,5 @@
 ---
+import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import { routes } from "@/lib/routes"
 
 interface Props {
@@ -22,20 +23,19 @@ const isActive = (href: string) => {
 }
 ---
 
-<nav class="flex flex-wrap gap-2">
+<SegmentedControl class="inline-flex flex-wrap">
 	{
 		items.map((item) => (
 			<a
 				href={item.href}
 				data-astro-prefetch
-				class={`inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium ${
-					isActive(item.href)
-						? "border-blue-200 bg-blue-100 text-blue-800"
-						: "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+				data-active={isActive(item.href) ? "true" : "false"}
+				class={`fastt-segmented-item inline-flex h-9 items-center px-3 text-sm font-medium ${
+					isActive(item.href) ? "" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
 				}`}
 			>
 				{item.label}
 			</a>
 		))
 	}
-</nav>
+</SegmentedControl>
