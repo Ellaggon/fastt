@@ -1,0 +1,9 @@
+---
+const { className = "", class: classProp = "", ...props } = Astro.props
+const finalClass =
+	`calendar-dialog fastt-dialog m-auto border bg-white p-0 text-slate-900 ${className} ${classProp}`.trim()
+---
+
+<dialog class={finalClass} {...props}>
+	<slot />
+</dialog>

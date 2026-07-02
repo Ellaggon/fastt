@@ -1,0 +1,9 @@
+---
+const { className = "", class: classProp = "", ...props } = Astro.props
+const finalClass =
+	`fastt-segmented-control fastt-tabs flex gap-1 overflow-x-auto bg-slate-100 p-1 ${className} ${classProp}`.trim()
+---
+
+<nav class={finalClass} {...props}>
+	<slot />
+</nav>

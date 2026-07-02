@@ -2,17 +2,19 @@
 const { variant = "neutral", className = "", class: classProp = "", ...props } = Astro.props
 
 const variantClass = {
-	neutral: "bg-neutral-100 text-neutral-800 border-neutral-200",
-	success: "bg-green-100 text-green-800 border-green-200",
-	warning: "bg-amber-100 text-amber-800 border-amber-200",
-	error: "bg-red-100 text-red-800 border-red-200",
-	info: "bg-blue-100 text-blue-800 border-blue-200",
+	neutral: "border-slate-200 bg-slate-100 text-slate-700",
+	success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+	warning: "border-amber-200 bg-amber-50 text-amber-900",
+	error: "border-red-200 bg-red-50 text-red-800",
+	info: "border-sky-200 bg-sky-50 text-sky-800",
+	blocked: "border-slate-300 bg-slate-950 text-white",
+	waiting: "border-slate-200 bg-white text-slate-600",
 }
 
 const isValidVariant = typeof variant === "string" && Object.hasOwn(variantClass, variant)
 const resolvedVariant = (isValidVariant ? variant : "neutral") as keyof typeof variantClass
 const finalClass =
-	`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${variantClass[resolvedVariant]} ${className} ${classProp}`.trim()
+	`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${variantClass[resolvedVariant]} ${className} ${classProp}`.trim()
 ---
 
 <span class={finalClass} {...props}>

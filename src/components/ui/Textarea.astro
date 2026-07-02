@@ -9,13 +9,13 @@ const {
 } = Astro.props
 
 const baseClass =
-	"block w-full rounded-lg border bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2"
+	"fastt-field block min-h-24 w-full bg-white px-3 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
 
 const showError = Boolean(hasError || error)
 
 const stateClass = showError
-	? "border-red-500 focus:border-red-500 focus:ring-red-200"
-	: "border-neutral-300 focus:border-blue-500 focus:ring-blue-200"
+	? "border-red-500 focus:border-red-500 focus:shadow-[0_0_0_2px_rgb(254_202_202)]"
+	: "border-slate-300"
 
 const finalClass = `${baseClass} ${stateClass} ${className} ${classProp}`.trim()
 const normalizedValue = value == null ? "" : String(value)
