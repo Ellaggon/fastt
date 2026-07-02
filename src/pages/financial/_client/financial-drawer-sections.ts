@@ -468,31 +468,45 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 			</div>`
 	const referenceModalHtml = missing
 		? `<div id="financialReferenceModal" data-financial-floating-panel class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
-			<div class="financial-floating-modal-card w-full max-w-xl p-6">
-				<div class="flex items-start justify-between gap-4">
+			<div class="financial-floating-modal-card w-full max-w-[720px] text-slate-900">
+				<header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
 					<div>
-						<div class="text-lg font-semibold tracking-[-0.02em] text-slate-950">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</div>
-						<p class="mt-1 max-w-md text-sm leading-6 text-slate-600">Copia el identificador que aparece en Stripe, banco o sistema externo. Guárdalo para que el equipo pueda revisar los importes.</p>
+						<div class="text-lg font-semibold text-slate-950">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</div>
+						<p class="mt-1 text-sm text-slate-500">Comprobante para revisión operativa</p>
 					</div>
-					<button type="button" data-close-panel="financialReferenceModal" class="rounded-full bg-white/80 px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-white">Cerrar</button>
-				</div>
-				<div class="financial-drawer-soft-card mt-5 bg-white/70 p-4">
+					<button type="button" data-close-panel="financialReferenceModal" class="financial-reference-button p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
+						<svg aria-hidden="true" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M18 6 6 18"></path>
+							<path d="m6 6 12 12"></path>
+						</svg>
+					</button>
+				</header>
+				<div class="p-5">
+					<section class="space-y-4">
+						<div>
+							<h2 class="font-semibold text-slate-950">Datos del comprobante</h2>
+							<p class="mt-1 text-sm leading-6 text-slate-500">Copia el identificador que aparece en Stripe, banco o sistema externo. Guardarlo no cierra el caso ni mueve dinero.</p>
+						</div>
 					<div class="grid gap-3 sm:grid-cols-2">
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Tipo de comprobante</span><select id="financialReferenceType" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500">${option("payment_evidence", "Comprobante de cobro")}${option("settlement_evidence", "Comprobante externo")}${option("refund_evidence", "Comprobante de reembolso")}${option("invoice_reference", "Referencia de documento")}</select></label>
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Identificador externo</span><input id="financialReferenceValue" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Ej. R2D2, CH_9F2A..." /></label>
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Sistema externo</span><input id="financialReferenceSystem" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Stripe, banco, proveedor..." /></label>
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Importe</span><input id="financialReferenceAmount" type="number" step="0.01" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Opcional" /></label>
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Moneda</span><input id="financialReferenceCurrency" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm uppercase text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="USD" maxlength="8" /></label>
-						<label class="space-y-1 text-xs font-semibold text-slate-600"><span>Nota</span><input id="financialReferenceNote" class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Contexto opcional" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Tipo de comprobante</span><select id="financialReferenceType" class="financial-reference-field h-11 w-full bg-white px-3 text-sm text-slate-800">${option("payment_evidence", "Comprobante de cobro")}${option("settlement_evidence", "Comprobante externo")}${option("refund_evidence", "Comprobante de reembolso")}${option("invoice_reference", "Referencia de documento")}</select></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Identificador externo</span><input id="financialReferenceValue" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Ej. R2D2, CH_9F2A..." /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Sistema externo</span><input id="financialReferenceSystem" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Stripe, banco, proveedor..." /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Importe</span><input id="financialReferenceAmount" type="number" step="0.01" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Opcional" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Moneda</span><input id="financialReferenceCurrency" class="financial-reference-field h-11 w-full px-3 text-sm uppercase text-slate-800 placeholder:text-slate-400" placeholder="USD" maxlength="8" /></label>
+						<label class="block space-y-1.5 text-sm"><span class="font-medium">Nota</span><input id="financialReferenceNote" class="financial-reference-field h-11 w-full px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Contexto opcional" /></label>
 					</div>
+					<div class="financial-reference-soft-box bg-slate-50 p-4 text-sm text-slate-600">
+						La referencia queda disponible para comparar importes y revisar el caso. No ejecuta cobros, pagos ni reembolsos.
+					</div>
+					</section>
 				</div>
-				<div class="mt-5 flex items-center justify-between gap-3">
+				<footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
 					<p class="text-xs leading-5 text-slate-500">Solo registra evidencia para revisión. No ejecuta cobros ni pagos.</p>
 					<div class="flex shrink-0 gap-2">
-						<button type="button" data-close-panel="financialReferenceModal" class="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-900/[0.08] transition hover:bg-slate-50">Cancelar</button>
-						<button type="button" data-reference-action="record" class="rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Guardar comprobante</button>
+						<button type="button" data-close-panel="financialReferenceModal" class="financial-reference-button h-10 border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Cancelar</button>
+						<button type="button" data-reference-action="record" class="financial-reference-button h-10 bg-slate-950 px-4 text-sm font-semibold text-white">Guardar comprobante</button>
 					</div>
-				</div>
+				</footer>
 			</div>
 		</div>`
 		: ""

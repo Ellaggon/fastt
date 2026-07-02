@@ -645,9 +645,47 @@ const viewClass = (view: FinancialViewId) =>
 	}
 
 	.financial-floating-modal-card {
-		border: 1px solid rgb(226 232 240 / 88%);
-		border-radius: 32px;
-		background: #f8fafc;
-		box-shadow: 0 30px 90px rgb(15 23 42 / 22%);
+		border: 1px solid #dddddd;
+		border-radius: clamp(1.25rem, 3vw, 2rem);
+		background: #ffffff;
+		box-shadow:
+			0 28px 80px rgb(0 0 0 / 28%),
+			0 0 0 1px rgb(0 0 0 / 4%);
+		overflow: hidden;
+	}
+
+	.financial-reference-field {
+		border: 1px solid #b0b0b0;
+		border-radius: 0.875rem;
+		outline: none;
+		transition:
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+
+	.financial-reference-field:focus {
+		border-color: #222222;
+		box-shadow: 0 0 0 2px #222222;
+	}
+
+	.financial-reference-soft-box {
+		border-radius: 1rem;
+	}
+
+	.financial-reference-button {
+		border-radius: 9999px;
+		transition:
+			background-color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease,
+			transform 140ms ease;
+	}
+
+	.financial-reference-button:not(:disabled):hover {
+		box-shadow: 0 3px 10px rgb(0 0 0 / 10%);
+	}
+
+	.financial-reference-button:not(:disabled):active {
+		transform: scale(0.98);
 	}
 </style>
