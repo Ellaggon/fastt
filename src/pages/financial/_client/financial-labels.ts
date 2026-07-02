@@ -79,7 +79,7 @@ export const workItemLabels: Record<string, string> = {
 	provider_finance_review: "Pago pendiente al proveedor",
 	refund_handoff_required: "Reembolso por revisar",
 	missing_payment_reference: "Falta el comprobante de cobro",
-	missing_settlement_reference: "Falta el comprobante de liquidación",
+	missing_settlement_reference: "Falta el comprobante externo",
 	missing_refund_reference: "Falta el comprobante de reembolso",
 	incomplete_contract_snapshot: "Faltan datos confirmados de la reserva",
 	evidence_unknown: "Los comprobantes requieren confirmación",
@@ -105,20 +105,20 @@ export const reconciliationStatusLabels: Record<string, string> = {
 	matched: "los montos coinciden",
 	mismatch: "los montos no coinciden",
 	missing_payment: "falta el comprobante de cobro",
-	missing_settlement: "falta el comprobante de liquidación",
+	missing_settlement: "falta el comprobante externo",
 	currency_mismatch: "las monedas no coinciden",
 	missing_reconciliation_match: "faltan importes comparables",
 }
 
 export const mismatchReasonLabels: Record<string, string> = {
 	payment_amount_mismatch: "El cobro no coincide con el importe confirmado de la reserva",
-	settlement_amount_mismatch: "La liquidación no coincide con el cobro registrado",
+	settlement_amount_mismatch: "El comprobante externo no coincide con el cobro registrado",
 	duplicate_external_reference: "La misma referencia aparece en más de una reserva",
 	missing_capture_reference: "Falta la referencia del cobro",
 	refund_without_matching_cancellation: "Hay un reembolso sin una cancelación asociada",
 	stale_review: "Los comprobantes cambiaron después de la última revisión",
 	unmatched_payment_transaction: "Hay un cobro sin reserva asociada",
-	unmatched_settlement_record: "Hay una liquidación sin reserva asociada",
+	unmatched_settlement_record: "Hay un comprobante externo sin reserva asociada",
 }
 
 export const staleReasonLabels: Record<string, string> = {

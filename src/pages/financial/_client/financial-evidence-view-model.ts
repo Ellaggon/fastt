@@ -33,12 +33,12 @@ export function buildEvidenceGroups(
 		},
 		{
 			key: "settlement",
-			label: "Comprobante de liquidación",
+			label: "Comprobante externo",
 			state: settlement ? "visible" : "missing",
 			count: settlement,
 			description: settlement
-				? "El comprobante de liquidación está disponible."
-				: "Todavía no hay un comprobante de liquidación.",
+				? "El comprobante externo está disponible."
+				: "Todavía no hay un comprobante externo.",
 		},
 		{
 			key: "refund",

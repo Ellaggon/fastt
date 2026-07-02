@@ -33,6 +33,11 @@ export type FinancialDrawerViewModel = {
 	technicalDetails: string[]
 }
 
+function amountFromEvidence(entries: any[], type: string): number | null {
+	const entry = entries.find((reference) => reference.type === type && reference.amount != null)
+	return entry ? Number(entry.amount) : null
+}
+
 export function buildFinancialDrawerViewModel(params: {
 	row: FinancialRowViewModel
 	reconciliationMatch: any
@@ -42,7 +47,14 @@ export function buildFinancialDrawerViewModel(params: {
 	const { row, reconciliationMatch, evidenceEntries, duplicateSignals } = params
 	const item = row.item
 	const operation = item?.operation || {}
-	const reconciliation = buildReconciliationViewModel(reconciliationMatch)
+	const baseReconciliation = buildReconciliationViewModel(reconciliationMatch)
+	const evidencePaymentAmount = amountFromEvidence(evidenceEntries, "payment_evidence")
+	const evidenceSettlementAmount = amountFromEvidence(evidenceEntries, "settlement_evidence")
+	const reconciliation = {
+		...baseReconciliation,
+		paymentAmount: baseReconciliation.paymentAmount ?? evidencePaymentAmount,
+		settlementAmount: baseReconciliation.settlementAmount ?? evidenceSettlementAmount,
+	}
 	const providerFinance = item?.providerFinance
 		? buildProviderFinanceCopy(item.providerFinance)
 		: null
@@ -59,7 +71,7 @@ export function buildFinancialDrawerViewModel(params: {
 	const evidenceGroups = allEvidenceGroups.filter((group) =>
 		allowedEvidenceKeys.includes(group.key)
 	)
-	const sections: FinancialDrawerSectionId[] = ["attention", "why", "context"]
+	const sections: FinancialDrawerSectionId[] = ["attention", "actions"]
 	const shouldShowEvidence =
 		evidenceEntries.length > 0 ||
 		duplicateSignals.length > 0 ||
@@ -72,7 +84,7 @@ export function buildFinancialDrawerViewModel(params: {
 	if (row.operationalCategory === "provider_payables") {
 		sections.push("provider_finance", "statement")
 	}
-	sections.push("timeline", "actions", "technical")
+	sections.push("context", "timeline")
 	const whyParts = [
 		row.description,
 		row.blocker && row.blocker !== row.description ? row.blocker : "",

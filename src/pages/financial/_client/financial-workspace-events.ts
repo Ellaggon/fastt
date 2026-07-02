@@ -37,6 +37,8 @@ export function closeFinancialDrawer(params: {
 	drawerBackdrop: HTMLElement | null
 }): void {
 	params.state.selectedItem = null
+	document.querySelectorAll("[data-financial-floating-panel]").forEach((panel) => panel.remove())
+	document.body.classList.remove("overflow-hidden")
 	params.drawer?.classList.add("translate-x-full")
 	params.drawerBackdrop?.classList.add("hidden")
 }
@@ -80,6 +82,8 @@ export function openFinancialDrawer(params: {
 		duplicateSignals,
 	})
 	if (drawerBody) {
+		document.querySelectorAll("[data-financial-floating-panel]").forEach((panel) => panel.remove())
+		document.body.classList.remove("overflow-hidden")
 		drawerBody.innerHTML = renderFinancialDrawerContent(
 			{
 				viewModel: drawerView,
@@ -105,6 +109,57 @@ export function wireFinancialDrawerActions(
 	drawerBody: HTMLElement,
 	handlers: DrawerActionHandlers
 ): void {
+	function openPanel(panelId: string): void {
+		const panel =
+			drawerBody.querySelector<HTMLElement>(`#${CSS.escape(panelId)}`) ||
+			document.getElementById(panelId)
+		if (!panel) return
+		if (panel instanceof HTMLDetailsElement) {
+			panel.open = true
+			panel.scrollIntoView({ behavior: "smooth", block: "start" })
+			return
+		}
+		if (panel.hasAttribute("data-financial-floating-panel")) {
+			document.body.appendChild(panel)
+			document.body.classList.add("overflow-hidden")
+		}
+		panel.classList.remove("hidden")
+		panel.classList.add("flex")
+	}
+
+	function closePanel(panelId: string): void {
+		const panel =
+			drawerBody.querySelector<HTMLElement>(`#${CSS.escape(panelId)}`) ||
+			document.getElementById(panelId)
+		if (!panel) return
+		panel.classList.add("hidden")
+		panel.classList.remove("flex")
+		if (panel.hasAttribute("data-financial-floating-panel")) {
+			document.body.classList.remove("overflow-hidden")
+		}
+	}
+
+	drawerBody.querySelectorAll("[data-open-details]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const detailsId = String(button.getAttribute("data-open-details") || "")
+			openPanel(detailsId)
+		})
+	})
+	drawerBody.querySelectorAll("[data-open-panel]").forEach((button) => {
+		button.addEventListener("click", () => {
+			openPanel(String(button.getAttribute("data-open-panel") || ""))
+		})
+	})
+	drawerBody.querySelectorAll("[data-close-panel]").forEach((button) => {
+		button.addEventListener("click", () => {
+			closePanel(String(button.getAttribute("data-close-panel") || ""))
+		})
+	})
+	drawerBody.querySelectorAll("[data-financial-floating-panel]").forEach((panel) => {
+		panel.addEventListener("click", (event) => {
+			if (event.target === panel) closePanel(panel.id)
+		})
+	})
 	drawerBody.querySelectorAll("[data-review-action]").forEach((button) => {
 		button.addEventListener("click", () =>
 			handlers.onReviewAction(String(button.getAttribute("data-review-action") || ""))

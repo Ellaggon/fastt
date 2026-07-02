@@ -77,49 +77,70 @@ function providerFinancePrimaryDetail(item: any): any | null {
 	return details[0] || null
 }
 
-function primaryBlocker(item: any, reconciliation: any): string {
+function hasReference(referenceCounts: any, key: string): boolean {
+	return Number(referenceCounts?.[key] || 0) > 0
+}
+
+function missingEvidenceLabel(item: any, referenceCounts: any): string | null {
+	const paymentMissing = hasAnyCode(item, ["missing_payment_reference"])
+	const settlementMissing = hasAnyCode(item, ["missing_settlement_reference"])
+	const refundMissing = hasAnyCode(item, ["missing_refund_reference"])
+	if (paymentMissing && !hasReference(referenceCounts, "payment"))
+		return "Falta el comprobante de cobro."
+	if (settlementMissing && !hasReference(referenceCounts, "settlement"))
+		return "Falta el comprobante externo."
+	if (refundMissing && !hasReference(referenceCounts, "refund"))
+		return "Falta el comprobante de reembolso."
+	return null
+}
+
+function needsExternalAfterPayment(item: any, referenceCounts: any): boolean {
+	return (
+		hasAnyCode(item, ["missing_payment_reference"]) &&
+		hasReference(referenceCounts, "payment") &&
+		!hasReference(referenceCounts, "settlement")
+	)
+}
+
+function primaryBlocker(item: any, reconciliation: any, referenceCounts: any): string {
 	if (item?.providerFinance) return buildProviderFinanceRowViewModel(item.providerFinance).blocker
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.reason) return financeDetail.reason
+	if (hasAnyCode(item, ["refund_handoff_required"])) return "El reembolso necesita seguimiento."
+	const missingEvidence = missingEvidenceLabel(item, referenceCounts)
+	if (missingEvidence) return missingEvidence
+	if (needsExternalAfterPayment(item, referenceCounts))
+		return "Falta el comprobante externo para comparar importes."
 	const reconciliationIssue = reconciliationIssueLabel(reconciliation)
 	if (reconciliationIssue) return reconciliationIssue
-	if (hasAnyCode(item, ["refund_handoff_required"])) return "El reembolso necesita seguimiento."
-	if (hasAnyCode(item, ["missing_payment_reference"])) return "Falta el comprobante de cobro."
-	if (hasAnyCode(item, ["missing_settlement_reference"]))
-		return "Falta el comprobante de liquidación."
-	if (hasAnyCode(item, ["missing_refund_reference"])) return "Falta el comprobante de reembolso."
 	if (hasAnyCode(item, ["incomplete_contract_snapshot"]))
 		return "Faltan datos confirmados de la reserva."
 	if (item?.code === "clean_record") return "Este caso no tiene bloqueos visibles."
 	return item?.reason || "Este caso necesita revisión de un operador."
 }
 
-function nextActionFor(item: any, reconciliation: any): string {
+function nextActionFor(item: any, reconciliation: any, referenceCounts: any): string {
 	if (item?.providerFinance)
 		return buildProviderFinanceRowViewModel(item.providerFinance).nextAction
 	const financeDetail = providerFinancePrimaryDetail(item)
 	if (financeDetail?.nextOperationalAction) return financeDetail.nextOperationalAction
+	if (needsExternalAfterPayment(item, referenceCounts))
+		return "Registra el comprobante externo faltante."
+	if (missingEvidenceLabel(item, referenceCounts))
+		return "Registra la referencia externa cuando esté disponible."
 	if (reconciliation?.reviewState === "stale")
 		return "Revisa los comprobantes nuevos y confirma la revisión."
 	if (reconciliation && reconciliation.status !== "matched")
 		return "Compara los importes visibles antes de cerrar el caso."
 	if (hasAnyCode(item, ["refund_handoff_required"]))
 		return "Revisa los comprobantes y el seguimiento del reembolso."
-	if (
-		hasAnyCode(item, [
-			"missing_payment_reference",
-			"missing_settlement_reference",
-			"missing_refund_reference",
-		])
-	)
-		return "Registra la referencia externa cuando esté disponible."
 	if (item?.persistedId && !["resolved", "dismissed"].includes(String(item.status || "open")))
 		return "Inicia la revisión, cierra el caso o descártalo con una nota."
 	if (item?.code === "clean_record") return "No requiere acción."
 	return "Abre el detalle y revisa el contexto."
 }
 
-function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
+function queueFor(item: any, reconciliation: any, referenceCounts: any): FinancialOperationalQueue {
 	if (item?.evidenceIssue) return "evidence_issues"
 	if (item?.providerFinance) return "provider_finance"
 	if (hasAnyCode(item, ["refund_handoff_required"])) return "refund_handoffs"
@@ -131,14 +152,7 @@ function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
 	) {
 		return "reconciliation_issues"
 	}
-	if (
-		hasAnyCode(item, [
-			"missing_payment_reference",
-			"missing_settlement_reference",
-			"missing_refund_reference",
-			"evidence_unknown",
-		])
-	)
+	if (missingEvidenceLabel(item, referenceCounts) || hasAnyCode(item, ["evidence_unknown"]))
 		return "evidence_issues"
 	if (String(item?.status || "") === "waiting_external") return "waiting_external"
 	if (["resolved", "dismissed"].includes(String(item?.status || ""))) return "resolved_history"
@@ -146,7 +160,11 @@ function queueFor(item: any, reconciliation: any): FinancialOperationalQueue {
 	return "needs_review"
 }
 
-function operationalCategoryFor(item: any, reconciliation: any): FinancialOperationalCategory {
+function operationalCategoryFor(
+	item: any,
+	reconciliation: any,
+	referenceCounts: any
+): FinancialOperationalCategory {
 	const evidenceKind = String(item?.evidenceIssue?.kind || "")
 	if (item?.providerFinance) return "provider_payables"
 	if (
@@ -165,7 +183,11 @@ function operationalCategoryFor(item: any, reconciliation: any): FinancialOperat
 	) {
 		return "settlements"
 	}
-	if (hasAnyCode(item, ["missing_payment_reference"]) || evidenceKind === "unmatched_payment") {
+	if (
+		(hasAnyCode(item, ["missing_payment_reference"]) &&
+			!hasReference(referenceCounts, "payment")) ||
+		evidenceKind === "unmatched_payment"
+	) {
 		return "collections"
 	}
 	return "exceptions"
@@ -224,22 +246,19 @@ function operationalFlags(params: {
 	queue: FinancialOperationalQueue
 	financeView: ReturnType<typeof buildProviderFinanceRowViewModel> | null
 	reconciliation: any
+	referenceCounts: any
 }): {
 	isBlocked: boolean
 	canClose: boolean
 	attentionState: FinancialAttentionState
 } {
-	const { item, queue, financeView, reconciliation } = params
+	const { item, queue, financeView, reconciliation, referenceCounts } = params
 	const status = String(item?.status || "open")
 	const isClosed = ["resolved", "dismissed"].includes(status) || queue === "resolved_history"
 	const isWaiting = status === "waiting_external" || queue === "waiting_external"
-	const hasSpecificEvidenceBlock = hasAnyCode(item, [
-		"missing_payment_reference",
-		"missing_settlement_reference",
-		"missing_refund_reference",
-		"evidence_unknown",
-		"refund_handoff_required",
-	])
+	const hasSpecificEvidenceBlock =
+		Boolean(missingEvidenceLabel(item, referenceCounts)) ||
+		hasAnyCode(item, ["evidence_unknown", "refund_handoff_required"])
 	const isBlocked =
 		!isClosed &&
 		!isWaiting &&
@@ -272,7 +291,23 @@ function evidenceSummaryFor(item: any, referenceCounts: any): string {
 	if (item?.evidenceIssue?.kind === "unmatched_payment") return "Cobro sin reserva asociada"
 	if (item?.evidenceIssue?.kind === "unmatched_settlement")
 		return "Liquidación sin reserva asociada"
-	return `Cobro: ${referenceCounts.payment} · Liquidación: ${referenceCounts.settlement} · Reembolso: ${referenceCounts.refund} · Documento: ${referenceCounts.invoice}`
+	if (hasAnyCode(item, ["missing_payment_reference"]) && !hasReference(referenceCounts, "payment"))
+		return "Falta comprobante de cobro"
+	if (
+		hasAnyCode(item, ["missing_settlement_reference"]) &&
+		!hasReference(referenceCounts, "settlement")
+	)
+		return "Falta comprobante externo"
+	if (hasAnyCode(item, ["missing_refund_reference"]) && !hasReference(referenceCounts, "refund"))
+		return "Falta comprobante de reembolso"
+	const total =
+		Number(referenceCounts.payment || 0) +
+		Number(referenceCounts.settlement || 0) +
+		Number(referenceCounts.refund || 0) +
+		Number(referenceCounts.invoice || 0)
+	if (!total) return "Sin comprobantes externos registrados"
+	if (total === 1) return "1 comprobante externo registrado"
+	return `${total} comprobantes externos registrados`
 }
 
 function operationalDescriptionFor(item: any): string {
@@ -293,6 +328,45 @@ function operationalDescriptionFor(item: any): string {
 	return "Revisa la información disponible y decide el siguiente paso."
 }
 
+function titleFor(params: {
+	item: any
+	evidenceIssue: any
+	financeView: ReturnType<typeof buildProviderFinanceRowViewModel> | null
+	reconciliation: any
+	referenceCounts: any
+}): string {
+	const { item, evidenceIssue, financeView, reconciliation, referenceCounts } = params
+	if (evidenceIssue) return evidenceIssue.title
+	if (financeView) return financeView.title
+	if (hasAnyCode(item, ["missing_payment_reference"]) && hasReference(referenceCounts, "payment")) {
+		if (needsExternalAfterPayment(item, referenceCounts)) return "Falta comprobante externo"
+		if (reconciliation && reconciliation.status !== "matched") return "Importes por revisar"
+		return "Comprobante de cobro registrado"
+	}
+	if (item?.code) return labelFrom(workItemLabels, item.code)
+	return "Caso por revisar"
+}
+
+function descriptionFor(params: {
+	item: any
+	evidenceIssue: any
+	financeView: ReturnType<typeof buildProviderFinanceRowViewModel> | null
+	reconciliation: any
+	referenceCounts: any
+}): string {
+	const { item, evidenceIssue, financeView, reconciliation, referenceCounts } = params
+	if (evidenceIssue) return evidenceIssue.description
+	if (financeView) return financeView.blocker
+	if (hasAnyCode(item, ["missing_payment_reference"]) && hasReference(referenceCounts, "payment")) {
+		if (needsExternalAfterPayment(item, referenceCounts))
+			return "El comprobante de cobro ya está registrado; falta el comprobante externo para completar la comparación."
+		return "El comprobante de cobro está registrado. Revisa los importes antes de cerrar el caso."
+	}
+	if (reconciliation && reconciliation.status !== "matched")
+		return reconciliationIssueDescription(reconciliation)
+	return operationalDescriptionFor(item)
+}
+
 export function buildFinancialRowViewModel(params: {
 	item: any
 	reconciliation: any
@@ -307,20 +381,14 @@ export function buildFinancialRowViewModel(params: {
 		? buildProviderFinanceRowViewModel(item.providerFinance)
 		: null
 	const financeDetail = providerFinancePrimaryDetail(item)
-	const title = evidenceIssue
-		? evidenceIssue.title
-		: financeView
-			? financeView.title
-			: item?.code
-				? labelFrom(workItemLabels, item.code)
-				: "Caso por revisar"
-	const description = evidenceIssue
-		? evidenceIssue.description
-		: financeView
-			? financeView.blocker
-			: reconciliation && reconciliation.status !== "matched"
-				? reconciliationIssueDescription(reconciliation)
-				: operationalDescriptionFor(item)
+	const title = titleFor({ item, evidenceIssue, financeView, reconciliation, referenceCounts })
+	const description = descriptionFor({
+		item,
+		evidenceIssue,
+		financeView,
+		reconciliation,
+		referenceCounts,
+	})
 	const owner = String(
 		evidenceIssue?.owner ||
 			financeView?.owner ||
@@ -328,15 +396,15 @@ export function buildFinancialRowViewModel(params: {
 			item?.nextOwner ||
 			"financial_operations"
 	)
-	const queue = queueFor(item, reconciliation)
-	const operationalCategory = operationalCategoryFor(item, reconciliation)
+	const queue = queueFor(item, reconciliation, referenceCounts)
+	const operationalCategory = operationalCategoryFor(item, reconciliation, referenceCounts)
 	const amount = operationalAmount({
 		item,
 		reconciliation,
 		refundHandoff: params.refundHandoff,
 		category: operationalCategory,
 	})
-	const flags = operationalFlags({ item, queue, financeView, reconciliation })
+	const flags = operationalFlags({ item, queue, financeView, reconciliation, referenceCounts })
 	return {
 		id: String(item?.id || `${item?.bookingId || ""}:${item?.code || "review"}`),
 		queue,
@@ -348,7 +416,7 @@ export function buildFinancialRowViewModel(params: {
 		providerId: String(item?.providerId || ""),
 		owner,
 		ownerLabel: labelFrom(ownerLabels, owner),
-		blocker: evidenceIssue?.blocker || primaryBlocker(item, reconciliation),
+		blocker: evidenceIssue?.blocker || primaryBlocker(item, reconciliation, referenceCounts),
 		staleState: String(
 			financeView?.freshness ||
 				item?.providerFinance?.snapshotLifecycle?.freshness ||
@@ -357,7 +425,7 @@ export function buildFinancialRowViewModel(params: {
 				"fresh"
 		),
 		evidenceSummary: evidenceSummaryFor(item, referenceCounts),
-		nextAction: evidenceIssue?.nextAction || nextActionFor(item, reconciliation),
+		nextAction: evidenceIssue?.nextAction || nextActionFor(item, reconciliation, referenceCounts),
 		severity: String(
 			financeView?.severity || item?.severity || evidenceIssue?.severity || "review"
 		),
