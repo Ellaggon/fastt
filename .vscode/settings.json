@@ -11,5 +11,8 @@
   },
   // Keep IDE diagnostics aligned with CI/runtime TypeScript version.
   "js/ts.tsdk.path": "node_modules/typescript/lib",
-  "js/ts.tsdk.promptToUseWorkspaceVersion": true
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  // Tailwind CSS v4 directives such as @theme are valid, but VS Code's
+  // built-in CSS language service can still report them as unknown.
+  "css.lint.unknownAtRules": "ignore"
 }
