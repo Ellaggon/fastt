@@ -53,7 +53,7 @@ export const financialNavigationItems: FinancialNavItem[] = [
 	},
 	{
 		label: "Impuestos y cargos",
-		href: routes.providerTaxFees(),
+		href: routes.taxFees(),
 		group: "configuration",
 		description: "Reglas comerciales visibles para huéspedes antes de reservar.",
 	},

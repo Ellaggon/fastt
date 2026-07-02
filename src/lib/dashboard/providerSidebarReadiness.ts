@@ -272,7 +272,7 @@ export async function getProviderSidebarData(
 		),
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
-			[routes.pricing()]: pricingSummary,
+			[routes.calendar()]: pricingSummary,
 			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} · ${restrictionsSummary}`,
 		},
 	}

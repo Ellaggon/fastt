@@ -9,6 +9,7 @@ interface Props {
 
 const { title = "Workspace" } = Astro.props
 const pathname = Astro.url.pathname
+const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 ---
 
 <Layout title={title}>
@@ -20,7 +21,7 @@ const pathname = Astro.url.pathname
 				<div class="mb-3.5 px-2.5">
 					<p class="truncate text-lg font-semibold text-slate-100">Fastt</p>
 				</div>
-				<DashboardSidebar pathname={pathname} />
+				<DashboardSidebar pathname={pathname} currentPath={currentPath} />
 			</aside>
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
@@ -35,7 +36,7 @@ const pathname = Astro.url.pathname
 									Menú
 								</summary>
 								<div class="mt-4">
-									<DashboardSidebar pathname={pathname} />
+									<DashboardSidebar pathname={pathname} currentPath={currentPath} />
 								</div>
 							</details>
 						</div>

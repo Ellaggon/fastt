@@ -17,15 +17,19 @@ import { routes } from "@/lib/routes"
 
 interface Props {
 	pathname?: string
+	currentPath?: string
 }
 
-const { pathname = "" } = Astro.props
+const { pathname = "", currentPath = pathname } = Astro.props
 const isRoomSurface = (value: string) =>
 	/^\/catalog\/accommodations\/rooms(?:\/|$)/.test(value) ||
 	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
+const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href
 const isActive = (href: string) => {
 	if (href === routes.productRooms() && isRoomSurface(pathname)) return true
-	return pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`)
+	if (href.includes("?") || href.includes("#")) return currentPath === href
+	const path = hrefPath(href)
+	return pathname === path || pathname.startsWith(`${path}/`)
 }
 const activeHref =
 	enterpriseNavigation
@@ -54,7 +58,7 @@ try {
 	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
 	sidebarReadiness = {
 		[routes.ratePlansList()]: "Estado no disponible",
-		[routes.pricing()]: "Estado no disponible",
+		[routes.calendar()]: "Estado no disponible",
 		[routes.ratesMultiCalendar()]: "Estado no disponible",
 	}
 }
@@ -92,7 +96,7 @@ const navigationGroups = [
 	},
 	{
 		title: "Alojamiento",
-		sections: ["Alojamientos y contenido"],
+		sections: ["Alojamientos"],
 		collapsible: false,
 	},
 	{
@@ -106,8 +110,8 @@ const navigationGroups = [
 		collapsible: true,
 	},
 	{
-		title: "Sistema",
-		sections: ["Administración"],
+		title: "Configuración",
+		sections: ["Configuración"],
 		collapsible: true,
 	},
 ]

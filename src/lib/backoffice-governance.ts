@@ -879,15 +879,21 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		items: [
 			{
 				label: "Tarifas",
-				href: routes.ratePlansList(),
+				href: routes.rates(),
 				status: "canonical",
 				summary: "Precio base y cobertura contractual.",
 			},
 			{
-				label: "Calendario",
-				href: routes.pricing(),
+				label: "Calendario de precios",
+				href: routes.calendar(),
 				status: "canonical",
 				summary: "Precio, cupo y venta diaria.",
+			},
+			{
+				label: "Condiciones",
+				href: routes.conditions(),
+				status: "canonical",
+				summary: "Cancelación, pago, llegada, salida y no presentación.",
 			},
 			{
 				label: "Multicalendario",
@@ -899,24 +905,23 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Alojamientos y contenido",
-		subtitle: "Presentación, verticales y readiness",
+		title: "Alojamientos",
+		subtitle: "Ficha, habitaciones y reglas",
 		owner: "Contenido del alojamiento",
 		context: "provider-workspace",
 		operationalIntent:
-			"Gestiona ofertas de catálogo: hoteles, tours y paquetes con contenido, fotos, ubicación, detalles y vista previa.",
+			"Gestiona alojamientos, habitaciones, reglas para huéspedes y vista previa con lenguaje cliente-first.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Catálogo",
-				href: routes.productList(),
+				label: "Alojamientos",
+				href: routes.accommodations(),
 				status: "canonical",
-				summary:
-					"Gestiona alojamientos, tours y paquetes con contenido, fotos, ubicación, detalles y vista previa. Alojamientos mantiene habitaciones como flujo físico propio.",
+				summary: "Ficha, fotos, descripción, ubicación, habitaciones y vista previa.",
 			},
 			{
 				label: "Habitaciones",
-				href: routes.productRooms(),
+				href: routes.rooms(),
 				status: "canonical",
 				summary: "Tipos de habitación, capacidad, fotos propias y contexto físico.",
 			},
@@ -976,24 +981,37 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Administración",
-		subtitle: "Organización, verificación y controles",
+		title: "Configuración",
+		subtitle: "Cuenta, verificación e integraciones",
 		owner: "Gobernanza",
 		context: "governance",
-		operationalIntent: "Organización del proveedor, onboarding, verificación y controles.",
+		operationalIntent:
+			"Datos del proveedor, verificación, impuestos, cargos e integraciones fuera de la operación diaria.",
 		maturity: "transitional",
 		items: [
 			{
-				label: "Configuración",
-				href: routes.provider(),
+				label: "Perfil del proveedor",
+				href: routes.settings(),
 				status: "transitional",
 				summary: "Configuración de organización mientras RBAC está planificado.",
 			},
 			{
 				label: "Verificación",
-				href: routes.providerVerification(),
+				href: routes.verification(),
 				status: "transitional",
 				summary: "Flujo de verificación del proveedor.",
+			},
+			{
+				label: "Impuestos y cargos",
+				href: routes.taxFees(),
+				status: "transitional",
+				summary: "Configuración de cargos, impuestos y reglas de cobro.",
+			},
+			{
+				label: "Integraciones",
+				href: routes.integrations(),
+				status: "transitional",
+				summary: "Conexiones externas y configuración técnica visible solo como setup.",
 			},
 		],
 	},
@@ -1046,15 +1064,15 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 		surfaces: [
 			{
 				label: "Tarifas",
-				href: routes.ratePlansList(),
+				href: routes.rates(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
 					"Superficie explícita para mantener tarifas comerciales; precios por ocupación vive aquí como ajuste avanzado cuando esté disponible.",
 			},
 			{
-				label: "Calendario",
-				href: routes.pricing(),
+				label: "Calendario de precios",
+				href: routes.calendar(),
 				status: "canonical",
 				owner: "Habitaciones y tarifas",
 				description:
@@ -1078,10 +1096,10 @@ export const roomsAndRatesOperationalMap: readonly RoomsAndRatesOperationalLane[
 			"Responsabilidad de inventario físico por habitación, disponibilidad y capacidad de unidades; la operación diaria de cupos se expone en Calendario.",
 		surfaces: [
 			{
-				label: "Catálogo y habitaciones",
-				href: routes.productList(),
+				label: "Alojamientos y habitaciones",
+				href: routes.accommodations(),
 				status: "canonical",
-				owner: "Catálogo de ofertas",
+				owner: "Alojamientos",
 				description:
 					"Setup de catálogo; hoteles entregan habitaciones como contexto físico al inventario.",
 			},

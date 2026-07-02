@@ -1,10 +1,14 @@
 export const routes = {
 	home: () => "/",
 	dashboard: () => "/dashboard",
+	settings: () => "/provider",
 	provider: () => "/provider",
+	verification: () => "/provider/verification",
 	providerHouseRules: () => "/provider/house-rules",
+	taxFees: () => "/provider/tax-fees",
 	providerTaxFees: () => "/provider/tax-fees",
 	providerVerification: () => "/provider/verification",
+	accommodations: () => "/product",
 	productList: () => "/product",
 	productListByType: (productType: string) =>
 		`/product?type=${encodeURIComponent(String(productType))}`,
@@ -12,6 +16,7 @@ export const routes = {
 	catalogAccommodationRooms: () => "/catalog/accommodations/rooms",
 	catalogTours: () => "/catalog/tours",
 	catalogPackages: () => "/catalog/packages",
+	rooms: () => "/catalog/accommodations/rooms",
 	productRooms: () => "/catalog/accommodations/rooms",
 	productRoomsForProduct: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms`,
@@ -26,6 +31,7 @@ export const routes = {
 	productRoomInventory: (_productId: string, roomId: string) =>
 		`/rates/calendar?variantId=${encodeURIComponent(String(roomId))}&focus=availability`,
 	bookingList: () => "/booking",
+	rates: () => "/rates/plans/manage",
 	financialOperations: () => "/financial",
 	financialCollections: () => "/financial/collections",
 	financialSettlements: () => "/financial/settlements",
@@ -33,6 +39,8 @@ export const routes = {
 	financialRefunds: () => "/financial/refunds",
 	financialExceptions: () => "/financial/exceptions",
 	ratePlansList: () => "/rates/plans/manage",
+	conditions: () => "/rates/calendar?focus=conditions",
+	calendar: () => "/rates/calendar",
 	ratesCommercialRulesApi: () => "/api/rates/commercial-rules",
 	ratePlanPolicies: (id: string) =>
 		`/rates/plans/${encodeURIComponent(String(id))}?vista=conditions`,
@@ -46,6 +54,7 @@ export const routes = {
 	analyticsPerformance: () => "/analytics/performance",
 	analyticsRevenue: () => "/analytics/revenue",
 	analyticsOccupancy: () => "/analytics/occupancy",
+	integrations: () => "/system/integrations",
 	systemIntegrations: () => "/system/integrations",
 	productDetail: (productId: string) => `/product/${encodeURIComponent(String(productId))}`,
 	productPreview: (productId: string) =>
