@@ -47,7 +47,7 @@ function renderHumanFreshness(value: unknown): string {
 	if (state === "waiting_external") return "Esperando respuesta"
 	if (state === "not_visible") return "Todavía no disponible"
 	if (state === "unknown") return "Por confirmar"
-	if (state === "snapshot_ready" || state === "evidence_matched") return "Información suficiente"
+	if (state === "snapshot_ready" || state === "evidence_matched") return "Lista para revisar"
 	if (state === "evidence_partial") return "Faltan comprobantes"
 	if (state === "evidence_unknown") return "Comprobantes por confirmar"
 	if (state === "handoff_pending") return "Esperando seguimiento"
@@ -67,7 +67,7 @@ export function renderFinancialRowHtml(params: {
 	const priority = renderPriorityBadge(row)
 	const blockerClass =
 		row.queue === "provider_finance" || row.queue === "reconciliation_issues"
-			? "border-l-4 border-l-amber-400 bg-amber-50/40"
+			? "financial-row-card-alert"
 			: ""
 	const financeView = item.providerFinance
 		? buildProviderFinanceRowViewModel(item.providerFinance)
@@ -93,7 +93,7 @@ export function renderFinancialRowHtml(params: {
 						? "blocked"
 						: "neutral"
 	return `
-		<article class="group cursor-pointer px-4 py-4 transition hover:bg-slate-50 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
+		<article class="financial-row-card group cursor-pointer p-4 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
 			<div class="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.55fr)_minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
 				<div>
 					<div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
