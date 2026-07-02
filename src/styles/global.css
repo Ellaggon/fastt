@@ -6,15 +6,52 @@
 
 :root {
 	--font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-	--calendar-motion-fast: 140ms;
-	--calendar-motion-standard: 180ms;
-	--calendar-motion-sheet: 240ms;
-	--calendar-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-	--calendar-ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
-	--calendar-radius: 0.5rem;
-	--calendar-selection: #2563eb;
-	--calendar-selection-soft: rgb(239 246 255 / 82%);
-	--calendar-selection-shadow: rgb(37 99 235 / 20%);
+	--fastt-color-ink: #020617;
+	--fastt-color-ink-soft: #0f172a;
+	--fastt-color-muted: #64748b;
+	--fastt-color-border: rgb(226 232 240 / 82%);
+	--fastt-color-border-strong: #b0b0b0;
+	--fastt-color-surface: #ffffff;
+	--fastt-color-surface-soft: rgb(248 250 252 / 86%);
+	--fastt-color-surface-panel: rgb(255 255 255 / 94%);
+	--fastt-color-focus: #222222;
+	--fastt-color-action: #020617;
+	--fastt-color-action-hover: #1e293b;
+	--fastt-color-selection: #2563eb;
+	--fastt-color-selection-soft: rgb(239 246 255 / 82%);
+	--fastt-color-selection-shadow: rgb(37 99 235 / 20%);
+	--fastt-radius-control: 0.5rem;
+	--fastt-radius-field: 0.875rem;
+	--fastt-radius-card: 1rem;
+	--fastt-radius-panel: 1.5rem;
+	--fastt-radius-sheet: 1.75rem;
+	--fastt-radius-dialog: clamp(1.25rem, 3vw, 2rem);
+	--fastt-radius-pill: 9999px;
+	--fastt-control-sm: 2rem;
+	--fastt-control-md: 2.5rem;
+	--fastt-control-lg: 2.75rem;
+	--fastt-field-height: 2.75rem;
+	--fastt-motion-fast: 140ms;
+	--fastt-motion-standard: 180ms;
+	--fastt-motion-sheet: 240ms;
+	--fastt-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--fastt-ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+	--fastt-shadow-control: 0 3px 10px rgb(0 0 0 / 8%);
+	--fastt-shadow-card: 0 6px 18px rgb(0 0 0 / 5%);
+	--fastt-shadow-panel: 0 18px 50px rgb(15 23 42 / 8%), inset 0 1px 0 rgb(255 255 255 / 82%);
+	--fastt-shadow-row: 0 1px 0 rgb(15 23 42 / 3%), 0 10px 26px rgb(15 23 42 / 5%);
+	--fastt-shadow-row-hover: 0 1px 0 rgb(15 23 42 / 3%), 0 16px 36px rgb(15 23 42 / 8%);
+	--fastt-shadow-sheet: 0 28px 90px rgb(15 23 42 / 24%);
+	--fastt-shadow-dialog: 0 28px 80px rgb(0 0 0 / 28%), 0 0 0 1px rgb(0 0 0 / 4%);
+	--calendar-motion-fast: var(--fastt-motion-fast);
+	--calendar-motion-standard: var(--fastt-motion-standard);
+	--calendar-motion-sheet: var(--fastt-motion-sheet);
+	--calendar-ease-standard: var(--fastt-ease-standard);
+	--calendar-ease-settle: var(--fastt-ease-settle);
+	--calendar-radius: var(--fastt-radius-control);
+	--calendar-selection: var(--fastt-color-selection);
+	--calendar-selection-soft: var(--fastt-color-selection-soft);
+	--calendar-selection-shadow: var(--fastt-color-selection-shadow);
 }
 
 html,
@@ -32,8 +69,199 @@ body {
 		transform var(--calendar-motion-fast) var(--calendar-ease-standard);
 }
 
-.calendar-control:not(:disabled):active {
+.fastt-control {
+	border-radius: var(--fastt-radius-pill);
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) var(--fastt-ease-standard);
+}
+
+.calendar-control:not(:disabled):active,
+.fastt-control:not(:disabled):active {
 	transform: scale(0.98);
+}
+
+.fastt-button {
+	min-height: var(--fastt-control-md);
+	border-radius: var(--fastt-radius-pill);
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) ease;
+}
+
+.fastt-button:not(:disabled):hover {
+	box-shadow: var(--fastt-shadow-control);
+}
+
+.fastt-button:not(:disabled):active {
+	transform: scale(0.98);
+}
+
+.fastt-icon-button {
+	border-radius: var(--fastt-radius-pill);
+}
+
+.fastt-field {
+	min-height: var(--fastt-field-height);
+	border: 1px solid var(--fastt-color-border-strong);
+	border-radius: var(--fastt-radius-field);
+	outline: none;
+	transition:
+		border-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease;
+}
+
+.fastt-field:focus {
+	border-color: var(--fastt-color-focus);
+	box-shadow: 0 0 0 2px var(--fastt-color-focus);
+}
+
+.fastt-card {
+	border-color: var(--fastt-color-border);
+	border-radius: var(--fastt-radius-panel);
+	box-shadow: var(--fastt-shadow-card);
+	overflow: hidden;
+}
+
+.fastt-row-card,
+.fastt-soft-box {
+	border-radius: var(--fastt-radius-card);
+}
+
+.fastt-row-card {
+	position: relative;
+	border: 1px solid rgb(226 232 240 / 78%);
+	background: rgb(255 255 255 / 90%);
+	box-shadow: var(--fastt-shadow-row);
+	transition:
+		border-color 160ms ease,
+		box-shadow 160ms ease,
+		transform 160ms var(--fastt-ease-standard),
+		background-color 160ms ease;
+}
+
+.fastt-row-card:hover {
+	border-color: rgb(203 213 225 / 96%);
+	background: rgb(255 255 255 / 98%);
+	box-shadow: var(--fastt-shadow-row-hover);
+	transform: translateY(-1px);
+}
+
+.fastt-row-card-alert {
+	border-color: rgb(251 191 36 / 34%);
+	background:
+		linear-gradient(90deg, rgb(254 243 199 / 62%), transparent 18%), rgb(255 255 255 / 92%);
+}
+
+.fastt-tabs {
+	border-radius: var(--fastt-radius-pill);
+}
+
+.fastt-tab {
+	border-radius: var(--fastt-radius-pill);
+}
+
+.fastt-segmented-control {
+	border: 1px solid rgb(226 232 240 / 80%);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 74%);
+}
+
+.fastt-segmented-item {
+	border-radius: var(--fastt-radius-pill);
+	border: 1px solid transparent;
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease;
+}
+
+.fastt-segmented-item[data-active="true"] {
+	border-color: rgb(226 232 240 / 92%);
+	background: var(--fastt-color-surface);
+	color: var(--fastt-color-ink-soft);
+	box-shadow: var(--fastt-shadow-control);
+}
+
+.fastt-dialog {
+	border-color: var(--fastt-color-border);
+	border-radius: var(--fastt-radius-dialog);
+	overflow: hidden;
+	box-shadow: var(--fastt-shadow-dialog);
+}
+
+.fastt-dialog::backdrop {
+	background: rgb(15 23 42 / 35%);
+	backdrop-filter: blur(14px) saturate(120%);
+}
+
+.fastt-floating-modal-card {
+	border: 1px solid var(--fastt-color-border);
+	border-radius: var(--fastt-radius-dialog);
+	background: var(--fastt-color-surface);
+	box-shadow: var(--fastt-shadow-dialog);
+	overflow: hidden;
+}
+
+.fastt-workspace-panel {
+	border: 1px solid rgb(226 232 240 / 78%);
+	border-radius: var(--fastt-radius-panel);
+	background:
+		linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(248 250 252 / 94%)),
+		var(--fastt-color-surface-panel);
+	box-shadow: var(--fastt-shadow-panel);
+}
+
+.fastt-side-sheet {
+	border-left: 1px solid var(--fastt-color-border);
+	background:
+		linear-gradient(180deg, rgb(248 250 252 / 92%), rgb(255 255 255 / 88%)), rgb(248 250 252 / 90%);
+	box-shadow: var(--fastt-shadow-sheet);
+	backdrop-filter: blur(22px);
+}
+
+.fastt-side-sheet-header {
+	border-bottom: 1px solid var(--fastt-color-border);
+	background: rgb(248 250 252 / 88%);
+	backdrop-filter: blur(18px);
+}
+
+.fastt-drawer-section {
+	border: 1px solid var(--fastt-color-border);
+	border-radius: 28px;
+	background: rgb(255 255 255 / 82%);
+	box-shadow: 0 12px 40px rgb(15 23 42 / 6%);
+	backdrop-filter: blur(8px);
+}
+
+.fastt-drawer-section[data-muted="true"] {
+	background: rgb(248 250 252 / 78%);
+}
+
+.fastt-drawer-attention {
+	border: 1px solid rgb(203 213 225 / 78%);
+	border-radius: 30px;
+	background:
+		radial-gradient(circle at top left, rgb(226 232 240 / 72%), transparent 34%),
+		linear-gradient(145deg, rgb(255 255 255 / 96%), rgb(241 245 249 / 94%));
+	box-shadow: 0 18px 52px rgb(15 23 42 / 8%);
+}
+
+.fastt-drawer-soft-card {
+	border-radius: var(--fastt-radius-panel);
+	background: var(--fastt-color-surface-soft);
+	box-shadow: inset 0 0 0 1px rgb(100 116 139 / 10%);
+}
+
+.fastt-drawer-secondary-card {
+	border-radius: 22px;
+	background: rgb(241 245 249 / 78%);
+	box-shadow: inset 0 0 0 1px rgb(100 116 139 / 10%);
 }
 
 .calendar-cell {
