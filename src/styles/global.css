@@ -104,6 +104,57 @@ body {
 
 .fastt-icon-button {
 	border-radius: var(--fastt-radius-pill);
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) ease;
+}
+
+.fastt-icon-button:not(:disabled):hover {
+	box-shadow: var(--fastt-shadow-control);
+}
+
+.fastt-icon-button:not(:disabled):active {
+	transform: scale(0.98);
+}
+
+.fastt-check-option,
+.fastt-toggle-option {
+	border-radius: var(--fastt-radius-card);
+}
+
+.fastt-check-input,
+.fastt-radio-input {
+	accent-color: var(--fastt-color-action);
+}
+
+.fastt-toggle-control {
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease;
+}
+
+.fastt-toggle-thumb {
+	transition: transform var(--fastt-motion-fast) var(--fastt-ease-standard);
+}
+
+.fastt-progress-track {
+	border-radius: var(--fastt-radius-pill);
+	box-shadow: inset 0 0 0 1px rgb(15 23 42 / 6%);
+}
+
+.fastt-progress-value {
+	border-radius: inherit;
+	transition: width var(--fastt-motion-standard) var(--fastt-ease-standard);
+}
+
+.fastt-notice {
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 62%);
+}
+
+.fastt-empty-state {
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%);
 }
 
 .fastt-field {
