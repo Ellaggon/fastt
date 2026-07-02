@@ -55,7 +55,7 @@ function shortPolicySummary(value: string | null | undefined) {
 
 function calendarResolveHref(ratePlanId: string, focus: "price" | "availability" | "restrictions") {
 	const params = new URLSearchParams({ ratePlanId, focus, checkIn, checkOut })
-	return `${routes.pricing()}?${params.toString()}`
+	return `${routes.calendar()}?${params.toString()}`
 }
 
 function commercialState(row: (typeof rows)[number]) {
@@ -91,7 +91,7 @@ function commercialState(row: (typeof rows)[number]) {
 		return {
 			key: "policies",
 			label: "No vendible",
-			reason: "No disponible para nuevas reservas.",
+			reason: "Faltan condiciones para reservar.",
 			href: routes.ratePlanPolicies(ratePlanId),
 			badge: "warning" as const,
 		}
@@ -149,11 +149,11 @@ const tabs = [
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Tarifas</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
-					Define qué vendes y resuelve lo necesario antes de operar fechas.
+					Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario.
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button href={routes.pricing()} variant="secondary">
+				<Button href={routes.calendar()} variant="secondary">
 					<CalendarDays class="mr-2 size-4" /> Calendario
 				</Button>
 				<button
@@ -249,13 +249,13 @@ const tabs = [
 												</p>
 											</div>
 											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Contrato</p>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Condiciones</p>
 												<p class="mt-1 font-medium text-slate-900">
 													{covered}/{total} completas
 												</p>
 											</div>
 											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Disponibilidad</p>
+												<p class="text-xs font-semibold text-slate-500 uppercase">Calendario</p>
 												<p class="mt-1 font-medium text-slate-900">
 													{row.inventoryReadiness?.availableDays ?? 0}/
 													{row.inventoryReadiness?.expectedDays ?? 30} noches
@@ -298,8 +298,8 @@ const tabs = [
 									<tr>
 										<th class="px-4 py-3">Tarifa</th>
 										<th class="px-4 py-3">Precio base</th>
-										<th class="px-4 py-3">Contrato</th>
-										<th class="px-4 py-3">Disponibilidad</th>
+										<th class="px-4 py-3">Condiciones</th>
+										<th class="px-4 py-3">Calendario</th>
 										<th class="px-4 py-3">Estado</th>
 										<th class="px-4 py-3 text-right">Acciones</th>
 									</tr>
@@ -354,7 +354,7 @@ const tabs = [
 														{row.inventoryReadiness?.expectedDays ?? 30} noches
 													</p>
 													<p class="mt-1 text-xs text-slate-500">
-														{restrictions ? `${restrictions} reglas activas` : "Venta estándar"}
+														{restrictions ? "Venta ajustada" : "Venta estándar"}
 													</p>
 												</td>
 												<td class="px-4 py-4">
@@ -499,7 +499,7 @@ const tabs = [
 
 				<section class="hidden space-y-4" data-wizard-step="2">
 					<div>
-						<h2 class="font-semibold">Precio y contrato</h2>
+						<h2 class="font-semibold">Precio y condiciones</h2>
 						<p class="mt-1 text-sm text-slate-500">
 							Este precio será la base para las noches sin ajustes.
 						</p>
@@ -713,8 +713,8 @@ const tabs = [
 			"Cancelación flexible · Pago en el hotel · Ingreso estándar · Primera noche por no presentación",
 		non_refundable:
 			"10% de descuento · No reembolsable · Prepago total · No presentación de estadía completa",
-		long_stay: "12% de descuento desde 7 noches · Contrato de larga estadía",
-		early_booking: "10% de descuento con 21 días de anticipación · Contrato flexible",
+		long_stay: "12% de descuento desde 7 noches · Condición de larga estadía",
+		early_booking: "10% de descuento con 21 días de anticipación · Condición flexible",
 	}
 
 	function renderStep() {
@@ -734,7 +734,7 @@ const tabs = [
 			.querySelector<HTMLElement>("[data-publish]")
 			?.classList.toggle("hidden", currentStep !== 3)
 		if (heading)
-			heading.textContent = `${currentStep} de 3 · ${["Oferta", "Precio y contrato", "Revisión"][currentStep - 1]}`
+			heading.textContent = `${currentStep} de 3 · ${["Oferta", "Precio y condiciones", "Revisión"][currentStep - 1]}`
 		if (currentStep === 3 && form && review) {
 			const data = new FormData(form)
 			const room =
@@ -791,7 +791,7 @@ const tabs = [
 			isDefault: data.get("isDefault") === "on",
 		}
 		form.querySelectorAll<HTMLButtonElement>("button").forEach((button) => (button.disabled = true))
-		if (feedback) feedback.textContent = "Creando tarifa, precio y contrato..."
+		if (feedback) feedback.textContent = "Creando tarifa, precio y condiciones..."
 		try {
 			const response = await fetch("/api/rateplans/create", {
 				method: "POST",

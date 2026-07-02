@@ -238,6 +238,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				count: activeTariffs.length,
 				names: activeTariffs.map((tariff) => tariff.name),
 				defaultName: defaultTariff?.name ?? null,
+				defaultId: defaultTariff?.id ?? null,
 			},
 			states: {
 				capacityComplete,
@@ -253,6 +254,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 				capacityHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
 				typeHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
 				profileHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
+				tariffsHref: defaultTariff?.id
+					? `/rates/plans/${encodeURIComponent(String(defaultTariff.id))}`
+					: `/rates/plans/manage`,
+				conditionsHref: defaultTariff?.id
+					? `/rates/plans/${encodeURIComponent(String(defaultTariff.id))}?vista=conditions`
+					: `/rates/plans/manage`,
+				calendarHref: defaultTariff?.id
+					? `/rates/calendar?ratePlanId=${encodeURIComponent(String(defaultTariff.id))}&variantId=${encodeURIComponent(String(variant.id))}`
+					: `/rates/calendar?variantId=${encodeURIComponent(String(variant.id))}`,
 				inventoryHref: `/rates/calendar?variantId=${encodeURIComponent(String(variant.id))}&focus=availability`,
 			},
 		}

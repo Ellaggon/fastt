@@ -25,7 +25,7 @@ if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
-if (!ratePlanId) return Astro.redirect(routes.ratePlansList())
+if (!ratePlanId) return Astro.redirect(routes.rates())
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "conditions")
@@ -79,6 +79,7 @@ const tabs = [
 	},
 	{ id: "details", label: "Datos de tarifa", meta: row.isActive ? "Activa" : "Inactiva" },
 ]
+const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(ratePlanId)}&focus=price`
 ---
 
 <WorkspaceLayout title={`Tarifa · ${row.ratePlanName}`}>
@@ -98,8 +99,8 @@ const tabs = [
 				<p class="text-sm text-slate-300">{row.productName} · {row.variantName}</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button href={routes.ratePlansList()} variant="secondary">Volver a tarifas</Button>
-				<Button href={routes.pricing()} variant="primary">Calendario</Button>
+				<Button href={routes.rates()} variant="secondary">Volver a tarifas</Button>
+				<Button href={calendarHref} variant="primary">Calendario</Button>
 			</div>
 		</header>
 
@@ -149,13 +150,14 @@ const tabs = [
 				<div class="mx-auto max-w-2xl space-y-1">
 					<h2 class="text-xl font-semibold text-slate-950">Editar precio base</h2>
 					<p class="pb-4 text-sm text-slate-500">
-						Define el punto de partida por noche. Los ajustes por fecha se gestionan en Calendario.
+						Define el punto de partida de esta tarifa. Los cambios por fecha se hacen en el
+						calendario.
 					</p>
 					<RatePlanPricingSurface
 						ratePlanId={String(row.ratePlanId)}
 						initialCurrency={loaded.initialCurrency}
 						initialBasePrice={loaded.initialBasePrice}
-						backHref={routes.ratePlansList()}
+						backHref={routes.rates()}
 					/>
 				</div>
 			</div>

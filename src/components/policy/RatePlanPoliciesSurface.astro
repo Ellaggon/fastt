@@ -48,7 +48,7 @@ interface Props {
 }
 
 const {
-	title = "Contrato de la tarifa",
+	title = "Condiciones de la tarifa",
 	description,
 	policyPlans,
 	productId = "",
@@ -83,7 +83,7 @@ const houseRulesHref = productId
 <section class="space-y-5" aria-labelledby="rate-plan-contract-title">
 	<header class="flex flex-wrap items-end justify-between gap-4">
 		<div class="space-y-1.5">
-			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Contrato base</p>
+			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Condiciones base</p>
 			<h2 id="rate-plan-contract-title" class="text-2xl font-semibold text-white">{title}</h2>
 			<p class="max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
 		</div>
@@ -118,7 +118,9 @@ const houseRulesHref = productId
 						) : (
 							<TriangleAlert class="h-4 w-4" />
 						)}
-						{plan.isSellableByContract ? "Contrato completo" : `${plan.coverageCount}/4 completas`}
+						{plan.isSellableByContract
+							? "Condiciones completas"
+							: `${plan.coverageCount}/4 completas`}
 					</div>
 				</div>
 
@@ -221,7 +223,7 @@ const houseRulesHref = productId
 					</summary>
 					<div class="mt-3 grid gap-3 text-slate-600 md:grid-cols-2" data-role="contract-readiness">
 						<p>
-							<strong>Contrato aplicable:</strong> {plan.coverageCount}/4 categorías.
+							<strong>Condiciones aplicables:</strong> {plan.coverageCount}/4 categorías.
 						</p>
 						<p>
 							<strong>Snapshot preview:</strong> {plan.snapshotResolvedAt}

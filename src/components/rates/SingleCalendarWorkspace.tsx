@@ -425,7 +425,7 @@ export default function SingleCalendarWorkspace({
 						? `${closedDays} días cerrados`
 						: "Venta abierta"
 					: surface.conditions.complete
-						? "Contrato completo"
+						? "Condiciones completas"
 						: surface.conditions.missingSummary
 
 	return (

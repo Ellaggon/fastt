@@ -42,7 +42,7 @@ const TABS: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
 	{
 		key: "conditions",
 		label: CALENDAR_CONTROL_MODES.find((mode) => mode.key === "conditions")?.label ?? "Condiciones",
-		helper: "Contrato de cada tarifa.",
+		helper: "Condiciones de cada tarifa.",
 	},
 	{ key: "rules", label: "Reglas aplicadas", helper: "Automatizaciones activas y conflictos." },
 ]
@@ -1297,7 +1297,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 												href={row.policiesHref}
 												className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
 											>
-												{missing.length ? "Ver contrato" : "Editar contrato"}
+												{missing.length ? "Ver condiciones" : "Editar condiciones"}
 											</a>
 										</div>
 									</article>

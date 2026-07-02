@@ -39,8 +39,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 						Experiencia de descanso de {owned.name}
 					</h1>
 					<p class="text-sm leading-6 text-slate-400">
-						Crea habitaciones claras para huéspedes: fotos, camas, baño, capacidad y condiciones
-						básicas para que sepan exactamente dónde dormirán.
+						Crea habitaciones claras para huéspedes. La habitación es lo físico; las tarifas definen
+						cómo se vende y el calendario cuándo está disponible.
 					</p>
 				</div>
 				<div class="flex flex-wrap gap-2">
@@ -312,19 +312,16 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				tariffSummary.className = "text-sm text-slate-600"
 				tariffSummary.textContent =
 					tariffNames.length > 0
-						? `Tarifas: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
-						: "Agrega una tarifa para que esta habitación pueda venderse."
+						? `Se vende con: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
+						: "Agrega una tarifa para definir cómo se vende esta habitación."
 
 				const actions = document.createElement("div")
 				actions.className = "flex flex-wrap gap-2"
 				actions.append(
 					action(text(room?.actions?.detailHref, "#"), "Editar habitación", true),
-					action(
-						text(room?.actions?.profileHref, room?.actions?.capacityHref ?? "#"),
-						"Perfil",
-						false
-					),
-					action(text(room?.actions?.inventoryHref, "#"), "Disponibilidad", false)
+					action(text(room?.actions?.tariffsHref, "/rates/plans/manage"), "Tarifas", false),
+					action(text(room?.actions?.calendarHref, "#"), "Calendario", false),
+					action(text(room?.actions?.conditionsHref, "/rates/plans/manage"), "Condiciones", false)
 				)
 
 				const nextStep = document.createElement("div")
@@ -333,8 +330,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				const missing = []
 				if (!room?.states?.capacityComplete) missing.push("perfil")
 				if (photosCount <= 0) missing.push("fotos")
-				if (!room?.states?.inventoryComplete) missing.push("disponibilidad")
 				if (tariffCount <= 0) missing.push("tarifas")
+				if (!room?.states?.inventoryComplete) missing.push("calendario")
 				nextStep.textContent = missing.length
 					? `Siguiente paso recomendado: completar ${missing[0]}.`
 					: "Lista para mostrarse con confianza en la ficha pública."
