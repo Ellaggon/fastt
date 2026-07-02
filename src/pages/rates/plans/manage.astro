@@ -141,7 +141,7 @@ const tabs = [
 ---
 
 <WorkspaceLayout title="Tarifas">
-	<div class="space-y-5">
+	<div class="rate-plans-manage space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -158,7 +158,7 @@ const tabs = [
 				</Button>
 				<button
 					type="button"
-					class="calendar-control inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 shadow-sm hover:bg-slate-100"
+					class="calendar-control airbnb-button inline-flex h-10 items-center justify-center bg-white px-4 text-sm font-semibold text-slate-950 shadow-sm hover:bg-slate-100"
 					data-open-rate-plan-dialog
 				>
 					<Plus class="mr-2 size-4" /> Nueva tarifa
@@ -166,12 +166,12 @@ const tabs = [
 			</div>
 		</header>
 
-		<section class="rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm">
+		<section class="airbnb-card border bg-white text-slate-900">
 			<div
 				class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
 			>
 				<nav
-					class="mb-3 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1"
+					class="airbnb-tabs mb-3 flex gap-1 overflow-x-auto bg-slate-100 p-1"
 					aria-label="Estado de tarifas"
 					data-rate-plan-tabs
 				>
@@ -181,7 +181,7 @@ const tabs = [
 								href={`?vista=${tab.id}`}
 								data-rate-plan-tab={tab.id}
 								aria-current={activeView === tab.id ? "page" : undefined}
-								class={`calendar-control border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+								class={`calendar-control airbnb-tab border border-transparent px-3 py-2 text-sm font-semibold whitespace-nowrap ${
 									activeView === tab.id
 										? "border-slate-200 bg-white text-slate-950 shadow-sm"
 										: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
@@ -219,7 +219,7 @@ const tabs = [
 								const ratePlanId = String(row.ratePlanId)
 								return (
 									<details
-										class={`rounded-lg border border-slate-200 bg-white ${matchesView(state.key, activeView) ? "" : "hidden"}`}
+										class={`airbnb-row-card border border-slate-200 bg-white ${matchesView(state.key, activeView) ? "" : "hidden"}`}
 										data-rate-plan-row
 										data-rate-plan-id={ratePlanId}
 										data-rate-plan-state={state.key}
@@ -392,9 +392,7 @@ const tabs = [
 			}
 		</section>
 
-		<details
-			class="rate-history-panel rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm"
-		>
+		<details class="rate-history-panel airbnb-card border bg-white text-slate-900">
 			<summary
 				class="calendar-control cursor-pointer px-4 py-3 text-sm font-semibold hover:bg-slate-50"
 				>Cambios recientes de tarifa</summary
@@ -428,7 +426,7 @@ const tabs = [
 	</div>
 
 	<dialog
-		class="calendar-dialog m-auto w-[min(720px,calc(100%-2rem))] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl"
+		class="calendar-dialog airbnb-dialog m-auto w-[min(720px,calc(100%-2rem))] border bg-white p-0 text-slate-900 shadow-2xl"
 		data-rate-plan-dialog
 	>
 		<form data-rate-plan-create-form class="max-h-[90vh] overflow-y-auto">
@@ -441,7 +439,7 @@ const tabs = [
 				</div>
 				<button
 					type="button"
-					class="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+					class="airbnb-icon-button p-2 text-slate-500 hover:bg-slate-100"
 					data-close-rate-plan-dialog
 					aria-label="Cerrar"
 				>
@@ -459,7 +457,7 @@ const tabs = [
 						<span class="font-medium">Habitación</span>
 						<select
 							name="variantId"
-							class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3"
+							class="airbnb-field h-11 w-full border border-slate-300 bg-white px-3"
 							required
 						>
 							<option value="">Selecciona una habitación</option>
@@ -474,7 +472,7 @@ const tabs = [
 						<span class="font-medium">Propuesta</span>
 						<select
 							name="intent"
-							class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3"
+							class="airbnb-field h-11 w-full border border-slate-300 bg-white px-3"
 							required
 						>
 							{
@@ -490,7 +488,7 @@ const tabs = [
 						<span class="font-medium">Nombre visible</span>
 						<input
 							name="name"
-							class="h-11 w-full rounded-lg border border-slate-300 px-3"
+							class="airbnb-field h-11 w-full border border-slate-300 px-3"
 							value="Tarifa flexible"
 							required
 						/>
@@ -509,7 +507,7 @@ const tabs = [
 							<span class="font-medium">Moneda</span>
 							<select
 								name="currency"
-								class="h-11 w-full rounded-lg border border-slate-300 bg-white px-3"
+								class="airbnb-field h-11 w-full border border-slate-300 bg-white px-3"
 								required
 							>
 								<option value="BOB">BOB</option><option value="USD">USD</option>
@@ -522,13 +520,13 @@ const tabs = [
 								type="number"
 								min="1"
 								step="0.01"
-								class="h-11 w-full rounded-lg border border-slate-300 px-3"
+								class="airbnb-field h-11 w-full border border-slate-300 px-3"
 								placeholder="Ej. 450"
 								required
 							/>
 						</label>
 					</div>
-					<div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600" data-contract-summary>
+					<div class="airbnb-soft-box bg-slate-50 p-4 text-sm text-slate-600" data-contract-summary>
 						Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
 						noche por no presentación.
 					</div>
@@ -541,8 +539,9 @@ const tabs = [
 							Puedes dejarla en borrador o publicarla ahora.
 						</p>
 					</div>
-					<div class="rounded-lg border border-slate-200 p-4 text-sm" data-rate-plan-review></div>
-					<label class="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+					<div class="airbnb-soft-box border border-slate-200 p-4 text-sm" data-rate-plan-review>
+					</div>
+					<label class="airbnb-soft-box flex items-start gap-3 border border-slate-200 p-3 text-sm">
 						<input type="checkbox" name="isDefault" class="mt-0.5 size-4" />
 						<span
 							><strong>Tarifa principal</strong><span class="mt-1 block text-slate-500"
@@ -560,26 +559,26 @@ const tabs = [
 				<div class="ml-auto flex gap-2">
 					<button
 						type="button"
-						class="hidden h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold"
+						class="airbnb-button hidden h-10 border border-slate-300 px-4 text-sm font-semibold"
 						data-wizard-back>Volver</button
 					>
 					<button
 						type="button"
-						class="h-10 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white"
+						class="airbnb-button h-10 bg-slate-950 px-4 text-sm font-semibold text-white"
 						data-wizard-next>Continuar</button
 					>
 					<button
 						type="submit"
 						name="publicationMode"
 						value="draft"
-						class="hidden h-10 rounded-lg border border-slate-300 px-4 text-sm font-semibold"
+						class="airbnb-button hidden h-10 border border-slate-300 px-4 text-sm font-semibold"
 						data-save-draft>Guardar borrador</button
 					>
 					<button
 						type="submit"
 						name="publicationMode"
 						value="publish"
-						class="hidden h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white"
+						class="airbnb-button hidden h-10 bg-blue-600 px-4 text-sm font-semibold text-white"
 						data-publish>Publicar</button
 					>
 				</div>
@@ -587,6 +586,116 @@ const tabs = [
 		</form>
 	</dialog>
 </WorkspaceLayout>
+
+<style>
+	.rate-plans-manage {
+		--airbnb-border: #dddddd;
+		--airbnb-border-strong: #b0b0b0;
+		--airbnb-focus: #222222;
+		--airbnb-radius: 1rem;
+		--airbnb-radius-lg: 1.5rem;
+		--calendar-radius: 9999px;
+	}
+
+	.rate-plans-manage :global(.airbnb-card) {
+		border-color: var(--airbnb-border);
+		border-radius: var(--airbnb-radius-lg);
+		box-shadow: 0 6px 18px rgb(0 0 0 / 5%);
+		overflow: hidden;
+	}
+
+	.rate-plans-manage :global(.airbnb-row-card),
+	.rate-plans-manage :global(.airbnb-soft-box) {
+		border-radius: var(--airbnb-radius);
+	}
+
+	.rate-plans-manage :global(.airbnb-tabs) {
+		border-radius: 9999px;
+	}
+
+	.rate-plans-manage :global(.airbnb-tab),
+	.rate-plans-manage :global(.airbnb-button),
+	.rate-plans-manage :global(a.inline-flex),
+	.rate-plans-manage :global(button.inline-flex) {
+		border-radius: 9999px;
+	}
+
+	.rate-plans-manage :global(.airbnb-button),
+	.rate-plans-manage :global(a.inline-flex),
+	.rate-plans-manage :global(button.inline-flex) {
+		min-height: 2.5rem;
+		transition:
+			background-color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease,
+			transform 140ms ease;
+	}
+
+	.rate-plans-manage :global(.airbnb-button:not(:disabled):hover),
+	.rate-plans-manage :global(a.inline-flex:not(:disabled):hover),
+	.rate-plans-manage :global(button.inline-flex:not(:disabled):hover) {
+		box-shadow: 0 3px 10px rgb(0 0 0 / 8%);
+	}
+
+	.rate-plans-manage :global(.airbnb-button:not(:disabled):active),
+	.rate-plans-manage :global(a.inline-flex:not(:disabled):active),
+	.rate-plans-manage :global(button.inline-flex:not(:disabled):active) {
+		transform: scale(0.98);
+	}
+
+	:global(.airbnb-dialog) {
+		border-color: var(--airbnb-border, #dddddd);
+		border-radius: clamp(1.25rem, 3vw, 2rem);
+		overflow: hidden;
+		box-shadow:
+			0 28px 80px rgb(0 0 0 / 28%),
+			0 0 0 1px rgb(0 0 0 / 4%);
+	}
+
+	:global(.airbnb-dialog::backdrop) {
+		background: rgb(15 23 42 / 52%);
+		backdrop-filter: blur(3px);
+	}
+
+	:global(.airbnb-dialog .airbnb-icon-button) {
+		border-radius: 9999px;
+	}
+
+	:global(.airbnb-dialog .airbnb-field) {
+		border-color: var(--airbnb-border-strong, #b0b0b0);
+		border-radius: 0.875rem;
+		outline: none;
+		transition:
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+
+	:global(.airbnb-dialog .airbnb-field:focus) {
+		border-color: var(--airbnb-focus, #222222);
+		box-shadow: 0 0 0 2px var(--airbnb-focus, #222222);
+	}
+
+	:global(.airbnb-dialog .airbnb-soft-box) {
+		border-radius: 1rem;
+	}
+
+	:global(.airbnb-dialog .airbnb-button) {
+		border-radius: 9999px;
+		transition:
+			background-color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease,
+			transform 140ms ease;
+	}
+
+	:global(.airbnb-dialog .airbnb-button:not(:disabled):hover) {
+		box-shadow: 0 3px 10px rgb(0 0 0 / 10%);
+	}
+
+	:global(.airbnb-dialog .airbnb-button:not(:disabled):active) {
+		transform: scale(0.98);
+	}
+</style>
 
 <script>
 	const ratePlanTabs = Array.from(
