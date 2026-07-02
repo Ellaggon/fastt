@@ -90,13 +90,23 @@ function summaryTone(summary: string): "neutral" | "success" | "warning" | "dang
 const sectionByTitle = new Map(visibleNavigation.map((section) => [section.title, section]))
 const navigationGroups = [
 	{
-		title: "Operación",
-		sections: ["Inicio", "Reservas", "Habitaciones y tarifas"],
+		title: "Inicio",
+		sections: ["Inicio"],
 		collapsible: false,
 	},
 	{
-		title: "Alojamiento",
+		title: "Alojamientos",
 		sections: ["Alojamientos"],
+		collapsible: false,
+	},
+	{
+		title: "Venta",
+		sections: ["Venta"],
+		collapsible: false,
+	},
+	{
+		title: "Reservas",
+		sections: ["Reservas"],
 		collapsible: false,
 	},
 	{

@@ -5,10 +5,9 @@ interface Props {
 	title: string
 	description: string
 	note?: string
-	showConfiguration?: boolean
 }
 
-const { title, description, note = "", showConfiguration = false } = Astro.props
+const { title, description, note = "" } = Astro.props
 ---
 
 <section class="space-y-4">
@@ -29,7 +28,7 @@ const { title, description, note = "", showConfiguration = false } = Astro.props
 		}
 	</header>
 
-	<FinancialSubnav showConfiguration={showConfiguration} />
+	<FinancialSubnav />
 
 	<slot />
 </section>

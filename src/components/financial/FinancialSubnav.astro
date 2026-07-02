@@ -7,13 +7,10 @@ import {
 
 interface Props {
 	pathname?: string
-	showConfiguration?: boolean
 }
 
-const { pathname = Astro.url.pathname, showConfiguration = true } = Astro.props
-const groups: FinancialNavGroup[] = showConfiguration
-	? ["operation", "configuration"]
-	: ["operation"]
+const { pathname = Astro.url.pathname } = Astro.props
+const groups: FinancialNavGroup[] = ["operation"]
 const isActive = (href: string) =>
 	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 ---
@@ -28,11 +25,9 @@ const isActive = (href: string) =>
 				const items = financialNavigationItems.filter((item) => item.group === group)
 				return (
 					<div class="min-w-0">
-						{showConfiguration ? (
-							<p class="px-2 pb-1 text-[11px] font-bold tracking-[0.14em] text-slate-500 uppercase">
-								{financialNavGroupLabels[group]}
-							</p>
-						) : null}
+						<p class="px-2 pb-1 text-[11px] font-bold tracking-[0.14em] text-slate-500 uppercase">
+							{financialNavGroupLabels[group]}
+						</p>
 						<div class="flex flex-wrap gap-1">
 							{items.map((item) => {
 								const active = isActive(item.href)
