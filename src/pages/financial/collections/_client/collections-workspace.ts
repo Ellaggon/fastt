@@ -297,7 +297,7 @@ function renderRows(): void {
 }
 
 function detailRow(label: string, value: unknown): string {
-	return `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
+	return `<div class="financial-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
 }
 
 function openDrawer(item: CollectionItem): void {
@@ -308,10 +308,10 @@ function openDrawer(item: CollectionItem): void {
 	const context = resolveBookingContext(item.bookingId, item.raw, state.bookingContext)
 	body.innerHTML = `
 		<section class="space-y-4">
-			<div class="rounded-3xl bg-slate-950 p-5 text-white">
-				<p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">${escapeHtml(segmentLabels[item.segment])}</p>
-				<h2 class="mt-2 text-2xl font-bold">${escapeHtml(item.title)}</h2>
-				<p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(item.description)}</p>
+			<div class="financial-drawer-attention p-5">
+				<p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700/80">${escapeHtml(segmentLabels[item.segment])}</p>
+				<h2 class="mt-2 text-2xl font-semibold tracking-[-0.02em] text-slate-950">${escapeHtml(item.title)}</h2>
+				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.description)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
@@ -323,11 +323,11 @@ function openDrawer(item: CollectionItem): void {
 				${detailRow("Comprobante", item.proof)}
 				${detailRow("Responsable", item.owner)}
 			</div>
-			<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-				<p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Próxima acción</p>
-				<p class="mt-2 text-sm font-semibold text-amber-950">${escapeHtml(item.nextAction)}</p>
+			<div class="financial-drawer-secondary-card p-4">
+				<p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Próxima acción</p>
+				<p class="mt-2 text-sm font-semibold text-slate-950">${escapeHtml(item.nextAction)}</p>
 			</div>
-			<details class="rounded-2xl border border-slate-200 bg-white p-4">
+			<details class="financial-drawer-section p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
 				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify({ ...item.raw, technicalReference: technicalReference(item.externalReference) }, null, 2))}</pre>
 			</details>
