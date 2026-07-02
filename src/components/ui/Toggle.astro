@@ -1,0 +1,33 @@
+---
+const {
+	label,
+	description,
+	className = "",
+	class: classProp = "",
+	inputClass = "",
+	...props
+} = Astro.props
+
+const wrapperClass =
+	`fastt-toggle-option flex items-center justify-between gap-4 ${className} ${classProp}`.trim()
+const finalInputClass = `fastt-toggle-input peer sr-only ${inputClass}`.trim()
+---
+
+<label class={wrapperClass}>
+	<span class="min-w-0">
+		{label ? <span class="block text-sm font-semibold text-slate-800">{label}</span> : <slot />}
+		{
+			description ? (
+				<span class="mt-1 block text-sm leading-5 text-slate-500">{description}</span>
+			) : null
+		}
+	</span>
+	<input type="checkbox" class={finalInputClass} {...props} />
+	<span
+		class="fastt-toggle-control relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-slate-200 transition peer-focus-visible:ring-2 peer-focus-visible:ring-slate-950 peer-focus-visible:ring-offset-2 peer-checked:bg-slate-950"
+	>
+		<span
+			class="fastt-toggle-thumb size-5 translate-x-0.5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"
+		></span>
+	</span>
+</label>

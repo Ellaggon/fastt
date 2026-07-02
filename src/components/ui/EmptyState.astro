@@ -1,0 +1,20 @@
+---
+const { title, description, icon, className = "", class: classProp = "", ...props } = Astro.props
+const hasIconSlot = Astro.slots.has("icon")
+
+const finalClass =
+	`fastt-empty-state flex flex-col items-center justify-center rounded-[var(--fastt-radius-panel)] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center ${className} ${classProp}`.trim()
+---
+
+<div class={finalClass} {...props}>
+	{
+		hasIconSlot || icon ? (
+			<div class="mb-4 flex size-12 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm">
+				{hasIconSlot ? <slot name="icon" /> : icon}
+			</div>
+		) : null
+	}
+	{title ? <h2 class="text-base font-semibold text-slate-950">{title}</h2> : null}
+	{description ? <p class="mt-2 max-w-md text-sm leading-6 text-slate-500">{description}</p> : null}
+	<slot />
+</div>

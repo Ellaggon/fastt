@@ -1,0 +1,50 @@
+---
+const {
+	variant = "secondary",
+	size = "md",
+	type = "button",
+	href,
+	label,
+	"aria-label": ariaLabel,
+	className = "",
+	"class": classProp = "",
+	...props
+} = Astro.props
+
+const baseClass =
+	"fastt-icon-button inline-flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+
+const variantClass = {
+	primary: "bg-slate-950 text-white shadow-sm hover:bg-slate-800",
+	secondary:
+		"border border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950",
+	ghost: "bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-950",
+	danger: "bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-600",
+}
+
+const sizeClass = {
+	sm: "size-8 text-xs",
+	md: "size-10 text-sm",
+	lg: "size-11 text-base",
+}
+
+const isValidVariant = typeof variant === "string" && Object.hasOwn(variantClass, variant)
+const isValidSize = typeof size === "string" && Object.hasOwn(sizeClass, size)
+const resolvedVariant = (isValidVariant ? variant : "secondary") as keyof typeof variantClass
+const resolvedSize = (isValidSize ? size : "md") as keyof typeof sizeClass
+const accessibleLabel = ariaLabel ?? label
+const finalClass =
+	`${baseClass} ${variantClass[resolvedVariant]} ${sizeClass[resolvedSize]} ${className} ${classProp}`.trim()
+---
+
+{
+	href ? (
+		<a href={href} class={finalClass} aria-label={accessibleLabel} title={label} {...props}>
+			<slot />
+		</a>
+	) : (
+		<button type={type} class={finalClass} aria-label={accessibleLabel} title={label} {...props}>
+			<slot />
+		</button>
+	)
+}

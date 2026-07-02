@@ -1,0 +1,27 @@
+---
+const {
+	side = "right",
+	open = false,
+	label,
+	className = "",
+	class: classProp = "",
+	overlayClass = "",
+	...props
+} = Astro.props
+
+const sideClass = side === "left" ? "left-0 border-r" : "right-0 border-l"
+const stateClass = open
+	? "translate-x-0"
+	: side === "left"
+		? "-translate-x-full"
+		: "translate-x-full"
+const finalClass =
+	`fastt-side-sheet fixed top-0 z-50 flex h-dvh w-full max-w-xl flex-col border-slate-200 transition-transform duration-200 ${sideClass} ${stateClass} ${className} ${classProp}`.trim()
+const finalOverlayClass =
+	`fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"} ${overlayClass}`.trim()
+---
+
+<div class={finalOverlayClass} data-drawer-overlay aria-hidden="true"></div>
+<aside class={finalClass} aria-label={label} aria-hidden={open ? "false" : "true"} {...props}>
+	<slot />
+</aside>

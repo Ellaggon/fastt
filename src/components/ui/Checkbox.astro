@@ -1,0 +1,27 @@
+---
+const {
+	label,
+	description,
+	error,
+	className = "",
+	class: classProp = "",
+	inputClass = "",
+	...props
+} = Astro.props
+
+const wrapperClass = `fastt-check-option flex items-start gap-3 ${className} ${classProp}`.trim()
+const finalInputClass = `fastt-check-input mt-0.5 size-4 shrink-0 ${inputClass}`.trim()
+---
+
+<label class={wrapperClass}>
+	<input type="checkbox" class={finalInputClass} {...props} />
+	<span class="min-w-0">
+		{label ? <span class="block text-sm font-semibold text-slate-800">{label}</span> : <slot />}
+		{
+			description ? (
+				<span class="mt-1 block text-sm leading-5 text-slate-500">{description}</span>
+			) : null
+		}
+		{error ? <span class="mt-1 block text-sm text-red-600">{error}</span> : null}
+	</span>
+</label>
