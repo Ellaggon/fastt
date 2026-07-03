@@ -2,6 +2,10 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
@@ -248,31 +252,29 @@ function approvalLabel(item: any): string {
 				) : (
 					<>
 						<Card class="bg-slate-100">
-							<div class="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-								<p class="font-semibold">Cómo usar excepciones</p>
+							<Notice variant="info" title="Cómo usar excepciones" className="mb-5">
 								<p class="mt-1">
 									Una excepción cambia el contrato resuelto para un caso legal, operativo o de
 									soporte. Debe indicar a quién afecta: huésped, proveedor o plataforma; desde
 									cuándo aplica; y qué evidencia o motivo justifica el cambio.
 								</p>
-							</div>
+							</Notice>
 							<form
 								method="get"
-								class="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 lg:grid-cols-5"
+								class="fastt-card mb-5 grid gap-3 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4 lg:grid-cols-5"
 							>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
 									<span class="font-semibold">Buscador soporte/admin</span>
-									<input
+									<Input
 										name="q"
 										value={filters.q}
-										class="w-full rounded border border-slate-300 p-2"
 										placeholder="Buscar por motivo, evidencia, alcance, creador o ID"
 										data-policy-exception-search
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Alcance</span>
-									<select name="scope" class="w-full rounded border border-slate-300 p-2">
+									<Select name="scope">
 										<option value="all" selected={filters.scope === "all"}>
 											Todos
 										</option>
@@ -281,11 +283,11 @@ function approvalLabel(item: any): string {
 												{scope.label}
 											</option>
 										))}
-									</select>
+									</Select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Tipo</span>
-									<select name="type" class="w-full rounded border border-slate-300 p-2">
+									<Select name="type">
 										<option value="all" selected={filters.type === "all"}>
 											Todos
 										</option>
@@ -294,11 +296,11 @@ function approvalLabel(item: any): string {
 												{exceptionTypeLabels[type] ?? type}
 											</option>
 										))}
-									</select>
+									</Select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Estado</span>
-									<select name="status" class="w-full rounded border border-slate-300 p-2">
+									<Select name="status">
 										<option value="all" selected={filters.status === "all"}>
 											Todos
 										</option>
@@ -308,7 +310,7 @@ function approvalLabel(item: any): string {
 										<option value="inactive" selected={filters.status === "inactive"}>
 											Inactivos
 										</option>
-									</select>
+									</Select>
 								</label>
 								<div class="flex items-end gap-3 lg:col-span-5">
 									<Button type="submit" variant="secondary">
@@ -323,19 +325,15 @@ function approvalLabel(item: any): string {
 							<form id="policy-exception-form" class="grid gap-4 lg:grid-cols-4">
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Tipo de excepción</span>
-									<select name="type" required class="w-full rounded border border-slate-300 p-2">
+									<Select name="type" required>
 										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
 											<option value={type}>{exceptionTypeLabels[type] ?? type}</option>
 										))}
-									</select>
+									</Select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
 									<span class="font-semibold">Alcance real</span>
-									<select
-										name="scopeTarget"
-										required
-										class="w-full rounded border border-slate-300 p-2"
-									>
+									<Select name="scopeTarget" required>
 										<option value="global::">Global: toda la plataforma</option>
 										<optgroup label="Ofertas y hoteles">
 											{Array.from(productOptions.entries()).map(([id, label]) => (
@@ -352,38 +350,31 @@ function approvalLabel(item: any): string {
 												<option value={`rate_plan::${id}`}>{label}</option>
 											))}
 										</optgroup>
-									</select>
+									</Select>
 									<span class="block text-xs text-slate-500">
 										Elige el objeto real afectado. Los IDs quedan solo como detalle técnico.
 									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Categoría</span>
-									<select name="category" class="w-full rounded border border-slate-300 p-2">
+									<Select name="category">
 										<option value="">Todas</option>
 										{categories.map((category) => (
 											<option value={category.value}>{category.label}</option>
 										))}
-									</select>
+									</Select>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Reembolso %</span>
-									<input
-										name="refundOverridePercent"
-										type="number"
-										min="0"
-										max="100"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="refundOverridePercent" type="number" min="0" max="100" />
 									<span class="block text-xs text-slate-500">
 										Impacto huésped: fuerza el porcentaje reembolsable.
 									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Base de pago al proveedor</span>
-									<input
+									<Input
 										name="payoutOverrideBasis"
-										class="w-full rounded border border-slate-300 p-2"
 										placeholder="platform_absorbs / provider_absorbs"
 									/>
 									<span class="block text-xs text-slate-500">
@@ -392,100 +383,55 @@ function approvalLabel(item: any): string {
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Pago proveedor %</span>
-									<input
-										name="payoutOverridePercent"
-										type="number"
-										min="0"
-										max="100"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="payoutOverridePercent" type="number" min="0" max="100" />
 									<span class="block text-xs text-slate-500">
 										Impacto proveedor: reemplaza el pago calculado.
 									</span>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Prioridad</span>
-									<input
-										name="priority"
-										type="number"
-										value="100"
-										min="1"
-										max="1000"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="priority" type="number" value="100" min="1" max="1000" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Desde</span>
-									<input
-										name="effectiveFrom"
-										type="date"
-										required
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="effectiveFrom" type="date" required />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Hasta</span>
-									<input
-										name="effectiveTo"
-										type="date"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="effectiveTo" type="date" />
 								</label>
-								<label class="flex items-center gap-2 pt-6 text-sm font-semibold text-slate-700">
-									<input name="waiveNoShowCharge" type="checkbox" />
-									Eximir cargo de no presentación
-								</label>
+								<Checkbox
+									name="waiveNoShowCharge"
+									label="Eximir cargo de no presentación"
+									className="pt-6"
+								/>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Forzar base de reembolso</span>
-									<input
+									<Input
 										name="forceRefundBasis"
-										class="w-full rounded border border-slate-300 p-2"
 										placeholder="total_booking / room_rate / first_night / deposit"
 									/>
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Cargo por cancelación del proveedor</span>
-									<input
-										name="hostCancellationFeeAmount"
-										type="number"
-										min="0"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="hostCancellationFeeAmount" type="number" min="0" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Cargo por cancelación del proveedor %</span>
-									<input
-										name="hostCancellationFeePercent"
-										type="number"
-										min="0"
-										max="100"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="hostCancellationFeePercent" type="number" min="0" max="100" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Crédito reubicación</span>
-									<input
-										name="rebookingCreditAmount"
-										type="number"
-										min="0"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="rebookingCreditAmount" type="number" min="0" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Crédito reubicación %</span>
-									<input
-										name="rebookingCreditPercent"
-										type="number"
-										min="0"
-										max="100"
-										class="w-full rounded border border-slate-300 p-2"
-									/>
+									<Input name="rebookingCreditPercent" type="number" min="0" max="100" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
 									<span class="font-semibold">Motivo operativo/legal</span>
-									<input
+									<Input
 										name="reason"
-										class="w-full rounded border border-slate-300 p-2"
 										required
 										minlength="10"
 										placeholder="Ej. evento disruptivo confirmado por soporte"
@@ -493,9 +439,8 @@ function approvalLabel(item: any): string {
 								</label>
 								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
 									<span class="font-semibold">Evidencia obligatoria</span>
-									<input
+									<Input
 										name="note"
-										class="w-full rounded border border-slate-300 p-2"
 										required
 										minlength="8"
 										placeholder="URL, ticket, resolución legal o referencia de soporte"
@@ -503,41 +448,27 @@ function approvalLabel(item: any): string {
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Ticket / caso</span>
-									<input
-										name="evidenceReference"
-										class="w-full rounded border border-slate-300 p-2"
-										required
-										placeholder="SUP-1234 / LEGAL-2026-07"
-									/>
+									<Input name="evidenceReference" required placeholder="SUP-1234 / LEGAL-2026-07" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">URL de evidencia</span>
-									<input
-										name="evidenceUrl"
-										type="url"
-										class="w-full rounded border border-slate-300 p-2"
-										placeholder="https://..."
-									/>
+									<Input name="evidenceUrl" type="url" placeholder="https://..." />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Adjunto referenciado</span>
-									<input
-										name="evidenceFileName"
-										class="w-full rounded border border-slate-300 p-2"
-										placeholder="captura-soporte.pdf"
-									/>
+									<Input name="evidenceFileName" placeholder="captura-soporte.pdf" />
 								</label>
 								<label class="space-y-1 text-sm text-slate-700">
 									<span class="font-semibold">Aprobación</span>
-									<select name="approvalStatus" class="w-full rounded border border-slate-300 p-2">
+									<Select name="approvalStatus">
 										<option value="pending">Crear pendiente</option>
 										<option value="approved">Crear aprobada</option>
-									</select>
+									</Select>
 									<span class="block text-xs text-slate-500">
 										Pendiente no afecta snapshots hasta aprobar.
 									</span>
 								</label>
-								<div class="rounded-lg border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
+								<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
 									<p class="font-semibold text-slate-900">Impacto previsto</p>
 									<div class="mt-3 grid gap-3 md:grid-cols-3">
 										<div>
@@ -601,27 +532,27 @@ function approvalLabel(item: any): string {
 													</td>
 													<td class="px-3 py-3 align-top text-xs text-slate-700">
 														<div class="grid max-w-2xl gap-2 md:grid-cols-2">
-															<div class="rounded bg-slate-200 p-2">
+															<div class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-200 p-2">
 																<p class="font-semibold text-slate-900">Huésped</p>
 																<p>{impact.guest}</p>
 															</div>
-															<div class="rounded bg-slate-200 p-2">
+															<div class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-200 p-2">
 																<p class="font-semibold text-slate-900">Proveedor</p>
 																<p>{impact.provider}</p>
 															</div>
-															<div class="rounded bg-slate-200 p-2">
+															<div class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-200 p-2">
 																<p class="font-semibold text-slate-900">Plataforma</p>
 																<p>{impact.platform}</p>
 															</div>
-															<div class="rounded bg-slate-200 p-2">
+															<div class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-200 p-2">
 																<p class="font-semibold text-slate-900">Vigencia</p>
 																<p>{effectiveWindow(item)}</p>
 															</div>
-															<div class="rounded bg-amber-50 p-2 md:col-span-2">
+															<div class="fastt-notice rounded-[var(--fastt-radius-control)] bg-amber-50 p-2 md:col-span-2">
 																<p class="font-semibold text-amber-950">Evidencia</p>
 																<p class="text-amber-900">{impact.evidence}</p>
 															</div>
-															<div class="rounded bg-white p-2 md:col-span-2">
+															<div class="fastt-row-card rounded-[var(--fastt-radius-control)] bg-white p-2 md:col-span-2">
 																<p class="font-semibold text-slate-900">Antes / después</p>
 																<p>{impact.before}</p>
 																<p class="mt-1">{impact.after}</p>

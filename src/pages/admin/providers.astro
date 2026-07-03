@@ -2,6 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Textarea from "@/components/ui/Textarea.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { db, desc, Provider, ProviderVerification } from "astro:db"
@@ -126,7 +127,7 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 						<Card class="bg-slate-100">
 							<div
 								id="admin-verification-feedback"
-								class="mb-4 hidden rounded-lg border px-3 py-2 text-sm"
+								class="fastt-notice mb-4 hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
 							/>
 
 							<div class="overflow-x-auto">
@@ -172,7 +173,7 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 															<Button
 																variant="primary"
 																data-approve-provider={row.id}
-																className="w-fit bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
+																className="w-fit"
 															>
 																Aprobar
 															</Button>
@@ -184,19 +185,15 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 																data-reject-form
 																data-provider-id={row.id}
 															>
-																<textarea
+																<Textarea
 																	name="reason"
 																	rows="2"
 																	required
 																	minlength="2"
-																	class="w-full rounded-lg border border-slate-300 p-2 text-sm text-slate-900"
+																	className="w-full"
 																	placeholder="Motivo del rechazo"
 																/>
-																<Button
-																	type="submit"
-																	variant="secondary"
-																	className="w-fit border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
-																>
+																<Button type="submit" variant="danger" className="w-fit">
 																	Rechazar
 																</Button>
 															</form>
@@ -228,22 +225,22 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 		if (!feedback) return
 		feedback.classList.remove(
 			"hidden",
-			"border-green-300",
-			"bg-green-50",
-			"text-green-800",
-			"border-red-300",
+			"border-emerald-200",
+			"bg-emerald-50",
+			"text-emerald-900",
+			"border-red-200",
 			"bg-red-50",
-			"text-red-800",
-			"border-amber-300",
+			"text-red-900",
+			"border-amber-200",
 			"bg-amber-50",
-			"text-amber-800"
+			"text-amber-950"
 		)
 		if (kind === "success") {
-			feedback.classList.add("border-green-300", "bg-green-50", "text-green-800")
+			feedback.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-900")
 		} else if (kind === "warning") {
-			feedback.classList.add("border-amber-300", "bg-amber-50", "text-amber-800")
+			feedback.classList.add("border-amber-200", "bg-amber-50", "text-amber-950")
 		} else {
-			feedback.classList.add("border-red-300", "bg-red-50", "text-red-800")
+			feedback.classList.add("border-red-200", "bg-red-50", "text-red-900")
 		}
 		feedback.textContent = message
 	}
