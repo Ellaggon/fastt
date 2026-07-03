@@ -386,7 +386,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(titles).not.toContain("Conectividad")
 		expect(hrefs).not.toContain("/rates/multi-calendar")
 		expect(hrefs.some((href) => href.startsWith("/analytics"))).toBe(false)
-		expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
+		expect(salesLabels).toEqual(["Tarifas", "Calendario de precios"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).not.toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -407,12 +407,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 
 		expect(titles).toContain("Analítica")
 		expect(titles).not.toContain("Conectividad")
-		expect(salesLabels).toEqual([
-			"Tarifas",
-			"Calendario de precios",
-			"Condiciones",
-			"Multicalendario",
-		])
+		expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -430,12 +425,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const salesLabels =
 			visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 
-		expect(salesLabels).toEqual([
-			"Tarifas",
-			"Calendario de precios",
-			"Condiciones",
-			"Multicalendario",
-		])
+		expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Multicalendario"])
 		expect(labels).not.toContain("Inventario físico")
 		expect(labels).toContain("Multicalendario")
 		expect(labels).not.toContain("Reglas de venta")
@@ -471,7 +461,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			const salesLabels =
 				visible.find((section) => section.title === "Venta")?.items.map((item) => item.label) ?? []
 
-			expect(salesLabels).toEqual(["Tarifas", "Calendario de precios", "Condiciones"])
+			expect(salesLabels).toEqual(["Tarifas", "Calendario de precios"])
 		}
 	})
 
@@ -726,8 +716,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sales?.nextMaturity).toBeUndefined()
 		expect(sales?.items[0]?.label).toEqual("Tarifas")
 		expect(sales?.items.map((item) => item.label)).toEqual(
-			expect.arrayContaining(["Calendario de precios", "Condiciones", "Multicalendario", "Tarifas"])
+			expect.arrayContaining(["Calendario de precios", "Multicalendario", "Tarifas"])
 		)
+		expect(sales?.items.map((item) => item.label)).not.toContain("Condiciones")
 		expect(sales?.items.map((item) => item.label)).not.toContain("Operaciones masivas")
 		expect(sales?.items.find((item) => item.label === "Calendario de precios")?.status).toEqual(
 			"canonical"

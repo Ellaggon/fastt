@@ -413,6 +413,11 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(catalog).toContain('{ key: "availability", label: "Disponibilidad"')
 		expect(catalog).toContain('{ key: "sellability", label: "Venta"')
 		expect(catalog).toContain('{ key: "conditions", label: "Condiciones"')
+		expect(workspace).toContain(
+			'CALENDAR_CONTROL_MODES.filter((item) => item.key !== "conditions")'
+		)
+		expect(workspace).not.toContain('"Completar contrato"')
+		expect(workspace).not.toContain('"Ver contrato"')
 		expect(catalog).not.toContain('key: "pro"')
 		expect(workspace).not.toContain('mode === "pro"')
 		expect(catalog).toContain("professionalOnly")
@@ -455,7 +460,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(drawer).toContain('role="dialog"')
 		expect(drawer).toContain('aria-modal="true"')
 		expect(drawer).toContain('event.key === "Escape"')
-		expect(globalStyles).toContain("--calendar-motion-standard")
+		expect(globalStyles).toContain("--fastt-motion-standard")
 		expect(globalStyles).toContain("calendar-sheet-enter")
 		expect(globalStyles).toContain("prefers-reduced-motion")
 	})
