@@ -1,3 +1,7 @@
+---
+import Button from "@/components/ui/Button.astro"
+---
+
 <section class="h-full w-full pt-10 md:pt-16">
 	<div
 		id="roomTypeModal"
@@ -13,7 +17,7 @@
 			<ul id="roomTypeList" class="my-10"></ul>
 
 			<div class="border-t border-slate-200 py-4 text-center text-sm text-slate-900">
-				<button type="button" class="closeModal fastt-button px-4">Cerrar</button>
+				<Button type="button" className="closeModal" variant="secondary">Cerrar</Button>
 			</div>
 		</div>
 	</div>
@@ -32,12 +36,8 @@
 			<ul id="bedTypeList" class="my-10"></ul>
 
 			<div class="mt-auto flex justify-end gap-3 border-t border-slate-200 py-4 text-sm">
-				<button type="button" class="closeModal fastt-button px-4">Cerrar</button>
-				<button
-					id="saveBedTypes"
-					class="fastt-button rounded-lg border border-slate-950 bg-slate-950 px-4 py-2 text-white"
-					>Guardar selección</button
-				>
+				<Button type="button" className="closeModal" variant="secondary">Cerrar</Button>
+				<Button id="saveBedTypes" type="button">Guardar selección</Button>
 			</div>
 		</div>
 	</div>

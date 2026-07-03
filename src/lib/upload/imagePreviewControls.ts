@@ -19,7 +19,7 @@ export function renderImagePreviewWithControls(containerId: string) {
 		const b = document.createElement("button")
 		b.type = "button"
 		b.textContent = label
-		b.className = `text-xs px-2 py-1 rounded ${extraClasses}`
+		b.className = `fastt-button inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium ${extraClasses}`
 		b.addEventListener("click", (ev) => {
 			ev.preventDefault()
 			ev.stopPropagation()
@@ -34,12 +34,13 @@ export function renderImagePreviewWithControls(containerId: string) {
 
 		files.forEach((file, idx) => {
 			const wrapper = document.createElement("div")
-			wrapper.className = "image-thumb relative m-2 p-2 rounded bg-gray-800"
+			wrapper.className =
+				"image-thumb fastt-row-card relative m-2 bg-white p-2 transition hover:shadow-md"
 			wrapper.draggable = true
 			wrapper.dataset.idx = String(idx)
 
 			const img = document.createElement("img")
-			img.className = "w-40 h-28 object-cover rounded"
+			img.className = "h-28 w-40 rounded-md object-cover"
 			const reader = new FileReader()
 			reader.onload = () => {
 				img.src = reader.result as string
@@ -47,18 +48,22 @@ export function renderImagePreviewWithControls(containerId: string) {
 			reader.readAsDataURL(file)
 
 			const btns = document.createElement("div")
-			btns.className = "mt-2 flex gap-2"
+			btns.className = "mt-2 flex flex-wrap gap-2"
 
 			btns.appendChild(
-				makeBtn("Marcar primaria", "bg-green-600", () => {
-					const arr = Array.from(files)
-					arr.unshift(...arr.splice(idx, 1))
-					updateFiles(arr)
-				})
+				makeBtn(
+					"Marcar primaria",
+					"border border-emerald-200 bg-emerald-50 text-emerald-800",
+					() => {
+						const arr = Array.from(files)
+						arr.unshift(...arr.splice(idx, 1))
+						updateFiles(arr)
+					}
+				)
 			)
 
 			btns.appendChild(
-				makeBtn("Eliminar", "bg-red-600", () => {
+				makeBtn("Eliminar", "border border-red-200 bg-red-50 text-red-700", () => {
 					updateFiles(files.filter((_, i) => i !== idx))
 				})
 			)

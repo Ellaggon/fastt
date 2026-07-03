@@ -38,15 +38,17 @@ export function dropFiles(
 		// drop, dragover & dragleave
 		$dropZone.addEventListener("dragover", (e) => {
 			e.preventDefault()
-			$dropZone.classList.remove("border-gray-700")
-			$dropZone.classList.add("border-blue-500")
+			$dropZone.classList.remove("border-slate-300", "bg-white")
+			$dropZone.classList.add("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
 		})
 		$dropZone.addEventListener("dragleave", () => {
-			$dropZone.classList.remove("border-blue-500")
-			$dropZone.classList.add("border-gray-700")
+			$dropZone.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
+			$dropZone.classList.add("border-slate-300", "bg-white")
 		})
 		$dropZone.addEventListener("drop", (e) => {
 			e.preventDefault()
+			$dropZone.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
+			$dropZone.classList.add("border-slate-300", "bg-white")
 			const dataTransfer = e.dataTransfer
 			if (!dataTransfer) return
 			const newFiles = Array.from(dataTransfer.files)

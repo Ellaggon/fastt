@@ -75,13 +75,13 @@ document.addEventListener("DOMContentLoaded", () => {
 		previewGridEl.innerHTML = ""
 		if (pendingImages.length === 0 && existingImages.length === 0) {
 			previewGridEl.innerHTML =
-				'<p class="col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">Todavía no hay imágenes cargadas.</p>'
+				'<p class="fastt-empty-state col-span-full p-6 text-sm text-slate-600">Todavía no hay imágenes cargadas.</p>'
 			return
 		}
 
 		for (const image of existingImages) {
 			const card = document.createElement("div")
-			card.className = "space-y-2 rounded-lg border border-slate-200 bg-white p-3"
+			card.className = "fastt-row-card space-y-2 bg-white p-3"
 			card.innerHTML = `
 				<img src="${image.url}" alt="Imagen existente" class="h-24 w-full rounded-md object-cover" />
 				<div class="space-y-1">
@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		for (const image of pendingImages) {
 			const card = document.createElement("div")
-			card.className = "space-y-2 rounded-lg border border-slate-200 bg-white p-3"
+			card.className = "fastt-row-card space-y-2 bg-white p-3"
 			const stateText =
 				image.state === "pending"
 					? "Pendiente"
@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			const removeBtn = document.createElement("button")
 			removeBtn.type = "button"
 			removeBtn.className =
-				"inline-flex h-8 w-full items-center justify-center rounded-md border border-slate-300 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100"
+				"fastt-button inline-flex h-8 w-full items-center justify-center rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
 			removeBtn.textContent = "Quitar"
 			removeBtn.disabled = image.state === "uploading"
 			removeBtn.addEventListener("click", () => {
@@ -162,14 +162,17 @@ document.addEventListener("DOMContentLoaded", () => {
 	dropzoneEl.addEventListener("click", () => fileInputEl.click())
 	dropzoneEl.addEventListener("dragover", (event) => {
 		event.preventDefault()
-		dropzoneEl.classList.add("border-blue-500", "bg-blue-50")
+		dropzoneEl.classList.remove("border-slate-300", "bg-white")
+		dropzoneEl.classList.add("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
 	})
 	dropzoneEl.addEventListener("dragleave", () => {
-		dropzoneEl.classList.remove("border-blue-500", "bg-blue-50")
+		dropzoneEl.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
+		dropzoneEl.classList.add("border-slate-300", "bg-white")
 	})
 	dropzoneEl.addEventListener("drop", (event) => {
 		event.preventDefault()
-		dropzoneEl.classList.remove("border-blue-500", "bg-blue-50")
+		dropzoneEl.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
+		dropzoneEl.classList.add("border-slate-300", "bg-white")
 		if (!event.dataTransfer?.files?.length) return
 		addFiles(event.dataTransfer.files)
 	})
