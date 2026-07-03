@@ -88,7 +88,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 			<nav class="flex flex-wrap gap-2 pt-2" aria-label="Filtros de alojamientos">
 				<a
 					href="/product"
-					class={`rounded-full border px-3 py-1 text-sm ${!requestedStorageType ? "border-blue-400 bg-blue-500/10 text-blue-100" : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"}`}
+					class={`fastt-button inline-flex h-8 items-center justify-center rounded-full border px-3 text-sm font-semibold transition ${!requestedStorageType ? "border-slate-100 bg-white text-slate-950" : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"}`}
 				>
 					Todo
 				</a>
@@ -96,9 +96,9 @@ const getStatusMeta = (rawState: string | undefined) => {
 					PRODUCT_VERTICAL_OPTIONS.map((vertical) => (
 						<a
 							href={`/product?type=${encodeURIComponent(vertical.storageType)}`}
-							class={`rounded-full border px-3 py-1 text-sm ${
+							class={`fastt-button inline-flex h-8 items-center justify-center rounded-full border px-3 text-sm font-semibold transition ${
 								requestedStorageType === vertical.storageType
-									? "border-blue-400 bg-blue-500/10 text-blue-100"
+									? "border-slate-100 bg-white text-slate-950"
 									: "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
 							}`}
 						>
@@ -149,7 +149,6 @@ const getStatusMeta = (rawState: string | undefined) => {
 							<Button
 								href={activeVertical ? activeVertical.providerRoutes.create : "/product/create"}
 								data-astro-prefetch
-								className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
 							>
 								{activeVertical ? activeVertical.labels.createCta : "Crear alojamiento"}
 							</Button>
@@ -180,11 +179,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 											>
 												Vista previa
 											</Button>
-											<Button
-												href={routes.productDetail(product.id)}
-												data-astro-prefetch
-												className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-											>
+											<Button href={routes.productDetail(product.id)} data-astro-prefetch>
 												Editar {productTypeLabel(product.productType, "oferta").toLowerCase()}
 											</Button>
 										</div>
@@ -210,13 +205,7 @@ const getStatusMeta = (rawState: string | undefined) => {
 					<Button href="/provider/house-rules" data-astro-prefetch variant="secondary">
 						Configurar reglas
 					</Button>
-					<Button
-						href="/product/create"
-						data-astro-prefetch
-						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-					>
-						Crear alojamiento
-					</Button>
+					<Button href="/product/create" data-astro-prefetch> Crear alojamiento </Button>
 				</div>
 			</Card>
 		</Section>

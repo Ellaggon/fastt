@@ -47,11 +47,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					<Button href={routes.productDetail(productId)} data-astro-prefetch variant="secondary">
 						Volver a la ficha
 					</Button>
-					<Button
-						href={routes.productRoomNew(productId)}
-						data-astro-prefetch
-						className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-					>
+					<Button href={routes.productRoomNew(productId)} data-astro-prefetch>
 						<Plus class="mr-2 h-4 w-4" />
 						Nueva habitación
 					</Button>
@@ -107,7 +103,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					<div class="grid gap-0 md:grid-cols-[1fr_0.8fr]">
 						<div class="space-y-5 p-6">
 							<div
-								class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-800"
+								class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-800"
 							>
 								<BedDouble class="h-6 w-6" />
 							</div>
@@ -126,11 +122,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 								<span class="rounded-lg bg-slate-50 px-3 py-2">Lista para vender</span>
 							</div>
 							<div class="flex flex-wrap gap-2">
-								<Button
-									href={routes.productRoomNew(productId)}
-									data-astro-prefetch
-									className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-								>
+								<Button href={routes.productRoomNew(productId)} data-astro-prefetch>
 									<Plus class="mr-2 h-4 w-4" />
 									Nueva habitación
 								</Button>
@@ -231,8 +223,8 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				link.href = href
 				link.setAttribute("data-astro-prefetch", "")
 				link.className = primary
-					? "inline-flex h-10 items-center justify-center rounded-lg bg-[#1E3A8A] px-4 text-sm font-medium text-white hover:bg-[#1e40af]"
-					: "inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+					? "fastt-button inline-flex h-10 items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+					: "fastt-button inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
 				link.textContent = label
 				return link
 			}
@@ -240,7 +232,7 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 			const roomCard = (room) => {
 				const card = document.createElement("article")
 				card.className =
-					"overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+					"fastt-row-card overflow-hidden bg-white transition hover:-translate-y-0.5 hover:shadow-md"
 
 				const layout = document.createElement("div")
 				layout.className = "grid min-h-[280px] gap-0 md:grid-cols-[180px_1fr]"

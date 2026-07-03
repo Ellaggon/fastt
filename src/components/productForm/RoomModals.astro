@@ -1,39 +1,41 @@
 <section class="h-full w-full pt-10 md:pt-16">
 	<div
 		id="roomTypeModal"
-		class="modal fixed inset-0 flex hidden items-center justify-center"
+		class="modal fastt-modal-backdrop fixed inset-0 z-40 flex hidden items-center justify-center"
 		style="background: rgba(0, 0, 0, 0.45)"
 	>
 		<div
-			class="modal-content items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto rounded-3xl bg-neutral-100 px-[20px] pt-10 md:h-[80%] md:w-[600px] md:pt-0"
+			class="modal-content fastt-floating-modal-card items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto px-5 pt-10 md:h-[80%] md:w-[600px] md:pt-0"
 		>
-			<h3 class="border-b border-neutral-200 py-4 text-sm text-neutral-800 md:text-base">
+			<h3 class="border-b border-slate-200 py-4 text-sm font-semibold text-slate-900 md:text-base">
 				Selecciona un tipo de habitación
 			</h3>
 			<ul id="roomTypeList" class="my-10"></ul>
 
-			<div class="border-t border-neutral-200 py-4 text-center text-sm text-black">
-				<button type="button" class="closeModal">Cerrar</button>
+			<div class="border-t border-slate-200 py-4 text-center text-sm text-slate-900">
+				<button type="button" class="closeModal fastt-button px-4">Cerrar</button>
 			</div>
 		</div>
 	</div>
 
 	<div
 		id="bedTypeModal"
-		class="modal fixed inset-0 flex hidden items-center justify-center"
+		class="modal fastt-modal-backdrop fixed inset-0 z-40 flex hidden items-center justify-center"
 		style="background: rgba(0, 0, 0, 0.45)"
 	>
 		<div
-			class="modal-content items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto rounded-3xl bg-neutral-100 px-[20px] pt-10 md:h-[80%] md:w-[600px] md:pt-0"
+			class="modal-content fastt-floating-modal-card items-between flex max-h-[85vh] w-[97%] flex-col overflow-y-auto px-5 pt-10 md:h-[80%] md:w-[600px] md:pt-0"
 		>
-			<h3 class="border-b border-neutral-200 py-4 text-sm text-neutral-800 md:text-base">
+			<h3 class="border-b border-slate-200 py-4 text-sm font-semibold text-slate-900 md:text-base">
 				Selecciona tipos de cama
 			</h3>
 			<ul id="bedTypeList" class="my-10"></ul>
 
-			<div class="mt-auto flex justify-end gap-6 border-t border-neutral-200 py-4 text-sm">
-				<button type="button" class="closeModal text-black">Cerrar</button>
-				<button id="saveBedTypes" class="rounded-xl bg-neutral-800 px-4 py-2 text-white"
+			<div class="mt-auto flex justify-end gap-3 border-t border-slate-200 py-4 text-sm">
+				<button type="button" class="closeModal fastt-button px-4">Cerrar</button>
+				<button
+					id="saveBedTypes"
+					class="fastt-button rounded-lg border border-slate-950 bg-slate-950 px-4 py-2 text-white"
 					>Guardar selección</button
 				>
 			</div>
@@ -50,9 +52,9 @@
 		margin-bottom: 6px;
 	}
 	.modal-content ul li.selected {
-		background: #2563eb;
+		background: #0f172a;
 		color: white;
-		border-color: #2563eb;
+		border-color: #0f172a;
 	}
 </style>
 
@@ -105,7 +107,7 @@
 
 			ROOM_TYPES.forEach((/** @type {RoomType} */ rt) => {
 				const li = document.createElement("li")
-				li.className = "px-3 py-2 cursor-pointer rounded text-neutral-700"
+				li.className = "cursor-pointer rounded px-3 py-2 text-slate-700"
 				li.textContent = `${rt.name}${rt.maxOccupancy ? ` (Capacidad: ${rt.maxOccupancy})` : ""}`
 
 				li.addEventListener("click", () => {
@@ -130,7 +132,7 @@
 
 				const dec = document.createElement("button")
 				dec.type = "button"
-				dec.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
+				dec.className = "fastt-button h-8 w-8 rounded-md border border-slate-200 text-sm"
 				dec.setAttribute("aria-label", `Quitar una ${id}`)
 				dec.textContent = "−"
 
@@ -140,7 +142,7 @@
 
 				const inc = document.createElement("button")
 				inc.type = "button"
-				inc.className = "w-8 h-8 rounded-md border border-neutral-200 text-sm"
+				inc.className = "fastt-button h-8 w-8 rounded-md border border-slate-200 text-sm"
 				inc.setAttribute("aria-label", `Añadir una ${id}`)
 				inc.textContent = "+"
 
@@ -184,7 +186,7 @@
 			BED_TYPES.forEach((/** @type {{id: string|number; name: string}} */ bt) => {
 				const li = document.createElement("li")
 				li.className =
-					"flex justify-between items-center px-3 py-2 cursor-pointer rounded text-neutral-700"
+					"flex cursor-pointer items-center justify-between rounded px-3 py-2 text-slate-700"
 				const label = document.createElement("div")
 				label.textContent = bt.name
 				label.className = "flex-1"
@@ -200,7 +202,7 @@
 
 					const span = counter.querySelector("span")
 					if (span) span.textContent = String(next)
-					
+
 					li.classList.toggle("selected", next > 0)
 					updateOpenBedButtonLabel()
 				})

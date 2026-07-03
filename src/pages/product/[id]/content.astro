@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -92,7 +93,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 
 						{
 							isHotel ? (
-								<div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-950">
+								<Notice variant="info">
 									<p class="text-sm font-semibold">
 										Reglas para huéspedes vive fuera de la descripción
 									</p>
@@ -106,7 +107,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 											Abrir reglas para huéspedes
 										</Button>
 									</div>
-								</div>
+								</Notice>
 							) : null
 						}
 					</div>
@@ -117,19 +118,10 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<a
-							href={`/product/${encodeURIComponent(productId)}`}
-							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
-						>
+						<Button href={`/product/${encodeURIComponent(productId)}`} variant="secondary">
 							Volver
-						</a>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
-						>
-							Guardar contenido
 						</Button>
+						<Button id="submitBtn" type="submit"> Guardar contenido </Button>
 					</div>
 				</form>
 			</Card>

@@ -84,19 +84,10 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<a
-							href={`/product/${encodeURIComponent(productId)}/content`}
-							class="inline-flex h-10 items-center justify-center rounded-lg border border-neutral-300 bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
-						>
+						<Button href={`/product/${encodeURIComponent(productId)}/content`} variant="secondary">
 							Volver
-						</a>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af] disabled:opacity-60"
-						>
-							Guardar ubicación
 						</Button>
+						<Button id="submitBtn" type="submit"> Guardar ubicación </Button>
 					</div>
 				</form>
 			</Card>
