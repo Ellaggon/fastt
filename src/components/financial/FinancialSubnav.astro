@@ -1,57 +1,35 @@
 ---
-import {
-	financialNavGroupLabels,
-	financialNavigationItems,
-	type FinancialNavGroup,
-} from "@/lib/financial/financialNavigation"
+import SegmentedControl from "@/components/ui/SegmentedControl.astro"
+import { financialNavigationItems } from "@/lib/financial/financialNavigation"
 
 interface Props {
 	pathname?: string
 }
 
 const { pathname = Astro.url.pathname } = Astro.props
-const groups: FinancialNavGroup[] = ["operation"]
 const isActive = (href: string) =>
 	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 ---
 
-<nav
-	aria-label="Navegación financiera"
-	class="mb-4 overflow-x-auto rounded-2xl border border-white/70 bg-white/88 p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl"
->
-	<div class="flex min-w-max gap-1">
-		{
-			groups.map((group) => {
-				const items = financialNavigationItems.filter((item) => item.group === group)
-				return (
-					<div class="min-w-0">
-						<p class="px-2 pb-1 text-[11px] font-bold tracking-[0.14em] text-slate-500 uppercase">
-							{financialNavGroupLabels[group]}
-						</p>
-						<div class="flex flex-wrap gap-1">
-							{items.map((item) => {
-								const active = isActive(item.href)
-								return (
-									<a
-										href={item.href}
-										data-workspace-nav
-										data-financial-nav
-										data-astro-prefetch="viewport"
-										aria-current={active ? "page" : undefined}
-										class={`inline-flex rounded-xl px-3 py-2 text-sm font-semibold transition ${
-											active
-												? "bg-slate-950 text-white shadow-[0_8px_22px_rgba(15,23,42,0.18)]"
-												: "text-slate-600 hover:bg-slate-100/80 hover:text-slate-950"
-										}`}
-									>
-										{item.label}
-									</a>
-								)
-							})}
-						</div>
-					</div>
-				)
-			})
-		}
-	</div>
-</nav>
+<SegmentedControl class="mb-4 inline-flex max-w-full flex-wrap" aria-label="Navegación financiera">
+	{
+		financialNavigationItems.map((item) => {
+			const active = isActive(item.href)
+			return (
+				<a
+					href={item.href}
+					data-workspace-nav
+					data-financial-nav
+					data-astro-prefetch="viewport"
+					data-active={active ? "true" : "false"}
+					aria-current={active ? "page" : undefined}
+					class={`fastt-segmented-item inline-flex h-9 items-center overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap ${
+						active ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+					}`}
+				>
+					{item.label}
+				</a>
+			)
+		})
+	}
+</SegmentedControl>

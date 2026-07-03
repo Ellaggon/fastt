@@ -40,9 +40,10 @@ function applyFinancialView(view: FinancialViewId): void {
 		const linkView = viewForPath(new URL(link.href).pathname)
 		const active = linkView === view
 		link.toggleAttribute("aria-current", active)
-		link.className = active
-			? "inline-flex rounded-xl px-3 py-2 text-sm font-semibold transition bg-slate-950 text-white shadow-sm"
-			: "inline-flex rounded-xl px-3 py-2 text-sm font-semibold transition text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+		link.dataset.active = active ? "true" : "false"
+		link.className = `fastt-segmented-item inline-flex h-9 items-center overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap ${
+			active ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+		}`
 	})
 	document.title = viewTitles[view]
 }
