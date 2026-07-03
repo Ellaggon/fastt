@@ -6,6 +6,7 @@ import {
 	providerDisplayName,
 	stateDotClass,
 } from "./financial-human-display"
+import { financialUi } from "./financial-ui-classes"
 
 type RowRenderDeps = {
 	escapeHtml: (value: unknown) => string
@@ -78,7 +79,7 @@ export function renderFinancialRowHtml(params: {
 	const inboxState = renderInboxState(row)
 	const bookingLabel = bookingDisplayName(item.bookingId, { operation, ...item })
 	const bookingContext = item.bookingId
-		? `<a class="font-semibold text-slate-950 hover:text-blue-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(bookingLabel)}</a>`
+		? `<a class="font-semibold text-slate-950 hover:text-slate-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(bookingLabel)}</a>`
 		: `<div class="font-semibold text-slate-950">Sin reserva asociada</div>`
 	const subtitle = bookingSubtitle({ operation, ...item })
 	const providerLabel = providerDisplayName(item.providerId, { operation, ...item })
@@ -127,7 +128,7 @@ export function renderFinancialRowHtml(params: {
 						<span class="text-slate-300">·</span>
 						<span>${deps.escapeHtml(row.ageLabel)}</span>
 					</div>
-					<button type="button" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition group-hover:border-slate-500">Abrir caso</button>
+					<button type="button" class="${financialUi.rowOpenButton}">Abrir caso</button>
 				</div>
 			</div>
 		</article>`

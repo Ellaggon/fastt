@@ -12,6 +12,7 @@ import {
 	providerDisplayName,
 	technicalReference,
 } from "./financial-human-display"
+import { financialMetricCard, financialUi } from "./financial-ui-classes"
 
 type DrawerRenderDeps = {
 	escapeHtml: (value: unknown) => string
@@ -299,23 +300,23 @@ function renderReconciliation(input: DrawerRenderInput, deps: DrawerRenderDeps):
 		? `<details id="financialReconciliationReview" class="mt-3 rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/[0.04]">
 			<summary class="cursor-pointer text-xs font-semibold text-slate-700">Confirmar revisión de importes</summary>
 			<label class="mt-3 block text-xs font-semibold text-slate-600" for="reconciliationReviewNote">Nota de revisión</label>
-			<textarea id="reconciliationReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Nota opcional sobre la diferencia encontrada">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
+			<textarea id="reconciliationReviewNote" class="${financialUi.reviewTextarea}" placeholder="Nota opcional sobre la diferencia encontrada">${deps.escapeHtml(input.viewModel.reconciliationMatch?.reviewNote || "")}</textarea>
 			<p class="mt-2 text-xs text-slate-500">Esta acción solo confirma la revisión de los importes; no mueve dinero.</p>
-			<button type="button" data-reconciliation-action="review" class="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-500">Confirmar revisión</button>
+			<button type="button" data-reconciliation-action="review" class="mt-3 ${financialUi.buttonSecondarySm}">Confirmar revisión</button>
 		</details>`
-		: `<div class="mt-3 rounded-2xl bg-amber-50/70 p-4 text-xs leading-5 text-amber-900 ring-1 ring-amber-900/[0.06]">
+		: `<div class="${financialUi.warningNotice}">
 			<span class="font-semibold">Disponible cuando registres el comprobante externo.</span>
 		</div>`
 	return section(
 		"Comparación de importes",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(comparisonExplanation)}</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.04]"><div class="text-xs text-slate-500">Reserva confirmada</div><div class="mt-1 text-sm font-medium text-slate-900">${deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.contractAmount))}</div></div>
-			<div class="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.04]"><div class="text-xs text-slate-500">Cobro registrado</div><div class="mt-1 text-sm font-medium text-slate-900">${reconciliation.paymentAmount == null ? "No visible" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount))}</div></div>
-			<div class="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.04]"><div class="text-xs text-slate-500">Comprobante externo</div><div class="mt-1 text-sm font-medium text-slate-900">${reconciliation.settlementAmount == null ? "No visible" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount))}</div></div>
-			<div class="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.04]"><div class="text-xs text-slate-500">Diferencia</div><div class="mt-1 text-sm font-medium text-slate-900">${deps.escapeHtml(differenceLabel)}</div></div>
+			${financialMetricCard("Reserva confirmada", deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.contractAmount)))}
+			${financialMetricCard("Cobro registrado", reconciliation.paymentAmount == null ? "No visible" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.paymentAmount)))}
+			${financialMetricCard("Comprobante externo", reconciliation.settlementAmount == null ? "No visible" : deps.escapeHtml(deps.money(reconciliation.currency, reconciliation.settlementAmount)))}
+			${financialMetricCard("Diferencia", deps.escapeHtml(differenceLabel))}
 		</div>
-		<div class="mt-3 rounded-2xl bg-slate-50/70 p-4 text-xs leading-5 text-slate-500 ring-1 ring-slate-900/[0.04]">${deps.escapeHtml(comparisonNote)}</div>
+		<div class="${financialUi.inlineNotice}">${deps.escapeHtml(comparisonNote)}</div>
 		${reviewActionHtml}`
 	)
 }
@@ -338,18 +339,18 @@ function renderRefund(input: DrawerRenderInput, deps: DrawerRenderDeps): string 
 			${deps.handoffStatusChip(handoff.status)}
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Responsable</div><div class="mt-1">${deps.ownerChip(handoff.nextOwner)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Antigüedad</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.refundHandoffAge(handoff))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Importe esperado</div><div class="mt-1 text-sm text-slate-900">${handoff.expectedAmount == null ? "-" : deps.escapeHtml(deps.money(handoff.currency, handoff.expectedAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Comprobante</div><div class="mt-1 text-sm text-slate-900">${input.refundEvidence.length ? "Comprobante disponible" : "Comprobante faltante"}</div></div>
+			${financialMetricCard("Responsable", deps.ownerChip(handoff.nextOwner))}
+			${financialMetricCard("Antigüedad", deps.escapeHtml(deps.refundHandoffAge(handoff)))}
+			${financialMetricCard("Importe esperado", handoff.expectedAmount == null ? "-" : deps.escapeHtml(deps.money(handoff.currency, handoff.expectedAmount)))}
+			${financialMetricCard("Comprobante", input.refundEvidence.length ? "Comprobante disponible" : "Comprobante faltante")}
 		</div>
 		<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundHandoffNote">Nota de seguimiento</label>
-		<textarea id="refundHandoffNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(handoff.notes || "")}</textarea>
+		<textarea id="refundHandoffNote" class="${financialUi.reviewTextarea}" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(handoff.notes || "")}</textarea>
 		<p class="mt-2 text-xs text-slate-500">Cerrar este caso finaliza la revisión operativa, no ejecuta el reembolso.</p>
 		<div class="mt-3 flex flex-wrap gap-2">
-			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Iniciar seguimiento</button>
-			<button type="button" data-refund-handoff-action="close" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Cerrar revisión</button>
-			<button type="button" data-refund-handoff-action="dismiss" ${input.canReviewHandoff ? "" : "disabled"} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Descartar caso</button>
+			<button type="button" data-refund-handoff-action="acknowledge" ${input.canReviewHandoff ? "" : "disabled"} class="${financialUi.buttonSecondarySm}">Iniciar seguimiento</button>
+			<button type="button" data-refund-handoff-action="close" ${input.canReviewHandoff ? "" : "disabled"} class="${financialUi.buttonSuccessSm}">Cerrar revisión</button>
+			<button type="button" data-refund-handoff-action="dismiss" ${input.canReviewHandoff ? "" : "disabled"} class="${financialUi.buttonSecondarySm}">Descartar caso</button>
 		</div>`
 	)
 }
@@ -374,19 +375,19 @@ function renderProviderFinance(input: DrawerRenderInput, deps: DrawerRenderDeps)
 		"Pago pendiente al proveedor",
 		`<p class="text-sm leading-6 text-slate-700">${deps.escapeHtml(copy.blocker)}</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Importe bruto</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.grossAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Comisión</div><div class="mt-1 text-sm text-slate-900">${finance.commissionAmount == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Impuestos</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(deps.money(finance.currency, finance.taxAmount))}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Pendiente al proveedor</div><div class="mt-1 text-sm font-semibold text-slate-900">${finance.netPayable == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable))}</div></div>
+			${financialMetricCard("Importe bruto", deps.escapeHtml(deps.money(finance.currency, finance.grossAmount)))}
+			${financialMetricCard("Comisión", finance.commissionAmount == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount)))}
+			${financialMetricCard("Impuestos", deps.escapeHtml(deps.money(finance.currency, finance.taxAmount)))}
+			${financialMetricCard("Pendiente al proveedor", finance.netPayable == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable)))}
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Responsable</div><div class="mt-1">${deps.ownerChip(finance.operationalOwner || "provider_finance")}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Comparación de importes</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.reconciliationDependency)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Resumen del proveedor</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.statementFreshness)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Próxima acción</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(copy.nextAction)}</div></div>
+			${financialMetricCard("Responsable", deps.ownerChip(finance.operationalOwner || "provider_finance"))}
+			${financialMetricCard("Comparación de importes", deps.escapeHtml(copy.reconciliationDependency))}
+			${financialMetricCard("Resumen del proveedor", deps.escapeHtml(copy.statementFreshness))}
+			${financialMetricCard("Próxima acción", deps.escapeHtml(copy.nextAction))}
 		</div>
 		<ul class="mt-3 space-y-2">${detailHtml}</ul>
-		${copy.freshnessNote ? `<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><span class="font-semibold text-slate-800">Por qué debe revisarse otra vez:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
+		${copy.freshnessNote ? `<div class="${financialUi.inlineNotice}"><span class="font-semibold text-slate-800">Por qué debe revisarse otra vez:</span> ${deps.escapeHtml(copy.freshnessNote)}</div>` : ""}
 		<p class="mt-3 text-xs text-slate-500">Esta pantalla solo informa y permite revisar. No envía pagos ni mueve dinero.</p>`
 	)
 }
@@ -404,16 +405,16 @@ function renderStatement(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 		"Resumen del proveedor",
 		`<p class="text-sm text-slate-700">Este resumen agrupa información operativa para revisión. No confirma ni ejecuta pagos.</p>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Estado</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.state)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Vigencia de la información</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.freshness)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reservas incluidas</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.includedBookings)}</div></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs text-slate-500">Reservas excluidas</div><div class="mt-1 text-sm text-slate-900">${deps.escapeHtml(statement.excludedBookings)}</div></div>
+			${financialMetricCard("Estado", deps.escapeHtml(statement.state))}
+			${financialMetricCard("Vigencia de la información", deps.escapeHtml(statement.freshness))}
+			${financialMetricCard("Reservas incluidas", deps.escapeHtml(statement.includedBookings))}
+			${financialMetricCard("Reservas excluidas", deps.escapeHtml(statement.excludedBookings))}
 		</div>
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Qué debe estar listo</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
-			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3"><div class="text-xs font-semibold text-slate-700">Por qué requiere otra revisión</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
+			<div class="${financialUi.metricCard}"><div class="text-xs font-semibold text-slate-700">Qué debe estar listo</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${dependencyHtml}</ul></div>
+			<div class="${financialUi.metricCard}"><div class="text-xs font-semibold text-slate-700">Por qué requiere otra revisión</div><ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">${staleHtml}</ul></div>
 		</div>
-		<div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span class="font-semibold">Próxima acción:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
+		<div class="${financialUi.inlineNotice}"><span class="font-semibold">Próxima acción:</span> ${deps.escapeHtml(statement.nextAction)}</div>`
 	)
 }
 
@@ -447,7 +448,7 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 					<div class="text-base font-semibold tracking-[-0.01em] text-slate-950">Registrar ${deps.escapeHtml(referenceLabel.toLowerCase())}</div>
 					<p class="mt-1 max-w-md text-sm leading-6 text-slate-600">Completa el comprobante que falta para seguir revisando este caso.</p>
 				</div>
-				<button type="button" data-open-panel="financialReferenceModal" aria-label="Registrar comprobante" class="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</button>
+				<button type="button" data-open-panel="financialReferenceModal" aria-label="Registrar comprobante" class="shrink-0 ${financialUi.buttonPrimarySm}">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</button>
 			</div>
 			<p class="rounded-2xl bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500 ring-1 ring-slate-900/[0.04]">La referencia queda disponible para revisión. Esta acción no cierra el caso y no mueve dinero.</p>
 		</div>`
@@ -458,13 +459,13 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 						<div class="text-sm font-semibold text-slate-950">Confirmar revisión de importes</div>
 						<p class="mt-1 max-w-md text-xs leading-5 text-slate-500">Los comprobantes necesarios ya están disponibles. Deja una nota si hubo diferencia o contexto operativo.</p>
 					</div>
-					<button type="button" data-open-panel="financialReconciliationReview" class="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Confirmar revisión</button>
+					<button type="button" data-open-panel="financialReconciliationReview" class="shrink-0 ${financialUi.buttonPrimarySm}">Confirmar revisión</button>
 				</div>
 			</div>`
 			: `<div class="fastt-drawer-soft-card p-4">
 				<div class="text-sm font-semibold text-slate-950">Revisar opciones del caso</div>
 				<p class="mt-2 text-xs leading-5 text-slate-500">No hay una acción primaria única. Revisa las opciones secundarias solo si corresponde cerrar, descartar o iniciar revisión.</p>
-				<button type="button" data-open-panel="financialSecondaryActions" class="mt-3 rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Ver opciones</button>
+				<button type="button" data-open-panel="financialSecondaryActions" class="mt-3 ${financialUi.buttonPrimarySm}">Ver opciones</button>
 			</div>`
 	const referenceModalHtml = missing
 		? `<div id="financialReferenceModal" data-financial-floating-panel class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
@@ -474,7 +475,7 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 						<div class="text-lg font-semibold text-slate-950">${deps.escapeHtml(`Registrar ${referenceLabel.toLowerCase()}`)}</div>
 						<p class="mt-1 text-sm text-slate-500">Comprobante para revisión operativa</p>
 					</div>
-					<button type="button" data-close-panel="financialReferenceModal" class="fastt-button p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
+						<button type="button" data-close-panel="financialReferenceModal" class="fastt-icon-button p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
 						<svg aria-hidden="true" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M18 6 6 18"></path>
 							<path d="m6 6 12 12"></path>
@@ -503,8 +504,8 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 				<footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
 					<p class="text-xs leading-5 text-slate-500">Solo registra evidencia para revisión. No ejecuta cobros ni pagos.</p>
 					<div class="flex shrink-0 gap-2">
-						<button type="button" data-close-panel="financialReferenceModal" class="fastt-button h-10 border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Cancelar</button>
-						<button type="button" data-reference-action="record" class="fastt-button h-10 bg-slate-950 px-4 text-sm font-semibold text-white">Guardar comprobante</button>
+						<button type="button" data-close-panel="financialReferenceModal" class="${financialUi.buttonSecondarySm}">Cancelar</button>
+						<button type="button" data-reference-action="record" class="${financialUi.buttonPrimarySm}">Guardar comprobante</button>
 					</div>
 				</footer>
 			</div>
@@ -517,12 +518,12 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 			<summary class="cursor-pointer text-sm font-medium text-slate-500 transition hover:text-slate-800">Opciones de cierre y revisión</summary>
 			<div class="fastt-drawer-secondary-card mt-4 p-4">
 				<label class="block text-sm font-semibold text-slate-900" for="financialResolutionNote">Nota de cierre</label>
-				<textarea id="financialResolutionNote" class="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-500" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(item.resolutionNote || "")}</textarea>
+				<textarea id="financialResolutionNote" class="${financialUi.reviewTextareaTall}" placeholder="Obligatoria para cerrar o descartar">${deps.escapeHtml(item.resolutionNote || "")}</textarea>
 				<p class="mt-2 text-xs leading-5 text-slate-500">Usa estas opciones solo cuando ya revisaste el caso o necesitas dejarlo marcado para seguimiento.</p>
 				<div class="mt-3 flex flex-wrap gap-2">
-					<button type="button" data-review-action="acknowledge" ${input.canReview ? "" : "disabled"} class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-900/[0.06] disabled:cursor-not-allowed disabled:opacity-40">Iniciar revisión</button>
-					<button type="button" data-review-action="resolve" ${input.canReview ? "" : "disabled"} class="rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-900/[0.08] disabled:cursor-not-allowed disabled:opacity-40">Cerrar caso</button>
-					<button type="button" data-review-action="dismiss" ${input.canReview ? "" : "disabled"} class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] disabled:cursor-not-allowed disabled:opacity-40">Descartar</button>
+					<button type="button" data-review-action="acknowledge" ${input.canReview ? "" : "disabled"} class="${financialUi.buttonSecondarySm}">Iniciar revisión</button>
+					<button type="button" data-review-action="resolve" ${input.canReview ? "" : "disabled"} class="${financialUi.buttonSuccessSm}">Cerrar caso</button>
+					<button type="button" data-review-action="dismiss" ${input.canReview ? "" : "disabled"} class="${financialUi.buttonSecondarySm}">Descartar</button>
 				</div>
 				${item.persistedId ? "" : '<p class="mt-3 text-xs text-slate-500">Este caso es solo informativo. Las acciones estarán disponibles cuando exista una revisión registrada.</p>'}
 			</div>

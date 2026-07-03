@@ -12,6 +12,7 @@ import {
 	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
+import { financialSegmentClass, financialUi } from "../../_client/financial-ui-classes"
 
 type ExceptionSegment =
 	| "needs_review"
@@ -225,9 +226,7 @@ function renderSegments(): void {
 		const segment = button.dataset.exceptionsSegment as ExceptionSegment
 		const active = segment === state.segment
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
-		button.className = active
-			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+		button.className = financialSegmentClass(active)
 	})
 }
 
@@ -247,7 +246,7 @@ function renderRows(): void {
 			review_overdue: "No hay revisiones desactualizadas.",
 			closed: "No hay excepciones cerradas en esta vista.",
 		}
-		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
+		rows.innerHTML = `<div class="${financialUi.emptyState}">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
@@ -322,7 +321,7 @@ function openDrawer(item: ExceptionItem): void {
 			</div>
 			<details class="fastt-drawer-section p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
-				<pre class="mt-3 max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
+				<pre class="${financialUi.technicalPre} max-h-72">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
 			</details>
 		</section>`
 	drawer.classList.remove("translate-x-full")

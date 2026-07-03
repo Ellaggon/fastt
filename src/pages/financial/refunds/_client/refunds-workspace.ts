@@ -12,6 +12,7 @@ import {
 	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
+import { financialSegmentClass, financialUi } from "../../_client/financial-ui-classes"
 
 type RefundSegment =
 	| "needs_review"
@@ -244,9 +245,7 @@ function renderSegments(): void {
 		const segment = button.dataset.refundsSegment as RefundSegment
 		const active = segment === state.segment
 		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
-		button.className = active
-			? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-			: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+		button.className = financialSegmentClass(active)
 	})
 }
 
@@ -266,7 +265,7 @@ function renderRows(): void {
 			proof_received: "No hay reembolsos con comprobante recibido para revisar.",
 			ready_to_close: "No hay reembolsos listos para cerrar.",
 		}
-		rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">${escapeHtml(emptyMessages[state.segment])}</div>`
+		rows.innerHTML = `<div class="${financialUi.emptyState}">${escapeHtml(emptyMessages[state.segment])}</div>`
 		return
 	}
 	rows.innerHTML = visible
@@ -350,17 +349,17 @@ function openDrawer(item: RefundItem): void {
 				<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Acciones</p>
 				<p class="mt-2 text-sm text-slate-600">Estas acciones solo actualizan la revisión operativa; no ejecutan reembolsos.</p>
 				<label class="mt-3 block text-sm font-semibold text-slate-900" for="refundsReviewNote">Nota de seguimiento</label>
-				<textarea id="refundsReviewNote" class="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800" placeholder="Obligatoria para cerrar o descartar">${escapeHtml(item.notes)}</textarea>
+				<textarea id="refundsReviewNote" class="${financialUi.reviewTextarea}" placeholder="Obligatoria para cerrar o descartar">${escapeHtml(item.notes)}</textarea>
 				<div class="mt-3 flex flex-wrap gap-2">
-					<button type="button" data-refund-action="acknowledge" ${disabled} class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Iniciar seguimiento</button>
-					<button type="button" data-refund-action="close" ${disabled} class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40">Marcar revisión como cerrada</button>
-					<button type="button" data-refund-action="dismiss" ${disabled} class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Descartar caso</button>
+					<button type="button" data-refund-action="acknowledge" ${disabled} class="${financialUi.buttonSecondarySm}">Iniciar seguimiento</button>
+					<button type="button" data-refund-action="close" ${disabled} class="${financialUi.buttonSuccessSm}">Marcar revisión como cerrada</button>
+					<button type="button" data-refund-action="dismiss" ${disabled} class="${financialUi.buttonSecondarySm}">Descartar caso</button>
 				</div>
 				<p id="refundsActionMessage" class="mt-3 text-sm text-slate-500"></p>
 			</div>
 			<details class="fastt-drawer-section p-4">
 				<summary class="cursor-pointer text-sm font-semibold text-slate-700">Detalle técnico</summary>
-				<pre class="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
+				<pre class="${financialUi.technicalPre}">${escapeHtml(JSON.stringify(item.raw, null, 2))}</pre>
 			</details>
 		</section>`
 	backdrop.classList.remove("hidden")

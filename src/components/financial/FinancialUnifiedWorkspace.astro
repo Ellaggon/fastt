@@ -1,6 +1,8 @@
 ---
 import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
+import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
 import { workTypeOptions } from "@/pages/financial/_client/financial-queues"
@@ -39,11 +41,11 @@ const viewClass = (view: FinancialViewId) =>
 				<div class="space-y-4">
 					<label class="block">
 						<span class="sr-only">Buscar reserva o referencia</span>
-						<input
+						<Input
 							id="financialSearchFilter"
 							type="search"
 							placeholder="Buscar reserva, referencia o proveedor..."
-							class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
+							class="w-full"
 						/>
 					</label>
 					<div id="financialSummary" class="flex flex-wrap gap-2">
@@ -91,11 +93,11 @@ const viewClass = (view: FinancialViewId) =>
 								<label class="space-y-1 text-sm font-medium text-slate-700">
 									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Alojamiento</span
 									>
-									<input
+									<Input
 										id="financialLodgingFilter"
 										type="search"
 										placeholder="Nombre o asignación"
-										class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
+										class="w-full"
 									/>
 								</label>
 								<label class="space-y-1 text-sm font-medium text-slate-700">
@@ -115,17 +117,14 @@ const viewClass = (view: FinancialViewId) =>
 									<div id="financialWorkTypeFilters" class="flex flex-wrap gap-2">
 										{
 											workTypeOptions.map((option) => (
-												<button
+												<Button
 													type="button"
 													data-work-type={option.value}
-													class={
-														option.value === "all"
-															? "rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-															: "rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-													}
+													variant={option.value === "all" ? "primary" : "secondary"}
+													size="sm"
 												>
 													{option.label}
-												</button>
+												</Button>
 											))
 										}
 									</div>
@@ -157,29 +156,17 @@ const viewClass = (view: FinancialViewId) =>
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de cobros"
 					>
-						<button
-							type="button"
-							data-collections-segment="requires_proof"
-							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-							>Requieren comprobante</button
+						<Button type="button" data-collections-segment="requires_proof" size="sm"
+							>Requieren comprobante</Button
 						>
-						<button
-							type="button"
-							data-collections-segment="unmatched"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Sin reserva asociada</button
+						<Button type="button" data-collections-segment="unmatched" variant="secondary" size="sm"
+							>Sin reserva asociada</Button
 						>
-						<button
-							type="button"
-							data-collections-segment="duplicate"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Referencias duplicadas</button
+						<Button type="button" data-collections-segment="duplicate" variant="secondary" size="sm"
+							>Referencias duplicadas</Button
 						>
-						<button
-							type="button"
-							data-collections-segment="in_review"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>En revisión</button
+						<Button type="button" data-collections-segment="in_review" variant="secondary" size="sm"
+							>En revisión</Button
 						>
 					</div>
 				</div>
@@ -206,31 +193,28 @@ const viewClass = (view: FinancialViewId) =>
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de liquidaciones"
 					>
-						<button
-							type="button"
-							data-settlements-segment="amount_mismatch"
-							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-							>Montos diferentes</button
-						><button
+						<Button type="button" data-settlements-segment="amount_mismatch" size="sm"
+							>Montos diferentes</Button
+						><Button
 							type="button"
 							data-settlements-segment="missing_payment"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Falta cobro</button
-						><button
+							variant="secondary"
+							size="sm">Falta cobro</Button
+						><Button
 							type="button"
 							data-settlements-segment="missing_settlement"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Falta liquidación</button
-						><button
+							variant="secondary"
+							size="sm">Falta liquidación</Button
+						><Button
 							type="button"
 							data-settlements-segment="duplicate_reference"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Referencia duplicada</button
-						><button
+							variant="secondary"
+							size="sm">Referencia duplicada</Button
+						><Button
 							type="button"
 							data-settlements-segment="no_difference"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Sin diferencia</button
+							variant="secondary"
+							size="sm">Sin diferencia</Button
 						>
 					</div>
 				</div>
@@ -256,31 +240,28 @@ const viewClass = (view: FinancialViewId) =>
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de pagos pendientes a proveedores"
 					>
-						<button
-							type="button"
-							data-provider-payables-segment="blocked"
-							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-							>Bloqueados</button
-						><button
+						<Button type="button" data-provider-payables-segment="blocked" size="sm"
+							>Bloqueados</Button
+						><Button
 							type="button"
 							data-provider-payables-segment="commission_missing"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Falta comisión acordada</button
-						><button
+							variant="secondary"
+							size="sm">Falta comisión acordada</Button
+						><Button
 							type="button"
 							data-provider-payables-segment="review_amounts"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Revisar importes</button
-						><button
+							variant="secondary"
+							size="sm">Revisar importes</Button
+						><Button
 							type="button"
 							data-provider-payables-segment="statement_review"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Resumen del proveedor pendiente</button
-						><button
+							variant="secondary"
+							size="sm">Resumen del proveedor pendiente</Button
+						><Button
 							type="button"
 							data-provider-payables-segment="ready"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Sin acción urgente</button
+							variant="secondary"
+							size="sm">Sin acción urgente</Button
 						>
 					</div>
 				</div>
@@ -306,31 +287,28 @@ const viewClass = (view: FinancialViewId) =>
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de reembolsos"
 					>
-						<button
-							type="button"
-							data-refunds-segment="needs_review"
-							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-							>Requieren revisión</button
-						><button
+						<Button type="button" data-refunds-segment="needs_review" size="sm"
+							>Requieren revisión</Button
+						><Button
 							type="button"
 							data-refunds-segment="waiting_response"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Esperando respuesta</button
-						><button
+							variant="secondary"
+							size="sm">Esperando respuesta</Button
+						><Button
 							type="button"
 							data-refunds-segment="missing_proof"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Comprobante faltante</button
-						><button
+							variant="secondary"
+							size="sm">Comprobante faltante</Button
+						><Button
 							type="button"
 							data-refunds-segment="proof_received"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Comprobante recibido</button
-						><button
+							variant="secondary"
+							size="sm">Comprobante recibido</Button
+						><Button
 							type="button"
 							data-refunds-segment="ready_to_close"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Listos para cerrar</button
+							variant="secondary"
+							size="sm">Listos para cerrar</Button
 						>
 					</div>
 				</div>
@@ -356,31 +334,25 @@ const viewClass = (view: FinancialViewId) =>
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de excepciones financieras"
 					>
-						<button
-							type="button"
-							data-exceptions-segment="needs_review"
-							class="rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
-							>Requieren revisión</button
-						><button
+						<Button type="button" data-exceptions-segment="needs_review" size="sm"
+							>Requieren revisión</Button
+						><Button
 							type="button"
 							data-exceptions-segment="missing_data"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Datos faltantes</button
-						><button
+							variant="secondary"
+							size="sm">Datos faltantes</Button
+						><Button
 							type="button"
 							data-exceptions-segment="reference_issue"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Referencia inconsistente</button
-						><button
+							variant="secondary"
+							size="sm">Referencia inconsistente</Button
+						><Button
 							type="button"
 							data-exceptions-segment="review_overdue"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Revisión vencida</button
-						><button
-							type="button"
-							data-exceptions-segment="closed"
-							class="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
-							>Cerradas</button
+							variant="secondary"
+							size="sm">Revisión vencida</Button
+						><Button type="button" data-exceptions-segment="closed" variant="secondary" size="sm"
+							>Cerradas</Button
 						>
 					</div>
 				</div>
@@ -410,11 +382,8 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Resumen operativo, comprobantes y siguiente paso.
 			</p>
-		</div><button
-			id="financialReviewDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="financialReviewDrawerClose" type="button" variant="secondary" size="sm"
+			>Cerrar</Button
 		>
 	</div><div id="financialReviewDrawerBody" class="px-6 py-5"></div>
 </aside>
@@ -437,11 +406,8 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Qué ocurrió, cuánto dinero está involucrado, qué comprobante existe y qué sigue.
 			</p>
-		</div><button
-			id="collectionsDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="collectionsDrawerClose" type="button" variant="secondary" size="sm"
+			>Cerrar</Button
 		>
 	</div><div id="collectionsDrawerBody" class="px-6 py-5"></div>
 </aside>
@@ -464,11 +430,8 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Reserva confirmada, cobro registrado, liquidación externa y siguiente acción.
 			</p>
-		</div><button
-			id="settlementsDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="settlementsDrawerClose" type="button" variant="secondary" size="sm"
+			>Cerrar</Button
 		>
 	</div><div id="settlementsDrawerBody" class="px-6 py-5"></div>
 </aside>
@@ -491,11 +454,8 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Bloqueo, importes, comisión, impuestos, reservas relacionadas y próxima acción.
 			</p>
-		</div><button
-			id="providerPayablesDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="providerPayablesDrawerClose" type="button" variant="secondary" size="sm"
+			>Cerrar</Button
 		>
 	</div><div id="providerPayablesDrawerBody" class="px-6 py-5"></div>
 </aside>
@@ -518,11 +478,7 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Qué ocurrió, reserva, política, importe, comprobante, historial y acciones.
 			</p>
-		</div><button
-			id="refundsDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="refundsDrawerClose" type="button" variant="secondary" size="sm">Cerrar</Button
 		>
 	</div><div id="refundsDrawerBody" class="px-6 py-5"></div>
 </aside>
@@ -545,11 +501,8 @@ const viewClass = (view: FinancialViewId) =>
 			</p><p class="mt-1 max-w-md text-sm leading-6 text-slate-500">
 				Resumen, impacto, comprobantes visibles y próxima acción.
 			</p>
-		</div><button
-			id="financialExceptionsDrawerClose"
-			type="button"
-			class="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-950"
-			>Cerrar</button
+		</div><Button id="financialExceptionsDrawerClose" type="button" variant="secondary" size="sm"
+			>Cerrar</Button
 		>
 	</div><div id="financialExceptionsDrawerBody" class="px-6 py-5"></div>
 </aside>
