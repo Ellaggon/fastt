@@ -19,6 +19,16 @@ Do not build ad-hoc raw buttons, form controls, cards, dialogs, or segmented con
 pages for new work. Tailwind utility classes are fine for one-off layout, spacing, and
 page composition; repeated UI objects must go through `src/components/ui/*`.
 
+Guardrail:
+
+- `pnpm run check:ui` scans all `src` UI surfaces.
+- `pnpm run check:ui:staged` runs in pre-commit for staged files.
+- New raw `<button class=...>`, `<input class=...>`, `<select class=...>`,
+  `<textarea class=...>`, raw dialogs/modals, raw card panels, and legacy external color
+  tokens are blocked outside `ui/*` and `ui-react/*`.
+- Existing legacy exceptions are listed explicitly in `scripts/check-ui-raw-objects.mjs`.
+  Do not add to that list for new work; migrate the surface to a UI primitive instead.
+
 Pattern:
 
 ```tsx

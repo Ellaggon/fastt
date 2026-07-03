@@ -34,6 +34,9 @@ jobs:
       - name: Astro check
         run: pnpm run check
 
+      - name: UI guardrail
+        run: pnpm run check:ui
+
       - name: Guardrails suite
         run: pnpm test tests/guardrails
 
