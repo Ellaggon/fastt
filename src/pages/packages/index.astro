@@ -76,7 +76,7 @@ function textList(value: unknown): string[] {
 		<Breadcrumbs items={breadcrumbsItems} />
 
 		<header class="space-y-3">
-			<p class="text-sm font-semibold uppercase tracking-wide text-blue-200">Paquetes</p>
+			<p class="text-sm font-semibold uppercase tracking-wide text-slate-300">Paquetes</p>
 			<h1 class="text-4xl font-bold text-gray-100">Paquetes turísticos</h1>
 			<p class="max-w-3xl text-base leading-7 text-gray-200">
 				Explora experiencias combinadas con recorrido, días, noches e inclusiones visibles antes de
@@ -96,7 +96,7 @@ function textList(value: unknown): string[] {
 						return (
 							<a
 								href={`/packages/${item.id}`}
-								class="group overflow-hidden rounded-xl border border-white/10 bg-white text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl"
+								class="fastt-row-card group overflow-hidden rounded-[var(--fastt-radius-card)] border border-white/10 bg-white text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl"
 							>
 								<img
 									src={item.imageUrl || "https://placehold.co/800x500?text=Paquete"}
@@ -105,10 +105,10 @@ function textList(value: unknown): string[] {
 								/>
 								<div class="space-y-4 p-5">
 									<div class="space-y-1">
-										<p class="text-xs font-semibold tracking-wide text-blue-700 uppercase">
+										<p class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
 											{item.destinationName || item.address || "Destino por confirmar"}
 										</p>
-										<h2 class="text-xl font-semibold text-slate-950 group-hover:text-blue-700">
+										<h2 class="text-xl font-semibold text-slate-950 group-hover:text-slate-700">
 											{item.name}
 										</h2>
 										<p class="text-sm text-slate-500">{duration}</p>
@@ -130,7 +130,7 @@ function textList(value: unknown): string[] {
 						)
 					})
 				) : (
-					<div class="rounded-xl border border-dashed border-white/20 bg-white/10 p-8 text-gray-100 md:col-span-2 xl:col-span-3">
+					<div class="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-white/20 bg-white/10 p-8 text-gray-100 md:col-span-2 xl:col-span-3">
 						<h2 class="text-xl font-semibold">Aún no hay paquetes publicados.</h2>
 						<p class="mt-2 text-sm text-gray-200">
 							Los paquetes aparecerán aquí cuando estén listos para viajeros.

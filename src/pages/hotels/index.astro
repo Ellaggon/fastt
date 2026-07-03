@@ -14,7 +14,11 @@ const breadcrumbsItems = [
 ---
 
 <SearchLayout title="Hoteles en Bolivia" producType="hotels">
-	<main role="main" id="content" class="mx-auto max-w-7xl rounded-lg leading-relaxed shadow-lg">
+	<main
+		role="main"
+		id="content"
+		class="mx-auto max-w-7xl rounded-[var(--fastt-radius-card)] leading-relaxed shadow-lg"
+	>
 		<Breadcrumbs items={breadcrumbsItems} />
 
 		<h1 class="mb-5 mt-8 text-4xl font-bold text-gray-100">Hoteles en Bolivia</h1>
@@ -25,43 +29,43 @@ const breadcrumbsItems = [
 		<div class="flex flex-col gap-8 md:flex-row">
 			<ul
 				id="zonas-bolivia"
-				class="sidebar flex-shrink-0 rounded-lg bg-gray-50 p-6 shadow-md md:w-64"
+				class="sidebar flex-shrink-0 rounded-[var(--fastt-radius-card)] bg-gray-50 p-6 shadow-md md:w-64"
 			>
 				<li class="mb-4 flex items-center text-lg font-semibold text-gray-900">
-					<i class="fi fi-up-dir mr-2 text-blue-600"></i> Zonas populares
+					<i class="fi fi-up-dir mr-2 text-slate-700"></i> Zonas populares
 				</li>
 				<li>
 					<a
 						href="/es/hoteles-la-paz.htm"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>La Paz</a
 					>
 				</li>
 				<li>
 					<a
 						href="/es/hoteles-uyuni.htm"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Uyuni</a
 					>
 				</li>
 				<li>
 					<a
 						href="/es/hoteles-santa-cruz.htm"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Santa Cruz</a
 					>
 				</li>
 				<li>
 					<a
 						href="/es/hoteles-copacabana.htm"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Copacabana</a
 					>
 				</li>
 				<li>
 					<a
 						href="/es/hoteles-copacabana.htm"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Cochabamba</a
 					>
 				</li>
@@ -96,17 +100,17 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Hoteles</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/hoteles/5-estrellas.htm" class="text-blue-600 hover:underline"
+							<a href="/es/hoteles/5-estrellas.htm" class="text-slate-700 hover:underline"
 								>5 Estrellas</a
 							>
 						</li>
 						<li>
-							<a href="/es/hoteles/4-estrellas.htm" class="text-blue-600 hover:underline"
+							<a href="/es/hoteles/4-estrellas.htm" class="text-slate-700 hover:underline"
 								>4 Estrellas</a
 							>
 						</li>
 						<li>
-							<a href="/es/hoteles/3-estrellas.htm" class="text-blue-600 hover:underline"
+							<a href="/es/hoteles/3-estrellas.htm" class="text-slate-700 hover:underline"
 								>3 Estrellas</a
 							>
 						</li>
@@ -117,12 +121,12 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Hostales</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/hostales/centro.htm" class="text-blue-600 hover:underline"
+							<a href="/es/hostales/centro.htm" class="text-slate-700 hover:underline"
 								>En el Centro</a
 							>
 						</li>
 						<li>
-							<a href="/es/hostales/economicos.htm" class="text-blue-600 hover:underline"
+							<a href="/es/hostales/economicos.htm" class="text-slate-700 hover:underline"
 								>Económicos</a
 							>
 						</li>
@@ -133,11 +137,12 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Ecolodges</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/ecolodges/amazonas.htm" class="text-blue-600 hover:underline">Amazonas</a
+							<a href="/es/ecolodges/amazonas.htm" class="text-slate-700 hover:underline"
+								>Amazonas</a
 							>
 						</li>
 						<li>
-							<a href="/es/ecolodges/altiplano.htm" class="text-blue-600 hover:underline"
+							<a href="/es/ecolodges/altiplano.htm" class="text-slate-700 hover:underline"
 								>Altiplano</a
 							>
 						</li>
@@ -148,10 +153,10 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Resorts</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/es/resorts/lujo.htm" class="text-blue-600 hover:underline">De Lujo</a>
+							<a href="/es/resorts/lujo.htm" class="text-slate-700 hover:underline">De Lujo</a>
 						</li>
 						<li>
-							<a href="/es/resorts/familiares.htm" class="text-blue-600 hover:underline"
+							<a href="/es/resorts/familiares.htm" class="text-slate-700 hover:underline"
 								>Familiares</a
 							>
 						</li>

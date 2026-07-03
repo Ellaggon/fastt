@@ -66,7 +66,6 @@ try {
 		.where(and(sql`lower(${Product.productType}) = 'hotel'`, eq(Destination.department, deptId)))
 		.groupBy(Product.id)
 		.all()
-	console.log("product: ", hotels)
 } catch (e) {
 	console.error(e)
 }
@@ -163,7 +162,7 @@ const breadcrumbItems = [
 
 <SearchLayout title={`Hoteles en ${deptId}`} producType="hotels">
 	<div class="flex grid grid-cols-4 justify-center">
-		<aside class="col-span-1 m-7 hidden rounded-lg border md:flex"></aside>
+		<aside class="col-span-1 m-7 hidden rounded-[var(--fastt-radius-card)] border md:flex"></aside>
 		<main
 			role="main"
 			id="content"

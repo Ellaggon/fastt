@@ -144,18 +144,10 @@ const offersWithImages = offers.map((offer: any) => ({
 for (const offer of offersWithImages) {
 	const variantId = String(offer?.variantId ?? "")
 	const imageCount = Array.isArray(offer?.variantImages) ? offer.variantImages.length : 0
-	console.debug("variant_images_loaded", { variantId, imageCount })
 	if (imageCount === 0) {
 		console.warn("variant_has_no_images", { productId, variantId })
 	}
 }
-console.debug("variant_images_payload", {
-	productId,
-	offers: offersWithImages.map((offer: any) => ({
-		variantId: String(offer?.variantId ?? ""),
-		variantImagesCount: Array.isArray(offer?.variantImages) ? offer.variantImages.length : 0,
-	})),
-})
 
 const searchState = {
 	checkIn: toISODateOnly(checkIn),
@@ -333,7 +325,7 @@ try {
 					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
 					<a
 						href="/"
-						class="rounded-lg border border-neutral-500 px-6 py-3 transition hover:bg-neutral-800 hover:text-white"
+						class="rounded-[var(--fastt-radius-card)] border border-neutral-500 px-6 py-3 transition hover:bg-neutral-800 hover:text-white"
 					>
 						Volver al inicio
 					</a>
@@ -341,7 +333,7 @@ try {
 			) : hotelProduct ? (
 				<>
 					<section class="space-y-3">
-						<div class="relative overflow-hidden rounded-2xl shadow-lg">
+						<div class="relative overflow-hidden rounded-[var(--fastt-radius-panel)] shadow-lg">
 							<img
 								id="gallery-main-img"
 								data-open-modal="images"
@@ -357,7 +349,7 @@ try {
 									<img
 										src={img.url}
 										alt={`Imagen ${i + 1}`}
-										class="thumb-img h-24 w-full cursor-pointer rounded-lg object-cover hover:opacity-80"
+										class="thumb-img h-24 w-full cursor-pointer rounded-[var(--fastt-radius-card)] object-cover hover:opacity-80"
 										data-open-modal="images"
 										data-index={i}
 									/>
@@ -385,7 +377,7 @@ try {
 							</div>
 						</article>
 
-						<article class="space-y-3 rounded-2xl bg-neutral-100 p-3 py-7 shadow-sm md:p-8">
+						<article class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] bg-neutral-100 p-3 py-7 shadow-sm md:p-8">
 							<div class="flex gap-1 text-black">
 								{Array.from({ length: hotelSubtype?.stars ?? 0 }).map((_, i) => (
 									<svg
@@ -410,7 +402,7 @@ try {
 								{hotelProduct?.description}
 							</p>
 							<div class="text-end">
-								<span class="cursor-pointer text-sm text-blue-600" data-open-modal="services">
+								<span class="cursor-pointer text-sm text-slate-700" data-open-modal="services">
 									... Más Información
 								</span>
 							</div>
@@ -418,7 +410,10 @@ try {
 
 						<article>
 							{services.length > 0 && (
-								<div class="space-y-3 rounded-2xl bg-neutral-100 p-3 shadow-sm md:p-8" id="map">
+								<div
+									class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] bg-neutral-100 p-3 shadow-sm md:p-8"
+									id="map"
+								>
 									<ul class="grid grid-cols-2 gap-3 md:grid-cols-3 md:py-3 lg:grid-cols-4">
 										{services.slice(0, 4).map((service: any) => {
 											const Icon = service.icon
@@ -432,7 +427,10 @@ try {
 									</ul>
 									<div class="text-end">
 										{services.length > 4 && (
-											<span class="cursor-pointer text-sm text-blue-600" data-open-modal="services">
+											<span
+												class="cursor-pointer text-sm text-slate-700"
+												data-open-modal="services"
+											>
 												+{services.length - 4} Servicios Más
 											</span>
 										)}
@@ -444,7 +442,7 @@ try {
 						<article class="grid grid-cols-2">
 							<button
 								data-open-modal="map"
-								class="group relative h-40 w-full overflow-hidden rounded-xl bg-neutral-200 shadow"
+								class="group relative h-40 w-full overflow-hidden rounded-[var(--fastt-radius-card)] bg-neutral-200 shadow"
 							>
 								<iframe
 									class="pointer-events-none h-full w-full grayscale transition group-hover:grayscale-0"
@@ -476,7 +474,7 @@ try {
 
 					<section>
 						<article
-							class="space-y-9 rounded-2xl bg-neutral-100 p-3 py-6 shadow-sm md:p-8"
+							class="fastt-card space-y-9 rounded-[var(--fastt-radius-panel)] bg-neutral-100 p-3 py-6 shadow-sm md:p-8"
 							id="policies"
 						>
 							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
@@ -516,7 +514,7 @@ try {
 					</section>
 
 					<section>
-						<article class="space-y-6 rounded-2xl bg-neutral-100 p-3 py-6 shadow-sm md:p-8">
+						<article class="fastt-card space-y-6 rounded-[var(--fastt-radius-panel)] bg-neutral-100 p-3 py-6 shadow-sm md:p-8">
 							<h3 class="text-lg text-xl font-semibold text-neutral-900 md:text-4xl md:font-bold">
 								Reglas para huéspedes
 							</h3>
@@ -531,7 +529,7 @@ try {
 										const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
 										if (!items.length) return null
 										return (
-											<div class="rounded-xl border border-neutral-200 bg-white p-4">
+											<div class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-neutral-200 bg-white p-4">
 												<p class="text-base font-semibold text-neutral-900">{group.label}</p>
 												<p class="mt-1 text-sm text-neutral-500">{group.description}</p>
 												<ul class="mt-4 space-y-3 text-sm leading-6 text-neutral-700 md:text-base">
@@ -556,7 +554,7 @@ try {
 									})}
 								</div>
 							) : (
-								<p class="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">
+								<p class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-neutral-200 bg-white p-4 text-sm text-neutral-600">
 									El alojamiento aún no agregó reglas visibles para huéspedes.
 								</p>
 							)}

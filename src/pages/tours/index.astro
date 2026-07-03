@@ -14,7 +14,7 @@ const breadcrumbsItems = [
 	<main
 		role="main"
 		id="content"
-		class="mx-auto my-8 max-w-7xl rounded-lg p-8 leading-relaxed shadow-lg"
+		class="mx-auto my-8 max-w-7xl rounded-[var(--fastt-radius-card)] p-8 leading-relaxed shadow-lg"
 	>
 		<Breadcrumbs items={breadcrumbsItems} />
 
@@ -27,43 +27,43 @@ const breadcrumbsItems = [
 		<div class="flex flex-col gap-8 md:flex-row">
 			<ul
 				id="zonas-bolivia"
-				class="sidebar flex-shrink-0 rounded-lg bg-gray-50 p-6 shadow-md md:w-64"
+				class="sidebar flex-shrink-0 rounded-[var(--fastt-radius-card)] bg-gray-50 p-6 shadow-md md:w-64"
 			>
 				<li class="mb-4 flex items-center text-lg font-semibold text-gray-900">
-					<i class="fi fi-up-dir mr-2 text-blue-600"></i> Zonas populares
+					<i class="fi fi-up-dir mr-2 text-slate-700"></i> Zonas populares
 				</li>
 				<li>
 					<a
 						href="/tours/search?destinationQuery=la-paz"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>La Paz</a
 					>
 				</li>
 				<li>
 					<a
 						href="/tours/search?destinationQuery=uyuni"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Uyuni</a
 					>
 				</li>
 				<li>
 					<a
 						href="/tours/search?destinationQuery=santa-cruz"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Santa Cruz</a
 					>
 				</li>
 				<li>
 					<a
 						href="/tours/search?destinationQuery=copacabana"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Copacabana</a
 					>
 				</li>
 				<li>
 					<a
 						href="/tours/search?destinationQuery=cochabamba"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600"
+						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
 						>Cochabamba</a
 					>
 				</li>
@@ -98,20 +98,20 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Naturaleza</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/tours/search?destinationQuery=uyuni" class="text-blue-600 hover:underline"
+							<a href="/tours/search?destinationQuery=uyuni" class="text-slate-700 hover:underline"
 								>Salares y desiertos</a
 							>
 						</li>
 						<li>
 							<a
 								href="/tours/search?destinationQuery=amazonas"
-								class="text-blue-600 hover:underline">Selva y biodiversidad</a
+								class="text-slate-700 hover:underline">Selva y biodiversidad</a
 							>
 						</li>
 						<li>
 							<a
 								href="/tours/search?destinationQuery=altiplano"
-								class="text-blue-600 hover:underline">Altiplano</a
+								class="text-slate-700 hover:underline">Altiplano</a
 							>
 						</li>
 					</ul>
@@ -121,12 +121,12 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Cultura</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/tours/search?destinationQuery=la-paz" class="text-blue-600 hover:underline"
+							<a href="/tours/search?destinationQuery=la-paz" class="text-slate-700 hover:underline"
 								>City tours</a
 							>
 						</li>
 						<li>
-							<a href="/tours/search?destinationQuery=sucre" class="text-blue-600 hover:underline"
+							<a href="/tours/search?destinationQuery=sucre" class="text-slate-700 hover:underline"
 								>Patrimonio histórico</a
 							>
 						</li>
@@ -139,11 +139,11 @@ const breadcrumbsItems = [
 						<li>
 							<a
 								href="/tours/search?destinationQuery=cochabamba"
-								class="text-blue-600 hover:underline">Trekking</a
+								class="text-slate-700 hover:underline">Trekking</a
 							>
 						</li>
 						<li>
-							<a href="/tours/search?destinationQuery=la-paz" class="text-blue-600 hover:underline"
+							<a href="/tours/search?destinationQuery=la-paz" class="text-slate-700 hover:underline"
 								>Bicicleta y montaña</a
 							>
 						</li>
@@ -154,10 +154,10 @@ const breadcrumbsItems = [
 					<h3 class="mb-4 text-xl font-semibold text-gray-100">Duración</h3>
 					<ul class="m-0 list-none space-y-2 p-0">
 						<li>
-							<a href="/tours/search" class="text-blue-600 hover:underline">Medio día</a>
+							<a href="/tours/search" class="text-slate-700 hover:underline">Medio día</a>
 						</li>
 						<li>
-							<a href="/tours/search" class="text-blue-600 hover:underline">Día completo</a>
+							<a href="/tours/search" class="text-slate-700 hover:underline">Día completo</a>
 						</li>
 					</ul>
 				</section>
