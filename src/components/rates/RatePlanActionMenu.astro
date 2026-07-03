@@ -26,11 +26,13 @@ const { ratePlanId, name, description = "", isActive, isDefault } = Astro.props
 	<summary
 		class="calendar-control inline-flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
 		aria-label={`Acciones para ${name}`}
+		data-rate-plan-action-trigger
 	>
 		<Ellipsis class="size-4" />
 	</summary>
 	<div
-		class="absolute right-0 z-30 mt-1 w-44 overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-left shadow-lg md:static md:ml-auto md:mt-2 xl:absolute xl:ml-0 xl:mt-1"
+		class="fixed z-[60] hidden w-44 overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-left shadow-lg"
+		data-rate-plan-action-panel
 	>
 		<a
 			href={`${routes.calendar()}?ratePlanId=${encodeURIComponent(ratePlanId)}&focus=price`}
@@ -77,3 +79,61 @@ const { ratePlanId, name, description = "", isActive, isDefault } = Astro.props
 		</a>
 	</div>
 </details>
+
+<script>
+	const actionMenuSelector = "[data-rate-plan-action-menu]"
+
+	function positionRatePlanActionMenu(menu: HTMLDetailsElement) {
+		const trigger = menu.querySelector<HTMLElement>("[data-rate-plan-action-trigger]")
+		const panel = menu.querySelector<HTMLElement>("[data-rate-plan-action-panel]")
+		if (!menu.open || !trigger || !panel) return
+
+		panel.classList.remove("hidden")
+
+		const gap = 6
+		const viewportPadding = 12
+		const triggerRect = trigger.getBoundingClientRect()
+		const panelRect = panel.getBoundingClientRect()
+		const left = Math.min(
+			window.innerWidth - panelRect.width - viewportPadding,
+			Math.max(viewportPadding, triggerRect.right - panelRect.width)
+		)
+		const fitsBelow =
+			triggerRect.bottom + gap + panelRect.height <= window.innerHeight - viewportPadding
+		const top = fitsBelow
+			? triggerRect.bottom + gap
+			: Math.max(viewportPadding, triggerRect.top - panelRect.height - gap)
+
+		panel.style.left = `${left}px`
+		panel.style.top = `${top}px`
+	}
+
+	document.addEventListener(
+		"toggle",
+		(event) => {
+			const menu = event.target
+			if (!(menu instanceof HTMLDetailsElement) || !menu.matches(actionMenuSelector)) return
+
+			const panel = menu.querySelector<HTMLElement>("[data-rate-plan-action-panel]")
+			if (!menu.open) {
+				panel?.classList.add("hidden")
+				return
+			}
+
+			document.querySelectorAll<HTMLDetailsElement>(actionMenuSelector).forEach((otherMenu) => {
+				if (otherMenu !== menu) otherMenu.removeAttribute("open")
+			})
+			requestAnimationFrame(() => positionRatePlanActionMenu(menu))
+		},
+		true
+	)
+
+	function repositionOpenRatePlanActionMenus() {
+		document
+			.querySelectorAll<HTMLDetailsElement>(`${actionMenuSelector}[open]`)
+			.forEach(positionRatePlanActionMenu)
+	}
+
+	window.addEventListener("resize", repositionOpenRatePlanActionMenus)
+	document.addEventListener("scroll", repositionOpenRatePlanActionMenus, true)
+</script>
