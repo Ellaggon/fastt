@@ -130,7 +130,7 @@ function toneClass(tone: string) {
 		neutral: "border-slate-200 bg-white text-slate-950",
 		warning: "border-slate-200 border-l-2 border-l-amber-400 bg-white text-slate-950",
 		danger: "border-red-300 bg-red-50 text-red-950",
-		info: "border-blue-300 bg-blue-50 text-blue-950",
+		info: "border-sky-300 bg-sky-50 text-sky-950",
 	}
 	return tones[tone] || tones.neutral
 }
@@ -624,10 +624,10 @@ export default function SingleCalendarWorkspace({
 							>
 								<div className="flex items-start justify-end gap-1.5">
 									{isToday && (
-										<span className="mt-1.5 size-1.5 rounded-full bg-blue-600" aria-label="Hoy" />
+										<span className="mt-1.5 size-1.5 rounded-full bg-slate-950" aria-label="Hoy" />
 									)}
 									<span
-										className={`text-sm font-semibold md:text-base ${isToday ? "text-blue-700" : ""}`}
+										className={`text-sm font-semibold md:text-base ${isToday ? "text-sky-700" : ""}`}
 									>
 										{day.day}
 									</span>
