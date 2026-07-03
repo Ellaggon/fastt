@@ -22,11 +22,12 @@ import {
 	User,
 	Variant,
 	eq,
+	sql,
 } from "astro:db"
 
-const QA_EMAIL = "ellaggon@gmail.com"
-const QA_PROVIDER_ID = "qa-financial-provider-ellaggon"
-let providerId = "qa-financial-provider-ellaggon"
+const QA_EMAIL = process.env.LOCAL_QA_AUTH_EMAIL?.trim().toLowerCase() || "ellaggon@gmail.com"
+const QA_PROVIDER_ID = process.env.LOCAL_QA_PROVIDER_ID?.trim() || "qa-financial-provider-ellaggon"
+let providerId = QA_PROVIDER_ID
 const PRODUCT_ID = "qa-financial-hotel-sol"
 const VARIANT_ID = "qa-financial-suite-norte"
 const RATE_PLAN_ID = "qa-financial-plan-flexible"
@@ -133,6 +134,8 @@ async function ensureUser(email: string): Promise<string> {
 }
 
 async function resolveProviderIdForUser(userId: string): Promise<string> {
+	if (process.env.LOCAL_QA_PROVIDER_ID?.trim()) return providerId
+
 	const existingLink = await db
 		.select({ providerId: ProviderUser.providerId })
 		.from(ProviderUser)
@@ -140,6 +143,29 @@ async function resolveProviderIdForUser(userId: string): Promise<string> {
 		.get()
 	const existingProviderId = String(existingLink?.providerId ?? "").trim()
 	return existingProviderId || providerId
+}
+
+async function keepOnlyLocalQaProviderLink(userId: string): Promise<void> {
+	if (process.env.NODE_ENV === "production") return
+	if (process.env.LOCAL_QA_AUTH_ENABLED !== "true") return
+	if (!providerId || !userId) return
+
+	try {
+		await db.run(sql`
+			DELETE FROM ProviderUser
+			WHERE userId = ${userId}
+				AND providerId <> ${providerId}
+		`)
+		await db.run(sql`
+			DELETE FROM Provider
+			WHERE id = 'qa-financial-provider-ellaggon'
+				AND id <> ${providerId}
+				AND id NOT IN (SELECT providerId FROM Booking WHERE providerId IS NOT NULL)
+				AND id NOT IN (SELECT providerId FROM Product WHERE providerId IS NOT NULL)
+		`)
+	} catch {
+		// Best-effort cleanup for local QA only. Never block the demo seed.
+	}
 }
 
 async function seedCatalog(userId: string): Promise<void> {
@@ -859,8 +885,21 @@ async function seedRefundsAndTimeline(): Promise<void> {
 }
 
 export default async function seedFinancialOperationalDemo(): Promise<void> {
+	const shouldSeedDemo =
+		process.env.NODE_ENV !== "production" &&
+		(process.env.LOCAL_QA_AUTH_ENABLED === "true" ||
+			process.env.FASTT_SEED_FINANCIAL_DEMO === "true")
+
+	if (!shouldSeedDemo) {
+		console.log(
+			"ℹ️ Seed financiero operacional omitido. Activa LOCAL_QA_AUTH_ENABLED=true o FASTT_SEED_FINANCIAL_DEMO=true para usar datos demo."
+		)
+		return
+	}
+
 	const userId = await ensureUser(QA_EMAIL)
 	providerId = await resolveProviderIdForUser(userId)
+	await keepOnlyLocalQaProviderLink(userId)
 	await seedCatalog(userId)
 	await seedBookings()
 	await seedFinancialEvidence()

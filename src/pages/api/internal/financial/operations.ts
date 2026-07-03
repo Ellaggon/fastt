@@ -15,6 +15,7 @@ import {
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 import { buildFinancialOperationReview } from "@/modules/financial/public"
 type FinancialExceptionCode =
 	| "refund_handoff_required"
@@ -27,6 +28,8 @@ type FinancialExceptionCode =
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
+		await ensureLocalFinancialDemoSeed()
+
 		const user = await getUserFromRequest(request)
 		if (!user?.email) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {

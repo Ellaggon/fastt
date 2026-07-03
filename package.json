@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "astro dev",
+    "seed:financial:demo": "astro db execute src/scripts/seed-financial-operational-demo.ts",
     "start": "astro dev --remote",
     "build": "astro build --remote",
     "preview": "astro preview",

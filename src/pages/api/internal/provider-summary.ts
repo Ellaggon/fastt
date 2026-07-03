@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 export const GET: APIRoute = async ({ request }) => {
@@ -13,6 +14,8 @@ export const GET: APIRoute = async ({ request }) => {
 			console.warn("slow endpoint", { name: endpointName, durationMs })
 		}
 	}
+
+	await ensureLocalFinancialDemoSeed()
 
 	const user = await getUserFromRequest(request)
 	if (!user?.id) {

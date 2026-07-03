@@ -2,6 +2,7 @@ import { and, Booking, db, eq } from "astro:db"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 
 type FinancialProviderAuth =
 	| {
@@ -12,6 +13,8 @@ type FinancialProviderAuth =
 	| { ok: false; response: Response }
 
 export async function requireFinancialProvider(request: Request): Promise<FinancialProviderAuth> {
+	await ensureLocalFinancialDemoSeed()
+
 	const user = await getUserFromRequest(request)
 	if (!user?.email) return { ok: false, response: json({ error: "Unauthorized" }, 401) }
 	const providerId = await getProviderIdFromRequest(request, user)
