@@ -32,19 +32,57 @@ export async function getProviderIdFromRequest(
 			const cachedProviderId = await persistentCache.get(sessionCacheKey)
 			const cachedProviderIdString = typeof cachedProviderId === "string" ? cachedProviderId : null
 			if (cachedProviderIdString) {
+				const linkedProvider = await providerRepository.getProviderByUserId(user.id)
+				if (linkedProvider?.id === cachedProviderIdString) {
+					console.debug("cache", {
+						key: sessionCacheKey,
+						hit: true,
+						durationMs: 0,
+					})
+					console.info(
+						JSON.stringify({
+							type: "provider_resolution",
+							path: "provider_user_cache",
+							userId: user.id,
+						})
+					)
+					return cachedProviderIdString
+				}
+
+				void persistentCache.del(sessionCacheKey).catch(() => {})
+				if (linkedProvider?.id) {
+					void persistentCache
+						.set(sessionCacheKey, linkedProvider.id, cacheTtls.authProviderBySession)
+						.catch(() => {})
+					console.debug("cache", {
+						key: sessionCacheKey,
+						hit: false,
+						durationMs: 0,
+						reason: "provider_link_changed",
+					})
+					console.info(
+						JSON.stringify({
+							type: "provider_resolution",
+							path: "provider_user_cache_replaced",
+							userId: user.id,
+						})
+					)
+					return linkedProvider.id
+				}
+
 				console.debug("cache", {
 					key: sessionCacheKey,
-					hit: true,
+					hit: false,
 					durationMs: 0,
+					reason: "stale_provider_id",
 				})
 				console.info(
 					JSON.stringify({
 						type: "provider_resolution",
-						path: "provider_user_cache",
+						path: "provider_user_cache_stale",
 						userId: user.id,
 					})
 				)
-				return cachedProviderIdString
 			}
 			console.debug("cache", {
 				key: sessionCacheKey,
