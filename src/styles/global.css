@@ -43,15 +43,6 @@
 	--fastt-shadow-row-hover: 0 1px 0 rgb(15 23 42 / 3%), 0 16px 36px rgb(15 23 42 / 8%);
 	--fastt-shadow-sheet: 0 28px 90px rgb(15 23 42 / 24%);
 	--fastt-shadow-dialog: 0 28px 80px rgb(0 0 0 / 28%), 0 0 0 1px rgb(0 0 0 / 4%);
-	--calendar-motion-fast: var(--fastt-motion-fast);
-	--calendar-motion-standard: var(--fastt-motion-standard);
-	--calendar-motion-sheet: var(--fastt-motion-sheet);
-	--calendar-ease-standard: var(--fastt-ease-standard);
-	--calendar-ease-settle: var(--fastt-ease-settle);
-	--calendar-radius: var(--fastt-radius-control);
-	--calendar-selection: var(--fastt-color-selection);
-	--calendar-selection-soft: var(--fastt-color-selection-soft);
-	--calendar-selection-shadow: var(--fastt-color-selection-shadow);
 }
 
 html,
@@ -60,13 +51,14 @@ body {
 }
 
 .calendar-control {
-	border-radius: var(--calendar-radius);
+	min-height: var(--fastt-control-md);
+	border-radius: var(--fastt-radius-pill);
 	transition:
-		background-color var(--calendar-motion-fast) ease,
-		border-color var(--calendar-motion-fast) ease,
-		color var(--calendar-motion-fast) ease,
-		box-shadow var(--calendar-motion-fast) ease,
-		transform var(--calendar-motion-fast) var(--calendar-ease-standard);
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) var(--fastt-ease-standard);
 }
 
 .fastt-control {
@@ -268,6 +260,25 @@ body {
 	box-shadow: var(--fastt-shadow-panel);
 }
 
+.fastt-calendar-toolbar {
+	border: 1px solid var(--fastt-color-border);
+	border-radius: var(--fastt-radius-card);
+	background: rgb(248 250 252 / 92%);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+	backdrop-filter: blur(16px);
+}
+
+.fastt-calendar-grid {
+	border: 1px solid var(--fastt-color-border);
+	border-radius: var(--fastt-radius-card);
+	background: var(--fastt-color-surface);
+	overflow: hidden;
+}
+
+.fastt-calendar-cell {
+	border-radius: var(--fastt-radius-control);
+}
+
 .fastt-side-sheet {
 	border-left: 1px solid var(--fastt-color-border);
 	background:
@@ -324,11 +335,11 @@ body {
 
 .calendar-cell {
 	transition:
-		background-color var(--calendar-motion-fast) ease,
-		border-color var(--calendar-motion-fast) ease,
-		box-shadow var(--calendar-motion-fast) var(--calendar-ease-standard),
-		transform var(--calendar-motion-fast) var(--calendar-ease-standard),
-		filter var(--calendar-motion-fast) ease;
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) var(--fastt-ease-standard),
+		transform var(--fastt-motion-fast) var(--fastt-ease-standard),
+		filter var(--fastt-motion-fast) ease;
 }
 
 .calendar-cell:not(:disabled):hover {
@@ -341,25 +352,28 @@ body {
 .calendar-cell[data-selected="true"] {
 	position: relative;
 	z-index: 3;
-	border-color: var(--calendar-selection);
-	background-image: linear-gradient(var(--calendar-selection-soft), var(--calendar-selection-soft));
-	box-shadow: inset 0 0 0 1px var(--calendar-selection);
+	border-color: var(--fastt-color-selection);
+	background-image: linear-gradient(
+		var(--fastt-color-selection-soft),
+		var(--fastt-color-selection-soft)
+	);
+	box-shadow: inset 0 0 0 1px var(--fastt-color-selection);
 }
 
 .calendar-cell[data-selection-edge="start"],
 .calendar-cell[data-selection-edge="end"],
 .calendar-cell[data-selection-edge="single"] {
 	box-shadow:
-		inset 0 0 0 2px var(--calendar-selection),
-		0 6px 18px var(--calendar-selection-shadow);
+		inset 0 0 0 2px var(--fastt-color-selection),
+		0 6px 18px var(--fastt-color-selection-shadow);
 }
 
 .calendar-cell-content {
-	animation: calendar-content-enter var(--calendar-motion-fast) var(--calendar-ease-standard) both;
+	animation: calendar-content-enter var(--fastt-motion-fast) var(--fastt-ease-standard) both;
 }
 
 .calendar-grid-enter {
-	animation: calendar-grid-enter var(--calendar-motion-standard) var(--calendar-ease-standard) both;
+	animation: calendar-grid-enter var(--fastt-motion-standard) var(--fastt-ease-standard) both;
 }
 
 .calendar-grid-enter[data-direction="previous"] {
@@ -370,7 +384,7 @@ body {
 }
 
 .calendar-updated {
-	animation: calendar-updated 700ms var(--calendar-ease-settle) both;
+	animation: calendar-updated 700ms var(--fastt-ease-settle) both;
 }
 
 .calendar-loading-bar {
@@ -392,26 +406,25 @@ body {
 }
 
 .calendar-backdrop {
-	animation: calendar-backdrop-enter var(--calendar-motion-standard) ease both;
+	animation: calendar-backdrop-enter var(--fastt-motion-standard) ease both;
 	backdrop-filter: blur(2px);
 }
 .calendar-backdrop[data-closing="true"] {
-	animation: calendar-backdrop-exit var(--calendar-motion-standard) ease both;
+	animation: calendar-backdrop-exit var(--fastt-motion-standard) ease both;
 }
 
 .calendar-drawer {
-	animation: calendar-drawer-enter var(--calendar-motion-standard) var(--calendar-ease-standard)
-		both;
+	animation: calendar-drawer-enter var(--fastt-motion-standard) var(--fastt-ease-standard) both;
 }
 .calendar-drawer[data-closing="true"] {
-	animation: calendar-drawer-exit var(--calendar-motion-standard) var(--calendar-ease-standard) both;
+	animation: calendar-drawer-exit var(--fastt-motion-standard) var(--fastt-ease-standard) both;
 }
 .calendar-drawer-handle {
 	display: none;
 }
 
 .calendar-dialog[open] {
-	animation: calendar-dialog-enter var(--calendar-motion-standard) var(--calendar-ease-settle) both;
+	animation: calendar-dialog-enter var(--fastt-motion-standard) var(--fastt-ease-settle) both;
 }
 
 .calendar-dialog::backdrop {
@@ -424,8 +437,8 @@ body {
 	grid-template-rows: 0fr;
 	opacity: 0;
 	transition:
-		grid-template-rows var(--calendar-motion-standard) var(--calendar-ease-standard),
-		opacity var(--calendar-motion-fast) ease;
+		grid-template-rows var(--fastt-motion-standard) var(--fastt-ease-standard),
+		opacity var(--fastt-motion-fast) ease;
 }
 
 .rate-history-panel[open] .rate-history-grid {
@@ -530,12 +543,12 @@ body {
 		border-left: 0;
 		border-radius: 0.75rem 0.75rem 0 0;
 		animation-name: calendar-sheet-enter;
-		animation-duration: var(--calendar-motion-sheet);
-		animation-timing-function: var(--calendar-ease-settle);
+		animation-duration: var(--fastt-motion-sheet);
+		animation-timing-function: var(--fastt-ease-settle);
 	}
 	.calendar-drawer[data-closing="true"] {
 		animation-name: calendar-sheet-exit;
-		animation-duration: var(--calendar-motion-standard);
+		animation-duration: var(--fastt-motion-standard);
 	}
 	.calendar-drawer-handle {
 		display: block;

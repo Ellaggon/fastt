@@ -2,6 +2,18 @@
 import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
+import {
+	Badge,
+	Button,
+	Card,
+	Checkbox,
+	IconButton,
+	Input,
+	Notice,
+	SegmentedControl,
+	SegmentedItem,
+	Select,
+} from "@/components/ui-react"
 import { CALENDAR_CONTROL_MODES } from "@/lib/rates/calendarControlCatalog"
 import type {
 	MultiCalendarCell,
@@ -208,7 +220,7 @@ function toneClass(tone: string) {
 		ok: "border-slate-200 bg-white text-slate-950",
 		warning: "border-slate-200 border-l-2 border-l-amber-400 bg-white text-slate-950",
 		danger: "border-slate-200 border-l-2 border-l-red-500 bg-white text-slate-950",
-		info: "border-slate-200 border-l-2 border-l-blue-500 bg-white text-slate-950",
+		info: "border-slate-200 border-l-2 border-l-sky-500 bg-white text-slate-950",
 	}
 	return tones[tone] || tones.ok
 }
@@ -276,25 +288,28 @@ const CalendarRow = memo(
 							{row.productName} · {row.variantName}
 						</p>
 						<div className="mt-2 flex items-center gap-2">
-							<span
-								className={`rounded-md px-2 py-1 text-[11px] font-semibold ${row.readiness.priceReady && row.readiness.availabilityReady && row.readiness.conditionsReady ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}
+							<Badge
+								variant={
+									row.readiness.priceReady &&
+									row.readiness.availabilityReady &&
+									row.readiness.conditionsReady
+										? "success"
+										: "warning"
+								}
 							>
 								{row.readiness.priceReady &&
 								row.readiness.availabilityReady &&
 								row.readiness.conditionsReady
 									? "Lista"
 									: "Con pendientes"}
-							</span>
-							<label className="calendar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">
-								<input
-									type="checkbox"
-									checked={wholeRowSelected}
-									onChange={() => onToggleRow(row.ratePlanId)}
-									aria-label={`Seleccionar ${row.ratePlanName}`}
-									className="size-3.5 accent-blue-600"
-								/>
+							</Badge>
+							<Checkbox
+								checked={wholeRowSelected}
+								onChange={() => onToggleRow(row.ratePlanId)}
+								aria-label={`Seleccionar ${row.ratePlanName}`}
+							>
 								Fila
-							</label>
+							</Checkbox>
 						</div>
 					</div>
 				)}
@@ -787,10 +802,13 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 
 	return (
 		<div className="space-y-5" aria-busy={loading}>
-			<section className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+			<Card
+				as="section"
+				className="fastt-workspace-panel relative overflow-hidden p-4 text-slate-900"
+			>
 				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
-				<details className="group rounded-md border border-slate-200 bg-slate-50/70">
-					<summary className="calendar-control flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+				<details className="fastt-soft-box group border border-slate-200 bg-slate-50/70">
+					<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
 						<span>Filtros{activeFilterCount ? ` · ${activeFilterCount} activos` : ""}</span>
 						<span className="text-xs font-medium text-slate-500 group-open:hidden">
 							{surface.stats.totalRows} tarifas visibles
@@ -816,10 +834,9 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 								<span className="text-xs font-semibold text-slate-500">
 									{key === "productId" ? "Hotel" : key === "variantId" ? "Habitación" : "Tarifa"}
 								</span>
-								<select
+								<Select
 									value={filters[key]}
 									onChange={(event) => setFilters({ ...filters, [key]: event.target.value })}
-									className="calendar-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
 								>
 									<option value="">
 										{key === "productId"
@@ -840,42 +857,34 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 												: option.name}
 										</option>
 									))}
-								</select>
+								</Select>
 							</label>
 						))}
 						<label className="space-y-1 text-sm">
 							<span className="text-xs font-semibold text-slate-500">Estado</span>
-							<select
+							<Select
 								value={filters.status}
 								onChange={(event) =>
 									setFilters({ ...filters, status: event.target.value as typeof filters.status })
 								}
-								className="calendar-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
 							>
 								<option value="all">Todas</option>
 								<option value="ready">Listas</option>
 								<option value="attention">Con pendientes</option>
-							</select>
+							</Select>
 						</label>
-						<button
-							className="calendar-control rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-							disabled={loading}
-						>
-							Filtrar
-						</button>
+						<Button disabled={loading}>Filtrar</Button>
 					</form>
 				</details>
 				<div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 sm:justify-between">
 					<div className="flex w-full min-w-0 items-center justify-center gap-2 sm:w-auto sm:justify-start">
-						<button
-							type="button"
+						<IconButton
 							disabled={!surface.previousMonth || loading}
 							onClick={() => void loadWorkspace({ month: surface.previousMonth })}
-							className="calendar-control h-9 w-9 shrink-0 rounded-lg border border-slate-200 disabled:opacity-30"
-							aria-label="Mes anterior"
+							label="Mes anterior"
 						>
 							‹
-						</button>
+						</IconButton>
 						<div className="min-w-0 text-center">
 							<p className="font-semibold whitespace-nowrap text-slate-950">
 								{formatRange(surface.startDate, surface.endDate)}
@@ -884,15 +893,13 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 								{surface.stats.totalRows} tarifas · {surface.stats.attentionRows} con pendientes
 							</p>
 						</div>
-						<button
-							type="button"
+						<IconButton
 							disabled={loading}
 							onClick={() => void loadWorkspace({ month: surface.nextMonth })}
-							className="calendar-control h-9 w-9 shrink-0 rounded-lg border border-slate-200"
-							aria-label="Mes siguiente"
+							label="Mes siguiente"
 						>
 							›
-						</button>
+						</IconButton>
 					</div>
 					<div
 						className="hidden flex-wrap justify-end gap-1.5 sm:flex"
@@ -904,41 +911,39 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							["next_7", "Prox. 7 días"],
 							["next_30", "Prox. 30 días"],
 						].map(([id, label]) => (
-							<button
+							<Button
 								key={id}
 								type="button"
 								onClick={() => applyPreset(id)}
-								className="calendar-control rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+								variant="secondary"
+								size="sm"
 							>
 								{label}
-							</button>
+							</Button>
 						))}
 					</div>
 				</div>
-				<div
-					className="mt-4 flex gap-1 overflow-x-auto border-t border-slate-200 pt-4"
-					role="tablist"
-				>
+				<SegmentedControl className="mt-4" role="tablist">
 					{TABS.map((tab) => (
-						<button
+						<SegmentedItem
 							key={tab.key}
-							type="button"
 							role="tab"
 							onClick={() => changeTab(tab.key)}
 							aria-selected={activeTab === tab.key}
-							className={`calendar-control min-w-max rounded-md border px-3 py-2 text-left text-xs ${activeTab === tab.key ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-transparent bg-slate-50 text-slate-600 hover:border-slate-200 hover:bg-white"}`}
+							active={activeTab === tab.key}
+							className="min-w-max py-2 text-left"
 						>
 							<span className="block font-semibold">{tab.label}</span>
 							{activeTab === tab.key && (
-								<span className="mt-0.5 hidden text-[10px] text-slate-300 lg:block">
+								<span className="mt-0.5 hidden text-[10px] font-medium text-slate-500 lg:block">
 									{tab.helper}
 								</span>
 							)}
-						</button>
+						</SegmentedItem>
 					))}
-				</div>
+				</SegmentedControl>
 				{selection.cells.length > 0 && (
-					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+					<div className="fastt-calendar-toolbar mt-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
 						<div>
 							<p className="text-sm font-semibold text-slate-950">
 								{selection.cells.length}{" "}
@@ -951,29 +956,31 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						</div>
 						<div className="flex flex-wrap gap-1.5">
 							{actions.map((action) => (
-								<button
+								<Button
 									key={action.id}
 									type="button"
 									onClick={() => openAction(action.id)}
-									className={`calendar-control rounded-lg border px-3 py-2 text-xs font-semibold ${activeAction === action.id ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+									variant={activeAction === action.id ? "primary" : "secondary"}
+									size="sm"
 								>
 									{action.label}
-								</button>
+								</Button>
 							))}
-							<button
+							<Button
 								type="button"
 								onClick={() => setSelected(new Set())}
-								className="px-3 py-2 text-xs font-semibold text-slate-500"
+								variant="ghost"
+								size="sm"
 							>
 								Limpiar
-							</button>
+							</Button>
 						</div>
 					</div>
 				)}
 				{feedback && !drawerOpen && <p className="mt-3 text-sm text-red-700">{feedback}</p>}
-			</section>
+			</Card>
 
-			<section className="overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-sm">
+			<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 				<div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
 					<div>
 						<h2 className="font-semibold text-slate-950">Operación por tarifa</h2>
@@ -991,22 +998,22 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 					<>
 						<label className="block border-b border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 sm:hidden">
 							Tarifa visible
-							<select
+							<Select
 								value={mobileRatePlanId}
 								onChange={(event) => {
 									setMobileRatePlanId(event.target.value)
 									setSelected(new Set())
 								}}
-								className="calendar-control mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+								className="mt-1.5"
 							>
 								{surface.rows.map((row) => (
 									<option key={row.ratePlanId} value={row.ratePlanId}>
 										{row.ratePlanName} · {row.variantName}
 									</option>
 								))}
-							</select>
+							</Select>
 						</label>
-						<div className="overflow-x-auto">
+						<div className="fastt-calendar-grid overflow-x-auto">
 							<div
 								key={`${surface.startDate}:${surface.endDate}:${mobileRatePlanId}:${isMobile}`}
 								data-direction={gridDirection}
@@ -1038,7 +1045,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 													)
 												)
 											}
-											className="rounded-md px-2 py-1 hover:bg-white"
+											className="fastt-calendar-cell px-2 py-1 hover:bg-white"
 										>
 											<p className="text-[10px] font-semibold text-slate-500 uppercase">
 												{day.weekday}
@@ -1069,7 +1076,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						</div>
 					</>
 				)}
-			</section>
+			</Card>
 
 			{drawerOpen && (
 				<CalendarResponsiveDrawer
@@ -1102,22 +1109,23 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 										]
 									: [[PRICE_ACTIONS[activeAction].fixedMode!, "% descuento"]]
 								).map(([mode, label]) => (
-									<button
+									<Button
 										key={mode}
 										type="button"
 										onClick={() => {
 											setPriceMode(mode)
 											setPreviewReady(false)
 										}}
-										className={`rounded-lg border px-3 py-2 text-sm font-semibold ${priceMode === mode ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200"}`}
+										variant={priceMode === mode ? "primary" : "secondary"}
+										size="sm"
 									>
 										{label}
-									</button>
+									</Button>
 								))}
 							</div>
 							<label className="block text-sm font-medium text-slate-700">
 								Valor
-								<input
+								<Input
 									type="number"
 									min="0"
 									value={value}
@@ -1125,28 +1133,27 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 										setValue(event.target.value)
 										setPreviewReady(false)
 									}}
-									className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
+									className="mt-1.5"
 								/>
 							</label>
 							<div className="grid grid-cols-2 gap-2">
-								<button
+								<Button
 									type="button"
 									onClick={() => {
 										setPreviewReady(true)
 										setFeedback(`Se aplicará a ${selection.cells.length} noches-tarifa.`)
 									}}
-									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+									variant="secondary"
 								>
 									Revisar
-								</button>
-								<button
+								</Button>
+								<Button
 									type="button"
 									disabled={loading || !previewReady}
 									onClick={() => void savePrice()}
-									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
 								>
 									Guardar
-								</button>
+								</Button>
 							</div>
 						</div>
 					)}
@@ -1154,7 +1161,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						<div className="mt-5 space-y-4">
 							<label className="block text-sm font-medium text-slate-700">
 								Cupo físico total
-								<input
+								<Input
 									type="number"
 									min="0"
 									value={value}
@@ -1162,28 +1169,27 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 										setValue(event.target.value)
 										setPreviewReady(false)
 									}}
-									className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
+									className="mt-1.5"
 								/>
 							</label>
 							<div className="grid grid-cols-2 gap-2">
-								<button
+								<Button
 									type="button"
 									onClick={() => {
 										setPreviewReady(true)
 										setFeedback(`Se actualizarán ${selection.variantIds.length} habitaciones.`)
 									}}
-									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+									variant="secondary"
 								>
 									Revisar
-								</button>
-								<button
+								</Button>
+								<Button
 									type="button"
 									disabled={loading || !previewReady}
 									onClick={() => void saveAvailability()}
-									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
 								>
 									Guardar
-								</button>
+								</Button>
 							</div>
 						</div>
 					)}
@@ -1204,7 +1210,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							{["min_lead_time", "max_lead_time", "min_los", "max_los"].includes(activeAction) && (
 								<label className="block text-sm font-medium text-slate-700">
 									Valor
-									<input
+									<Input
 										type="number"
 										min="1"
 										value={value}
@@ -1212,29 +1218,28 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 											setValue(event.target.value)
 											setPreviewReady(false)
 										}}
-										className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"
+										className="mt-1.5"
 									/>
 								</label>
 							)}
 							<div className="grid grid-cols-2 gap-2">
-								<button
+								<Button
 									type="button"
 									onClick={() => {
 										setPreviewReady(true)
 										setFeedback(`La regla afectará ${selection.cells.length} noches-tarifa.`)
 									}}
-									className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
+									variant="secondary"
 								>
 									Revisar
-								</button>
-								<button
+								</Button>
+								<Button
 									type="button"
 									disabled={loading || !previewReady}
 									onClick={() => void saveSellabilityRule()}
-									className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
 								>
 									Guardar regla
-								</button>
+								</Button>
 							</div>
 						</div>
 					)}
@@ -1243,7 +1248,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							{selectedRows.map((row) => {
 								const missing = row.cells[0]?.conditionsMissingCategories || []
 								return (
-									<article key={row.ratePlanId} className="rounded-lg border border-slate-200 p-4">
+									<article key={row.ratePlanId} className="fastt-row-card p-4">
 										<div className="flex items-start justify-between gap-3">
 											<div>
 												<p className="font-semibold text-slate-950">{row.ratePlanName}</p>
@@ -1251,54 +1256,50 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 													{row.productName} · {row.variantName}
 												</p>
 											</div>
-											<span
-												className={`rounded-md px-2 py-1 text-xs font-semibold ${missing.length ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}
-											>
+											<Badge variant={missing.length ? "warning" : "success"}>
 												{missing.length ? `${missing.length} pendientes` : "Completo"}
-											</span>
+											</Badge>
 										</div>
 										<p className="mt-2 line-clamp-2 text-sm text-slate-600">
 											{row.cells[0]?.conditionsSummary}
 										</p>
 										{missing.length > 0 && (
-											<details className="mt-3 rounded-md border border-slate-200 bg-slate-50">
+											<details className="fastt-soft-box mt-3 border border-slate-200 bg-slate-50">
 												<summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-700">
 													Resolver pendientes
 												</summary>
 												<div className="flex flex-wrap gap-2 border-t border-slate-200 bg-white p-3">
 													{missing.map((category) =>
 														category === "CheckIn" ? (
-															<a
+															<Button
 																key={category}
 																href={`/provider/house-rules?productId=${encodeURIComponent(row.productId)}&focus=arrival`}
-																className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+																size="sm"
 															>
 																Configurar llegada y salida
-															</a>
+															</Button>
 														) : (
-															<button
+															<Button
 																key={category}
 																type="button"
-																className="policy-assignment-open rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+																className="policy-assignment-open"
+																size="sm"
 																data-assignment-mode="preset"
 																data-assignment-scope="rate_plan"
 																data-assignment-scope-id={row.ratePlanId}
 																data-assignment-category={category}
 															>
 																Completar {CONDITION_LABELS[category] ?? category}
-															</button>
+															</Button>
 														)
 													)}
 												</div>
 											</details>
 										)}
 										<div className="mt-3 flex justify-end">
-											<a
-												href={row.policiesHref}
-												className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-											>
+											<Button href={row.policiesHref} variant="secondary" size="sm">
 												{missing.length ? "Ver condiciones" : "Editar condiciones"}
-											</a>
+											</Button>
 										</div>
 									</article>
 								)
@@ -1308,21 +1309,19 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 					{activeTab === "rules" && (
 						<div className="mt-5 space-y-3">
 							{visibleRules.length === 0 ? (
-								<p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+								<Notice variant="neutral">
 									{activeAction === "conflicts"
 										? "No hay conflictos en esta selección."
 										: "No hay reglas en esta selección."}
-								</p>
+								</Notice>
 							) : (
 								visibleRules.map((rule) => (
-									<article key={rule.id} className="rounded-lg border border-slate-200 p-4">
+									<article key={rule.id} className="fastt-row-card p-4">
 										<div className="flex justify-between gap-3">
 											<div>
-												<span
-													className={`rounded-md px-2 py-1 text-[11px] font-semibold ${rule.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
-												>
+												<Badge variant={rule.isActive ? "success" : "neutral"}>
 													{rule.isActive ? "Activa" : "Pausada"}
-												</span>
+												</Badge>
 												<h3 className="mt-2 font-semibold text-slate-950">{rule.typeLabel}</h3>
 												<p className="text-xs text-slate-500">{rule.targetName}</p>
 											</div>
@@ -1338,45 +1337,50 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 												Gestionar regla
 											</summary>
 											<div className="mt-3 flex flex-wrap gap-2">
-												<button
+												<Button
 													type="button"
 													onClick={() => {
 														setEditingMode("edit")
 														setEditingRule(rule)
 													}}
-													className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+													variant="secondary"
+													size="sm"
 												>
 													Editar
-												</button>
-												<button
+												</Button>
+												<Button
 													type="button"
 													onClick={() => void mutateRule(rule, "toggle-rule")}
-													className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+													variant="secondary"
+													size="sm"
 												>
 													{rule.isActive ? "Pausar" : "Activar"}
-												</button>
+												</Button>
 												{rule.category === "price" && (
-													<button
+													<Button
 														type="button"
 														onClick={() => {
 															setEditingMode("variant")
 															setEditingRule(rule)
 														}}
-														className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+														variant="secondary"
+														size="sm"
 													>
 														Crear variante
-													</button>
+													</Button>
 												)}
-												<button
+												<Button
 													type="button"
 													onClick={() => {
 														if (window.confirm("¿Eliminar esta regla?"))
 															void mutateRule(rule, "delete-rule")
 													}}
-													className="ml-auto rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700"
+													className="ml-auto"
+													variant="danger"
+													size="sm"
 												>
 													Eliminar
-												</button>
+												</Button>
 											</div>
 											{editingRule?.id === rule.id && (
 												<RuleEditor
@@ -1400,9 +1404,9 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						</div>
 					)}
 					{feedback && (
-						<p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+						<Notice variant="neutral" className="mt-4">
 							{feedback}
-						</p>
+						</Notice>
 					)}
 				</CalendarResponsiveDrawer>
 			)}
@@ -1428,68 +1432,64 @@ function RuleEditor({
 	const [value, setValue] = useState(String(rule.value ?? ""))
 	const [priority, setPriority] = useState(String(rule.priority))
 	return (
-		<div className="mt-4 space-y-3 rounded-lg bg-slate-50 p-3">
+		<div className="fastt-soft-box mt-4 space-y-3 bg-slate-50 p-3">
 			<p className="text-xs font-semibold text-slate-500 uppercase">
 				{mode === "variant" ? "Nueva variante" : "Editar regla"}
 			</p>
 			<div className="grid grid-cols-2 gap-2">
 				<label className="text-xs font-medium text-slate-600">
 					Desde
-					<input
+					<Input
 						type="date"
 						value={startDate}
 						onChange={(event) => setStartDate(event.target.value)}
-						className="mt-1 w-full rounded-md border border-slate-300 p-2"
+						className="mt-1"
 					/>
 				</label>
 				<label className="text-xs font-medium text-slate-600">
 					Hasta
-					<input
+					<Input
 						type="date"
 						value={endDate}
 						onChange={(event) => setEndDate(event.target.value)}
-						className="mt-1 w-full rounded-md border border-slate-300 p-2"
+						className="mt-1"
 					/>
 				</label>
 			</div>
 			{rule.value != null && (
 				<label className="block text-xs font-medium text-slate-600">
 					Valor
-					<input
+					<Input
 						type="number"
 						value={value}
 						onChange={(event) => setValue(event.target.value)}
-						className="mt-1 w-full rounded-md border border-slate-300 p-2"
+						className="mt-1"
 					/>
 				</label>
 			)}
 			<label className="block text-xs font-medium text-slate-600">
 				Prioridad
-				<input
+				<Input
 					type="number"
 					min="0"
 					max="1000"
 					value={priority}
 					onChange={(event) => setPriority(event.target.value)}
-					className="mt-1 w-full rounded-md border border-slate-300 p-2"
+					className="mt-1"
 				/>
 			</label>
 			<div className="flex justify-end gap-2">
-				<button
-					type="button"
-					onClick={onCancel}
-					className="rounded-md px-3 py-2 text-xs font-semibold text-slate-600"
-				>
+				<Button type="button" onClick={onCancel} variant="ghost" size="sm">
 					Cancelar
-				</button>
-				<button
+				</Button>
+				<Button
 					type="button"
 					disabled={loading}
 					onClick={() => onSave({ startDate, endDate, value, priority })}
-					className="rounded-md bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+					size="sm"
 				>
 					{mode === "variant" ? "Guardar variante" : "Guardar cambios"}
-				</button>
+				</Button>
 			</div>
 		</div>
 	)

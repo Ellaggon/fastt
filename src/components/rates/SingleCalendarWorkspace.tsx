@@ -3,6 +3,16 @@ import React, { startTransition, useEffect, useMemo, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
 import {
+	Button,
+	Card,
+	IconButton,
+	Input,
+	Notice,
+	SegmentedControl,
+	SegmentedItem,
+	Select,
+} from "@/components/ui-react"
+import {
 	CALENDAR_CONTROL_MODES,
 	type CalendarControlMode,
 	visibleCalendarActions,
@@ -149,7 +159,9 @@ export default function SingleCalendarWorkspace({
 	initialMode = "price",
 }: Props) {
 	const [surface, setSurface] = useState(initialSurface)
-	const [mode, setMode] = useState<CalendarControlMode>(initialMode)
+	const [mode, setMode] = useState<CalendarControlMode>(
+		!isProfessional && initialMode === "conditions" ? "price" : initialMode
+	)
 	const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set())
 	const [rangeAnchor, setRangeAnchor] = useState("")
 	const [drawerAction, setDrawerAction] = useState<DrawerAction>(null)
@@ -162,6 +174,9 @@ export default function SingleCalendarWorkspace({
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
 	const today = localIsoDate()
+	const visibleControlModes = isProfessional
+		? CALENDAR_CONTROL_MODES
+		: CALENDAR_CONTROL_MODES.filter((item) => item.key !== "conditions")
 
 	const selected = useMemo(() => [...selectedDates].sort(), [selectedDates])
 	const selection = {
@@ -430,34 +445,36 @@ export default function SingleCalendarWorkspace({
 
 	return (
 		<div className="space-y-4" aria-busy={loading}>
-			<section className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+			<Card
+				as="section"
+				className="fastt-workspace-panel relative overflow-hidden p-4 text-slate-900"
+			>
 				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
 				<div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-end">
 					<label className="space-y-1 text-sm">
 						<span className="text-xs font-semibold text-slate-500">Tarifa</span>
-						<select
+						<Select
 							value={surface.selectedRatePlanId}
 							onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
-							className="calendar-control w-full rounded-md border border-slate-300 bg-white px-3 py-2"
 						>
 							{surface.ratePlans.map((ratePlan) => (
 								<option key={ratePlan.id} value={ratePlan.id}>
 									{ratePlan.context} · {ratePlan.name}
 								</option>
 							))}
-						</select>
+						</Select>
 					</label>
 					{isProfessional && (
-						<a
+						<Button
 							href={multiCalendarHref(mode === "sellability" ? "sellability" : mode)}
-							className="calendar-control inline-flex h-10 items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+							variant="secondary"
 						>
 							Multicalendario
-						</a>
+						</Button>
 					)}
 				</div>
 
-				<div className="sticky top-3 z-20 mt-4 rounded-lg border border-slate-200 bg-slate-50/95 p-3 shadow-sm backdrop-blur">
+				<div className="fastt-calendar-toolbar sticky top-3 z-20 mt-4 p-3">
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<div className="min-w-0">
 							<p className="font-semibold text-slate-950">
@@ -476,107 +493,108 @@ export default function SingleCalendarWorkspace({
 						</div>
 						<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
 							{RANGE_PRESETS.map(([id, label]) => (
-								<button
+								<Button
 									key={id}
 									type="button"
 									onClick={() => applyPreset(id)}
-									className="calendar-control rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+									variant="secondary"
+									size="sm"
 								>
 									{label}
-								</button>
+								</Button>
 							))}
 						</div>
 						<details className="relative sm:hidden">
-							<summary className="calendar-control cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+							<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
 								Rangos
 							</summary>
-							<div className="absolute top-full left-0 z-30 mt-2 w-40 space-y-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-lg">
+							<div className="fastt-soft-box absolute top-full left-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
 								{RANGE_PRESETS.map(([id, label]) => (
-									<button
+									<Button
 										key={id}
 										type="button"
 										onClick={(event) => {
 											applyPreset(id)
 											event.currentTarget.closest("details")?.removeAttribute("open")
 										}}
-										className="calendar-control block w-full px-2.5 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-100"
+										variant="ghost"
+										size="sm"
+										className="w-full justify-start"
 									>
 										{label}
-									</button>
+									</Button>
 								))}
 							</div>
 						</details>
 					</div>
 
-					<div className="mt-3 flex gap-1 overflow-x-auto rounded-md bg-white p-1" role="tablist">
-						{CALENDAR_CONTROL_MODES.map((item) => (
-							<button
+					<SegmentedControl className="mt-3" role="tablist">
+						{visibleControlModes.map((item) => (
+							<SegmentedItem
 								key={item.key}
-								type="button"
 								role="tab"
 								aria-selected={mode === item.key}
+								active={mode === item.key}
 								onClick={() => setMode(item.key)}
-								className={`calendar-control min-w-28 rounded-md px-3 py-2 text-left text-xs ${mode === item.key ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
+								className="min-w-28 py-2 text-left"
 							>
 								<span className="block font-semibold">{item.label}</span>
-								<span
-									className={`block text-[10px] ${mode === item.key ? "text-slate-300" : "text-slate-400"}`}
-								>
+								<span className="mt-0.5 block text-[10px] font-medium text-slate-500">
 									{item.helper}
 								</span>
-							</button>
+							</SegmentedItem>
 						))}
-					</div>
+					</SegmentedControl>
 
 					<div className="mt-3 flex flex-wrap gap-2">
 						{actions.map((action) => (
-							<button
+							<Button
 								key={action.id}
 								type="button"
 								onClick={() => openAction(action.id)}
-								className={`calendar-control rounded-md border px-3 py-2 text-xs font-semibold ${action.kind === "mutation" ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+								variant={action.kind === "mutation" ? "primary" : "secondary"}
+								size="sm"
 							>
 								{action.id === "price_comparison" && showComparison
 									? "Ocultar base y final"
 									: action.id === "inventory_detail" && showInventoryDetail
 										? "Ocultar detalle físico"
 										: action.label}
-							</button>
+							</Button>
 						))}
 						{selection.count > 0 && (
-							<button
+							<Button
 								type="button"
 								onClick={() => {
 									setSelectedDates(new Set())
 									setRangeAnchor("")
 								}}
-								className="px-3 py-2 text-xs font-semibold text-slate-500"
+								variant="ghost"
+								size="sm"
 							>
 								Limpiar
-							</button>
+							</Button>
 						)}
 					</div>
 				</div>
 
 				<div className="mt-5 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
 					<div className="flex items-center gap-2">
-						<button
-							type="button"
+						<IconButton
 							onClick={() => void loadSurface({ month: surface.previousMonth })}
-							className="calendar-control h-8 w-8 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-							aria-label="Mes anterior"
+							label="Mes anterior"
+							size="sm"
 						>
 							‹
-						</button>
+						</IconButton>
 						<h2 className="text-base font-semibold text-slate-950">{monthLabel(surface.month)}</h2>
-						<button
-							type="button"
+						<IconButton
 							onClick={() => void loadSurface({ month: surface.nextMonth })}
-							className="calendar-control h-8 w-8 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-							aria-label="Mes siguiente"
+							label="Mes siguiente"
+							size="sm"
 						>
 							›
-						</button>
+						</IconButton>
 					</div>
 					<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
 						{summary}
@@ -620,7 +638,7 @@ export default function SingleCalendarWorkspace({
 								data-selected={isSelected}
 								data-selection-edge={selectionEdge}
 								data-today={isToday}
-								className={`calendar-cell min-h-20 rounded-md border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${toneClass(presentation.tone)}`}
+								className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${toneClass(presentation.tone)}`}
 							>
 								<div className="flex items-start justify-end gap-1.5">
 									{isToday && (
@@ -648,7 +666,7 @@ export default function SingleCalendarWorkspace({
 						)
 					})}
 				</div>
-			</section>
+			</Card>
 
 			{feedback && !drawerAction && (
 				<p className="text-sm font-medium text-slate-200">{feedback}</p>
@@ -662,9 +680,9 @@ export default function SingleCalendarWorkspace({
 				>
 					<div className="mt-5 space-y-4">
 						{drawerAction === "stop_sell" ? (
-							<p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+							<Notice variant="warning">
 								Cerrará la venta de esta tarifa durante el rango seleccionado.
-							</p>
+							</Notice>
 						) : (
 							<label className="block text-sm font-medium text-slate-700">
 								{drawerAction === "manual_price"
@@ -672,7 +690,7 @@ export default function SingleCalendarWorkspace({
 									: drawerAction === "inventory_units"
 										? "Cupo físico total"
 										: "Noches mínimas"}
-								<input
+								<Input
 									type="number"
 									min="0"
 									value={value}
@@ -680,28 +698,27 @@ export default function SingleCalendarWorkspace({
 										setValue(event.target.value)
 										setReviewed(false)
 									}}
-									className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
+									className="mt-1.5"
 								/>
 							</label>
 						)}
 						{feedback && <p className="text-sm text-slate-600">{feedback}</p>}
 						<div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
-							<button
+							<Button
 								type="button"
 								disabled={loading}
 								onClick={() => void reviewMutation()}
-								className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40"
+								variant="secondary"
 							>
 								Revisar
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
 								disabled={loading || !reviewed}
 								onClick={() => void saveMutation()}
-								className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
 							>
 								Guardar
-							</button>
+							</Button>
 						</div>
 					</div>
 				</CalendarResponsiveDrawer>

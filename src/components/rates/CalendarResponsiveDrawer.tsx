@@ -1,5 +1,7 @@
 /** @jsxRuntime classic */
-import React, { type ReactNode, useEffect, useRef, useState } from "react"
+import React, { type ReactNode, useEffect, useState } from "react"
+
+import { Button } from "@/components/ui-react"
 
 type Props = {
 	title: string
@@ -10,7 +12,6 @@ type Props = {
 
 export default function CalendarResponsiveDrawer({ title, meta, children, onClose }: Props) {
 	const [closing, setClosing] = useState(false)
-	const closeButtonRef = useRef<HTMLButtonElement>(null)
 
 	function requestClose() {
 		if (closing) return
@@ -21,7 +22,7 @@ export default function CalendarResponsiveDrawer({ title, meta, children, onClos
 	useEffect(() => {
 		const previousOverflow = document.body.style.overflow
 		document.body.style.overflow = "hidden"
-		closeButtonRef.current?.focus()
+		document.querySelector<HTMLButtonElement>("[data-calendar-drawer-close]")?.focus()
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") requestClose()
 		}
@@ -46,10 +47,10 @@ export default function CalendarResponsiveDrawer({ title, meta, children, onClos
 				aria-modal="true"
 				aria-labelledby="calendar-drawer-title"
 				data-closing={closing}
-				className="calendar-drawer fixed top-0 right-0 z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 shadow-2xl"
+				className="calendar-drawer fastt-side-sheet fixed top-0 right-0 z-50 h-full w-full max-w-md overflow-y-auto p-5 text-slate-900"
 			>
 				<span className="calendar-drawer-handle" aria-hidden="true" />
-				<div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+				<div className="fastt-side-sheet-header -mx-5 -mt-5 flex items-start justify-between gap-4 px-5 py-5">
 					<div className="min-w-0">
 						<p className="text-xs font-semibold text-slate-500 uppercase">Selección</p>
 						<h2 id="calendar-drawer-title" className="mt-1 text-xl font-semibold text-slate-950">
@@ -57,14 +58,15 @@ export default function CalendarResponsiveDrawer({ title, meta, children, onClos
 						</h2>
 						<p className="mt-1 text-sm text-slate-500">{meta}</p>
 					</div>
-					<button
-						ref={closeButtonRef}
+					<Button
 						type="button"
 						onClick={requestClose}
-						className="calendar-control rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+						variant="secondary"
+						size="sm"
+						data-calendar-drawer-close
 					>
 						Cerrar
-					</button>
+					</Button>
 				</div>
 				{children}
 			</aside>

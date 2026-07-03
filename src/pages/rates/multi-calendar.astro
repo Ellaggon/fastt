@@ -1,6 +1,7 @@
 ---
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import MultiCalendarWorkspace from "@/components/rates/MultiCalendarWorkspace"
+import Button from "@/components/ui/Button.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
@@ -46,12 +47,7 @@ const workspace = await loadMultiCalendarWorkspace({
 					resultados permanecen en pantalla mientras trabajas.
 				</p>
 			</div>
-			<a
-				href={routes.calendar()}
-				class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800"
-			>
-				Calendario
-			</a>
+			<Button href={routes.calendar()} variant="secondary"> Calendario </Button>
 		</header>
 
 		<MultiCalendarWorkspace

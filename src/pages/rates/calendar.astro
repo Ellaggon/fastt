@@ -35,7 +35,7 @@ const initialMode =
 		? "availability"
 		: ["restrictions", "sellability"].includes(requestedFocus)
 			? "sellability"
-			: ["policies", "conditions"].includes(requestedFocus)
+			: isProfessionalCalendar && ["policies", "conditions"].includes(requestedFocus)
 				? "conditions"
 				: "price"
 ---
@@ -49,8 +49,8 @@ const initialMode =
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">Calendario</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo, venta o condiciones
-					sin salir del calendario.
+					Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo o venta desde un solo
+					lugar.
 				</p>
 			</div>
 		</header>
