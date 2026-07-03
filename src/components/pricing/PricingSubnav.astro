@@ -13,7 +13,6 @@ const { pathname, currentPath = pathname } = Astro.props
 const items = [
 	{ href: routes.rates(), label: "Tarifas" },
 	{ href: routes.calendar(), label: "Calendario de precios" },
-	{ href: routes.conditions(), label: "Condiciones" },
 	{ href: routes.ratesMultiCalendar(), label: "Multicalendario" },
 ]
 const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href

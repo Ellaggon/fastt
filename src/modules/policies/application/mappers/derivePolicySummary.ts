@@ -58,7 +58,7 @@ function toCancellationTiers(policy: SnapshotPolicy | null): CancellationTier[] 
 }
 
 function describeCancellation(policy: SnapshotPolicy | null): string {
-	if (!policy) return "Condiciones de cancelación según política"
+	if (!policy) return ""
 
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
@@ -77,7 +77,7 @@ function describeCancellation(policy: SnapshotPolicy | null): string {
 	const tiers = toCancellationTiers(policy)
 	if (!tiers.length) {
 		const description = String(policy.policy?.description ?? "").trim()
-		if (!description) return "Condiciones de cancelación según política"
+		if (!description) return "Cancelación configurada"
 		const normalized = description.toLowerCase()
 		if (normalized.includes("non-refundable") || normalized.includes("no reembolsable")) {
 			return "No reembolsable"
@@ -112,7 +112,7 @@ function describeCancellation(policy: SnapshotPolicy | null): string {
 }
 
 function describePayment(policy: SnapshotPolicy | null): string {
-	if (!policy) return "Condiciones de pago según política"
+	if (!policy) return ""
 
 	const rules = toRuleMap(policy)
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
@@ -136,7 +136,7 @@ function describePayment(policy: SnapshotPolicy | null): string {
 	}
 
 	const description = String(policy.policy?.description ?? "").trim()
-	if (!description) return "Condiciones de pago según política"
+	if (!description) return "Pago configurado"
 	const normalized = description.toLowerCase()
 	if (normalized.includes("pay at property") || normalized.includes("pago en la propiedad")) {
 		return "Paga en la propiedad"
@@ -148,7 +148,7 @@ function describePayment(policy: SnapshotPolicy | null): string {
 }
 
 function describeNoShow(policy: SnapshotPolicy | null): string {
-	if (!policy) return "No presentación pendiente"
+	if (!policy) return ""
 
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
@@ -176,20 +176,75 @@ function describeNoShow(policy: SnapshotPolicy | null): string {
 	return "No presentación configurada"
 }
 
+function describeArrival(policy: SnapshotPolicy | null): string {
+	if (!policy) return ""
+
+	const presetKey = String(policy.policy?.policyPresetKey ?? "")
+		.trim()
+		.toLowerCase()
+	if (presetKey === "standard_check_in") return "Llegada y salida estándar"
+	if (presetKey === "late_arrival") return "Llegada tardía permitida"
+	return "Llegada y salida configuradas"
+}
+
+const missingCategoryLabels: Record<string, string> = {
+	Cancellation: "cancelación",
+	Payment: "pago",
+	CheckIn: "llegada/salida",
+	NoShow: "no presentación",
+}
+
+function naturalList(values: string[]): string {
+	if (values.length <= 1) return values[0] ?? ""
+	if (values.length === 2) return values.join(" y ")
+	return `${values.slice(0, -1).join(", ")} y ${values.at(-1)}`
+}
+
+export function summarizeMissingPolicyCategories(missingCategories: readonly string[]): string {
+	const labels = Array.from(
+		new Set(
+			missingCategories
+				.map((category) => missingCategoryLabels[String(category)] ?? String(category))
+				.filter(Boolean)
+		)
+	)
+	if (labels.length === 0) return "Contrato completo"
+	if (labels.length >= 4) return "Sin condiciones configuradas"
+	return `Pendientes: ${naturalList(labels)}`
+}
+
 export function derivePolicySummaryFromResolvedPolicies(resolved: PolicyResolutionDTO): string {
 	const policies = Array.isArray(resolved?.policies) ? resolved.policies : []
 	const cancellation = findCategory(policies, (category) => category.includes("cancel"))
 	const payment = findCategory(policies, (category) => category === "payment")
+	const arrival = findCategory(
+		policies,
+		(category) => category.includes("checkin") || category.includes("check_in")
+	)
 	const noShow = findCategory(
 		policies,
 		(category) => category.includes("noshow") || category.includes("no_show")
 	)
 
-	const cancellationSummary = describeCancellation(cancellation)
-	const paymentSummary = describePayment(payment)
-	const noShowSummary = describeNoShow(noShow)
+	const configuredSummary = Array.from(
+		new Set([
+			describeCancellation(cancellation),
+			describePayment(payment),
+			describeArrival(arrival),
+			describeNoShow(noShow),
+		])
+	).filter(Boolean)
+	const missingCategories = Array.isArray(resolved?.missingCategories)
+		? resolved.missingCategories
+		: []
 
-	return Array.from(new Set([cancellationSummary, paymentSummary, noShowSummary]))
-		.filter(Boolean)
-		.join(" · ")
+	if (configuredSummary.length === 0) {
+		return missingCategories.length
+			? summarizeMissingPolicyCategories(missingCategories)
+			: "Condiciones configuradas"
+	}
+	if (missingCategories.length > 0) {
+		return `${configuredSummary.join(" · ")} · ${summarizeMissingPolicyCategories(missingCategories)}`
+	}
+	return configuredSummary.join(" · ")
 }

@@ -883,11 +883,11 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 	},
 	{
 		title: "Venta",
-		subtitle: "Tarifas, calendario y condiciones",
+		subtitle: "Tarifas y operación diaria",
 		owner: "Operaciones comerciales",
 		context: "enterprise-operations",
 		operationalIntent:
-			"Gestiona cómo se venden las habitaciones: tarifas, calendario, condiciones y herramientas Pro cuando el proveedor tiene escala.",
+			"Gestiona cómo se venden las habitaciones: el contrato vive en las tarifas, la operación diaria en calendario y las herramientas de escala en Multicalendario.",
 		maturity: "operational",
 		items: [
 			{
@@ -901,12 +901,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.calendar(),
 				status: "canonical",
 				summary: "Precio, cupo y venta diaria.",
-			},
-			{
-				label: "Condiciones",
-				href: routes.conditions(),
-				status: "canonical",
-				summary: "Cancelación, pago, llegada, salida y no presentación.",
 			},
 			{
 				label: "Multicalendario",

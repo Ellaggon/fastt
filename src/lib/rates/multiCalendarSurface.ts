@@ -2,6 +2,7 @@ import type { PricingCalendarDay } from "@/lib/rates/calendarSurfaces"
 import { buildPricingCalendarSurface } from "@/lib/rates/calendarSurfaces"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
+import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
 export type MultiCalendarTab =
 	| "price"
@@ -225,9 +226,13 @@ export async function buildRatesMultiCalendarSurface(input: {
 			})
 			const days = surface.days.filter((day) => day.date >= today).slice(0, rangeSize)
 			const conditionsComplete = Boolean(row.policyCoverage?.isComplete)
-			const conditionsMissingSummary = row.policyCoverage?.missingCategories?.length
-				? `Faltan ${row.policyCoverage.missingCategories.length} categorías`
-				: ""
+			const missingCategories = row.policyCoverage?.missingCategories ?? []
+			const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
+			const conditionsSummary =
+				missingCategories.length >= 4
+					? "Sin condiciones configuradas"
+					: row.policySummary ||
+						(conditionsComplete ? "Contrato completo" : conditionsMissingSummary)
 			const cells: MultiCalendarCell[] = days.map((day) => ({
 				date: day.date,
 				day: day.day,
@@ -248,10 +253,9 @@ export async function buildRatesMultiCalendarSurface(input: {
 				restrictionCount: day.restrictionSignals.count,
 				hasCommercialBlocker: day.restrictionSignals.hasCommercialBlocker,
 				conditionsComplete,
-				conditionsSummary:
-					row.policySummary || (conditionsComplete ? "Condiciones listas" : "Faltan condiciones"),
+				conditionsSummary,
 				conditionsMissingSummary,
-				conditionsMissingCategories: row.policyCoverage?.missingCategories ?? [],
+				conditionsMissingCategories: missingCategories,
 			}))
 			const readiness = computeReadiness(cells, row)
 			return {

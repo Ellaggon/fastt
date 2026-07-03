@@ -39,7 +39,6 @@ export const routes = {
 	financialRefunds: () => "/financial/refunds",
 	financialExceptions: () => "/financial/exceptions",
 	ratePlansList: () => "/rates/plans/manage",
-	conditions: () => "/rates/calendar?focus=conditions",
 	calendar: () => "/rates/calendar",
 	ratesCommercialRulesApi: () => "/api/rates/commercial-rules",
 	ratePlanPolicies: (id: string) =>

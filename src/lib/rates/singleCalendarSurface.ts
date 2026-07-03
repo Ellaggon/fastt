@@ -1,5 +1,6 @@
 import { buildPricingCalendarSurface, type PricingCalendarDay } from "@/lib/rates/calendarSurfaces"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
+import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
 export type SingleCalendarDay = PricingCalendarDay & {
 	conditionsComplete: boolean
@@ -47,11 +48,11 @@ export async function buildSingleCalendarSurface(input: {
 	const missingCategories = selected?.policyCoverage?.missingCategories ?? []
 	const complete = Boolean(selected?.policyCoverage?.isComplete)
 	const conditionsSummary =
-		String(selected?.policySummary ?? "").trim() ||
-		(complete ? "Condiciones listas" : "Faltan condiciones")
-	const conditionsMissingSummary = missingCategories.length
-		? `Faltan ${missingCategories.length} de 4 categorías`
-		: "Contrato completo"
+		missingCategories.length >= 4
+			? "Sin condiciones configuradas"
+			: String(selected?.policySummary ?? "").trim() ||
+				(complete ? "Contrato completo" : summarizeMissingPolicyCategories(missingCategories))
+	const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
 	const firstDay = pricing.days[0]?.date
 
 	return {
