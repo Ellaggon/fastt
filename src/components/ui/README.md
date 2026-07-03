@@ -15,6 +15,10 @@ Use these components for all new UI work:
 - `ProgressBar` for completion/readiness meters
 - `Drawer` for side sheets and repeated lateral panels
 
+React islands use the matching primitives exported by `src/components/ui-react`:
+`Button`, `Card`, `Input`, `Select`, `Badge`, `Notice`, `Checkbox`, `IconButton`,
+`SegmentedControl`, and `SegmentedItem`.
+
 Do not build ad-hoc raw buttons, form controls, cards, dialogs, or segmented controls in
 pages for new work. Tailwind utility classes are fine for one-off layout, spacing, and
 page composition; repeated UI objects must go through `src/components/ui/*`.
