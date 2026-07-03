@@ -1,11 +1,10 @@
 ---
 import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
+import FinancialCompactSearch from "@/components/financial/FinancialCompactSearch.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
-import { workTypeOptions } from "@/pages/financial/_client/financial-queues"
 
 type FinancialViewId =
 	| "inbox"
@@ -36,19 +35,14 @@ const viewClass = (view: FinancialViewId) =>
 	note="Fastt organiza evidencia y revisiones financieras. No ejecuta cobros, pagos ni reembolsos."
 >
 	<section data-financial-view="inbox" class={viewClass("inbox")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0">
+		<Card class="fastt-workspace-panel overflow-visible p-0">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<label class="block">
-						<span class="sr-only">Buscar reserva o referencia</span>
-						<Input
-							id="financialSearchFilter"
-							type="search"
-							placeholder="Buscar reserva, referencia o proveedor..."
-							class="w-full"
-						/>
-					</label>
-					<div id="financialSummary" class="flex flex-wrap gap-2">
+					<div
+						id="financialSummary"
+						class="flex max-w-full flex-wrap gap-2"
+						aria-label="Estado de casos financieros"
+					>
 						{
 							[
 								"Requieren atención",
@@ -58,83 +52,84 @@ const viewClass = (view: FinancialViewId) =>
 								"Cerrados recientemente",
 							].map((label) => (
 								<div class="rounded-full border border-slate-200 bg-white px-3 py-2">
-									<span class="text-xs font-semibold text-slate-500">{label}</span>
+									<span class="text-xs font-semibold text-slate-700">0</span>
+									<span class="ml-1">{label}</span>
 								</div>
 							))
 						}
 					</div>
-					<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-						<p id="financialListSummary" class="text-sm text-slate-700">
-							Cargando casos que requieren atención, espera o cierre...
-						</p>
-						<details class="group rounded-2xl border border-slate-200 bg-white">
-							<summary
-								class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800"
-							>
-								<span>Filtros</span>
-								<span id="financialFilterSummary" class="text-xs text-slate-500 group-open:hidden"
-									>Todos los tipos · Todos los equipos</span
+					<div class="financial-inbox-toolbar">
+						<details class="financial-filter-popover group">
+							<summary class="financial-filter-popover__trigger">
+								<span class="inline-flex items-center gap-2">
+									<span>Filtros</span>
+									<span id="financialFilterSummary" class="financial-filter-popover__summary"
+										>Todos los equipos · Todas las edades</span
+									>
+								</span>
+								<svg
+									aria-hidden="true"
+									class="financial-filter-popover__chevron"
+									viewBox="0 0 20 20"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.8"
 								>
-								<span class="hidden text-xs text-slate-500 group-open:inline">Ocultar filtros</span>
+									<path d="m6 8 4 4 4-4"></path>
+								</svg>
 							</summary>
-							<div class="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-4">
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500"
-										>Equipo responsable</span
-									>
-									<Select id="financialActorFilter" name="actor" value="all">
-										{
-											actorFilterOptions.map((option) => (
-												<option value={option.value}>{option.label}</option>
-											))
-										}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Alojamiento</span
-									>
-									<Input
-										id="financialLodgingFilter"
-										type="search"
-										placeholder="Nombre o asignación"
-										class="w-full"
-									/>
-								</label>
-								<label class="space-y-1 text-sm font-medium text-slate-700">
-									<span class="text-xs uppercase tracking-[0.12em] text-slate-500">Antigüedad</span>
-									<Select id="financialAgeFilter" name="age" value="all">
-										<option value="all">Todas</option>
-										<option value="today">Hoy</option>
-										<option value="over_3">Más de 3 días</option>
-										<option value="over_7">Más de 7 días</option>
-										<option value="over_14">Más de 14 días</option>
-									</Select>
-								</label>
-								<div class="space-y-2 sm:col-span-2 xl:col-span-1">
-									<p class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-										Tipo de trabajo
-									</p>
-									<div id="financialWorkTypeFilters" class="flex flex-wrap gap-2">
-										{
-											workTypeOptions.map((option) => (
-												<Button
-													type="button"
-													data-work-type={option.value}
-													variant={option.value === "all" ? "primary" : "secondary"}
-													size="sm"
-												>
-													{option.label}
-												</Button>
-											))
-										}
+							<div class="financial-filter-popover__panel">
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div>
+										<p class="text-sm font-semibold text-slate-950">Refinar bandeja</p>
+										<p class="mt-1 text-xs leading-5 text-slate-500">
+											Ajusta los casos visibles sin cambiar el estado operativo seleccionado.
+										</p>
 									</div>
+									<Button type="button" id="financialClearFilters" variant="secondary" size="sm">
+										Limpiar filtros
+									</Button>
+								</div>
+								<div class="mt-4 grid gap-3 sm:grid-cols-2">
+									<label class="space-y-1.5 text-sm font-medium text-slate-700">
+										<span class="text-xs font-semibold text-slate-500">Equipo responsable</span>
+										<Select id="financialActorFilter" name="actor" value="all">
+											{
+												actorFilterOptions.map((option) => (
+													<option value={option.value}>{option.label}</option>
+												))
+											}
+										</Select>
+									</label>
+									<label class="space-y-1.5 text-sm font-medium text-slate-700">
+										<span class="text-xs font-semibold text-slate-500">Antigüedad</span>
+										<Select id="financialAgeFilter" name="age" value="all">
+											<option value="all">Todas</option>
+											<option value="today">Hoy</option>
+											<option value="over_3">Más de 3 días</option>
+											<option value="over_7">Más de 7 días</option>
+											<option value="over_14">Más de 14 días</option>
+										</Select>
+									</label>
 								</div>
 							</div>
 						</details>
+						<FinancialCompactSearch
+							id="financialSearchFilter"
+							placeholder="Buscar reserva, alojamiento, proveedor o referencia..."
+						/>
+					</div>
+					<div>
+						<p id="financialListSummary" class="text-sm leading-6 text-slate-700">
+							Cargando casos que requieren atención, espera o cierre...
+						</p>
+						<p id="financialListHint" class="mt-1 text-xs leading-5 text-slate-500">
+							Los casos visibles respetan el equipo y la antigüedad seleccionados.
+						</p>
 					</div>
 				</div>
 			</div>
-			<div id="financialRows" class="space-y-2 bg-slate-50/80 p-2">
+			<div id="financialRows" class="space-y-2 overflow-hidden rounded-b-3xl bg-slate-50/80 p-2">
 				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando casos...</div>
 			</div>
 		</Card>
@@ -143,14 +138,7 @@ const viewClass = (view: FinancialViewId) =>
 	<section data-financial-view="collections" class={viewClass("collections")}>
 		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-					<div>
-						<p id="collectionsSummary" class="text-sm font-semibold text-slate-950">
-							Cargando cobros...
-						</p><p class="mt-1 text-sm text-slate-600">
-							Prioriza comprobantes faltantes, cobros sin reserva y referencias repetidas.
-						</p>
-					</div>
+				<div class="space-y-4">
 					<div
 						id="collectionsSegments"
 						class="flex flex-wrap gap-2"
@@ -169,6 +157,13 @@ const viewClass = (view: FinancialViewId) =>
 							>En revisión</Button
 						>
 					</div>
+					<div>
+						<p id="collectionsSummary" class="text-sm leading-6 text-slate-700">
+							Cargando cobros...
+						</p><p id="collectionsSummaryHint" class="mt-1 text-xs leading-5 text-slate-500">
+							Selecciona un segmento para revisar los cobros relacionados.
+						</p>
+					</div>
 				</div>
 			</div>
 			<div id="collectionsRows" class="space-y-2 bg-slate-50/80 p-2">
@@ -180,15 +175,8 @@ const viewClass = (view: FinancialViewId) =>
 	<section data-financial-view="settlements" class={viewClass("settlements")}>
 		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-					<div>
-						<p id="settlementsSummary" class="text-sm font-semibold text-slate-950">
-							Cargando diferencias...
-						</p><p class="mt-1 text-sm text-slate-600">
-							Revisa primero importes distintos, cobros faltantes y liquidaciones externas
-							faltantes.
-						</p>
-					</div><div
+				<div class="space-y-4">
+					<div
 						id="settlementsSegments"
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de liquidaciones"
@@ -217,6 +205,13 @@ const viewClass = (view: FinancialViewId) =>
 							size="sm">Sin diferencia</Button
 						>
 					</div>
+					<div>
+						<p id="settlementsSummary" class="text-sm leading-6 text-slate-700">
+							Cargando diferencias...
+						</p><p id="settlementsSummaryHint" class="mt-1 text-xs leading-5 text-slate-500">
+							Selecciona un segmento para comparar los importes relacionados.
+						</p>
+					</div>
 				</div>
 			</div>
 			<div id="settlementsRows" class="space-y-2 bg-slate-50/80 p-2">
@@ -228,14 +223,8 @@ const viewClass = (view: FinancialViewId) =>
 	<section data-financial-view="provider-payables" class={viewClass("provider-payables")}>
 		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-					<div>
-						<p id="providerPayablesSummary" class="text-sm font-semibold text-slate-950">
-							Cargando pagos pendientes...
-						</p><p class="mt-1 text-sm text-slate-600">
-							Prioriza bloqueos por revisión de importes, comisión faltante o datos incompletos.
-						</p>
-					</div><div
+				<div class="space-y-4">
+					<div
 						id="providerPayablesSegments"
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de pagos pendientes a proveedores"
@@ -264,6 +253,13 @@ const viewClass = (view: FinancialViewId) =>
 							size="sm">Sin acción urgente</Button
 						>
 					</div>
+					<div>
+						<p id="providerPayablesSummary" class="text-sm leading-6 text-slate-700">
+							Cargando pagos pendientes...
+						</p><p id="providerPayablesSummaryHint" class="mt-1 text-xs leading-5 text-slate-500">
+							Selecciona un segmento para revisar los pagos pendientes relacionados.
+						</p>
+					</div>
 				</div>
 			</div>
 			<div id="providerPayablesRows" class="space-y-2 bg-slate-50/80 p-2">
@@ -275,14 +271,8 @@ const viewClass = (view: FinancialViewId) =>
 	<section data-financial-view="refunds" class={viewClass("refunds")}>
 		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-					<div>
-						<p id="refundsSummary" class="text-sm font-semibold text-slate-950">
-							Cargando reembolsos...
-						</p><p class="mt-1 text-sm text-slate-600">
-							Prioriza casos por revisar, respuestas externas pendientes y comprobantes faltantes.
-						</p>
-					</div><div
+				<div class="space-y-4">
+					<div
 						id="refundsSegments"
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de reembolsos"
@@ -311,6 +301,13 @@ const viewClass = (view: FinancialViewId) =>
 							size="sm">Listos para cerrar</Button
 						>
 					</div>
+					<div>
+						<p id="refundsSummary" class="text-sm leading-6 text-slate-700">
+							Cargando reembolsos...
+						</p><p id="refundsSummaryHint" class="mt-1 text-xs leading-5 text-slate-500">
+							Selecciona un segmento para revisar los reembolsos relacionados.
+						</p>
+					</div>
 				</div>
 			</div>
 			<div id="refundsRows" class="space-y-2 bg-slate-50/80 p-2">
@@ -322,14 +319,8 @@ const viewClass = (view: FinancialViewId) =>
 	<section data-financial-view="exceptions" class={viewClass("exceptions")}>
 		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 			<div class="border-b border-slate-200 p-4">
-				<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-					<div>
-						<p id="financialExceptionsSummary" class="text-sm font-semibold text-slate-950">
-							Cargando excepciones...
-						</p><p class="mt-1 text-sm text-slate-600">
-							Usa esta vista para datos faltantes, referencias inconsistentes y revisiones vencidas.
-						</p>
-					</div><div
+				<div class="space-y-4">
+					<div
 						id="financialExceptionsSegments"
 						class="flex flex-wrap gap-2"
 						aria-label="Segmentos de excepciones financieras"
@@ -355,6 +346,16 @@ const viewClass = (view: FinancialViewId) =>
 							>Cerradas</Button
 						>
 					</div>
+					<div>
+						<p id="financialExceptionsSummary" class="text-sm leading-6 text-slate-700">
+							Cargando excepciones...
+						</p><p
+							id="financialExceptionsSummaryHint"
+							class="mt-1 text-xs leading-5 text-slate-500"
+						>
+							Selecciona un segmento para revisar las excepciones relacionadas.
+						</p>
+					</div>
 				</div>
 			</div>
 			<div id="financialExceptionsRows" class="space-y-2 bg-slate-50/80 p-2">
@@ -363,6 +364,111 @@ const viewClass = (view: FinancialViewId) =>
 		</Card>
 	</section>
 </FinancialWorkspaceShell>
+
+<style>
+	.financial-inbox-toolbar {
+		position: relative;
+		z-index: 20;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		min-height: 2.5rem;
+	}
+
+	.financial-filter-popover {
+		position: relative;
+		flex: 0 1 auto;
+		min-width: 0;
+	}
+
+	.financial-filter-popover__trigger {
+		display: inline-flex;
+		max-width: min(32rem, calc(100vw - 7rem));
+		min-height: 2.5rem;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.5rem 0.75rem 0.5rem 0.9rem;
+		list-style: none;
+		cursor: pointer;
+		border: 1px solid rgb(226 232 240 / 90%);
+		border-radius: var(--fastt-radius-pill);
+		background: rgb(255 255 255 / 88%);
+		color: rgb(30 41 59);
+		font-size: 0.875rem;
+		font-weight: 650;
+		box-shadow: var(--fastt-shadow-control);
+		transition:
+			border-color var(--fastt-motion-standard) ease,
+			background-color var(--fastt-motion-standard) ease,
+			box-shadow var(--fastt-motion-standard) ease;
+	}
+
+	.financial-filter-popover__trigger::-webkit-details-marker {
+		display: none;
+	}
+
+	.financial-filter-popover__trigger:hover,
+	.financial-filter-popover[open] > .financial-filter-popover__trigger {
+		border-color: rgb(148 163 184 / 70%);
+		background: rgb(255 255 255 / 98%);
+		box-shadow: 0 10px 26px rgb(15 23 42 / 8%);
+	}
+
+	.financial-filter-popover__summary {
+		overflow: hidden;
+		max-width: 18rem;
+		padding: 0.2rem 0.55rem;
+		border-radius: var(--fastt-radius-pill);
+		background: rgb(241 245 249);
+		color: rgb(100 116 139);
+		font-size: 0.75rem;
+		font-weight: 550;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.financial-filter-popover__chevron {
+		width: 1rem;
+		height: 1rem;
+		flex: none;
+		color: rgb(100 116 139);
+		transition: transform var(--fastt-motion-standard) var(--fastt-ease-standard);
+	}
+
+	.financial-filter-popover[open] .financial-filter-popover__chevron {
+		transform: rotate(180deg);
+	}
+
+	.financial-filter-popover__panel {
+		position: absolute;
+		top: calc(100% + 0.65rem);
+		left: 0;
+		z-index: 30;
+		width: min(31rem, calc(100vw - 3rem));
+		padding: 1rem;
+		border: 1px solid rgb(226 232 240 / 90%);
+		border-radius: 1.25rem;
+		background: rgb(255 255 255 / 96%);
+		box-shadow: 0 22px 55px rgb(15 23 42 / 16%);
+		backdrop-filter: blur(20px);
+	}
+
+	@media (max-width: 639px) {
+		.financial-filter-popover__summary {
+			display: none;
+		}
+
+		.financial-filter-popover__panel {
+			position: fixed;
+			top: 7rem;
+			right: 1rem;
+			left: 1rem;
+			width: auto;
+		}
+	}
+</style>
 
 <div
 	id="financialReviewBackdrop"

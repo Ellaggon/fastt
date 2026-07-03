@@ -12,9 +12,9 @@ import {
 	refreshFinancialJson,
 } from "./financial-data-cache"
 import { countFinancialQueue, filterFinancialRows } from "./financial-filters"
-import { primarySummaryQueues, workTypeOptions } from "./financial-queues"
+import { primarySummaryQueues } from "./financial-queues"
 import { renderFinancialRowHtml } from "./financial-renderers"
-import { financialSegmentClass, financialSummaryClass, financialUi } from "./financial-ui-classes"
+import { financialSegmentMarkup, financialSummaryClass, financialUi } from "./financial-ui-classes"
 import {
 	createFinancialWorkspaceState,
 	resetFinancialWorkspaceState,
@@ -55,15 +55,15 @@ type WorkspacePayloads = {
 export function initFinancialWorkspace(): void {
 	const workspaceState = createFinancialWorkspaceState()
 	const actorFilter = document.getElementById("financialActorFilter") as HTMLSelectElement | null
-	const lodgingFilter = document.getElementById("financialLodgingFilter") as HTMLInputElement | null
 	const ageFilter = document.getElementById("financialAgeFilter") as HTMLSelectElement | null
 	const searchFilter = document.getElementById("financialSearchFilter") as HTMLInputElement | null
-	const workTypeFilters = document.getElementById("financialWorkTypeFilters")
+	const clearFilters = document.getElementById("financialClearFilters") as HTMLButtonElement | null
 	const summary = document.getElementById("financialSummary")
 	const rows = document.getElementById("financialRows")
 	if (!rows || rows.dataset.financialWorkspaceReady === "true") return
 	rows.dataset.financialWorkspaceReady = "true"
 	const listSummary = document.getElementById("financialListSummary")
+	const listHint = document.getElementById("financialListHint")
 	const filterSummary = document.getElementById("financialFilterSummary")
 	const drawer = document.getElementById("financialReviewDrawer")
 	const drawerBackdrop = document.getElementById("financialReviewBackdrop")
@@ -103,8 +103,26 @@ export function initFinancialWorkspace(): void {
 		)
 	const inboxState = {
 		segment: "needs_action_today",
-		workType: "all",
 	}
+	const searchShell = searchFilter?.closest(".financial-search-compact") as HTMLElement | null
+
+	function syncSearchShell(): void {
+		if (!searchShell || !searchFilter) return
+		const expanded = document.activeElement === searchFilter || searchFilter.value.trim().length > 0
+		searchShell.classList.toggle("is-expanded", expanded)
+	}
+
+	searchFilter?.addEventListener("focus", syncSearchShell)
+	searchFilter?.addEventListener("input", syncSearchShell)
+	searchFilter?.addEventListener("blur", syncSearchShell)
+	searchFilter?.addEventListener("click", syncSearchShell)
+	syncSearchShell()
+
+	clearFilters?.addEventListener("click", () => {
+		if (actorFilter) actorFilter.value = "all"
+		if (ageFilter) ageFilter.value = "all"
+		renderFinancialView()
+	})
 
 	const rowFor = (item: any) => rowViewFor(workspaceState, item)
 	const refundFor = (item: any) => refundHandoffFor(workspaceState, item)
@@ -113,9 +131,7 @@ export function initFinancialWorkspace(): void {
 		return {
 			actor: String(actorFilter?.value || "all") as any,
 			segment: inboxState.segment,
-			workType: inboxState.workType,
 			search: String(searchFilter?.value || ""),
-			lodging: String(lodgingFilter?.value || ""),
 			age: String(ageFilter?.value || "all"),
 		}
 	}
@@ -165,10 +181,8 @@ export function initFinancialWorkspace(): void {
 			.map((metric) => {
 				const active = metric.queue === inboxState.segment
 				const buttonClass = financialSummaryClass(active)
-				const countClass = active ? "font-bold text-white" : "font-bold text-slate-950"
 				return `<button type="button" data-queue="${metric.queue}" class="${buttonClass}">
-					<span class="${countClass}">${metric.value}</span>
-					<span class="ml-1">${metric.label}</span>
+					${financialSegmentMarkup(metric.label, metric.value, active)}
 				</button>`
 			})
 			.join("")
@@ -180,31 +194,15 @@ export function initFinancialWorkspace(): void {
 		})
 	}
 
-	function renderWorkTypeFilters(): void {
-		if (!workTypeFilters) return
-		workTypeFilters.querySelectorAll<HTMLElement>("[data-work-type]").forEach((button) => {
-			const active = String(button.dataset.workType || "all") === inboxState.workType
-			button.className = financialSegmentClass(active)
-		})
-	}
-
 	function selectedOptionLabel(select: HTMLSelectElement | null, fallback: string): string {
 		return select?.selectedOptions?.[0]?.textContent?.trim() || fallback
 	}
 
 	function renderFilterSummary(): void {
 		if (!filterSummary) return
-		const workTypeLabel =
-			workTypeOptions.find((option) => option.value === inboxState.workType)?.label || "Todos"
 		const actorLabel = selectedOptionLabel(actorFilter, "Todos los equipos")
 		const ageLabel = selectedOptionLabel(ageFilter, "Todas")
-		const lodgingValue = lodgingFilter?.value.trim() || ""
-		const parts = [
-			workTypeLabel === "Todos" ? "Todos los tipos" : workTypeLabel,
-			actorLabel,
-			ageLabel === "Todas" ? "" : ageLabel,
-			lodgingValue ? `Alojamiento: ${lodgingValue}` : "",
-		].filter(Boolean)
+		const parts = [actorLabel, ageLabel === "Todas" ? "Todas las edades" : ageLabel].filter(Boolean)
 		filterSummary.textContent = parts.join(" · ")
 	}
 
@@ -426,14 +424,14 @@ export function initFinancialWorkspace(): void {
 		mergeFinancialWorkspaceItems(workspaceState)
 		const filteredItems = applyFilters(workspaceState.combinedItems)
 		renderSummary(workspaceState.combinedItems)
-		renderWorkTypeFilters()
 		renderFilterSummary()
 		renderRows(filteredItems)
 		if (listSummary) {
 			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
-			listSummary.textContent = `${openCount} caso(s) requieren atención. Mostrando ${shownCount}. ${actorNoiseHint(actor)}`
+			listSummary.textContent = `${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`
+			if (listHint) listHint.textContent = actorNoiseHint(actor)
 		}
 	}
 
@@ -558,15 +556,8 @@ export function initFinancialWorkspace(): void {
 	}
 
 	actorFilter?.addEventListener("change", renderFinancialView)
-	lodgingFilter?.addEventListener("input", renderFinancialView)
 	ageFilter?.addEventListener("change", renderFinancialView)
 	searchFilter?.addEventListener("input", renderFinancialView)
-	workTypeFilters?.querySelectorAll("[data-work-type]").forEach((button) => {
-		button.addEventListener("click", () => {
-			inboxState.workType = String((button as HTMLElement).dataset.workType || "all")
-			renderFinancialView()
-		})
-	})
 	drawerClose?.addEventListener("click", closeDrawer)
 	drawerBackdrop?.addEventListener("click", closeDrawer)
 	void fetchOperations()

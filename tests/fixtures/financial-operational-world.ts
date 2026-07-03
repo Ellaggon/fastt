@@ -391,7 +391,6 @@ export function rowForOperationalCase(entry: OperationalCase): FinancialRowViewM
 
 export function filterOperationalWorld(filters: {
 	segment?: string
-	workType?: string
 	actor?: any
 }): OperationalCase[] {
 	const byItem = new Map(financialOperationalWorld.map((entry) => [entry.item, entry]))
@@ -399,9 +398,7 @@ export function filterOperationalWorld(filters: {
 		items: financialOperationalWorld.map((entry) => entry.item),
 		filters: {
 			segment: filters.segment || "needs_action_today",
-			workType: filters.workType || "all",
 			search: "",
-			lodging: "",
 			age: "all",
 			actor: filters.actor || "all",
 		},

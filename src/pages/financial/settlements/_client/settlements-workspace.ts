@@ -12,7 +12,11 @@ import {
 	stateDotClass,
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
-import { financialSegmentClass, financialUi } from "../../_client/financial-ui-classes"
+import {
+	financialSegmentClass,
+	financialSegmentMarkup,
+	financialUi,
+} from "../../_client/financial-ui-classes"
 
 type SettlementSegment =
 	| "amount_mismatch"
@@ -258,7 +262,7 @@ function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-settlements-segment]").forEach((button) => {
 		const segment = button.dataset.settlementsSegment as SettlementSegment
 		const active = segment === state.segment
-		button.textContent = `${segmentLabels[segment]} (${segmentCount(segment)})`
+		button.innerHTML = financialSegmentMarkup(segmentLabels[segment], segmentCount(segment), active)
 		button.className = financialSegmentClass(active)
 	})
 }
@@ -266,11 +270,13 @@ function renderSegments(): void {
 function renderRows(): void {
 	const rows = document.getElementById("settlementsRows")
 	const summary = document.getElementById("settlementsSummary")
+	const summaryHint = document.getElementById("settlementsSummaryHint")
 	if (!rows) return
 	const visible = sortSettlementItems(state.items.filter((item) => item.segment === state.segment))
 	if (summary) {
-		summary.textContent = `${segmentLabels[state.segment]}: ${visible.length} caso${visible.length === 1 ? "" : "s"}. ${segmentHints[state.segment]}`
+		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
+	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
 	if (!visible.length) {
 		const emptyMessages: Record<SettlementSegment, string> = {
 			amount_mismatch: "No hay diferencias de monto visibles.",

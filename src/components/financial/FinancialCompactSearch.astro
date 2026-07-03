@@ -1,0 +1,105 @@
+---
+import Input from "@/components/ui/Input.astro"
+
+interface Props {
+	id: string
+	placeholder: string
+}
+
+const { id, placeholder } = Astro.props
+---
+
+<label class="financial-search-compact">
+	<span class="sr-only">{placeholder}</span>
+	<svg
+		aria-hidden="true"
+		class="financial-search-compact__icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="2"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+	>
+		<circle cx="11" cy="11" r="8"></circle>
+		<path d="m21 21-4.35-4.35"></path>
+	</svg>
+	<Input id={id} type="search" {placeholder} class="financial-search-compact__input" />
+</label>
+
+<style>
+	.financial-search-compact {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+		color: rgb(100 116 139);
+	}
+
+	.financial-search-compact__icon {
+		position: absolute;
+		left: 0.75rem;
+		z-index: 1;
+		width: 1rem;
+		height: 1rem;
+		pointer-events: none;
+		transition:
+			color var(--fastt-motion-standard) var(--fastt-ease-standard),
+			transform var(--fastt-motion-standard) var(--fastt-ease-standard);
+	}
+
+	.financial-search-compact__input {
+		width: 2.75rem;
+		height: 2.25rem;
+		border: 1px solid rgb(226 232 240 / 90%);
+		border-radius: var(--fastt-radius-pill);
+		background: rgb(255 255 255 / 88%);
+		padding: 0 0.75rem 0 2.35rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: rgb(15 23 42);
+		box-shadow: var(--fastt-shadow-control);
+		outline: none;
+		transition:
+			width var(--fastt-motion-sheet) var(--fastt-ease-settle),
+			border-color var(--fastt-motion-standard) ease,
+			background-color var(--fastt-motion-standard) ease,
+			box-shadow var(--fastt-motion-standard) ease;
+	}
+
+	.financial-search-compact__input::placeholder {
+		color: transparent;
+		transition: color var(--fastt-motion-standard) ease;
+	}
+
+	.financial-search-compact:focus-within .financial-search-compact__icon,
+	.financial-search-compact.is-expanded .financial-search-compact__icon,
+	.financial-search-compact:has(.financial-search-compact__input:not(:placeholder-shown))
+		.financial-search-compact__icon {
+		color: rgb(15 23 42);
+		transform: scale(0.95);
+	}
+
+	.financial-search-compact__input:focus,
+	.financial-search-compact.is-expanded .financial-search-compact__input,
+	.financial-search-compact__input:not(:placeholder-shown) {
+		width: min(22rem, calc(100vw - 3rem));
+		border-color: rgb(148 163 184 / 70%);
+		background: rgb(255 255 255 / 96%);
+		box-shadow:
+			0 14px 32px rgb(15 23 42 / 10%),
+			0 0 0 4px rgb(226 232 240 / 55%);
+	}
+
+	.financial-search-compact__input:focus::placeholder {
+		color: rgb(148 163 184);
+	}
+
+	@media (max-width: 639px) {
+		.financial-search-compact__input:focus,
+		.financial-search-compact.is-expanded .financial-search-compact__input,
+		.financial-search-compact__input:not(:placeholder-shown) {
+			width: min(15rem, calc(100vw - 6rem));
+		}
+	}
+</style>

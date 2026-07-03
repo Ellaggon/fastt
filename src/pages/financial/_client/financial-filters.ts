@@ -4,9 +4,7 @@ import type { FinancialRowViewModel } from "./financial-row-view-model"
 
 export type FinancialWorkspaceFilterState = {
 	segment: string
-	workType: string
 	search: string
-	lodging: string
 	age: string
 	actor: FinancialActorFilter
 }
@@ -116,11 +114,9 @@ export function filterFinancialRows(params: {
 		if (isSuppressed(item)) return false
 		const row = rowFor(item)
 		const searchMatches = textMatches(item, filters.search)
-		const lodgingMatches = lodgingTextMatches(item, filters.lodging)
 		const ageMatches = ageFilterMatches(row, filters.age)
 		return (
 			searchMatches &&
-			lodgingMatches &&
 			ageMatches &&
 			queueMatchesRow({
 				item,
@@ -128,7 +124,6 @@ export function filterFinancialRows(params: {
 				queue: filters.segment,
 				isTerminalReview: isTerminalReview(item),
 			}) &&
-			workTypeMatchesRow(row, filters.workType) &&
 			actorMatchesRow(filters.actor, row)
 		)
 	})
@@ -150,6 +145,8 @@ function searchableValues(item: any): string[] {
 		item?.operation?.contract?.productName,
 		item?.operation?.contract?.variantName,
 		item?.operation?.contract?.ratePlanName,
+		item?.contract?.productName,
+		item?.contract?.variantName,
 		...(Array.isArray(item?.operation?.references)
 			? item.operation.references.map((row: any) => row?.referenceValue)
 			: []),
@@ -173,19 +170,6 @@ function textMatches(item: any, query: string): boolean {
 	return searchableValues(item).some((value) => normalize(value).includes(normalized))
 }
 
-function lodgingTextMatches(item: any, query: string): boolean {
-	const normalized = normalize(query)
-	if (!normalized) return true
-	const values = [
-		item?.operation?.contract?.productName,
-		item?.operation?.contract?.variantName,
-		item?.operation?.contract?.ratePlanName,
-		item?.contract?.productName,
-		item?.contract?.variantName,
-	]
-	return values.some((value) => normalize(value).includes(normalized))
-}
-
 function ageFilterMatches(row: FinancialRowViewModel, age: string): boolean {
 	if (!age || age === "all") return true
 	const days = Number.parseInt(String(row.ageLabel || "").match(/\d+/)?.[0] || "0", 10)
@@ -194,11 +178,6 @@ function ageFilterMatches(row: FinancialRowViewModel, age: string): boolean {
 	if (age === "over_7") return days >= 7
 	if (age === "over_14") return days >= 14
 	return true
-}
-
-function workTypeMatchesRow(row: FinancialRowViewModel, workType: string): boolean {
-	if (!workType || workType === "all") return true
-	return row.operationalCategory === workType
 }
 
 export function countFinancialQueue(params: {

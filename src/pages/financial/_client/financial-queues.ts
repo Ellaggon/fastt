@@ -6,15 +6,6 @@ export const primaryQueueOptions = [
 	{ value: "recently_closed", label: "Cerrados recientemente" },
 ] as const
 
-export const workTypeOptions = [
-	{ value: "all", label: "Todos" },
-	{ value: "collections", label: "Cobros" },
-	{ value: "settlements", label: "Liquidaciones" },
-	{ value: "provider_payables", label: "Pagos pendientes" },
-	{ value: "refunds", label: "Reembolsos" },
-	{ value: "exceptions", label: "Excepciones" },
-] as const
-
 export const primarySummaryQueues = [
 	{ label: "Requieren atención", queue: "needs_action_today" },
 	{ label: "Bloqueados", queue: "blocked" },

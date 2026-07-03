@@ -1,8 +1,4 @@
 export const financialUi = {
-	segmentActive:
-		"fastt-button h-auto rounded-full bg-slate-950 px-3 py-2 text-sm font-semibold text-white",
-	segmentInactive:
-		"fastt-button h-auto rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300 hover:bg-white",
 	summaryActive:
 		"fastt-button h-auto rounded-full border border-slate-950 bg-slate-950 px-3 py-2 text-left text-xs font-semibold text-white transition",
 	summaryInactive:
@@ -29,11 +25,16 @@ export const financialUi = {
 }
 
 export function financialSegmentClass(active: boolean): string {
-	return active ? financialUi.segmentActive : financialUi.segmentInactive
+	return financialSummaryClass(active)
 }
 
 export function financialSummaryClass(active: boolean): string {
 	return active ? financialUi.summaryActive : financialUi.summaryInactive
+}
+
+export function financialSegmentMarkup(label: string, count: number, active: boolean): string {
+	const countClass = active ? "font-bold text-white" : "font-bold text-slate-950"
+	return `<span class="${countClass}">${count}</span><span class="ml-1">${label}</span>`
 }
 
 export function financialMetricCard(label: string, value: string): string {

@@ -4,7 +4,6 @@ import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-fi
 import {
 	primaryQueueOptions,
 	primarySummaryQueues,
-	workTypeOptions,
 } from "@/pages/financial/_client/financial-queues"
 import { buildFinancialDrawerViewModel } from "@/pages/financial/_client/financial-drawer-view-model"
 import { buildProviderFinanceCopy } from "@/pages/financial/_client/financial-provider-finance-copy"
@@ -83,19 +82,14 @@ describe("integration/financial inbox UX validation", () => {
 			])
 		)
 		expect(closeable).toContain("ready-to-close")
-		expect(
-			filterOperationalWorld({ segment: "all", workType: "collections" }).map((entry) => entry.id)
-		).toContain("payment-proof-missing")
-		expect(
-			filterOperationalWorld({ segment: "all", workType: "settlements" }).map((entry) => entry.id)
-		).toEqual(
-			expect.arrayContaining(["duplicate-provider-reference", "stale-review-after-proof-arrived"])
+		const categories = new Map(
+			financialOperationalWorld.map((entry) => [entry.id, rowForOperationalCase(entry).operationalCategory])
 		)
-		expect(
-			filterOperationalWorld({ segment: "all", workType: "provider_payables" }).map(
-				(entry) => entry.id
-			)
-		).toEqual(expect.arrayContaining(["provider-payable-blocked", "statement-needs-another-look"]))
+		expect(categories.get("payment-proof-missing")).toBe("collections")
+		expect(categories.get("duplicate-provider-reference")).toBe("settlements")
+		expect(categories.get("stale-review-after-proof-arrived")).toBe("settlements")
+		expect(categories.get("provider-payable-blocked")).toBe("provider_payables")
+		expect(categories.get("statement-needs-another-look")).toBe("provider_payables")
 	})
 
 	it("keeps row scanning useful before opening the drawer", () => {
@@ -131,15 +125,6 @@ describe("integration/financial inbox UX validation", () => {
 			"ready_to_close",
 			"recently_closed",
 		])
-		expect(workTypeOptions.map((option) => option.value)).toEqual(
-			expect.arrayContaining([
-				"collections",
-				"provider_payables",
-				"refunds",
-				"settlements",
-				"exceptions",
-			])
-		)
 	})
 
 	it("derives operational categories, attention state, and money without reading translated copy", () => {
