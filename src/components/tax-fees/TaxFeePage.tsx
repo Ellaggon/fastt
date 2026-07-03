@@ -5,6 +5,7 @@ import TaxFeeWizard, {
 	type DefinitionSummary,
 	type TaxFeeWizardMode,
 } from "./TaxFeeWizard"
+import { Badge, Button, Card, Notice } from "../ui-react"
 
 type TaxFeePageProps = {
 	initialDefinitions: DefinitionSummary[]
@@ -69,29 +70,22 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 
 	return (
 		<section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-			<div className="rounded-2xl border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 xl:col-span-2">
+			<Notice variant="error" className="xl:col-span-2">
 				DEBUG: TaxFeePage is rendering. definitions={definitions.length} mode={mode}
-			</div>
-			<aside className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm">
+			</Notice>
+			<Card as="aside">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<div>
-						<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
-							Definitions
-						</p>
-						<h2 className="mt-2 text-2xl font-semibold text-neutral-950">Existing taxes & fees</h2>
+						<p className="text-xs font-semibold text-slate-500 uppercase">Definitions</p>
+						<h2 className="mt-2 text-2xl font-semibold text-slate-950">Existing taxes & fees</h2>
 					</div>
-					<button
-						type="button"
-						onClick={startCreating}
-						className="rounded-full bg-neutral-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800"
-					>
+					<Button type="button" onClick={startCreating}>
 						Create tax or fee
-					</button>
+					</Button>
 				</div>
 
 				{warnings.length > 0 && (
-					<div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-						<p className="font-semibold">Needs attention</p>
+					<Notice variant="warning" title="Needs attention" className="mb-4">
 						<div className="mt-3 space-y-3">
 							{warnings.map((warning, index) => (
 								<div key={`${warning.code}-${index}`}>
@@ -100,91 +94,81 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								</div>
 							))}
 						</div>
-					</div>
+					</Notice>
 				)}
 
 				{!hasDefinitions ? (
-					<div className="rounded-3xl border border-dashed border-neutral-300 bg-neutral-50 p-5">
-						<h3 className="text-lg font-semibold text-neutral-950">
+					<div className="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-5">
+						<h3 className="text-lg font-semibold text-slate-950">
 							No taxes or fees configured yet
 						</h3>
-						<p className="mt-2 text-sm leading-6 text-neutral-600">
+						<p className="mt-2 text-sm leading-6 text-slate-600">
 							Agrega impuestos o cargos para que los huéspedes vean precios correctos antes de
 							reservar.
 						</p>
-						<button
-							type="button"
-							onClick={startCreating}
-							className="mt-4 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-						>
+						<Button type="button" onClick={startCreating} className="mt-4">
 							Create tax or fee
-						</button>
+						</Button>
 					</div>
 				) : (
 					<div className="space-y-3">
 						{definitions.map((definition) => (
-							<div key={definition.id} className="rounded-3xl border border-neutral-200 p-4">
+							<div
+								key={definition.id}
+								className="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 p-4"
+							>
 								<div className="flex items-start justify-between gap-4">
 									<div>
-										<p className="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-											{definition.kind === "tax" ? "Tax" : "Fee"}
-										</p>
-										<h3 className="mt-1 text-lg font-semibold text-neutral-950">
-											{definition.name}
-										</h3>
-										<p className="mt-1 text-sm text-neutral-600">
+										<Badge variant="neutral">{definition.kind === "tax" ? "Tax" : "Fee"}</Badge>
+										<h3 className="mt-2 text-lg font-semibold text-slate-950">{definition.name}</h3>
+										<p className="mt-1 text-sm text-slate-600">
 											{definition.inclusionType === "included"
 												? "Included in price"
 												: "Added at checkout"}
 										</p>
 									</div>
-									<button
+									<Button
 										type="button"
 										onClick={() => startEditing(definition)}
-										className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700 transition hover:border-neutral-500 hover:text-neutral-950"
+										variant="secondary"
+										size="sm"
 									>
 										Edit
-									</button>
+									</Button>
 								</div>
-								<p className="mt-3 text-sm text-neutral-700">
+								<p className="mt-3 text-sm text-slate-700">
 									{formatDefinitionValue(definition)} · {formatAppliesPer(definition.appliesPer)}
 								</p>
 							</div>
 						))}
 					</div>
 				)}
-			</aside>
+			</Card>
 
 			<div>
 				{successMessage && (
-					<div className="mb-4 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
+					<Notice variant="success" className="mb-4">
 						{successMessage}
-					</div>
+					</Notice>
 				)}
 
 				{mode === "idle" ? (
-					<section className="rounded-[2rem] border border-dashed border-neutral-300 bg-white/80 p-8 shadow-sm">
-						<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
-							Wizard
-						</p>
-						<h2 className="mt-3 text-2xl font-semibold text-neutral-950">
+					<Card className="border-dashed border-slate-300 bg-white/90 p-8">
+						<p className="text-xs font-semibold text-slate-500 uppercase">Wizard</p>
+						<h2 className="mt-3 text-2xl font-semibold text-slate-950">
 							{hasDefinitions
 								? "Create a new tax or fee, or edit an existing one"
 								: "Start your first tax or fee"}
 						</h2>
-						<p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
+						<p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
 							{hasDefinitions
 								? "Use the create button to add something new, or choose Edit on any item to reopen it in the wizard."
 								: "Use the button below to open the wizard. We will guide you step by step from preset to preview."}
 						</p>
-						<button
-							type="button"
-							onClick={startCreating}
-							className="mt-6 rounded-full bg-neutral-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-neutral-800"
-						>
+						<Button type="button" onClick={startCreating} className="mt-6">
 							Create tax or fee
-						</button>
-					</section>
+						</Button>
+					</Card>
 				) : (
 					<TaxFeeWizard
 						initialDefinitions={definitions}

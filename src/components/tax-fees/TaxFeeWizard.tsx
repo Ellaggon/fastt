@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { Badge, Button, Card, ChoiceCard, Input, Notice, Select } from "../ui-react"
+
 type TaxFeeKind = "tax" | "fee"
 type CalculationType = "percentage" | "fixed"
 type AppliesPer = "stay" | "night" | "guest" | "guest_night"
@@ -246,15 +248,6 @@ const initialDraft: DraftState = {
 	checkOut: makeTomorrow(8),
 	adults: "2",
 	children: "0",
-}
-
-function buttonClass(selected: boolean) {
-	return [
-		"rounded-3xl border px-4 py-4 text-left transition",
-		selected
-			? "border-emerald-600 bg-emerald-50 shadow-[0_0_0_1px_rgba(5,150,105,0.2)]"
-			: "border-neutral-200 bg-white hover:border-neutral-400",
-	].join(" ")
 }
 
 function sanitizeCode(input: string) {
@@ -687,31 +680,29 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		<div className="space-y-8">
 			<section className={showDefinitionsSidebar ? "grid gap-6 xl:grid-cols-[0.85fr_1.15fr]" : ""}>
 				{showDefinitionsSidebar && (
-					<aside className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm">
+					<Card as="aside">
 						<div className="mb-4 flex items-center justify-between">
 							<div>
-								<p className="text-xs font-semibold tracking-[0.18em] text-neutral-500 uppercase">
-									Definitions
-								</p>
-								<h2 className="mt-2 text-2xl font-semibold text-neutral-950">
+								<p className="text-xs font-semibold text-slate-500 uppercase">Definitions</p>
+								<h2 className="mt-2 text-2xl font-semibold text-slate-950">
 									Existing taxes & fees
 								</h2>
 							</div>
-							<button
+							<Button
 								type="button"
 								onClick={() => {
 									resetWizard()
 									void refreshDefinitions()
 								}}
-								className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700"
+								variant="secondary"
+								size="sm"
 							>
 								{isRefreshingDefinitions ? "Refreshing..." : "New definition"}
-							</button>
+							</Button>
 						</div>
 
 						{listWarnings.length > 0 && (
-							<div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-								<p className="font-semibold">Needs attention</p>
+							<Notice variant="warning" title="Needs attention" className="mb-4">
 								<div className="mt-3 space-y-3">
 									{listWarningGroups.map((group) => (
 										<div key={group.title}>
@@ -724,36 +715,38 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										</div>
 									))}
 								</div>
-							</div>
+							</Notice>
 						)}
 
 						<div className="space-y-3">
 							{definitions.length === 0 ? (
-								<div className="rounded-3xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+								<div className="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
 									No taxes or fees configured yet.
 								</div>
 							) : (
 								definitions.map((definition) => (
-									<div key={definition.id} className="rounded-3xl border border-neutral-200 p-4">
+									<div
+										key={definition.id}
+										className="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 p-4"
+									>
 										<div className="flex items-start justify-between gap-4">
 											<div>
-												<p className="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-													{definition.kind}
-												</p>
-												<h3 className="mt-1 text-lg font-semibold text-neutral-950">
+												<Badge>{definition.kind}</Badge>
+												<h3 className="mt-2 text-lg font-semibold text-slate-950">
 													{definition.name}
 												</h3>
-												<p className="mt-1 text-sm text-neutral-600">{definition.code}</p>
+												<p className="mt-1 text-sm text-slate-600">{definition.code}</p>
 											</div>
-											<button
+											<Button
 												type="button"
 												onClick={() => startEdit(definition)}
-												className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700"
+												variant="secondary"
+												size="sm"
 											>
 												Edit
-											</button>
+											</Button>
 										</div>
-										<p className="mt-3 text-sm text-neutral-700">
+										<p className="mt-3 text-sm text-slate-700">
 											{definition.calculationType === "percentage"
 												? `${definition.value}%`
 												: `${definition.currency ?? "USD"} ${definition.value}`}{" "}
@@ -767,10 +760,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								))
 							)}
 						</div>
-					</aside>
+					</Card>
 				)}
 
-				<section className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm">
+				<Card as="section">
 					<div className="mb-6 flex flex-wrap gap-3">
 						{STEP_LABELS.map((item) => {
 							const active = item.id === step
@@ -781,10 +774,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									className={[
 										"flex items-center gap-3 rounded-full border px-4 py-2 text-sm",
 										active
-											? "border-emerald-600 bg-emerald-50 text-emerald-900"
+											? "border-slate-950 bg-slate-950 text-white"
 											: complete
-												? "border-neutral-300 bg-neutral-100 text-neutral-700"
-												: "border-neutral-200 bg-white text-neutral-500",
+												? "border-slate-300 bg-slate-100 text-slate-700"
+												: "border-slate-200 bg-white text-slate-500",
 									].join(" ")}
 								>
 									<span className="font-semibold">{item.id}</span>
@@ -795,20 +788,19 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					</div>
 
 					{errorMessage && (
-						<div className="mb-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+						<Notice variant="error" className="mb-4">
 							{errorMessage}
-						</div>
+						</Notice>
 					)}
 
 					{successMessage && (
-						<div className="mb-4 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
+						<Notice variant="success" className="mb-4">
 							{successMessage}
-						</div>
+						</Notice>
 					)}
 
 					{previewWarnings.length > 0 && (
-						<div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-							<p className="font-semibold">Review before saving</p>
+						<Notice variant="warning" title="Review before saving" className="mb-4">
 							<div className="mt-3 space-y-3">
 								{warningGroups.map((group) => (
 									<div key={group.title}>
@@ -821,28 +813,27 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									</div>
 								))}
 							</div>
-						</div>
+						</Notice>
 					)}
 
 					{step === 1 && (
 						<div className="space-y-4">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">What are you adding?</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<h2 className="text-2xl font-semibold text-slate-950">What are you adding?</h2>
+								<p className="mt-2 text-sm text-slate-600">
 									Start by choosing whether this is a government tax or an operational fee.
 								</p>
 							</div>
 							<div className="grid gap-4 md:grid-cols-2">
 								{KIND_OPTIONS.map((option) => (
-									<button
+									<ChoiceCard
 										key={option.value}
-										type="button"
-										className={buttonClass(draft.kind === option.value)}
+										selected={draft.kind === option.value}
 										onClick={() => selectKind(option.value)}
 									>
-										<div className="text-base font-semibold text-neutral-950">{option.label}</div>
-										<p className="mt-2 text-sm text-neutral-600">{option.description}</p>
-									</button>
+										<div className="text-base font-semibold text-slate-950">{option.label}</div>
+										<p className="mt-2 text-sm text-slate-600">{option.description}</p>
+									</ChoiceCard>
 								))}
 							</div>
 						</div>
@@ -851,25 +842,22 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 2 && (
 						<div className="space-y-4">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">
-									Choose a starting preset
-								</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<h2 className="text-2xl font-semibold text-slate-950">Choose a starting preset</h2>
+								<p className="mt-2 text-sm text-slate-600">
 									Start with the closest match. We will fill in the usual setup for you so you
 									mostly just need to confirm the amount.
 								</p>
 							</div>
 							<div className="grid gap-4 md:grid-cols-2">
 								{filteredPresets.map((preset) => (
-									<button
+									<ChoiceCard
 										key={preset.key}
-										type="button"
-										className={buttonClass(draft.presetKey === preset.key)}
+										selected={draft.presetKey === preset.key}
 										onClick={() => selectPreset(preset)}
 									>
-										<div className="text-base font-semibold text-neutral-950">{preset.label}</div>
-										<p className="mt-2 text-sm text-neutral-600">{preset.description}</p>
-									</button>
+										<div className="text-base font-semibold text-slate-950">{preset.label}</div>
+										<p className="mt-2 text-sm text-slate-600">{preset.description}</p>
+									</ChoiceCard>
 								))}
 							</div>
 						</div>
@@ -878,10 +866,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 3 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">Set the amount</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<h2 className="text-2xl font-semibold text-slate-950">Set the amount</h2>
+								<p className="mt-2 text-sm text-slate-600">
 									We already filled the common setup for{" "}
-									<strong className="font-semibold text-neutral-900">
+									<strong className="font-semibold text-slate-900">
 										{selectedPreset?.label ?? "this charge"}
 									</strong>
 									. Most of the time you only need to confirm the amount and how guests will see it.
@@ -889,104 +877,98 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							</div>
 
 							<div className="space-y-3">
-								<span className="text-sm font-medium text-neutral-700">
+								<span className="text-sm font-medium text-slate-700">
 									How is this charge set up?
 								</span>
 								<div className="grid gap-3 md:grid-cols-2">
 									{CALCULATION_OPTIONS.map((option) => (
-										<button
+										<ChoiceCard
 											key={option.value}
-											type="button"
-											className={buttonClass(draft.calculationType === option.value)}
+											selected={draft.calculationType === option.value}
 											onClick={() => setCalculationType(option.value)}
 										>
-											<div className="text-base font-semibold text-neutral-950">
+											<div className="text-base font-semibold text-slate-950">
 												{option.value === "percentage" ? "Percentage of price" : "Fixed amount"}
 											</div>
-											<p className="mt-2 text-sm text-neutral-600">{option.helper}</p>
-										</button>
+											<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
+										</ChoiceCard>
 									))}
 								</div>
 							</div>
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">
+									<span className="text-sm font-medium text-slate-700">
 										{draft.calculationType === "percentage" ? "Percentage amount" : "Charge amount"}
 									</span>
-									<input
+									<Input
 										type="number"
 										min="0"
 										step="0.01"
 										value={draft.value}
 										onChange={(event) => updateDraft({ value: event.target.value })}
 										placeholder={draft.calculationType === "percentage" ? "10" : "25.00"}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
 								{draft.calculationType === "fixed" && (
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-neutral-700">Currency</span>
-										<select
+										<span className="text-sm font-medium text-slate-700">Currency</span>
+										<Select
 											value={draft.currency}
 											onChange={(event) => updateDraft({ currency: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										>
 											<option value="USD">USD</option>
 											<option value="EUR">EUR</option>
 											<option value="CLP">CLP</option>
 											<option value="ARS">ARS</option>
-										</select>
+										</Select>
 									</label>
 								)}
 							</div>
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
-									<span className="text-sm font-medium text-neutral-700">
+									<span className="text-sm font-medium text-slate-700">
 										How should guests see it?
 									</span>
 									<div className="grid gap-3">
 										{INCLUDED_OPTIONS.map((option) => (
-											<button
+											<ChoiceCard
 												key={option.value}
-												type="button"
-												className={buttonClass(draft.inclusionType === option.value)}
+												selected={draft.inclusionType === option.value}
 												onClick={() => updateDraft({ inclusionType: option.value })}
 											>
-												<div className="text-base font-semibold text-neutral-950">
-													{option.label}
-												</div>
-												<p className="mt-2 text-sm text-neutral-600">{option.helper}</p>
-											</button>
+												<div className="text-base font-semibold text-slate-950">{option.label}</div>
+												<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
+											</ChoiceCard>
 										))}
 									</div>
 								</div>
 
-								<div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-									<p className="text-sm font-medium text-neutral-700">Current setup</p>
-									<dl className="mt-3 space-y-3 text-sm text-neutral-700">
+								<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4">
+									<p className="text-sm font-medium text-slate-700">Current setup</p>
+									<dl className="mt-3 space-y-3 text-sm text-slate-700">
 										<div className="flex items-center justify-between gap-4">
 											<dt>Type</dt>
-											<dd className="font-medium text-neutral-950">
+											<dd className="font-medium text-slate-950">
 												{draft.kind === "tax" ? "Tax" : "Fee"}
 											</dd>
 										</div>
 										<div className="flex items-center justify-between gap-4">
 											<dt>Preset</dt>
-											<dd className="font-medium text-neutral-950">
+											<dd className="font-medium text-slate-950">
 												{selectedPreset?.label ?? "Custom"}
 											</dd>
 										</div>
 										<div className="flex items-center justify-between gap-4">
 											<dt>Frequency</dt>
-											<dd className="font-medium text-neutral-950">
+											<dd className="font-medium text-slate-950">
 												{APPLIES_PER_OPTIONS.find((item) => item.value === draft.appliesPer)?.label}
 											</dd>
 										</div>
 									</dl>
-									<p className="mt-4 text-xs text-neutral-500">
+									<p className="mt-4 text-xs text-slate-500">
 										Need to change how often this applies? You can adjust it in the advanced step.
 									</p>
 								</div>
@@ -997,10 +979,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 4 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">
+								<h2 className="text-2xl font-semibold text-slate-950">
 									Choose where it will apply
 								</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<p className="mt-2 text-sm text-slate-600">
 									The preview API needs the product context, and the final assignment will use the
 									selected scope.
 								</p>
@@ -1008,22 +990,21 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 							<div className="grid gap-3 md:grid-cols-2">
 								{SCOPE_OPTIONS.map((option) => (
-									<button
+									<ChoiceCard
 										key={option.value}
-										type="button"
-										className={buttonClass(draft.scope === option.value)}
+										selected={draft.scope === option.value}
 										onClick={() => updateDraft({ scope: option.value })}
 									>
-										<div className="text-base font-semibold text-neutral-950">{option.label}</div>
-										<p className="mt-2 text-sm text-neutral-600">{option.helper}</p>
-									</button>
+										<div className="text-base font-semibold text-slate-950">{option.label}</div>
+										<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
+									</ChoiceCard>
 								))}
 							</div>
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Scope ID</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Scope ID</span>
+									<Input
 										value={draft.scopeId}
 										onChange={(event) => updateDraft({ scopeId: event.target.value })}
 										placeholder={
@@ -1035,29 +1016,24 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 														? "rp_123"
 														: "provider_id"
 										}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">
-										Product ID for preview
-									</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Product ID for preview</span>
+									<Input
 										value={draft.productId}
 										onChange={(event) => updateDraft({ productId: event.target.value })}
 										placeholder="prod_123"
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
 								<label className="flex flex-col gap-2 md:col-span-2">
-									<span className="text-sm font-medium text-neutral-700">Channel (optional)</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Channel (optional)</span>
+									<Input
 										value={draft.channel}
 										onChange={(event) => updateDraft({ channel: event.target.value })}
 										placeholder="web"
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 							</div>
@@ -1067,8 +1043,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 5 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">Advanced details</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<h2 className="text-2xl font-semibold text-slate-950">Advanced details</h2>
+								<p className="mt-2 text-sm text-slate-600">
 									Only adjust these if you need something more specific. We will save the definition
 									first, then run a real preview before assignment.
 								</p>
@@ -1076,68 +1052,64 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Charge name</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Charge name</span>
+									<Input
 										value={draft.name}
 										onChange={(event) => updateDraft({ name: event.target.value, code: "" })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">
+									<span className="text-sm font-medium text-slate-700">
 										How often does it apply?
 									</span>
-									<select
+									<Select
 										value={draft.appliesPer}
 										onChange={(event) =>
 											updateDraft({ appliesPer: event.target.value as AppliesPer })
 										}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									>
 										{APPLIES_PER_OPTIONS.map((option) => (
 											<option key={option.value} value={option.value}>
 												{option.label}
 											</option>
 										))}
-									</select>
-									<p className="text-xs text-neutral-500">
+									</Select>
+									<p className="text-xs text-slate-500">
 										Most presets already set this correctly. Change it only if your charge works
 										differently.
 									</p>
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">
+									<span className="text-sm font-medium text-slate-700">
 										Effective from (optional)
 									</span>
-									<input
+									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveFrom}
 										onChange={(event) => updateDraft({ effectiveFrom: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">
+									<span className="text-sm font-medium text-slate-700">
 										Effective to (optional)
 									</span>
-									<input
+									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.effectiveTo}
 										onChange={(event) => updateDraft({ effectiveTo: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 							</div>
 
-							<div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
-								<p className="font-medium text-neutral-900">Internal fields are handled for you</p>
+							<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+								<p className="font-medium text-slate-900">Internal fields are handled for you</p>
 								<p className="mt-1">
 									Code and priority are generated internally. You only need to confirm how guests
 									should see the charge.
@@ -1149,10 +1121,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 6 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-neutral-950">
-									Run real backend preview
-								</h2>
-								<p className="mt-2 text-sm text-neutral-600">
+								<h2 className="text-2xl font-semibold text-slate-950">Run real backend preview</h2>
+								<p className="mt-2 text-sm text-slate-600">
 									This preview comes directly from the live CAPA 7 backend. It helps you check how
 									the price will look to guests before you assign the charge.
 								</p>
@@ -1160,115 +1130,105 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Base amount</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Base amount</span>
+									<Input
 										type="number"
 										step="0.01"
 										value={draft.base}
 										onChange={(event) => updateDraft({ base: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Ingreso</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Ingreso</span>
+									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkIn}
 										onChange={(event) => updateDraft({ checkIn: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-neutral-700">Salida</span>
-									<input
+									<span className="text-sm font-medium text-slate-700">Salida</span>
+									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
 										pattern="\\d{4}-\\d{2}-\\d{2}"
 										value={draft.checkOut}
 										onChange={(event) => updateDraft({ checkOut: event.target.value })}
-										className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 									/>
 								</label>
 								<div className="grid gap-4 sm:grid-cols-2">
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-neutral-700">Adults</span>
-										<input
+										<span className="text-sm font-medium text-slate-700">Adults</span>
+										<Input
 											type="number"
 											min="0"
 											value={draft.adults}
 											onChange={(event) => updateDraft({ adults: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										/>
 									</label>
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-neutral-700">Children</span>
-										<input
+										<span className="text-sm font-medium text-slate-700">Children</span>
+										<Input
 											type="number"
 											min="0"
 											value={draft.children}
 											onChange={(event) => updateDraft({ children: event.target.value })}
-											className="rounded-2xl border border-neutral-200 px-4 py-3 transition outline-none focus:border-emerald-600"
 										/>
 									</label>
 								</div>
 							</div>
 
 							<div className="flex flex-wrap gap-3">
-								<button
+								<Button
 									type="button"
 									onClick={() => void runPreview()}
 									disabled={isPreviewLoading || !definitionId || !draft.productId.trim()}
-									className="rounded-full bg-neutral-950 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
 								>
 									{isPreviewLoading ? "Running preview..." : "Run preview"}
-								</button>
+								</Button>
 								{editingDefinitionId && (
-									<span className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-600">
+									<Badge variant="neutral" className="px-4 py-2 text-sm">
 										Editing mode: definition updates only. Assignment is separate.
-									</span>
+									</Badge>
 								)}
 							</div>
 
 							{previewResult && (
-								<div className="space-y-4 rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
-									<div className="rounded-2xl bg-white p-4">
-										<p className="text-sm font-medium text-neutral-700">Price</p>
-										<p className="mt-1 text-2xl font-semibold text-neutral-950">
+								<div className="fastt-soft-box space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-5">
+									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
+										<p className="text-sm font-medium text-slate-700">Price</p>
+										<p className="mt-1 text-2xl font-semibold text-slate-950">
 											{formatMoney(previewResult.breakdown.base, previewCurrency)}
 										</p>
 										<div className="mt-3 flex flex-wrap gap-2">
 											{previewResult.flags.hasIncluded && (
-												<span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
-													Includes charges
-												</span>
+												<Badge variant="success">Includes charges</Badge>
 											)}
 											{previewResult.flags.hasExcluded && (
-												<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-													More charges at checkout
-												</span>
+												<Badge variant="warning">More charges at checkout</Badge>
 											)}
 										</div>
 									</div>
 
 									<div className="grid gap-4 md:grid-cols-2">
 										<div>
-											<h3 className="text-sm font-semibold text-neutral-900">Included in price</h3>
-											<ul className="mt-2 space-y-2 text-sm text-neutral-700">
+											<h3 className="text-sm font-semibold text-slate-900">Included in price</h3>
+											<ul className="mt-2 space-y-2 text-sm text-slate-700">
 												{includedLines.length === 0 ? (
-													<li className="rounded-2xl bg-white px-3 py-2">
+													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
 														Nothing extra is included here.
 													</li>
 												) : (
 													includedLines.map((line, index) => (
 														<li
 															key={`${line.code}-included-${index}`}
-															className="flex items-center justify-between gap-4 rounded-2xl bg-white px-3 py-2"
+															className="flex items-center justify-between gap-4 rounded-[var(--fastt-radius-card)] bg-white px-3 py-2"
 														>
 															<div>
-																<p className="font-medium text-neutral-900">{line.name}</p>
-																<p className="text-xs text-neutral-500">
+																<p className="font-medium text-slate-900">{line.name}</p>
+																<p className="text-xs text-slate-500">
 																	{
 																		APPLIES_PER_OPTIONS.find(
 																			(item) => item.value === line.appliesPer
@@ -1285,21 +1245,21 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											</ul>
 										</div>
 										<div>
-											<h3 className="text-sm font-semibold text-neutral-900">Additional charges</h3>
-											<ul className="mt-2 space-y-2 text-sm text-neutral-700">
+											<h3 className="text-sm font-semibold text-slate-900">Additional charges</h3>
+											<ul className="mt-2 space-y-2 text-sm text-slate-700">
 												{excludedLines.length === 0 ? (
-													<li className="rounded-2xl bg-white px-3 py-2">
+													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
 														No extra charges will be added later.
 													</li>
 												) : (
 													excludedLines.map((line, index) => (
 														<li
 															key={`${line.code}-excluded-${index}`}
-															className="flex items-center justify-between gap-4 rounded-2xl bg-white px-3 py-2"
+															className="flex items-center justify-between gap-4 rounded-[var(--fastt-radius-card)] bg-white px-3 py-2"
 														>
 															<div>
-																<p className="font-medium text-neutral-900">{line.name}</p>
-																<p className="text-xs text-neutral-500">
+																<p className="font-medium text-slate-900">{line.name}</p>
+																<p className="text-xs text-slate-500">
 																	{
 																		APPLIES_PER_OPTIONS.find(
 																			(item) => item.value === line.appliesPer
@@ -1317,9 +1277,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										</div>
 									</div>
 
-									<div className="rounded-2xl bg-white p-4">
-										<p className="text-sm font-medium text-neutral-700">Total</p>
-										<p className="mt-1 text-2xl font-semibold text-neutral-950">
+									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
+										<p className="text-sm font-medium text-slate-700">Total</p>
+										<p className="mt-1 text-2xl font-semibold text-slate-950">
 											{formatMoney(previewResult.total, previewCurrency)}
 										</p>
 									</div>
@@ -1328,56 +1288,55 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						</div>
 					)}
 
-					<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 pt-5">
+					<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
 						<div className="flex gap-3">
-							<button
+							<Button
 								type="button"
 								onClick={previousStep}
 								disabled={
 									step === 1 || isSavingDefinition || isPreviewLoading || isSavingAssignment
 								}
-								className="rounded-full border border-neutral-300 px-5 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+								variant="secondary"
 							>
 								Back
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
 								onClick={() => {
 									resetWizard()
 									props.onCancel?.()
 								}}
 								disabled={isSavingDefinition || isPreviewLoading || isSavingAssignment}
-								className="rounded-full border border-neutral-300 px-5 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+								variant="secondary"
 							>
 								Reset
-							</button>
+							</Button>
 						</div>
 
 						<div className="flex gap-3">
 							{step < 6 && (
-								<button
+								<Button
 									type="button"
 									onClick={nextStep}
 									disabled={!stepValid || isSavingDefinition}
-									className="rounded-full bg-neutral-950 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
 								>
 									{step === 5 ? (isSavingDefinition ? "Saving..." : "Save definition") : "Next"}
-								</button>
+								</Button>
 							)}
 
 							{step === 6 && !editingDefinitionId && (
-								<button
+								<Button
 									type="button"
 									onClick={() => void saveAssignment()}
 									disabled={!hasSuccessfulPreview || !definitionId || isSavingAssignment}
-									className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
+									variant="success"
 								>
 									{isSavingAssignment ? "Saving..." : "Save and assign"}
-								</button>
+								</Button>
 							)}
 
 							{step === 6 && editingDefinitionId && (
-								<button
+								<Button
 									type="button"
 									onClick={() => {
 										setSuccessMessage("Definition changes saved.")
@@ -1385,14 +1344,14 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										props.onEditingComplete?.("Tax or fee updated successfully.")
 									}}
 									disabled={!hasSuccessfulPreview}
-									className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
+									variant="success"
 								>
 									Finish editing
-								</button>
+								</Button>
 							)}
 						</div>
 					</div>
-				</section>
+				</Card>
 			</section>
 		</div>
 	)
