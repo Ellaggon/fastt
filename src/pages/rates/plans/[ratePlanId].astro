@@ -7,6 +7,8 @@ import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.
 import Textarea from "@/components/ui/Textarea.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
+import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
@@ -25,6 +27,14 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+
+const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+const sidebarData = await getProviderSidebarData(auth.providerId, {
+	userId: auth.user.id,
+	professionalToolsEnabled:
+		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
+})
+const isProfessionalMode = sidebarData.disclosureMode !== "small-provider"
 
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.rates())
@@ -143,6 +153,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 					checkOut={checkOut}
 					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
 					productId={context.productId}
+					isProfessionalMode={isProfessionalMode}
 				/>
 			</div>
 

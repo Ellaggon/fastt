@@ -4,6 +4,7 @@ import {
 	mapResolvedPoliciesToUI,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
+import { resolvePolicyPreset } from "@/data/policy/policy-presets"
 import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
@@ -46,6 +47,17 @@ export type PolicyPlanView = {
 	snapshotPreviewByCategory: Record<string, string>
 	snapshotVersionIds: string[]
 	snapshotResolvedAt: string
+	contractFacts: {
+		cancellationPreset: string
+		cancellationDeadline: string
+		cancellationPenalty: string
+		noShowCharge: string
+		paymentTiming: string
+		paymentAmount: string
+		paymentGuarantee: string
+		arrivalSchedule: string
+		arrivalSource: string
+	}
 }
 
 export type WizardPlanView = {
@@ -63,7 +75,7 @@ export type WizardPlanView = {
 const scopeLabels: Record<string, string> = {
 	rate_plan: "Tarifa",
 	variant: "Habitación",
-	product: "Listing",
+	product: "Hotel",
 	global: "Global",
 }
 
@@ -109,6 +121,118 @@ function overrideLabel(snapshotItem: any) {
 	if (!applied.length) return "Sin overrides activos"
 	const first = applied[0]
 	return `${String(first.type ?? "Override")} · ${String(first.reason ?? "sin razón")}`
+}
+
+function ruleMap(policyItem: any): Record<string, unknown> {
+	const rules = Array.isArray(policyItem?.policy?.rules) ? policyItem.policy.rules : []
+	return Object.fromEntries(
+		rules
+			.map((rule: any) => [String(rule?.ruleKey ?? "").trim(), rule?.ruleValue] as const)
+			.filter(([key]: readonly [string, unknown]) => Boolean(key))
+	)
+}
+
+function presetName(policyItem: any, fallback: string): string {
+	const preset = resolvePolicyPreset(policyItem?.policy?.policyPresetKey, policyItem?.category)
+	return preset?.name ?? fallback
+}
+
+function pluralDays(days: number): string {
+	return `${days} día${days === 1 ? "" : "s"}`
+}
+
+function penaltyLabel(type: unknown, amount: unknown): string {
+	const normalizedType = String(type ?? "").toLowerCase()
+	const numericAmount = Number(amount)
+	if (normalizedType === "percentage" && Number.isFinite(numericAmount)) {
+		if (numericAmount <= 0) return "Sin cargo"
+		return `${Math.round(numericAmount)}% de la reserva`
+	}
+	if (normalizedType === "first_night") return "Primera noche"
+	if (normalizedType === "full") return "Estadía completa"
+	if (normalizedType === "fixed" && Number.isFinite(numericAmount)) {
+		return `Importe fijo ${numericAmount}`
+	}
+	if (normalizedType === "waived") return "Sin cargo"
+	return "Según la condición elegida"
+}
+
+function buildContractFacts(resolved: any, snapshot: any) {
+	const byCategory = Object.fromEntries(
+		REQUIRED_POLICY_CATEGORIES.map((category) => [
+			category,
+			resolved.policies.find((item: any) => String(item.category) === category) ?? null,
+		])
+	)
+
+	const cancellation = byCategory.Cancellation
+	const payment = byCategory.Payment
+	const noShow = byCategory.NoShow
+	const arrival = byCategory.CheckIn
+	const cancellationCalculation = snapshot.cancellation?.calculation?.cancellation
+	const paymentCalculation = snapshot.payment?.calculation?.payment
+	const noShowCalculation = snapshot.no_show?.calculation?.noShow
+	const cancellationTiers = Array.isArray(cancellationCalculation?.refundTiers)
+		? cancellationCalculation.refundTiers
+		: []
+	const freeTier = cancellationTiers.find((tier: any) => Number(tier?.refundPercent ?? -1) >= 100)
+	const chargedTiers = cancellationTiers.filter((tier: any) => Number(tier?.penaltyAmount ?? 0) > 0)
+	const penaltyValues = Array.from(
+		new Set(chargedTiers.map((tier: any) => penaltyLabel(tier.penaltyType, tier.penaltyAmount)))
+	)
+	const paymentRules = ruleMap(payment)
+	const arrivalRules = ruleMap(arrival)
+	const paymentType = String(paymentCalculation?.paymentType ?? paymentRules.paymentType ?? "")
+	const prepaymentPercentage = Number(
+		paymentCalculation?.prepaymentPercentage ?? paymentRules.prepaymentPercentage
+	)
+	const prepaymentDays = Number(paymentRules.prepaymentDaysBeforeArrival ?? 0)
+
+	return {
+		cancellationPreset: cancellation
+			? presetName(cancellation, "Condición personalizada")
+			: "Sin configurar",
+		cancellationDeadline: cancellation
+			? freeTier
+				? `Hasta ${pluralDays(Number(freeTier.daysBeforeArrival ?? 0))} antes`
+				: "Sin cancelación gratuita"
+			: "Sin configurar",
+		cancellationPenalty: cancellation
+			? penaltyValues.length
+				? penaltyValues.join(" o ")
+				: "Sin penalidad configurada"
+			: "Sin configurar",
+		noShowCharge: noShow
+			? penaltyLabel(noShowCalculation?.chargeType, noShowCalculation?.chargeAmount)
+			: "Sin configurar",
+		paymentTiming: payment
+			? paymentType === "pay_at_property"
+				? "Al llegar al alojamiento"
+				: prepaymentDays > 0
+					? `${pluralDays(prepaymentDays)} antes de la llegada`
+					: "Antes de la llegada"
+			: "Sin configurar",
+		paymentAmount: payment
+			? paymentType === "pay_at_property"
+				? "El alojamiento cobra el total"
+				: Number.isFinite(prepaymentPercentage) && prepaymentPercentage > 0
+					? `${Math.round(prepaymentPercentage)}% de la reserva`
+					: "Importe pendiente de definir"
+			: "Sin configurar",
+		paymentGuarantee: payment
+			? paymentType === "pay_at_property"
+				? "Sin prepago en plataforma"
+				: Number.isFinite(prepaymentPercentage) && prepaymentPercentage < 100
+					? `Depósito del ${Math.round(prepaymentPercentage)}%`
+					: "Prepago total"
+			: "Sin configurar",
+		arrivalSchedule: arrival
+			? `Llegada ${String(arrivalRules.checkInFrom ?? "por definir")}–${String(
+					arrivalRules.checkInUntil ?? "por definir"
+				)} · salida hasta ${String(arrivalRules.checkOutUntil ?? "por definir")}`
+			: "Sin horarios configurados",
+		arrivalSource: arrival ? sourceLabel(arrival.resolvedFromScope) : "Hotel",
+	}
 }
 
 function snapshotLabel(category: string, snapshotItem: any) {
@@ -355,6 +479,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 			)
 			const sellabilityBlockers = blockerLabels(resolved.missingCategories, Boolean(plan.isActive))
 			const isSellableByContract = sellabilityBlockers.length === 0
+			const contractFacts = buildContractFacts(resolved, snapshot)
 			return {
 				ratePlanId,
 				ratePlanName: String(plan.name),
@@ -374,6 +499,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 				snapshotPreviewByCategory,
 				snapshotVersionIds: snapshot.meta.policyVersionIds,
 				snapshotResolvedAt: snapshot.meta.resolvedAt,
+				contractFacts,
 			}
 		})
 	)

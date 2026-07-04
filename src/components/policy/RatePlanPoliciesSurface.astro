@@ -1,8 +1,20 @@
 ---
+import Drawer from "@/components/ui/Drawer.astro"
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
-import { ArrowRight, Check, TriangleAlert } from "@lucide/astro"
+import { routes } from "@/lib/routes"
+import {
+	ArrowRight,
+	Building2,
+	CalendarClock,
+	Check,
+	CreditCard,
+	History,
+	ShieldCheck,
+	TriangleAlert,
+	X,
+} from "@lucide/astro"
 
 interface PolicyPlanView {
 	ratePlanId: string
@@ -23,6 +35,17 @@ interface PolicyPlanView {
 	snapshotPreviewByCategory: Record<string, string>
 	snapshotVersionIds: string[]
 	snapshotResolvedAt: string
+	contractFacts: {
+		cancellationPreset: string
+		cancellationDeadline: string
+		cancellationPenalty: string
+		noShowCharge: string
+		paymentTiming: string
+		paymentAmount: string
+		paymentGuarantee: string
+		arrivalSchedule: string
+		arrivalSource: string
+	}
 }
 
 interface WizardPlanView {
@@ -50,174 +73,414 @@ const {
 	title = "Condiciones de la tarifa",
 	description,
 	policyPlans,
+	productId,
 	isProfessionalMode = false,
 } = Astro.props
 
-const categoryConfig = {
-	Cancellation: {
-		label: "Cancelación",
-		helper: "Define hasta cuándo puede cancelar el huésped y cuánto se reembolsa.",
-	},
-	Payment: {
-		label: "Pago y depósito",
-		helper: "Indica cuándo paga el huésped y qué importe debe anticipar.",
-	},
-	NoShow: {
-		label: "No presentación",
-		helper: "Define el cargo cuando el huésped no llega y no cancela.",
-	},
-	CheckIn: {
-		label: "Llegada y salida",
-		helper: "Define horarios contractuales de llegada y salida para esta tarifa.",
-	},
-} as const
+const technicalCategories = [
+	{ key: "Cancellation", label: "Cancelación" },
+	{ key: "Payment", label: "Pago" },
+	{ key: "NoShow", label: "No presentación" },
+	{ key: "CheckIn", label: "Llegada y salida" },
+] as const
 
-const orderedCategories = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
+const houseRulesHref = productId
+	? `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}&focus=arrival`
+	: routes.providerHouseRules()
+
+function formattedResolvedAt(value: string): string {
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime())) return "Sin cálculo disponible"
+	return new Intl.DateTimeFormat("es-BO", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(date)
+}
 ---
 
-<section class="space-y-5" aria-labelledby="rate-plan-contract-title">
-	<header class="flex flex-wrap items-end justify-between gap-4">
-		<div class="space-y-1.5">
-			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Condiciones base</p>
-			<h2 id="rate-plan-contract-title" class="text-2xl font-semibold text-white">{title}</h2>
-			<p class="max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
+<section class="space-y-4" aria-labelledby="rate-plan-contract-title">
+	<header class="flex flex-wrap items-start justify-between gap-4">
+		<div class="space-y-1">
+			<h2 id="rate-plan-contract-title" class="text-xl font-semibold text-slate-950">{title}</h2>
+			<p class="max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
 		</div>
 	</header>
 
 	{
-		policyPlans.map((plan) => (
-			<article class="fastt-row-card overflow-hidden text-slate-900" data-plan-id={plan.ratePlanId}>
-				<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-					<div class="space-y-1">
-						<div class="flex flex-wrap items-center gap-2">
-							<h3 class="text-lg font-semibold text-slate-950">{plan.ratePlanName}</h3>
-							{plan.isDefault && <Badge variant="info">Principal</Badge>}
-						</div>
-						<p class="text-sm text-slate-500">
-							{plan.coverageCount === 0 ? "Sin condiciones configuradas." : plan.policySummary}
-						</p>
-					</div>
-					<Badge
-						variant={plan.isSellableByContract ? "success" : "warning"}
-						class="gap-2 px-3 py-1.5 text-sm"
-						data-role="status-badge"
-						data-contract-sellability={plan.isSellableByContract ? "ready" : "blocked"}
-					>
-						{plan.isSellableByContract ? (
-							<Check class="h-4 w-4" />
-						) : (
-							<TriangleAlert class="h-4 w-4" />
-						)}
-						{plan.isSellableByContract
-							? "Condiciones completas"
-							: `${plan.coverageCount}/4 completas`}
-					</Badge>
-				</div>
+		policyPlans.map((plan) => {
+			const cancellationMissing = plan.missingCategories.includes("Cancellation")
+			const noShowMissing = plan.missingCategories.includes("NoShow")
+			const paymentMissing = plan.missingCategories.includes("Payment")
+			const arrivalMissing = plan.missingCategories.includes("CheckIn")
+			const cancellationBlockComplete = !cancellationMissing && !noShowMissing
+			const technicalDrawerId = `policy-technical-${plan.ratePlanId}`
 
-				<div class="divide-y divide-slate-100" data-role="contract-matrix">
-					{orderedCategories.map((category) => {
-						const config = categoryConfig[category]
-						const missing = plan.missingCategories.includes(category)
-						const inherited = plan.inheritanceByCategory[category]
-						return (
-							<section class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-								<div class="min-w-0">
-									<div class="flex flex-wrap items-center gap-2">
-										<p class="font-semibold text-slate-950">{config.label}</p>
-										<Badge
-											variant={missing ? "warning" : "success"}
-											class="px-2 py-0.5 text-[11px]"
-										>
-											{missing
-												? "Falta completar"
-												: inherited === "Tarifa"
-													? "Propia"
-													: `Heredada de ${inherited.toLowerCase()}`}
-										</Badge>
+			return (
+				<>
+					<article class="overflow-hidden border-y border-slate-200" data-plan-id={plan.ratePlanId}>
+						<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/65 px-1 py-4 sm:px-4">
+							<div class="space-y-1">
+								<div class="flex flex-wrap items-center gap-2">
+									<h3 class="text-base font-semibold text-slate-950">Contrato de la tarifa</h3>
+									{plan.isDefault && <Badge variant="info">Principal</Badge>}
+								</div>
+								<p class="text-sm text-slate-500">
+									{plan.coverageCount === 0 ? "Sin condiciones configuradas." : plan.policySummary}
+								</p>
+							</div>
+							<div class="flex flex-wrap items-center gap-2">
+								<Badge
+									variant={plan.isSellableByContract ? "success" : "warning"}
+									class="gap-2 px-3 py-1.5 text-sm"
+									data-role="status-badge"
+									data-contract-sellability={plan.isSellableByContract ? "ready" : "blocked"}
+								>
+									{plan.isSellableByContract ? (
+										<Check class="h-4 w-4" />
+									) : (
+										<TriangleAlert class="h-4 w-4" />
+									)}
+									{plan.isSellableByContract
+										? "Condiciones completas"
+										: `${plan.coverageCount}/4 completas`}
+								</Badge>
+								{isProfessionalMode && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										data-policy-technical-open={technicalDrawerId}
+									>
+										<History class="h-4 w-4" />
+										Historial y detalle técnico
+									</Button>
+								)}
+							</div>
+						</div>
+
+						<div class="divide-y divide-slate-200">
+							<section
+								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
+								data-contract-block="cancellation-no-show"
+							>
+								<div class="flex items-start gap-3">
+									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+										<ShieldCheck class="h-5 w-5" />
+									</span>
+									<div>
+										<div class="flex flex-wrap items-center gap-2">
+											<h4 class="font-semibold text-slate-950">Cancelación y no presentación</h4>
+											<Badge variant={cancellationBlockComplete ? "success" : "warning"}>
+												{cancellationBlockComplete ? "Completa" : "Incompleta"}
+											</Badge>
+										</div>
+										<p class="mt-1 text-sm leading-5 text-slate-500">
+											Qué ocurre si el huésped cancela o no llega.
+										</p>
 									</div>
-									<p class="mt-1 text-sm leading-5 text-slate-500">{config.helper}</p>
-									<p class:list={["mt-2 text-sm", missing ? "text-amber-800" : "text-slate-800"]}>
-										{missing
-											? "Todavía no hay una condición aplicable."
-											: plan.policyPreviewByCategory[category]}
-									</p>
 								</div>
 
-								<div class="flex flex-wrap gap-2 md:justify-end">
-									{missing ? (
-										<Button
-											type="button"
-											variant="primary"
-											size="sm"
-											class="policy-assignment-open"
-											data-assignment-mode="preset"
-											data-assignment-scope="rate_plan"
-											data-assignment-scope-id={plan.ratePlanId}
-											data-assignment-category={category}
-										>
-											Elegir plantilla
-											<ArrowRight class="h-4 w-4" />
-										</Button>
-									) : (
-										<>
-											<Button
-												type="button"
-												variant="secondary"
-												size="sm"
-												class="policy-assignment-open"
-												data-assignment-mode="preset"
-												data-assignment-scope="rate_plan"
-												data-assignment-scope-id={plan.ratePlanId}
-												data-assignment-category={category}
-											>
-												Cambiar
-											</Button>
-										</>
-									)}
+								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.cancellationPreset}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Cancelación gratuita</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.cancellationDeadline}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Penalidad</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.cancellationPenalty}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.noShowCharge}
+										</dd>
+									</div>
+								</dl>
+
+								<div class="flex flex-wrap gap-2 lg:max-w-48 lg:justify-end">
+									<Button
+										type="button"
+										variant={cancellationMissing ? "primary" : "secondary"}
+										size="sm"
+										class="policy-assignment-open"
+										data-assignment-mode="preset"
+										data-assignment-scope="rate_plan"
+										data-assignment-scope-id={plan.ratePlanId}
+										data-assignment-category="Cancellation"
+									>
+										{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
+										{cancellationMissing && <ArrowRight class="h-4 w-4" />}
+									</Button>
+									<Button
+										type="button"
+										variant={noShowMissing ? "primary" : "ghost"}
+										size="sm"
+										class="policy-assignment-open"
+										data-assignment-mode="preset"
+										data-assignment-scope="rate_plan"
+										data-assignment-scope-id={plan.ratePlanId}
+										data-assignment-category="NoShow"
+									>
+										{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
+									</Button>
 								</div>
 							</section>
-						)
-					})}
-				</div>
 
-				<details class="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-sm">
-					<summary class="cursor-pointer font-semibold text-slate-700">
-						Detalle técnico y versiones
-					</summary>
-					<div class="mt-3 grid gap-3 text-slate-600 md:grid-cols-2" data-role="contract-readiness">
-						<p>
-							<strong>Condiciones aplicables:</strong> {plan.coverageCount}/4 categorías.
-						</p>
-						<p>
-							<strong>Snapshot preview:</strong> {plan.snapshotResolvedAt}
-						</p>
-						<p>
-							<strong>Versiones:</strong> {plan.snapshotVersionIds.join(" · ") || "Sin versiones"}
-						</p>
-						<p data-role="sellability-lock">
-							<strong>Estado:</strong> {plan.sellabilityLabel}
-						</p>
-					</div>
-					{isProfessionalMode && (
-						<div class="mt-3 flex flex-wrap gap-2">
-							<Button
-								type="button"
-								variant="secondary"
-								size="sm"
-								class="policy-assignment-open"
-								data-assignment-mode="existing"
-								data-assignment-scope="rate_plan"
-								data-assignment-scope-id={plan.ratePlanId}
+							<section
+								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
+								data-contract-block="payment-guarantee"
 							>
-								Usar condición existente
-							</Button>
-							<span class="sr-only">Crear desde plantilla</span>
+								<div class="flex items-start gap-3">
+									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+										<CreditCard class="h-5 w-5" />
+									</span>
+									<div>
+										<div class="flex flex-wrap items-center gap-2">
+											<h4 class="font-semibold text-slate-950">Pago y garantía</h4>
+											<Badge variant={paymentMissing ? "warning" : "success"}>
+												{paymentMissing ? "Incompleta" : "Completa"}
+											</Badge>
+										</div>
+										<p class="mt-1 text-sm leading-5 text-slate-500">
+											Cuándo se cobra y qué asegura la reserva.
+										</p>
+									</div>
+								</div>
+
+								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-3">
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.paymentTiming}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.paymentAmount}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Garantía</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.paymentGuarantee}
+										</dd>
+									</div>
+								</dl>
+
+								<Button
+									type="button"
+									variant={paymentMissing ? "primary" : "secondary"}
+									size="sm"
+									class="policy-assignment-open"
+									data-assignment-mode="preset"
+									data-assignment-scope="rate_plan"
+									data-assignment-scope-id={plan.ratePlanId}
+									data-assignment-category="Payment"
+								>
+									{paymentMissing ? "Configurar pago" : "Cambiar pago"}
+									{paymentMissing && <ArrowRight class="h-4 w-4" />}
+								</Button>
+							</section>
+
+							<section
+								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
+								data-contract-block="arrival-departure"
+							>
+								<div class="flex items-start gap-3">
+									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+										<CalendarClock class="h-5 w-5" />
+									</span>
+									<div>
+										<div class="flex flex-wrap items-center gap-2">
+											<h4 class="font-semibold text-slate-950">Llegada y salida</h4>
+											<Badge variant={arrivalMissing ? "warning" : "neutral"}>
+												{arrivalMissing ? "Falta en el hotel" : "Heredada del hotel"}
+											</Badge>
+										</div>
+										<p class="mt-1 text-sm leading-5 text-slate-500">
+											Horarios compartidos por las tarifas del alojamiento.
+										</p>
+									</div>
+								</div>
+
+								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Horario</dt>
+										<dd class="mt-1 text-sm font-semibold text-slate-900">
+											{plan.contractFacts.arrivalSchedule}
+										</dd>
+									</div>
+									<div>
+										<dt class="text-xs font-medium text-slate-500">Origen</dt>
+										<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+											<Building2 class="h-4 w-4 text-slate-400" />
+											{plan.contractFacts.arrivalSource}
+										</dd>
+									</div>
+								</dl>
+
+								<Button href={houseRulesHref} variant="secondary" size="sm">
+									{arrivalMissing ? "Configurar en alojamiento" : "Editar en alojamiento"}
+								</Button>
+							</section>
 						</div>
+					</article>
+
+					{isProfessionalMode && (
+						<Drawer
+							id={technicalDrawerId}
+							label={`Historial y detalle técnico de ${plan.ratePlanName}`}
+						>
+							<header class="fastt-side-sheet-header sticky top-0 z-10 flex items-start justify-between gap-4 px-5 py-5">
+								<div>
+									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										Herramientas profesionales
+									</p>
+									<h3 class="mt-1 text-xl font-semibold text-slate-950">
+										Historial y detalle técnico
+									</h3>
+									<p class="mt-1 text-sm text-slate-500">{plan.ratePlanName}</p>
+								</div>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									aria-label="Cerrar detalle técnico"
+									data-policy-technical-close={technicalDrawerId}
+								>
+									<X class="h-5 w-5" />
+								</Button>
+							</header>
+
+							<div class="space-y-4 overflow-y-auto p-5" data-role="contract-readiness">
+								<section class="fastt-drawer-section p-5">
+									<h4 class="font-semibold text-slate-950">Resolución contractual</h4>
+									<dl class="mt-4 grid gap-4 sm:grid-cols-2">
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Cobertura</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.coverageCount}/4 categorías
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Último cálculo</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{formattedResolvedAt(plan.snapshotResolvedAt)}
+											</dd>
+										</div>
+										<div class="sm:col-span-2">
+											<dt class="text-xs font-medium text-slate-500">Versiones fuente</dt>
+											<dd class="mt-1 text-sm break-words text-slate-700">
+												{plan.snapshotVersionIds.join(" · ") || "Sin versiones"}
+											</dd>
+										</div>
+										<div class="sm:col-span-2" data-role="sellability-lock">
+											<dt class="text-xs font-medium text-slate-500">Estado contractual</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.sellabilityLabel}
+											</dd>
+										</div>
+									</dl>
+								</section>
+
+								<section class="fastt-drawer-section p-5">
+									<h4 class="font-semibold text-slate-950">Fuentes y excepciones</h4>
+									<div class="mt-3 divide-y divide-slate-100">
+										{technicalCategories.map((category) => (
+											<div class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
+												<p class="text-sm font-semibold text-slate-900">{category.label}</p>
+												<div class="text-sm text-slate-600">
+													<p>{plan.inheritanceByCategory[category.key]}</p>
+													<p class="mt-0.5 text-xs text-slate-500">
+														{plan.overrideSummaryByCategory[category.key]}
+													</p>
+												</div>
+											</div>
+										))}
+									</div>
+								</section>
+
+								<section class="fastt-drawer-section p-5">
+									<h4 class="font-semibold text-slate-950">Vista calculable</h4>
+									<div class="mt-3 divide-y divide-slate-100">
+										{technicalCategories.map((category) => (
+											<div class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
+												<p class="text-sm font-semibold text-slate-900">{category.label}</p>
+												<p class="text-sm text-slate-600">
+													{plan.snapshotPreviewByCategory[category.key]}
+												</p>
+											</div>
+										))}
+									</div>
+								</section>
+
+								<Button
+									type="button"
+									variant="secondary"
+									class="policy-assignment-open w-full"
+									data-assignment-mode="existing"
+									data-assignment-scope="rate_plan"
+									data-assignment-scope-id={plan.ratePlanId}
+								>
+									Usar condición existente
+								</Button>
+								<span class="sr-only">Crear desde plantilla</span>
+							</div>
+						</Drawer>
 					)}
-				</details>
-			</article>
-		))
+				</>
+			)
+		})
 	}
 </section>
 
 <PolicyAssignmentFlow defaultScope="rate_plan" isProfessionalMode={isProfessionalMode} />
+
+<script>
+	function setTechnicalDrawer(drawerId: string, open: boolean) {
+		const drawer = document.getElementById(drawerId)
+		if (!drawer) return
+		const overlay = drawer.previousElementSibling
+		drawer.classList.toggle("translate-x-0", open)
+		drawer.classList.toggle("translate-x-full", !open)
+		drawer.setAttribute("aria-hidden", open ? "false" : "true")
+		if (overlay instanceof HTMLElement && overlay.hasAttribute("data-drawer-overlay")) {
+			overlay.classList.toggle("pointer-events-none", !open)
+			overlay.classList.toggle("opacity-0", !open)
+			overlay.classList.toggle("opacity-100", open)
+			overlay.onclick = () => setTechnicalDrawer(drawerId, false)
+		}
+		document.documentElement.classList.toggle("overflow-hidden", open)
+	}
+
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		const openButton = target.closest<HTMLElement>("[data-policy-technical-open]")
+		const closeButton = target.closest<HTMLElement>("[data-policy-technical-close]")
+		if (openButton?.dataset.policyTechnicalOpen) {
+			setTechnicalDrawer(openButton.dataset.policyTechnicalOpen, true)
+		}
+		if (closeButton?.dataset.policyTechnicalClose) {
+			setTechnicalDrawer(closeButton.dataset.policyTechnicalClose, false)
+		}
+	})
+
+	document.addEventListener("keydown", (event) => {
+		if (event.key !== "Escape") return
+		document
+			.querySelectorAll<HTMLElement>("[id^='policy-technical-'][aria-hidden='false']")
+			.forEach((drawer) => setTechnicalDrawer(drawer.id, false))
+	})
+</script>

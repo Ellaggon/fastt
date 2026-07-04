@@ -667,7 +667,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		).not.toContain("/rates/multi-calendar")
 	})
 
-	it("keeps House Rules out of contractual policy surfaces", () => {
+	it("keeps arrival owned by the hotel and out of tariff assignment controls", () => {
 		const policySurface = readFileSync(
 			join(process.cwd(), "src/components/policy/RatePlanPoliciesSurface.astro"),
 			"utf8"
@@ -680,11 +680,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/pages/rates/plans/[ratePlanId].astro"),
 			"utf8"
 		)
-		const policySources = [policySurface, assignmentFlow, ratePlanDetail].join("\n")
-
-		expect(policySources).not.toContain("providerHouseRules")
-		expect(policySources).not.toContain("Reglas para huéspedes")
-		expect(policySources).not.toContain("House Rules")
+		expect(policySurface).toContain("providerHouseRules")
+		expect(policySurface).toContain("Editar en alojamiento")
+		expect(policySurface).not.toContain('data-assignment-category="CheckIn"')
+		expect(assignmentFlow).not.toContain("providerHouseRules")
+		expect(ratePlanDetail).not.toContain("providerHouseRules")
 	})
 
 	it("keeps Restrictions out of contractual Conditions surfaces", () => {
