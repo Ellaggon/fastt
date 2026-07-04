@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { db, and, CancellationTier, eq, Policy, PolicyGroup, PolicyRule } from "astro:db"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
+import { buildPolicyCategoryPreview } from "@/lib/policies/buildPolicyCategoryPreview"
 import { buildPolicyFinancialPreviewFromResolution } from "@/modules/financial/public"
 import type { PolicyResolutionDTO } from "@/modules/policies/public"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -275,6 +276,10 @@ export const POST: APIRoute = async ({ request }) => {
 		reason: "policy_preview",
 		idPrefix: "policy-preview",
 	})
+	const categoryPreview = buildPolicyCategoryPreview({
+		category: selected.category,
+		financialPreview,
+	})
 
 	return new Response(
 		JSON.stringify({
@@ -289,7 +294,12 @@ export const POST: APIRoute = async ({ request }) => {
 			},
 			snapshot: financialPreview.snapshot,
 			quotes: financialPreview.quotes,
-			preview: financialPreview.preview,
+			presentation: {
+				title: categoryPreview.title,
+				description: categoryPreview.description,
+			},
+			previewReady: categoryPreview.previewReady,
+			preview: categoryPreview.items,
 		}),
 		{ status: 200, headers: { "Content-Type": "application/json" } }
 	)

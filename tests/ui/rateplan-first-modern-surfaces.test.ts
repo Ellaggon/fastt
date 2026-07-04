@@ -112,10 +112,13 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(source).toContain('fetch("/api/policies/preview"')
 		expect(source).toContain("assignmentState.previewReady")
 		expect(source).toContain("Calcula y revisa el preview obligatorio antes de confirmar")
+		expect(source).toContain("payload.previewReady === true")
+		expect(source).not.toContain("items.length >= 7")
 		expect(source).not.toContain("renderAirbnbPreview")
 		expect(source).not.toContain("penaltyAtDays")
 		expect(source).not.toContain("refundTextFromPenalty")
 		expect(endpoint).toContain("buildPolicyFinancialPreviewFromResolution")
+		expect(endpoint).toContain("buildPolicyCategoryPreview")
 		expect(financialPreview).toContain("buildPolicySnapshot")
 		expect(financialPreview).toContain("buildRefundQuote")
 		expect(financialPreview).toContain('key: "cancel_today"')
@@ -240,9 +243,10 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(previewEndpoint).toContain("loadDraftPolicy")
 	})
 
-	it("preview financiero completo es unico para asignacion, quote y cancelacion", () => {
+	it("preview financiero completo alimenta vistas específicas sin duplicar el cálculo", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 		const previewEndpoint = read("src/pages/api/policies/preview.ts")
+		const categoryPreview = read("src/lib/policies/buildPolicyCategoryPreview.ts")
 		const quoteEndpoint = read("src/pages/api/internal/financial/refund-quotes.ts")
 		const cancelEndpoint = read("src/pages/api/booking/cancel.ts")
 		const financialPreview = read(
@@ -251,6 +255,11 @@ describe("ui/rateplan-first modern surfaces", () => {
 
 		expect(assignmentFlow).toContain('fetch("/api/policies/preview"')
 		expect(previewEndpoint).toContain("buildPolicyFinancialPreviewFromResolution")
+		expect(previewEndpoint).toContain("buildPolicyCategoryPreview")
+		expect(categoryPreview).toContain("cancellationPreview")
+		expect(categoryPreview).toContain("paymentPreview")
+		expect(categoryPreview).toContain("noShowPreview")
+		expect(categoryPreview).toContain("arrivalPreview")
 		expect(quoteEndpoint).toContain("buildPolicyFinancialPreviewFromSnapshot")
 		expect(quoteEndpoint).toContain("financialPreview")
 		expect(cancelEndpoint).toContain("buildPolicyFinancialPreviewFromSnapshot")
