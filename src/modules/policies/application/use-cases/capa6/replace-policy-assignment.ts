@@ -57,11 +57,7 @@ export async function replacePolicyAssignmentCapa6(
 	if (!group || !String(group.ownerProviderId ?? "").trim()) {
 		throw new PolicyValidationError([{ path: ["policyId"], code: "owner_provider_required" }])
 	}
-	if (
-		policy.effectiveFrom &&
-		policy.effectiveTo &&
-		new Date(policy.effectiveFrom) > new Date(policy.effectiveTo)
-	) {
+	if (policy.effectiveFrom && policy.effectiveTo && policy.effectiveFrom > policy.effectiveTo) {
 		throw new PolicyValidationError([{ path: ["policyId"], code: "invalid_effective_window" }])
 	}
 

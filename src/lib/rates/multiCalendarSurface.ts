@@ -36,6 +36,9 @@ export type MultiCalendarCell = {
 	conditionsSummary: string
 	conditionsMissingSummary: string
 	conditionsMissingCategories: string[]
+	cancellationDateAssignmentId: string | null
+	cancellationDatePolicyId: string | null
+	cancellationDateLabel: string
 }
 
 export type MultiCalendarRow = {
@@ -102,6 +105,16 @@ export type MultiCalendarSurface = {
 		closedCells: number
 		incompleteConditionRows: number
 	}
+}
+
+type CancellationDateAssignmentInput = {
+	id: string
+	ratePlanId: string
+	policyId: string
+	label: string
+	effectiveFrom: string
+	effectiveTo: string
+	createdAt: Date
 }
 
 const VALID_TABS = new Set<MultiCalendarTab>([
@@ -201,6 +214,7 @@ function shouldKeepRowByStatus(
 export async function buildRatesMultiCalendarSurface(input: {
 	rows: RatePlanListItem[]
 	url: URL
+	cancellationDateAssignments?: CancellationDateAssignmentInput[]
 }): Promise<MultiCalendarSurface> {
 	const tab = normalizeTab(input.url.searchParams.get("tab"))
 	const rangeSize = normalizeRangeSize(input.url.searchParams.get("range"))
@@ -233,30 +247,43 @@ export async function buildRatesMultiCalendarSurface(input: {
 					? "Sin condiciones configuradas"
 					: row.policySummary ||
 						(conditionsComplete ? "Contrato completo" : conditionsMissingSummary)
-			const cells: MultiCalendarCell[] = days.map((day) => ({
-				date: day.date,
-				day: day.day,
-				weekday: day.weekday,
-				isPast: day.isPast,
-				price: formatMoney(day.finalPrice, day.currency),
-				basePrice:
-					day.baseComponent == null ? "Sin base" : formatMoney(day.baseComponent, day.currency),
-				currency: day.currency,
-				hasPrice: day.hasPrice,
-				availableUnits: day.availableUnits,
-				totalUnits: day.totalUnits,
-				bookedUnits: day.bookedUnits,
-				heldUnits: day.heldUnits,
-				operationalStatus: day.operationalStatus,
-				operationalStatusLabel: day.operationalStatusLabel,
-				restrictionSummary: day.restrictionSignals.summary ?? "Venta estándar",
-				restrictionCount: day.restrictionSignals.count,
-				hasCommercialBlocker: day.restrictionSignals.hasCommercialBlocker,
-				conditionsComplete,
-				conditionsSummary,
-				conditionsMissingSummary,
-				conditionsMissingCategories: missingCategories,
-			}))
+			const cells: MultiCalendarCell[] = days.map((day) => {
+				const cancellationDateAssignment = (input.cancellationDateAssignments ?? [])
+					.filter(
+						(assignment) =>
+							assignment.ratePlanId === String(row.ratePlanId) &&
+							assignment.effectiveFrom <= day.date &&
+							assignment.effectiveTo >= day.date
+					)
+					.sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0]
+				return {
+					date: day.date,
+					day: day.day,
+					weekday: day.weekday,
+					isPast: day.isPast,
+					price: formatMoney(day.finalPrice, day.currency),
+					basePrice:
+						day.baseComponent == null ? "Sin base" : formatMoney(day.baseComponent, day.currency),
+					currency: day.currency,
+					hasPrice: day.hasPrice,
+					availableUnits: day.availableUnits,
+					totalUnits: day.totalUnits,
+					bookedUnits: day.bookedUnits,
+					heldUnits: day.heldUnits,
+					operationalStatus: day.operationalStatus,
+					operationalStatusLabel: day.operationalStatusLabel,
+					restrictionSummary: day.restrictionSignals.summary ?? "Venta estándar",
+					restrictionCount: day.restrictionSignals.count,
+					hasCommercialBlocker: day.restrictionSignals.hasCommercialBlocker,
+					conditionsComplete,
+					conditionsSummary,
+					conditionsMissingSummary,
+					conditionsMissingCategories: missingCategories,
+					cancellationDateAssignmentId: cancellationDateAssignment?.id ?? null,
+					cancellationDatePolicyId: cancellationDateAssignment?.policyId ?? null,
+					cancellationDateLabel: cancellationDateAssignment?.label ?? "",
+				}
+			})
 			const readiness = computeReadiness(cells, row)
 			return {
 				ratePlanId: String(row.ratePlanId),
@@ -340,5 +367,35 @@ export async function buildRatesMultiCalendarSurface(input: {
 			closedCells: activeCells.filter((cell) => cell.hasCommercialBlocker).length,
 			incompleteConditionRows: rows.filter((row) => !row.readiness.conditionsReady).length,
 		},
+	}
+}
+
+export function applyCancellationDateAssignments(
+	surface: MultiCalendarSurface,
+	assignments: CancellationDateAssignmentInput[]
+): MultiCalendarSurface {
+	if (!assignments.length) return surface
+	return {
+		...surface,
+		rows: surface.rows.map((row) => ({
+			...row,
+			cells: row.cells.map((cell) => {
+				const assignment = assignments
+					.filter(
+						(item) =>
+							item.ratePlanId === row.ratePlanId &&
+							item.effectiveFrom <= cell.date &&
+							item.effectiveTo >= cell.date
+					)
+					.sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0]
+				if (!assignment) return cell
+				return {
+					...cell,
+					cancellationDateAssignmentId: assignment.id,
+					cancellationDatePolicyId: assignment.policyId,
+					cancellationDateLabel: assignment.label,
+				}
+			}),
+		})),
 	}
 }

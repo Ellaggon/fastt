@@ -232,6 +232,23 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(assignmentFlow).toContain("channelSelect.value = defaultChannel")
 	})
 
+	it("edita excepciones de cancelación por fecha sin abandonar el Multicalendario", () => {
+		const multiCalendar = read("src/components/rates/MultiCalendarWorkspace.tsx")
+		const endpoint = read("src/pages/api/policies/date-cancellation.ts")
+
+		expect(multiCalendar).toContain('id: "cancellation_dates"')
+		expect(multiCalendar).toContain("Cancelación por fechas")
+		expect(multiCalendar).toContain('fetch("/api/policies/date-cancellation"')
+		expect(multiCalendar).toContain("Guardar excepción")
+		expect(multiCalendar).toContain("Restaurar condición base")
+		expect(endpoint).toContain('category: "Cancellation"')
+		expect(endpoint).toContain("effectiveFrom")
+		expect(endpoint).toContain("effectiveTo")
+		expect(endpoint).toContain("planPolicyDateAssignmentRangeChange")
+		expect(endpoint).toContain("cancellation_date_assignment_restored")
+		expect(endpoint).toContain("requireProvider")
+	})
+
 	it("asignacion contextual usa preview obligatorio del backend", () => {
 		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
 		const previewEndpoint = read("src/pages/api/policies/preview.ts")

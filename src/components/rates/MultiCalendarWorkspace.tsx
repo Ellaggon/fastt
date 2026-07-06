@@ -28,6 +28,26 @@ type Props = {
 	initialRules: MultiCalendarAppliedRule[]
 }
 
+type CancellationOption = {
+	id: string
+	label: string
+	presetLabel: string
+	description: string
+}
+
+type CancellationPreset = {
+	key: string
+	label: string
+	description: string
+}
+
+type CancellationPreviewItem = {
+	key: string
+	label: string
+	value: string
+	detail?: string
+}
+
 type Selection = {
 	cells: Array<{ row: MultiCalendarRow; cell: MultiCalendarCell }>
 	dates: string[]
@@ -84,7 +104,10 @@ const ACTIONS: Record<MultiCalendarTab, Array<{ id: string; label: string }>> = 
 		{ id: "cta", label: "Bloquear llegada" },
 		{ id: "ctd", label: "Bloquear salida" },
 	],
-	conditions: [{ id: "conditions", label: "Ver condiciones" }],
+	conditions: [
+		{ id: "cancellation_dates", label: "Cancelación por fechas" },
+		{ id: "conditions", label: "Ver contrato" },
+	],
 	rules: [
 		{ id: "rules", label: "Editar reglas" },
 		{ id: "conflicts", label: "Ver conflictos" },
@@ -187,9 +210,11 @@ function cellText(tab: MultiCalendarTab, cell: MultiCalendarCell) {
 		}
 	if (tab === "conditions")
 		return {
-			primary: cell.conditionsComplete ? "Listas" : "Faltan",
-			secondary: cell.conditionsMissingSummary || cell.conditionsSummary,
-			tone: cell.conditionsComplete ? "ok" : "warning",
+			primary: cell.cancellationDateLabel || (cell.conditionsComplete ? "Listas" : "Faltan"),
+			secondary: cell.cancellationDateLabel
+				? "Aplicación por fecha"
+				: cell.conditionsMissingSummary || cell.conditionsSummary,
+			tone: cell.cancellationDateLabel ? "info" : cell.conditionsComplete ? "ok" : "warning",
 		}
 	if (tab === "rules")
 		return {
@@ -397,6 +422,11 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const [filters, setFilters] = useState(initialSurface.filters)
 	const [isMobile, setIsMobile] = useState(false)
 	const [mobileRatePlanId, setMobileRatePlanId] = useState(initialSurface.rows[0]?.ratePlanId || "")
+	const [cancellationOptions, setCancellationOptions] = useState<CancellationOption[]>([])
+	const [cancellationPresets, setCancellationPresets] = useState<CancellationPreset[]>([])
+	const [cancellationSource, setCancellationSource] = useState("")
+	const [cancellationPreview, setCancellationPreview] = useState<CancellationPreviewItem[]>([])
+	const [cancellationPreviewReady, setCancellationPreviewReady] = useState(false)
 	const requestRef = useRef<AbortController | null>(null)
 	const cacheRef = useRef(
 		new Map<string, { surface: MultiCalendarSurface; appliedRules: MultiCalendarAppliedRule[] }>()
@@ -589,7 +619,153 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			setValue(String(PRICE_ACTIONS[id].defaultValue))
 			setPriceMode(PRICE_ACTIONS[id].fixedMode || "percentage_discount")
 		}
+		if (id === "cancellation_dates") void loadCancellationOptions()
+		if (id === "cancellation_dates") {
+			const policyIds = [
+				...new Set(
+					selection.cells
+						.map(({ cell }) => cell.cancellationDatePolicyId)
+						.filter((policyId): policyId is string => Boolean(policyId))
+				),
+			]
+			setCancellationSource(
+				policyIds.length === 1 &&
+					selection.cells.every(({ cell }) => cell.cancellationDatePolicyId === policyIds[0])
+					? `existing:${policyIds[0]}`
+					: ""
+			)
+			setCancellationPreview([])
+			setCancellationPreviewReady(false)
+		}
 		setDrawerOpen(true)
+	}
+
+	async function loadCancellationOptions() {
+		if (cancellationOptions.length || cancellationPresets.length) return
+		try {
+			const response = await fetch("/api/policies/assignment-options", {
+				headers: { Accept: "application/json" },
+			})
+			const body = await response.json().catch(() => ({}))
+			if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las condiciones.")
+			setCancellationOptions(
+				(body.policies || [])
+					.filter((policy: any) => policy.category === "Cancellation")
+					.map((policy: any) => ({
+						id: String(policy.id),
+						label: String(policy.label),
+						presetLabel: String(policy.presetLabel || "Personalizada"),
+						description: String(policy.description || ""),
+					}))
+			)
+			setCancellationPresets(
+				(body.presets || [])
+					.filter((preset: any) => preset.category === "Cancellation")
+					.map((preset: any) => ({
+						key: String(preset.key),
+						label: String(preset.label),
+						description: String(preset.description || ""),
+					}))
+			)
+		} catch (error) {
+			setFeedback((error as Error).message)
+		}
+	}
+
+	async function previewCancellationDateAssignment() {
+		if (!cancellationSource) {
+			setFeedback("Selecciona una condición de cancelación.")
+			return
+		}
+		if (cancellationSource === "base") {
+			setCancellationPreview([
+				{
+					key: "base",
+					label: "Resultado",
+					value: "Se usará la cancelación base de cada tarifa",
+					detail: "La excepción anterior dejará de prevalecer en estas fechas.",
+				},
+			])
+			setCancellationPreviewReady(true)
+			setFeedback("")
+			return
+		}
+		const [mode, id] = cancellationSource.split(":")
+		setLoading(true)
+		setFeedback("Calculando consecuencias...")
+		try {
+			const response = await fetch("/api/policies/preview", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					mode,
+					...(mode === "existing"
+						? { policyId: id }
+						: { policyPresetKey: id, category: "Cancellation" }),
+					scope: "rate_plan",
+					scopeId: selection.ratePlanIds[0],
+					checkIn: selection.from,
+					checkOut: addDays(selection.to, 1),
+					channel: "web",
+					currency: selection.cells[0]?.cell.currency || "USD",
+				}),
+			})
+			const body = await response.json().catch(() => ({}))
+			if (!response.ok) throw new Error(body?.error || "No se pudo calcular la vista previa.")
+			setCancellationPreview(Array.isArray(body.preview) ? body.preview : [])
+			setCancellationPreviewReady(body.previewReady === true)
+			setFeedback(
+				body.previewReady === true
+					? ""
+					: "Esta condición todavía no produce un cálculo contractual completo."
+			)
+		} catch (error) {
+			setCancellationPreview([])
+			setCancellationPreviewReady(false)
+			setFeedback((error as Error).message)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	async function saveCancellationDateAssignment() {
+		if (!cancellationPreviewReady) {
+			setFeedback("Revisa las consecuencias antes de guardar.")
+			return
+		}
+		const [mode, id] = cancellationSource === "base" ? ["base", ""] : cancellationSource.split(":")
+		setLoading(true)
+		setFeedback("Guardando excepción...")
+		try {
+			const response = await fetch("/api/policies/date-cancellation", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					mode,
+					ratePlanIds: selection.ratePlanIds,
+					effectiveFrom: selection.from,
+					effectiveTo: selection.to,
+					channel: "web",
+					...(mode === "existing"
+						? { policyId: id }
+						: mode === "preset"
+							? { policyPresetKey: id }
+							: {}),
+				}),
+			})
+			const body = await response.json().catch(() => ({}))
+			if (!response.ok) throw new Error(body?.error || "No se pudo guardar la excepción.")
+			await loadWorkspace({}, selection.ratePlanIds)
+			setRecentlyUpdated(new Set(selected))
+			setFeedback("Cancelación por fechas actualizada.")
+			setDrawerOpen(false)
+			setCancellationPreview([])
+			setCancellationPreviewReady(false)
+		} catch (error) {
+			setFeedback((error as Error).message)
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	async function savePrice() {
@@ -1243,7 +1419,88 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							</div>
 						</div>
 					)}
-					{activeTab === "conditions" && (
+					{activeAction === "cancellation_dates" && (
+						<div className="mt-5 space-y-5">
+							<div>
+								<p className="text-sm font-semibold text-slate-950">Cancelación aplicable</p>
+								<p className="mt-1 text-xs leading-5 text-slate-500">
+									Se determina por la fecha de llegada. Las reservas ya confirmadas conservan su
+									condición original.
+								</p>
+							</div>
+							<label className="block text-sm font-medium text-slate-700">
+								Condición
+								<Select
+									value={cancellationSource}
+									onChange={(event) => {
+										setCancellationSource(event.target.value)
+										setCancellationPreview([])
+										setCancellationPreviewReady(false)
+										setFeedback("")
+									}}
+									className="mt-1.5"
+								>
+									<option value="">Seleccionar</option>
+									<option value="base">Usar condición base de cada tarifa</option>
+									{cancellationOptions.length > 0 && (
+										<optgroup label="Condiciones publicadas">
+											{cancellationOptions.map((policy) => (
+												<option key={policy.id} value={`existing:${policy.id}`}>
+													{policy.label}
+												</option>
+											))}
+										</optgroup>
+									)}
+									{cancellationPresets.length > 0 && (
+										<optgroup label="Plantillas">
+											{cancellationPresets.map((preset) => (
+												<option key={preset.key} value={`preset:${preset.key}`}>
+													{preset.label}
+												</option>
+											))}
+										</optgroup>
+									)}
+								</Select>
+							</label>
+							{cancellationPreview.length > 0 && (
+								<div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+									{cancellationPreview.map((item) => (
+										<div
+											key={item.key}
+											className="border-b border-slate-100 px-3 py-2.5 last:border-b-0"
+										>
+											<p className="text-xs font-medium text-slate-500">{item.label}</p>
+											<p className="mt-0.5 text-sm font-semibold text-slate-950">{item.value}</p>
+											{item.detail && (
+												<p className="mt-0.5 text-xs leading-5 text-slate-600">{item.detail}</p>
+											)}
+										</div>
+									))}
+								</div>
+							)}
+							<Notice variant="neutral">
+								Al finalizar el rango, cada tarifa vuelve automáticamente a su condición base.
+							</Notice>
+							<div className="grid grid-cols-2 gap-2">
+								<Button
+									type="button"
+									onClick={() => void previewCancellationDateAssignment()}
+									variant="secondary"
+									disabled={loading || !cancellationSource}
+								>
+									Revisar impacto
+								</Button>
+								<Button
+									type="button"
+									onClick={() => void saveCancellationDateAssignment()}
+									disabled={loading || !cancellationPreviewReady}
+								>
+									{cancellationSource === "base" ? "Restaurar condición base" : "Guardar excepción"}
+								</Button>
+							</div>
+						</div>
+					)}
+					{activeTab === "conditions" && activeAction === "conditions" && (
 						<div className="mt-5 space-y-3">
 							{selectedRows.map((row) => {
 								const missing = row.cells[0]?.conditionsMissingCategories || []

@@ -1,5 +1,7 @@
 import { loadPricingAutomationSurface } from "@/lib/pricing/pricingAutomationSurface"
+import { loadCancellationDateAssignments } from "@/lib/policies/loadCancellationDateAssignments"
 import {
+	applyCancellationDateAssignments,
 	buildRatesMultiCalendarSurface,
 	type MultiCalendarSurface,
 } from "@/lib/rates/multiCalendarSurface"
@@ -48,11 +50,17 @@ export async function loadMultiCalendarWorkspace(input: {
 		? allRows.filter((row) => requestedIds.has(String(row.ratePlanId)))
 		: allRows
 
-	const [surface, sellabilitySurface, pricingAutomationSurface] = await Promise.all([
-		buildRatesMultiCalendarSurface({ rows, url: input.url }),
+	const baseSurface = await buildRatesMultiCalendarSurface({ rows, url: input.url })
+	const cancellationDateAssignments = await loadCancellationDateAssignments({
+		ratePlanIds: rows.map((row) => String(row.ratePlanId)),
+		from: baseSurface.startDate,
+		to: baseSurface.endDate,
+	})
+	const [sellabilitySurface, pricingAutomationSurface] = await Promise.all([
 		loadRestrictionsSurface(input.providerId, { status: "all" }),
 		loadPricingAutomationSurface(input.providerId),
 	])
+	const surface = applyCancellationDateAssignments(baseSurface, cancellationDateAssignments)
 
 	const appliedRules: MultiCalendarAppliedRule[] = [
 		...pricingAutomationSurface.rules.map((rule) => ({
