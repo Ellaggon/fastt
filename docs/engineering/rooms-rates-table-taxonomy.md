@@ -18,10 +18,11 @@ read them, but must not replace them as the place where providers define the bus
 | `CommercialRuleSet`         | Rooms & Rates Pro          | Reusable commercial automation group such as season, event, last-minute or weekend.   |
 | `CommercialRule`            | Rooms & Rates Pro          | Atomic price or sellability rule inside a commercial rule set.                        |
 | `CommercialRuleApplication` | Rooms & Rates Pro          | Scope/date/channel application of commercial rules to hotel, room, rate or selection. |
-| `PolicyGroup`               | Conditions                 | Provider-owned condition group/library item.                                          |
-| `Policy`                    | Conditions                 | Versioned condition content and lifecycle.                                            |
-| `PolicyAssignment`          | Conditions                 | Active condition assignment to rate, room, hotel or channel scope.                    |
-| `PolicyRule`                | Conditions                 | Structured condition rule content.                                                    |
+| `PolicyGroup`               | Conditions                 | Provider-owned condition group/library item and canonical category.                   |
+| `Policy`                    | Conditions                 | Immutable version content; its dates delimit content validity.                        |
+| `PolicyAssignment`          | Conditions                 | Scope/channel selection; its dates delimit applicable guest arrivals.                 |
+| `PolicyRule`                | Conditions                 | Category parameters not owned by policy metadata or cancellation tiers.               |
+| `CancellationTier`          | Conditions                 | Only source of calculable cancellation penalty brackets.                              |
 | `PolicyExceptionRule`       | Conditions / Support       | Platform/legal/support exception before final refund or payout calculation.           |
 | `PolicyAuditLog`            | Conditions / Governance    | Audit of condition lifecycle, assignment and override changes.                        |
 | `TaxFeeDefinition`          | Payments & Finance         | Canonical tax/fee definition visible to booking, search and finance.                  |
@@ -68,3 +69,14 @@ edited to change future behavior.
 - Do not reintroduce legacy contractual tables when a source already exists.
 - `BookingTaxFee` is a booking snapshot. It is not the removed legacy `TaxFee` table.
 - `TaxFeeDefinition` and `TaxFeeAssignment` are the only configurable taxes/fees contract.
+- Every `PolicyGroup` must reference an existing provider, and every assignment category
+  must match its group's canonical category.
+- `Policy` lifecycle statuses are `draft`, `active` and `archived`; do not reintroduce the
+  unused `template` state.
+- Policy dates have two separate meanings. `Policy.effectiveFrom/effectiveTo` delimit when
+  version content is valid. `PolicyAssignment.effectiveFrom/effectiveTo` delimit the guest
+  arrival dates where an assignment applies.
+- Both policy date ranges use canonical local commercial `YYYY-MM-DD` text. Audit and
+  creation fields such as `createdAt` remain timestamps.
+- Legal, platform and support overrides belong in `PolicyExceptionRule`; do not add JSON
+  override flags back to `Policy`.
