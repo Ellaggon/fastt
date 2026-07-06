@@ -12,6 +12,9 @@ export type PolicyAssignmentSnapshot = {
 	scope: PolicyScope
 	scopeId: string
 	channel: string | null
+	effectiveFrom?: string | null
+	effectiveTo?: string | null
+	createdAt?: Date | null
 }
 
 export type PolicySnapshot = {
@@ -26,7 +29,6 @@ export type PolicySnapshot = {
 	refundBasis?: string | null
 	payoutBasis?: string | null
 	localTimezone?: string | null
-	legalOverrideFlags?: Record<string, boolean> | null
 	effectiveFrom?: string | null
 	effectiveTo?: string | null
 }
@@ -50,6 +52,7 @@ export interface PolicyResolutionRepositoryPort {
 	listActiveAssignments(params: {
 		scopeChain: ScopeNode[]
 		channels: Array<string | null>
+		asOfDate: string
 	}): Promise<PolicyAssignmentSnapshot[]>
 
 	/**

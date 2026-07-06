@@ -100,7 +100,6 @@ function policySnapshot(): HoldPolicySnapshot {
 				refundBasis: "room_rate",
 				payoutBasis: "gross",
 				localTimezone: "America/Santiago",
-				legalOverrideFlags: null,
 			},
 			calculation: {
 				localTimezone: "America/Santiago",

@@ -189,9 +189,7 @@ export function buildPolicyCalculationSnapshot(params: {
 	const thresholdNights = Number(mappedRules.stayLengthThresholdNights ?? 28)
 	const stayLengthType =
 		params.policy.stayLengthType == null ? null : String(params.policy.stayLengthType)
-	const graceHours = Number(
-		params.policy.gracePeriod ?? mappedRules.gracePeriodHoursAfterBooking ?? 0
-	)
+	const graceHours = Number(params.policy.gracePeriod ?? 0)
 	const graceRequiresDaysBeforeArrivalRaw =
 		mappedRules.gracePeriodRequiresDaysBeforeArrival == null
 			? null

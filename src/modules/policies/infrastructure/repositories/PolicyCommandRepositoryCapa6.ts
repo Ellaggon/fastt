@@ -40,10 +40,6 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			refundBasis: (row as any).refundBasis == null ? null : String((row as any).refundBasis),
 			payoutBasis: (row as any).payoutBasis == null ? null : String((row as any).payoutBasis),
 			localTimezone: (row as any).localTimezone == null ? null : String((row as any).localTimezone),
-			legalOverrideFlags: ((row as any).legalOverrideFlags ?? null) as Record<
-				string,
-				boolean
-			> | null,
 			effectiveFrom: row.effectiveFrom == null ? null : String(row.effectiveFrom),
 			effectiveTo: row.effectiveTo == null ? null : String(row.effectiveTo),
 		}
@@ -86,8 +82,8 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 		description: string
 		version: number
 		status: PolicyLibraryStatus
-		effectiveFromIso?: string | null
-		effectiveToIso?: string | null
+		effectiveFrom?: string | null
+		effectiveTo?: string | null
 		metadata?: PolicyProfessionalMetadata
 	}) {
 		const policyId = randomUUID()
@@ -103,9 +99,8 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			refundBasis: params.metadata?.refundBasis ?? null,
 			payoutBasis: params.metadata?.payoutBasis ?? null,
 			localTimezone: params.metadata?.localTimezone ?? null,
-			legalOverrideFlags: params.metadata?.legalOverrideFlags ?? null,
-			effectiveFrom: params.effectiveFromIso ?? null,
-			effectiveTo: params.effectiveToIso ?? null,
+			effectiveFrom: params.effectiveFrom ?? null,
+			effectiveTo: params.effectiveTo ?? null,
 		} as any)
 		return { policyId }
 	}

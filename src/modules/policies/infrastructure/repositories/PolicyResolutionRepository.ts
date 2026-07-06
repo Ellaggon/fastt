@@ -25,6 +25,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 	async listActiveAssignments(params: {
 		scopeChain: ScopeNode[]
 		channels: Array<string | null>
+		asOfDate: string
 	}): Promise<PolicyAssignmentSnapshot[]> {
 		const pairs = params.scopeChain.filter((n) => n.scopeId)
 		if (!pairs.length) return []
@@ -46,10 +47,27 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 				scopeId: PolicyAssignment.scopeId,
 				channel: PolicyAssignment.channel,
 				category: PolicyGroup.category,
+				effectiveFrom: PolicyAssignment.effectiveFrom,
+				effectiveTo: PolicyAssignment.effectiveTo,
+				createdAt: PolicyAssignment.createdAt,
 			})
 			.from(PolicyAssignment)
 			.innerJoin(PolicyGroup, eq(PolicyAssignment.policyGroupId, PolicyGroup.id))
-			.where(and(eq(PolicyAssignment.isActive, true), or(...scopeConds), or(...channelConds)))
+			.where(
+				and(
+					eq(PolicyAssignment.isActive, true),
+					or(...scopeConds),
+					or(...channelConds),
+					or(
+						isNull(PolicyAssignment.effectiveFrom),
+						sql`${PolicyAssignment.effectiveFrom} <= ${params.asOfDate}`
+					),
+					or(
+						isNull(PolicyAssignment.effectiveTo),
+						sql`${PolicyAssignment.effectiveTo} >= ${params.asOfDate}`
+					)
+				)
+			)
 			.all()
 
 		return rows.map((r: any) => ({
@@ -59,6 +77,9 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 			scope: String(r.scope) as any,
 			scopeId: String(r.scopeId),
 			channel: r.channel == null ? null : String(r.channel),
+			effectiveFrom: r.effectiveFrom == null ? null : String(r.effectiveFrom),
+			effectiveTo: r.effectiveTo == null ? null : String(r.effectiveTo),
+			createdAt: r.createdAt == null ? null : new Date(r.createdAt),
 		}))
 	}
 
@@ -85,7 +106,6 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 				refundBasis: (Policy as any).refundBasis,
 				payoutBasis: (Policy as any).payoutBasis,
 				localTimezone: (Policy as any).localTimezone,
-				legalOverrideFlags: (Policy as any).legalOverrideFlags,
 				effectiveFrom: Policy.effectiveFrom,
 				effectiveTo: Policy.effectiveTo,
 			})
@@ -123,7 +143,6 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 				refundBasis: r.refundBasis == null ? null : String(r.refundBasis),
 				payoutBasis: r.payoutBasis == null ? null : String(r.payoutBasis),
 				localTimezone: r.localTimezone == null ? null : String(r.localTimezone),
-				legalOverrideFlags: (r.legalOverrideFlags ?? null) as Record<string, boolean> | null,
 				effectiveFrom: r.effectiveFrom == null ? null : String(r.effectiveFrom),
 				effectiveTo: r.effectiveTo == null ? null : String(r.effectiveTo),
 			}

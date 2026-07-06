@@ -34,7 +34,6 @@ function policySnapshot(): HoldPolicySnapshot {
 				refundBasis: "nightly_rate",
 				payoutBasis: "host_payout",
 				localTimezone: "America/Santiago",
-				legalOverrideFlags: null,
 			},
 			calculation: {
 				localTimezone: "America/Santiago",

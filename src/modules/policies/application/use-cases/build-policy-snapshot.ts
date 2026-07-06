@@ -31,7 +31,6 @@ export type HoldPolicyItemSnapshot = {
 		refundBasis: string | null
 		payoutBasis: string | null
 		localTimezone: string | null
-		legalOverrideFlags: Record<string, boolean> | null
 	}
 	calculation?: PolicyCalculationSnapshot
 	appliedOverrides?: AppliedPolicyExceptionRule[]
@@ -106,10 +105,6 @@ export function buildPolicyItemSnapshot(
 			refundBasis: entry.policy.refundBasis == null ? null : String(entry.policy.refundBasis),
 			payoutBasis: entry.policy.payoutBasis == null ? null : String(entry.policy.payoutBasis),
 			localTimezone: entry.policy.localTimezone == null ? null : String(entry.policy.localTimezone),
-			legalOverrideFlags: (entry.policy.legalOverrideFlags ?? null) as Record<
-				string,
-				boolean
-			> | null,
 		},
 		calculation: calculationResult.calculation,
 		appliedOverrides: calculationResult.appliedOverrides,

@@ -62,6 +62,8 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 					eq(PolicyAssignment.scope, params.scope),
 					eq(PolicyAssignment.scopeId, params.scopeId),
 					channelCond,
+					isNull(PolicyAssignment.effectiveFrom),
+					isNull(PolicyAssignment.effectiveTo),
 					eq((PolicyAssignment as any).category, params.category)
 				)
 			)
@@ -93,7 +95,10 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 			scope: params.scope,
 			scopeId: params.scopeId,
 			channel: params.channel ?? null,
+			effectiveFrom: null,
+			effectiveTo: null,
 			isActive: true,
+			createdAt: new Date(),
 		} as any)
 		return { assignmentId }
 	}

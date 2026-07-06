@@ -6,11 +6,16 @@ import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
 import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
 import { applyPolicyPresetDefaults } from "../../presets/applyPolicyPreset"
+import { normalizePolicyEffectiveDate } from "../../schemas/policy-write/policyEffectiveDate"
+
+export type CreatePolicyCommandInput = CreatePolicyInput & {
+	actorUserId?: string
+}
 
 // CAPA 6 write path: create a library policy version.
 export async function createPolicyCapa6(
 	deps: { commandRepo: PolicyCommandRepositoryPortCapa6 },
-	input: CreatePolicyInput
+	input: CreatePolicyCommandInput
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
 	const parsedInput = createPolicySchema.parse(input)
 
@@ -36,6 +41,20 @@ export async function createPolicyCapa6(
 		cancellationTiers: parsed.cancellationTiers,
 	})
 
+	const effectiveFrom = normalizePolicyEffectiveDate(parsed.effectiveFrom)
+	const effectiveTo = normalizePolicyEffectiveDate(parsed.effectiveTo)
+	if (parsed.effectiveFrom && !effectiveFrom) {
+		throw new PolicyValidationError([{ path: ["effectiveFrom"], code: "invalid_date" }])
+	}
+	if (parsed.effectiveTo && !effectiveTo) {
+		throw new PolicyValidationError([{ path: ["effectiveTo"], code: "invalid_date" }])
+	}
+	if (effectiveFrom && effectiveTo && effectiveFrom > effectiveTo) {
+		throw new PolicyValidationError([
+			{ path: ["effectiveFrom", "effectiveTo"], code: "invalid_date_range" },
+		])
+	}
+
 	if (!parsed.previousPolicyId) {
 		if (!parsed.ownerProviderId) {
 			throw new PolicyValidationError([
@@ -49,18 +68,13 @@ export async function createPolicyCapa6(
 		groupId = created.groupId
 	}
 
-	const effectiveFromIso = parsed.effectiveFrom
-		? new Date(parsed.effectiveFrom).toISOString()
-		: null
-	const effectiveToIso = parsed.effectiveTo ? new Date(parsed.effectiveTo).toISOString() : null
-
 	const { policyId } = await deps.commandRepo.createPolicyVersion({
 		groupId,
 		description: parsed.description ?? "",
 		version,
 		status: parsed.status,
-		effectiveFromIso,
-		effectiveToIso,
+		effectiveFrom,
+		effectiveTo,
 		metadata: {
 			policyPresetKey: parsed.policyPresetKey ?? null,
 			stayLengthType: parsed.stayLengthType ?? null,
@@ -68,7 +82,6 @@ export async function createPolicyCapa6(
 			refundBasis: parsed.refundBasis ?? null,
 			payoutBasis: parsed.payoutBasis ?? null,
 			localTimezone: parsed.localTimezone ?? null,
-			legalOverrideFlags: parsed.legalOverrideFlags ?? null,
 		},
 	})
 
@@ -87,7 +100,7 @@ export async function createPolicyCapa6(
 
 	await deps.commandRepo.createAuditLog({
 		eventType: parsed.previousPolicyId ? "policy_version_created" : "policy_created",
-		actorUserId: (input as any).actorUserId ?? null,
+		actorUserId: input.actorUserId ?? null,
 		policyId,
 		policyGroupId: groupId,
 		before: parsed.previousPolicyId ? { previousPolicyId: parsed.previousPolicyId } : null,
@@ -97,8 +110,8 @@ export async function createPolicyCapa6(
 			category,
 			version,
 			status: parsed.status,
-			effectiveFrom: effectiveFromIso,
-			effectiveTo: effectiveToIso,
+			effectiveFrom,
+			effectiveTo,
 			policyPresetKey: parsed.policyPresetKey ?? null,
 		},
 	})

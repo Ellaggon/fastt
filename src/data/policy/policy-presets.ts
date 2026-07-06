@@ -1,5 +1,4 @@
-import type { PolicyCategory } from "@/modules/policies/domain/policy.category"
-import type { CancellationTierInput } from "@/modules/policies/application/schemas/policy-write/policyContentSchema"
+import type { CancellationTierInput, PolicyCategory } from "@/modules/policies/public"
 
 export type PolicyPresetKey =
 	| "flexible"
@@ -36,20 +35,16 @@ export type PolicyPreset = {
 		| "none"
 	payoutBasis: "gross" | "net" | "collected" | "provider_policy"
 	localTimezone: string
-	legalOverrideFlags: Record<string, boolean>
 	rules: Record<string, unknown>
 	cancellationTiers?: CancellationTierInput[]
 }
 
 const cancellationPreset = (
-	preset: Omit<PolicyPreset, "category" | "localTimezone" | "legalOverrideFlags"> & {
-		legalOverrideFlags?: Record<string, boolean>
-	}
+	preset: Omit<PolicyPreset, "category" | "localTimezone">
 ): PolicyPreset => ({
 	...preset,
 	category: "Cancellation",
 	localTimezone: "property_local",
-	legalOverrideFlags: preset.legalOverrideFlags ?? {},
 })
 
 export const POLICY_PRESET_CATALOG = [
@@ -64,21 +59,11 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "collected",
 		rules: {
-			cancellationPreset: "flexible",
-			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: 1,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 1, refundPercentage: 100, penaltyPercentage: 0 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 0 },
@@ -97,21 +82,11 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "collected",
 		rules: {
-			cancellationPreset: "moderate",
-			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: 5,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 5, refundPercentage: 100, penaltyPercentage: 0 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 5, penaltyType: "percentage", penaltyAmount: 0 },
@@ -132,22 +107,11 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "collected",
 		rules: {
-			cancellationPreset: "limited",
-			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: 7,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 7, refundPercentage: 100, penaltyPercentage: 0 },
-				{ daysBeforeArrival: 1, refundPercentage: 50, penaltyPercentage: 50 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 7, penaltyType: "percentage", penaltyAmount: 0 },
@@ -168,22 +132,11 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
 		rules: {
-			cancellationPreset: "firm",
-			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: 30,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 30, refundPercentage: 100, penaltyPercentage: 0 },
-				{ daysBeforeArrival: 7, refundPercentage: 50, penaltyPercentage: 50 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 30, penaltyType: "percentage", penaltyAmount: 0 },
@@ -202,23 +155,12 @@ export const POLICY_PRESET_CATALOG = [
 		gracePeriod: 24,
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
-		legalOverrideFlags: { strictDisclosureRequired: true },
 		rules: {
-			cancellationPreset: "strict",
-			stayLengthType: "short_stay",
 			maxStayNights: 27,
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: null,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 14, refundPercentage: 50, penaltyPercentage: 50 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 14, penaltyType: "percentage", penaltyAmount: 50 },
@@ -237,21 +179,11 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
 		rules: {
-			cancellationPreset: "long_term",
 			minStayNights: 28,
-			stayLengthType: "long_stay",
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: 30,
-			gracePeriodHoursAfterBooking: 24,
 			gracePeriodRequiresDaysBeforeArrival: 2,
-			refundBasis: "total_booking",
 			taxesFeesBasis: "pro_rated",
 			taxRefundProration: "same_as_room_refund",
-			hostPayoutBasis: "collected_less_refund",
-			refundTiers: [
-				{ daysBeforeArrival: 30, refundPercentage: 100, penaltyPercentage: 0 },
-				{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 },
-			],
 		},
 		cancellationTiers: [
 			{ daysBeforeArrival: 30, penaltyType: "percentage", penaltyAmount: 0 },
@@ -269,18 +201,10 @@ export const POLICY_PRESET_CATALOG = [
 		gracePeriod: 0,
 		refundBasis: "none",
 		payoutBasis: "gross",
-		legalOverrideFlags: { nonRefundableDisclosureRequired: true },
 		rules: {
-			cancellationPreset: "non_refundable",
-			stayLengthType: "any",
 			stayLengthThresholdNights: 28,
-			freeCancellationUntilDaysBeforeArrival: null,
-			gracePeriodHoursAfterBooking: 0,
-			refundBasis: "none",
 			taxesFeesBasis: "non_refundable",
 			taxRefundProration: "none",
-			hostPayoutBasis: "gross",
-			refundTiers: [{ daysBeforeArrival: 0, refundPercentage: 0, penaltyPercentage: 100 }],
 		},
 		cancellationTiers: [{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 100 }],
 	}),
@@ -296,7 +220,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "provider_policy",
 		payoutBasis: "provider_policy",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { paymentType: "pay_at_property" },
 	},
 	{
@@ -311,7 +234,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
 		localTimezone: "property_local",
-		legalOverrideFlags: { requiresManualReview: false },
 		rules: {
 			paymentType: "prepayment",
 			prepaymentPercentage: 100,
@@ -330,7 +252,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "deposit",
 		payoutBasis: "collected",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: {
 			paymentType: "prepayment",
 			prepaymentPercentage: 50,
@@ -349,7 +270,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "none",
 		payoutBasis: "provider_policy",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { checkInFrom: "15:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
 	},
 	{
@@ -364,7 +284,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "none",
 		payoutBasis: "provider_policy",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { checkInFrom: "15:00", checkInUntil: "00:00", checkOutUntil: "11:00" },
 	},
 	{
@@ -379,7 +298,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "first_night",
 		payoutBasis: "gross",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { penaltyType: "first_night" },
 	},
 	{
@@ -394,7 +312,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { penaltyType: "full" },
 	},
 	{
@@ -409,7 +326,6 @@ export const POLICY_PRESET_CATALOG = [
 		refundBasis: "total_booking",
 		payoutBasis: "gross",
 		localTimezone: "property_local",
-		legalOverrideFlags: {},
 		rules: { penaltyType: "percentage", penaltyAmount: 100 },
 	},
 ] as const satisfies readonly PolicyPreset[]

@@ -96,7 +96,7 @@ export async function resolveEffectivePolicies(
 	const scopeChain = buildScopeChain({ ...ctx, productId })
 	const channels: Array<string | null> = ctx.channel ? [ctx.channel, null] : [null]
 
-	const assignments = await deps.repo.listActiveAssignments({ scopeChain, channels })
+	const assignments = await deps.repo.listActiveAssignments({ scopeChain, channels, asOfDate })
 	if (!assignments.length) {
 		const missingCategories = requiredCategories
 		if (ctx.onMissingCategory === "throw_error" && missingCategories.length > 0) {
@@ -145,8 +145,15 @@ export async function resolveEffectivePolicies(
 
 			if (!scored.length) continue
 
-			// Deterministic winner within scope: highest version wins, tie-break by policy id then assignment id.
+			// A dated assignment is an explicit commercial exception and wins over
+			// the base assignment. The newest applicable exception wins.
 			scored.sort((x, y) => {
+				const xDated = x.a.effectiveFrom || x.a.effectiveTo ? 1 : 0
+				const yDated = y.a.effectiveFrom || y.a.effectiveTo ? 1 : 0
+				if (xDated !== yDated) return yDated - xDated
+				const xCreated = x.a.createdAt?.getTime() ?? 0
+				const yCreated = y.a.createdAt?.getTime() ?? 0
+				if (xCreated !== yCreated) return yCreated - xCreated
 				if (x.p.version !== y.p.version) return y.p.version - x.p.version
 				if (x.p.id !== y.p.id) return x.p.id.localeCompare(y.p.id)
 				return x.a.id.localeCompare(y.a.id)

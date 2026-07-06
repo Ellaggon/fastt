@@ -13,7 +13,7 @@ export type ParsedPolicyInputWithPresetDefaults = {
 	ownerProviderId?: string
 	category: PolicyCategory
 	description: string
-	status: "draft" | "template" | "active" | "archived"
+	status: "draft" | "active" | "archived"
 	policyPresetKey?: string
 	stayLengthType: "any" | "short_stay" | "long_stay" | "monthly"
 	gracePeriod?: number
@@ -26,7 +26,6 @@ export type ParsedPolicyInputWithPresetDefaults = {
 		| "none"
 	payoutBasis?: "gross" | "net" | "collected" | "provider_policy"
 	localTimezone?: string
-	legalOverrideFlags?: Record<string, boolean>
 	rules?: Record<string, unknown>
 	cancellationTiers?: CancellationTierInput[]
 	effectiveFrom?: string
@@ -68,10 +67,6 @@ export function applyPolicyPresetDefaults(params: {
 			params.input.payoutBasis === undefined ? preset.payoutBasis : params.parsed.payoutBasis,
 		localTimezone:
 			params.input.localTimezone === undefined ? preset.localTimezone : params.parsed.localTimezone,
-		legalOverrideFlags:
-			params.input.legalOverrideFlags === undefined
-				? preset.legalOverrideFlags
-				: params.parsed.legalOverrideFlags,
 		rules: isEmptyRules(params.input.rules) ? clonePolicyPresetRules(preset) : params.parsed.rules,
 		cancellationTiers:
 			params.input.cancellationTiers === undefined || params.input.cancellationTiers.length === 0

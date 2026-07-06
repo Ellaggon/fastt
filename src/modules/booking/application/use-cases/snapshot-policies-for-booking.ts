@@ -39,7 +39,6 @@ export async function snapshotPoliciesForBooking(
 					refundBasis?: string | null
 					payoutBasis?: string | null
 					localTimezone?: string | null
-					legalOverrideFlags?: Record<string, boolean> | null
 					effectiveFrom?: string | null
 					effectiveTo?: string | null
 					rules: unknown[]

@@ -22,7 +22,6 @@ function resolvedPolicy(category: string, policy: Record<string, unknown>) {
 			refundBasis: "nightly_rate",
 			payoutBasis: "host_payout",
 			localTimezone: "America/Santiago",
-			legalOverrideFlags: null,
 			effectiveFrom: null,
 			effectiveTo: null,
 			rules: [],

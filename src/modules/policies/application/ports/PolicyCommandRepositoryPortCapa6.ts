@@ -3,7 +3,7 @@ import type { CancellationTierInput } from "../schemas/policy-write/policyConten
 
 export type { CancellationTierInput } from "../schemas/policy-write/policyContentSchema"
 
-export type PolicyLibraryStatus = "draft" | "template" | "active" | "archived"
+export type PolicyLibraryStatus = "draft" | "active" | "archived"
 export type PolicyProfessionalMetadata = {
 	policyPresetKey?: string | null
 	stayLengthType?: string | null
@@ -11,7 +11,6 @@ export type PolicyProfessionalMetadata = {
 	refundBasis?: string | null
 	payoutBasis?: string | null
 	localTimezone?: string | null
-	legalOverrideFlags?: Record<string, boolean> | null
 }
 
 export interface PolicyCommandRepositoryPortCapa6 {
@@ -44,8 +43,8 @@ export interface PolicyCommandRepositoryPortCapa6 {
 		description: string
 		version: number
 		status: PolicyLibraryStatus
-		effectiveFromIso?: string | null
-		effectiveToIso?: string | null
+		effectiveFrom?: string | null
+		effectiveTo?: string | null
 		metadata?: PolicyProfessionalMetadata
 	}): Promise<{ policyId: string }>
 

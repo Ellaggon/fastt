@@ -6,6 +6,7 @@ import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
 import { validatePolicyContentForCategory } from "../../schemas/policy-write/policyContentSchema"
 import { applyPolicyPresetDefaults } from "../../presets/applyPolicyPreset"
+import { normalizePolicyEffectiveDate } from "../../schemas/policy-write/policyEffectiveDate"
 
 export type CreatePolicyVersionInput = Omit<CreatePolicyInput, "category"> & {
 	previousPolicyId: string
@@ -14,28 +15,17 @@ export type CreatePolicyVersionInput = Omit<CreatePolicyInput, "category"> & {
 	actorUserId?: string
 }
 
-function normalizeDateIso(raw: string | null | undefined): string | null {
-	if (!raw) return null
-	const parsed = new Date(raw)
-	if (Number.isNaN(parsed.getTime())) return null
-	return parsed.toISOString()
-}
-
 function assertNonOverlappingRange(params: {
 	nextFrom: string | null
 	nextTo: string | null
 	existing: Array<{ id: string; effectiveFrom: string | null; effectiveTo: string | null }>
 }) {
-	const nextStart = params.nextFrom ? new Date(params.nextFrom).getTime() : Number.NEGATIVE_INFINITY
-	const nextEnd = params.nextTo ? new Date(params.nextTo).getTime() : Number.POSITIVE_INFINITY
 	for (const row of params.existing) {
-		const currentStart = row.effectiveFrom
-			? new Date(row.effectiveFrom).getTime()
-			: Number.NEGATIVE_INFINITY
-		const currentEnd = row.effectiveTo
-			? new Date(row.effectiveTo).getTime()
-			: Number.POSITIVE_INFINITY
-		const overlaps = nextStart <= currentEnd && currentStart <= nextEnd
+		const startsBeforeCurrentEnds =
+			params.nextFrom == null || row.effectiveTo == null || params.nextFrom <= row.effectiveTo
+		const currentStartsBeforeEnd =
+			row.effectiveFrom == null || params.nextTo == null || row.effectiveFrom <= params.nextTo
+		const overlaps = startsBeforeCurrentEnds && currentStartsBeforeEnd
 		if (overlaps) {
 			throw new PolicyValidationError([
 				{
@@ -86,24 +76,24 @@ export async function createPolicyVersionCapa6(
 		cancellationTiers: parsed.cancellationTiers,
 	})
 
-	const effectiveFromIso = normalizeDateIso(parsed.effectiveFrom)
-	const effectiveToIso = normalizeDateIso(parsed.effectiveTo)
-	if (parsed.effectiveFrom && !effectiveFromIso) {
+	const effectiveFrom = normalizePolicyEffectiveDate(parsed.effectiveFrom)
+	const effectiveTo = normalizePolicyEffectiveDate(parsed.effectiveTo)
+	if (parsed.effectiveFrom && !effectiveFrom) {
 		throw new PolicyValidationError([{ path: ["effectiveFrom"], code: "invalid_date" }])
 	}
-	if (parsed.effectiveTo && !effectiveToIso) {
+	if (parsed.effectiveTo && !effectiveTo) {
 		throw new PolicyValidationError([{ path: ["effectiveTo"], code: "invalid_date" }])
 	}
-	if (effectiveFromIso && effectiveToIso && new Date(effectiveFromIso) > new Date(effectiveToIso)) {
+	if (effectiveFrom && effectiveTo && effectiveFrom > effectiveTo) {
 		throw new PolicyValidationError([
 			{ path: ["effectiveFrom", "effectiveTo"], code: "invalid_date_range" },
 		])
 	}
-	if (effectiveFromIso || effectiveToIso) {
+	if (effectiveFrom || effectiveTo) {
 		const activeVersions = await deps.commandRepo.listActivePoliciesByGroupId(groupId)
 		assertNonOverlappingRange({
-			nextFrom: effectiveFromIso,
-			nextTo: effectiveToIso,
+			nextFrom: effectiveFrom,
+			nextTo: effectiveTo,
 			existing: activeVersions,
 		})
 	}
@@ -113,8 +103,8 @@ export async function createPolicyVersionCapa6(
 		description: parsed.description ?? "",
 		version,
 		status: parsed.status,
-		effectiveFromIso,
-		effectiveToIso,
+		effectiveFrom,
+		effectiveTo,
 		metadata: {
 			policyPresetKey:
 				input.policyPresetKey === undefined ? prev.policyPresetKey : parsed.policyPresetKey,
@@ -124,10 +114,6 @@ export async function createPolicyVersionCapa6(
 			refundBasis: input.refundBasis === undefined ? prev.refundBasis : parsed.refundBasis,
 			payoutBasis: input.payoutBasis === undefined ? prev.payoutBasis : parsed.payoutBasis,
 			localTimezone: input.localTimezone === undefined ? prev.localTimezone : parsed.localTimezone,
-			legalOverrideFlags:
-				input.legalOverrideFlags === undefined
-					? prev.legalOverrideFlags
-					: parsed.legalOverrideFlags,
 		},
 	})
 
@@ -154,8 +140,8 @@ export async function createPolicyVersionCapa6(
 			policyId,
 			version,
 			category,
-			effectiveFrom: effectiveFromIso,
-			effectiveTo: effectiveToIso,
+			effectiveFrom,
+			effectiveTo,
 		},
 	})
 

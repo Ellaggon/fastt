@@ -18,7 +18,6 @@ type PreviewBody = {
 	refundBasis?: string | null
 	payoutBasis?: string | null
 	localTimezone?: string | null
-	legalOverrideFlags?: Record<string, boolean> | null
 	rules?: Record<string, unknown>
 	cancellationTiers?: unknown[]
 	scope?: "product" | "variant" | "rate_plan"
@@ -106,7 +105,6 @@ function buildResolvedDTO(params: {
 					refundBasis: params.policy.refundBasis ?? null,
 					payoutBasis: params.policy.payoutBasis ?? null,
 					localTimezone: params.policy.localTimezone ?? "property_local",
-					legalOverrideFlags: params.policy.legalOverrideFlags ?? null,
 					rules: params.rules,
 					cancellationTiers: params.cancellationTiers,
 				},
@@ -134,7 +132,6 @@ async function loadExistingPolicy(providerId: string, policyId: string) {
 			refundBasis: (Policy as any).refundBasis,
 			payoutBasis: (Policy as any).payoutBasis,
 			localTimezone: (Policy as any).localTimezone,
-			legalOverrideFlags: (Policy as any).legalOverrideFlags,
 		})
 		.from(Policy)
 		.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
@@ -185,7 +182,6 @@ function loadPresetPolicy(policyPresetKey: string, categoryHint?: string) {
 			refundBasis: preset.refundBasis,
 			payoutBasis: preset.payoutBasis,
 			localTimezone: preset.localTimezone,
-			legalOverrideFlags: preset.legalOverrideFlags ?? null,
 		},
 		rules: rulesObjectToRows(id, preset.rules),
 		cancellationTiers: tiersToRows(
@@ -213,7 +209,6 @@ function loadDraftPolicy(body: PreviewBody) {
 			refundBasis: body.refundBasis ?? null,
 			payoutBasis: body.payoutBasis ?? null,
 			localTimezone: body.localTimezone ?? "property_local",
-			legalOverrideFlags: body.legalOverrideFlags ?? null,
 		},
 		rules: rulesObjectToRows(id, body.rules),
 		cancellationTiers: tiersToRows(id, body.cancellationTiers),

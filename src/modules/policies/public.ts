@@ -76,7 +76,7 @@ export async function resolveEffectivePolicies(params: {
 }
 
 export async function createPolicyCapa6(
-	params: import("./application/schemas/policy-write/createPolicySchema").CreatePolicyInput
+	params: import("./application/use-cases/capa6/create-policy").CreatePolicyCommandInput
 ) {
 	const { createPolicyCapa6UseCase } = await import("@/container/policies-write.container")
 	return createPolicyCapa6UseCase(params)

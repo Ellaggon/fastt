@@ -11,8 +11,12 @@ function makeRepo(fixture: {
 	policiesByGroup: Record<string, PolicySnapshot[]>
 }): PolicyResolutionRepositoryPort {
 	return {
-		async listActiveAssignments() {
-			return fixture.assignments
+		async listActiveAssignments({ asOfDate }) {
+			return fixture.assignments.filter(
+				(assignment) =>
+					(!assignment.effectiveFrom || assignment.effectiveFrom <= asOfDate) &&
+					(!assignment.effectiveTo || assignment.effectiveTo >= asOfDate)
+			)
 		},
 		async listActivePoliciesByGroupIds({ groupIds, asOfDate }) {
 			const out: Record<string, PolicySnapshot> = {}
@@ -163,6 +167,75 @@ describe("policies/resolveEffectivePolicies (canonical resolver, isolated)", () 
 		expect(res.policies).toHaveLength(1)
 		expect(res.policies[0].resolvedFromScope).toBe("rate_plan")
 		expect(res.policies[0].policy.id).toBe("can_rp1")
+	})
+
+	it("prefers a dated assignment for its effective check-in date", async () => {
+		const repo = makeRepo({
+			assignments: [
+				{
+					id: "a_base",
+					policyGroupId: "g_base",
+					category: "Cancellation",
+					scope: "rate_plan",
+					scopeId: "rp1",
+					channel: null,
+				},
+				{
+					id: "a_dates",
+					policyGroupId: "g_dates",
+					category: "Cancellation",
+					scope: "rate_plan",
+					scopeId: "rp1",
+					channel: null,
+					effectiveFrom: "2026-12-20",
+					effectiveTo: "2027-01-05",
+					createdAt: new Date("2026-07-04T12:00:00.000Z"),
+				},
+			],
+			policiesByGroup: {
+				g_base: [
+					{
+						id: "base",
+						groupId: "g_base",
+						description: "Flexible",
+						version: 1,
+						status: "active",
+					},
+				],
+				g_dates: [
+					{
+						id: "dates",
+						groupId: "g_dates",
+						description: "Firme",
+						version: 1,
+						status: "active",
+					},
+				],
+			},
+		})
+
+		const result = await resolveEffectivePolicies(
+			{ repo },
+			{
+				productId: "p1",
+				ratePlanId: "rp1",
+				checkIn: "2026-12-24",
+				requiredCategories: ["Cancellation"],
+			}
+		)
+
+		expect(result.policies[0]?.policy.id).toBe("dates")
+
+		const outside = await resolveEffectivePolicies(
+			{ repo },
+			{
+				productId: "p1",
+				ratePlanId: "rp1",
+				checkIn: "2027-01-10",
+				requiredCategories: ["Cancellation"],
+			}
+		)
+		expect(outside.policies[0]?.policy.id).toBe("base")
 	})
 
 	it("channel-specific assignment overrides null channel within same scope", async () => {

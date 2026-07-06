@@ -73,14 +73,34 @@ function validateCancellationTiers(tiers: CancellationTierInput[] | undefined) {
 
 function validateCancellationRules(rules: Record<string, unknown> | undefined) {
 	const input = rulesRecord(rules)
-	const normalized: Record<string, unknown> = {}
-	for (const key of [
+	const duplicatedSources = [
 		"cancellationPreset",
+		"stayLengthType",
 		"freeCancellationUntilDaysBeforeArrival",
 		"gracePeriodHoursAfterBooking",
 		"refundBasis",
+		"hostPayoutBasis",
 		"refundTiers",
+	]
+	const duplicatedKey = duplicatedSources.find((key) => input[key] !== undefined)
+	if (duplicatedKey) {
+		throw new PolicyValidationError([
+			{
+				path: ["rules", duplicatedKey],
+				code: "duplicated_contract_source",
+				message: "Use Policy metadata or CancellationTier as the canonical source",
+			},
+		])
+	}
+
+	const normalized: Record<string, unknown> = {}
+	for (const key of [
 		"minStayNights",
+		"maxStayNights",
+		"stayLengthThresholdNights",
+		"gracePeriodRequiresDaysBeforeArrival",
+		"taxesFeesBasis",
+		"taxRefundProration",
 	]) {
 		if (input[key] !== undefined) normalized[key] = input[key]
 	}
