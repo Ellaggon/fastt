@@ -14,12 +14,12 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { materializeSearchUnitRange, resolveSearchOffers } from "@/modules/search/public"
+import { createSearchOffersRepositoryForTests } from "@/modules/search/testing-public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
-import { SearchOffersRepository } from "@/modules/search/infrastructure/repositories/SearchOffersRepository"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
-import { createPolicyCapa6, assignPolicyCapa6 } from "@/modules/policies/public"
+import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -142,7 +142,7 @@ async function seedFixture(params: {
 		rules: { penaltyType: "first_night" },
 	} as any)
 	for (const policy of [cancellation, payment, checkIn, noShow]) {
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,
 			scope: "rate_plan",
 			scopeId: params.ratePlanId,
@@ -270,7 +270,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 					rooms: 1,
 					currency: "USD",
 				},
-				{ repo: new SearchOffersRepository() }
+				{ repo: createSearchOffersRepositoryForTests() }
 			)
 			const offer = searchResult.offers.find((item) => item.variantId === variantId)
 			const ratePlan = offer?.ratePlans.find((item) => item.ratePlanId === ratePlanId)

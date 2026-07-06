@@ -8,20 +8,6 @@ import type { PolicyAssignmentRepositoryPortCapa6 } from "../../ports/PolicyAssi
 
 export type ReplacePolicyAssignmentInput = AssignPolicyInput & {
 	actorUserId?: string
-	checkIn?: string
-	checkOut?: string
-	requiredCategories?: string[]
-}
-
-function toISODateOnly(input?: string): string {
-	if (input) {
-		const parsed = new Date(`${input}T00:00:00.000Z`)
-		if (Number.isNaN(parsed.getTime())) {
-			throw new PolicyValidationError([{ path: ["checkIn"], code: "invalid_date" }])
-		}
-		return parsed.toISOString().slice(0, 10)
-	}
-	return new Date().toISOString().slice(0, 10)
 }
 
 // Replace semantics for overrides:
@@ -32,16 +18,6 @@ export async function replacePolicyAssignmentCapa6(
 	deps: {
 		commandRepo: PolicyCommandRepositoryPortCapa6
 		assignmentRepo: PolicyAssignmentRepositoryPortCapa6
-		resolveEffectivePolicies?: (ctx: {
-			productId: string
-			variantId?: string
-			ratePlanId?: string
-			checkIn?: string
-			checkOut?: string
-			channel?: string
-			requiredCategories?: string[]
-			onMissingCategory?: "return_null" | "throw_error"
-		}) => Promise<{ missingCategories: string[] }>
 	},
 	input: ReplacePolicyAssignmentInput
 ): Promise<{ assignmentId: string; replaced: boolean }> {
@@ -61,93 +37,23 @@ export async function replacePolicyAssignmentCapa6(
 		throw new PolicyValidationError([{ path: ["policyId"], code: "invalid_effective_window" }])
 	}
 
-	const exists = await deps.assignmentRepo.scopeExists({
+	const context = await deps.assignmentRepo.resolveScopeContext({
 		scope: parsed.scope,
 		scopeId: parsed.scopeId,
 	})
-	if (!exists) throw new PolicyValidationError([{ path: ["scopeId"], code: "not_found" }])
-
-	const current = await deps.assignmentRepo.findActiveAssignmentByScopeCategoryChannel({
-		scope: parsed.scope,
-		scopeId: parsed.scopeId,
-		category: policy.category,
-		channel,
-	})
-
-	if (
-		deps.resolveEffectivePolicies &&
-		Array.isArray(input.requiredCategories) &&
-		input.requiredCategories.length > 0
-	) {
-		const context = await deps.assignmentRepo.resolveScopeContext({
-			scope: parsed.scope,
-			scopeId: parsed.scopeId,
-		})
-		if (!context) {
-			throw new PolicyValidationError([{ path: ["scopeId"], code: "scope_context_not_found" }])
-		}
-		const checkIn = toISODateOnly(input.checkIn)
-		const checkOut = input.checkOut ? toISODateOnly(input.checkOut) : undefined
-		try {
-			await deps.resolveEffectivePolicies({
-				productId: context.productId,
-				variantId: context.variantId,
-				ratePlanId: context.ratePlanId,
-				checkIn,
-				checkOut,
-				channel: parsed.channel ?? undefined,
-				requiredCategories: input.requiredCategories,
-				onMissingCategory: "throw_error",
-			})
-		} catch (error: any) {
-			const message = String(error?.message ?? error)
-			if (message.startsWith("MISSING_POLICY_CATEGORY:")) {
-				throw new PolicyValidationError([
-					{ path: ["requiredCategories"], code: "missing_required_categories", message },
-				])
-			}
-			throw error
-		}
+	if (!context) throw new PolicyValidationError([{ path: ["scopeId"], code: "not_found" }])
+	if (context.providerId !== group.ownerProviderId) {
+		throw new PolicyValidationError([{ path: ["scopeId"], code: "owner_provider_mismatch" }])
 	}
 
-	if (current) {
-		await deps.assignmentRepo.deactivateAssignmentById(current.id)
-	}
-
-	const { assignmentId } = await deps.assignmentRepo.createAssignment({
-		policyGroupId: policy.groupId,
-		category: policy.category,
-		scope: parsed.scope,
-		scopeId: parsed.scopeId,
-		channel,
-	})
-
-	await deps.commandRepo.createAuditLog({
-		eventType: "assignment_replaced",
-		actorUserId: input.actorUserId ?? null,
+	return deps.assignmentRepo.replaceActiveAssignment({
 		policyId: policy.id,
 		policyGroupId: policy.groupId,
-		assignmentId,
+		ownerProviderId: group.ownerProviderId,
+		category: policy.category,
 		scope: parsed.scope,
 		scopeId: parsed.scopeId,
 		channel,
-		before: current
-			? {
-					assignmentId: current.id,
-					policyGroupId: current.policyGroupId,
-					scope: current.scope,
-					scopeId: current.scopeId,
-					channel: current.channel,
-				}
-			: null,
-		after: {
-			assignmentId,
-			policyGroupId: policy.groupId,
-			scope: parsed.scope,
-			scopeId: parsed.scopeId,
-			channel,
-		},
+		actorUserId: input.actorUserId ?? null,
 	})
-
-	return { assignmentId, replaced: Boolean(current) }
 }

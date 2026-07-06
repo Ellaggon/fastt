@@ -13,7 +13,7 @@ import {
 } from "astro:db"
 
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
 	resolveEffectivePolicies,
@@ -188,7 +188,7 @@ describe("integration/hold policy snapshot", () => {
 			rules: { penaltyType: "first_night" },
 		} as any)
 		for (const policy of [paymentPolicy, cancellationPolicy, checkInPolicy, noShowPolicy]) {
-			await assignPolicyCapa6({
+			await replacePolicyAssignmentCapa6({
 				policyId: policy.policyId,
 				scope: "rate_plan",
 				scopeId: ratePlanId,
@@ -453,7 +453,7 @@ describe("integration/hold policy snapshot", () => {
 				rules: { penaltyType: "first_night" },
 			} as any)
 			for (const policy of [cancellation, payment, checkIn, noShow]) {
-				await assignPolicyCapa6({
+				await replacePolicyAssignmentCapa6({
 					policyId: policy.policyId,
 					scope: "rate_plan",
 					scopeId: ratePlanId,

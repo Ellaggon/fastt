@@ -3,8 +3,9 @@ import { and, db, desc, eq, isNull, Policy, PolicyAssignment } from "astro:db"
 import type { HouseRule } from "@/modules/house-rules/public"
 import {
 	createPolicyCapa6,
+	createPolicyVersionCapa6,
+	deactivatePolicyAssignmentCapa6,
 	replacePolicyAssignmentCapa6,
-	togglePolicyAssignmentCapa6,
 } from "@/modules/policies/public"
 
 function latestRule(rules: HouseRule[], type: "CheckIn" | "Checkout") {
@@ -39,7 +40,11 @@ export async function syncHotelArrivalPolicy(params: {
 	const checkOutUntil = String(checkout?.payloadJson?.time ?? "").trim()
 	if (!checkInFrom || !checkInUntil || !checkOutUntil) {
 		if (assignment?.id) {
-			await togglePolicyAssignmentCapa6({ assignmentId: String(assignment.id), isActive: false })
+			await deactivatePolicyAssignmentCapa6({
+				assignmentId: String(assignment.id),
+				ownerProviderId: params.providerId,
+				actorUserId: params.actorUserId,
+			})
 		}
 		return { synced: false }
 	}
@@ -52,17 +57,24 @@ export async function syncHotelArrivalPolicy(params: {
 				.get()
 		: null
 
-	const created = await createPolicyCapa6({
-		previousPolicyId: previous?.id ? String(previous.id) : undefined,
-		ownerProviderId: previous?.id ? undefined : params.providerId,
-		category: "CheckIn",
+	const policyContent = {
 		description: `Llegada ${checkInFrom}–${checkInUntil} · salida hasta ${checkOutUntil}`,
 		status: "active",
 		policyPresetKey: "standard_check_in",
 		localTimezone: "property_local",
 		rules: { checkInFrom, checkInUntil, checkOutUntil },
 		actorUserId: params.actorUserId,
-	} as any)
+	} as const
+	const created = previous?.id
+		? await createPolicyVersionCapa6({
+				previousPolicyId: String(previous.id),
+				...policyContent,
+			})
+		: await createPolicyCapa6({
+				ownerProviderId: params.providerId,
+				category: "CheckIn",
+				...policyContent,
+			})
 
 	await replacePolicyAssignmentCapa6({
 		policyId: created.policyId,

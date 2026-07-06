@@ -40,7 +40,7 @@ export * from "./application/services/RestrictionService"
 // CAPA 6 write path (isolated)
 export * from "./application/use-cases/capa6/create-policy"
 export * from "./application/use-cases/capa6/create-policy-version"
-export * from "./application/use-cases/capa6/assign-policy"
+export * from "./application/use-cases/capa6/deactivate-policy-assignment"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-calculation-snapshot"
 export * from "./application/use-cases/build-policy-snapshot"
@@ -91,13 +91,6 @@ export async function createPolicyVersionCapa6(
 	return createPolicyVersionCapa6UseCase(params)
 }
 
-export async function assignPolicyCapa6(
-	params: import("./application/schemas/policy-write/assignPolicySchema").AssignPolicyInput
-) {
-	const { assignPolicyCapa6UseCase } = await import("@/container/policies-write.container")
-	return assignPolicyCapa6UseCase(params)
-}
-
 export async function replacePolicyAssignmentCapa6(
 	params: import("./application/use-cases/capa6/replace-policy-assignment").ReplacePolicyAssignmentInput
 ) {
@@ -106,10 +99,10 @@ export async function replacePolicyAssignmentCapa6(
 	return replacePolicyAssignmentCapa6UseCase(params)
 }
 
-export async function togglePolicyAssignmentCapa6(
-	params: import("./application/use-cases/capa6/toggle-policy-assignment").TogglePolicyAssignmentInput
+export async function deactivatePolicyAssignmentCapa6(
+	params: import("./application/use-cases/capa6/deactivate-policy-assignment").DeactivatePolicyAssignmentInput
 ) {
-	const { togglePolicyAssignmentCapa6UseCase } =
+	const { deactivatePolicyAssignmentCapa6UseCase } =
 		await import("@/container/policies-write.container")
-	return togglePolicyAssignmentCapa6UseCase(params)
+	return deactivatePolicyAssignmentCapa6UseCase(params)
 }

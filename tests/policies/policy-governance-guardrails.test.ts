@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createPolicyCapa6 } from "@/modules/policies/application/use-cases/capa6/create-policy"
-import { assignPolicyCapa6 } from "@/modules/policies/application/use-cases/capa6/assign-policy"
 import { PolicyValidationError } from "@/modules/policies/public"
+import {
+	createPolicyCapa6,
+	replacePolicyAssignmentCapa6,
+} from "@/modules/policies/testing-public"
 
 function commandRepo(overrides: Record<string, unknown> = {}) {
 	return {
@@ -56,18 +58,23 @@ describe("policies/governance guardrails", () => {
 			})),
 		})
 		const assignmentRepo = {
-			scopeExists: vi.fn(async () => true),
-			findActiveAssignmentByScopeCategoryChannel: vi.fn(async () => null),
-			createAssignment: vi.fn(async () => ({ assignmentId: "asg_1" })),
+			resolveScopeContext: vi.fn(async () => ({
+				providerId: "prov_1",
+				productId: "prod_1",
+			})),
+			replaceActiveAssignment: vi.fn(async () => ({
+				assignmentId: "asg_1",
+				replaced: false,
+			})),
 		} as any
 
 		await expect(
-			assignPolicyCapa6(
+			replacePolicyAssignmentCapa6(
 				{ commandRepo: repo, assignmentRepo },
 				{ policyId: "pol_unowned", scope: "product", scopeId: "prod_1", channel: null }
 			)
 		).rejects.toBeInstanceOf(PolicyValidationError)
-		expect(assignmentRepo.createAssignment).not.toHaveBeenCalled()
+		expect(assignmentRepo.replaceActiveAssignment).not.toHaveBeenCalled()
 	})
 
 	it("blocks Payment policy creation without contractual rules", async () => {
@@ -90,7 +97,7 @@ describe("policies/governance guardrails", () => {
 		).rejects.toBeInstanceOf(PolicyValidationError)
 	})
 
-	it("audits initial policy creation and direct assignment", async () => {
+	it("audits policy creation and delegates atomic assignment replacement", async () => {
 		const repo = commandRepo({
 			getPolicyById: vi.fn(async () => ({
 				id: "pol_1",
@@ -113,11 +120,16 @@ describe("policies/governance guardrails", () => {
 		)
 
 		const assignmentRepo = {
-			scopeExists: vi.fn(async () => true),
-			findActiveAssignmentByScopeCategoryChannel: vi.fn(async () => null),
-			createAssignment: vi.fn(async () => ({ assignmentId: "asg_1" })),
+			resolveScopeContext: vi.fn(async () => ({
+				providerId: "prov_1",
+				productId: "prod_1",
+			})),
+			replaceActiveAssignment: vi.fn(async () => ({
+				assignmentId: "asg_1",
+				replaced: false,
+			})),
 		} as any
-		await assignPolicyCapa6({ commandRepo: repo, assignmentRepo }, {
+		await replacePolicyAssignmentCapa6({ commandRepo: repo, assignmentRepo }, {
 			policyId: "pol_1",
 			scope: "product",
 			scopeId: "prod_1",
@@ -127,12 +139,11 @@ describe("policies/governance guardrails", () => {
 		expect(repo.createAuditLog).toHaveBeenCalledWith(
 			expect.objectContaining({ eventType: "policy_created", policyGroupId: "grp_1" })
 		)
-		expect(repo.createAuditLog).toHaveBeenCalledWith(
+		expect(assignmentRepo.replaceActiveAssignment).toHaveBeenCalledWith(
 			expect.objectContaining({
-				eventType: "assignment_created",
 				policyId: "pol_1",
 				policyGroupId: "grp_1",
-				assignmentId: "asg_1",
+				ownerProviderId: "prov_1",
 			})
 		)
 	})

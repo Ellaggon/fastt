@@ -4,7 +4,7 @@ import { createCommercialSellabilityRule } from "@/lib/commercial-rules/commerci
 import { searchOffers, dailyInventoryRepository, baseRateRepository } from "@/container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
-import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 
 import {
 	upsertDestination,
@@ -187,7 +187,7 @@ async function seedSearchableVariant(params: {
 	})
 
 	const cancellation = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: params.providerId,
 		category: "Cancellation",
 		description: "Flexible cancellation",
 		effectiveFrom: "2026-01-01",
@@ -195,7 +195,7 @@ async function seedSearchableVariant(params: {
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	} as any)
 	const payment = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: params.providerId,
 		category: "Payment",
 		description: "Pay at property",
 		effectiveFrom: "2026-01-01",
@@ -203,7 +203,7 @@ async function seedSearchableVariant(params: {
 		rules: { paymentType: "pay_at_property" },
 	} as any)
 	const checkIn = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: params.providerId,
 		category: "CheckIn",
 		description: "Standard check-in",
 		effectiveFrom: "2026-01-01",
@@ -211,7 +211,7 @@ async function seedSearchableVariant(params: {
 		rules: { checkInFrom: "15:00", checkInUntil: "23:00", checkOutUntil: "11:00" },
 	} as any)
 	const noShow = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: params.providerId,
 		category: "NoShow",
 		description: "No-show first night",
 		effectiveFrom: "2026-01-01",
@@ -219,7 +219,7 @@ async function seedSearchableVariant(params: {
 		rules: { penaltyType: "first_night" },
 	} as any)
 	for (const policy of [cancellation, payment, checkIn, noShow]) {
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,
 			scope: "rate_plan",
 			scopeId: params.ratePlanId,

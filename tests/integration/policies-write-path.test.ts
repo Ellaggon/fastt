@@ -1,8 +1,10 @@
+import { and, db, eq, isNull, PolicyAssignment, PolicyAuditLog } from "astro:db"
 import { describe, it, expect } from "vitest"
 
 import {
 	createPolicyCapa6,
-	assignPolicyCapa6,
+	deactivatePolicyAssignmentCapa6,
+	replacePolicyAssignmentCapa6,
 	PolicyValidationError,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
@@ -38,7 +40,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		).rejects.toBeInstanceOf(PolicyValidationError)
 	})
 
-	it("assign to product/variant/rate_plan + duplicate prevention", async () => {
+	it("assigns by scope and replaces the active slot atomically and idempotently", async () => {
 		const destinationId = `dest_pol_${crypto.randomUUID()}`
 		const productId = `prod_pol_${crypto.randomUUID()}`
 		const variantId = `var_pol_${crypto.randomUUID()}`
@@ -87,14 +89,65 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		})
 
 		// Product assignment
-		await assignPolicyCapa6({ policyId, scope: "product", scopeId: productId, channel: null })
+		const initial = await replacePolicyAssignmentCapa6({
+			policyId,
+			scope: "product",
+			scopeId: productId,
+			channel: null,
+		})
 		const resolvedProduct = await resolveEffectivePolicies({ productId })
 		expect(resolvedProduct.policies.some((p) => p.category === "Other")).toBe(true)
 
-		// Duplicate prevention (same category/scope/channel)
-		await expect(
-			assignPolicyCapa6({ policyId, scope: "product", scopeId: productId, channel: null })
-		).rejects.toBeInstanceOf(PolicyValidationError)
+		const repeated = await replacePolicyAssignmentCapa6({
+			policyId,
+			scope: "product",
+			scopeId: productId,
+			channel: null,
+		})
+		expect(repeated).toEqual({ assignmentId: initial.assignmentId, replaced: false })
+
+		const replacementPolicy = await createPolicyCapa6({
+			ownerProviderId: "prov_test",
+			category: "Other",
+			description: "Replacement terms",
+			rules: { text: "Updated" },
+		})
+		const replacement = await replacePolicyAssignmentCapa6({
+			policyId: replacementPolicy.policyId,
+			scope: "product",
+			scopeId: productId,
+			channel: null,
+			actorUserId: "ops@example.test",
+		})
+		expect(replacement.replaced).toBe(true)
+
+		const assignments = await db
+			.select()
+			.from(PolicyAssignment)
+			.where(
+				and(
+					eq(PolicyAssignment.scope, "product"),
+					eq(PolicyAssignment.scopeId, productId),
+					eq(PolicyAssignment.category, "Other"),
+					isNull(PolicyAssignment.channel)
+				)
+			)
+			.all()
+		expect(assignments.filter((row) => row.isActive)).toHaveLength(1)
+		expect(assignments.find((row) => row.id === initial.assignmentId)?.isActive).toBe(false)
+		expect(assignments.find((row) => row.id === replacement.assignmentId)?.isActive).toBe(true)
+
+		const audit = await db
+			.select()
+			.from(PolicyAuditLog)
+			.where(eq(PolicyAuditLog.assignmentId, replacement.assignmentId))
+			.get()
+		expect(audit).toEqual(
+			expect.objectContaining({
+				eventType: "assignment_replaced",
+				actorUserId: "ops@example.test",
+			})
+		)
 
 		// Variant assignment
 		const created2 = await createPolicyCapa6({
@@ -103,7 +156,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			description: "Pay in advance",
 			rules: { paymentType: "pay_at_property" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: created2.policyId,
 			scope: "variant",
 			scopeId: variantId,
@@ -118,7 +171,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			category: "Smoking",
 			description: "No smoking at all",
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: created3.policyId,
 			scope: "rate_plan",
 			scopeId: rpId,
@@ -135,7 +188,81 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			description: "X",
 		})
 		await expect(
-			assignPolicyCapa6({ policyId, scope: "product", scopeId: "missing", channel: null })
+			replacePolicyAssignmentCapa6({
+				policyId,
+				scope: "product",
+				scopeId: "missing",
+				channel: null,
+			})
 		).rejects.toBeInstanceOf(PolicyValidationError)
+	})
+
+	it("deactivates only assignments owned by the requesting provider and audits the change", async () => {
+		const suffix = crypto.randomUUID()
+		const destinationId = `dest_deactivate_${suffix}`
+		const productId = `prod_deactivate_${suffix}`
+		const providerId = `prov_deactivate_${suffix}`
+		await upsertDestination({
+			id: destinationId,
+			name: "Deactivate destination",
+			type: "city",
+			country: "CL",
+			slug: `deactivate-${suffix}`,
+		})
+		await upsertProduct({
+			id: productId,
+			name: "Deactivate hotel",
+			productType: "Hotel",
+			destinationId,
+			providerId,
+		})
+		const policy = await createPolicyCapa6({
+			ownerProviderId: providerId,
+			category: "Other",
+			description: "Terms to deactivate",
+			rules: { text: "Terms" },
+		})
+		const assignment = await replacePolicyAssignmentCapa6({
+			policyId: policy.policyId,
+			scope: "product",
+			scopeId: productId,
+			channel: null,
+		})
+
+		await expect(
+			deactivatePolicyAssignmentCapa6({
+				assignmentId: assignment.assignmentId,
+				ownerProviderId: "prov_other",
+			})
+		).rejects.toThrow("POLICY_ASSIGNMENT_OWNER_MISMATCH")
+		const stillActive = await db
+			.select({ isActive: PolicyAssignment.isActive })
+			.from(PolicyAssignment)
+			.where(eq(PolicyAssignment.id, assignment.assignmentId))
+			.get()
+		expect(stillActive?.isActive).toBe(true)
+
+		const result = await deactivatePolicyAssignmentCapa6({
+			assignmentId: assignment.assignmentId,
+			ownerProviderId: providerId,
+			actorUserId: "ops_deactivate",
+		})
+		expect(result).toEqual({
+			assignmentId: assignment.assignmentId,
+			deactivated: true,
+		})
+		const audit = await db
+			.select()
+			.from(PolicyAuditLog)
+			.where(eq(PolicyAuditLog.assignmentId, assignment.assignmentId))
+			.all()
+		expect(audit).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					eventType: "assignment_deactivated",
+					actorUserId: "ops_deactivate",
+				}),
+			])
+		)
 	})
 })

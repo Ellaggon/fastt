@@ -5,7 +5,7 @@ import { db, PolicyAssignment, eq } from "astro:db"
 import {
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 
@@ -31,7 +31,7 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: v1.policyId,
 			scope: "product",
 			scopeId: productId,
@@ -97,7 +97,7 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 			description: "Terms v1",
 			rules: { foo: "bar" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: v1.policyId,
 			scope: "product",
 			scopeId: productId,

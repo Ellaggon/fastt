@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest"
 
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	mapResolvedPoliciesToUI,
-	replacePolicyAssignmentCapa6,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 
@@ -88,7 +87,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 			description: "Pay at property",
 			rules: { paymentType: "pay_at_property" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: p1.policyId,
 			scope: "product",
 			scopeId: productId,
@@ -107,7 +106,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 			description: "Prepayment required",
 			rules: { paymentType: "prepayment", prepaymentPercentage: 100 },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: p2.policyId,
 			scope: "rate_plan",
 			scopeId: rpId,

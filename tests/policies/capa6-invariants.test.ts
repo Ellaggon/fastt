@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
 	createPolicyVersionCapa6,
+	deactivatePolicyAssignmentCapa6,
 	replacePolicyAssignmentCapa6,
-	togglePolicyAssignmentCapa6,
 } from "@/modules/policies/testing-public"
 import { PolicyValidationError } from "@/modules/policies/public"
 
@@ -94,7 +94,7 @@ describe("policies/capa6 invariants (unit)", () => {
 		).rejects.toBeInstanceOf(PolicyValidationError)
 	})
 
-	it("rejects assignment replacement when required categories are missing", async () => {
+	it("rejects assignment replacement across provider ownership boundaries", async () => {
 		const commandRepo = {
 			getPolicyById: vi.fn(async () => ({
 				id: "pol_1",
@@ -114,49 +114,53 @@ describe("policies/capa6 invariants (unit)", () => {
 		} as any
 
 		const assignmentRepo = {
-			scopeExists: vi.fn(async () => true),
-			findActiveAssignmentByScopeCategoryChannel: vi.fn(async () => null),
 			resolveScopeContext: vi.fn(async () => ({
+				providerId: "prov_other",
 				productId: "prod_1",
 				variantId: "var_1",
 				ratePlanId: "rp_1",
 			})),
-			deactivateAssignmentById: vi.fn(async () => undefined),
-			createAssignment: vi.fn(async () => ({ assignmentId: "asg_1" })),
+			replaceActiveAssignment: vi.fn(async () => ({
+				assignmentId: "asg_1",
+				replaced: false,
+			})),
 		} as any
 
 		await expect(
 			replacePolicyAssignmentCapa6(
-				{
-					commandRepo,
-					assignmentRepo,
-					resolveEffectivePolicies: async () => {
-						throw new Error("MISSING_POLICY_CATEGORY:Cancellation,NoShow")
-					},
-				},
+				{ commandRepo, assignmentRepo },
 				{
 					policyId: "pol_1",
 					scope: "rate_plan",
 					scopeId: "rp_1",
 					channel: null,
-					requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
-					checkIn: "2030-02-01",
-					checkOut: "2030-02-02",
 				}
 			)
 		).rejects.toBeInstanceOf(PolicyValidationError)
+		expect(assignmentRepo.replaceActiveAssignment).not.toHaveBeenCalled()
 	})
 
-	it("toggles assignment active state deterministically", async () => {
+	it("deactivates assignments through the ownership-aware repository operation", async () => {
 		const assignmentRepo = {
-			setAssignmentActiveById: vi.fn(async () => undefined),
+			deactivateAssignment: vi.fn(async () => ({
+				assignmentId: "asg_toggle_1",
+				deactivated: true,
+			})),
 		} as any
 
-		const out = await togglePolicyAssignmentCapa6(
+		const out = await deactivatePolicyAssignmentCapa6(
 			{ assignmentRepo },
-			{ assignmentId: "asg_toggle_1", isActive: false }
+			{
+				assignmentId: "asg_toggle_1",
+				ownerProviderId: "prov_1",
+				actorUserId: "ops_1",
+			}
 		)
-		expect(out).toEqual({ assignmentId: "asg_toggle_1", isActive: false })
-		expect(assignmentRepo.setAssignmentActiveById).toHaveBeenCalledWith("asg_toggle_1", false)
+		expect(out).toEqual({ assignmentId: "asg_toggle_1", deactivated: true })
+		expect(assignmentRepo.deactivateAssignment).toHaveBeenCalledWith({
+			assignmentId: "asg_toggle_1",
+			ownerProviderId: "prov_1",
+			actorUserId: "ops_1",
+		})
 	})
 })

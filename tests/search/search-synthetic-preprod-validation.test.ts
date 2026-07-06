@@ -10,7 +10,7 @@ import {
 	CanonicalSearchAdapter,
 } from "@/modules/search/public"
 import { createSearchOffersRepositoryForTests } from "@/modules/search/testing-public"
-import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { GET as getSearchDecision } from "@/pages/api/internal/observability/search-decision"
 import { GET as getSearchShadowSummary } from "@/pages/api/internal/observability/search-shadow-summary"
 import { searchOffers } from "@/container"
@@ -132,10 +132,10 @@ function extractDecisionSummary(dto: SearchSellabilityDTO | undefined): {
 	}
 }
 
-async function seedPoliciesForRatePlan(ratePlanId: string): Promise<void> {
-	const policies = await createReusablePolicies()
+async function seedPoliciesForRatePlan(ratePlanId: string, providerId: string): Promise<void> {
+	const policies = await createReusablePolicies(providerId)
 	for (const policy of policies) {
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,
 			scope: "rate_plan",
 			scopeId: ratePlanId,
@@ -144,13 +144,16 @@ async function seedPoliciesForRatePlan(ratePlanId: string): Promise<void> {
 	}
 }
 
-let cachedReusablePolicies: Array<{ policyId: string }> | null = null
+const cachedReusablePolicies = new Map<string, Array<{ policyId: string }>>()
 
-async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
-	if (cachedReusablePolicies) return cachedReusablePolicies
+async function createReusablePolicies(
+	providerId: string
+): Promise<Array<{ policyId: string }>> {
+	const cached = cachedReusablePolicies.get(providerId)
+	if (cached) return cached
 
 	const cancellation = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: providerId,
 		category: "Cancellation",
 		description: "Synthetic cancellation",
 		effectiveFrom: "2026-01-01",
@@ -158,7 +161,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	} as any)
 	const payment = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: providerId,
 		category: "Payment",
 		description: "Synthetic payment",
 		effectiveFrom: "2026-01-01",
@@ -166,7 +169,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		rules: { paymentType: "prepaid" },
 	} as any)
 	const checkIn = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: providerId,
 		category: "CheckIn",
 		description: "Synthetic check-in",
 		effectiveFrom: "2026-01-01",
@@ -174,7 +177,7 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		rules: { checkInFrom: "15:00", checkInUntil: "23:59", checkOutUntil: "11:00" },
 	} as any)
 	const noShow = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
+		ownerProviderId: providerId,
 		category: "NoShow",
 		description: "Synthetic no-show",
 		effectiveFrom: "2026-01-01",
@@ -182,8 +185,9 @@ async function createReusablePolicies(): Promise<Array<{ policyId: string }>> {
 		rules: { penaltyType: "first_night" },
 	} as any)
 
-	cachedReusablePolicies = [cancellation, payment, checkIn, noShow]
-	return cachedReusablePolicies
+	const policies = [cancellation, payment, checkIn, noShow]
+	cachedReusablePolicies.set(providerId, policies)
+	return policies
 }
 
 async function seedSyntheticHotels(): Promise<HotelSeed[]> {
@@ -253,7 +257,7 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 			})
 
 			if (profile !== "policy_incomplete") {
-				await seedPoliciesForRatePlan(ratePlanId)
+				await seedPoliciesForRatePlan(ratePlanId, providerId)
 			}
 
 			for (let d = 0; d < dates.length; d += 1) {

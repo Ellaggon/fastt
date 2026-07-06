@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest"
 import { db, PolicyAuditLog, and, eq } from "astro:db"
 
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
-	replacePolicyAssignmentCapa6,
 	PolicyValidationError,
 } from "@/modules/policies/public"
 import {
@@ -37,7 +36,7 @@ describe("integration/policies governance CAPA6", () => {
 			effectiveFrom: "2030-01-20",
 			effectiveTo: "2030-01-31",
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: v1.policyId,
 			scope: "product",
 			scopeId: productId,
@@ -140,10 +139,10 @@ describe("integration/policies governance CAPA6", () => {
 			description: "Payment A",
 			rules: { paymentType: "pay_at_property" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: paymentA.policyId,
-			scope: "product",
-			scopeId: productId,
+			scope: "rate_plan",
+			scopeId: ratePlanId,
 			channel: null,
 		})
 

@@ -23,7 +23,7 @@ import {
 import { inventoryHoldRepository } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
-import { assignPolicyCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
@@ -153,7 +153,7 @@ async function seedVariantWithInventory(params: {
 		rules: { penaltyType: "first_night" },
 	} as any)
 	for (const policy of [cancellation, payment, checkIn, noShow]) {
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,
 			scope: "rate_plan",
 			scopeId: params.ratePlanId,

@@ -52,15 +52,14 @@ describe("Guardrail: final policy and refund governance", () => {
 
 	it("requires active policies to be created with owner provider governance", () => {
 		const createPolicy = read("src/modules/policies/application/use-cases/capa6/create-policy.ts")
-		const assignPolicy = read("src/modules/policies/application/use-cases/capa6/assign-policy.ts")
 		const replaceAssignment = read(
 			"src/modules/policies/application/use-cases/capa6/replace-policy-assignment.ts"
 		)
 
 		expect(createPolicy).toContain("ownerProviderId")
 		expect(createPolicy).toContain("owner_provider_required")
-		expect(assignPolicy).toContain("owner_provider_required")
 		expect(replaceAssignment).toContain("owner_provider_required")
+		expect(replaceAssignment).toContain("owner_provider_mismatch")
 	})
 
 	it("requires policy snapshots to include source policy id, group id, and version", () => {

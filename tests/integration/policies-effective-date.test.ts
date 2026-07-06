@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { db, eq, Policy } from "astro:db"
 
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	PolicyValidationError,
 	resolveEffectivePolicies,
@@ -47,7 +47,7 @@ describe("integration/policies effective date filtering", () => {
 			effectiveTo: "2030-01-31",
 		})
 
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: created.policyId,
 			scope: "product",
 			scopeId: productId,

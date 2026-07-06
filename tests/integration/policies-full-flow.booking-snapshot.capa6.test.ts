@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 import { Booking, db } from "astro:db"
 
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	createPolicyVersionCapa6,
 	resolveEffectivePolicies,
@@ -104,7 +104,7 @@ describe("integration/policies CAPA 6 Step 9 (full flow + booking snapshot immut
 
 		// 2) Assign to rate plan.
 		for (const p of [cancellation, payment, checkIn, noShow]) {
-			await assignPolicyCapa6({
+			await replacePolicyAssignmentCapa6({
 				policyId: p.policyId,
 				scope: "rate_plan",
 				scopeId: ratePlanId,

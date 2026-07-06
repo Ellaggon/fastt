@@ -12,6 +12,7 @@ export type {
 	PolicySnapshot,
 } from "./application/ports/PolicyResolutionRepositoryPort"
 
+export { createPolicyCapa6 } from "./application/use-cases/capa6/create-policy"
 export { createPolicyVersionCapa6 } from "./application/use-cases/capa6/create-policy-version"
+export { deactivatePolicyAssignmentCapa6 } from "./application/use-cases/capa6/deactivate-policy-assignment"
 export { replacePolicyAssignmentCapa6 } from "./application/use-cases/capa6/replace-policy-assignment"
-export { togglePolicyAssignmentCapa6 } from "./application/use-cases/capa6/toggle-policy-assignment"
