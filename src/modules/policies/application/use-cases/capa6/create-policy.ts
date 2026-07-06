@@ -17,23 +17,19 @@ export async function createPolicyCapa6(
 	deps: { commandRepo: PolicyCommandRepositoryPortCapa6 },
 	input: CreatePolicyCommandInput
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
-	const parsedInput = createPolicySchema.parse(input)
-
-	let groupId = ""
-	let version: number
-	let category = parsedInput.category
-
-	if (parsedInput.previousPolicyId) {
-		const prev = await deps.commandRepo.getPolicyById(parsedInput.previousPolicyId)
-		if (!prev) throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "not_found" }])
-		groupId = prev.groupId
-		version = Number(prev.version) + 1
-		category = prev.category
-	} else {
-		version = 1
+	if (!String(input.ownerProviderId ?? "").trim()) {
+		throw new PolicyValidationError([
+			{ path: ["ownerProviderId"], code: "owner_provider_required" },
+		])
 	}
-
-	const parsed = applyPolicyPresetDefaults({ input, parsed: parsedInput, category })
+	const parsedInput = createPolicySchema.parse(input)
+	const category = parsedInput.category
+	const version = 1
+	const parsed = applyPolicyPresetDefaults({
+		input,
+		parsed: { ...parsedInput, category },
+		category,
+	})
 
 	const content = validatePolicyContentForCategory({
 		category,
@@ -55,18 +51,10 @@ export async function createPolicyCapa6(
 		])
 	}
 
-	if (!parsed.previousPolicyId) {
-		if (!parsed.ownerProviderId) {
-			throw new PolicyValidationError([
-				{ path: ["ownerProviderId"], code: "owner_provider_required" },
-			])
-		}
-		const created = await deps.commandRepo.createPolicyGroup({
-			category: parsed.category,
-			ownerProviderId: parsed.ownerProviderId,
-		})
-		groupId = created.groupId
-	}
+	const { groupId } = await deps.commandRepo.createPolicyGroup({
+		category,
+		ownerProviderId: parsedInput.ownerProviderId,
+	})
 
 	const { policyId } = await deps.commandRepo.createPolicyVersion({
 		groupId,
@@ -99,11 +87,11 @@ export async function createPolicyCapa6(
 	}
 
 	await deps.commandRepo.createAuditLog({
-		eventType: parsed.previousPolicyId ? "policy_version_created" : "policy_created",
+		eventType: "policy_created",
 		actorUserId: input.actorUserId ?? null,
 		policyId,
 		policyGroupId: groupId,
-		before: parsed.previousPolicyId ? { previousPolicyId: parsed.previousPolicyId } : null,
+		before: null,
 		after: {
 			policyId,
 			groupId,

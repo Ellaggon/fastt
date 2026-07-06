@@ -1,6 +1,6 @@
 import {
-	createPolicySchema,
-	type CreatePolicyInput,
+	createPolicyVersionSchema,
+	type CreatePolicyVersionSchemaInput,
 } from "../../schemas/policy-write/createPolicySchema"
 import { PolicyValidationError } from "../../errors/policyValidationError"
 import type { PolicyCommandRepositoryPortCapa6 } from "../../ports/PolicyCommandRepositoryPortCapa6"
@@ -8,10 +8,7 @@ import { validatePolicyContentForCategory } from "../../schemas/policy-write/pol
 import { applyPolicyPresetDefaults } from "../../presets/applyPolicyPreset"
 import { normalizePolicyEffectiveDate } from "../../schemas/policy-write/policyEffectiveDate"
 
-export type CreatePolicyVersionInput = Omit<CreatePolicyInput, "category"> & {
-	previousPolicyId: string
-	// category is derived from group; must not be user-controlled for versioning.
-	category?: never
+export type CreatePolicyVersionInput = CreatePolicyVersionSchemaInput & {
 	actorUserId?: string
 }
 
@@ -46,16 +43,7 @@ export async function createPolicyVersionCapa6(
 	deps: { commandRepo: PolicyCommandRepositoryPortCapa6 },
 	input: CreatePolicyVersionInput
 ): Promise<{ policyId: string; groupId: string; category: string; version: number }> {
-	// Reuse the existing schema for payload shape, but enforce previousPolicyId as required.
-	const parsedInput = createPolicySchema.parse({
-		...input,
-		// placeholder; will be replaced by derived category
-		category: "Other" as any,
-	})
-
-	if (!parsedInput.previousPolicyId) {
-		throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "required" }])
-	}
+	const parsedInput = createPolicyVersionSchema.parse(input)
 
 	const prev = await deps.commandRepo.getPolicyById(parsedInput.previousPolicyId)
 	if (!prev) throw new PolicyValidationError([{ path: ["previousPolicyId"], code: "not_found" }])
@@ -68,7 +56,11 @@ export async function createPolicyVersionCapa6(
 	const category = group.category
 	const maxV = await deps.commandRepo.getMaxPolicyVersionByGroupId(groupId)
 	const version = Number(maxV) + 1
-	const parsed = applyPolicyPresetDefaults({ input, parsed: parsedInput, category })
+	const parsed = applyPolicyPresetDefaults({
+		input,
+		parsed: { ...parsedInput, category },
+		category,
+	})
 
 	const content = validatePolicyContentForCategory({
 		category,
@@ -135,7 +127,7 @@ export async function createPolicyVersionCapa6(
 		actorUserId: input.actorUserId ?? null,
 		policyId,
 		policyGroupId: groupId,
-		before: { previousPolicyId: parsed.previousPolicyId },
+		before: { previousPolicyId: parsedInput.previousPolicyId },
 		after: {
 			policyId,
 			version,

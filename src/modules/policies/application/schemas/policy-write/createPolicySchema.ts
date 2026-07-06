@@ -14,10 +14,7 @@ export const policyRefundBasisSchema = z.enum([
 	"none",
 ])
 export const policyPayoutBasisSchema = z.enum(["gross", "net", "collected", "provider_policy"])
-export const createPolicySchema = z.object({
-	previousPolicyId: z.string().min(1).optional(),
-	ownerProviderId: z.string().min(1).optional(),
-	category: categoryEnum,
+export const policyVersionContentSchema = z.object({
 	description: z.string().optional().default(""),
 	status: policyLibraryStatusSchema.optional().default("active"),
 	policyPresetKey: z.string().min(1).optional(),
@@ -34,4 +31,15 @@ export const createPolicySchema = z.object({
 	effectiveTo: z.string().min(1).optional(),
 })
 
+export const createPolicySchema = policyVersionContentSchema.extend({
+	ownerProviderId: z.string().min(1),
+	category: categoryEnum,
+})
+
+export const createPolicyVersionSchema = policyVersionContentSchema.extend({
+	previousPolicyId: z.string().min(1),
+})
+
+export type PolicyVersionContentInput = z.input<typeof policyVersionContentSchema>
 export type CreatePolicyInput = z.input<typeof createPolicySchema>
+export type CreatePolicyVersionSchemaInput = z.input<typeof createPolicyVersionSchema>

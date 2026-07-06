@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest"
 
 import { db, Booking } from "astro:db"
 
-import { createPolicyCapa6, assignPolicyCapa6 } from "@/modules/policies/public"
+import {
+	createPolicyCapa6,
+	createPolicyVersionCapa6,
+	replacePolicyAssignmentCapa6,
+} from "@/modules/policies/public"
 import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-snapshot.container"
 import { getPoliciesForBookingUseCase } from "@/container/booking-policy-read.container"
 
@@ -77,13 +81,13 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 			description: "Pay now",
 			rules: { paymentType: "pay_at_property" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: p1.policyId,
 			scope: "product",
 			scopeId: productId,
 			channel: null,
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: p2.policyId,
 			scope: "product",
 			scopeId: productId,
@@ -226,7 +230,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 			description: "Initial terms",
 			rules: { foo: "bar" },
 		})
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: created.policyId,
 			scope: "product",
 			scopeId: productId,
@@ -245,9 +249,8 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		const beforeOther = before.policies.find((p) => p.category === "Other")?.policy as any
 		expect(beforeOther?.policy?.description).toBe("Initial terms")
 
-		await createPolicyCapa6({
+		await createPolicyVersionCapa6({
 			previousPolicyId: created.policyId,
-			category: "Other",
 			description: "Changed terms",
 			rules: { foo: "baz" },
 		})

@@ -5,12 +5,10 @@ import {
 } from "@/data/policy/policy-presets"
 import type { PolicyCategory } from "../../domain/policy.category"
 import { PolicyValidationError } from "../errors/policyValidationError"
-import type { CreatePolicyInput } from "../schemas/policy-write/createPolicySchema"
+import type { PolicyVersionContentInput } from "../schemas/policy-write/createPolicySchema"
 import type { CancellationTierInput } from "../schemas/policy-write/policyContentSchema"
 
 export type ParsedPolicyInputWithPresetDefaults = {
-	previousPolicyId?: string
-	ownerProviderId?: string
 	category: PolicyCategory
 	description: string
 	status: "draft" | "active" | "archived"
@@ -37,7 +35,7 @@ function isEmptyRules(value: unknown): boolean {
 }
 
 export function applyPolicyPresetDefaults(params: {
-	input: Partial<CreatePolicyInput>
+	input: Partial<PolicyVersionContentInput>
 	parsed: ParsedPolicyInputWithPresetDefaults
 	category: PolicyCategory
 }): ParsedPolicyInputWithPresetDefaults {
