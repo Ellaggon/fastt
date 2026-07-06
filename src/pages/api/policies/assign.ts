@@ -1,14 +1,12 @@
 import type { APIRoute } from "astro"
-import {
-	createPolicyCapa6UseCase,
-	replacePolicyAssignmentCapa6UseCase,
-} from "@/container/policies-write.container"
+import { replacePolicyAssignmentCapa6UseCase } from "@/container/policies-write.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
 import {
 	ensurePolicyOwnedByProvider,
 	ensurePolicyScopeOwnedByProvider,
 } from "@/lib/policies/policyOwnership"
-import type { PolicyCategory } from "@/modules/policies/domain/policy.category"
+import type { PolicyCategory } from "@/modules/policies/public"
 
 const validCategories = new Set(["Cancellation", "Payment", "CheckIn", "NoShow"])
 const validScopes = new Set(["product", "variant", "rate_plan"])
@@ -57,17 +55,13 @@ export const POST: APIRoute = async ({ request }) => {
 			return json(400, { error: "invalid_preset_context" })
 		}
 
-		const description =
-			text(body.description) || `Condición ${category} creada desde preset ${policyPresetKey}`
-		const created = await createPolicyCapa6UseCase({
-			ownerProviderId: providerId,
+		const presetPolicy = await getOrCreateProviderPresetPolicy({
+			providerId,
 			actorUserId,
 			category,
-			description,
-			status: "active",
 			policyPresetKey,
-		} as any)
-		policyId = created.policyId
+		})
+		policyId = presetPolicy.policyId
 	} else {
 		return json(400, { error: "invalid_mode" })
 	}

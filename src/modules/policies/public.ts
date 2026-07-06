@@ -23,6 +23,7 @@ export * from "./application/mappers/mapResolvedPoliciesToUI"
 export * from "./application/mappers/derivePolicySummary"
 export * from "./application/errors/policyValidationError"
 export * from "./application/schemas/policy-write/policyContentSchema"
+export * from "./application/schemas/policy-write/policyEffectiveDate"
 export type {
 	PolicyResolutionDTO,
 	PolicyResolutionCoverage,
@@ -44,6 +45,7 @@ export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-calculation-snapshot"
 export * from "./application/use-cases/build-policy-snapshot"
 export * from "./application/use-cases/recompute-effective-restrictions"
+export * from "./application/use-cases/replace-policy-date-assignment-range"
 export * from "./application/use-cases/rate-plan-policies-surface"
 export type { ResolveEffectivePoliciesResult } from "./application/use-cases/resolve-effective-policies"
 export type {

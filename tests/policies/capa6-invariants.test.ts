@@ -29,8 +29,8 @@ describe("policies/capa6 invariants (unit)", () => {
 				{
 					id: "pol_existing",
 					version: 1,
-					effectiveFrom: "2030-01-01T00:00:00.000Z",
-					effectiveTo: "2030-01-31T23:59:59.000Z",
+					effectiveFrom: "2030-01-01",
+					effectiveTo: "2030-01-31",
 				},
 			]),
 			createPolicyVersion: vi.fn(),
