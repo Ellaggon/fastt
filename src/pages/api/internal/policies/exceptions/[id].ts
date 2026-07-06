@@ -64,30 +64,37 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 	if (!body) return json({ error: "validation_error" }, 400)
 	const isActive =
 		typeof body.isActive === "boolean" ? body.isActive : body.isActive === "true" ? true : false
-	const item =
-		body.operation === "approve"
-			? await approvePolicyExceptionRuleUseCase({
-					id,
-					actorUserId: auth.user.email,
-					reason: body.reason,
-				})
-			: body.operation === "reject"
-				? await rejectPolicyExceptionRuleUseCase({
+	try {
+		const item =
+			body.operation === "approve"
+				? await approvePolicyExceptionRuleUseCase({
 						id,
 						actorUserId: auth.user.email,
 						reason: body.reason,
 					})
-				: body.operation === "rollback"
-					? await rollbackPolicyExceptionRuleUseCase({
+				: body.operation === "reject"
+					? await rejectPolicyExceptionRuleUseCase({
 							id,
 							actorUserId: auth.user.email,
 							reason: body.reason,
 						})
-					: await setPolicyExceptionRuleActiveUseCase({
-							id,
-							isActive,
-							actorUserId: auth.user.email,
-						})
-	if (!item) return json({ error: "not_found" }, 404)
-	return json({ item })
+					: body.operation === "rollback"
+						? await rollbackPolicyExceptionRuleUseCase({
+								id,
+								actorUserId: auth.user.email,
+								reason: body.reason,
+							})
+						: await setPolicyExceptionRuleActiveUseCase({
+								id,
+								isActive,
+								actorUserId: auth.user.email,
+							})
+		if (!item) return json({ error: "not_found" }, 404)
+		return json({ item })
+	} catch (error) {
+		if (error instanceof Error && error.message === "POLICY_EXCEPTION_APPROVAL_REQUIRED") {
+			return json({ error: "approval_required" }, 409)
+		}
+		throw error
+	}
 }

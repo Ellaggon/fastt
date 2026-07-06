@@ -45,6 +45,7 @@ describe("policies/policy exception rules", () => {
 				action: {
 					refundOverridePercent: 100,
 					forceRefundBasis: "total_booking_amount",
+					approval: { status: "approved" },
 				},
 			},
 		]
@@ -104,7 +105,10 @@ describe("policies/policy exception rules", () => {
 					priority: 1,
 					isActive: true,
 					reason: "Support approved waiver",
-					action: { waiveNoShowCharge: true },
+					action: {
+						waiveNoShowCharge: true,
+						approval: { status: "approved" },
+					},
 				},
 			],
 		})
@@ -134,7 +138,10 @@ describe("policies/policy exception rules", () => {
 					category: "Cancellation",
 					isActive: true,
 					effectiveFrom: "2031-01-01",
-					action: { refundOverridePercent: 100 },
+					action: {
+						refundOverridePercent: 100,
+						approval: { status: "approved" },
+					},
 				},
 				{
 					id: "match",
@@ -146,7 +153,10 @@ describe("policies/policy exception rules", () => {
 					isActive: true,
 					effectiveFrom: "2029-01-01",
 					effectiveTo: "2030-12-31",
-					action: { refundOverridePercent: 50 },
+					action: {
+						refundOverridePercent: 50,
+						approval: { status: "approved" },
+					},
 				},
 			],
 			{
@@ -171,7 +181,10 @@ describe("policies/policy exception rules", () => {
 					category: "Cancellation",
 					priority: 1,
 					isActive: true,
-					action: { refundOverridePercent: 100 },
+					action: {
+						refundOverridePercent: 100,
+						approval: { status: "approved" },
+					},
 				},
 			],
 			{
@@ -181,5 +194,37 @@ describe("policies/policy exception rules", () => {
 		)
 
 		expect(resolved.map((rule) => rule.id)).toEqual(["rate_plan_override"])
+	})
+
+	it("ignores active-looking exceptions until approval is explicit", () => {
+		const resolved = resolvePolicyExceptionOverrides(
+			[
+				{
+					id: "pending_override",
+					type: "support_manual_override",
+					scope: "global",
+					category: "Cancellation",
+					isActive: true,
+					action: {
+						refundOverridePercent: 100,
+						approval: { status: "pending" },
+					},
+				},
+				{
+					id: "rejected_override",
+					type: "support_manual_override",
+					scope: "global",
+					category: "Cancellation",
+					isActive: true,
+					action: {
+						refundOverridePercent: 100,
+						approval: { status: "rejected" },
+					},
+				},
+			],
+			{ category: "Cancellation", asOfDate: "2030-02-10" }
+		)
+
+		expect(resolved).toEqual([])
 	})
 })

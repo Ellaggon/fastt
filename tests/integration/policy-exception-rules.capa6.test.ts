@@ -6,7 +6,7 @@ import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-sn
 import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
 import { createInventoryHold } from "@/modules/inventory/public"
 import {
-	assignPolicyCapa6,
+	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	resolveEffectivePolicies,
 	type HoldPolicySnapshot,
@@ -180,7 +180,7 @@ describe("integration/policy exception rules CAPA6", () => {
 			localTimezone: "America/Santiago",
 			cancellationTiers: [{ daysBeforeArrival: 2, penaltyType: "percentage", penaltyAmount: 100 }],
 		} as any)
-		await assignPolicyCapa6({
+		await replacePolicyAssignmentCapa6({
 			policyId: cancellation.policyId,
 			scope: "rate_plan",
 			scopeId: ratePlanId,
@@ -220,9 +220,38 @@ describe("integration/policy exception rules CAPA6", () => {
 						scope: "rate_plan",
 						scopeId: ratePlanId,
 						category: "Cancellation",
-						isActive: true,
+						isActive: false,
 					})
 				)
+				expect(createBody.item.action.approval.status).toBe("pending")
+
+				const prematureActivation = await PATCH({
+					params: { id: createBody.item.id },
+					request: authedJsonRequest({
+						path: `/api/internal/policies/exceptions/${createBody.item.id}`,
+						token,
+						method: "PATCH",
+						body: { operation: "set_active", isActive: true },
+					}),
+				} as any)
+				expect(prematureActivation.status).toBe(409)
+
+				const approvalResponse = await PATCH({
+					params: { id: createBody.item.id },
+					request: authedJsonRequest({
+						path: `/api/internal/policies/exceptions/${createBody.item.id}`,
+						token,
+						method: "PATCH",
+						body: {
+							operation: "approve",
+							reason: "Evidencia revisada por operaciones",
+						},
+					}),
+				} as any)
+				expect(approvalResponse.status).toBe(200)
+				const approvedBody = await readJson(approvalResponse)
+				expect(approvedBody.item.isActive).toBe(true)
+				expect(approvedBody.item.action.approval.status).toBe("approved")
 
 				const listUrl = new URL(
 					`http://localhost:4321/api/internal/policies/exceptions?scope=rate_plan&scopeId=${ratePlanId}`
@@ -238,7 +267,7 @@ describe("integration/policy exception rules CAPA6", () => {
 				expect(listResponse.status).toBe(200)
 				const listBody = await readJson(listResponse)
 				expect(listBody.items.map((item: any) => item.id)).toContain(createBody.item.id)
-				return createBody.item
+				return approvedBody.item
 			}
 		)
 

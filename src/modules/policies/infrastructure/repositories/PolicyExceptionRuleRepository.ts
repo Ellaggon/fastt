@@ -2,6 +2,7 @@ import { randomUUID } from "crypto"
 import { and, db, desc, eq, inArray, PolicyExceptionRule, sql } from "astro:db"
 
 import {
+	isPolicyExceptionApproved,
 	isPolicyExceptionRuleType,
 	type PolicyExceptionRule as PolicyExceptionRuleDomain,
 	type PolicyExceptionRuleAction,
@@ -119,7 +120,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			)
 			.orderBy(PolicyExceptionRule.priority, desc(PolicyExceptionRule.createdAt))
 			.all()
-		return rows.map(toDomain)
+		return rows.map(toDomain).filter(isPolicyExceptionApproved)
 	}
 
 	async create(input: PolicyExceptionRuleCreateInput): Promise<PolicyExceptionRuleDomain> {
@@ -131,6 +132,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 		if (scope !== "global" && !scopeId) {
 			throw new Error("POLICY_EXCEPTION_SCOPE_ID_REQUIRED")
 		}
+		const action = normalizeAction(input.action)
 		const row = {
 			id: randomUUID(),
 			type: input.type,
@@ -138,11 +140,11 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			scopeId,
 			category: normalizeCategory(input.category),
 			priority: Number.isFinite(Number(input.priority)) ? Number(input.priority) : 100,
-			isActive: input.isActive !== false,
+			isActive: input.isActive !== false && action.approval?.status === "approved",
 			effectiveFrom: normalizeDate(input.effectiveFrom),
 			effectiveTo: normalizeDate(input.effectiveTo),
 			reason: normalizeCategory(input.reason),
-			actionJson: normalizeAction(input.action),
+			actionJson: action,
 			createdAt: new Date(),
 			createdBy: input.createdBy == null ? null : String(input.createdBy),
 		}
@@ -168,6 +170,9 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 	}): Promise<PolicyExceptionRuleDomain | null> {
 		const id = String(params.id ?? "").trim()
 		if (!id) return null
+		if (params.isActive === true && params.action.approval?.status !== "approved") {
+			throw new Error("POLICY_EXCEPTION_APPROVAL_REQUIRED")
+		}
 		const values: Record<string, unknown> = { actionJson: normalizeAction(params.action) }
 		if (typeof params.isActive === "boolean") values.isActive = params.isActive
 		await db
@@ -185,16 +190,16 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 	}): Promise<PolicyExceptionRuleDomain | null> {
 		const id = String(params.id ?? "").trim()
 		if (!id) return null
+		const current = await this.findById(id)
+		if (!current) return null
+		if (params.isActive && !isPolicyExceptionApproved(current)) {
+			throw new Error("POLICY_EXCEPTION_APPROVAL_REQUIRED")
+		}
 		await db
 			.update(PolicyExceptionRule)
 			.set({ isActive: Boolean(params.isActive) })
 			.where(eq(PolicyExceptionRule.id, id))
 			.run()
-		const row = await db
-			.select()
-			.from(PolicyExceptionRule)
-			.where(eq(PolicyExceptionRule.id, id))
-			.get()
-		return row ? toDomain(row) : null
+		return this.findById(id)
 	}
 }

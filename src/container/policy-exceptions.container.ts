@@ -34,9 +34,7 @@ export async function createPolicyExceptionRuleUseCase(
 				]
 			: []
 	const approval = input.action.approval ?? {
-		status: "approved" as const,
-		approvedAt: new Date().toISOString(),
-		approvedBy: actorUserId ?? null,
+		status: "pending" as const,
 		reason: input.action.note ?? input.reason ?? null,
 	}
 	const created = await policyExceptionRuleRepository.create({

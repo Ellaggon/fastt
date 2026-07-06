@@ -81,6 +81,10 @@ export function isPolicyExceptionRuleType(value: unknown): value is PolicyExcept
 	return POLICY_EXCEPTION_RULE_TYPES.includes(value as PolicyExceptionRuleType)
 }
 
+export function isPolicyExceptionApproved(rule: PolicyExceptionRule): boolean {
+	return rule.action?.approval?.status === "approved"
+}
+
 function normalizeCategory(value: unknown): string {
 	return String(value ?? "")
 		.toLowerCase()
@@ -118,6 +122,7 @@ export function resolvePolicyExceptionOverrides(
 	const category = normalizeCategory(context.category)
 	return (Array.isArray(rules) ? rules : [])
 		.filter((rule) => rule.isActive !== false)
+		.filter(isPolicyExceptionApproved)
 		.filter((rule) => isPolicyExceptionRuleType(rule.type))
 		.filter((rule) => {
 			const ruleCategory = normalizeCategory(rule.category)
