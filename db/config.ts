@@ -355,24 +355,26 @@ const PolicyGroup = defineTable({
 	},
 })
 const Policy = defineTable({
+	// Version-content validity uses local commercial dates stored as canonical YYYY-MM-DD TEXT.
 	columns: {
 		id: column.text({ primaryKey: true }),
 		groupId: column.text({ references: () => PolicyGroup.columns.id }),
 		description: column.text(),
 		version: column.number(),
-		status: column.text({ default: "draft" }), // draft | template | active | archived
+		status: column.text({ default: "draft" }), // draft | active | archived
 		policyPresetKey: column.text({ optional: true }),
 		stayLengthType: column.text({ optional: true }),
 		gracePeriod: column.number({ optional: true }),
 		refundBasis: column.text({ optional: true }),
 		payoutBasis: column.text({ optional: true }),
 		localTimezone: column.text({ optional: true }),
-		legalOverrideFlags: column.json({ optional: true }),
 		effectiveFrom: column.text({ optional: true }),
 		effectiveTo: column.text({ optional: true }),
 	},
 })
 const PolicyAssignment = defineTable({
+	// Assignment ranges select the guest arrival dates where this group applies.
+	// Ownership, category, partial uniqueness and overlap are persistent DB invariants.
 	columns: {
 		id: column.text({ primaryKey: true }),
 		policyGroupId: column.text({ references: () => PolicyGroup.columns.id }),
@@ -380,11 +382,18 @@ const PolicyAssignment = defineTable({
 		scope: column.text(),
 		scopeId: column.text(),
 		channel: column.text({ optional: true }),
+		effectiveFrom: column.text({ optional: true }),
+		effectiveTo: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
+		createdAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["scope", "scopeId", "category", "channel", "isActive"] }],
+	indexes: [
+		{ on: ["scope", "scopeId", "category", "channel", "isActive"] },
+		{ on: ["effectiveFrom", "effectiveTo"] },
+	],
 })
 const CancellationTier = defineTable({
+	// Canonical source for calculable cancellation brackets.
 	columns: {
 		id: column.text({ primaryKey: true }),
 		policyId: column.text({ references: () => Policy.columns.id }),
@@ -392,8 +401,11 @@ const CancellationTier = defineTable({
 		penaltyType: column.text({ default: "percentage" }),
 		penaltyAmount: column.number({ optional: true }),
 	},
+	indexes: [{ on: ["policyId", "daysBeforeArrival"], unique: true }],
 })
 const PolicyRule = defineTable({
+	// Policy metadata and cancellation brackets must not be duplicated here.
+	// Persistent guards live in 2026-07-05_policy_contract_deduplication.sql.
 	columns: {
 		id: column.text({ primaryKey: true }),
 		policyId: column.text({ references: () => Policy.columns.id }),
