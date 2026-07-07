@@ -1,6 +1,6 @@
-import { RestrictionRuleEngine, RestrictionService } from "@/modules/policies/public"
+import { RestrictionRuleEngine, RestrictionService } from "@/modules/rules/public"
 
-import { RestrictionRepository } from "../modules/policies/infrastructure/repositories/RestrictionRepository"
+import { RestrictionRepository } from "../modules/rules/infrastructure/repositories/RestrictionRepository"
 
 // Container wiring for restrictions only.
 //

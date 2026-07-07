@@ -20,7 +20,7 @@ import {
 	recomputeEffectiveRestrictionsForScope,
 	recomputeEffectiveRestrictionsForVariantRange,
 	toExclusiveRestrictionDate,
-} from "@/modules/policies/public"
+} from "@/modules/rules/public"
 
 async function seedVariant() {
 	const suffix = randomUUID()

@@ -2,23 +2,14 @@
 // External consumers MUST import from "@/modules/policies/public".
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
-import "./infrastructure/wiring/configure-effective-restrictions-materializer"
-
 // Domain
 export * from "./domain/policy.priority"
 export * from "./domain/policy.scope"
 export * from "./domain/policy.category"
 export * from "./domain/cancellation/cancellationEngine"
-export * from "./domain/restrictions/RestrictionRuleEngine"
-export * from "./domain/restrictions/restrictions.conflicts"
-export * from "./domain/restrictions/restrictions.guards"
-export * from "./domain/restrictions/restrictions.params"
-export * from "./domain/restrictions/restrictions.priority"
-export * from "./domain/restrictions/restrictions.types"
 export * from "./domain/overrides/policyExceptionRule"
 
 // Application mappers
-export * from "./application/mappers/restrictions.mapper"
 export * from "./application/mappers/mapResolvedPoliciesToUI"
 export * from "./application/mappers/derivePolicySummary"
 export * from "./application/errors/policyValidationError"
@@ -31,9 +22,6 @@ export type {
 } from "./application/dto/PolicyResolutionDTO"
 export { isPolicyResolutionDTO } from "./application/dto/PolicyResolutionDTO"
 
-// Application services
-export * from "./application/services/RestrictionService"
-
 // Application ports
 // NOTE: legacy command/query ports are intentionally not exported.
 
@@ -44,7 +32,6 @@ export * from "./application/use-cases/capa6/deactivate-policy-assignment"
 export * from "./application/use-cases/capa6/replace-policy-assignment"
 export * from "./application/use-cases/build-policy-calculation-snapshot"
 export * from "./application/use-cases/build-policy-snapshot"
-export * from "./application/use-cases/recompute-effective-restrictions"
 export * from "./application/use-cases/replace-policy-date-assignment-range"
 export * from "./application/use-cases/rate-plan-policies-surface"
 export type { ResolveEffectivePoliciesResult } from "./application/use-cases/resolve-effective-policies"
