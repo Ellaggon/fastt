@@ -69,6 +69,9 @@ edited to change future behavior.
 - Do not reintroduce legacy contractual tables when a source already exists.
 - `BookingTaxFee` is a booking snapshot. It is not the removed legacy `TaxFee` table.
 - `TaxFeeDefinition` and `TaxFeeAssignment` are the only configurable taxes/fees contract.
+- Commercial sellability restrictions are Rules/Rooms & Rates concerns. `EffectiveRestriction`
+  is materialized from `CommercialRule*` through `modules/rules`; do not place restriction
+  engines, mappers or materializers back under `modules/policies`.
 - Every `PolicyGroup` must reference an existing provider, and every assignment category
   must match its group's canonical category.
 - `Policy` lifecycle statuses are `draft`, `active` and `archived`; do not reintroduce the
