@@ -14,11 +14,7 @@ import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
 import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
-import {
-	handleRatePlanPoliciesPost,
-	REQUIRED_POLICY_CATEGORIES,
-	resolvePolicyDateRange,
-} from "@/modules/policies/public"
+import { REQUIRED_POLICY_CATEGORIES, resolvePolicyDateRange } from "@/modules/policies/public"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -64,16 +60,7 @@ if (!row) {
 if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
 const { loaded } = loadedRatePlan
 if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirectTo)
-const { context, selectedRatePlans, policyPlans, wizardPlans } = loadedPolicies
-
-if (Astro.request.method === "POST") {
-	return handleRatePlanPoliciesPost({
-		request: Astro.request,
-		ratePlans: selectedRatePlans,
-		userId: auth.user.id,
-		requestId: String(Astro.request.headers.get("x-request-id") ?? crypto.randomUUID()),
-	})
-}
+const { context, policyPlans } = loadedPolicies
 
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
 const removalReadiness = await getRatePlanRemovalReadiness({
@@ -148,7 +135,6 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 					title="Condiciones de la tarifa"
 					description="Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
 					policyPlans={policyPlans}
-					wizardPlans={wizardPlans}
 					checkIn={checkIn}
 					checkOut={checkOut}
 					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}

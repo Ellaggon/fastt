@@ -20,15 +20,7 @@ export type LoadedRatePlanPoliciesData =
 				variantName: string
 				ratePlanName: string
 			}
-			selectedRatePlans: Array<{
-				id: string
-				name: string
-				isDefault?: boolean | null
-				isActive?: boolean | null
-				modifierLabel?: string | null
-			}>
 			policyPlans: Awaited<ReturnType<typeof buildRatePlanPoliciesSurface>>["policyPlans"]
-			wizardPlans: Awaited<ReturnType<typeof buildRatePlanPoliciesSurface>>["wizardPlans"]
 	  }
 
 export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRatePlanPoliciesData> {
@@ -49,25 +41,20 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 	} | null
 	if (!targetRatePlan?.id) return { redirectTo: routes.ratePlansList() }
 
-	const selectedRatePlans: Array<{
+	const ratePlans: Array<{
 		id: string
 		name: string
 		isDefault?: boolean
-		isActive?: boolean
-		modifierLabel?: string
 	}> = [
 		{
 			id: String(targetRatePlan.id),
 			name: String(targetRatePlan.template?.name ?? "Tarifa"),
 			isDefault: Boolean(targetRatePlan.isDefault),
-			isActive: Boolean(targetRatePlan.isActive),
-			modifierLabel: "Tarifa según configuración",
 		},
 	]
 
-	const { policyPlans, wizardPlans } = await buildRatePlanPoliciesSurface({
-		variantName: String(loaded.variant.name),
-		ratePlans: selectedRatePlans,
+	const { policyPlans } = await buildRatePlanPoliciesSurface({
+		ratePlans,
 		checkIn: input.checkIn,
 		checkOut: input.checkOut,
 		requestId,
@@ -85,8 +72,6 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 			variantName: String(loadedRatePlan.displayContext.variantName),
 			ratePlanName: String(targetRatePlan.name),
 		},
-		selectedRatePlans,
 		policyPlans,
-		wizardPlans,
 	}
 }

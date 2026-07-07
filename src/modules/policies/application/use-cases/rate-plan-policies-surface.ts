@@ -1,7 +1,6 @@
 import {
 	buildPolicySnapshot,
 	derivePolicySummaryFromResolvedPolicies,
-	mapResolvedPoliciesToUI,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 import { resolvePolicyPreset } from "@/data/policy/policy-presets"
@@ -24,24 +23,17 @@ type SurfaceRatePlan = {
 	id: string
 	name: string
 	isDefault?: boolean | null
-	isActive?: boolean | null
-	modifierLabel?: string | null
 }
 
 export type PolicyPlanView = {
 	ratePlanId: string
 	ratePlanName: string
 	isDefault: boolean
-	isActive: boolean
-	priceLabel: string
 	coverageCount: number
 	missingCategories: string[]
 	isSellableByContract: boolean
 	sellabilityLabel: string
-	sellabilityBlockers: string[]
 	policySummary: string
-	policyIdByCategory: Record<string, string | null>
-	policyPreviewByCategory: Record<string, string>
 	inheritanceByCategory: Record<string, string>
 	overrideSummaryByCategory: Record<string, string>
 	snapshotPreviewByCategory: Record<string, string>
@@ -58,18 +50,6 @@ export type PolicyPlanView = {
 		arrivalSchedule: string
 		arrivalSource: string
 	}
-}
-
-export type WizardPlanView = {
-	variantName: string
-	ratePlanId: string
-	ratePlanName: string
-	priceLabel: string
-	missingCategories: string[]
-	coverageCount: number
-	policyIdByCategory: Record<string, string | null>
-	policySummary: string
-	policyPreviewByCategory: Record<string, string>
 }
 
 const scopeLabels: Record<string, string> = {
@@ -105,15 +85,6 @@ export function resolvePolicyDateRange(url: URL): { checkIn: string; checkOut: s
 
 function sourceLabel(scope: unknown) {
 	return scopeLabels[String(scope ?? "")] ?? String(scope ?? "Sin fuente")
-}
-
-function blockerLabels(missingCategories: string[], isActive: boolean) {
-	const labels: string[] = []
-	if (!isActive) labels.push("La tarifa está inactiva.")
-	for (const category of missingCategories) {
-		labels.push(`Falta ${POLICY_CATEGORY_ORDER[category] ?? category}.`)
-	}
-	return labels
 }
 
 function overrideLabel(snapshotItem: any) {
@@ -258,129 +229,13 @@ function snapshotLabel(category: string, snapshotItem: any) {
 	return `Zona ${calculation?.localTimezone ?? "property_local"} · operativo`
 }
 
-export async function handleRatePlanPoliciesPost(params: {
-	request: Request
-	ratePlans: SurfaceRatePlan[]
-	userId: string
-	requestId?: string
-}): Promise<Response> {
-	const contentType = String(params.request.headers.get("content-type") ?? "")
-	if (!contentType.includes("application/json")) {
-		return new Response(JSON.stringify({ error: "invalid_content_type" }), {
-			status: 400,
-			headers: { "Content-Type": "application/json" },
-		})
-	}
-
-	try {
-		const body = (await params.request.json()) as {
-			intent: "preview"
-			ratePlanId: string
-			channel?: string | null
-			checkIn: string
-			checkOut: string
-		}
-
-		const ratePlanId = String(body.ratePlanId ?? "").trim()
-		const channel = String(body.channel ?? "web").trim() || "web"
-		const requestCheckIn = String(body.checkIn ?? "").trim()
-		const requestCheckOut = String(body.checkOut ?? "").trim()
-
-		if (!ratePlanId || !requestCheckIn || !requestCheckOut) {
-			return new Response(JSON.stringify({ error: "missing_context" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-
-		if (!params.ratePlans.some((plan) => String(plan.id) === ratePlanId)) {
-			return new Response(JSON.stringify({ error: "invalid_rate_plan" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
-		if (!ownerContext) {
-			return new Response(JSON.stringify({ error: "invalid_rate_plan_context" }), {
-				status: 404,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-		logger.debug("rate_plan_owner_context_resolved", {
-			eventScope: "policies_surface_post",
-			ratePlanId,
-			derivedProductId: ownerContext.productId,
-			derivedVariantId: ownerContext.variantId,
-		})
-
-		if (body.intent !== "preview") {
-			return new Response(JSON.stringify({ error: "unsupported_intent" }), {
-				status: 410,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-
-		const previewResult = await resolveEffectivePolicies({
-			productId: ownerContext.productId,
-			variantId: ownerContext.variantId,
-			ratePlanId,
-			checkIn: requestCheckIn,
-			checkOut: requestCheckOut,
-			channel,
-			requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
-			onMissingCategory: "return_null",
-			requestId: params.requestId,
-			featureContext: {
-				request: params.request,
-				query: new URL(params.request.url).searchParams,
-			},
-		})
-		if (previewResult.missingCategories.length > 0) {
-			logger.warn("policies.contract.missing_categories", {
-				requestId: params.requestId ?? null,
-				ratePlanId,
-				channel,
-				endpoint: "ratePlanPolicies.preview",
-				missingCategories: previewResult.missingCategories,
-			})
-			logPolicyContractMismatch({
-				requestId: String(params.requestId ?? "policy-surface-anon"),
-				domain: "policies",
-				endpoint: "ratePlanPolicies.preview",
-				productId: ownerContext.productId,
-				variantId: ownerContext.variantId,
-				ratePlanId,
-				missingCategories: previewResult.missingCategories,
-			})
-		}
-		return new Response(
-			JSON.stringify({
-				success: true,
-				missingCategories: previewResult.missingCategories,
-				policySummary: derivePolicySummaryFromResolvedPolicies(previewResult),
-				policies: mapResolvedPoliciesToUI(previewResult),
-			}),
-			{ status: 200, headers: { "Content-Type": "application/json" } }
-		)
-	} catch (error: any) {
-		return new Response(
-			JSON.stringify({
-				error: "save_failed",
-				message: String(error?.message ?? error ?? "Error inesperado"),
-			}),
-			{ status: 400, headers: { "Content-Type": "application/json" } }
-		)
-	}
-}
-
 export async function buildRatePlanPoliciesSurface(params: {
-	variantName: string
 	ratePlans: SurfaceRatePlan[]
 	checkIn: string
 	checkOut: string
 	requestId?: string
 	featureContext?: FeatureFlagContext
-}): Promise<{ policyPlans: PolicyPlanView[]; wizardPlans: WizardPlanView[] }> {
+}): Promise<{ policyPlans: PolicyPlanView[] }> {
 	const exceptionRepo = new PolicyExceptionRuleRepository()
 	const policyPlans = await Promise.all(
 		params.ratePlans.map(async (plan) => {
@@ -437,28 +292,6 @@ export async function buildRatePlanPoliciesSurface(params: {
 					missingCategories: resolved.missingCategories,
 				})
 			}
-			const policyIdByCategory = Object.fromEntries(
-				REQUIRED_POLICY_CATEGORIES.map((category) => [
-					category,
-					String(
-						resolved.policies.find((p: any) => String(p.category) === category)?.policy?.id ?? ""
-					) || null,
-				])
-			)
-			const policyPreviewByCategory = Object.fromEntries(
-				REQUIRED_POLICY_CATEGORIES.map((category) => {
-					const item = resolved.policies.find((p: any) => String(p.category) === category)
-					const mapped = mapResolvedPoliciesToUI({
-						version: "v2",
-						policies: item ? [item] : [],
-						missingCategories: [],
-						coverage: { hasFullCoverage: Boolean(item) },
-						asOfDate: params.checkIn,
-						warnings: [],
-					})
-					return [category, String(mapped[0]?.description ?? "Sin definir")]
-				})
-			)
 			const inheritanceByCategory = Object.fromEntries(
 				REQUIRED_POLICY_CATEGORIES.map((category) => {
 					const item = resolved.policies.find((p: any) => String(p.category) === category)
@@ -477,23 +310,17 @@ export async function buildRatePlanPoliciesSurface(params: {
 					return [category, snapshotLabel(category, key ? (snapshot as any)[key] : null)]
 				})
 			)
-			const sellabilityBlockers = blockerLabels(resolved.missingCategories, Boolean(plan.isActive))
-			const isSellableByContract = sellabilityBlockers.length === 0
+			const isSellableByContract = resolved.missingCategories.length === 0
 			const contractFacts = buildContractFacts(resolved, snapshot)
 			return {
 				ratePlanId,
 				ratePlanName: String(plan.name),
 				isDefault: Boolean(plan.isDefault),
-				isActive: Boolean(plan.isActive),
-				priceLabel: String(plan.modifierLabel ?? "Tarifa según configuración"),
 				coverageCount: REQUIRED_POLICY_CATEGORIES.length - resolved.missingCategories.length,
 				missingCategories: resolved.missingCategories,
 				isSellableByContract,
 				sellabilityLabel: isSellableByContract ? "Lista para vender" : "No lista para vender",
-				sellabilityBlockers,
 				policySummary: derivePolicySummaryFromResolvedPolicies(resolved),
-				policyIdByCategory,
-				policyPreviewByCategory,
 				inheritanceByCategory,
 				overrideSummaryByCategory,
 				snapshotPreviewByCategory,
@@ -504,17 +331,5 @@ export async function buildRatePlanPoliciesSurface(params: {
 		})
 	)
 
-	const wizardPlans = policyPlans.map((plan) => ({
-		variantName: params.variantName,
-		ratePlanId: plan.ratePlanId,
-		ratePlanName: plan.ratePlanName,
-		priceLabel: plan.priceLabel,
-		missingCategories: plan.missingCategories,
-		coverageCount: plan.coverageCount,
-		policyIdByCategory: plan.policyIdByCategory,
-		policySummary: plan.policySummary,
-		policyPreviewByCategory: plan.policyPreviewByCategory,
-	}))
-
-	return { policyPlans, wizardPlans }
+	return { policyPlans }
 }

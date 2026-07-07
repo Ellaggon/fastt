@@ -20,16 +20,11 @@ interface PolicyPlanView {
 	ratePlanId: string
 	ratePlanName: string
 	isDefault: boolean
-	isActive: boolean
-	priceLabel: string
 	coverageCount: number
 	missingCategories: string[]
 	isSellableByContract: boolean
 	sellabilityLabel: string
-	sellabilityBlockers: string[]
 	policySummary: string
-	policyIdByCategory: Record<string, string | null>
-	policyPreviewByCategory: Record<string, string>
 	inheritanceByCategory: Record<string, string>
 	overrideSummaryByCategory: Record<string, string>
 	snapshotPreviewByCategory: Record<string, string>
@@ -48,20 +43,10 @@ interface PolicyPlanView {
 	}
 }
 
-interface WizardPlanView {
-	ratePlanId: string
-	ratePlanName: string
-	variantName: string
-	policyIdByCategory: Record<string, string | null>
-	policySummary: string
-	missingCategories: string[]
-}
-
 interface Props {
 	title?: string
 	description: string
 	policyPlans: PolicyPlanView[]
-	wizardPlans?: WizardPlanView[]
 	checkIn: string
 	checkOut: string
 	requiredCategories: readonly string[]
