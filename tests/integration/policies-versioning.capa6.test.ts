@@ -93,9 +93,9 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 
 		const v1 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Terms v1",
-			rules: { foo: "bar" },
+			category: "NoShow",
+			description: "No presentación v1",
+			rules: { penaltyType: "first_night" },
 		})
 		await replacePolicyAssignmentCapa6({
 			policyId: v1.policyId,
@@ -106,22 +106,22 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 
 		const v2 = await createPolicyVersionCapa6({
 			previousPolicyId: v1.policyId,
-			description: "Terms v2",
-			rules: { foo: "baz" },
+			description: "No presentación v2",
+			rules: { penaltyType: "full" },
 		})
 		expect(v2.version).toBe(2)
 
 		// Create another version still pointing to v1, should become v3 (max+1), not v2 again.
 		const v3 = await createPolicyVersionCapa6({
 			previousPolicyId: v1.policyId,
-			description: "Terms v3",
-			rules: { foo: "qux" },
+			description: "No presentación v3",
+			rules: { penaltyType: "percentage", penaltyAmount: 50 },
 		})
 		expect(v3.version).toBe(3)
 
 		const resolved = await resolveEffectivePolicies({ productId })
-		const other = resolved.policies.find((p) => p.category === "Other")
-		expect(other?.policy?.id).toBe(v3.policyId)
-		expect(other?.policy?.version).toBe(3)
+		const noShow = resolved.policies.find((p) => p.category === "NoShow")
+		expect(noShow?.policy?.id).toBe(v3.policyId)
+		expect(noShow?.policy?.version).toBe(3)
 	})
 })

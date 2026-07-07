@@ -71,9 +71,9 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 
 		const created = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Initial terms",
-			rules: { foo: "bar" },
+			category: "Payment",
+			description: "Pago inicial",
+			rules: { paymentType: "pay_at_property" },
 		})
 		await replacePolicyAssignmentCapa6({
 			policyId: created.policyId,
@@ -96,13 +96,13 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 			.where(eq(BookingPolicySnapshot.bookingId, bookingId))
 		expect(snapRows.length).toBeGreaterThan(0)
 		const snapJson = (snapRows[0] as any).policySnapshotJson
-		expect(snapJson?.policy?.description).toBe("Initial terms")
+		expect(snapJson?.policy?.description).toBe("Pago inicial")
 
 		// Create a new version (higher version) with different description.
 		await createPolicyVersionCapa6({
 			previousPolicyId: created.policyId,
-			description: "Changed terms",
-			rules: { foo: "baz" },
+			description: "Pago modificado",
+			rules: { paymentType: "prepaid" },
 		})
 
 		// Snapshot stored should remain unchanged.
@@ -111,7 +111,7 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 			.from(BookingPolicySnapshot)
 			.where(eq(BookingPolicySnapshot.bookingId, bookingId))
 		const snapJson2 = (snapRows2[0] as any).policySnapshotJson
-		expect(snapJson2?.policy?.description).toBe("Initial terms")
+		expect(snapJson2?.policy?.description).toBe("Pago inicial")
 	})
 
 	it("snapshots multiple categories", async () => {
@@ -167,8 +167,9 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 
 		const p1 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Terms",
+			category: "CheckIn",
+			description: "Llegada entre 14:00 y 22:00",
+			rules: { checkInFrom: "14:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
 		})
 		const p2 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
@@ -202,6 +203,6 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 			.from(BookingPolicySnapshot)
 			.where(eq(BookingPolicySnapshot.bookingId, bookingId))
 		const cats = rows.map((r: any) => String(r.category)).sort()
-		expect(cats).toEqual(["Other", "Payment"])
+		expect(cats).toEqual(["CheckIn", "Payment"])
 	})
 })

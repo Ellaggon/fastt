@@ -21,13 +21,13 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 	it("create policy OK + cancellation requires tiers", async () => {
 		const created = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "General terms",
-			rules: { text: "Hello" },
+			category: "Payment",
+			description: "Pago en propiedad",
+			rules: { paymentType: "pay_at_property" },
 		})
 		expect(created.policyId).toMatch(/.+/)
 		expect(created.groupId).toMatch(/.+/)
-		expect(created.category).toBe("Other")
+		expect(created.category).toBe("Payment")
 		expect(created.version).toBe(1)
 
 		await expect(
@@ -83,9 +83,9 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 		const { policyId } = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "General terms",
-			rules: { text: "Hello" },
+			category: "Payment",
+			description: "Pago en propiedad",
+			rules: { paymentType: "pay_at_property" },
 		})
 
 		// Product assignment
@@ -96,7 +96,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			channel: null,
 		})
 		const resolvedProduct = await resolveEffectivePolicies({ productId })
-		expect(resolvedProduct.policies.some((p) => p.category === "Other")).toBe(true)
+		expect(resolvedProduct.policies.some((p) => p.category === "Payment")).toBe(true)
 
 		const repeated = await replacePolicyAssignmentCapa6({
 			policyId,
@@ -108,9 +108,9 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 		const replacementPolicy = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Replacement terms",
-			rules: { text: "Updated" },
+			category: "Payment",
+			description: "Prepago total",
+			rules: { paymentType: "prepaid" },
 		})
 		const replacement = await replacePolicyAssignmentCapa6({
 			policyId: replacementPolicy.policyId,
@@ -128,7 +128,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 				and(
 					eq(PolicyAssignment.scope, "product"),
 					eq(PolicyAssignment.scopeId, productId),
-					eq(PolicyAssignment.category, "Other"),
+					eq(PolicyAssignment.category, "Payment"),
 					isNull(PolicyAssignment.channel)
 				)
 			)
@@ -168,8 +168,9 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		// Rate plan assignment
 		const created3 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Smoking",
-			description: "No smoking at all",
+			category: "NoShow",
+			description: "No presentación con penalidad de primera noche",
+			rules: { penaltyType: "first_night" },
 		})
 		await replacePolicyAssignmentCapa6({
 			policyId: created3.policyId,
@@ -178,14 +179,15 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			channel: null,
 		})
 		const resolvedRp = await resolveEffectivePolicies({ productId, variantId, ratePlanId: rpId })
-		expect(resolvedRp.policies.some((p) => p.category === "Smoking")).toBe(true)
+		expect(resolvedRp.policies.some((p) => p.category === "NoShow")).toBe(true)
 	})
 
 	it("invalid scopeId => validation_error", async () => {
 		const { policyId } = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "X",
+			category: "Payment",
+			description: "Pago en propiedad",
+			rules: { paymentType: "pay_at_property" },
 		})
 		await expect(
 			replacePolicyAssignmentCapa6({
@@ -218,9 +220,9 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		})
 		const policy = await createPolicyCapa6({
 			ownerProviderId: providerId,
-			category: "Other",
-			description: "Terms to deactivate",
-			rules: { text: "Terms" },
+			category: "Payment",
+			description: "Condición de pago para desactivar",
+			rules: { paymentType: "pay_at_property" },
 		})
 		const assignment = await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,

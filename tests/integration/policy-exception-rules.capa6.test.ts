@@ -11,8 +11,8 @@ import {
 	resolveEffectivePolicies,
 	type HoldPolicySnapshot,
 } from "@/modules/policies/public"
-import { GET, POST } from "@/pages/api/internal/policies/exceptions"
-import { PATCH } from "@/pages/api/internal/policies/exceptions/[id]"
+import { GET, POST } from "@/pages/api/admin/policies/exceptions"
+import { PATCH } from "@/pages/api/admin/policies/exceptions/[id]"
 import {
 	upsertDestination,
 	upsertProduct,
@@ -192,7 +192,7 @@ describe("integration/policy exception rules CAPA6", () => {
 			async () => {
 				const createResponse = await POST({
 					request: authedJsonRequest({
-						path: "/api/internal/policies/exceptions",
+						path: "/api/admin/policies/exceptions",
 						token,
 						method: "POST",
 						body: {
@@ -228,7 +228,7 @@ describe("integration/policy exception rules CAPA6", () => {
 				const prematureActivation = await PATCH({
 					params: { id: createBody.item.id },
 					request: authedJsonRequest({
-						path: `/api/internal/policies/exceptions/${createBody.item.id}`,
+						path: `/api/admin/policies/exceptions/${createBody.item.id}`,
 						token,
 						method: "PATCH",
 						body: { operation: "set_active", isActive: true },
@@ -239,7 +239,7 @@ describe("integration/policy exception rules CAPA6", () => {
 				const approvalResponse = await PATCH({
 					params: { id: createBody.item.id },
 					request: authedJsonRequest({
-						path: `/api/internal/policies/exceptions/${createBody.item.id}`,
+						path: `/api/admin/policies/exceptions/${createBody.item.id}`,
 						token,
 						method: "PATCH",
 						body: {
@@ -254,7 +254,7 @@ describe("integration/policy exception rules CAPA6", () => {
 				expect(approvedBody.item.action.approval.status).toBe("approved")
 
 				const listUrl = new URL(
-					`http://localhost:4321/api/internal/policies/exceptions?scope=rate_plan&scopeId=${ratePlanId}`
+					`http://localhost:4321/api/admin/policies/exceptions?scope=rate_plan&scopeId=${ratePlanId}`
 				)
 				const listResponse = await GET({
 					request: authedJsonRequest({
@@ -377,7 +377,7 @@ describe("integration/policy exception rules CAPA6", () => {
 				const patchResponse = await PATCH({
 					params: { id: created.id },
 					request: authedJsonRequest({
-						path: `/api/internal/policies/exceptions/${created.id}`,
+						path: `/api/admin/policies/exceptions/${created.id}`,
 						token,
 						method: "PATCH",
 						body: { isActive: false },

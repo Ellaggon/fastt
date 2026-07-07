@@ -72,8 +72,9 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		const p1 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Terms",
+			category: "CheckIn",
+			description: "Llegada entre 14:00 y 22:00",
+			rules: { checkInFrom: "14:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
 		})
 		const p2 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
@@ -104,7 +105,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		const read = await getPoliciesForBookingUseCase(bookingId)
 		const cats = read.policies.map((p) => p.category).sort()
-		expect(cats).toEqual(["Other", "Payment"])
+		expect(cats).toEqual(["CheckIn", "Payment"])
 	})
 
 	it("throws booking_policy_snapshot_missing when no snapshot exists", async () => {
@@ -226,9 +227,9 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 
 		const created = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
-			category: "Other",
-			description: "Initial terms",
-			rules: { foo: "bar" },
+			category: "Payment",
+			description: "Pago inicial",
+			rules: { paymentType: "pay_at_property" },
 		})
 		await replacePolicyAssignmentCapa6({
 			policyId: created.policyId,
@@ -246,17 +247,17 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 		})
 
 		const before = await getPoliciesForBookingUseCase(bookingId)
-		const beforeOther = before.policies.find((p) => p.category === "Other")?.policy as any
-		expect(beforeOther?.policy?.description).toBe("Initial terms")
+		const beforePayment = before.policies.find((p) => p.category === "Payment")?.policy as any
+		expect(beforePayment?.policy?.description).toBe("Pago inicial")
 
 		await createPolicyVersionCapa6({
 			previousPolicyId: created.policyId,
-			description: "Changed terms",
-			rules: { foo: "baz" },
+			description: "Pago modificado",
+			rules: { paymentType: "prepaid" },
 		})
 
 		const after = await getPoliciesForBookingUseCase(bookingId)
-		const afterOther = after.policies.find((p) => p.category === "Other")?.policy as any
-		expect(afterOther?.policy?.description).toBe("Initial terms")
+		const afterPayment = after.policies.find((p) => p.category === "Payment")?.policy as any
+		expect(afterPayment?.policy?.description).toBe("Pago inicial")
 	})
 })
