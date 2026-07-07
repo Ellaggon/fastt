@@ -1,4 +1,4 @@
-import type { RestrictionKey } from "@/modules/policies/public"
+import type { RestrictionKey } from "@/modules/rules/public"
 import type { RestrictionCategory, RestrictionPreset } from "./restrictions-types"
 
 export const SCOPE_EXPLANATIONS = {

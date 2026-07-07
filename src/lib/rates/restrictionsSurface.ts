@@ -13,7 +13,7 @@ import {
 	type RecomputeEffectiveRestrictionsResult,
 	recomputeEffectiveRestrictionsForScope,
 	toExclusiveRestrictionDate,
-} from "@/modules/policies/public"
+} from "@/modules/rules/public"
 
 export type RestrictionScope = "product" | "variant" | "rate_plan"
 export type SellabilityRuleType =
