@@ -18,10 +18,10 @@ export function normalizeRuleCode(value: string): RuleCode {
 	if (normalized.includes("payment") || normalized.includes("prepay")) return "payment"
 	if (normalized.includes("noshow") || normalized.includes("no_show")) return "no_show"
 	if (normalized.includes("checkin") || normalized.includes("check_in")) return "check_in"
-	if (normalized.includes("checkout") || normalized.includes("check_out")) return "check_out"
+	if (normalized.includes("checkout") || normalized.includes("check_out")) return "check_in"
 	if (normalized === "noshow") return "no_show"
 	if (normalized === "checkin") return "check_in"
-	if (normalized === "checkout") return "check_out"
+	if (normalized === "checkout") return "check_in"
 	if (normalized === "stopsell") return "stop_sell"
 	if (normalized === "minstay") return "min_stay"
 	return normalized as RuleCode

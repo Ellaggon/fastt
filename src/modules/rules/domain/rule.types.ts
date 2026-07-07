@@ -14,7 +14,6 @@ export type KnownRuleCode =
 	| "payment"
 	| "no_show"
 	| "check_in"
-	| "check_out"
 	| "min_stay"
 	| "stop_sell"
 	| "other"

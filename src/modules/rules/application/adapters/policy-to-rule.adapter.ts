@@ -113,7 +113,7 @@ export function mapResolvedPoliciesToRules(params: {
 								description: String(item.policy?.description ?? "").trim(),
 								rules: rulesMap,
 							}
-						: code === "check_in" || code === "check_out"
+						: code === "check_in"
 							? {
 									kind: "check_in" as const,
 									description: String(item.policy?.description ?? "").trim(),

@@ -32,7 +32,7 @@ describe("rules/normalizeRuleCode", () => {
 		expect(normalizeRuleCode("payment_policy")).toBe("payment")
 		expect(normalizeRuleCode("NoShowPolicy")).toBe("no_show")
 		expect(normalizeRuleCode("CheckInPolicy")).toBe("check_in")
-		expect(normalizeRuleCode("check_out_policy")).toBe("check_out")
+		expect(normalizeRuleCode("check_out_policy")).toBe("check_in")
 	})
 
 	it("keeps known hard-constraint aliases normalized", () => {

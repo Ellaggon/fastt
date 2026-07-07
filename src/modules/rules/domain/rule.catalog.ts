@@ -53,17 +53,6 @@ export const INITIAL_RULE_CATALOG: readonly RuleCatalogItem[] = [
 		},
 	},
 	{
-		code: "check_out",
-		category: "CheckOut",
-		layer: "CONTRACT",
-		capabilities: {
-			affectsSearch: true,
-			affectsAvailability: false,
-			requiresAcceptance: true,
-			includedInSnapshot: true,
-		},
-	},
-	{
 		code: "min_stay",
 		category: "MinStay",
 		layer: "HARD",
@@ -102,7 +91,7 @@ export function getRuleCatalogItem(code: RuleCode): RuleCatalogItem {
 	if (found) return found
 	return {
 		code: normalizedCode || "other",
-		category: "Other",
+		category: "CheckIn",
 		layer: "CONTRACT",
 		capabilities: DEFAULT_CONTRACT_CAPABILITIES,
 	}

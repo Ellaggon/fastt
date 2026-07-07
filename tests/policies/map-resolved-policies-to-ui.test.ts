@@ -9,8 +9,8 @@ describe("policies/mapResolvedPoliciesToUI", () => {
 			version: "v2",
 			policies: [
 				{
-					category: "HouseRules",
-					policy: { id: "p1", description: "No smoking", version: 2 } as any,
+					category: "CheckIn",
+					policy: { id: "p1", description: "Llegada de 14:00 a 22:00", version: 2 } as any,
 					resolvedFromScope: "product",
 				},
 			],
@@ -22,8 +22,8 @@ describe("policies/mapResolvedPoliciesToUI", () => {
 		const ui = mapResolvedPoliciesToUI(resolved)
 		expect(ui).toEqual([
 			{
-				category: "HouseRules",
-				description: "No smoking",
+				category: "CheckIn",
+				description: "Llegada de 14:00 a 22:00",
 				version: 2,
 				resolvedFromScope: "product",
 			},
