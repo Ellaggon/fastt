@@ -37,8 +37,9 @@ describe("audit/rateplan-first modern flows", () => {
 		expect(detailPage).toContain("loadRatePlanPoliciesData")
 		expect(detailPage).not.toMatch(/variantId=\{/)
 
-		const policiesRedirect = read("src/pages/rates/plans/[ratePlanId]/policies.astro")
-		expect(policiesRedirect).toContain("routes.ratePlanPolicies")
-		expect(policiesRedirect).toContain("308")
+		expect(
+			fs.existsSync(path.join(ROOT, "src/pages/rates/plans/[ratePlanId]/policies.astro"))
+		).toBe(false)
+		expect(read("src/lib/routes.ts")).toContain("?vista=conditions")
 	})
 })

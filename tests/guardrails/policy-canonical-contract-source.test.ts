@@ -56,4 +56,18 @@ describe("Guardrail: policy tables are the only contractual source", () => {
 		expect(route).toContain("mapResolvedPoliciesToUI")
 		expect(route).toContain("canonical_policy_source")
 	})
+
+	it("keeps hotel scope removed from policy assignment writes", () => {
+		const scope = read("src/modules/policies/domain/policy.scope.ts")
+		const assignEndpoint = read("src/pages/api/policies/assign.ts")
+		const dateCancellationEndpoint = read("src/pages/api/policies/date-cancellation.ts")
+		const replacement = read(
+			"src/modules/policies/application/use-cases/capa6/replace-policy-assignment.ts"
+		)
+		const source = `${assignEndpoint}\n${dateCancellationEndpoint}\n${replacement}`
+
+		expect(scope).toContain('"hotel" scope is intentionally not supported')
+		expect(assignEndpoint).toContain('"product", "variant", "rate_plan"')
+		expect(source).not.toMatch(/["']hotel["']/)
+	})
 })

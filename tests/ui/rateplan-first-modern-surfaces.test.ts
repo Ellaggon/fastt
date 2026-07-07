@@ -80,9 +80,10 @@ describe("ui/rateplan-first modern surfaces", () => {
 
 	it("condiciones viven en la ficha unificada sin inyectar variantId en el POST", () => {
 		const source = read("src/pages/rates/plans/[ratePlanId].astro")
-		expect(source).toContain("handleRatePlanPoliciesPost({")
-		expect(source).toContain("ratePlans: selectedRatePlans")
 		expect(source).toContain('data-rate-plan-panel="conditions"')
+		expect(source).not.toContain("handleRatePlanPoliciesPost")
+		expect(source).not.toContain("selectedRatePlans")
+		expect(source).not.toContain("wizardPlans")
 		expect(source).not.toContain("expectedOwnerContext")
 		expect(source).not.toContain("variantId: ownerContext.variantId")
 	})
@@ -149,8 +150,8 @@ describe("ui/rateplan-first modern surfaces", () => {
 
 	it("overrides admin usa RBAC central, scope real, evidencia e impacto", () => {
 		const page = read("src/pages/admin/policy-exceptions.astro")
-		const createEndpoint = read("src/pages/api/internal/policies/exceptions.ts")
-		const updateEndpoint = read("src/pages/api/internal/policies/exceptions/[id].ts")
+		const createEndpoint = read("src/pages/api/admin/policies/exceptions.ts")
+		const updateEndpoint = read("src/pages/api/admin/policies/exceptions/[id].ts")
 		const container = read("src/container/policy-exceptions.container.ts")
 
 		expect(page).toContain("requireInternalAdmin")
@@ -319,7 +320,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(useCase).toContain("inheritanceByCategory")
 		expect(useCase).toContain("overrideSummaryByCategory")
 		expect(useCase).toContain("snapshotPreviewByCategory")
-		expect(useCase).toContain("sellabilityBlockers")
+		expect(useCase).not.toContain("sellabilityBlockers")
 		expect(detail).toContain("RatePlanPoliciesSurface")
 		expect(detail).toContain('data-rate-plan-panel="conditions"')
 		expect(detail).toContain("policyPlans={policyPlans}")

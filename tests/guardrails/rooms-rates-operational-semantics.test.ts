@@ -284,11 +284,13 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const commercialRulesApi = read("src/pages/api/rates/commercial-rules.ts")
 		const restrictionsSurface = read("src/lib/rates/restrictionsSurface.ts")
+		const policiesPublic = read("src/modules/policies/public.ts")
+		const rulesPublic = read("src/modules/rules/public.ts")
 		const effectiveRestrictionMaterializer = read(
-			"src/modules/policies/infrastructure/materializers/recompute-effective-restrictions.db.ts"
+			"src/modules/rules/infrastructure/materializers/recompute-effective-restrictions.db.ts"
 		)
 		const effectiveRestrictionUseCase = read(
-			"src/modules/policies/application/use-cases/recompute-effective-restrictions.ts"
+			"src/modules/rules/application/use-cases/recompute-effective-restrictions.ts"
 		)
 		const searchMaterialization = read(
 			"src/modules/search/application/use-cases/materialize-search-unit.ts"
@@ -329,6 +331,10 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(commercialRulesApi).toContain('success: "sellability-created"')
 		expect(restrictionsSurface).toContain("recomputeEffectiveRestrictionsForScope")
 		expect(restrictionsSurface).toContain("materializeSearchUnitRange")
+		expect(policiesPublic).not.toContain("restrictions")
+		expect(policiesPublic).not.toContain("RestrictionService")
+		expect(rulesPublic).toContain("RestrictionRuleEngine")
+		expect(rulesPublic).toContain("recompute-effective-restrictions")
 		expect(effectiveRestrictionUseCase).toContain("configureEffectiveRestrictionsMaterializer")
 		expect(effectiveRestrictionMaterializer).toContain("EffectiveRestriction")
 		expect(effectiveRestrictionMaterializer).toContain("ratePlanId")

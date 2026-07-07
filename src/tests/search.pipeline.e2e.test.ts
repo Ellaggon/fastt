@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { SearchPipeline } from "@/modules/search/public"
 import { PromotionEngine } from "@/modules/pricing/public"
-import { RestrictionRuleEngine } from "@/modules/policies/public"
+import { RestrictionRuleEngine } from "@/modules/rules/public"
 
 const baseDate = new Date("2026-03-01")
 
