@@ -3,6 +3,7 @@ import {
 	derivePolicySummaryFromResolvedPolicies,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
+import { POLICY_CATEGORY_LABELS } from "@/data/policy/policy-categories"
 import { resolvePolicyPreset } from "@/data/policy/policy-presets"
 import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
@@ -12,12 +13,7 @@ import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
-export const POLICY_CATEGORY_ORDER: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	CheckIn: "Ingreso/salida",
-	NoShow: "No presentación",
-}
+export const POLICY_CATEGORY_ORDER: Record<string, string> = POLICY_CATEGORY_LABELS
 
 type SurfaceRatePlan = {
 	id: string

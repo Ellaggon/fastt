@@ -12,35 +12,15 @@ import {
 	RatePlan,
 	Variant,
 } from "astro:db"
-import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
+import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
+import {
+	getPolicyPresetDescription,
+	getPolicyPresetLabel,
+	POLICY_PRESET_CATALOG,
+} from "@/data/policy/policy-presets"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
-
-const categoryLabels: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	CheckIn: "Ingreso y salida",
-	NoShow: "No presentación",
-}
-
-const presetLabels: Record<string, string> = {
-	flexible: "Flexible",
-	moderate: "Moderada",
-	limited: "Limitada",
-	firm: "Firme",
-	strict: "Estricta",
-	long_term: "Larga estadía",
-	non_refundable: "No reembolsable",
-	pay_at_property: "Pago en propiedad",
-	prepayment_full: "Prepago total",
-	deposit_50: "Depósito 50%",
-	standard_check_in: "Ingreso estándar",
-	late_arrival: "Llegada tardía",
-	no_show_first_night: "No presentación: primera noche",
-	no_show_full_stay: "No presentación: estadía completa",
-	no_show_percentage_100: "No presentación: 100%",
-}
 
 function policyLabel(row: {
 	description: unknown
@@ -50,9 +30,9 @@ function policyLabel(row: {
 }) {
 	const description = String(row.description ?? "").trim()
 	if (description) return `${description} · v${Number(row.version ?? 1)}`
-	const preset = presetLabels[String(row.policyPresetKey ?? "")] ?? "Personalizada"
-	const category = categoryLabels[String(row.category ?? "")] ?? "Condición"
-	return `${category} ${preset} · v${Number(row.version ?? 1)}`
+	const category = String(row.category ?? "")
+	const preset = getPolicyPresetLabel(String(row.policyPresetKey ?? ""), category)
+	return `${getPolicyCategoryLabel(category)} ${preset} · v${Number(row.version ?? 1)}`
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -159,18 +139,20 @@ export const GET: APIRoute = async ({ request }) => {
 			policies: policies.map((policy) => ({
 				...policy,
 				label: policyLabel(policy),
-				categoryLabel:
-					categoryLabels[String(policy.category ?? "")] ?? String(policy.category ?? ""),
-				presetLabel: presetLabels[String(policy.policyPresetKey ?? "")] ?? "Personalizada",
+				categoryLabel: getPolicyCategoryLabel(policy.category),
+				presetLabel: getPolicyPresetLabel(
+					String(policy.policyPresetKey ?? ""),
+					String(policy.category ?? "")
+				),
 				rules: rulesByPolicyId.get(String(policy.id ?? "")) ?? {},
 				cancellationTiers: tiersByPolicyId.get(String(policy.id ?? "")) ?? [],
 			})),
 			presets: POLICY_PRESET_CATALOG.map((preset) => ({
 				key: preset.key,
 				category: preset.category,
-				label: presetLabels[preset.key] ?? preset.name,
-				categoryLabel: categoryLabels[preset.category] ?? preset.category,
-				description: preset.guestFacing || preset.description,
+				label: getPolicyPresetLabel(preset.key, preset.category),
+				categoryLabel: getPolicyCategoryLabel(preset.category),
+				description: getPolicyPresetDescription(preset.key, preset.category),
 				stayLengthType: preset.stayLengthType,
 				refundBasis: preset.refundBasis,
 				payoutBasis: preset.payoutBasis,

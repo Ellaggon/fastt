@@ -339,27 +339,34 @@ export const POLICY_PRESETS = POLICY_PRESET_CATALOG.reduce(
 	{} as Record<PolicyCategory, PolicyPreset[]>
 )
 
-const INTERNAL_PRESET_ALIASES: Record<string, PolicyPresetKey> = {
-	flex_24h: "flexible",
-	moderate_7d: "moderate",
-	standard: "standard_check_in",
-	first_night: "no_show_first_night",
-	full_stay: "no_show_full_stay",
-	percentage_100: "no_show_percentage_100",
-}
-
 export function resolvePolicyPreset(
 	key: string | null | undefined,
 	category?: PolicyCategory
 ): PolicyPreset | null {
 	const normalized = String(key ?? "").trim()
 	if (!normalized) return null
-	const canonicalKey = INTERNAL_PRESET_ALIASES[normalized] ?? normalized
 	const preset =
 		POLICY_PRESET_CATALOG.find(
-			(item) => item.key === canonicalKey && (!category || item.category === category)
+			(item) => item.key === normalized && (!category || item.category === category)
 		) ?? null
 	return preset
+}
+
+export function getPolicyPresetLabel(
+	key: string | null | undefined,
+	category?: PolicyCategory | string,
+	fallback = "Personalizada"
+): string {
+	return resolvePolicyPreset(key, category as PolicyCategory | undefined)?.name ?? fallback
+}
+
+export function getPolicyPresetDescription(
+	key: string | null | undefined,
+	category?: PolicyCategory | string,
+	fallback = ""
+): string {
+	const preset = resolvePolicyPreset(key, category as PolicyCategory | undefined)
+	return preset?.guestFacing || preset?.description || fallback
 }
 
 export function clonePolicyPresetRules(preset: PolicyPreset): Record<string, unknown> {

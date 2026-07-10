@@ -1,5 +1,6 @@
 import type { PolicyFinancialPreviewResult, RefundQuote } from "@/modules/financial/public"
 import type { HoldPolicyItemSnapshot } from "@/modules/policies/public"
+import { getPolicyCategoryPreviewCopy } from "@/data/policy/policy-categories"
 
 export type PolicyCategoryPreviewItem = {
 	key: string
@@ -75,11 +76,12 @@ function cancellationPreview(
 	const freeDeadline = cancellation?.freeCancellationDeadlineLocal
 	const hostPayout = quotes.cancelToday.policySnapshot.hostPayoutAmount
 	const taxRefund = quotes.cancelToday.taxFeeRefundAmount
+	const copy = getPolicyCategoryPreviewCopy("Cancellation")
 
 	return {
 		category: "Cancellation",
-		title: "Vista previa de cancelación",
-		description: "Plazos y consecuencias que verá el huésped antes de reservar.",
+		title: copy.title,
+		description: copy.description,
 		previewReady: Boolean(snapshot.cancellation && cancellation?.refundTiers?.length),
 		items: [
 			{
@@ -145,11 +147,12 @@ function paymentPreview(financialPreview: PolicyFinancialPreviewResult): PolicyC
 		: Number.isFinite(percentage) && percentage < 100
 			? `Depósito del ${Math.round(percentage)}%`
 			: "Prepago total"
+	const copy = getPolicyCategoryPreviewCopy("Payment")
 
 	return {
 		category: "Payment",
-		title: "Vista previa de pago y garantía",
-		description: "Cuándo paga el huésped y qué importe asegura la reserva.",
+		title: copy.title,
+		description: copy.description,
 		previewReady: Boolean(paymentItem && paymentType),
 		items: [
 			{
@@ -198,11 +201,12 @@ function noShowPreview(financialPreview: PolicyFinancialPreviewResult): PolicyCa
 						? `${Math.round(chargeAmount)}% de la reserva`
 						: "Revisión manual"
 	const payoutPercent = noShow?.payoutImpact?.hostPayoutPercent
+	const copy = getPolicyCategoryPreviewCopy("NoShow")
 
 	return {
 		category: "NoShow",
-		title: "Vista previa de no presentación",
-		description: "Qué se cobra cuando el huésped no llega y no cancela.",
+		title: copy.title,
+		description: copy.description,
 		previewReady: Boolean(noShowItem && chargeType),
 		items: [
 			{
@@ -239,11 +243,12 @@ function arrivalPreview(financialPreview: PolicyFinancialPreviewResult): PolicyC
 	const checkInFrom = String(rules.checkInFrom ?? "").trim()
 	const checkInUntil = String(rules.checkInUntil ?? "").trim()
 	const checkOutUntil = String(rules.checkOutUntil ?? "").trim()
+	const copy = getPolicyCategoryPreviewCopy("CheckIn")
 
 	return {
 		category: "CheckIn",
-		title: "Vista previa de llegada y salida",
-		description: "Horarios que verán el huésped y el equipo de recepción.",
+		title: copy.title,
+		description: copy.description,
 		previewReady: Boolean(arrivalItem && checkInFrom && checkOutUntil),
 		items: [
 			{
@@ -285,10 +290,11 @@ export function buildPolicyCategoryPreview(input: Input): PolicyCategoryPreview 
 		case "CheckIn":
 			return arrivalPreview(input.financialPreview)
 		default:
+			const copy = getPolicyCategoryPreviewCopy(input.category)
 			return {
 				category: String(input.category || "Unknown"),
-				title: "Vista previa de la condición",
-				description: "Revisa la consecuencia antes de confirmar.",
+				title: copy.title,
+				description: copy.description,
 				previewReady: false,
 				items: [],
 			}

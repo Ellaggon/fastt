@@ -6,6 +6,7 @@ import Checkbox from "@/components/ui/Checkbox.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
@@ -82,12 +83,7 @@ const scopeRows = await (async () => {
 		.all()
 })()
 const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
-const categories = [
-	{ value: "Cancellation", label: "Cancelación" },
-	{ value: "Payment", label: "Pago" },
-	{ value: "CheckIn", label: "Ingreso / salida" },
-	{ value: "NoShow", label: "No presentación" },
-]
+const categories = POLICY_CATEGORY_OPTIONS
 const scopes = [
 	{ value: "global", label: "Global" },
 	{ value: "product", label: "Oferta / hotel" },

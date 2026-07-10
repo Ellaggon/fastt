@@ -2,6 +2,10 @@
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import {
+	POLICY_CATEGORY_OPTIONS,
+	POLICY_CATEGORY_PREVIEW_COPY,
+} from "@/data/policy/policy-categories"
 
 type Props = {
 	defaultScope?: "product" | "variant" | "rate_plan"
@@ -16,6 +20,10 @@ const {
 	defaultChannel = "",
 	isProfessionalMode = false,
 } = Astro.props
+
+const policyCategoryLabels = Object.fromEntries(
+	POLICY_CATEGORY_OPTIONS.map((category) => [category.value, category.label])
+)
 ---
 
 <div
@@ -87,10 +95,11 @@ const {
 							<label class="block text-sm font-medium text-slate-700">
 								Categoría
 								<Select id="assignmentCategory" class="mt-1">
-									<option value="Cancellation">Cancelación</option>
-									<option value="Payment">Pago</option>
-									<option value="CheckIn">Llegada y salida</option>
-									<option value="NoShow">No presentación</option>
+									{
+										POLICY_CATEGORY_OPTIONS.map((category) => (
+											<option value={category.value}>{category.label}</option>
+										))
+									}
 								</Select>
 							</label>
 							<label class="block text-sm font-medium text-slate-700">
@@ -182,7 +191,14 @@ const {
 	</div>
 </div>
 
-<script is:inline define:vars={{ isProfessionalMode }}>
+<script
+	is:inline
+	define:vars={{
+		isProfessionalMode,
+		policyCategoryLabels,
+		policyCategoryPreviewCopy: POLICY_CATEGORY_PREVIEW_COPY,
+	}}
+>
 	// @ts-nocheck
 	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
 	const assignmentClose = document.getElementById("policyAssignmentClose")
@@ -230,42 +246,16 @@ const {
 	}
 
 	function categoryLabel(category) {
-		if (category === "Cancellation") return "Cancelación"
-		if (category === "Payment") return "Pago"
-		if (category === "CheckIn") return "Llegada y salida"
-		if (category === "NoShow") return "No presentación"
-		return category || "Condición"
+		return policyCategoryLabels?.[category] || category || "Condición"
 	}
 
 	function previewCopy(category) {
-		if (category === "Cancellation") {
-			return {
-				title: "Vista previa de cancelación",
-				description: "Plazos y consecuencias que verá el huésped antes de reservar.",
+		return (
+			policyCategoryPreviewCopy?.[category] || {
+				title: "Vista previa de la condición",
+				description: "Consecuencias visibles antes de confirmar la asignación.",
 			}
-		}
-		if (category === "Payment") {
-			return {
-				title: "Vista previa de pago y garantía",
-				description: "Cuándo paga el huésped y qué importe asegura la reserva.",
-			}
-		}
-		if (category === "NoShow") {
-			return {
-				title: "Vista previa de no presentación",
-				description: "Qué se cobra cuando el huésped no llega y no cancela.",
-			}
-		}
-		if (category === "CheckIn") {
-			return {
-				title: "Vista previa de llegada y salida",
-				description: "Horarios que verán el huésped y el equipo de recepción.",
-			}
-		}
-		return {
-			title: "Vista previa de la condición",
-			description: "Consecuencias visibles antes de confirmar la asignación.",
-		}
+		)
 	}
 
 	function showStatus(kind, message) {

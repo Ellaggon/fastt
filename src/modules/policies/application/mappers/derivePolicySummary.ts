@@ -1,4 +1,6 @@
 import type { PolicyResolutionDTO } from "../dto/PolicyResolutionDTO"
+import { getPolicyMissingCategoryLabel } from "@/data/policy/policy-categories"
+import { getPolicyPresetLabel } from "@/data/policy/policy-presets"
 
 type SnapshotPolicy = PolicyResolutionDTO["policies"][number]
 
@@ -63,16 +65,11 @@ function describeCancellation(policy: SnapshotPolicy | null): string {
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
 		.toLowerCase()
-	const presetLabels: Record<string, string> = {
-		flexible: "Cancelación flexible",
-		moderate: "Cancelación moderada",
-		limited: "Cancelación limitada",
-		firm: "Cancelación firme",
-		strict: "Cancelación estricta",
-		long_term: "Cancelación larga estadía",
-		non_refundable: "No reembolsable",
-	}
-	if (presetLabels[presetKey]) return presetLabels[presetKey]
+	const presetLabel = getPolicyPresetLabel(presetKey, "Cancellation", "")
+	if (presetLabel)
+		return presetLabel === "No reembolsable"
+			? presetLabel
+			: `Cancelación ${presetLabel.toLowerCase()}`
 
 	const tiers = toCancellationTiers(policy)
 	if (!tiers.length) {
@@ -118,12 +115,8 @@ function describePayment(policy: SnapshotPolicy | null): string {
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
 		.toLowerCase()
-	const presetLabels: Record<string, string> = {
-		pay_at_property: "Pago en propiedad",
-		prepayment_full: "Pago anticipado total",
-		deposit_50: "Pago parcial",
-	}
-	if (presetLabels[presetKey]) return presetLabels[presetKey]
+	const presetLabel = getPolicyPresetLabel(presetKey, "Payment", "")
+	if (presetLabel) return presetLabel
 
 	const paymentType = String(rules.paymentType ?? "").toLowerCase()
 	if (paymentType === "pay_at_property") return "Paga en la propiedad"
@@ -153,12 +146,8 @@ function describeNoShow(policy: SnapshotPolicy | null): string {
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
 		.toLowerCase()
-	const presetLabels: Record<string, string> = {
-		no_show_first_night: "No presentación: primera noche",
-		no_show_full_stay: "No presentación: estadía completa",
-		no_show_percentage_100: "No presentación configurada",
-	}
-	if (presetLabels[presetKey]) return presetLabels[presetKey]
+	const presetLabel = getPolicyPresetLabel(presetKey, "NoShow", "")
+	if (presetLabel) return presetLabel
 
 	const rules = toRuleMap(policy)
 	const penaltyType = String(rules.penaltyType ?? "").toLowerCase()
@@ -182,16 +171,10 @@ function describeArrival(policy: SnapshotPolicy | null): string {
 	const presetKey = String(policy.policy?.policyPresetKey ?? "")
 		.trim()
 		.toLowerCase()
-	if (presetKey === "standard_check_in") return "Llegada y salida estándar"
-	if (presetKey === "late_arrival") return "Llegada tardía permitida"
+	const presetLabel = getPolicyPresetLabel(presetKey, "CheckIn", "")
+	if (presetLabel)
+		return presetLabel === "Ingreso estándar" ? "Llegada y salida estándar" : presetLabel
 	return "Llegada y salida configuradas"
-}
-
-const missingCategoryLabels: Record<string, string> = {
-	Cancellation: "cancelación",
-	Payment: "pago",
-	CheckIn: "llegada/salida",
-	NoShow: "no presentación",
 }
 
 function naturalList(values: string[]): string {
@@ -203,9 +186,7 @@ function naturalList(values: string[]): string {
 export function summarizeMissingPolicyCategories(missingCategories: readonly string[]): string {
 	const labels = Array.from(
 		new Set(
-			missingCategories
-				.map((category) => missingCategoryLabels[String(category)] ?? String(category))
-				.filter(Boolean)
+			missingCategories.map((category) => getPolicyMissingCategoryLabel(category)).filter(Boolean)
 		)
 	)
 	if (labels.length === 0) return "Contrato completo"

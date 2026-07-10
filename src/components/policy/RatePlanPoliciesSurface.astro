@@ -3,6 +3,7 @@ import Drawer from "@/components/ui/Drawer.astro"
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
 import { routes } from "@/lib/routes"
 import {
 	ArrowRight,
@@ -62,12 +63,10 @@ const {
 	isProfessionalMode = false,
 } = Astro.props
 
-const technicalCategories = [
-	{ key: "Cancellation", label: "Cancelación" },
-	{ key: "Payment", label: "Pago" },
-	{ key: "NoShow", label: "No presentación" },
-	{ key: "CheckIn", label: "Llegada y salida" },
-] as const
+const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
+	key: category.value,
+	label: category.label,
+}))
 
 const houseRulesHref = productId
 	? `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}&focus=arrival`

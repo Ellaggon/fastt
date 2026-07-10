@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { db, and, CancellationTier, eq, Policy, PolicyGroup, PolicyRule } from "astro:db"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
+import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import { buildPolicyCategoryPreview } from "@/lib/policies/buildPolicyCategoryPreview"
 import { buildPolicyFinancialPreviewFromResolution } from "@/modules/financial/public"
 import type { PolicyResolutionDTO } from "@/modules/policies/public"
@@ -27,13 +28,6 @@ type PreviewBody = {
 	checkOut?: string
 	currency?: string
 	grossAmount?: number
-}
-
-const categoryLabels: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	CheckIn: "Ingreso y salida",
-	NoShow: "No presentación",
 }
 
 function addDays(dateOnly: string, days: number): string {
@@ -282,7 +276,7 @@ export const POST: APIRoute = async ({ request }) => {
 			source: {
 				mode,
 				category: selected.category,
-				categoryLabel: categoryLabels[selected.category] ?? selected.category,
+				categoryLabel: getPolicyCategoryLabel(selected.category),
 				description: selected.policy.description,
 				policyId: selected.policy.id,
 				policyPresetKey: selected.policy.policyPresetKey ?? null,

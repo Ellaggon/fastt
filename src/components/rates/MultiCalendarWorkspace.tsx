@@ -2,6 +2,7 @@
 import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
+import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import {
 	Badge,
 	Button,
@@ -150,12 +151,12 @@ const PRICE_ACTIONS: Record<
 	},
 }
 
-const CONDITION_LABELS: Record<string, string> = {
-	Cancellation: "Cancelación",
-	Payment: "Pago",
-	NoShow: "No presentación",
-	CheckIn: "Llegada y salida",
-}
+const CONDITION_LABELS = Object.fromEntries(
+	["Cancellation", "Payment", "NoShow", "CheckIn"].map((category) => [
+		category,
+		getPolicyCategoryLabel(category),
+	])
+)
 
 function addDays(value: string, days: number) {
 	const date = new Date(`${value}T12:00:00.000Z`)

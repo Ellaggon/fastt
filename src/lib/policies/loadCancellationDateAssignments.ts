@@ -10,6 +10,7 @@ import {
 	Policy,
 	PolicyAssignment,
 } from "astro:db"
+import { getPolicyPresetLabel } from "@/data/policy/policy-presets"
 
 export type CancellationDateAssignment = {
 	id: string
@@ -19,16 +20,6 @@ export type CancellationDateAssignment = {
 	effectiveFrom: string
 	effectiveTo: string
 	createdAt: Date
-}
-
-const PRESET_LABELS: Record<string, string> = {
-	flexible: "Flexible",
-	moderate: "Moderada",
-	limited: "Limitada",
-	firm: "Firme",
-	strict: "Estricta",
-	long_term: "Larga estadía",
-	non_refundable: "No reembolsable",
 }
 
 export async function loadCancellationDateAssignments(params: {
@@ -84,7 +75,7 @@ export async function loadCancellationDateAssignments(params: {
 		ratePlanId: String(row.ratePlanId),
 		policyId: String(row.policyId),
 		label:
-			PRESET_LABELS[String(row.policyPresetKey ?? "")] ||
+			getPolicyPresetLabel(String(row.policyPresetKey ?? ""), "Cancellation", "") ||
 			String(row.description ?? "").trim() ||
 			"Cancelación especial",
 		effectiveFrom: String(row.effectiveFrom),
