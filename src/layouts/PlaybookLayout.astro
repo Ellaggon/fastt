@@ -124,11 +124,11 @@ if (isComplete && active && productId) {
 		stepLabel = currentStep.label
 		stepGuestImpact = currentStep.guestImpact
 	}
-	previousHref = previousStep
-		? isAddRoom
-			? previousStep.buildHref(addRoomCtx)
-			: previousStep.buildHref(launchCtx)
-		: null
+	if (previousStep) {
+		previousHref = isAddRoom
+			? (getPreviousAddRoomStep(stepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
+			: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
+	}
 
 	if (active && stepNumber && totalSteps > 0) {
 		progressPercent = Math.round(((stepNumber - 1) / totalSteps) * 100)

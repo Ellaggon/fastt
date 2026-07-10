@@ -174,11 +174,12 @@ export async function loadCompleteToPublishState(params: {
 				: undefined,
 		})
 		const policyCategorySet = new Set(
-			resolvedPolicies.map((policy) => String((policy as { category?: string }).category ?? ""))
+			resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
 		)
-		missingPolicies = requiredPolicyCategories.filter(
-			(category) => !policyCategorySet.has(category)
-		)
+		missingPolicies =
+			resolvedPolicies.missingCategories.length > 0
+				? resolvedPolicies.missingCategories
+				: requiredPolicyCategories.filter((category) => !policyCategorySet.has(category))
 	} catch (error) {
 		policyResolutionError =
 			error instanceof Error ? error.message : "No se pudieron resolver las condiciones"

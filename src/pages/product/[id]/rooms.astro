@@ -331,7 +331,6 @@ const layoutProps = addRoomPlaybook.active
 				}
 				const resumeHref = (() => {
 					const variantId = String(room?.id ?? "")
-					const ratePlanId = String(room?.tariffs?.defaultId ?? "")
 					if (!variantId) return "#"
 					if (!room?.states?.capacityComplete) {
 						return `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}?${resumeParams("create-room")}`
@@ -346,7 +345,6 @@ const layoutProps = addRoomPlaybook.active
 						const params = new URLSearchParams(
 							resumeParams("availability", { variantId, focus: "availability" })
 						)
-						if (ratePlanId) params.set("ratePlanId", ratePlanId)
 						return `/rates/calendar?${params.toString()}`
 					}
 					return `/product/${encodeURIComponent(productId)}/rooms?${resumeParams("confirmation", { variantId })}`

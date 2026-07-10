@@ -207,7 +207,9 @@ if (isHotel) {
 }
 
 const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+let policyCategorySet = new Set<string>()
 let mappedPolicies: any[] = []
+let policyResolutionError: string | null = null
 try {
 	const resolvedPolicies = await resolveEffectivePolicies({
 		productId,
@@ -219,8 +221,13 @@ try {
 			query: Astro.url.searchParams,
 		},
 	})
+	policyCategorySet = new Set(
+		resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
+	)
 	mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
-} catch {
+} catch (error) {
+	policyResolutionError =
+		error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
 	mappedPolicies = []
 }
 ---
@@ -327,9 +334,14 @@ try {
 					</div>
 					{
 						isHotel ? (
-							<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-								Reglas para huéspedes
-							</Button>
+							<div class="flex flex-wrap gap-2">
+								<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+									Reglas para huéspedes
+								</Button>
+								<Button href={routes.rates()} variant="secondary" size="sm">
+									Tarifas
+								</Button>
+							</div>
 						) : null
 					}
 				</div>

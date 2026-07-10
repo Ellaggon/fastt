@@ -56,6 +56,8 @@ const [roomTypes, amenities] = await Promise.all([
 const playbookId = playbook.playbookId
 const isAddRoom = playbookId === "add-room"
 const stepId = isAddRoom ? (playbook.stepId ?? "create-room") : (playbook.stepId ?? "room-profile")
+const roomEditorPlaybookId =
+	playbookId === "launch" || playbookId === "add-room" ? playbookId : null
 ---
 
 <PlaybookLayout
@@ -95,7 +97,7 @@ const stepId = isAddRoom ? (playbook.stepId ?? "create-room") : (playbook.stepId
 				mode="create"
 				roomTypes={roomTypes}
 				amenities={amenities}
-				playbookId={playbook.active ? playbookId : null}
+				playbookId={playbook.active ? roomEditorPlaybookId : null}
 			/>
 		</Section>
 	</section>
