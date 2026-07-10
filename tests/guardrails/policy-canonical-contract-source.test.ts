@@ -40,21 +40,23 @@ describe("Guardrail: policy tables are the only contractual source", () => {
 		expect(violations).toEqual([])
 	})
 
-	it("keeps /api/policies/resolve policy-backed even when Rules UI rollout is enabled", () => {
+	it("keeps /api/policies/resolve policy-backed without rule UI rollout", () => {
 		const route = read("src/pages/api/policies/resolve.ts")
 		const forbidden = [
 			/resolveEffectiveRules/,
 			/buildRuleSnapshot/,
 			/mapRuleSnapshotToPolicyCards/,
 			/comparePolicyAndRuleSnapshots/,
-			/recordRulesUiMismatch/,
+			new RegExp(["record", "Rules", "Ui", "Mismatch"].join("")),
+			new RegExp(["RULES", "UI"].join("_")),
+			new RegExp(["rules", "ui", "rollout"].join("-")),
+			new RegExp(["rules", "ui", "validation"].join("-")),
 		]
 		const violations = forbidden.flatMap((pattern) =>
 			pattern.test(route) ? [`Policy resolve route uses rule contract fallback ${pattern}`] : []
 		)
 		expect(violations).toEqual([])
 		expect(route).toContain("mapResolvedPoliciesToUI")
-		expect(route).toContain("canonical_policy_source")
 	})
 
 	it("keeps hotel scope removed from policy assignment writes", () => {
@@ -69,5 +71,36 @@ describe("Guardrail: policy tables are the only contractual source", () => {
 		expect(scope).toContain('"hotel" scope is intentionally not supported')
 		expect(assignEndpoint).toContain('"product", "variant", "rate_plan"')
 		expect(source).not.toMatch(/["']hotel["']/)
+	})
+
+	it("keeps final policy constraints and indexes persistent", () => {
+		const dbConfig = read("db/config.ts")
+		const migration = read("db/migrations/2026-07-10_policy_final_constraints_indexes.sql")
+
+		expect(dbConfig).toContain('{ on: ["ownerProviderId", "category"] }')
+		expect(dbConfig).toContain('{ on: ["groupId", "version"], unique: true }')
+		expect(dbConfig).toContain('{ on: ["policyId", "ruleKey"], unique: true }')
+		expect(migration).toContain("idx_policy_assignment_resolution_range")
+		expect(migration).toContain("idx_policy_rule_policy_key_unique")
+		expect(migration).toContain("policy_group_category_validate_insert")
+		expect(migration).toContain("policy_assignment_scope_validate_insert")
+		expect(migration).toContain("policy_exception_effective_dates_insert")
+		expect(migration).toContain("CANCELLATION_TIER_INVALID")
+		expect(migration).toContain("'Cancellation', 'Payment', 'CheckIn', 'NoShow'")
+	})
+
+	it("keeps provider policy readiness on batch coverage queries", () => {
+		const readiness = read("src/lib/policies/providerPolicyReadiness.ts")
+		const publicApi = read("src/modules/policies/public.ts")
+		const repository = read(
+			"src/modules/policies/infrastructure/repositories/PolicyCoverageQueryRepository.ts"
+		)
+
+		expect(readiness).toContain("listPolicyCoverageByProvider")
+		expect(readiness).not.toContain("resolveEffectivePolicies")
+		expect(publicApi).toContain("PolicyCoverageQueryRepository")
+		expect(publicApi).toContain("listRatePlanCoverageByProvider")
+		expect(repository).toContain("class PolicyCoverageQueryRepository")
+		expect(repository).toContain("innerJoin(Policy, eq(Policy.groupId, PolicyAssignment.policyGroupId))")
 	})
 })

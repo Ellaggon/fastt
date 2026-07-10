@@ -353,6 +353,7 @@ const PolicyGroup = defineTable({
 		category: column.text(),
 		ownerProviderId: column.text(),
 	},
+	indexes: [{ on: ["ownerProviderId", "category"] }],
 })
 const Policy = defineTable({
 	// Version-content validity uses local commercial dates stored as canonical YYYY-MM-DD TEXT.
@@ -371,6 +372,12 @@ const Policy = defineTable({
 		effectiveFrom: column.text({ optional: true }),
 		effectiveTo: column.text({ optional: true }),
 	},
+	indexes: [
+		{ on: ["groupId", "version"], unique: true },
+		{ on: ["groupId", "status", "version"] },
+		{ on: ["groupId", "status", "effectiveFrom", "effectiveTo"] },
+		{ on: ["groupId", "policyPresetKey", "status"] },
+	],
 })
 const PolicyAssignment = defineTable({
 	// Assignment ranges select the guest arrival dates where this group applies.
@@ -389,6 +396,7 @@ const PolicyAssignment = defineTable({
 	},
 	indexes: [
 		{ on: ["scope", "scopeId", "category", "channel", "isActive"] },
+		{ on: ["scope", "scopeId", "category", "isActive", "effectiveFrom", "effectiveTo"] },
 		{ on: ["effectiveFrom", "effectiveTo"] },
 	],
 })
@@ -409,9 +417,10 @@ const PolicyRule = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		policyId: column.text({ references: () => Policy.columns.id }),
-		ruleKey: column.text({ optional: true }),
+		ruleKey: column.text(),
 		ruleValue: column.json({ optional: true }),
 	},
+	indexes: [{ on: ["policyId", "ruleKey"], unique: true }],
 })
 const PolicyExceptionRule = defineTable({
 	columns: {
@@ -431,6 +440,8 @@ const PolicyExceptionRule = defineTable({
 	},
 	indexes: [
 		{ on: ["scope", "scopeId", "category", "type", "isActive"] },
+		{ on: ["scope", "scopeId", "isActive", "priority"] },
+		{ on: ["category", "isActive"] },
 		{ on: ["effectiveFrom", "effectiveTo"] },
 	],
 })
