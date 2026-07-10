@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import { GET as resolvePoliciesGet } from "@/pages/api/policies/resolve"
 import {
@@ -76,21 +76,6 @@ function makeUrl(params: Record<string, string | undefined>) {
 }
 
 describe("integration/api policies resolve ratePlan-first", () => {
-	const previousRulesUiEnabled = process.env.RULES_UI_ENABLED
-	const previousPublicRulesUiEnabled = process.env.PUBLIC_RULES_UI_ENABLED
-
-	beforeAll(() => {
-		process.env.RULES_UI_ENABLED = "0"
-		process.env.PUBLIC_RULES_UI_ENABLED = "0"
-	})
-
-	afterAll(() => {
-		if (previousRulesUiEnabled == null) delete process.env.RULES_UI_ENABLED
-		else process.env.RULES_UI_ENABLED = previousRulesUiEnabled
-		if (previousPublicRulesUiEnabled == null) delete process.env.PUBLIC_RULES_UI_ENABLED
-		else process.env.PUBLIC_RULES_UI_ENABLED = previousPublicRulesUiEnabled
-	})
-
 	defineRatePlanFirstTestSuite({
 		suiteName: "api/policies/resolve ratePlan-first invariants",
 		seedContext: seedRatePlanContext,
