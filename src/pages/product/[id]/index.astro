@@ -5,6 +5,11 @@ import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import {
+	buildCompleteToPublishEntryHref,
+	buildCompleteToPublishResumeHref,
+} from "@/lib/playbook/complete-to-publish"
+import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -49,10 +54,65 @@ const status = String(statusRow?.state || "draft")
 const statusBadgeVariant =
 	status === "published" ? "success" : status === "ready" ? "info" : "warning"
 const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
+
+const publishState =
+	status !== "published"
+		? await loadCompleteToPublishState({
+				productId,
+				providerId,
+				request: Astro.request,
+				url: Astro.url,
+			})
+		: null
+const completePreparationHref = publishState
+	? buildCompleteToPublishResumeHref(productId, publishState.checks)
+	: buildCompleteToPublishEntryHref(productId)
+const preparationBlockerCount =
+	publishState?.blockers.filter((check) => check.sectionKey !== "preview").length ?? 0
 ---
 
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`}>
 	<section class="space-y-6">
+		{
+			status !== "published" && publishState && preparationBlockerCount > 0 ? (
+				<div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 sm:px-5">
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-amber-100">
+								Tu alojamiento aún no está listo para recibir reservas
+							</p>
+							<p class="text-sm text-amber-100/80">
+								Faltan {preparationBlockerCount} paso
+								{preparationBlockerCount === 1 ? "" : "s"}:{" "}
+								{publishState.blockers
+									.filter((check) => check.sectionKey !== "preview")
+									.slice(0, 3)
+									.map((check) => check.label.toLowerCase())
+									.join(", ")}
+							</p>
+						</div>
+						<div class="flex flex-wrap gap-2">
+							<Button href={completePreparationHref}>Continuar preparación</Button>
+							<Button href={routes.productPreview(productId)} variant="secondary">
+								Ver qué falta
+							</Button>
+						</div>
+					</div>
+				</div>
+			) : null
+		}
+		{
+			status !== "published" && publishState?.readyToPublish ? (
+				<div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 sm:px-5">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<p class="text-sm text-emerald-100">
+							Todo listo para publicar. Revisa la vista previa y confirma la publicación.
+						</p>
+						<Button href={routes.productPreview(productId)}>Ir a vista previa</Button>
+					</div>
+				</div>
+			) : null
+		}
 		<header class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-sm">
 			<div class="grid gap-0 lg:grid-cols-[280px_1fr]">
 				<div
@@ -83,8 +143,20 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 						</p>
 					</div>
 					<div class="flex flex-wrap gap-2">
-						<Button href={routes.productPreview(productId)} data-astro-prefetch>Vista previa</Button
-						>
+						{
+							status !== "published" && preparationBlockerCount > 0 ? (
+								<Button href={completePreparationHref}>Continuar preparación</Button>
+							) : null
+						}
+						{
+							status !== "published" && publishState?.readyToPublish ? (
+								<Button href={routes.productPreview(productId)}>Ir a vista previa</Button>
+							) : (
+								<Button href={routes.productPreview(productId)} data-astro-prefetch>
+									Vista previa
+								</Button>
+							)
+						}
 						<Button
 							href={`/product/${encodeURIComponent(productId)}/subtype`}
 							data-astro-prefetch
@@ -96,6 +168,45 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 				</div>
 			</div>
 		</header>
+
+		{
+			status !== "published" && publishState ? (
+				<Card class="border-slate-800 bg-slate-950 text-slate-100">
+					<div class="flex flex-wrap items-center justify-between gap-4">
+						<div class="min-w-0 flex-1 space-y-3">
+							<div class="space-y-1">
+								<p class="text-sm font-semibold text-slate-100">Preparación para publicar</p>
+								<p id="productMissingStepsText" class="text-sm text-slate-400">
+									{publishState.readyToPublish
+										? "Todo listo. Revisa la vista previa y confirma la publicación."
+										: preparationBlockerCount > 0
+											? `Faltan ${preparationBlockerCount} paso${preparationBlockerCount === 1 ? "" : "s"} del playbook.`
+											: "Completa los bloques pendientes para publicar."}
+								</p>
+							</div>
+							<div class="space-y-2">
+								<div class="h-2 w-full max-w-md overflow-hidden rounded-full bg-slate-800">
+									<div
+										id="productProgressBar"
+										class="h-full bg-emerald-400 transition-all"
+										style={`width: ${publishState.readinessPercent}%`}
+									/>
+								</div>
+								<p id="productProgressText" class="text-sm text-slate-400">
+									{publishState.completedChecks} de {publishState.totalChecks} pasos listos ·{" "}
+									{publishState.readinessPercent}% completado
+								</p>
+							</div>
+						</div>
+						<div class="flex flex-wrap gap-2">
+							<Button href={completePreparationHref}>
+								{publishState.readyToPublish ? "Ir a vista previa" : "Continuar preparación"}
+							</Button>
+						</div>
+					</div>
+				</Card>
+			) : null
+		}
 
 		<Section
 			title={detailTitle}
@@ -469,15 +580,6 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 		<details class="rounded-xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
 			<summary class="cursor-pointer text-sm font-semibold text-slate-100">Detalle interno</summary>
 			<div class="mt-4 space-y-4">
-				<div class="space-y-2">
-					<div class="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-						<div id="productProgressBar" class="h-full bg-slate-50" style="width: 0%"></div>
-					</div>
-					<p id="productProgressText" class="text-sm text-slate-300">Cargando estado interno...</p>
-					<p id="productMissingStepsText" class="text-sm text-slate-400">
-						Cargando señales internas...
-					</p>
-				</div>
 				<div
 					id="internalChecks"
 					class="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3"
@@ -517,7 +619,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 			const setBadgeState = (key, complete) => {
 				const badge = document.getElementById(`blockBadge-${key}`)
 				if (!badge) return
-				badge.textContent = complete ? "Listo" : "Falta"
+				badge.textContent = complete ? "Completo" : "Pendiente"
 				badge.classList.remove("bg-amber-100", "text-amber-800", "bg-green-100", "text-green-800")
 				if (complete) {
 					badge.classList.add("bg-green-100", "text-green-800")
@@ -531,7 +633,7 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 				if (element) element.textContent = value
 			}
 
-			const yesNo = (value) => (value ? "listo" : "pendiente")
+			const yesNo = (value) => (value ? "completo" : "pendiente")
 
 			if (!productId) return
 
@@ -551,10 +653,13 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const headerMeta = document.getElementById("productHeaderMeta")
 					const headerSummary = document.getElementById("productHeaderSummary")
 
-					const missing = Number(payload?.progress?.missingSteps ?? 0)
+					const preparation = payload?.preparation ?? null
+					const missing = Number(preparation?.blockerCount ?? payload?.progress?.missingSteps ?? 0)
+					const percent = Number(
+						preparation?.readinessPercent ?? payload?.progress?.progressPercent ?? 0
+					)
 					const completed = Number(payload?.progress?.completedSteps ?? 0)
 					const total = Number(payload?.progress?.totalSteps ?? 0)
-					const percent = Number(payload?.progress?.progressPercent ?? 0)
 					const address = String(payload?.location?.address || "Ubicación pendiente")
 					const productType = String(payload?.vertical?.label || verticalLabels.workspaceSingular)
 					const subtypeSummary = String(payload?.subtype?.summary || "Características pendientes")
@@ -564,26 +669,50 @@ const statusLabel = status === "published" ? "Publicado" : status === "ready" ? 
 					const hasHouseRules = Boolean(payload?.checks?.hasHouseRules)
 
 					if (missingStepsText) {
-						missingStepsText.textContent =
-							missing === 0
-								? "La ficha está lista para revisión final."
-								: `Faltan ${missing} puntos para completar la ficha.`
+						if (preparation?.readyToPublish) {
+							missingStepsText.textContent =
+								"Todo listo. Revisa la vista previa y confirma la publicación."
+						} else if (preparation?.blockerCount > 0) {
+							const preview = Array.isArray(preparation.blockerPreview)
+								? preparation.blockerPreview.map((label) => label.toLowerCase()).join(", ")
+								: ""
+							missingStepsText.textContent = `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"} del playbook${preview ? `: ${preview}` : ""}.`
+						} else {
+							missingStepsText.textContent =
+								missing === 0
+									? "La ficha está lista para revisión final."
+									: `Faltan ${missing} puntos para completar la ficha.`
+						}
 					}
 					if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
-					if (progressText)
-						progressText.textContent = `${completed} de ${total} puntos internos listos.`
+					if (progressText) {
+						progressText.textContent = preparation
+							? `${percent}% de preparación completada`
+							: `${completed} de ${total} puntos internos listos.`
+					}
 					if (readyChip) {
-						readyChip.textContent =
-							missing === 0 ? "Listo para publicar" : `Faltan ${missing} pasos`
-						readyChip.classList.toggle("border-green-700", missing === 0)
-						readyChip.classList.toggle("text-green-200", missing === 0)
+						if (preparation?.isPublished) {
+							readyChip.textContent = "Publicado"
+						} else if (preparation?.readyToPublish || missing === 0) {
+							readyChip.textContent = "Listo para publicar"
+						} else {
+							readyChip.textContent = `Faltan ${missing} pasos`
+						}
+						const ready = preparation?.readyToPublish || missing === 0
+						readyChip.classList.toggle("border-green-700", ready)
+						readyChip.classList.toggle("text-green-200", ready)
 					}
 					if (headerMeta) headerMeta.textContent = `${address} · ${productType}`
 					if (headerSummary) {
-						headerSummary.textContent =
-							missing === 0
-								? "La ficha tiene la información principal lista. Revisa la vista previa antes de publicar."
-								: `Completa los bloques pendientes para que este ${verticalLabels.singular} se entienda bien antes de reservar.`
+						if (preparation?.readyToPublish) {
+							headerSummary.textContent =
+								"La preparación está completa. Revisa la vista previa antes de publicar."
+						} else {
+							headerSummary.textContent =
+								missing === 0
+									? "La ficha tiene la información principal lista. Revisa la vista previa antes de publicar."
+									: `Completa los pasos pendientes del playbook para que este ${verticalLabels.singular} se entienda bien antes de reservar.`
+						}
 					}
 
 					setBadgeState("content", Boolean(payload?.checks?.hasContent))

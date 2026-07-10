@@ -3,10 +3,13 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
+import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -17,16 +20,31 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
-const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+const flow = Astro.url.searchParams.get("flow")
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(`/product/${productId}/images`, "images"))
+}
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "complete") {
+	return Astro.redirect(buildCompleteToPublishHref(`/product/${productId}/images`, "photos"))
+}
 
 const product = await getProductFullAggregate(productId, providerId)
 if (!product) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(product.productType)
+const isHotel = vertical.vertical === "hotel"
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingImages = product.images || []
 ---
 
-<WorkspaceLayout title="Alojamientos · Fotos">
+<PlaybookLayout
+	title="Alojamientos · Fotos"
+	playbookId={playbook.playbookId}
+	active={playbook.active}
+	stepId={playbook.stepId ?? "images"}
+	productId={productId}
+	isHotel={isHotel}
+>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
@@ -44,7 +62,16 @@ const existingImages = product.images || []
 					class="max-w-3xl space-y-6"
 				>
 					<Input type="hidden" name="productId" value={productId} />
-					<Input type="hidden" name="flow" value={flow} />
+					<Input
+						type="hidden"
+						name="flow"
+						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+					/>
+					{
+						playbook.active && playbook.playbookId ? (
+							<Input type="hidden" name="playbook" value={playbook.playbookId} />
+						) : null
+					}
 					<div class="space-y-4">
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">
@@ -88,10 +115,19 @@ const existingImages = product.images || []
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<Button href={`/product/${encodeURIComponent(productId)}/location`} variant="secondary">
+						<Button
+							href={playbook.active && playbook.playbookId === "launch"
+								? buildPlaybookHref(`/product/${productId}/location`, "location")
+								: playbook.active && playbook.playbookId === "complete-to-publish"
+									? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
+									: `/product/${encodeURIComponent(productId)}/location`}
+							variant="secondary"
+						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit"> Subir y asociar </Button>
+						<Button id="submitBtn" type="submit">
+							{playbook.active ? "Guardar y continuar" : "Subir y asociar"}
+						</Button>
 					</div>
 				</form>
 			</Card>
@@ -104,4 +140,4 @@ const existingImages = product.images || []
 		set:html={JSON.stringify(existingImages)}
 	/>
 	<script src="/src/lib/forms/productImagesHandler.ts"></script>
-</WorkspaceLayout>
+</PlaybookLayout>

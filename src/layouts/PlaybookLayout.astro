@@ -1,0 +1,243 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	ADD_ROOM_PLAYBOOK_TITLE,
+	getAddRoomStepById,
+	getApplicableAddRoomSteps,
+	getPreviousAddRoomStep,
+} from "@/lib/playbook/add-room"
+import { COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE } from "@/lib/playbook/complete-to-publish"
+import { evaluateAddRoomProgress } from "@/lib/playbook/evaluate-add-room-progress"
+import { evaluateCompleteToPublishProgress } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
+import {
+	getApplicableLaunchSteps,
+	getLaunchStepById,
+	getPreviousLaunchStep,
+	LAUNCH_PLAYBOOK_TITLE,
+	type LaunchStepId,
+} from "@/lib/playbook/launch-accommodation"
+import type { PlaybookId } from "@/lib/playbook/types"
+
+interface Props {
+	title?: string
+	playbookId?: PlaybookId | null
+	active?: boolean
+	stepId?: LaunchStepId | string | null
+	productId?: string
+	variantId?: string
+	ratePlanId?: string
+	isHotel?: boolean
+	continueHref?: string | null
+	hideFooter?: boolean
+}
+
+const {
+	title = "Workspace",
+	playbookId = "launch",
+	active = false,
+	stepId = null,
+	productId = "",
+	variantId = "",
+	ratePlanId = "",
+	isHotel = false,
+	continueHref = null,
+	hideFooter = false,
+} = Astro.props
+
+const isAddRoom = playbookId === "add-room"
+const isComplete = playbookId === "complete-to-publish"
+const launchCtx = { productId, isHotel }
+const addRoomCtx = {
+	productId,
+	variantId: variantId || undefined,
+	ratePlanId: ratePlanId || undefined,
+}
+
+let playbookTitle = LAUNCH_PLAYBOOK_TITLE
+let stepLabel = ""
+let stepGuestImpact = ""
+let stepNumber: number | null = null
+let totalSteps = 0
+let progressPercent = 0
+let previousHref: string | null = null
+let resolvedContinueHref = continueHref?.trim() || null
+let currentStepKnown = false
+
+if (isComplete && active && productId) {
+	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
+	const user = await getUserFromRequest(Astro.request)
+	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
+	if (providerId) {
+		const progress = await evaluateCompleteToPublishProgress(productId, providerId, {
+			currentStepId: stepId,
+			request: Astro.request,
+			url: Astro.url,
+		})
+		if (progress) {
+			progressPercent = progress.progress.progressPercent
+			totalSteps = progress.progress.totalSteps
+			const current = progress.steps.find((step) => step.isCurrent) ?? progress.steps[0]
+			if (current) {
+				currentStepKnown = true
+				stepLabel = current.label
+				stepGuestImpact = current.guestImpact
+				stepNumber = progress.steps.findIndex((step) => step.isCurrent) + 1
+				if (stepNumber === 0) stepNumber = 1
+			}
+			const previous = progress.steps
+				.filter((step) => step.isBlocker && step.key !== stepId)
+				.sort((a, b) => Number(a.isCurrent) - Number(b.isCurrent))[0]
+			if (previous) previousHref = previous.href
+			if (!resolvedContinueHref && progress.nextHref) {
+				resolvedContinueHref = progress.nextHref
+			}
+		}
+	}
+} else {
+	const applicableSteps = isAddRoom
+		? getApplicableAddRoomSteps(addRoomCtx)
+		: getApplicableLaunchSteps(launchCtx)
+	const currentStep = active
+		? isAddRoom
+			? getAddRoomStepById(stepId, addRoomCtx)
+			: getLaunchStepById(stepId, launchCtx)
+		: null
+	const previousStep =
+		active && stepId
+			? isAddRoom
+				? getPreviousAddRoomStep(stepId, addRoomCtx)
+				: getPreviousLaunchStep(stepId, launchCtx)
+			: null
+	const stepIndex = currentStep
+		? applicableSteps.findIndex((step) => step.id === currentStep.id)
+		: -1
+	stepNumber = stepIndex >= 0 ? stepIndex + 1 : null
+	totalSteps = applicableSteps.length
+	playbookTitle = isAddRoom ? ADD_ROOM_PLAYBOOK_TITLE : LAUNCH_PLAYBOOK_TITLE
+	if (currentStep) {
+		currentStepKnown = true
+		stepLabel = currentStep.label
+		stepGuestImpact = currentStep.guestImpact
+	}
+	previousHref = previousStep
+		? isAddRoom
+			? previousStep.buildHref(addRoomCtx)
+			: previousStep.buildHref(launchCtx)
+		: null
+
+	if (active && stepNumber && totalSteps > 0) {
+		progressPercent = Math.round(((stepNumber - 1) / totalSteps) * 100)
+	}
+
+	if (active && productId) {
+		const user = await getUserFromRequest(Astro.request)
+		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
+		if (providerId) {
+			const progress = isAddRoom
+				? await evaluateAddRoomProgress(productId, providerId, {
+						variantId,
+						ratePlanId,
+						currentStepId: stepId,
+					})
+				: await evaluateLaunchProgress(productId, providerId, {
+						isHotel,
+						currentStepId: stepId,
+					})
+			if (progress) {
+				progressPercent = progress.progress.progressPercent
+			}
+		}
+	}
+}
+
+const exitHref = productId
+	? isAddRoom
+		? `/product/${encodeURIComponent(productId)}/rooms`
+		: `/product/${encodeURIComponent(productId)}`
+	: "/dashboard"
+const isTerminalStep = isAddRoom
+	? stepId === "confirmation"
+	: isComplete
+		? stepId === "preview"
+		: stepId === "preview"
+const showFooter = active && currentStepKnown && !hideFooter
+---
+
+<WorkspaceLayout title={title}>
+	{
+		active && currentStepKnown ? (
+			<div class="mb-6 space-y-4">
+				<Card className="border-emerald-500/20 bg-emerald-500/5 px-4 py-4 text-slate-100 sm:px-5">
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="space-y-1">
+							<p class="text-xs font-medium tracking-wide text-emerald-300/80 uppercase">
+								{playbookTitle}
+								{stepNumber && totalSteps ? ` · Paso ${stepNumber} de ${totalSteps}` : ""}
+							</p>
+							<h2 class="text-lg font-semibold text-slate-100">{stepLabel}</h2>
+							<p class="max-w-2xl text-sm leading-6 text-slate-400">{stepGuestImpact}</p>
+						</div>
+						<Button href={exitHref} variant="secondary" class="shrink-0 text-sm">
+							Salir del flujo
+						</Button>
+					</div>
+					<div class="mt-4">
+						<div
+							class="fastt-progress-track h-1.5 overflow-hidden bg-white/10"
+							role="progressbar"
+							aria-valuenow={progressPercent}
+							aria-valuemin={0}
+							aria-valuemax={100}
+						>
+							<div
+								class="fastt-progress-value h-full bg-emerald-400"
+								style={`width: ${Math.max(progressPercent, stepNumber && totalSteps ? Math.round(((stepNumber - 1) / totalSteps) * 100) : 0)}%`}
+							/>
+						</div>
+					</div>
+				</Card>
+			</div>
+		) : null
+	}
+
+	<slot />
+
+	{
+		showFooter ? (
+			<footer class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
+				<div>
+					{previousHref ? (
+						<Button href={previousHref} variant="secondary">
+							← Anterior
+						</Button>
+					) : (
+						<span class="text-sm text-slate-500">
+							{isComplete ? "Checklist dinámico de preparación" : "Primer paso del recorrido"}
+						</span>
+					)}
+				</div>
+				<div class="flex flex-wrap items-center gap-3">
+					{isTerminalStep && isComplete ? (
+						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
+					) : isTerminalStep ? (
+						<Button href={exitHref}>{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}</Button>
+					) : resolvedContinueHref ? (
+						<Button href={resolvedContinueHref}>Continuar →</Button>
+					) : (
+						<p class="text-sm text-slate-400">
+							Guarda los cambios para continuar al siguiente paso.
+						</p>
+					)}
+					<Button href={exitHref} variant="secondary">
+						Salir del flujo
+					</Button>
+				</div>
+			</footer>
+		) : null
+	}
+</WorkspaceLayout>

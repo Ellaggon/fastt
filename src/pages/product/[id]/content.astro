@@ -5,7 +5,10 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -20,13 +23,21 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
-const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+const flow = Astro.url.searchParams.get("flow")
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: false })
+if (!playbook.active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(`/product/${productId}/content`, "content"))
+}
+if (!playbook.active && flow === "complete") {
+	return Astro.redirect(buildCompleteToPublishHref(`/product/${productId}/content`, "content"))
+}
 
 const aggregate = await getProductFullAggregate(productId, providerId)
 if (!aggregate) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
+const playbookResolved = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const descriptionValue = aggregate.content.description ?? ""
 
 const highlightsValue = Array.isArray(aggregate.content.highlights)
@@ -36,7 +47,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 		: ""
 ---
 
-<WorkspaceLayout title="Alojamientos · Descripción">
+<PlaybookLayout
+	title="Alojamientos · Descripción"
+	playbookId={playbookResolved.playbookId}
+	active={playbookResolved.active}
+	stepId={playbookResolved.stepId ?? "content"}
+	productId={productId}
+	isHotel={isHotel}
+>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
@@ -59,7 +77,16 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 					class="max-w-3xl space-y-6"
 				>
 					<Input type="hidden" name="productId" value={productId} />
-					<Input type="hidden" name="flow" value={flow} />
+					<Input
+						type="hidden"
+						name="flow"
+						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+					/>
+					{
+						playbookResolved.active && playbookResolved.playbookId ? (
+							<Input type="hidden" name="playbook" value={playbookResolved.playbookId} />
+						) : null
+					}
 					<div class="space-y-4">
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
@@ -118,10 +145,17 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<Button href={`/product/${encodeURIComponent(productId)}`} variant="secondary">
+						<Button
+							href={playbook.active
+								? `/product/${encodeURIComponent(productId)}`
+								: `/product/${encodeURIComponent(productId)}`}
+							variant="secondary"
+						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit"> Guardar contenido </Button>
+						<Button id="submitBtn" type="submit">
+							{playbookResolved.active ? "Guardar y continuar" : "Guardar contenido"}
+						</Button>
 					</div>
 				</form>
 			</Card>
@@ -129,6 +163,11 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 	</section>
 
 	<script type="module">
+		import {
+			isPlaybookMode,
+			resolvePlaybookRedirectAfterSave,
+		} from "@/lib/playbook/playbook-nav.ts"
+
 		const form = document.getElementById("contentForm")
 		const btn = document.getElementById("submitBtn")
 		const stateLabel = document.getElementById("stateLabel")
@@ -179,15 +218,12 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 
 				setState("success", "Guardado correctamente")
 				setTimeout(() => {
-					const targetProductId = encodeURIComponent(String(fd.get("productId") || ""))
-					const mode = String(fd.get("flow") || "")
-						.trim()
-						.toLowerCase()
-					if (mode !== "create") {
-						window.location.href = `/product/${targetProductId}`
-						return
-					}
-					window.location.href = `/product/${targetProductId}/location?flow=create`
+					const targetProductId = String(fd.get("productId") || "")
+					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+						productId: targetProductId,
+						launchPath: `/product/${encodeURIComponent(targetProductId)}/location`,
+						launchStep: "location",
+					})
 				}, 350)
 			} catch (err) {
 				btn.disabled = false
@@ -195,4 +231,4 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 			}
 		})
 	</script>
-</WorkspaceLayout>
+</PlaybookLayout>

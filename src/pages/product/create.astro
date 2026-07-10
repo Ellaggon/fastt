@@ -4,7 +4,11 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildPlaybookHref,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
@@ -27,9 +31,18 @@ const createCopy = requestedVertical?.createCopy ?? {
 	namePlaceholder: "Ej: Hotel Boutique Centro",
 }
 const selectedProductType = requestedVertical?.storageType ?? ""
+const playbook = resolveLaunchPlaybookFromUrl(Astro.url)
+if (!playbook.active && Astro.url.searchParams.get("flow") === "create") {
+	return Astro.redirect(buildPlaybookHref("/product/create", "create"))
+}
 ---
 
-<WorkspaceLayout title="Alojamientos · Crear alojamiento">
+<PlaybookLayout
+	title="Alojamientos · Crear alojamiento"
+	active={playbook.active}
+	stepId={playbook.stepId ?? "create"}
+	isHotel={requestedVertical?.vertical === "hotel"}
+>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
@@ -81,7 +94,11 @@ const selectedProductType = requestedVertical?.storageType ?? ""
 					<div class="flex items-center justify-end gap-3">
 						<Button href="/dashboard" variant="secondary"> Volver </Button>
 						<Button id="submitBtn" type="submit">
-							{requestedVertical?.labels.createCta ?? "Crear oferta"}
+							{
+								playbook.active
+									? "Crear y continuar"
+									: (requestedVertical?.labels.createCta ?? "Crear oferta")
+							}
 						</Button>
 					</div>
 				</form>
@@ -145,7 +162,7 @@ const selectedProductType = requestedVertical?.storageType ?? ""
 				}
 
 				setState("success", "Guardado correctamente")
-				window.location.href = `/product/${json.id}/content?flow=create`
+				window.location.href = `/product/${json.id}/content?playbook=launch&step=content&flow=create`
 			} catch (err) {
 				btn.disabled = false
 				btn.textContent = btnText
@@ -153,4 +170,4 @@ const selectedProductType = requestedVertical?.storageType ?? ""
 			}
 		})
 	</script>
-</WorkspaceLayout>
+</PlaybookLayout>

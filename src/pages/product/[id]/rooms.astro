@@ -3,6 +3,12 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildAddRoomEntryHref,
+	buildAddRoomHref,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -22,9 +28,30 @@ if (!productId) return Astro.redirect(routes.productList())
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect(routes.productList())
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	return Astro.redirect(buildAddRoomHref(routes.productRoomsForProduct(productId), "confirmation"))
+}
+const highlightVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const addRoomEntryHref = buildAddRoomEntryHref(productId)
+const addRoomNewRoomHref = buildAddRoomHref(routes.productRoomNew(productId), "create-room")
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: `Habitaciones · ${owned.name}`,
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "confirmation",
+			productId,
+			variantId: highlightVariantId,
+			isHotel: true,
+		}
+	: { title: `Habitaciones · ${owned.name}` }
 ---
 
-<WorkspaceLayout title={`Habitaciones · ${owned.name}`}>
+<Layout {...layoutProps}>
 	<section class="space-y-8">
 		<header
 			class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6"
@@ -47,9 +74,12 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 					<Button href={routes.productDetail(productId)} data-astro-prefetch variant="secondary">
 						Volver a la ficha
 					</Button>
-					<Button href={routes.productRoomNew(productId)} data-astro-prefetch>
+					<Button href={addRoomNewRoomHref} data-astro-prefetch>
 						<Plus class="mr-2 h-4 w-4" />
 						Nueva habitación
+					</Button>
+					<Button href={addRoomEntryHref} data-astro-prefetch variant="secondary">
+						Guía paso a paso
 					</Button>
 				</div>
 			</div>
@@ -122,9 +152,16 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 								<span class="rounded-lg bg-slate-50 px-3 py-2">Lista para vender</span>
 							</div>
 							<div class="flex flex-wrap gap-2">
-								<Button href={routes.productRoomNew(productId)} data-astro-prefetch>
+								<Button href={addRoomEntryHref} data-astro-prefetch>
 									<Plus class="mr-2 h-4 w-4" />
-									Nueva habitación
+									Preparar mi primera habitación
+								</Button>
+								<Button
+									href={routes.productRoomNew(productId)}
+									data-astro-prefetch
+									variant="secondary"
+								>
+									Solo crear habitación
 								</Button>
 								<Button
 									href={routes.productDetail(productId)}
@@ -178,7 +215,10 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 		</Section>
 	</section>
 
-	<script is:inline define:vars={{ productId }}>
+	<script
+		is:inline
+		define:vars={{ productId, highlightVariantId, addRoomPlaybookActive: addRoomPlaybook.active }}
+	>
 		;(function () {
 			if (!productId) return
 
@@ -231,8 +271,11 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 
 			const roomCard = (room) => {
 				const card = document.createElement("article")
-				card.className =
-					"fastt-row-card overflow-hidden bg-white transition hover:-translate-y-0.5 hover:shadow-md"
+				const isHighlighted =
+					highlightVariantId && String(room?.id ?? "") === String(highlightVariantId)
+				card.className = `fastt-row-card overflow-hidden bg-white transition hover:-translate-y-0.5 hover:shadow-md${
+					isHighlighted ? " ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-950" : ""
+				}`
 
 				const layout = document.createElement("div")
 				layout.className = "grid min-h-[280px] gap-0 md:grid-cols-[180px_1fr]"
@@ -276,6 +319,38 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				grid.className = "grid gap-3 sm:grid-cols-2"
 				const photosCount = Number(room?.photos?.count ?? 0)
 				const tariffCount = Number(room?.tariffs?.count ?? 0)
+				const isComplete = Boolean(room?.states?.isComplete)
+				const resumeParams = (step, extra = {}) => {
+					const params = new URLSearchParams({
+						playbook: "add-room",
+						step,
+						flow: "add-room",
+						...extra,
+					})
+					return params.toString()
+				}
+				const resumeHref = (() => {
+					const variantId = String(room?.id ?? "")
+					const ratePlanId = String(room?.tariffs?.defaultId ?? "")
+					if (!variantId) return "#"
+					if (!room?.states?.capacityComplete) {
+						return `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}?${resumeParams("create-room")}`
+					}
+					if (photosCount <= 0) {
+						return `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}?${resumeParams("room-photos")}#fotos`
+					}
+					if (tariffCount <= 0) {
+						return `/rates/plans/manage?${resumeParams("create-rate", { variantId, openDialog: "1" })}`
+					}
+					if (!room?.states?.inventoryComplete) {
+						const params = new URLSearchParams(
+							resumeParams("availability", { variantId, focus: "availability" })
+						)
+						if (ratePlanId) params.set("ratePlanId", ratePlanId)
+						return `/rates/calendar?${params.toString()}`
+					}
+					return `/product/${encodeURIComponent(productId)}/rooms?${resumeParams("confirmation", { variantId })}`
+				})()
 				grid.append(
 					metric(
 						"Capacidad",
@@ -324,9 +399,39 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				if (photosCount <= 0) missing.push("fotos")
 				if (tariffCount <= 0) missing.push("tarifas")
 				if (!room?.states?.inventoryComplete) missing.push("calendario")
-				nextStep.textContent = missing.length
-					? `Siguiente paso recomendado: completar ${missing[0]}.`
-					: "Lista para mostrarse con confianza en la ficha pública."
+
+				if (isHighlighted && addRoomPlaybookActive) {
+					const success = document.createElement("p")
+					success.className = "font-semibold text-emerald-800"
+					success.textContent = isComplete
+						? "Habitación lista para vender."
+						: "Habitación creada. Revisa el siguiente paso si aún falta algo."
+					nextStep.append(success)
+				} else if (tariffCount <= 0) {
+					const warn = document.createElement("p")
+					warn.textContent =
+						"Esta habitación aún no se puede vender. Siguiente paso: crear una tarifa."
+					const ctaRow = document.createElement("div")
+					ctaRow.className = "mt-3 flex flex-wrap gap-2"
+					ctaRow.append(
+						action(
+							`/rates/plans/manage?${resumeParams("create-rate", { variantId: String(room?.id ?? ""), openDialog: "1" })}`,
+							"Crear tarifa",
+							true
+						),
+						action(resumeHref, "Guía paso a paso", false)
+					)
+					nextStep.append(warn, ctaRow)
+				} else if (missing.length > 0) {
+					const warn = document.createElement("p")
+					warn.textContent = `Siguiente paso recomendado: completar ${missing[0]}.`
+					const ctaRow = document.createElement("div")
+					ctaRow.className = "mt-3 flex flex-wrap gap-2"
+					ctaRow.append(action(resumeHref, "Retomar configuración", true))
+					nextStep.append(warn, ctaRow)
+				} else {
+					nextStep.textContent = "Lista para mostrarse con confianza en la ficha pública."
+				}
 
 				body.append(top, grid, tariffSummary, actions, nextStep)
 				layout.append(imageSlot, body)
@@ -384,4 +489,4 @@ if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.product
 				})
 		})()
 	</script>
-</WorkspaceLayout>
+</Layout>

@@ -4,8 +4,12 @@ import { db, eq, Product } from "astro:db"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	buildPlaybookHref,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
 import { routes } from "@/lib/routes"
 import {
@@ -152,6 +156,11 @@ function redirectToHouseRules(success: string, productId?: string) {
 	const params = new URLSearchParams({ success })
 	const contextualProductId = String(productId ?? "").trim()
 	if (contextualProductId) params.set("productId", contextualProductId)
+	if (resolveLaunchPlaybookFromUrl(Astro.url).active) {
+		params.set("playbook", "launch")
+		params.set("step", "house-rules")
+		params.set("flow", "create")
+	}
 	return Astro.redirect(`${routes.providerHouseRules()}?${params.toString()}`)
 }
 
@@ -268,9 +277,28 @@ for (const rule of previewRules) {
 	selectedRulesByType.set(type, rules)
 }
 const internalRuleCount = allRules.length
+const playbook = resolveLaunchPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+if (!playbook.active && flow === "create" && selectedProductId) {
+	return Astro.redirect(
+		buildPlaybookHref(
+			`${routes.providerHouseRules()}?productId=${encodeURIComponent(selectedProductId)}`,
+			"house-rules"
+		)
+	)
+}
+const previewPlaybookHref = selectedProductId
+	? buildPlaybookHref(routes.productPreview(selectedProductId), "preview")
+	: null
 ---
 
-<WorkspaceLayout title="Reglas para huéspedes">
+<PlaybookLayout
+	title="Reglas para huéspedes"
+	active={playbook.active}
+	stepId={playbook.stepId ?? "house-rules"}
+	productId={selectedProductId}
+	isHotel={true}
+>
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
@@ -299,6 +327,11 @@ const internalRuleCount = allRules.length
 							Alojamientos
 						</Button>
 					)
+				}
+				{
+					playbook.active && previewPlaybookHref ? (
+						<Button href={previewPlaybookHref}>Continuar a vista previa</Button>
+					) : null
 				}
 				{
 					selectedProduct ? (
@@ -850,4 +883,4 @@ const internalRuleCount = allRules.length
 			</div>
 		</details>
 	</div>
-</WorkspaceLayout>
+</PlaybookLayout>

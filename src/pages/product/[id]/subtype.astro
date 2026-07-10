@@ -4,7 +4,10 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalDefinition } from "@/lib/productVerticalRegistry"
@@ -19,7 +22,13 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
-const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+const flow = Astro.url.searchParams.get("flow")
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(`/product/${productId}/subtype`, "subtype"))
+}
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "complete") {
+	return Astro.redirect(buildCompleteToPublishHref(`/product/${productId}/subtype`, "subtype"))
+}
 
 const product = await getProductById(productId)
 if (!product) return Astro.redirect("/product/create")
@@ -27,6 +36,8 @@ if (!product) return Astro.redirect("/product/create")
 const pt = String(product.productType || "")
 	.trim()
 	.toLowerCase()
+const isHotel = pt === "hotel"
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const vertical = getProductVerticalDefinition(product.productType)
 const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"
 const detailTitle = vertical?.labels.detailTitle ?? "Detalles de la oferta"
@@ -110,7 +121,14 @@ const limousineSubtype =
 		: null
 ---
 
-<WorkspaceLayout title={`Alojamientos · ${detailTitle}`}>
+<PlaybookLayout
+	title={`Alojamientos · ${detailTitle}`}
+	playbookId={playbook.playbookId}
+	active={playbook.active}
+	stepId={playbook.stepId ?? "subtype"}
+	productId={productId}
+	isHotel={isHotel}
+>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
@@ -129,7 +147,16 @@ const limousineSubtype =
 					class="max-w-3xl space-y-6"
 				>
 					<Input type="hidden" name="productId" value={productId} />
-					<Input type="hidden" name="flow" value={flow} />
+					<Input
+						type="hidden"
+						name="flow"
+						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+					/>
+					{
+						playbook.active && playbook.playbookId ? (
+							<Input type="hidden" name="playbook" value={playbook.playbookId} />
+						) : null
+					}
 					<div class="space-y-4">
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">{subtypeHeading}</h2>
@@ -416,17 +443,31 @@ const limousineSubtype =
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<Button href={`/product/${encodeURIComponent(productId)}/images`} variant="secondary">
+						<Button
+							href={playbook.active
+								? buildPlaybookHref(`/product/${productId}/images`, "images")
+								: `/product/${encodeURIComponent(productId)}/images`}
+							variant="secondary"
+						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit"> Guardar subtipo </Button>
+						<Button id="submitBtn" type="submit">
+							{playbook.active ? "Guardar y continuar" : "Guardar subtipo"}
+						</Button>
 					</div>
 				</form>
 			</Card>
 		</section>
 	</section>
 
-	<script type="module">
+	<script type="module" define:vars={{ isHotel, productId }}>
+		import {
+			isCompleteToPublishPlaybookMode,
+			isPlaybookMode,
+			playbookRedirectHref,
+			resolvePlaybookRedirectAfterSave,
+		} from "@/lib/playbook/playbook-nav.ts"
+
 		const form = document.getElementById("subtypeForm")
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
@@ -461,11 +502,33 @@ const limousineSubtype =
 				}
 				const id = String(fd.get("productId") || "")
 				setState("success", "Guardado correctamente")
-				window.location.href = `/product/${encodeURIComponent(id)}`
+				if (!isPlaybookMode(fd)) {
+					window.location.href = `/product/${encodeURIComponent(id)}`
+					return
+				}
+				if (isCompleteToPublishPlaybookMode(fd)) {
+					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+						productId: id,
+						launchPath: `/product/${encodeURIComponent(id)}/preview`,
+						launchStep: "preview",
+					})
+					return
+				}
+				if (isHotel) {
+					window.location.href = playbookRedirectHref(
+						`/product/${encodeURIComponent(id)}/rooms/new`,
+						"room-profile"
+					)
+					return
+				}
+				window.location.href = playbookRedirectHref(
+					`/product/${encodeURIComponent(id)}/preview`,
+					"preview"
+				)
 			} catch (err) {
 				btn.disabled = false
 				setState("error", `Error de red: ${String(err)}`)
 			}
 		})
 	</script>
-</WorkspaceLayout>
+</PlaybookLayout>

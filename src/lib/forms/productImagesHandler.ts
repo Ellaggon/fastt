@@ -203,7 +203,8 @@ document.addEventListener("DOMContentLoaded", () => {
 				return
 			}
 
-			const productId = String(new FormData(form).get("productId") || "")
+			const formFd = new FormData(form)
+			const productId = String(formFd.get("productId") || "")
 			const imageIds: string[] = []
 
 			for (const item of pendingImages) {
@@ -282,12 +283,26 @@ document.addEventListener("DOMContentLoaded", () => {
 				return
 			}
 
-			const mode = String(new FormData(form).get("flow") || "")
+			const mode = String(formFd.get("flow") || "")
+				.trim()
+				.toLowerCase()
+			const playbook = String(formFd.get("playbook") || "")
 				.trim()
 				.toLowerCase()
 			setState("success", "Guardado correctamente")
-			if (mode === "create") {
-				window.location.href = `/product/${encodeURIComponent(productId)}/subtype?flow=create`
+			if (
+				mode === "create" ||
+				mode === "complete" ||
+				playbook === "launch" ||
+				playbook === "launch-accommodation" ||
+				playbook === "complete-to-publish" ||
+				playbook === "complete"
+			) {
+				if (mode === "complete" || playbook === "complete-to-publish" || playbook === "complete") {
+					window.location.href = `/product/${encodeURIComponent(productId)}/preview?playbook=complete-to-publish&step=preview&flow=complete`
+					return
+				}
+				window.location.href = `/product/${encodeURIComponent(productId)}/subtype?playbook=launch&step=subtype&flow=create`
 				return
 			}
 			window.location.href = `/product/${encodeURIComponent(productId)}`

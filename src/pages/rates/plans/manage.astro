@@ -7,6 +7,12 @@ import Input from "@/components/ui/Input.astro"
 import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildAddRoomHref,
+	getNextAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -142,9 +148,43 @@ const tabs = [
 	{ id: "inactive", label: "Inactivas", count: draftRatePlans },
 	{ id: "all", label: "Todas", count: rows.length },
 ]
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "add-room")
+	params.set("step", "create-rate")
+	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
+}
+
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
+const matchedVariant = variantChoices.find((choice) => choice.variantId === requestedVariantId)
+const playbookProductId = matchedVariant?.productId ?? addRoomPlaybook.productId
+const addRoomCtx = {
+	productId: playbookProductId,
+	variantId: requestedVariantId || undefined,
+}
+const addRoomContinueHref = addRoomPlaybook.active
+	? (getNextAddRoomStep("create-rate", addRoomCtx)?.buildHref(addRoomCtx) ?? null)
+	: null
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Tarifas · Nueva tarifa",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "create-rate",
+			productId: playbookProductId,
+			variantId: requestedVariantId,
+			isHotel: true,
+			continueHref: addRoomContinueHref,
+		}
+	: { title: "Tarifas" }
 ---
 
-<WorkspaceLayout title="Tarifas">
+<Layout {...layoutProps}>
 	<div class="rate-plans-manage space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
@@ -455,7 +495,12 @@ const tabs = [
 							<option value="">Selecciona una habitación</option>
 							{
 								variantChoices.map((choice) => (
-									<option value={choice.variantId}>{choice.label}</option>
+									<option
+										value={choice.variantId}
+										selected={choice.variantId === requestedVariantId}
+									>
+										{choice.label}
+									</option>
 								))
 							}
 						</Select>
@@ -556,7 +601,7 @@ const tabs = [
 			</footer>
 		</form>
 	</Dialog>
-</WorkspaceLayout>
+</Layout>
 
 <style>
 	.rate-plans-manage {
@@ -564,7 +609,13 @@ const tabs = [
 	}
 </style>
 
-<script>
+<script
+	define:vars={{
+		requestedVariantId,
+		shouldOpenDialog,
+		addRoomPlaybookActive: addRoomPlaybook.active,
+	}}
+>
 	const ratePlanTabs = Array.from(
 		document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
 	)
@@ -774,6 +825,18 @@ const tabs = [
 			const result = await response.json().catch(() => null)
 			if (!response.ok || !result?.ratePlanId)
 				throw new Error(result?.error || "No se pudo crear la tarifa")
+			if (addRoomPlaybookActive) {
+				const params = new URLSearchParams({
+					playbook: "add-room",
+					step: "conditions",
+					flow: "add-room",
+					variantId: payload.variantId,
+					ratePlanId: String(result.ratePlanId),
+					vista: "conditions",
+				})
+				window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}?${params.toString()}`
+				return
+			}
 			window.location.href = `/rates/plans/${encodeURIComponent(result.ratePlanId)}`
 		} catch (error) {
 			if (feedback)
@@ -785,4 +848,12 @@ const tabs = [
 	})
 
 	renderStep()
+
+	if (shouldOpenDialog && dialog) {
+		const variantSelect = form?.querySelector('[name="variantId"]')
+		if (variantSelect instanceof HTMLSelectElement && requestedVariantId) {
+			variantSelect.value = requestedVariantId
+		}
+		dialog.showModal()
+	}
 </script>

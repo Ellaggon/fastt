@@ -3,9 +3,11 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildAddRoomHref, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import { routes } from "@/lib/routes"
 import { and, db, eq, Product, sql, Variant } from "astro:db"
 
@@ -59,16 +61,39 @@ for (const row of rows) {
 }
 
 const products = Array.from(byProduct.values())
-if (products.length === 1) return Astro.redirect(routes.productRoomsForProduct(products[0].id))
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	return Astro.redirect(
+		buildAddRoomHref(routes.catalogAccommodationRooms(), "choose-accommodation")
+	)
+}
+if (products.length === 1) {
+	if (addRoomPlaybook.active) {
+		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(products[0].id), "create-room"))
+	}
+	return Astro.redirect(routes.productRoomsForProduct(products[0].id))
+}
 
 const totalRooms = products.reduce((sum, product) => sum + product.rooms.length, 0)
 const activeRooms = products.reduce(
 	(sum, product) => sum + product.rooms.filter((room) => room.active).length,
 	0
 )
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Alojamientos · Habitaciones",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "choose-accommodation",
+			productId: "",
+			isHotel: true,
+		}
+	: { title: "Alojamientos · Habitaciones" }
 ---
 
-<WorkspaceLayout title="Alojamientos · Habitaciones">
+<Layout {...layoutProps}>
 	<section class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
@@ -132,9 +157,8 @@ const activeRooms = products.reduce(
 											Abrir habitaciones
 										</Button>
 										<Button
-											href={routes.productRoomNew(product.id)}
+											href={buildAddRoomHref(routes.productRoomNew(product.id), "create-room")}
 											data-astro-prefetch
-											variant="secondary"
 										>
 											Agregar habitación
 										</Button>
@@ -175,4 +199,4 @@ const activeRooms = products.reduce(
 			}
 		</Section>
 	</section>
-</WorkspaceLayout>
+</Layout>

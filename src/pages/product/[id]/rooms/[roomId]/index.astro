@@ -5,6 +5,12 @@ import Card from "@/components/ui/Card.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildAddRoomHref,
+	getNextAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -48,9 +54,41 @@ const tabs = [
 	{ id: "disponibilidad", label: "Disponibilidad", icon: CalendarDays },
 	{ id: "publicacion", label: "Publicación", icon: ClipboardCheck },
 ]
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	return Astro.redirect(
+		buildAddRoomHref(routes.productRoomDetail(productId, roomId), "room-photos")
+	)
+}
+const addRoomCtx = {
+	productId,
+	variantId: roomId,
+	ratePlanId: addRoomPlaybook.ratePlanId || undefined,
+}
+const addRoomContinueHref = addRoomPlaybook.active
+	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "room-photos", addRoomCtx)?.buildHref(
+			addRoomCtx
+		) ?? null)
+	: null
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Contenido del alojamiento · Habitación",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "room-photos",
+			productId,
+			variantId: roomId,
+			ratePlanId: addRoomPlaybook.ratePlanId,
+			isHotel: true,
+			continueHref: addRoomContinueHref,
+		}
+	: { title: "Contenido del alojamiento · Habitación" }
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Habitación">
+<Layout {...layoutProps}>
 	<section class="space-y-8">
 		<header class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-sm">
 			<div class="grid gap-0 lg:grid-cols-[1fr_340px]">
@@ -383,7 +421,10 @@ const tabs = [
 		</div>
 	</section>
 
-	<script is:inline define:vars={{ productId, roomId }}>
+	<script
+		is:inline
+		define:vars={{ productId, roomId, addRoomPlaybookActive: addRoomPlaybook.active }}
+	>
 		;(function () {
 			const shellStart = performance.now()
 			const logShellVisible = () => {
@@ -455,7 +496,9 @@ const tabs = [
 					showTab(String(button.getAttribute("data-room-tab")))
 				)
 			}
-			showTab(window.location.hash || "perfil", { skipHash: true })
+			showTab(window.location.hash || (addRoomPlaybookActive ? "fotos" : "perfil"), {
+				skipHash: true,
+			})
 			window.addEventListener("hashchange", () => showTab(window.location.hash, { skipHash: true }))
 
 			const statusClass = (tone) => {
@@ -923,6 +966,17 @@ const tabs = [
 					renderRoomImages()
 					await loadRoom()
 					if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
+					if (addRoomPlaybookActive && roomImages.length > 0) {
+						const params = new URLSearchParams({
+							playbook: "add-room",
+							step: "create-rate",
+							flow: "add-room",
+							variantId: roomId,
+							openDialog: "1",
+						})
+						window.location.href = `/rates/plans/manage?${params.toString()}`
+						return
+					}
 				} catch (error) {
 					if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
 				} finally {
@@ -987,4 +1041,4 @@ const tabs = [
 			void loadRoom()
 		})()
 	</script>
-</WorkspaceLayout>
+</Layout>

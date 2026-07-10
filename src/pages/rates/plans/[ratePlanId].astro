@@ -5,6 +5,12 @@ import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import Textarea from "@/components/ui/Textarea.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildAddRoomHref,
+	getNextAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
@@ -79,9 +85,44 @@ const tabs = [
 	{ id: "details", label: "Datos de tarifa", meta: row.isActive ? "Activa" : "Inactiva" },
 ]
 const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(ratePlanId)}&focus=price`
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	return Astro.redirect(
+		buildAddRoomHref(
+			`${routes.ratePlanDetail(ratePlanId)}?vista=conditions&variantId=${encodeURIComponent(String(row.variantId))}`,
+			"conditions"
+		)
+	)
+}
+const addRoomCtx = {
+	productId: String(row.productId),
+	variantId: String(row.variantId),
+	ratePlanId,
+}
+const addRoomContinueHref = addRoomPlaybook.active
+	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "conditions", addRoomCtx)?.buildHref(
+			addRoomCtx
+		) ?? null)
+	: null
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: `Tarifa · ${row.ratePlanName}`,
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "conditions",
+			productId: addRoomCtx.productId,
+			variantId: addRoomCtx.variantId,
+			ratePlanId,
+			isHotel: true,
+			continueHref: addRoomContinueHref,
+		}
+	: { title: `Tarifa · ${row.ratePlanName}` }
 ---
 
-<WorkspaceLayout title={`Tarifa · ${row.ratePlanName}`}>
+<Layout {...layoutProps}>
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
@@ -99,6 +140,11 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 			</div>
 			<div class="flex flex-wrap gap-2">
 				<Button href={routes.rates()} variant="secondary">Volver a tarifas</Button>
+				{
+					addRoomPlaybook.active && addRoomContinueHref ? (
+						<Button href={addRoomContinueHref}>Continuar a disponibilidad</Button>
+					) : null
+				}
 				<Button href={calendarHref} variant="primary">Calendario</Button>
 			</div>
 		</header>
@@ -291,7 +337,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 			</div>
 		</form>
 	</dialog>
-</WorkspaceLayout>
+</Layout>
 
 <script>
 	const ratePlanTabs = Array.from(

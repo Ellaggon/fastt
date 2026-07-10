@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro"
-import { db, eq, inArray, Product, ProductStatus, Variant } from "astro:db"
+import { db, eq, inArray, Product, ProductStatus } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
+import { routes } from "@/lib/routes"
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
 	const endpointName = "dashboard-summary"
 	const logEndpoint = () => {
@@ -42,15 +44,12 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const productIds = products.map((product) => product.id)
 
-	const [variants, statuses] = productIds.length
-		? await Promise.all([
-				db.select({ id: Variant.id }).from(Variant).where(inArray(Variant.productId, productIds)),
-				db
-					.select({ productId: ProductStatus.productId, state: ProductStatus.state })
-					.from(ProductStatus)
-					.where(inArray(ProductStatus.productId, productIds)),
-			])
-		: [[], []]
+	const statuses = productIds.length
+		? await db
+				.select({ productId: ProductStatus.productId, state: ProductStatus.state })
+				.from(ProductStatus)
+				.where(inArray(ProductStatus.productId, productIds))
+		: []
 
 	const statusMap = new Map(
 		statuses.map((row) => [
@@ -61,22 +60,50 @@ export const GET: APIRoute = async ({ request }) => {
 		])
 	)
 
-	const readyProducts = products.filter((product) => {
-		const state = statusMap.get(product.id)
-		return state === "ready" || state === "published"
-	}).length
-
 	const totalProducts = products.length
-	const totalVariants = variants.length
-	const pendingProducts = Math.max(0, totalProducts - readyProducts)
+	const publishedProducts = products.filter(
+		(product) => statusMap.get(product.id) === "published"
+	).length
+	const readyProducts = products.filter((product) => statusMap.get(product.id) === "ready").length
+	const inPreparationProducts = Math.max(0, totalProducts - publishedProducts - readyProducts)
 
-	const productList = products.slice(0, 5).map((product) => {
+	const listProducts = products.slice(0, 5)
+	const preparationSummaries = await Promise.all(
+		listProducts.map((product) =>
+			summarizeProductPreparation({
+				productId: product.id,
+				providerId,
+				status: statusMap.get(product.id),
+				request,
+				url,
+			})
+		)
+	)
+
+	const readyToPublishFromPlaybook = preparationSummaries.filter(
+		(summary) => summary && !summary.isPublished && summary.readyToPublish
+	).length
+
+	const productList = listProducts.map((product, index) => {
+		const preparation = preparationSummaries[index]
 		const state = statusMap.get(product.id) ?? "draft"
 		return {
 			id: product.id,
 			name: product.name,
 			status: state,
-			href: `/product/${encodeURIComponent(product.id)}`,
+			statusLabel: preparation?.statusLabel ?? "En preparación",
+			href: routes.productDetail(product.id),
+			preparation: preparation
+				? {
+						readinessPercent: preparation.readinessPercent,
+						blockerCount: preparation.blockerCount,
+						blockerPreview: preparation.blockerPreview,
+						readyToPublish: preparation.readyToPublish,
+						continuePreparationHref: preparation.continuePreparationHref,
+						previewHref: preparation.previewHref,
+						nextStepLabel: preparation.nextStepLabel,
+					}
+				: null,
 		}
 	})
 
@@ -84,9 +111,10 @@ export const GET: APIRoute = async ({ request }) => {
 	return new Response(
 		JSON.stringify({
 			totalProducts,
-			totalVariants,
+			publishedProducts,
+			inPreparationProducts,
 			readyProducts,
-			pendingProducts,
+			readyToPublishProducts: Math.max(readyProducts, readyToPublishFromPlaybook),
 			products: productList,
 		}),
 		{
