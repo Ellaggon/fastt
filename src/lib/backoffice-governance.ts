@@ -458,6 +458,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Provider-facing BFF read model for property content.",
 	},
 	{
+		pattern: "/api/internal/playbook-progress",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale: "Provider-facing BFF for launch and add-room playbook step progress and navigation.",
+	},
+	{
 		pattern: "/api/internal/rooms-summary",
 		status: "canonical",
 		context: "provider-workspace",

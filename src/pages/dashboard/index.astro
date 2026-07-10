@@ -19,33 +19,39 @@ if (!providerId) return Astro.redirect("/provider")
 		<header class="space-y-2">
 			<h1 class="text-3xl font-semibold text-slate-100">Dashboard</h1>
 			<p class="text-sm text-slate-400">
-				Resumen operativo para gestionar proveedor, productos y variantes desde una sola superficie.
+				Resumen de preparación de tus alojamientos: qué falta completar y qué está listo para
+				publicar.
 			</p>
 		</header>
 
-		<Section title="Estado general" description="Indicadores rápidos del workspace.">
+		<Section
+			title="Estado de preparación"
+			description="Indicadores del playbook de publicación en tu workspace."
+		>
 			<div id="dashboardStatsGrid" class="grid gap-4 md:grid-cols-3" data-state="loading">
 				<Card id="cardProducts" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">Productos</p>
+					<p class="text-sm font-semibold text-slate-900">Alojamientos</p>
 					<p id="statProducts" class="text-2xl font-bold text-slate-900">—</p>
-					<div class="h-2 w-24 animate-pulse rounded bg-slate-300" data-skeleton></div>
+					<p id="statProductsDetail" class="text-sm text-slate-600">Fichas en tu cuenta</p>
 				</Card>
-				<Card id="cardVariants" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">Variantes</p>
-					<p id="statVariants" class="text-2xl font-bold text-slate-900">—</p>
-					<div class="h-2 w-24 animate-pulse rounded bg-slate-300" data-skeleton></div>
+				<Card id="cardInPreparation" class="min-h-[112px] space-y-2 bg-slate-100">
+					<p class="text-sm font-semibold text-slate-900">En preparación</p>
+					<p id="statInPreparation" class="text-2xl font-bold text-slate-900">—</p>
+					<p class="text-sm text-slate-600">Con pasos pendientes del playbook</p>
 				</Card>
-				<Card id="cardReadiness" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">Readiness</p>
-					<div class="flex items-center gap-2" id="readinessWrap">
-						<Badge id="readinessBadge" variant="warning"> Cargando... </Badge>
-						<p id="readinessText" class="text-sm text-slate-700">Obteniendo métricas...</p>
+				<Card id="cardReadyToPublish" class="min-h-[112px] space-y-2 bg-slate-100">
+					<p class="text-sm font-semibold text-slate-900">Listos para publicar</p>
+					<div class="space-y-1">
+						<p id="statReadyToPublish" class="text-2xl font-bold text-slate-900">—</p>
+						<p id="readyToPublishDetail" class="text-sm text-slate-600">
+							Revisión final en vista previa
+						</p>
 					</div>
 				</Card>
 			</div>
 		</Section>
 
-		<Section title="Productos recientes" description="Carga progresiva del listado de productos.">
+		<Section title="Alojamientos recientes" description="Continúa la preparación donde lo dejaste.">
 			<Card class="min-h-[168px] bg-slate-100">
 				<div id="dashboardProductsList" class="space-y-3" data-state="loading">
 					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
@@ -71,12 +77,12 @@ if (!providerId) return Astro.redirect("/provider")
 
 				<Card class="space-y-4 bg-slate-100">
 					<div class="space-y-1">
-						<p class="text-lg font-semibold text-slate-900">Productos</p>
-						<p class="text-sm text-slate-600">Crea productos y continúa su configuración.</p>
+						<p class="text-lg font-semibold text-slate-900">Nuevo alojamiento</p>
+						<p class="text-sm text-slate-600">Inicia el playbook de lanzamiento desde cero.</p>
 					</div>
 					<div class="flex justify-end">
 						<Button href="/product/create" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-							Crear producto
+							Crear alojamiento
 						</Button>
 					</div>
 				</Card>
@@ -113,22 +119,13 @@ if (!providerId) return Astro.redirect("/provider")
 			const statsGrid = document.getElementById("dashboardStatsGrid")
 			const productsList = document.getElementById("dashboardProductsList")
 			const statProducts = document.getElementById("statProducts")
-			const statVariants = document.getElementById("statVariants")
-			const readinessBadge = document.getElementById("readinessBadge")
-			const readinessText = document.getElementById("readinessText")
+			const statProductsDetail = document.getElementById("statProductsDetail")
+			const statInPreparation = document.getElementById("statInPreparation")
+			const statReadyToPublish = document.getElementById("statReadyToPublish")
+			const readyToPublishDetail = document.getElementById("readyToPublishDetail")
 
 			const setErrorState = (message) => {
-				if (readinessBadge) {
-					readinessBadge.textContent = "Error"
-					readinessBadge.classList.remove(
-						"bg-amber-100",
-						"text-amber-800",
-						"bg-emerald-100",
-						"text-emerald-800"
-					)
-					readinessBadge.classList.add("bg-rose-100", "text-rose-700")
-				}
-				if (readinessText) readinessText.textContent = message
+				if (readyToPublishDetail) readyToPublishDetail.textContent = message
 				if (productsList) {
 					productsList.innerHTML = ""
 					const row = document.createElement("p")
@@ -138,33 +135,96 @@ if (!providerId) return Astro.redirect("/provider")
 				}
 			}
 
+			const statusBadgeClass = (status) => {
+				if (status === "published") return "bg-emerald-100 text-emerald-800"
+				if (status === "ready") return "bg-sky-100 text-sky-800"
+				return "bg-amber-100 text-amber-800"
+			}
+
 			const renderProducts = (items) => {
 				if (!productsList) return
 				productsList.innerHTML = ""
 				if (!Array.isArray(items) || items.length === 0) {
 					const empty = document.createElement("div")
 					empty.className = "rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
-					empty.textContent = "Aún no tienes productos creados."
+					empty.textContent =
+						"Aún no tienes alojamientos. Crea el primero para iniciar el playbook."
 					productsList.appendChild(empty)
 					return
 				}
 
 				for (const item of items) {
-					const row = document.createElement("a")
-					row.href = item.href
+					const preparation = item.preparation || {}
+					const row = document.createElement("div")
 					row.className =
-						"flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 hover:border-slate-300"
+						"flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
 
-					const name = document.createElement("span")
-					name.className = "font-medium"
-					name.textContent = item.name || "Producto sin nombre"
+					const main = document.createElement("div")
+					main.className = "min-w-0 flex-1 space-y-1"
 
-					const status = document.createElement("span")
-					status.className = "text-slate-500"
-					status.textContent = String(item.status || "draft")
+					const titleRow = document.createElement("div")
+					titleRow.className = "flex flex-wrap items-center gap-2"
 
-					row.appendChild(name)
-					row.appendChild(status)
+					const name = document.createElement("a")
+					name.href = item.href
+					name.className = "font-medium text-slate-900 hover:underline"
+					name.textContent = item.name || "Alojamiento sin nombre"
+
+					const badge = document.createElement("span")
+					badge.className = `inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(item.status)}`
+					badge.textContent = String(item.statusLabel || "En preparación")
+
+					titleRow.appendChild(name)
+					titleRow.appendChild(badge)
+
+					const meta = document.createElement("p")
+					meta.className = "text-sm text-slate-600"
+					if (item.status === "published") {
+						meta.textContent = "Publicado y visible para huéspedes."
+					} else if (preparation.readyToPublish) {
+						meta.textContent = "Preparación completa. Revisa la vista previa y publica."
+					} else if (preparation.blockerCount > 0) {
+						const preview = Array.isArray(preparation.blockerPreview)
+							? preparation.blockerPreview.join(", ")
+							: ""
+						meta.textContent = `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"}${preview ? `: ${preview.toLowerCase()}` : ""}.`
+					} else {
+						meta.textContent = `${Number(preparation.readinessPercent ?? 0)}% de preparación completada.`
+					}
+
+					const progressTrack = document.createElement("div")
+					progressTrack.className =
+						"h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-200"
+					const progressBar = document.createElement("div")
+					progressBar.className = "h-full bg-slate-900 transition-all"
+					progressBar.style.width = `${Math.max(0, Math.min(100, Number(preparation.readinessPercent ?? 0)))}%`
+					progressTrack.appendChild(progressBar)
+
+					main.append(titleRow, meta)
+					if (item.status !== "published") main.appendChild(progressTrack)
+
+					const actions = document.createElement("div")
+					actions.className = "flex flex-wrap gap-2"
+
+					if (item.status !== "published" && preparation.continuePreparationHref) {
+						const continueBtn = document.createElement("a")
+						continueBtn.href = preparation.continuePreparationHref
+						continueBtn.className =
+							"fastt-button inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+						continueBtn.textContent = preparation.readyToPublish
+							? "Ir a vista previa"
+							: "Continuar preparación"
+						actions.appendChild(continueBtn)
+					}
+
+					const editBtn = document.createElement("a")
+					editBtn.href = item.href
+					editBtn.className =
+						"fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+					editBtn.textContent = "Abrir ficha"
+					actions.appendChild(editBtn)
+
+					row.append(main, actions)
 					productsList.appendChild(row)
 				}
 			}
@@ -176,26 +236,26 @@ if (!providerId) return Astro.redirect("/provider")
 					return await response.json()
 				})
 				.then((payload) => {
-					if (statProducts) statProducts.textContent = String(payload.totalProducts ?? 0)
-					if (statVariants) statVariants.textContent = String(payload.totalVariants ?? 0)
+					const total = Number(payload.totalProducts ?? 0)
+					const published = Number(payload.publishedProducts ?? 0)
+					const inPreparation = Number(payload.inPreparationProducts ?? 0)
+					const readyToPublish = Number(payload.readyToPublishProducts ?? 0)
 
-					const pending = Number(payload.pendingProducts ?? 0)
-					const ready = Number(payload.readyProducts ?? 0)
-					if (readinessBadge) {
-						readinessBadge.textContent = pending === 0 ? "✅ Al día" : "⚠️ Pendiente"
-						readinessBadge.classList.remove(
-							"bg-amber-100",
-							"text-amber-800",
-							"bg-emerald-100",
-							"text-emerald-800"
-						)
-						if (pending === 0) {
-							readinessBadge.classList.add("bg-emerald-100", "text-emerald-800")
-						} else {
-							readinessBadge.classList.add("bg-amber-100", "text-amber-800")
-						}
+					if (statProducts) statProducts.textContent = String(total)
+					if (statProductsDetail) {
+						statProductsDetail.textContent =
+							published > 0
+								? `${published} publicado${published === 1 ? "" : "s"}`
+								: "Fichas en tu cuenta"
 					}
-					if (readinessText) readinessText.textContent = `${ready} listos`
+					if (statInPreparation) statInPreparation.textContent = String(inPreparation)
+					if (statReadyToPublish) statReadyToPublish.textContent = String(readyToPublish)
+					if (readyToPublishDetail) {
+						readyToPublishDetail.textContent =
+							readyToPublish > 0
+								? "Pueden publicarse desde la vista previa"
+								: "Completa el playbook para llegar aquí"
+					}
 
 					statsGrid?.querySelectorAll("[data-skeleton]").forEach((node) => node.remove())
 					renderProducts(payload.products)

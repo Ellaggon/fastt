@@ -51,6 +51,8 @@ interface Props {
 	roomTypes: RoomTypeOption[]
 	amenities: AmenityOption[]
 	selectedAmenityIds?: string[]
+	playbookNextHref?: string | null
+	playbookId?: "launch" | "add-room" | null
 }
 
 const {
@@ -65,6 +67,8 @@ const {
 	roomTypes,
 	amenities,
 	selectedAmenityIds = [],
+	playbookNextHref = null,
+	playbookId = null,
 } = Astro.props
 
 const selectedAmenitySet = new Set(selectedAmenityIds.map((id) => String(id)))
@@ -706,7 +710,15 @@ const guideSteps = [
 	</template>
 </Card>
 
-<script type="module" define:vars={{ productId, fallbackVariantId: variantId ?? "", bedTypeLabels }}
+<script
+	type="module"
+	define:vars={{
+		productId,
+		fallbackVariantId: variantId ?? "",
+		bedTypeLabels,
+		playbookNextHref: playbookNextHref ?? "",
+		playbookId: playbookId ?? "",
+	}}
 >
 	const form = document.getElementById("roomProfileForm")
 	const submitBtn = document.getElementById("roomProfileSubmit")
@@ -1085,6 +1097,19 @@ const guideSteps = [
 				return
 			}
 			setState("success")
+			const nextHref = String(playbookNextHref || "").trim()
+			if (nextHref) {
+				window.location.href = nextHref
+				return
+			}
+			if (playbookId === "add-room") {
+				window.location.href = `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}?playbook=add-room&step=room-photos&flow=add-room#fotos`
+				return
+			}
+			if (playbookId === "launch") {
+				window.location.href = `/provider/house-rules?productId=${encodeURIComponent(productId)}&playbook=launch&step=house-rules&flow=create`
+				return
+			}
 			window.location.href = `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}`
 		} catch (error) {
 			submitBtn.disabled = false

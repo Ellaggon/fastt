@@ -2,10 +2,11 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
-import { db, eq, Hotel, Package, Tour } from "astro:db"
+import { db, eq, Hotel, Package, ProductStatus, Tour } from "astro:db"
 
 function toLowerTrim(value: string | null | undefined): string {
 	return String(value ?? "")
@@ -51,9 +52,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 	}
 
-	const [aggregate, variantsAggregate] = await Promise.all([
+	const [aggregate, variantsAggregate, statusRow] = await Promise.all([
 		getProductFullAggregate(productId, providerId),
 		getProductVariantsAggregate(productId, providerId),
+		db
+			.select({ state: ProductStatus.state })
+			.from(ProductStatus)
+			.where(eq(ProductStatus.productId, productId))
+			.get(),
 	])
 	if (!aggregate) {
 		logEndpoint()
@@ -188,11 +194,36 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 	}
 
+	const productStatus = String(statusRow?.state ?? "draft")
+		.trim()
+		.toLowerCase()
+	const preparation = await summarizeProductPreparation({
+		productId,
+		providerId,
+		status: productStatus,
+		request,
+		url,
+	})
+
 	logEndpoint()
 	return new Response(
 		JSON.stringify({
 			productId: aggregate.id,
 			productType,
+			status: productStatus,
+			preparation: preparation
+				? {
+						statusLabel: preparation.statusLabel,
+						readinessPercent: preparation.readinessPercent,
+						blockerCount: preparation.blockerCount,
+						blockerPreview: preparation.blockerPreview,
+						readyToPublish: preparation.readyToPublish,
+						continuePreparationHref: preparation.continuePreparationHref,
+						previewHref: preparation.previewHref,
+						nextStepLabel: preparation.nextStepLabel,
+						isPublished: preparation.isPublished,
+					}
+				: null,
 			vertical: {
 				key: vertical.vertical,
 				label: vertical.labels.workspaceSingular,

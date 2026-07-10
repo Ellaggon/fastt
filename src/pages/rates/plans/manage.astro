@@ -7,6 +7,12 @@ import Input from "@/components/ui/Input.astro"
 import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildAddRoomHref,
+	getNextAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -142,9 +148,43 @@ const tabs = [
 	{ id: "inactive", label: "Inactivas", count: draftRatePlans },
 	{ id: "all", label: "Todas", count: rows.length },
 ]
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "add-room")
+	params.set("step", "create-rate")
+	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
+}
+
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
+const matchedVariant = variantChoices.find((choice) => choice.variantId === requestedVariantId)
+const playbookProductId = matchedVariant?.productId ?? addRoomPlaybook.productId
+const addRoomCtx = {
+	productId: playbookProductId,
+	variantId: requestedVariantId || undefined,
+}
+const addRoomContinueHref = addRoomPlaybook.active
+	? (getNextAddRoomStep("create-rate", addRoomCtx)?.buildHref(addRoomCtx) ?? null)
+	: null
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Tarifas · Nueva tarifa",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "create-rate",
+			productId: playbookProductId,
+			variantId: requestedVariantId,
+			isHotel: true,
+			continueHref: addRoomContinueHref,
+		}
+	: { title: "Tarifas" }
 ---
 
-<WorkspaceLayout title="Tarifas">
+<Layout {...layoutProps}>
 	<div class="rate-plans-manage space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
@@ -455,7 +495,12 @@ const tabs = [
 							<option value="">Selecciona una habitación</option>
 							{
 								variantChoices.map((choice) => (
-									<option value={choice.variantId}>{choice.label}</option>
+									<option
+										value={choice.variantId}
+										selected={choice.variantId === requestedVariantId}
+									>
+										{choice.label}
+									</option>
 								))
 							}
 						</Select>
@@ -556,7 +601,7 @@ const tabs = [
 			</footer>
 		</form>
 	</Dialog>
-</WorkspaceLayout>
+</Layout>
 
 <style>
 	.rate-plans-manage {
@@ -564,30 +609,32 @@ const tabs = [
 	}
 </style>
 
-<script>
-	const ratePlanTabs = Array.from(
-		document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
-	)
-	const ratePlanRows = Array.from(document.querySelectorAll<HTMLElement>("[data-rate-plan-row]"))
-	const ratePlanEmpty = document.querySelector<HTMLElement>("[data-rate-plan-empty]")
+<script
+	define:vars={{
+		requestedVariantId,
+		shouldOpenDialog,
+		addRoomPlaybookActive: addRoomPlaybook.active,
+	}}
+>
+	const ratePlanTabs = Array.from(document.querySelectorAll("[data-rate-plan-tab]"))
+	const ratePlanRows = Array.from(document.querySelectorAll("[data-rate-plan-row]"))
+	const ratePlanEmpty = document.querySelector("[data-rate-plan-empty]")
 	const ratePlanMobileTables = Array.from(
-		document.querySelectorAll<HTMLElement>("[data-rate-plan-mobile-table]")
+		document.querySelectorAll("[data-rate-plan-mobile-table]")
 	)
-	const ratePlanEmptyRows = Array.from(
-		document.querySelectorAll<HTMLElement>("[data-rate-plan-empty-row]")
-	)
-	const actionFeedback = document.querySelector<HTMLElement>("[data-rate-plan-action-feedback]")
+	const ratePlanEmptyRows = Array.from(document.querySelectorAll("[data-rate-plan-empty-row]"))
+	const actionFeedback = document.querySelector("[data-rate-plan-action-feedback]")
 
-	function ratePlanMatchesView(state: string, view: string) {
+	function ratePlanMatchesView(state, view) {
 		if (view === "all") return true
 		if (view === "ready") return state === "ready"
 		if (view === "inactive" || view === "drafts") return state === "inactive"
 		return state !== "ready" && state !== "inactive"
 	}
 
-	function renderRatePlanView(view: string, updateUrl = false) {
+	function renderRatePlanView(view, updateUrl = false) {
 		view = view === "drafts" ? "inactive" : view
-		const visibleRatePlanIds = new Set<string>()
+		const visibleRatePlanIds = new Set()
 		for (const row of ratePlanRows) {
 			const visible = ratePlanMatchesView(String(row.dataset.ratePlanState ?? ""), view)
 			row.classList.toggle("hidden", !visible)
@@ -628,16 +675,12 @@ const tabs = [
 	document.addEventListener("click", (event) => {
 		const target = event.target
 		if (!(target instanceof Element)) return
-		for (const menu of document.querySelectorAll<HTMLDetailsElement>(
-			"[data-rate-plan-action-menu]"
-		)) {
+		for (const menu of document.querySelectorAll("[data-rate-plan-action-menu]")) {
 			if (!menu.contains(target)) menu.removeAttribute("open")
 		}
 	})
 
-	for (const button of document.querySelectorAll<HTMLButtonElement>(
-		"[data-rate-plan-toggle-inline]"
-	)) {
+	for (const button of document.querySelectorAll("[data-rate-plan-toggle-inline]")) {
 		button.addEventListener("click", async () => {
 			const nextActive = button.dataset.nextActive === "true"
 			button.disabled = true
@@ -673,12 +716,12 @@ const tabs = [
 		})
 	}
 
-	const dialog = document.querySelector<HTMLDialogElement>("[data-rate-plan-dialog]")
-	const form = document.querySelector<HTMLFormElement>("[data-rate-plan-create-form]")
-	const feedback = document.querySelector<HTMLElement>("[data-rate-plan-feedback]")
-	const heading = document.querySelector<HTMLElement>("[data-wizard-heading]")
-	const contractSummary = document.querySelector<HTMLElement>("[data-contract-summary]")
-	const review = document.querySelector<HTMLElement>("[data-rate-plan-review]")
+	const dialog = document.querySelector("[data-rate-plan-dialog]")
+	const form = document.querySelector("[data-rate-plan-create-form]")
+	const feedback = document.querySelector("[data-rate-plan-feedback]")
+	const heading = document.querySelector("[data-wizard-heading]")
+	const contractSummary = document.querySelector("[data-contract-summary]")
+	const review = document.querySelector("[data-rate-plan-review]")
 	let currentStep = 1
 
 	const intentCopy = {
@@ -691,29 +734,21 @@ const tabs = [
 	}
 
 	function renderStep() {
-		document.querySelectorAll<HTMLElement>("[data-wizard-step]").forEach((step) => {
+		document.querySelectorAll("[data-wizard-step]").forEach((step) => {
 			step.classList.toggle("hidden", Number(step.dataset.wizardStep) !== currentStep)
 		})
-		document
-			.querySelector<HTMLElement>("[data-wizard-back]")
-			?.classList.toggle("hidden", currentStep === 1)
-		document
-			.querySelector<HTMLElement>("[data-wizard-next]")
-			?.classList.toggle("hidden", currentStep === 3)
-		document
-			.querySelector<HTMLElement>("[data-save-draft]")
-			?.classList.toggle("hidden", currentStep !== 3)
-		document
-			.querySelector<HTMLElement>("[data-publish]")
-			?.classList.toggle("hidden", currentStep !== 3)
+		document.querySelector("[data-wizard-back]")?.classList.toggle("hidden", currentStep === 1)
+		document.querySelector("[data-wizard-next]")?.classList.toggle("hidden", currentStep === 3)
+		document.querySelector("[data-save-draft]")?.classList.toggle("hidden", currentStep !== 3)
+		document.querySelector("[data-publish]")?.classList.toggle("hidden", currentStep !== 3)
 		if (heading)
 			heading.textContent = `${currentStep} de 3 · ${["Oferta", "Precio y condiciones", "Revisión"][currentStep - 1]}`
 		if (currentStep === 3 && form && review) {
 			const data = new FormData(form)
 			const room =
-				form.querySelector<HTMLSelectElement>('[name="variantId"]')?.selectedOptions[0]
-					?.textContent ?? "Habitación"
-			review.innerHTML = `<p class="font-semibold text-slate-950">${String(data.get("name") || "Nueva tarifa")}</p><p class="mt-2 text-slate-600">${room}</p><p class="mt-1 text-slate-600">${String(data.get("currency") || "BOB")} ${String(data.get("basePrice") || "-")} por noche</p><p class="mt-3 text-xs text-slate-500">${intentCopy[String(data.get("intent")) as keyof typeof intentCopy] || intentCopy.flexible}</p>`
+				form.querySelector('[name="variantId"]')?.selectedOptions[0]?.textContent ?? "Habitación"
+			const intent = String(data.get("intent") || "flexible")
+			review.innerHTML = `<p class="font-semibold text-slate-950">${String(data.get("name") || "Nueva tarifa")}</p><p class="mt-2 text-slate-600">${room}</p><p class="mt-1 text-slate-600">${String(data.get("currency") || "BOB")} ${String(data.get("basePrice") || "-")} por noche</p><p class="mt-3 text-xs text-slate-500">${intentCopy[intent] || intentCopy.flexible}</p>`
 		}
 	}
 
@@ -726,18 +761,17 @@ const tabs = [
 	dialog?.addEventListener("click", (event) => {
 		if (event.target === dialog) dialog.close()
 	})
-	form?.querySelector<HTMLSelectElement>('[name="intent"]')?.addEventListener("change", (event) => {
-		const select = event.currentTarget as HTMLSelectElement
-		const intent = select.value as keyof typeof intentCopy
-		const nameInput = form.querySelector<HTMLInputElement>('[name="name"]')
+	form?.querySelector('[name="intent"]')?.addEventListener("change", (event) => {
+		const select = event.currentTarget
+		const intent = select.value
+		const nameInput = form.querySelector('[name="name"]')
 		if (nameInput)
 			nameInput.value = select.selectedOptions[0]?.textContent?.split(" · ")[0] || "Nueva tarifa"
 		if (contractSummary) contractSummary.textContent = intentCopy[intent] || intentCopy.flexible
 	})
 	document.querySelector("[data-wizard-next]")?.addEventListener("click", () => {
-		const activeStep = document.querySelector<HTMLElement>(`[data-wizard-step="${currentStep}"]`)
-		const fields =
-			activeStep?.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select") ?? []
+		const activeStep = document.querySelector(`[data-wizard-step="${currentStep}"]`)
+		const fields = activeStep?.querySelectorAll("input, select") ?? []
 		for (const field of fields) {
 			if (!field.reportValidity()) return
 		}
@@ -751,7 +785,7 @@ const tabs = [
 
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()
-		const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null
+		const submitter = event.submitter
 		if (!form.reportValidity()) return
 		const data = new FormData(form)
 		const payload = {
@@ -763,7 +797,7 @@ const tabs = [
 			publicationMode: submitter?.value === "publish" ? "publish" : "draft",
 			isDefault: data.get("isDefault") === "on",
 		}
-		form.querySelectorAll<HTMLButtonElement>("button").forEach((button) => (button.disabled = true))
+		form.querySelectorAll("button").forEach((button) => (button.disabled = true))
 		if (feedback) feedback.textContent = "Creando tarifa, precio y condiciones..."
 		try {
 			const response = await fetch("/api/rateplans/create", {
@@ -774,6 +808,18 @@ const tabs = [
 			const result = await response.json().catch(() => null)
 			if (!response.ok || !result?.ratePlanId)
 				throw new Error(result?.error || "No se pudo crear la tarifa")
+			if (addRoomPlaybookActive) {
+				const params = new URLSearchParams({
+					playbook: "add-room",
+					step: "conditions",
+					flow: "add-room",
+					variantId: payload.variantId,
+					ratePlanId: String(result.ratePlanId),
+					vista: "conditions",
+				})
+				window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}?${params.toString()}`
+				return
+			}
 			window.location.href = `/rates/plans/${encodeURIComponent(result.ratePlanId)}`
 		} catch (error) {
 			if (feedback)
@@ -785,4 +831,12 @@ const tabs = [
 	})
 
 	renderStep()
+
+	if (shouldOpenDialog && dialog) {
+		const variantSelect = form?.querySelector('[name="variantId"]')
+		if (variantSelect instanceof HTMLSelectElement && requestedVariantId) {
+			variantSelect.value = requestedVariantId
+		}
+		dialog.showModal()
+	}
 </script>

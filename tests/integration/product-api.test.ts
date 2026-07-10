@@ -19,6 +19,7 @@ import { POST as upsertLocationPost } from "@/pages/api/product/location"
 import { POST as upsertImagesPost } from "@/pages/api/product/images"
 import { POST as upsertSubtypePost } from "@/pages/api/product/subtype"
 import { POST as evaluatePost } from "@/pages/api/product/evaluate"
+import { POST as publishPost } from "@/pages/api/product/publish"
 import { POST as uploadInitPost } from "@/pages/api/uploads/init"
 import { POST as uploadCompletePost } from "@/pages/api/uploads/complete"
 import { r2 } from "@/container"
@@ -299,8 +300,22 @@ describe("integration/catalog Product V2 API", () => {
 				expect(Array.isArray(evaluated.validationErrors)).toBe(true)
 				expect((evaluated.validationErrors as any[]).length).toBe(0)
 
+				const publishForm = new FormData()
+				publishForm.set("productId", productId)
+				const publishRes = await publishPost({
+					request: makeAuthedFormRequest({
+						path: "/api/product/publish",
+						token: tokenA,
+						form: publishForm,
+					}),
+				} as any)
+				expect(publishRes.status).toBe(200)
+				const published = (await readJson(publishRes)) as { ok?: boolean; state?: string }
+				expect(published.ok).toBe(true)
+				expect(published.state).toBe("published")
+
 				const agg = await productRepository.getProductAggregate(productId)
-				expect(agg?.status?.state).toBe("ready")
+				expect(agg?.status?.state).toBe("published")
 				expect(agg?.status?.validationErrorsJson).toBeNull()
 				expect(agg?.imagesCount).toBeGreaterThanOrEqual(1)
 				expect(agg?.subtypeExists).toBe(true)

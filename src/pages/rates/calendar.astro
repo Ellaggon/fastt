@@ -1,11 +1,14 @@
 ---
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
+import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { buildSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
+import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((error: unknown) => {
 	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
@@ -38,9 +41,52 @@ const initialMode =
 			: isProfessionalCalendar && ["policies", "conditions"].includes(requestedFocus)
 				? "conditions"
 				: "price"
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const ratePlanIdParam = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
+const matchedRow = rows.find(
+	(row) =>
+		(variantIdParam && String(row.variantId) === variantIdParam) ||
+		(ratePlanIdParam && String(row.ratePlanId) === ratePlanIdParam)
+)
+const playbookProductId = matchedRow?.productId ?? addRoomPlaybook.productId
+
+if (!addRoomPlaybook.active && flow === "add-room" && playbookProductId) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "add-room")
+	params.set("step", "availability")
+	return Astro.redirect(`${routes.calendar()}?${params.toString()}`)
+}
+
+const addRoomCtx = {
+	productId: playbookProductId,
+	variantId: variantIdParam || addRoomPlaybook.variantId || undefined,
+	ratePlanId: ratePlanIdParam || addRoomPlaybook.ratePlanId || undefined,
+}
+const addRoomContinueHref = addRoomPlaybook.active
+	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "availability", addRoomCtx)?.buildHref(
+			addRoomCtx
+		) ?? null)
+	: null
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Calendario",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "availability",
+			productId: playbookProductId,
+			variantId: addRoomCtx.variantId ?? "",
+			ratePlanId: addRoomCtx.ratePlanId ?? "",
+			isHotel: true,
+			continueHref: addRoomContinueHref,
+		}
+	: { title: "Calendario" }
 ---
 
-<WorkspaceLayout title="Calendario">
+<Layout {...layoutProps}>
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
@@ -62,4 +108,4 @@ const initialMode =
 			initialMode={initialMode}
 		/>
 	</div>
-</WorkspaceLayout>
+</Layout>

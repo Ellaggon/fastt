@@ -3,7 +3,10 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -17,19 +20,34 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
-const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+const flow = Astro.url.searchParams.get("flow")
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(`/product/${productId}/location`, "location"))
+}
+if (!resolvePlaybookFromUrl(Astro.url).active && flow === "complete") {
+	return Astro.redirect(buildCompleteToPublishHref(`/product/${productId}/location`, "location"))
+}
 
 const product = await getProductFullAggregate(productId, providerId)
 if (!product) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(product.productType)
+const isHotel = vertical.vertical === "hotel"
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingLocation = product.location
 
 const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -16.495905
 const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
 ---
 
-<WorkspaceLayout title="Alojamientos · Ubicación">
+<PlaybookLayout
+	title="Alojamientos · Ubicación"
+	playbookId={playbook.playbookId}
+	active={playbook.active}
+	stepId={playbook.stepId ?? "location"}
+	productId={productId}
+	isHotel={isHotel}
+>
 	<section class="space-y-8">
 		<section class="space-y-4">
 			<header class="space-y-1">
@@ -47,7 +65,16 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 					class="max-w-3xl space-y-6"
 				>
 					<Input type="hidden" name="productId" value={productId} />
-					<Input type="hidden" name="flow" value={flow} />
+					<Input
+						type="hidden"
+						name="flow"
+						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+					/>
+					{
+						playbook.active && playbook.playbookId ? (
+							<Input type="hidden" name="playbook" value={playbook.playbookId} />
+						) : null
+					}
 					<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
 					<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
 
@@ -84,10 +111,19 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
-						<Button href={`/product/${encodeURIComponent(productId)}/content`} variant="secondary">
+						<Button
+							href={playbook.active && playbook.playbookId === "launch"
+								? buildPlaybookHref(`/product/${productId}/content`, "content")
+								: playbook.active && playbook.playbookId === "complete-to-publish"
+									? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
+									: `/product/${encodeURIComponent(productId)}/content`}
+							variant="secondary"
+						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit"> Guardar ubicación </Button>
+						<Button id="submitBtn" type="submit">
+							{playbook.active ? "Guardar y continuar" : "Guardar ubicación"}
+						</Button>
 					</div>
 				</form>
 			</Card>
@@ -99,6 +135,8 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
 		crossorigin=""></script>
 	<script type="module" define:vars={{ initialLat, initialLng }}>
+		import { resolvePlaybookRedirectAfterSave } from "@/lib/playbook/playbook-nav.ts"
+
 		const form = document.getElementById("locationForm")
 		const btn = document.getElementById("submitBtn")
 		const stateLabel = document.getElementById("stateLabel")
@@ -165,19 +203,16 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 				}
 
 				setState("success", "Guardado correctamente")
-				const targetProductId = encodeURIComponent(String(fd.get("productId") || ""))
-				const mode = String(fd.get("flow") || "")
-					.trim()
-					.toLowerCase()
-				if (mode !== "create") {
-					window.location.href = `/product/${targetProductId}`
-					return
-				}
-				window.location.href = `/product/${targetProductId}/images?flow=create`
+				const targetProductId = String(fd.get("productId") || "")
+				window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+					productId: targetProductId,
+					launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
+					launchStep: "images",
+				})
 			} catch (err) {
 				btn.disabled = false
 				setState("error", `Error de red: ${String(err)}`)
 			}
 		})
 	</script>
-</WorkspaceLayout>
+</PlaybookLayout>

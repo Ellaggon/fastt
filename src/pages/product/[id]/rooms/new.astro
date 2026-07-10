@@ -2,9 +2,12 @@
 import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildAddRoomHref } from "@/lib/playbook/add-room"
+import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductAggregate } from "@/modules/catalog/public"
@@ -19,6 +22,16 @@ if (!providerId) return Astro.redirect("/provider")
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
+
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: true })
+const flow = Astro.url.searchParams.get("flow")
+
+if (!playbook.active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(routes.productRoomNew(productId), "room-profile"))
+}
+if (!playbook.active && flow === "add-room") {
+	return Astro.redirect(buildAddRoomHref(routes.productRoomNew(productId), "create-room"))
+}
 
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned) return Astro.redirect("/product/create")
@@ -39,9 +52,22 @@ const [roomTypes, amenities] = await Promise.all([
 		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name))
 		.all(),
 ])
+
+const playbookId = playbook.playbookId
+const isAddRoom = playbookId === "add-room"
+const stepId = isAddRoom ? (playbook.stepId ?? "create-room") : (playbook.stepId ?? "room-profile")
+const roomEditorPlaybookId =
+	playbookId === "launch" || playbookId === "add-room" ? playbookId : null
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Nueva habitación">
+<PlaybookLayout
+	title="Contenido del alojamiento · Nueva habitación"
+	playbookId={playbookId}
+	active={playbook.active}
+	stepId={stepId}
+	productId={productId}
+	isHotel={true}
+>
 	<section class="space-y-8 text-slate-100">
 		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
 			<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
@@ -50,8 +76,11 @@ const [roomTypes, amenities] = await Promise.all([
 			</p>
 			<h1 class="mt-2 text-3xl font-semibold text-slate-100">Crea una habitación para huéspedes</h1>
 			<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-				Empieza con la experiencia física: camas, baño, capacidad, vista, comodidades y notas. Las
-				tarifas y la disponibilidad se completan después.
+				{
+					isAddRoom
+						? "Define el espacio físico de la nueva habitación. Después completarás fotos, tarifa y disponibilidad."
+						: "Empieza con la experiencia física: camas, baño, capacidad, vista, comodidades y notas. Las tarifas y la disponibilidad se completan después."
+				}
 			</p>
 			<p class="mt-3 flex items-center gap-2 text-sm text-slate-300">
 				<BedDouble class="h-4 w-4" />
@@ -68,7 +97,8 @@ const [roomTypes, amenities] = await Promise.all([
 				mode="create"
 				roomTypes={roomTypes}
 				amenities={amenities}
+				playbookId={playbook.active ? roomEditorPlaybookId : null}
 			/>
 		</Section>
 	</section>
-</WorkspaceLayout>
+</PlaybookLayout>

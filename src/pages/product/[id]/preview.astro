@@ -7,7 +7,18 @@ import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
 import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	buildCompleteToPublishHref,
+	buildCompleteToPublishResumeHref,
+	resolveCompleteToPublishPlaybookFromUrl,
+} from "@/lib/playbook/complete-to-publish"
+import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import {
+	buildPlaybookHref,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
@@ -25,7 +36,7 @@ import {
 } from "@/modules/house-rules/presentation/houseRulePresentation"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
-import { and, asc, db, Image, inArray } from "astro:db"
+import { and, asc, db, eq, Image, inArray, ProductStatus } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -45,9 +56,63 @@ if (!aggregate) return Astro.redirect(routes.productList())
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
-const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
-const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
+
+const statusRow = await db
+	.select({ state: ProductStatus.state })
+	.from(ProductStatus)
+	.where(eq(ProductStatus.productId, productId))
+	.get()
+const productStatus = String(statusRow?.state ?? "draft")
+	.trim()
+	.toLowerCase()
+const isPublished = productStatus === "published"
+
+const publishState = await loadCompleteToPublishState({
+	productId,
+	providerId,
+	request: Astro.request,
+	url: Astro.url,
+})
+if (!publishState) return Astro.redirect(routes.productList())
+
+const checks = publishState.checks
+const completedChecks = publishState.completedChecks
+const readyToPublish = publishState.readyToPublish && !isPublished
+const readinessPercent = publishState.readinessPercent
+const blockerLabels = publishState.blockers
+	.filter((check) => check.sectionKey !== "preview")
+	.map((check) => check.label)
+
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
+const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
+const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+
+if (!playbook.active && flow === "create") {
+	return Astro.redirect(buildPlaybookHref(routes.productPreview(productId), "preview"))
+}
+if (!playbook.active && flow === "complete") {
+	return Astro.redirect(buildCompleteToPublishHref(routes.productPreview(productId), "preview"))
+}
+
+const playbookId = playbook.active ? playbook.playbookId : null
+const stepId =
+	playbookId === "complete-to-publish"
+		? (completePlaybook.stepId ?? "preview")
+		: playbookId === "launch"
+			? (launchPlaybook.stepId ?? "preview")
+			: "preview"
+
+function checkHref(check: (typeof checks)[number]) {
+	if (playbookId === "complete-to-publish") {
+		return buildCompleteToPublishHref(check.href, check.sectionKey)
+	}
+	return check.href
+}
+
+const completePreparationHref = buildCompleteToPublishResumeHref(productId, checks)
 const description = String(aggregate.content.description ?? "").trim()
+const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 const primaryImage = aggregate.images[0]?.url ?? ""
 const imagePreviews = aggregate.images.slice(0, 6)
 const productFallbackGallery = aggregate.images
@@ -141,6 +206,8 @@ if (isHotel) {
 	})
 }
 
+const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+let policyCategorySet = new Set<string>()
 let mappedPolicies: any[] = []
 let policyResolutionError: string | null = null
 try {
@@ -154,100 +221,26 @@ try {
 			query: Astro.url.searchParams,
 		},
 	})
+	policyCategorySet = new Set(
+		resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
+	)
 	mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
 } catch (error) {
 	policyResolutionError =
 		error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
+	mappedPolicies = []
 }
-
-const policyCategorySet = new Set(
-	mappedPolicies.map((policy: any) => String(policy.category ?? ""))
-)
-const missingPolicies = requiredPolicyCategories.filter(
-	(category) => !policyCategorySet.has(category)
-)
-
-const checks = [
-	{
-		key: "content",
-		label: "Contenido visible para huéspedes",
-		complete: Boolean(description && highlights.length),
-		href: `/product/${encodeURIComponent(productId)}/content`,
-		cta: "Editar contenido",
-		detail:
-			description && highlights.length
-				? "Descripción y destacados listos."
-				: "Agrega descripción y al menos un destacado.",
-	},
-	{
-		key: "photos",
-		label: "Fotos",
-		complete: aggregate.images.length > 0,
-		href: `/product/${encodeURIComponent(productId)}/images`,
-		cta: "Editar fotos",
-		detail: aggregate.images.length
-			? `${aggregate.images.length} fotos disponibles.`
-			: "Agrega al menos una foto.",
-	},
-	{
-		key: "location",
-		label: "Ubicación",
-		complete: aggregate.location.lat !== null && aggregate.location.lng !== null,
-		href: `/product/${encodeURIComponent(productId)}/location`,
-		cta: "Editar ubicación",
-		detail:
-			aggregate.location.lat !== null && aggregate.location.lng !== null
-				? "Coordenadas configuradas."
-				: "Agrega coordenadas antes de publicar.",
-	},
-	...(isHotel
-		? [
-				{
-					key: "house-rules",
-					label: "Reglas para huéspedes",
-					complete: missingHouseRules.length === 0,
-					href: routes.providerHouseRules(),
-					cta: "Revisar reglas",
-					detail: missingHouseRules.length
-						? `Faltan: ${missingHouseRules.map((type) => houseRuleLabels[type] ?? type).join(", ")}.`
-						: "Reglas principales listas.",
-				},
-			]
-		: []),
-	...(vertical.vertical === "package"
-		? [
-				{
-					key: "package-inclusions",
-					label: "Incluye / No incluye",
-					complete: packageInclusionItems.length > 0,
-					href: `/product/${encodeURIComponent(productId)}/subtype`,
-					cta: "Editar inclusiones",
-					detail: packageInclusionItems.length
-						? `${packageInclusionItems.length} inclusiones visibles.`
-						: "Agrega qué incluye el paquete antes de publicar.",
-				},
-			]
-		: []),
-	{
-		key: "booking-policies",
-		label: "Condiciones de reserva",
-		complete: missingPolicies.length === 0 && !policyResolutionError,
-		href: routes.rates(),
-		cta: "Revisar tarifas",
-		detail: policyResolutionError
-			? "No se pudieron resolver las condiciones."
-			: missingPolicies.length
-				? `Faltan: ${missingPolicies.map((category) => POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ?? category).join(", ")}.`
-				: "Condiciones principales visibles.",
-	},
-]
-
-const completedChecks = checks.filter((check) => check.complete).length
-const readyToPublish = completedChecks === checks.length
-const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 ---
 
-<WorkspaceLayout title="Alojamientos · Vista previa">
+<PlaybookLayout
+	title="Alojamientos · Vista previa"
+	playbookId={playbookId}
+	active={playbook.active}
+	stepId={stepId}
+	productId={productId}
+	isHotel={isHotel}
+	hideFooter={playbookId === "complete-to-publish" && stepId === "preview"}
+>
 	<section class="space-y-8">
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
@@ -284,20 +277,51 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 							{completedChecks} de {checks.length} bloques principales listos.
 						</p>
 					</div>
-					<Badge variant={readyToPublish ? "success" : "warning"}>
-						{readyToPublish ? "Listo para publicar" : `${readinessPercent}% listo`}
+					<Badge variant={isPublished ? "success" : readyToPublish ? "success" : "warning"}>
+						{
+							isPublished
+								? "Publicado"
+								: readyToPublish
+									? "Listo para publicar"
+									: `${readinessPercent}% listo`
+						}
 					</Badge>
 				</div>
 				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
-					<div class="h-full bg-slate-950" style={`width: ${readinessPercent}%`}></div>
+					<div class="h-full bg-emerald-400" style={`width: ${readinessPercent}%`}></div>
 				</div>
 				<p class="text-sm text-slate-300">
 					{
-						readyToPublish
-							? "El viajero puede ver una ficha coherente con contenido y condiciones claras."
-							: "Revisa lo pendiente antes de publicar."
+						isPublished
+							? "Tu alojamiento ya está publicado y puede recibir reservas."
+							: readyToPublish
+								? "El viajero puede ver una ficha coherente. Publica cuando estés listo."
+								: blockerLabels.length
+									? `Faltan: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
+									: "Revisa lo pendiente antes de publicar."
 					}
 				</p>
+				<div class="flex flex-wrap gap-2 pt-1">
+					{
+						isPublished ? (
+							<Button href={routes.productDetail(productId)}>Ir a la ficha</Button>
+						) : readyToPublish ? (
+							<Button id="publishProductBtn" type="button">
+								Publicar alojamiento
+							</Button>
+						) : (
+							<Button href={completePreparationHref}>Completar preparación</Button>
+						)
+					}
+					{
+						!isPublished && !readyToPublish ? (
+							<Button href={completePreparationHref} variant="secondary">
+								Ver qué falta
+							</Button>
+						) : null
+					}
+				</div>
+				<p id="publishFeedback" class="hidden text-sm text-slate-400"></p>
 			</Card>
 
 			<Card className="space-y-3 bg-white text-slate-800">
@@ -310,9 +334,14 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 					</div>
 					{
 						isHotel ? (
-							<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-								Reglas para huéspedes
-							</Button>
+							<div class="flex flex-wrap gap-2">
+								<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+									Reglas para huéspedes
+								</Button>
+								<Button href={routes.rates()} variant="secondary" size="sm">
+									Tarifas
+								</Button>
+							</div>
 						) : null
 					}
 				</div>
@@ -330,7 +359,7 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 									</Badge>
 								</div>
 								<div class="mt-3">
-									<Button href={check.href} variant="secondary" size="sm">
+									<Button href={checkHref(check)} variant="secondary" size="sm">
 										{check.cta}
 									</Button>
 								</div>
@@ -595,4 +624,65 @@ const readinessPercent = Math.round((completedChecks / checks.length) * 100)
 			) : null
 		}
 	</section>
-</WorkspaceLayout>
+
+	<script is:inline define:vars={{ productId, productDetailHref: routes.productDetail(productId) }}>
+		;(function () {
+			const publishBtn = document.getElementById("publishProductBtn")
+			const feedback = document.getElementById("publishFeedback")
+			if (!publishBtn || !productId) return
+
+			publishBtn.addEventListener("click", async () => {
+				publishBtn.disabled = true
+				if (feedback) {
+					feedback.classList.remove("hidden")
+					feedback.textContent = "Verificando requisitos y publicando..."
+				}
+
+				try {
+					const formData = new FormData()
+					formData.set("productId", productId)
+
+					const evaluateResponse = await fetch("/api/product/evaluate", {
+						method: "POST",
+						body: formData,
+					})
+					const evaluatePayload = await evaluateResponse.json().catch(() => ({}))
+					if (!evaluateResponse.ok || evaluatePayload.state !== "ready") {
+						const errors = Array.isArray(evaluatePayload.validationErrors)
+							? evaluatePayload.validationErrors
+									.map((item) => String(item?.message || item?.code || ""))
+									.filter(Boolean)
+									.join("\n")
+							: String(evaluatePayload.error || "No se pudo validar el alojamiento.")
+						if (feedback)
+							feedback.textContent = errors || "Completa los requisitos antes de publicar."
+						publishBtn.disabled = false
+						return
+					}
+
+					const publishResponse = await fetch("/api/product/publish", {
+						method: "POST",
+						body: formData,
+					})
+					const publishPayload = await publishResponse.json().catch(() => ({}))
+					if (!publishResponse.ok || !publishPayload.ok) {
+						const errors = Array.isArray(publishPayload.validationErrors)
+							? publishPayload.validationErrors
+									.map((item) => String(item?.message || item?.code || ""))
+									.filter(Boolean)
+									.join("\n")
+							: String(publishPayload.error || "No se pudo publicar el alojamiento.")
+						if (feedback) feedback.textContent = errors
+						publishBtn.disabled = false
+						return
+					}
+
+					window.location.href = productDetailHref
+				} catch (error) {
+					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
+					publishBtn.disabled = false
+				}
+			})
+		})()
+	</script>
+</PlaybookLayout>
