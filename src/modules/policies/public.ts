@@ -41,6 +41,10 @@ export type {
 	PolicyExceptionRuleContextFilter,
 	PolicyExceptionRuleRepositoryPort,
 } from "./application/ports/PolicyExceptionRuleRepositoryPort"
+export type {
+	PolicyCoverageByRatePlan,
+	PolicyCoverageQueryParams,
+} from "./infrastructure/repositories/PolicyCoverageQueryRepository"
 
 // Application queries (factories for DI wiring)
 // NOTE: We intentionally do NOT export legacy query factories or cache/compiler-related ports here.
@@ -62,6 +66,16 @@ export async function resolveEffectivePolicies(params: {
 	const { resolveEffectivePoliciesUseCase } =
 		await import("@/container/policies-resolution.container")
 	return resolveEffectivePoliciesUseCase(params)
+}
+
+export async function listPolicyCoverageByProvider(
+	params: import("./infrastructure/repositories/PolicyCoverageQueryRepository").PolicyCoverageQueryParams
+): Promise<
+	import("./infrastructure/repositories/PolicyCoverageQueryRepository").PolicyCoverageByRatePlan[]
+> {
+	const { PolicyCoverageQueryRepository } =
+		await import("./infrastructure/repositories/PolicyCoverageQueryRepository")
+	return new PolicyCoverageQueryRepository().listRatePlanCoverageByProvider(params)
 }
 
 export async function createPolicyCapa6(
