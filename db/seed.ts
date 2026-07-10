@@ -921,6 +921,17 @@ export default async function seed() {
 		{ id: "refrigerator", name: "Refrigerador", category: "Cocina" },
 	])
 
+	if (
+		process.env.NODE_ENV !== "production" &&
+		(process.env.LOCAL_QA_AUTH_ENABLED === "true" ||
+			process.env.FASTT_SEED_FINANCIAL_DEMO === "true")
+	) {
+		const { default: seedFinancialOperationalDemo } = await import(
+			"../src/scripts/seed-financial-operational-demo"
+		)
+		await seedFinancialOperationalDemo()
+	}
+
 	console.log("¡Siembra de datos completada exitosamente!")
 }
 

@@ -3,13 +3,21 @@ import {
 	BookingRoomDetail,
 	BookingTaxFee,
 	CommissionSnapshot,
+	DailyInventory,
 	db,
 	Destination,
+	EffectiveAvailability,
+	EffectivePricingV2,
 	FinancialExceptionRecord,
 	FinancialReviewEvent,
 	FinancialSettlementRecord,
+	Hotel,
+	Image,
 	PaymentTransaction,
 	Product,
+	ProductContent,
+	ProductLocation,
+	ProductStatus,
 	Provider,
 	ProviderFinancialProfile,
 	ProviderPayableSnapshot,
@@ -19,11 +27,19 @@ import {
 	RatePlanOccupancyPolicy,
 	ReconciliationMatch,
 	RefundHandoffRecord,
+	SearchUnitView,
 	User,
 	Variant,
+	VariantCapacity,
+	VariantInventoryConfig,
+	VariantReadiness,
+	VariantRoomAmenity,
+	VariantRoomBed,
+	VariantRoomProfile,
 	eq,
 	sql,
 } from "astro:db"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const QA_EMAIL = process.env.LOCAL_QA_AUTH_EMAIL?.trim().toLowerCase() || "ellaggon@gmail.com"
 const QA_PROVIDER_ID = process.env.LOCAL_QA_PROVIDER_ID?.trim() || "qa-financial-provider-ellaggon"
@@ -33,6 +49,9 @@ const VARIANT_ID = "qa-financial-suite-norte"
 const RATE_PLAN_ID = "qa-financial-plan-flexible"
 const DESTINATION_ID = "qa-financial-santa-cruz"
 const NOW = new Date("2026-06-30T12:00:00.000Z")
+const DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
+	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
+)
 
 type DemoBooking = {
 	id: string
@@ -108,6 +127,12 @@ function daysAgo(days: number): Date {
 
 function commissionAmount(amount: number): number {
 	return Number((amount * 0.15).toFixed(2))
+}
+
+function isoDateFrom(base: string, offsetDays: number): string {
+	const date = new Date(`${base}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + offsetDays)
+	return date.toISOString().slice(0, 10)
 }
 
 async function ensureUser(email: string): Promise<string> {
@@ -248,6 +273,118 @@ async function seedCatalog(userId: string): Promise<void> {
 		})
 
 	await db
+		.insert(ProductStatus)
+		.values({
+			productId: PRODUCT_ID,
+			state: "published",
+			validationErrorsJson: [],
+		})
+		.onConflictDoUpdate({
+			target: [ProductStatus.productId],
+			set: {
+				state: "published",
+				validationErrorsJson: [],
+			},
+		})
+
+	await db
+		.insert(ProductContent)
+		.values({
+			productId: PRODUCT_ID,
+			description:
+				"Hotel demo operativo en Santa Cruz con habitaciones, tarifas, disponibilidad y casos financieros visibles para QA local.",
+			highlightsJson: ["Suite con vista norte", "Tarifa flexible", "Inventario demo 60 noches"],
+			seoJson: {
+				title: "Hotel Sol - Demo Fastt",
+				description: "Alojamiento demo con habitaciones y tarifas cargadas para QA local.",
+			},
+		})
+		.onConflictDoUpdate({
+			target: [ProductContent.productId],
+			set: {
+				description:
+					"Hotel demo operativo en Santa Cruz con habitaciones, tarifas, disponibilidad y casos financieros visibles para QA local.",
+				highlightsJson: ["Suite con vista norte", "Tarifa flexible", "Inventario demo 60 noches"],
+				seoJson: {
+					title: "Hotel Sol - Demo Fastt",
+					description: "Alojamiento demo con habitaciones y tarifas cargadas para QA local.",
+				},
+			},
+		})
+
+	await db
+		.insert(ProductLocation)
+		.values({
+			productId: PRODUCT_ID,
+			address: "Av. San Martin 1200, Equipetrol",
+			lat: -17.7597,
+			lng: -63.1966,
+		})
+		.onConflictDoUpdate({
+			target: [ProductLocation.productId],
+			set: {
+				address: "Av. San Martin 1200, Equipetrol",
+				lat: -17.7597,
+				lng: -63.1966,
+			},
+		})
+
+	await db
+		.insert(Hotel)
+		.values({
+			productId: PRODUCT_ID,
+			stars: 4,
+			phone: "+591 3 333 0000",
+			email: "reservas@hotelsol.demo",
+			website: "https://fastt.local/hotel-sol",
+		})
+		.onConflictDoUpdate({
+			target: [Hotel.productId],
+			set: {
+				stars: 4,
+				phone: "+591 3 333 0000",
+				email: "reservas@hotelsol.demo",
+				website: "https://fastt.local/hotel-sol",
+			},
+		})
+
+	const productImages = [
+		{
+			id: "qa-financial-product-image-1",
+			url: "https://placehold.co/1200x800/D6E4FF/111827?text=Hotel+Sol",
+			order: 0,
+			isPrimary: true,
+		},
+		{
+			id: "qa-financial-product-image-2",
+			url: "https://placehold.co/1200x800/FDE68A/111827?text=Lobby+Hotel+Sol",
+			order: 1,
+			isPrimary: false,
+		},
+	]
+	for (const image of productImages) {
+		await db
+			.insert(Image)
+			.values({
+				...image,
+				entityType: "product",
+				entityId: PRODUCT_ID,
+				objectKey: `demo/${image.id}.jpg`,
+			})
+			.onConflictDoUpdate({
+				target: [Image.id],
+				set: {
+					entityType: "product",
+					entityId: PRODUCT_ID,
+					objectKey: `demo/${image.id}.jpg`,
+					url: image.url,
+					order: image.order,
+					isPrimary: image.isPrimary,
+				},
+			})
+	}
+
+	await db
 		.insert(Variant)
 		.values({
 			id: VARIANT_ID,
@@ -274,6 +411,153 @@ async function seedCatalog(userId: string): Promise<void> {
 		})
 
 	await db
+		.insert(VariantCapacity)
+		.values({
+			variantId: VARIANT_ID,
+			minOccupancy: 1,
+			maxOccupancy: 3,
+			maxAdults: 2,
+			maxChildren: 1,
+		})
+		.onConflictDoUpdate({
+			target: [VariantCapacity.variantId],
+			set: {
+				minOccupancy: 1,
+				maxOccupancy: 3,
+				maxAdults: 2,
+				maxChildren: 1,
+			},
+		})
+
+	await db
+		.insert(VariantRoomProfile)
+		.values({
+			variantId: VARIANT_ID,
+			roomTypeId: "double",
+			sizeM2: 42,
+			viewType: "Vista norte a Equipetrol",
+			bathroomCount: 1,
+			bathroomType: "private",
+			hasBalcony: true,
+			guestFacingNotes: "Suite amplia con escritorio, balcon y bano privado.",
+			createdAt: NOW,
+			updatedAt: NOW,
+		})
+		.onConflictDoUpdate({
+			target: [VariantRoomProfile.variantId],
+			set: {
+				roomTypeId: "double",
+				sizeM2: 42,
+				viewType: "Vista norte a Equipetrol",
+				bathroomCount: 1,
+				bathroomType: "private",
+				hasBalcony: true,
+				guestFacingNotes: "Suite amplia con escritorio, balcon y bano privado.",
+				updatedAt: NOW,
+			},
+		})
+
+	await db
+		.insert(VariantRoomBed)
+		.values({
+			id: "qa-financial-suite-norte-bed-king",
+			variantId: VARIANT_ID,
+			bedType: "king",
+			count: 1,
+			roomLabel: "Dormitorio principal",
+			sortOrder: 0,
+		})
+		.onConflictDoUpdate({
+			target: [VariantRoomBed.id],
+			set: {
+				variantId: VARIANT_ID,
+				bedType: "king",
+				count: 1,
+				roomLabel: "Dormitorio principal",
+				sortOrder: 0,
+			},
+		})
+
+	for (const [index, amenityId] of [
+		"air_conditioning",
+		"private_bathroom",
+		"shower",
+		"closet",
+		"refrigerator",
+	].entries()) {
+		await db
+			.insert(VariantRoomAmenity)
+			.values({
+				id: `qa-financial-suite-norte-amenity-${amenityId}`,
+				variantId: VARIANT_ID,
+				amenityId,
+				isAvailable: true,
+				notes: index === 0 ? "Disponible en la suite demo." : undefined,
+			})
+			.onConflictDoUpdate({
+				target: [VariantRoomAmenity.id],
+				set: {
+					variantId: VARIANT_ID,
+					amenityId,
+					isAvailable: true,
+				},
+			})
+	}
+
+	await db
+		.insert(VariantReadiness)
+		.values({
+			variantId: VARIANT_ID,
+			state: "ready",
+			validationErrorsJson: [],
+			updatedAt: NOW,
+		})
+		.onConflictDoUpdate({
+			target: [VariantReadiness.variantId],
+			set: {
+				state: "ready",
+				validationErrorsJson: [],
+				updatedAt: NOW,
+			},
+		})
+
+	const variantImages = [
+		{
+			id: "qa-financial-variant-image-1",
+			url: "https://placehold.co/1200x800/C7D2FE/111827?text=Suite+Norte",
+			order: 0,
+			isPrimary: true,
+		},
+		{
+			id: "qa-financial-variant-image-2",
+			url: "https://placehold.co/1200x800/BFDBFE/111827?text=Bano+Privado",
+			order: 1,
+			isPrimary: false,
+		},
+	]
+	for (const image of variantImages) {
+		await db
+			.insert(Image)
+			.values({
+				...image,
+				entityType: "variant",
+				entityId: VARIANT_ID,
+				objectKey: `demo/${image.id}.jpg`,
+			})
+			.onConflictDoUpdate({
+				target: [Image.id],
+				set: {
+					entityType: "variant",
+					entityId: VARIANT_ID,
+					objectKey: `demo/${image.id}.jpg`,
+					url: image.url,
+					order: image.order,
+					isPrimary: image.isPrimary,
+				},
+			})
+	}
+
+	await db
 		.insert(RatePlan)
 		.values({
 			id: RATE_PLAN_ID,
@@ -294,6 +578,151 @@ async function seedCatalog(userId: string): Promise<void> {
 				isActive: true,
 			},
 		})
+
+	await db
+		.insert(VariantInventoryConfig)
+		.values({
+			variantId: VARIANT_ID,
+			defaultTotalUnits: 5,
+			horizonDays: 60,
+			createdAt: NOW,
+		})
+		.onConflictDoUpdate({
+			target: [VariantInventoryConfig.variantId],
+			set: {
+				defaultTotalUnits: 5,
+				horizonDays: 60,
+			},
+		})
+
+	for (let offset = 0; offset < 60; offset += 1) {
+		const date = isoDateFrom("2026-07-01", offset)
+		const weekend = new Date(`${date}T00:00:00.000Z`).getUTCDay()
+		const price = weekend === 5 || weekend === 6 ? 360 : 320
+		const reservedCount = offset % 9 === 0 ? 2 : offset % 5 === 0 ? 1 : 0
+		const availableUnits = 5 - reservedCount
+
+		await db
+			.insert(DailyInventory)
+			.values({
+				id: `qa-financial-inventory-${date}`,
+				variantId: VARIANT_ID,
+				date,
+				totalInventory: 5,
+				reservedCount,
+				createdAt: NOW,
+				updatedAt: NOW,
+			})
+			.onConflictDoUpdate({
+				target: [DailyInventory.id],
+				set: {
+					variantId: VARIANT_ID,
+					date,
+					totalInventory: 5,
+					reservedCount,
+					updatedAt: NOW,
+				},
+			})
+
+		await db
+			.insert(EffectiveAvailability)
+			.values({
+				id: `qa-financial-availability-${date}`,
+				variantId: VARIANT_ID,
+				date,
+				totalUnits: 5,
+				heldUnits: 0,
+				bookedUnits: reservedCount,
+				availableUnits,
+				computedAt: NOW,
+			})
+			.onConflictDoUpdate({
+				target: [EffectiveAvailability.id],
+				set: {
+					variantId: VARIANT_ID,
+					date,
+					totalUnits: 5,
+					heldUnits: 0,
+					bookedUnits: reservedCount,
+					availableUnits,
+					computedAt: NOW,
+				},
+			})
+
+		await db
+			.insert(EffectivePricingV2)
+			.values({
+				id: `qa-financial-pricing-${date}-${DEFAULT_OCCUPANCY_KEY}`,
+				variantId: VARIANT_ID,
+				ratePlanId: RATE_PLAN_ID,
+				date,
+				occupancyKey: DEFAULT_OCCUPANCY_KEY,
+				baseComponent: price,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
+				finalBasePrice: price,
+				currency: "USD",
+				computedAt: NOW,
+				sourceVersion: "financial-demo-seed",
+			})
+			.onConflictDoUpdate({
+				target: [EffectivePricingV2.id],
+				set: {
+					variantId: VARIANT_ID,
+					ratePlanId: RATE_PLAN_ID,
+					date,
+					occupancyKey: DEFAULT_OCCUPANCY_KEY,
+					baseComponent: price,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
+					finalBasePrice: price,
+					currency: "USD",
+					computedAt: NOW,
+					sourceVersion: "financial-demo-seed",
+				},
+			})
+
+		await db
+			.insert(SearchUnitView)
+			.values({
+				id: `qa-financial-search-unit-${date}-${DEFAULT_OCCUPANCY_KEY}`,
+				variantId: VARIANT_ID,
+				productId: PRODUCT_ID,
+				ratePlanId: RATE_PLAN_ID,
+				date,
+				occupancyKey: DEFAULT_OCCUPANCY_KEY,
+				totalGuests: 2,
+				hasAvailability: true,
+				hasPrice: true,
+				isAvailable: availableUnits > 0,
+				availableUnits,
+				pricePerNight: price,
+				currency: "USD",
+				primaryBlocker: undefined,
+				computedAt: NOW,
+				sourceVersion: "financial-demo-seed",
+			})
+			.onConflictDoUpdate({
+				target: [SearchUnitView.id],
+				set: {
+					variantId: VARIANT_ID,
+					productId: PRODUCT_ID,
+					ratePlanId: RATE_PLAN_ID,
+					date,
+					occupancyKey: DEFAULT_OCCUPANCY_KEY,
+					totalGuests: 2,
+					hasAvailability: true,
+					hasPrice: true,
+					isAvailable: availableUnits > 0,
+					availableUnits,
+					pricePerNight: price,
+					currency: "USD",
+					primaryBlocker: undefined,
+					computedAt: NOW,
+					sourceVersion: "financial-demo-seed",
+				},
+			})
+	}
 
 	await db
 		.insert(RatePlanOccupancyPolicy)
