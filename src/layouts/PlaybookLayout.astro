@@ -1,13 +1,12 @@
 ---
 import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	ADD_ROOM_PLAYBOOK_TITLE,
 	getAddRoomStepById,
-	getApplicableAddRoomSteps,
+	getAddRoomStepPosition,
 	getPreviousAddRoomStep,
 } from "@/lib/playbook/add-room"
 import { COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE } from "@/lib/playbook/complete-to-publish"
@@ -51,7 +50,12 @@ const {
 
 const isAddRoom = playbookId === "add-room"
 const isComplete = playbookId === "complete-to-publish"
-const launchCtx = { productId, isHotel }
+const launchCtx = {
+	productId,
+	isHotel,
+	variantId: variantId || undefined,
+	ratePlanId: ratePlanId || undefined,
+}
 const addRoomCtx = {
 	productId,
 	variantId: variantId || undefined,
@@ -99,9 +103,6 @@ if (isComplete && active && productId) {
 		}
 	}
 } else {
-	const applicableSteps = isAddRoom
-		? getApplicableAddRoomSteps(addRoomCtx)
-		: getApplicableLaunchSteps(launchCtx)
 	const currentStep = active
 		? isAddRoom
 			? getAddRoomStepById(stepId, addRoomCtx)
@@ -113,11 +114,20 @@ if (isComplete && active && productId) {
 				? getPreviousAddRoomStep(stepId, addRoomCtx)
 				: getPreviousLaunchStep(stepId, launchCtx)
 			: null
-	const stepIndex = currentStep
-		? applicableSteps.findIndex((step) => step.id === currentStep.id)
-		: -1
-	stepNumber = stepIndex >= 0 ? stepIndex + 1 : null
-	totalSteps = applicableSteps.length
+
+	if (isAddRoom) {
+		const position = getAddRoomStepPosition(stepId, addRoomCtx)
+		stepNumber = position.stepNumber
+		totalSteps = position.totalSteps
+	} else {
+		const applicableSteps = getApplicableLaunchSteps(launchCtx)
+		const stepIndex = currentStep
+			? applicableSteps.findIndex((step) => step.id === currentStep.id)
+			: -1
+		stepNumber = stepIndex >= 0 ? stepIndex + 1 : null
+		totalSteps = applicableSteps.length
+	}
+
 	playbookTitle = isAddRoom ? ADD_ROOM_PLAYBOOK_TITLE : LAUNCH_PLAYBOOK_TITLE
 	if (currentStep) {
 		currentStepKnown = true
@@ -146,6 +156,8 @@ if (isComplete && active && productId) {
 					})
 				: await evaluateLaunchProgress(productId, providerId, {
 						isHotel,
+						variantId,
+						ratePlanId,
 						currentStepId: stepId,
 					})
 			if (progress) {
@@ -166,41 +178,30 @@ const isTerminalStep = isAddRoom
 		? stepId === "preview"
 		: stepId === "preview"
 const showFooter = active && currentStepKnown && !hideFooter
+const stepPositionPercent =
+	stepNumber && totalSteps ? Math.round((stepNumber / totalSteps) * 100) : 0
+const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositionPercent))
 ---
 
 <WorkspaceLayout title={title}>
 	{
 		active && currentStepKnown ? (
-			<div class="mb-6 space-y-4">
-				<Card className="border-emerald-500/20 bg-emerald-500/5 px-4 py-4 text-slate-100 sm:px-5">
-					<div class="flex flex-wrap items-start justify-between gap-3">
-						<div class="space-y-1">
-							<p class="text-xs font-medium tracking-wide text-emerald-300/80 uppercase">
-								{playbookTitle}
-								{stepNumber && totalSteps ? ` · Paso ${stepNumber} de ${totalSteps}` : ""}
-							</p>
-							<h2 class="text-lg font-semibold text-slate-100">{stepLabel}</h2>
-							<p class="max-w-2xl text-sm leading-6 text-slate-400">{stepGuestImpact}</p>
-						</div>
-						<Button href={exitHref} variant="secondary" class="shrink-0 text-sm">
-							Salir del flujo
-						</Button>
-					</div>
-					<div class="mt-4">
-						<div
-							class="fastt-progress-track h-1.5 overflow-hidden bg-white/10"
-							role="progressbar"
-							aria-valuenow={progressPercent}
-							aria-valuemin={0}
-							aria-valuemax={100}
-						>
-							<div
-								class="fastt-progress-value h-full bg-emerald-400"
-								style={`width: ${Math.max(progressPercent, stepNumber && totalSteps ? Math.round(((stepNumber - 1) / totalSteps) * 100) : 0)}%`}
-							/>
-						</div>
-					</div>
-				</Card>
+			<div class="mb-5 space-y-2">
+				<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+					{stepNumber && totalSteps ? `Paso ${stepNumber} de ${totalSteps}` : "Progreso"}
+				</p>
+				<div
+					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
+					role="progressbar"
+					aria-valuenow={progressPercent}
+					aria-valuemin={0}
+					aria-valuemax={100}
+				>
+					<div
+						class="fastt-progress-value h-full"
+						style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
+					/>
+				</div>
 			</div>
 		) : null
 	}
@@ -209,33 +210,32 @@ const showFooter = active && currentStepKnown && !hideFooter
 
 	{
 		showFooter ? (
-			<footer class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
-				<div>
+			<footer class="mt-8 flex flex-col gap-4 border-t border-slate-800 pt-6 sm:flex-row sm:items-center sm:justify-between">
+				<div class="min-h-10">
 					{previousHref ? (
-						<Button href={previousHref} variant="secondary">
+						<Button
+							href={previousHref}
+							variant="ghost"
+							className="text-slate-300 hover:bg-slate-800 hover:text-white"
+						>
 							← Anterior
 						</Button>
-					) : (
-						<span class="text-sm text-slate-500">
-							{isComplete ? "Checklist dinámico de preparación" : "Primer paso del recorrido"}
-						</span>
-					)}
+					) : null}
 				</div>
-				<div class="flex flex-wrap items-center gap-3">
+				<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+					<a
+						href={exitHref}
+						class="inline-flex h-10 items-center justify-center px-2 text-sm font-medium text-slate-500 transition hover:text-slate-200"
+					>
+						Salir del flujo
+					</a>
 					{isTerminalStep && isComplete ? (
 						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
 					) : isTerminalStep ? (
 						<Button href={exitHref}>{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}</Button>
 					) : resolvedContinueHref ? (
 						<Button href={resolvedContinueHref}>Continuar →</Button>
-					) : (
-						<p class="text-sm text-slate-400">
-							Guarda los cambios para continuar al siguiente paso.
-						</p>
-					)}
-					<Button href={exitHref} variant="secondary">
-						Salir del flujo
-					</Button>
+					) : null}
 				</div>
 			</footer>
 		) : null
