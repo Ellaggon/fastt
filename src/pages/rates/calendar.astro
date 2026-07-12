@@ -6,6 +6,10 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import {
+	getNextLaunchStep,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { buildSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 import { routes } from "@/lib/routes"
@@ -43,6 +47,7 @@ const initialMode =
 				: "price"
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const ratePlanIdParam = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
@@ -59,31 +64,61 @@ if (!addRoomPlaybook.active && flow === "add-room" && playbookProductId) {
 	params.set("step", "availability")
 	return Astro.redirect(`${routes.calendar()}?${params.toString()}`)
 }
+if (!launchPlaybook.active && flow === "create" && playbookProductId) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "launch")
+	params.set("step", "calendar")
+	return Astro.redirect(`${routes.calendar()}?${params.toString()}`)
+}
 
 const addRoomCtx = {
 	productId: playbookProductId,
 	variantId: variantIdParam || addRoomPlaybook.variantId || undefined,
 	ratePlanId: ratePlanIdParam || addRoomPlaybook.ratePlanId || undefined,
 }
+const launchCtx = {
+	productId: playbookProductId,
+	isHotel: true,
+	variantId: variantIdParam || undefined,
+	ratePlanId: ratePlanIdParam || undefined,
+}
 const addRoomContinueHref = addRoomPlaybook.active
 	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "availability", addRoomCtx)?.buildHref(
 			addRoomCtx
 		) ?? null)
 	: null
-const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
-const layoutProps = addRoomPlaybook.active
-	? {
-			title: "Calendario",
-			playbookId: "add-room" as const,
-			active: true,
-			stepId: addRoomPlaybook.stepId ?? "availability",
-			productId: playbookProductId,
-			variantId: addRoomCtx.variantId ?? "",
-			ratePlanId: addRoomCtx.ratePlanId ?? "",
-			isHotel: true,
-			continueHref: addRoomContinueHref,
-		}
-	: { title: "Calendario" }
+const launchContinueHref = launchPlaybook.active
+	? (getNextLaunchStep(launchPlaybook.stepId ?? "calendar", launchCtx)?.buildHref(launchCtx) ??
+		null)
+	: null
+const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
+const layoutProps =
+	activePlaybook === "add-room"
+		? {
+				title: "Calendario",
+				playbookId: "add-room" as const,
+				active: true,
+				stepId: addRoomPlaybook.stepId ?? "availability",
+				productId: playbookProductId,
+				variantId: addRoomCtx.variantId ?? "",
+				ratePlanId: addRoomCtx.ratePlanId ?? "",
+				isHotel: true,
+				continueHref: addRoomContinueHref,
+			}
+		: activePlaybook === "launch"
+			? {
+					title: "Calendario",
+					playbookId: "launch" as const,
+					active: true,
+					stepId: launchPlaybook.stepId ?? "calendar",
+					productId: launchCtx.productId,
+					variantId: launchCtx.variantId ?? "",
+					ratePlanId: launchCtx.ratePlanId ?? "",
+					isHotel: true,
+					continueHref: launchContinueHref,
+				}
+			: { title: "Calendario" }
 ---
 
 <Layout {...layoutProps}>
