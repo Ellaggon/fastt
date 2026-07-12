@@ -74,6 +74,16 @@ export const POST: APIRoute = async ({ request }) => {
 			ratePlanName: body.name,
 			presets: intent.contract,
 		})
+
+		const invalidateCreatedRatePlan = async () => {
+			invalidateAggregateCache({
+				providerId,
+				productId: variant.productId,
+				variantId: body.variantId,
+			})
+			await invalidateVariant(body.variantId, variant.productId)
+		}
+
 		if (body.publicationMode === "publish") {
 			const publication = await validateRatePlanPublication({
 				ratePlanId: createdRatePlanId,
@@ -81,6 +91,7 @@ export const POST: APIRoute = async ({ request }) => {
 				productId: variant.productId,
 			})
 			if (!publication.canPublish) {
+				await invalidateCreatedRatePlan()
 				return json(201, {
 					error: `La tarifa quedó en borrador. Falta: ${publication.blockers.join(", ")}.`,
 					ratePlanId: createdRatePlanId,
@@ -96,8 +107,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		invalidateAggregateCache({ variantId: body.variantId })
-		await invalidateVariant(body.variantId, variant.productId)
+		await invalidateCreatedRatePlan()
 
 		return json(201, {
 			ratePlanId: createdRatePlanId,

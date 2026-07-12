@@ -1,5 +1,5 @@
 ---
-import { Plus, CalendarDays, X } from "@lucide/astro"
+import { Plus, CalendarDays, Hotel, X } from "@lucide/astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
@@ -8,11 +8,11 @@ import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
-	buildAddRoomHref,
-	getNextAddRoomStep,
-	resolveAddRoomPlaybookFromUrl,
-} from "@/lib/playbook/add-room"
+	getNextLaunchStep,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { formatHistoryDate, loadRatesContextualHistory } from "@/lib/audit/contextualHistory"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -150,6 +150,7 @@ const tabs = [
 ]
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	const params = new URLSearchParams(Astro.url.searchParams)
@@ -157,450 +158,650 @@ if (!addRoomPlaybook.active && flow === "add-room") {
 	params.set("step", "create-rate")
 	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
 }
+if (!launchPlaybook.active && flow === "create") {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "launch")
+	params.set("step", "rate")
+	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
+}
 
 const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
 const matchedVariant = variantChoices.find((choice) => choice.variantId === requestedVariantId)
-const playbookProductId = matchedVariant?.productId ?? addRoomPlaybook.productId
+const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const playbookProductId =
+	matchedVariant?.productId ?? addRoomPlaybook.productId ?? requestedProductId
 const addRoomCtx = {
 	productId: playbookProductId,
+	variantId: requestedVariantId || undefined,
+}
+const launchCtx = {
+	productId: playbookProductId,
+	isHotel: true,
 	variantId: requestedVariantId || undefined,
 }
 const addRoomContinueHref = addRoomPlaybook.active
 	? (getNextAddRoomStep("create-rate", addRoomCtx)?.buildHref(addRoomCtx) ?? null)
 	: null
-const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
-const layoutProps = addRoomPlaybook.active
-	? {
-			title: "Tarifas · Nueva tarifa",
-			playbookId: "add-room" as const,
-			active: true,
-			stepId: addRoomPlaybook.stepId ?? "create-rate",
-			productId: playbookProductId,
-			variantId: requestedVariantId,
-			isHotel: true,
-			continueHref: addRoomContinueHref,
-		}
-	: { title: "Tarifas" }
+const launchContinueHref = launchPlaybook.active
+	? (getNextLaunchStep("rate", launchCtx)?.buildHref(launchCtx) ?? null)
+	: null
+const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const isPlaybookRateStep = Boolean(activePlaybook)
+const playbookVariantLabel = matchedVariant?.variantName ?? "esta habitación"
+const playbookProductLabel = matchedVariant?.productName ?? "Alojamiento"
+const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
+const layoutProps =
+	activePlaybook === "add-room"
+		? {
+				title: "Tarifas · Nueva tarifa",
+				playbookId: "add-room" as const,
+				active: true,
+				stepId: addRoomPlaybook.stepId ?? "create-rate",
+				productId: playbookProductId,
+				variantId: requestedVariantId,
+				isHotel: true,
+				continueHref: addRoomContinueHref,
+				hideFooter: true,
+			}
+		: activePlaybook === "launch"
+			? {
+					title: "Tarifas · Primera tarifa",
+					playbookId: "launch" as const,
+					active: true,
+					stepId: launchPlaybook.stepId ?? "rate",
+					productId: playbookProductId,
+					variantId: requestedVariantId,
+					isHotel: true,
+					continueHref: launchContinueHref,
+					hideFooter: true,
+				}
+			: { title: "Tarifas" }
 ---
 
 <Layout {...layoutProps}>
 	<div class="rate-plans-manage space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Habitaciones y tarifas
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					{
+						isPlaybookRateStep ? (
+							<>
+								<Hotel class="h-4 w-4" />
+								{playbookProductLabel} · Nueva habitación
+							</>
+						) : (
+							"Habitaciones y tarifas"
+						)
+					}
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Tarifas</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{isPlaybookRateStep ? `Tarifa de ${playbookVariantLabel}` : "Tarifas"}
+				</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
-					Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario.
+					{
+						isPlaybookRateStep
+							? "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
+							: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."
+					}
 				</p>
 			</div>
-			<div class="flex flex-wrap gap-2">
-				<Button href={routes.calendar()} variant="secondary">
-					<CalendarDays class="mr-2 size-4" /> Calendario
-				</Button>
-				<Button type="button" variant="primary" data-open-rate-plan-dialog>
-					<Plus class="mr-2 size-4" /> Nueva tarifa
-				</Button>
-			</div>
+			{
+				isPlaybookRateStep ? null : (
+					<div class="flex flex-wrap gap-2">
+						<Button href={routes.calendar()} variant="secondary">
+							<CalendarDays class="mr-2 size-4" /> Calendario
+						</Button>
+						<Button type="button" variant="primary" data-open-rate-plan-dialog>
+							<Plus class="mr-2 size-4" /> Nueva tarifa
+						</Button>
+					</div>
+				)
+			}
 		</header>
 
-		<section class="fastt-card border bg-white text-slate-900">
-			<div
-				class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
-			>
-				<SegmentedControl class="mb-3" aria-label="Estado de tarifas" data-rate-plan-tabs>
-					{
-						tabs.map((tab) => (
-							<a
-								href={`?vista=${tab.id}`}
-								data-rate-plan-tab={tab.id}
-								aria-current={activeView === tab.id ? "page" : undefined}
-								data-active={activeView === tab.id ? "true" : "false"}
-								class={`fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
-									activeView === tab.id
-										? ""
-										: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
-								}`}
-							>
-								{tab.label} <span class="ml-1 text-xs opacity-70">{tab.count}</span>
-							</a>
-						))
-					}
-				</SegmentedControl>
-				<p class="pb-3 text-xs text-slate-500">Evaluación: próximos 30 días</p>
-			</div>
+		{
+			isPlaybookRateStep ? (
+				<form
+					data-rate-plan-create-form
+					data-playbook-rate-form
+					class="fastt-card overflow-hidden border bg-white text-slate-900"
+				>
+					<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+						<div class="space-y-6 p-5 md:p-6">
+							<section class="space-y-4">
+								<div>
+									<h2 class="text-lg font-semibold text-slate-950">Tarifa para esta habitación</h2>
+									<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+										La habitación ya está creada y tiene fotos. Ahora define cómo se venderá:
+										propuesta, nombre visible y precio base.
+									</p>
+								</div>
 
-			<div
-				class={`px-6 py-12 text-center md:hidden ${visibleRowsCount ? "hidden" : ""}`}
-				data-rate-plan-empty
-			>
-				<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
-				<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
-			</div>
-			<p class="hidden border-b border-slate-200 px-4 py-2 text-sm" data-rate-plan-action-feedback>
-			</p>
-
-			{
-				rows.length > 0 && (
-					<>
-						<div
-							class={`space-y-2 p-3 md:hidden ${visibleRowsCount ? "" : "hidden"}`}
-							data-rate-plan-mobile-table
-						>
-							{rows.map((row) => {
-								const state = rowStates.get(String(row.ratePlanId))!
-								const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
-								const total = Number(row.policyCoverage?.totalCategories ?? 4)
-								const ratePlanId = String(row.ratePlanId)
-								return (
-									<details
-										class={`fastt-row-card border border-slate-200 bg-white ${matchesView(state.key, activeView) ? "" : "hidden"}`}
-										data-rate-plan-row
-										data-rate-plan-id={ratePlanId}
-										data-rate-plan-state={state.key}
-									>
-										<summary class="calendar-control flex cursor-pointer list-none items-start justify-between gap-3 p-4">
-											<div class="min-w-0">
-												<div class="flex flex-wrap items-center gap-2">
-													<p class="font-semibold text-slate-950">{row.ratePlanName}</p>
-													{row.isDefault && <Badge variant="info">Principal</Badge>}
-												</div>
-												<p class="mt-1 truncate text-xs text-slate-500">
-													{row.productName} · {row.variantName}
-												</p>
-											</div>
-											<div class="flex shrink-0 items-center gap-2">
-												<Badge variant={state.badge}>{state.label}</Badge>
-												<span class="text-slate-400" aria-hidden="true">
-													⌄
-												</span>
-											</div>
-										</summary>
-										<div class="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-100 p-4 text-sm">
-											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Precio base</p>
-												<p class="mt-1 font-semibold text-slate-950">
-													{money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency)}
-												</p>
-											</div>
-											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Condiciones</p>
-												<p class="mt-1 font-medium text-slate-900">
-													{covered}/{total} completas
-												</p>
-											</div>
-											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Calendario</p>
-												<p class="mt-1 font-medium text-slate-900">
-													{row.inventoryReadiness?.availableDays ?? 0}/
-													{row.inventoryReadiness?.expectedDays ?? 30} noches
-												</p>
-											</div>
-											<div>
-												<p class="text-xs font-semibold text-slate-500 uppercase">Venta</p>
-												<p class="mt-1 text-slate-700">{state.reason}</p>
-											</div>
-											<p class="col-span-2 line-clamp-2 text-xs text-slate-500">
-												{shortPolicySummary(row.policySummary)}
-											</p>
-											<div class="col-span-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-												<Button
-													href={state.href}
-													variant={state.key === "ready" ? "secondary" : "primary"}
-													size="sm"
-												>
-													{state.key === "ready" ? "Ver" : "Resolver"}
-												</Button>
-												<RatePlanActionMenu
-													ratePlanId={ratePlanId}
-													name={row.ratePlanName}
-													description={row.description}
-													isActive={Boolean(row.isActive)}
-													isDefault={Boolean(row.isDefault)}
-												/>
-											</div>
+								<div class="grid gap-4 md:grid-cols-2">
+									<label class="block space-y-1.5 text-sm md:col-span-2">
+										<span class="font-medium text-slate-800">Habitación</span>
+										<input type="hidden" name="variantId" value={requestedVariantId} />
+										<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
+											{matchedVariant?.label ?? "Habitación seleccionada"}
 										</div>
-									</details>
-								)
-							})}
+									</label>
+
+									<label class="block space-y-1.5 text-sm">
+										<span class="font-medium text-slate-800">Propuesta comercial</span>
+										<Select name="intent" required>
+											{ratePlanIntentPresets.map((preset) => (
+												<option value={preset.id}>
+													{preset.name} · {preset.summary}
+												</option>
+											))}
+										</Select>
+									</label>
+
+									<label class="block space-y-1.5 text-sm">
+										<span class="font-medium text-slate-800">Nombre visible</span>
+										<Input name="name" value="Tarifa flexible" required />
+									</label>
+
+									<label class="block space-y-1.5 text-sm">
+										<span class="font-medium text-slate-800">Moneda</span>
+										<Select name="currency" required>
+											<option value="BOB">BOB</option>
+											<option value="USD">USD</option>
+										</Select>
+									</label>
+
+									<label class="block space-y-1.5 text-sm">
+										<span class="font-medium text-slate-800">Precio base por noche</span>
+										<Input
+											name="basePrice"
+											type="number"
+											min="1"
+											step="0.01"
+											placeholder="Ej. 450"
+											required
+										/>
+									</label>
+								</div>
+
+								<label class="fastt-soft-box flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 text-sm">
+									<input type="checkbox" name="isDefault" class="mt-0.5 size-4" checked />
+									<span>
+										<strong class="text-slate-900">Usar como tarifa principal</strong>
+										<span class="mt-1 block text-slate-500">
+											Será la tarifa de referencia para esta habitación mientras completas
+											condiciones y disponibilidad.
+										</span>
+									</span>
+								</label>
+							</section>
 						</div>
-						<div
-							class="hidden overflow-x-auto md:block xl:overflow-visible"
-							data-rate-plan-desktop-table
-						>
-							<table class="w-full min-w-[920px] text-left text-sm">
-								<thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-									<tr>
-										<th class="px-4 py-3">Tarifa</th>
-										<th class="px-4 py-3">Precio base</th>
-										<th class="px-4 py-3">Condiciones</th>
-										<th class="px-4 py-3">Calendario</th>
-										<th class="px-4 py-3">Estado</th>
-										<th class="px-4 py-3 text-right">Acciones</th>
-									</tr>
-								</thead>
-								<tbody class="divide-y divide-slate-100">
-									<tr class={visibleRowsCount ? "hidden" : ""} data-rate-plan-empty-row>
-										<td colspan="6" class="px-6 py-14 text-center">
-											<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
-											<p class="mt-1 text-sm text-slate-500">
-												Cambia de estado o crea una nueva tarifa.
-											</p>
-										</td>
-									</tr>
-									{rows.map((row) => {
-										const state = rowStates.get(String(row.ratePlanId))!
-										const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
-										const total = Number(row.policyCoverage?.totalCategories ?? 4)
-										const restrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
-										return (
-											<tr
-												class={`align-middle hover:bg-slate-50/70 ${matchesView(state.key, activeView) ? "" : "hidden"}`}
-												data-rate-plan-row
-												data-rate-plan-id={String(row.ratePlanId)}
-												data-rate-plan-state={state.key}
-											>
-												<td class="px-4 py-4">
-													<div class="flex items-center gap-2">
+
+						<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
+							<h2 class="text-sm font-semibold text-slate-950">Condiciones iniciales</h2>
+							<p class="mt-2 text-sm leading-6 text-slate-600" data-contract-summary>
+								Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
+								noche por no presentación.
+							</p>
+							<div class="fastt-soft-box mt-5 p-4">
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Siguiente paso
+								</p>
+								<p class="mt-2 text-sm font-medium text-slate-950">Condiciones de reserva</p>
+								<p class="mt-1 text-sm leading-6 text-slate-500">
+									Después de guardar ajustarás cancelación, pagos y reglas antes de abrir
+									disponibilidad.
+								</p>
+							</div>
+						</aside>
+					</div>
+
+					<footer class="flex flex-col gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
+						<p class="text-sm text-slate-500" data-rate-plan-feedback />
+						<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+							<Button
+								href={
+									addRoomPlaybook.active && playbookProductId && requestedVariantId
+										? `/product/${encodeURIComponent(playbookProductId)}/rooms/${encodeURIComponent(requestedVariantId)}?playbook=add-room&step=room-photos&flow=add-room#fotos`
+										: launchPlaybook.active && playbookProductId
+											? `/product/${encodeURIComponent(playbookProductId)}/rooms/new?playbook=launch&step=room-profile&flow=create`
+											: routes.rates()
+								}
+								variant="ghost"
+								className="text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+							>
+								Volver
+							</Button>
+							<Button type="submit" name="publicationMode" value="draft">
+								Guardar tarifa y continuar
+							</Button>
+						</div>
+					</footer>
+				</form>
+			) : null
+		}
+
+		{
+			!isPlaybookRateStep ? (
+				<section class="fastt-card border bg-white text-slate-900">
+					<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4">
+						<SegmentedControl class="mb-3" aria-label="Estado de tarifas" data-rate-plan-tabs>
+							{tabs.map((tab) => (
+								<a
+									href={`?vista=${tab.id}`}
+									data-rate-plan-tab={tab.id}
+									aria-current={activeView === tab.id ? "page" : undefined}
+									data-active={activeView === tab.id ? "true" : "false"}
+									class={`fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+										activeView === tab.id
+											? ""
+											: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+									}`}
+								>
+									{tab.label} <span class="ml-1 text-xs opacity-70">{tab.count}</span>
+								</a>
+							))}
+						</SegmentedControl>
+						<p class="pb-3 text-xs text-slate-500">Evaluación: próximos 30 días</p>
+					</div>
+
+					<div
+						class={`px-6 py-12 text-center md:hidden ${visibleRowsCount ? "hidden" : ""}`}
+						data-rate-plan-empty
+					>
+						<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
+						<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
+					</div>
+					<p
+						class="hidden border-b border-slate-200 px-4 py-2 text-sm"
+						data-rate-plan-action-feedback
+					/>
+
+					{rows.length > 0 && (
+						<>
+							<div
+								class={`space-y-2 p-3 md:hidden ${visibleRowsCount ? "" : "hidden"}`}
+								data-rate-plan-mobile-table
+							>
+								{rows.map((row) => {
+									const state = rowStates.get(String(row.ratePlanId))!
+									const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
+									const total = Number(row.policyCoverage?.totalCategories ?? 4)
+									const ratePlanId = String(row.ratePlanId)
+									return (
+										<details
+											class={`fastt-row-card border border-slate-200 bg-white ${matchesView(state.key, activeView) ? "" : "hidden"}`}
+											data-rate-plan-row
+											data-rate-plan-id={ratePlanId}
+											data-rate-plan-state={state.key}
+										>
+											<summary class="calendar-control flex cursor-pointer list-none items-start justify-between gap-3 p-4">
+												<div class="min-w-0">
+													<div class="flex flex-wrap items-center gap-2">
 														<p class="font-semibold text-slate-950">{row.ratePlanName}</p>
 														{row.isDefault && <Badge variant="info">Principal</Badge>}
 													</div>
-													<p class="mt-1 text-xs text-slate-500">
+													<p class="mt-1 truncate text-xs text-slate-500">
 														{row.productName} · {row.variantName}
 													</p>
-												</td>
-												<td class="px-4 py-4">
-													<p class="font-semibold text-slate-950">
+												</div>
+												<div class="flex shrink-0 items-center gap-2">
+													<Badge variant={state.badge}>{state.label}</Badge>
+													<span class="text-slate-400" aria-hidden="true">
+														⌄
+													</span>
+												</div>
+											</summary>
+											<div class="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-100 p-4 text-sm">
+												<div>
+													<p class="text-xs font-semibold text-slate-500 uppercase">Precio base</p>
+													<p class="mt-1 font-semibold text-slate-950">
 														{money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency)}
 													</p>
-													<p class="mt-1 text-xs text-slate-500">por noche</p>
-												</td>
-												<td class="px-4 py-4">
-													<p class="max-w-56 truncate font-medium text-slate-900">
-														{shortPolicySummary(row.policySummary)}
-													</p>
-													<p class="mt-1 text-xs text-slate-500">
+												</div>
+												<div>
+													<p class="text-xs font-semibold text-slate-500 uppercase">Condiciones</p>
+													<p class="mt-1 font-medium text-slate-900">
 														{covered}/{total} completas
 													</p>
-												</td>
-												<td class="px-4 py-4">
-													<p class="font-medium text-slate-900">
+												</div>
+												<div>
+													<p class="text-xs font-semibold text-slate-500 uppercase">Calendario</p>
+													<p class="mt-1 font-medium text-slate-900">
 														{row.inventoryReadiness?.availableDays ?? 0}/
 														{row.inventoryReadiness?.expectedDays ?? 30} noches
 													</p>
-													<p class="mt-1 text-xs text-slate-500">
-														{restrictions ? "Venta ajustada" : "Venta estándar"}
-													</p>
-												</td>
-												<td class="px-4 py-4">
-													<Badge variant={state.badge}>{state.label}</Badge>
-													<p class="mt-1.5 max-w-48 text-xs leading-5 text-slate-500">
-														{state.reason}
-													</p>
-												</td>
-												<td class="px-4 py-4">
-													<div class="flex items-center justify-end gap-2">
-														<Button
-															href={state.href}
-															variant={state.key === "ready" ? "secondary" : "primary"}
-															size="sm"
-														>
-															{state.key === "ready" ? "Ver" : "Resolver"}
-														</Button>
-														<RatePlanActionMenu
-															ratePlanId={String(row.ratePlanId)}
-															name={row.ratePlanName}
-															description={row.description}
-															isActive={Boolean(row.isActive)}
-															isDefault={Boolean(row.isDefault)}
-														/>
-													</div>
-												</td>
-											</tr>
-										)
-									})}
-								</tbody>
-							</table>
-						</div>
-					</>
-				)
-			}
-		</section>
-
-		<details class="rate-history-panel fastt-card border bg-white text-slate-900">
-			<summary
-				class="calendar-control cursor-pointer px-4 py-3 text-sm font-semibold hover:bg-slate-50"
-				>Cambios recientes de tarifa</summary
-			>
-			<div class="rate-history-grid">
-				<div class="overflow-hidden">
-					<div class="border-t border-slate-200 px-4 py-4">
-						{
-							ratePlanHistory.length ? (
-								<ol class="divide-y divide-slate-100">
-									{ratePlanHistory.map((item) => (
-										<li class="flex flex-wrap justify-between gap-3 py-3 first:pt-0 last:pb-0">
-											<div>
-												<p class="text-sm font-semibold">{item.title}</p>
-												<p class="mt-1 text-xs text-slate-500">{item.description}</p>
+												</div>
+												<div>
+													<p class="text-xs font-semibold text-slate-500 uppercase">Venta</p>
+													<p class="mt-1 text-slate-700">{state.reason}</p>
+												</div>
+												<p class="col-span-2 line-clamp-2 text-xs text-slate-500">
+													{shortPolicySummary(row.policySummary)}
+												</p>
+												<div class="col-span-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+													<Button
+														href={state.href}
+														variant={state.key === "ready" ? "secondary" : "primary"}
+														size="sm"
+													>
+														{state.key === "ready" ? "Ver" : "Resolver"}
+													</Button>
+													<RatePlanActionMenu
+														ratePlanId={ratePlanId}
+														name={row.ratePlanName}
+														description={row.description}
+														isActive={Boolean(row.isActive)}
+														isDefault={Boolean(row.isDefault)}
+													/>
+												</div>
 											</div>
-											<time class="text-xs text-slate-500">
-												{formatHistoryDate(item.createdAt)}
-											</time>
-										</li>
-									))}
-								</ol>
-							) : (
-								<p class="text-sm text-slate-500">Todavía no hay cambios registrados.</p>
-							)
-						}
+										</details>
+									)
+								})}
+							</div>
+							<div
+								class="hidden overflow-x-auto md:block xl:overflow-visible"
+								data-rate-plan-desktop-table
+							>
+								<table class="w-full min-w-[920px] text-left text-sm">
+									<thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										<tr>
+											<th class="px-4 py-3">Tarifa</th>
+											<th class="px-4 py-3">Precio base</th>
+											<th class="px-4 py-3">Condiciones</th>
+											<th class="px-4 py-3">Calendario</th>
+											<th class="px-4 py-3">Estado</th>
+											<th class="px-4 py-3 text-right">Acciones</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-slate-100">
+										<tr class={visibleRowsCount ? "hidden" : ""} data-rate-plan-empty-row>
+											<td colspan="6" class="px-6 py-14 text-center">
+												<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
+												<p class="mt-1 text-sm text-slate-500">
+													Cambia de estado o crea una nueva tarifa.
+												</p>
+											</td>
+										</tr>
+										{rows.map((row) => {
+											const state = rowStates.get(String(row.ratePlanId))!
+											const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
+											const total = Number(row.policyCoverage?.totalCategories ?? 4)
+											const restrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
+											return (
+												<tr
+													class={`align-middle hover:bg-slate-50/70 ${matchesView(state.key, activeView) ? "" : "hidden"}`}
+													data-rate-plan-row
+													data-rate-plan-id={String(row.ratePlanId)}
+													data-rate-plan-state={state.key}
+												>
+													<td class="px-4 py-4">
+														<div class="flex items-center gap-2">
+															<p class="font-semibold text-slate-950">{row.ratePlanName}</p>
+															{row.isDefault && <Badge variant="info">Principal</Badge>}
+														</div>
+														<p class="mt-1 text-xs text-slate-500">
+															{row.productName} · {row.variantName}
+														</p>
+													</td>
+													<td class="px-4 py-4">
+														<p class="font-semibold text-slate-950">
+															{money(
+																row.pricingReadiness?.basePrice,
+																row.pricingReadiness?.currency
+															)}
+														</p>
+														<p class="mt-1 text-xs text-slate-500">por noche</p>
+													</td>
+													<td class="px-4 py-4">
+														<p class="max-w-56 truncate font-medium text-slate-900">
+															{shortPolicySummary(row.policySummary)}
+														</p>
+														<p class="mt-1 text-xs text-slate-500">
+															{covered}/{total} completas
+														</p>
+													</td>
+													<td class="px-4 py-4">
+														<p class="font-medium text-slate-900">
+															{row.inventoryReadiness?.availableDays ?? 0}/
+															{row.inventoryReadiness?.expectedDays ?? 30} noches
+														</p>
+														<p class="mt-1 text-xs text-slate-500">
+															{restrictions ? "Venta ajustada" : "Venta estándar"}
+														</p>
+													</td>
+													<td class="px-4 py-4">
+														<Badge variant={state.badge}>{state.label}</Badge>
+														<p class="mt-1.5 max-w-48 text-xs leading-5 text-slate-500">
+															{state.reason}
+														</p>
+													</td>
+													<td class="px-4 py-4">
+														<div class="flex items-center justify-end gap-2">
+															<Button
+																href={state.href}
+																variant={state.key === "ready" ? "secondary" : "primary"}
+																size="sm"
+															>
+																{state.key === "ready" ? "Ver" : "Resolver"}
+															</Button>
+															<RatePlanActionMenu
+																ratePlanId={String(row.ratePlanId)}
+																name={row.ratePlanName}
+																description={row.description}
+																isActive={Boolean(row.isActive)}
+																isDefault={Boolean(row.isDefault)}
+															/>
+														</div>
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+							</div>
+						</>
+					)}
+				</section>
+			) : null
+		}
+
+		{
+			!isPlaybookRateStep ? (
+				<details class="rate-history-panel fastt-card border bg-white text-slate-900">
+					<summary class="calendar-control cursor-pointer px-4 py-3 text-sm font-semibold hover:bg-slate-50">
+						Cambios recientes de tarifa
+					</summary>
+					<div class="rate-history-grid">
+						<div class="overflow-hidden">
+							<div class="border-t border-slate-200 px-4 py-4">
+								{ratePlanHistory.length ? (
+									<ol class="divide-y divide-slate-100">
+										{ratePlanHistory.map((item) => (
+											<li class="flex flex-wrap justify-between gap-3 py-3 first:pt-0 last:pb-0">
+												<div>
+													<p class="text-sm font-semibold">{item.title}</p>
+													<p class="mt-1 text-xs text-slate-500">{item.description}</p>
+												</div>
+												<time class="text-xs text-slate-500">
+													{formatHistoryDate(item.createdAt)}
+												</time>
+											</li>
+										))}
+									</ol>
+								) : (
+									<p class="text-sm text-slate-500">Todavía no hay cambios registrados.</p>
+								)}
+							</div>
+						</div>
 					</div>
-				</div>
-			</div>
-		</details>
+				</details>
+			) : null
+		}
 	</div>
 
-	<Dialog class="w-[min(720px,calc(100%-2rem))]" data-rate-plan-dialog>
-		<form data-rate-plan-create-form class="max-h-[90vh] overflow-y-auto">
-			<header
-				class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4"
-			>
-				<div>
-					<p class="text-lg font-semibold">Nueva tarifa</p>
-					<p class="mt-1 text-sm text-slate-500" data-wizard-heading>1 de 3 · Oferta</p>
-				</div>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					class="px-2"
-					data-close-rate-plan-dialog
-					aria-label="Cerrar"
-				>
-					<X class="size-5" />
-				</Button>
-			</header>
-
-			<div class="p-5">
-				<section class="space-y-4" data-wizard-step="1">
-					<div>
-						<h2 class="font-semibold">¿Qué quieres vender?</h2>
-						<p class="mt-1 text-sm text-slate-500">Elige la habitación y la propuesta comercial.</p>
-					</div>
-					<label class="block space-y-1.5 text-sm">
-						<span class="font-medium">Habitación</span>
-						<Select name="variantId" required>
-							<option value="">Selecciona una habitación</option>
-							{
-								variantChoices.map((choice) => (
-									<option
-										value={choice.variantId}
-										selected={choice.variantId === requestedVariantId}
-									>
-										{choice.label}
-									</option>
-								))
-							}
-						</Select>
-					</label>
-					<label class="block space-y-1.5 text-sm">
-						<span class="font-medium">Propuesta</span>
-						<Select name="intent" required>
-							{
-								ratePlanIntentPresets.map((preset) => (
-									<option value={preset.id}>
-										{preset.name} · {preset.summary}
-									</option>
-								))
-							}
-						</Select>
-					</label>
-					<label class="block space-y-1.5 text-sm">
-						<span class="font-medium">Nombre visible</span>
-						<Input name="name" value="Tarifa flexible" required />
-					</label>
-				</section>
-
-				<section class="hidden space-y-4" data-wizard-step="2">
-					<div>
-						<h2 class="font-semibold">Precio y condiciones</h2>
-						<p class="mt-1 text-sm text-slate-500">
-							Este precio será la base para las noches sin ajustes.
-						</p>
-					</div>
-					<div class="grid gap-3 sm:grid-cols-[140px_1fr]">
-						<label class="block space-y-1.5 text-sm">
-							<span class="font-medium">Moneda</span>
-							<Select name="currency" required>
-								<option value="BOB">BOB</option><option value="USD">USD</option>
-							</Select>
-						</label>
-						<label class="block space-y-1.5 text-sm">
-							<span class="font-medium">Precio base por noche</span>
-							<Input
-								name="basePrice"
-								type="number"
-								min="1"
-								step="0.01"
-								placeholder="Ej. 450"
-								required
-							/>
-						</label>
-					</div>
-					<div class="fastt-soft-box bg-slate-50 p-4 text-sm text-slate-600" data-contract-summary>
-						Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
-						noche por no presentación.
-					</div>
-				</section>
-
-				<section class="hidden space-y-4" data-wizard-step="3">
-					<div>
-						<h2 class="font-semibold">Revisa y guarda</h2>
-						<p class="mt-1 text-sm text-slate-500">
-							Puedes dejarla en borrador o publicarla ahora.
-						</p>
-					</div>
-					<div class="fastt-soft-box border border-slate-200 p-4 text-sm" data-rate-plan-review>
-					</div>
-					<label class="fastt-soft-box flex items-start gap-3 border border-slate-200 p-3 text-sm">
-						<input type="checkbox" name="isDefault" class="mt-0.5 size-4" />
-						<span
-							><strong>Tarifa principal</strong><span class="mt-1 block text-slate-500"
-								>Será la referencia comercial cuando publiques la tarifa.</span
-							></span
+	{
+		!isPlaybookRateStep ? (
+			<Dialog class="w-[min(720px,calc(100%-2rem))]" data-rate-plan-dialog>
+				<form data-rate-plan-create-form class="max-h-[90vh] overflow-y-auto">
+					<header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
+						<div>
+							<p class="text-lg font-semibold">Nueva tarifa</p>
+							<p class="mt-1 text-sm text-slate-500" data-wizard-heading>
+								1 de 3 · Oferta
+							</p>
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							class="px-2"
+							data-close-rate-plan-dialog
+							aria-label="Cerrar"
 						>
-					</label>
-				</section>
-			</div>
+							<X class="size-5" />
+						</Button>
+					</header>
 
-			<footer
-				class="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4"
-			>
-				<p class="text-sm text-slate-500" data-rate-plan-feedback></p>
-				<div class="ml-auto flex gap-2">
-					<Button type="button" variant="secondary" class="hidden" data-wizard-back>
-						Volver
-					</Button>
-					<Button type="button" data-wizard-next> Continuar </Button>
-					<Button
-						type="submit"
-						name="publicationMode"
-						value="draft"
-						variant="secondary"
-						class="hidden"
-						data-save-draft
-					>
-						Guardar borrador
-					</Button>
-					<Button type="submit" name="publicationMode" value="publish" class="hidden" data-publish>
-						Publicar
-					</Button>
-				</div>
-			</footer>
-		</form>
-	</Dialog>
+					<div class="p-5">
+						<section class="space-y-4" data-wizard-step="1">
+							<div>
+								<h2 class="font-semibold">¿Qué quieres vender?</h2>
+								<p class="mt-1 text-sm text-slate-500">
+									Elige la habitación y la propuesta comercial.
+								</p>
+							</div>
+							<label class="block space-y-1.5 text-sm">
+								<span class="font-medium">Habitación</span>
+								<Select name="variantId" required>
+									<option value="">Selecciona una habitación</option>
+									{variantChoices.map((choice) => (
+										<option
+											value={choice.variantId}
+											selected={choice.variantId === requestedVariantId}
+										>
+											{choice.label}
+										</option>
+									))}
+								</Select>
+							</label>
+							<label class="block space-y-1.5 text-sm">
+								<span class="font-medium">Propuesta</span>
+								<Select name="intent" required>
+									{ratePlanIntentPresets.map((preset) => (
+										<option value={preset.id}>
+											{preset.name} · {preset.summary}
+										</option>
+									))}
+								</Select>
+							</label>
+							<label class="block space-y-1.5 text-sm">
+								<span class="font-medium">Nombre visible</span>
+								<Input name="name" value="Tarifa flexible" required />
+							</label>
+						</section>
+
+						<section class="hidden space-y-4" data-wizard-step="2">
+							<div>
+								<h2 class="font-semibold">Precio y condiciones</h2>
+								<p class="mt-1 text-sm text-slate-500">
+									Este precio será la base para las noches sin ajustes.
+								</p>
+							</div>
+							<div class="grid gap-3 sm:grid-cols-[140px_1fr]">
+								<label class="block space-y-1.5 text-sm">
+									<span class="font-medium">Moneda</span>
+									<Select name="currency" required>
+										<>
+											<option value="BOB">BOB</option>
+											<option value="USD">USD</option>
+										</>
+									</Select>
+								</label>
+								<label class="block space-y-1.5 text-sm">
+									<span class="font-medium">Precio base por noche</span>
+									<Input
+										name="basePrice"
+										type="number"
+										min="1"
+										step="0.01"
+										placeholder="Ej. 450"
+										required
+									/>
+								</label>
+							</div>
+							<div
+								class="fastt-soft-box bg-slate-50 p-4 text-sm text-slate-600"
+								data-contract-summary
+							>
+								Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
+								noche por no presentación.
+							</div>
+						</section>
+
+						<section class="hidden space-y-4" data-wizard-step="3">
+							<div>
+								<h2 class="font-semibold">Revisa y guarda</h2>
+								<p class="mt-1 text-sm text-slate-500">
+									Puedes dejarla en borrador o publicarla ahora.
+								</p>
+							</div>
+							<div
+								class="fastt-soft-box border border-slate-200 p-4 text-sm"
+								data-rate-plan-review
+							/>
+							<label class="fastt-soft-box flex items-start gap-3 border border-slate-200 p-3 text-sm">
+								<input type="checkbox" name="isDefault" class="mt-0.5 size-4" />
+								<span>
+									<>
+										<strong>Tarifa principal</strong>
+										<span class="mt-1 block text-slate-500">
+											Será la referencia comercial cuando publiques la tarifa.
+										</span>
+									</>
+								</span>
+							</label>
+						</section>
+					</div>
+
+					<footer class="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
+						<p class="text-sm text-slate-500" data-rate-plan-feedback />
+						<div class="ml-auto flex gap-2">
+							<Button type="button" variant="secondary" class="hidden" data-wizard-back>
+								Volver
+							</Button>
+							<Button type="button" data-wizard-next>
+								{" "}
+								Continuar{" "}
+							</Button>
+							<Button
+								type="submit"
+								name="publicationMode"
+								value="draft"
+								variant="secondary"
+								class="hidden"
+								data-save-draft
+							>
+								Guardar borrador
+							</Button>
+							<Button
+								type="submit"
+								name="publicationMode"
+								value="publish"
+								class="hidden"
+								data-publish
+							>
+								Publicar
+							</Button>
+						</div>
+					</footer>
+				</form>
+			</Dialog>
+		) : null
+	}
 </Layout>
 
 <style>
@@ -614,6 +815,8 @@ const layoutProps = addRoomPlaybook.active
 		requestedVariantId,
 		shouldOpenDialog,
 		addRoomPlaybookActive: addRoomPlaybook.active,
+		launchPlaybookActive: launchPlaybook.active,
+		isPlaybookRateStep,
 	}}
 >
 	const ratePlanTabs = Array.from(document.querySelectorAll("[data-rate-plan-tab]"))
@@ -794,7 +997,12 @@ const layoutProps = addRoomPlaybook.active
 			intent: String(data.get("intent") || "flexible"),
 			currency: String(data.get("currency") || "BOB"),
 			basePrice: Number(data.get("basePrice")),
-			publicationMode: submitter?.value === "publish" ? "publish" : "draft",
+			publicationMode:
+				addRoomPlaybookActive || launchPlaybookActive
+					? "draft"
+					: submitter?.value === "publish"
+						? "publish"
+						: "draft",
 			isDefault: data.get("isDefault") === "on",
 		}
 		form.querySelectorAll("button").forEach((button) => (button.disabled = true))
@@ -816,6 +1024,16 @@ const layoutProps = addRoomPlaybook.active
 					variantId: payload.variantId,
 					ratePlanId: String(result.ratePlanId),
 					vista: "conditions",
+				})
+				window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}?${params.toString()}`
+				return
+			}
+			if (launchPlaybookActive) {
+				const params = new URLSearchParams({
+					playbook: "launch",
+					step: "conditions",
+					flow: "create",
+					variantId: payload.variantId,
 				})
 				window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}?${params.toString()}`
 				return
