@@ -15,9 +15,11 @@ import { getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
 	type AddRoomContext,
 	type AddRoomStepId,
+	getAddRoomJourneySteps,
 	getAddRoomStepById,
-	getApplicableAddRoomSteps,
+	getAddRoomStepPosition,
 	getNextAddRoomStep,
+	isAddRoomStepLinkable,
 } from "@/lib/playbook/add-room"
 
 export type AddRoomProgressStep = {
@@ -52,7 +54,7 @@ const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
 	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
 )
 
-type VariantCompletion = {
+export type VariantCompletion = {
 	capacityComplete: boolean
 	photosComplete: boolean
 	tariffsComplete: boolean
@@ -62,7 +64,7 @@ type VariantCompletion = {
 	defaultRatePlanId: string | null
 }
 
-async function loadVariantCompletion(
+export async function loadVariantCompletion(
 	productId: string,
 	providerId: string,
 	variantId: string
@@ -175,28 +177,26 @@ export async function evaluateAddRoomProgress(
 		}
 	}
 
-	const applicableSteps = getApplicableAddRoomSteps(ctx)
+	const journeySteps = getAddRoomJourneySteps(ctx)
 	const currentStepId =
 		(options.currentStepId as AddRoomStepId | null) ??
-		applicableSteps.find((step) => !completion[step.id])?.id ??
-		applicableSteps[0]?.id ??
+		journeySteps.find((step) => !completion[step.id])?.id ??
+		journeySteps[0]?.id ??
 		null
-	const nextStep = currentStepId
-		? getNextAddRoomStep(currentStepId, ctx)
-		: (applicableSteps[0] ?? null)
+	const nextStep = currentStepId ? getNextAddRoomStep(currentStepId, ctx) : null
 
-	const steps: AddRoomProgressStep[] = applicableSteps.map((step) => ({
+	const steps: AddRoomProgressStep[] = journeySteps.map((step) => ({
 		key: step.id,
 		label: step.label,
 		guestImpact: step.guestImpact,
 		complete: completion[step.id],
-		href: step.buildHref(ctx),
+		href: isAddRoomStepLinkable(step, ctx) ? step.buildHref(ctx) : "",
 		isCurrent: step.id === currentStepId,
 		isNext: step.id === nextStep?.id,
 	}))
 
 	const completedSteps = steps.filter((step) => step.complete).length
-	const totalSteps = steps.length
+	const totalSteps = journeySteps.length
 
 	return {
 		playbookId: "add-room",
@@ -221,12 +221,11 @@ export function getAddRoomStepMeta(
 	ctx: AddRoomContext
 ) {
 	const step = getAddRoomStepById(stepId, ctx)
-	const applicableSteps = getApplicableAddRoomSteps(ctx)
-	const index = step ? applicableSteps.findIndex((item) => item.id === step.id) : -1
+	const position = getAddRoomStepPosition(stepId, ctx)
 
 	return {
 		step,
-		stepNumber: index >= 0 ? index + 1 : null,
-		totalSteps: applicableSteps.length,
+		stepNumber: position.stepNumber,
+		totalSteps: position.totalSteps,
 	}
 }

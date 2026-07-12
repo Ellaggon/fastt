@@ -7,12 +7,17 @@ export type LaunchStepId =
 	| "images"
 	| "subtype"
 	| "room-profile"
+	| "rate"
+	| "conditions"
+	| "calendar"
 	| "house-rules"
 	| "preview"
 
 export type LaunchContext = {
 	productId: string
 	isHotel: boolean
+	variantId?: string
+	ratePlanId?: string
 }
 
 export type LaunchStepDefinition = {
@@ -71,6 +76,50 @@ export const LAUNCH_STEPS: LaunchStepDefinition[] = [
 		guestImpact: "El espacio donde descansará el huésped",
 		buildHref: (ctx) =>
 			buildPlaybookHref(`/product/${encodeURIComponent(ctx.productId)}/rooms/new`, "room-profile"),
+		appliesTo: (ctx) => ctx.isHotel,
+	},
+	{
+		id: "rate",
+		label: "Primera tarifa",
+		guestImpact: "Cómo se vende esta habitación: precio y propuesta comercial",
+		buildHref: (ctx) => {
+			const params = new URLSearchParams({
+				productId: ctx.productId,
+			})
+			if (ctx.variantId) params.set("variantId", ctx.variantId)
+			return buildPlaybookHref(`/rates/plans/manage?${params.toString()}`, "rate")
+		},
+		appliesTo: (ctx) => ctx.isHotel,
+	},
+	{
+		id: "conditions",
+		label: "Condiciones de reserva",
+		guestImpact: "Cancelación, pago y reglas comerciales que acepta el huésped",
+		buildHref: (ctx) => {
+			if (ctx.ratePlanId) {
+				const params = new URLSearchParams()
+				if (ctx.variantId) params.set("variantId", ctx.variantId)
+				return buildPlaybookHref(
+					`/rates/plans/${encodeURIComponent(ctx.ratePlanId)}?${params.toString()}`,
+					"conditions"
+				)
+			}
+			const params = new URLSearchParams({ productId: ctx.productId })
+			if (ctx.variantId) params.set("variantId", ctx.variantId)
+			return buildPlaybookHref(`/rates/plans/manage?${params.toString()}`, "conditions")
+		},
+		appliesTo: (ctx) => ctx.isHotel,
+	},
+	{
+		id: "calendar",
+		label: "Disponibilidad",
+		guestImpact: "Fechas en las que la habitación puede recibir reservas",
+		buildHref: (ctx) => {
+			const params = new URLSearchParams({ focus: "availability" })
+			if (ctx.variantId) params.set("variantId", ctx.variantId)
+			if (ctx.ratePlanId) params.set("ratePlanId", ctx.ratePlanId)
+			return buildPlaybookHref(`/rates/calendar?${params.toString()}`, "calendar")
+		},
 		appliesTo: (ctx) => ctx.isHotel,
 	},
 	{
@@ -148,6 +197,9 @@ export function inferLaunchStepFromPathname(pathname: string): LaunchStepId | nu
 	if (pathname.endsWith("/images")) return "images"
 	if (pathname.endsWith("/subtype")) return "subtype"
 	if (pathname.endsWith("/rooms/new")) return "room-profile"
+	if (pathname.includes("/rates/plans/manage")) return "rate"
+	if (pathname.includes("/rates/plans/") && !pathname.includes("/manage")) return "conditions"
+	if (pathname.includes("/rates/calendar")) return "calendar"
 	if (pathname.includes("/house-rules")) return "house-rules"
 	if (pathname.endsWith("/preview")) return "preview"
 	return null

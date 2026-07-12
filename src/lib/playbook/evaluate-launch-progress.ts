@@ -6,6 +6,10 @@ import {
 	type LaunchContext,
 	type LaunchStepId,
 } from "@/lib/playbook/launch-accommodation"
+import {
+	loadVariantCompletion,
+	type VariantCompletion,
+} from "@/lib/playbook/evaluate-add-room-progress"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
@@ -36,14 +40,53 @@ export type LaunchProgressResult = {
 	nextStep: LaunchStepId | null
 	nextHref: string | null
 	exitHref: string
+	variantId: string | null
+	ratePlanId: string | null
 }
 
 type EvaluateLaunchProgressOptions = {
 	isHotel?: boolean
+	variantId?: string | null
+	ratePlanId?: string | null
 	currentStepId?: LaunchStepId | string | null
 }
 
-async function stepCompletionFlags(productId: string, providerId: string, isHotel: boolean) {
+async function resolveLaunchVariantState(
+	productId: string,
+	providerId: string,
+	variantIds: string[],
+	preferredVariantId?: string | null
+): Promise<{ variantId: string | null; completion: VariantCompletion | null }> {
+	const preferred = String(preferredVariantId ?? "").trim()
+	const orderedVariantIds = [
+		...(preferred && variantIds.includes(preferred) ? [preferred] : []),
+		...variantIds.filter((variantId) => variantId !== preferred),
+	]
+
+	for (const variantId of orderedVariantIds) {
+		const completion = await loadVariantCompletion(productId, providerId, variantId)
+		if (completion?.isComplete) return { variantId, completion }
+		if (completion?.tariffsComplete && completion.pricingComplete) return { variantId, completion }
+		if (completion?.tariffsComplete) return { variantId, completion }
+		if (completion?.capacityComplete) return { variantId, completion }
+	}
+
+	if (!orderedVariantIds.length) return { variantId: null, completion: null }
+	const firstVariantId = orderedVariantIds[0]
+	return {
+		variantId: firstVariantId ?? null,
+		completion: firstVariantId
+			? await loadVariantCompletion(productId, providerId, firstVariantId)
+			: null,
+	}
+}
+
+async function stepCompletionFlags(
+	productId: string,
+	providerId: string,
+	isHotel: boolean,
+	options: Pick<EvaluateLaunchProgressOptions, "variantId" | "ratePlanId"> = {}
+) {
 	const [aggregate, variantsAggregate, guestExpectationsSnapshot] = await Promise.all([
 		getProductFullAggregate(productId, providerId),
 		isHotel ? getProductVariantsAggregate(productId, providerId) : Promise.resolve(null),
@@ -59,6 +102,15 @@ async function stepCompletionFlags(productId: string, providerId: string, isHote
 			.toLowerCase()
 		return status !== "archived"
 	})
+	const activeVariantIds = activeVariants.map((variant) => String(variant.id)).filter(Boolean)
+	const variantState = isHotel
+		? await resolveLaunchVariantState(productId, providerId, activeVariantIds, options.variantId)
+		: { variantId: null, completion: null }
+	const commercialCompletion = variantState.completion
+	const ratePlanId =
+		String(options.ratePlanId ?? "").trim() ||
+		String(commercialCompletion?.defaultRatePlanId ?? "").trim() ||
+		null
 
 	const houseRules = guestExpectationsSnapshot?.rules ?? []
 	const houseRuleTypes = new Set(
@@ -67,15 +119,22 @@ async function stepCompletionFlags(productId: string, providerId: string, isHote
 	const completedHouseRuleTypes = essentialHouseRuleTypes.filter((type) => houseRuleTypes.has(type))
 
 	return {
-		"create": true,
-		"content": Boolean(aggregate.content.description?.trim()),
-		"location": Boolean(aggregate.location.lat !== null && aggregate.location.lng !== null),
-		"images": aggregate.images.length > 0,
-		"subtype": Boolean(aggregate.subtype),
-		"room-profile": isHotel && activeVariants.length > 0,
-		"house-rules": isHotel && completedHouseRuleTypes.length >= 4,
-		"preview": false,
-	} satisfies Record<LaunchStepId, boolean>
+		completion: {
+			"create": true,
+			"content": Boolean(aggregate.content.description?.trim()),
+			"location": Boolean(aggregate.location.lat !== null && aggregate.location.lng !== null),
+			"images": aggregate.images.length > 0,
+			"subtype": Boolean(aggregate.subtype),
+			"room-profile": isHotel && activeVariants.length > 0,
+			"rate": Boolean(commercialCompletion?.tariffsComplete),
+			"conditions": Boolean(commercialCompletion?.pricingComplete),
+			"calendar": Boolean(commercialCompletion?.inventoryComplete),
+			"house-rules": isHotel && completedHouseRuleTypes.length >= 4,
+			"preview": false,
+		} satisfies Record<LaunchStepId, boolean>,
+		variantId: variantState.variantId,
+		ratePlanId,
+	}
 }
 
 export async function evaluateLaunchProgress(
@@ -88,9 +147,18 @@ export async function evaluateLaunchProgress(
 
 	const vertical = getProductVerticalEntry(aggregate.productType)
 	const isHotel = options.isHotel ?? vertical.vertical === "hotel"
-	const ctx: LaunchContext = { productId, isHotel }
-	const completion = await stepCompletionFlags(productId, providerId, isHotel)
-	if (!completion) return null
+	const state = await stepCompletionFlags(productId, providerId, isHotel, {
+		variantId: options.variantId,
+		ratePlanId: options.ratePlanId,
+	})
+	if (!state) return null
+	const completion = state.completion
+	const ctx: LaunchContext = {
+		productId,
+		isHotel,
+		variantId: state.variantId ?? undefined,
+		ratePlanId: state.ratePlanId ?? undefined,
+	}
 
 	const applicableSteps = getApplicableLaunchSteps(ctx)
 	const currentStepId =
@@ -130,6 +198,8 @@ export async function evaluateLaunchProgress(
 		nextStep: nextStep?.id ?? null,
 		nextHref: nextStep ? nextStep.buildHref(ctx) : null,
 		exitHref: `/product/${encodeURIComponent(productId)}`,
+		variantId: state.variantId,
+		ratePlanId: state.ratePlanId,
 	}
 }
 

@@ -59,7 +59,6 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		guestImpact: "Cómo se vende esta habitación: precio y propuesta",
 		buildHref: (ctx) => {
 			const params = new URLSearchParams({
-				openDialog: "1",
 				variantId: String(ctx.variantId ?? ""),
 			})
 			return buildAddRoomHref(`${routes.rates()}?${params.toString()}`, "create-rate")
@@ -117,6 +116,30 @@ export function buildAddRoomHref(path: string, step: AddRoomStepId): string {
 	return `${pathname}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`
 }
 
+/**
+ * Visible wizard journey (stable total). Independent of whether deep-links
+ * can be built yet — that is handled by `appliesTo` / getApplicableAddRoomSteps.
+ */
+export function getAddRoomJourneySteps(ctx: AddRoomContext): AddRoomStepDefinition[] {
+	if (ctx.productId) {
+		return ADD_ROOM_STEPS.filter((step) => step.id !== "choose-accommodation")
+	}
+	return [...ADD_ROOM_STEPS]
+}
+
+export function getAddRoomStepPosition(
+	stepId: AddRoomStepId | string | null | undefined,
+	ctx: AddRoomContext
+): { stepNumber: number | null; totalSteps: number } {
+	const journey = getAddRoomJourneySteps(ctx)
+	const index = journey.findIndex((step) => step.id === stepId)
+	return {
+		stepNumber: index >= 0 ? index + 1 : null,
+		totalSteps: journey.length,
+	}
+}
+
+/** Steps that already have enough IDs for a usable deep-link. */
 export function getApplicableAddRoomSteps(ctx: AddRoomContext): AddRoomStepDefinition[] {
 	return ADD_ROOM_STEPS.filter((step) => {
 		if (step.id === "choose-accommodation" && ctx.productId) return false
@@ -124,31 +147,40 @@ export function getApplicableAddRoomSteps(ctx: AddRoomContext): AddRoomStepDefin
 	})
 }
 
+export function isAddRoomStepLinkable(step: AddRoomStepDefinition, ctx: AddRoomContext): boolean {
+	if (step.id === "choose-accommodation" && ctx.productId) return false
+	return step.appliesTo(ctx)
+}
+
 export function getAddRoomStepById(
 	stepId: AddRoomStepId | string | null | undefined,
 	ctx: AddRoomContext
 ): AddRoomStepDefinition | null {
-	return getApplicableAddRoomSteps(ctx).find((step) => step.id === stepId) ?? null
+	return getAddRoomJourneySteps(ctx).find((step) => step.id === stepId) ?? null
 }
 
 export function getNextAddRoomStep(
 	currentStepId: AddRoomStepId | string | null | undefined,
 	ctx: AddRoomContext
 ): AddRoomStepDefinition | null {
-	const steps = getApplicableAddRoomSteps(ctx)
-	const index = steps.findIndex((step) => step.id === currentStepId)
-	if (index === -1 || index >= steps.length - 1) return null
-	return steps[index + 1] ?? null
+	const journey = getAddRoomJourneySteps(ctx)
+	const index = journey.findIndex((step) => step.id === currentStepId)
+	if (index === -1 || index >= journey.length - 1) return null
+	const next = journey[index + 1]
+	if (!next || !isAddRoomStepLinkable(next, ctx)) return null
+	return next
 }
 
 export function getPreviousAddRoomStep(
 	currentStepId: AddRoomStepId | string | null | undefined,
 	ctx: AddRoomContext
 ): AddRoomStepDefinition | null {
-	const steps = getApplicableAddRoomSteps(ctx)
-	const index = steps.findIndex((step) => step.id === currentStepId)
+	const journey = getAddRoomJourneySteps(ctx)
+	const index = journey.findIndex((step) => step.id === currentStepId)
 	if (index <= 0) return null
-	return steps[index - 1] ?? null
+	const previous = journey[index - 1]
+	if (!previous || !isAddRoomStepLinkable(previous, ctx)) return null
+	return previous
 }
 
 export function inferAddRoomStepFromPathname(pathname: string): AddRoomStepId | null {

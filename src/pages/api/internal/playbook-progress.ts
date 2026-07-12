@@ -154,6 +154,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const progress = await evaluateLaunchProgress(productId, providerId, {
 		isHotel,
+		variantId,
+		ratePlanId,
 		currentStepId,
 	})
 
