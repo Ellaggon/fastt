@@ -138,7 +138,7 @@ const guideSteps = [
 		<div
 			class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
 		>
-			<SegmentedControl class="mb-3" aria-label="Secciones de habitación" data-room-tabs>
+			<SegmentedControl class="mb-3" aria-label="Setup guiado de habitación" data-room-tabs>
 				{
 					guideSteps.map((step, index) => (
 						<button
@@ -163,7 +163,10 @@ const guideSteps = [
 					))
 				}
 			</SegmentedControl>
-			<p id="roomGuideProgress" class="pb-3 text-xs text-slate-500">0 de 6 completas</p>
+			<div class="pb-3">
+				<p id="roomGuideProgress" class="text-xs text-slate-500">0 de 6 completas</p>
+				<p id="presetImpact" class="sr-only" aria-live="polite"></p>
+			</div>
 		</div>
 
 		<div class="grid gap-6 p-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -506,6 +509,7 @@ const guideSteps = [
 							</div>
 							<div class="grid gap-4 md:grid-cols-4">
 								<FormField label="Unidades disponibles" htmlFor="totalRooms" required>
+									<span class="sr-only">Unidades disponibles de esta configuración</span>
 									<Input
 										id="totalRooms"
 										name="totalRooms"
@@ -786,6 +790,7 @@ const guideSteps = [
 	const submitBtn = document.getElementById("roomProfileSubmit")
 	const nextBtn = document.getElementById("roomProfileNext")
 	const feedback = document.getElementById("roomProfileFeedback")
+	const presetImpact = document.getElementById("presetImpact")
 	const addBedRow = document.getElementById("addBedRow")
 	const bedRows = document.getElementById("bedRows")
 	const bedRowTemplate = document.getElementById("bedRowTemplate")
@@ -1153,6 +1158,11 @@ const guideSteps = [
 		setField("totalRooms", preset.totalRooms)
 		setField("bathroomCount", preset.bathroomCount)
 		setField("bathroomType", preset.bathroomType)
+		if (presetImpact) {
+			presetImpact.textContent = `Preset aplicado: capacidad ${preset.maxOccupancy}, ${preset.beds
+				.map((bed) => `${bed.count} ${bed.bedType}`)
+				.join(" + ")}, ${bathroomLabels[preset.bathroomType] ?? "baño"}`
+		}
 		const roomTypeSelect = form?.querySelector('[name="roomTypeId"]')
 		if (roomTypeSelect instanceof HTMLSelectElement) {
 			const options = Array.from(roomTypeSelect.options).filter((option) => option.value)

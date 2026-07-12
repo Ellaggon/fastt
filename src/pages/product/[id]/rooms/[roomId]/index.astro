@@ -42,8 +42,10 @@ if (!owned) return Astro.redirect("/product/create")
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 
 const tabs = [
-	{ id: "perfil", label: "Resumen", icon: DoorOpen },
+	{ id: "perfil", label: "Perfil", icon: DoorOpen },
 	{ id: "fotos", label: "Fotos", icon: Camera },
+	{ id: "preview", label: "Preview huésped", icon: BedDouble },
+	{ id: "disponibilidad", label: "Disponibilidad", icon: Sparkles },
 	{ id: "publicacion", label: "Publicación", icon: ClipboardCheck },
 ]
 
@@ -264,7 +266,7 @@ const layoutProps = addRoomPlaybook.active
 				{
 					isRoomPhotosPlaybook ? null : (
 						<header class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-950">Fotos de la habitación</h2>
+							<h2 class="text-lg font-semibold text-slate-950">Photo tour de la habitación</h2>
 							<p class="text-sm leading-6 text-slate-500">
 								La foto principal es obligatoria: aparecerá en Dónde dormirás y define la confianza
 								visual del huésped.
