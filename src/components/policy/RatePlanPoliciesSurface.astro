@@ -53,6 +53,7 @@ interface Props {
 	requiredCategories: readonly string[]
 	productId?: string
 	isProfessionalMode?: boolean
+	showPlanSummary?: boolean
 }
 
 const {
@@ -61,6 +62,7 @@ const {
 	policyPlans,
 	productId,
 	isProfessionalMode = false,
+	showPlanSummary = true,
 } = Astro.props
 
 const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
@@ -102,45 +104,53 @@ function formattedResolvedAt(value: string): string {
 			return (
 				<>
 					<article class="overflow-hidden border-y border-slate-200" data-plan-id={plan.ratePlanId}>
-						<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/65 px-1 py-4 sm:px-4">
-							<div class="space-y-1">
-								<div class="flex flex-wrap items-center gap-2">
-									<h3 class="text-base font-semibold text-slate-950">Contrato de la tarifa</h3>
-									{plan.isDefault && <Badge variant="info">Principal</Badge>}
-								</div>
-								<p class="text-sm text-slate-500">
-									{plan.coverageCount === 0 ? "Sin condiciones configuradas." : plan.policySummary}
-								</p>
-							</div>
-							<div class="flex flex-wrap items-center gap-2">
-								<Badge
-									variant={plan.isSellableByContract ? "success" : "warning"}
-									class="gap-2 px-3 py-1.5 text-sm"
-									data-role="status-badge"
-									data-contract-sellability={plan.isSellableByContract ? "ready" : "blocked"}
-								>
-									{plan.isSellableByContract ? (
-										<Check class="h-4 w-4" />
-									) : (
-										<TriangleAlert class="h-4 w-4" />
-									)}
-									{plan.isSellableByContract
-										? "Condiciones completas"
-										: `${plan.coverageCount}/4 completas`}
-								</Badge>
-								{isProfessionalMode && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										data-policy-technical-open={technicalDrawerId}
-									>
-										<History class="h-4 w-4" />
-										Historial y detalle técnico
-									</Button>
+						{(showPlanSummary || isProfessionalMode) && (
+							<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/65 px-1 py-4 sm:px-4">
+								{showPlanSummary && (
+									<div class="space-y-1">
+										<div class="flex flex-wrap items-center gap-2">
+											<h3 class="text-base font-semibold text-slate-950">Contrato de la tarifa</h3>
+											{plan.isDefault && <Badge variant="info">Principal</Badge>}
+										</div>
+										<p class="text-sm text-slate-500">
+											{plan.coverageCount === 0
+												? "Sin condiciones configuradas."
+												: plan.policySummary}
+										</p>
+									</div>
 								)}
+								<div class="flex flex-wrap items-center gap-2">
+									{showPlanSummary && (
+										<Badge
+											variant={plan.isSellableByContract ? "success" : "warning"}
+											class="gap-2 px-3 py-1.5 text-sm"
+											data-role="status-badge"
+											data-contract-sellability={plan.isSellableByContract ? "ready" : "blocked"}
+										>
+											{plan.isSellableByContract ? (
+												<Check class="h-4 w-4" />
+											) : (
+												<TriangleAlert class="h-4 w-4" />
+											)}
+											{plan.isSellableByContract
+												? "Condiciones completas"
+												: `${plan.coverageCount}/4 completas`}
+										</Badge>
+									)}
+									{isProfessionalMode && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											data-policy-technical-open={technicalDrawerId}
+										>
+											<History class="h-4 w-4" />
+											Historial y detalle técnico
+										</Button>
+									)}
+								</div>
 							</div>
-						</div>
+						)}
 
 						<div class="divide-y divide-slate-200">
 							<section

@@ -5,12 +5,17 @@ import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import Textarea from "@/components/ui/Textarea.astro"
+import { Hotel } from "@lucide/astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomHref,
 	getNextAddRoomStep,
 	resolveAddRoomPlaybookFromUrl,
 } from "@/lib/playbook/add-room"
+import {
+	getNextLaunchStep,
+	resolveLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-accommodation"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
@@ -87,6 +92,7 @@ const tabs = [
 const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(ratePlanId)}&focus=price`
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	return Astro.redirect(
@@ -96,8 +102,21 @@ if (!addRoomPlaybook.active && flow === "add-room") {
 		)
 	)
 }
+if (!launchPlaybook.active && flow === "create") {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "launch")
+	params.set("step", "conditions")
+	if (!params.get("variantId")) params.set("variantId", String(row.variantId))
+	return Astro.redirect(`${routes.ratePlanDetail(ratePlanId)}?${params.toString()}`)
+}
 const addRoomCtx = {
 	productId: String(row.productId),
+	variantId: String(row.variantId),
+	ratePlanId,
+}
+const launchCtx = {
+	productId: String(row.productId),
+	isHotel: true,
 	variantId: String(row.variantId),
 	ratePlanId,
 }
@@ -106,75 +125,123 @@ const addRoomContinueHref = addRoomPlaybook.active
 			addRoomCtx
 		) ?? null)
 	: null
-const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
-const layoutProps = addRoomPlaybook.active
-	? {
-			title: `Tarifa · ${row.ratePlanName}`,
-			playbookId: "add-room" as const,
-			active: true,
-			stepId: addRoomPlaybook.stepId ?? "conditions",
-			productId: addRoomCtx.productId,
-			variantId: addRoomCtx.variantId,
-			ratePlanId,
-			isHotel: true,
-			continueHref: addRoomContinueHref,
-		}
-	: { title: `Tarifa · ${row.ratePlanName}` }
+const launchContinueHref = launchPlaybook.active
+	? (getNextLaunchStep(launchPlaybook.stepId ?? "conditions", launchCtx)?.buildHref(launchCtx) ??
+		null)
+	: null
+const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const isPlaybookMode = Boolean(activePlaybook)
+const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
+const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
+const layoutProps =
+	activePlaybook === "add-room"
+		? {
+				title: `Tarifa · ${row.ratePlanName}`,
+				playbookId: "add-room" as const,
+				active: true,
+				stepId: addRoomPlaybook.stepId ?? "conditions",
+				productId: addRoomCtx.productId,
+				variantId: addRoomCtx.variantId,
+				ratePlanId,
+				isHotel: true,
+				continueHref: addRoomContinueHref,
+			}
+		: activePlaybook === "launch"
+			? {
+					title: `Tarifa · ${row.ratePlanName}`,
+					playbookId: "launch" as const,
+					active: true,
+					stepId: launchPlaybook.stepId ?? "conditions",
+					productId: launchCtx.productId,
+					variantId: launchCtx.variantId,
+					ratePlanId,
+					isHotel: true,
+					continueHref: launchContinueHref,
+				}
+			: { title: `Tarifa · ${row.ratePlanName}` }
 ---
 
 <Layout {...layoutProps}>
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Habitaciones y tarifas · Tarifa
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					{
+						isPlaybookMode ? (
+							<>
+								<Hotel class="h-4 w-4" />
+								{row.productName} · Nueva habitación
+							</>
+						) : (
+							"Habitaciones y tarifas · Tarifa"
+						)
+					}
 				</p>
-				<div class="flex flex-wrap items-center gap-2">
-					<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
-					<Badge variant={row.isActive ? "success" : "warning"}>
-						{row.isActive ? "Activa" : "Inactiva"}
-					</Badge>
-					{row.isDefault && <Badge variant="info">Principal</Badge>}
-				</div>
-				<p class="text-sm text-slate-300">{row.productName} · {row.variantName}</p>
-			</div>
-			<div class="flex flex-wrap gap-2">
-				<Button href={routes.rates()} variant="secondary">Volver a tarifas</Button>
 				{
-					addRoomPlaybook.active && addRoomContinueHref ? (
-						<Button href={addRoomContinueHref}>Continuar a disponibilidad</Button>
-					) : null
+					isPlaybookMode ? (
+						<h1 class="text-3xl font-semibold text-slate-100">Condiciones de la tarifa</h1>
+					) : (
+						<div class="flex flex-wrap items-center gap-2">
+							<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
+							<Badge variant={row.isActive ? "success" : "warning"}>
+								{row.isActive ? "Activa" : "Inactiva"}
+							</Badge>
+							{row.isDefault && <Badge variant="info">Principal</Badge>}
+						</div>
+					)
 				}
-				<Button href={calendarHref} variant="primary">Calendario</Button>
+				<p class="max-w-2xl text-sm leading-6 text-slate-300">
+					{
+						isPlaybookMode
+							? "Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
+							: `${row.productName} · ${row.variantName}`
+					}
+				</p>
 			</div>
+			{
+				isPlaybookMode ? null : (
+					<div class="flex flex-wrap gap-2">
+						<Button href={routes.rates()} variant="secondary">
+							Volver a tarifas
+						</Button>
+						<Button href={calendarHref} variant="primary">
+							Calendario
+						</Button>
+					</div>
+				)
+			}
 		</header>
 
 		<section class="fastt-workspace-panel overflow-hidden text-slate-900">
-			<nav
-				class="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-4"
-				aria-label="Configurar tarifa"
-				data-rate-plan-tabs
-			>
-				{
-					tabs.map((tab) => (
-						<a
-							href={`?vista=${tab.id}`}
-							data-rate-plan-tab={tab.id}
-							aria-current={activeView === tab.id ? "page" : undefined}
-							class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
-								activeView === tab.id
-									? "border-slate-950 text-slate-950"
-									: "border-transparent text-slate-500 hover:text-slate-900"
-							}`}
-						>
-							{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
-						</a>
-					))
-				}
-			</nav>
+			{
+				isPlaybookMode ? null : (
+					<nav
+						class="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-4"
+						aria-label="Configurar tarifa"
+						data-rate-plan-tabs
+					>
+						{tabs.map((tab) => (
+							<a
+								href={`?vista=${tab.id}`}
+								data-rate-plan-tab={tab.id}
+								aria-current={effectiveActiveView === tab.id ? "page" : undefined}
+								class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
+									effectiveActiveView === tab.id
+										? "border-slate-950 text-slate-950"
+										: "border-transparent text-slate-500 hover:text-slate-900"
+								}`}
+							>
+								{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
+							</a>
+						))}
+					</nav>
+				)
+			}
 
 			<div
-				class={activeView === "conditions" ? "p-5" : "hidden p-5"}
+				class={effectiveActiveView === "conditions" ? "p-5" : "hidden p-5"}
 				data-rate-plan-panel="conditions"
 			>
 				<RatePlanPoliciesSurface
@@ -185,158 +252,180 @@ const layoutProps = addRoomPlaybook.active
 					checkOut={checkOut}
 					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
 					productId={context.productId}
-					isProfessionalMode={isProfessionalMode}
+					isProfessionalMode={!isPlaybookMode && isProfessionalMode}
+					showPlanSummary={!isPlaybookMode}
 				/>
 			</div>
 
-			<div class={activeView === "price" ? "p-5" : "hidden p-5"} data-rate-plan-panel="price">
-				<div class="mx-auto max-w-2xl space-y-1">
-					<h2 class="text-xl font-semibold text-slate-950">Editar precio base</h2>
-					<p class="pb-4 text-sm text-slate-500">
-						Define el punto de partida de esta tarifa. Los cambios por fecha se hacen en el
-						calendario.
-					</p>
-					<RatePlanPricingSurface
-						ratePlanId={String(row.ratePlanId)}
-						initialCurrency={loaded.initialCurrency}
-						initialBasePrice={loaded.initialBasePrice}
-						backHref={routes.rates()}
-					/>
-				</div>
-			</div>
-
-			<div class={activeView === "details" ? "p-5" : "hidden p-5"} data-rate-plan-panel="details">
-				<form
-					class="mx-auto max-w-2xl space-y-5"
-					data-rate-plan-edit-form
-					data-rate-plan-id={String(row.ratePlanId)}
-				>
-					<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Editar datos de tarifa</h2>
-						<p class="mt-1 text-sm text-slate-500">Identidad y estado comercial de esta tarifa.</p>
-					</div>
-					<label class="block space-y-1.5 text-sm">
-						<span class="font-medium text-slate-700">Nombre visible</span>
-						<Input name="name" value={row.ratePlanName} required />
-					</label>
-					<label class="block space-y-1.5 text-sm">
-						<span class="font-medium text-slate-700">Descripción interna</span>
-						<Textarea name="description" rows="3" value={row.description ?? ""} />
-					</label>
-					<div class="fastt-soft-box divide-y divide-slate-100 border border-slate-200">
-						<label class="flex items-center justify-between gap-4 p-4 text-sm text-slate-700">
-							<span
-								><strong class="block text-slate-950">Tarifa principal</strong>Referencia de esta
-								habitación.</span
-							>
-							<input name="isDefault" type="checkbox" class="size-4" checked={row.isDefault} />
-						</label>
-					</div>
+			{
+				isPlaybookMode ? null : (
 					<div
-						class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
+						class={effectiveActiveView === "price" ? "p-5" : "hidden p-5"}
+						data-rate-plan-panel="price"
 					>
-						<p class="text-sm text-slate-500" data-rate-plan-edit-feedback></p>
-						<Button type="submit">Guardar cambios</Button>
-					</div>
-				</form>
-
-				<div class="mx-auto mt-8 max-w-2xl space-y-6 border-t border-slate-200 pt-6">
-					<section class="flex flex-wrap items-center justify-between gap-4">
-						<div>
-							<div class="flex items-center gap-2">
-								<h3 class="font-semibold text-slate-950">Estado de venta</h3>
-								<Badge variant={row.isActive ? "success" : "neutral"}>
-									{row.isActive ? "Activa" : "Inactiva"}
-								</Badge>
-							</div>
-							<p class="mt-1 max-w-xl text-sm text-slate-500">
-								{
-									row.isActive
-										? "Desactivar detiene reservas nuevas sin borrar precio, condiciones ni historial."
-										: "La tarifa está fuera de venta y puede reactivarse conservando su configuración."
-								}
+						<div class="mx-auto max-w-2xl space-y-1">
+							<h2 class="text-xl font-semibold text-slate-950">Editar precio base</h2>
+							<p class="pb-4 text-sm text-slate-500">
+								Define el punto de partida de esta tarifa. Los cambios por fecha se hacen en el
+								calendario.
 							</p>
-							{
-								row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0 && (
-									<p class="mt-2 text-sm text-amber-700">
-										Designa otra tarifa principal antes de desactivar esta.
-									</p>
-								)
-							}
+							<RatePlanPricingSurface
+								ratePlanId={String(row.ratePlanId)}
+								initialCurrency={loaded.initialCurrency}
+								initialBasePrice={loaded.initialBasePrice}
+								backHref={routes.rates()}
+							/>
 						</div>
-						<Button
-							type="button"
-							variant="secondary"
-							data-rate-plan-toggle-status
-							data-next-active={row.isActive ? "false" : "true"}
-							disabled={row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0}
-						>
-							{row.isActive ? "Desactivar tarifa" : "Activar tarifa"}
-						</Button>
-					</section>
+					</div>
+				)
+			}
 
-					<section id="eliminar-tarifa" class="rounded-lg border border-rose-200 bg-rose-50 p-4">
-						<div class="flex flex-wrap items-start justify-between gap-4">
+			{
+				isPlaybookMode ? null : (
+					<div
+						class={effectiveActiveView === "details" ? "p-5" : "hidden p-5"}
+						data-rate-plan-panel="details"
+					>
+						<form
+							class="mx-auto max-w-2xl space-y-5"
+							data-rate-plan-edit-form
+							data-rate-plan-id={String(row.ratePlanId)}
+						>
+							<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
 							<div>
-								<h3 class="font-semibold text-rose-950">Eliminar tarifa</h3>
-								<p class="mt-1 max-w-xl text-sm text-rose-800">
-									Solo puede eliminarse si está inactiva y nunca tuvo reservas ni retenciones.
+								<h2 class="text-xl font-semibold text-slate-950">Editar datos de tarifa</h2>
+								<p class="mt-1 text-sm text-slate-500">
+									Identidad y estado comercial de esta tarifa.
 								</p>
-								{
-									removalReadiness.blockers.length > 0 && (
-										<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-800">
-											{removalReadiness.blockers.map((blocker) => (
-												<li>{blocker}</li>
-											))}
-										</ul>
-									)
-								}
 							</div>
-							<Button
-								type="button"
-								variant="danger"
-								data-open-rate-plan-delete
-								disabled={!removalReadiness.canDelete}
+							<label class="block space-y-1.5 text-sm">
+								<span class="font-medium text-slate-700">Nombre visible</span>
+								<Input name="name" value={row.ratePlanName} required />
+							</label>
+							<label class="block space-y-1.5 text-sm">
+								<span class="font-medium text-slate-700">Descripción interna</span>
+								<Textarea name="description" rows="3" value={row.description ?? ""} />
+							</label>
+							<div class="fastt-soft-box divide-y divide-slate-100 border border-slate-200">
+								<label class="flex items-center justify-between gap-4 p-4 text-sm text-slate-700">
+									<span>
+										<strong class="block text-slate-950">Tarifa principal</strong>Referencia de esta
+										habitación.
+									</span>
+									<input name="isDefault" type="checkbox" class="size-4" checked={row.isDefault} />
+								</label>
+							</div>
+							<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+								<p class="text-sm text-slate-500" data-rate-plan-edit-feedback />
+								<Button type="submit">Guardar cambios</Button>
+							</div>
+						</form>
+
+						<div class="mx-auto mt-8 max-w-2xl space-y-6 border-t border-slate-200 pt-6">
+							<section class="flex flex-wrap items-center justify-between gap-4">
+								<div>
+									<div class="flex items-center gap-2">
+										<h3 class="font-semibold text-slate-950">Estado de venta</h3>
+										<Badge variant={row.isActive ? "success" : "neutral"}>
+											{row.isActive ? "Activa" : "Inactiva"}
+										</Badge>
+									</div>
+									<p class="mt-1 max-w-xl text-sm text-slate-500">
+										{row.isActive
+											? "Desactivar detiene reservas nuevas sin borrar precio, condiciones ni historial."
+											: "La tarifa está fuera de venta y puede reactivarse conservando su configuración."}
+									</p>
+									{row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0 && (
+										<p class="mt-2 text-sm text-amber-700">
+											Designa otra tarifa principal antes de desactivar esta.
+										</p>
+									)}
+								</div>
+								<Button
+									type="button"
+									variant="secondary"
+									data-rate-plan-toggle-status
+									data-next-active={row.isActive ? "false" : "true"}
+									disabled={
+										row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0
+									}
+								>
+									{row.isActive ? "Desactivar tarifa" : "Activar tarifa"}
+								</Button>
+							</section>
+
+							<section
+								id="eliminar-tarifa"
+								class="rounded-lg border border-rose-200 bg-rose-50 p-4"
 							>
-								Eliminar definitivamente
-							</Button>
+								<div class="flex flex-wrap items-start justify-between gap-4">
+									<div>
+										<h3 class="font-semibold text-rose-950">Eliminar tarifa</h3>
+										<p class="mt-1 max-w-xl text-sm text-rose-800">
+											Solo puede eliminarse si está inactiva y nunca tuvo reservas ni retenciones.
+										</p>
+										{removalReadiness.blockers.length > 0 && (
+											<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-800">
+												{removalReadiness.blockers.map((blocker) => (
+													<li>{blocker}</li>
+												))}
+											</ul>
+										)}
+									</div>
+									<Button
+										type="button"
+										variant="danger"
+										data-open-rate-plan-delete
+										disabled={!removalReadiness.canDelete}
+									>
+										Eliminar definitivamente
+									</Button>
+								</div>
+							</section>
 						</div>
-					</section>
-				</div>
-			</div>
+					</div>
+				)
+			}
 		</section>
 	</div>
 
-	<dialog
-		class="calendar-dialog fastt-dialog m-auto w-[min(520px,calc(100%-2rem))] border bg-white p-0 text-slate-900"
-		data-rate-plan-delete-dialog
-	>
-		<form
-			class="space-y-5 p-5"
-			data-rate-plan-delete-form
-			data-rate-plan-id={ratePlanId}
-			data-rate-plan-name={row.ratePlanName}
-		>
-			<div>
-				<h2 class="text-lg font-semibold text-slate-950">Eliminar {row.ratePlanName}</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Se eliminarán su precio, reglas y asignaciones. Esta acción no puede deshacerse.
-				</p>
-			</div>
-			<label class="block space-y-1.5 text-sm">
-				<span class="font-medium">Escribe <strong>{row.ratePlanName}</strong> para confirmar</span>
-				<Input data-rate-plan-delete-confirmation autocomplete="off" />
-			</label>
-			<p class="text-sm text-rose-700" data-rate-plan-delete-feedback></p>
-			<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
-				<Button type="button" variant="secondary" data-close-rate-plan-delete> Cancelar </Button>
-				<Button type="submit" variant="danger" data-confirm-rate-plan-delete disabled>
-					Eliminar tarifa
-				</Button>
-			</div>
-		</form>
-	</dialog>
+	{
+		isPlaybookMode ? null : (
+			<dialog
+				class="calendar-dialog fastt-dialog m-auto w-[min(520px,calc(100%-2rem))] border bg-white p-0 text-slate-900"
+				data-rate-plan-delete-dialog
+			>
+				<form
+					class="space-y-5 p-5"
+					data-rate-plan-delete-form
+					data-rate-plan-id={ratePlanId}
+					data-rate-plan-name={row.ratePlanName}
+				>
+					<div>
+						<h2 class="text-lg font-semibold text-slate-950">Eliminar {row.ratePlanName}</h2>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Se eliminarán su precio, reglas y asignaciones. Esta acción no puede deshacerse.
+						</p>
+					</div>
+					<label class="block space-y-1.5 text-sm">
+						<span class="font-medium">
+							Escribe <strong>{row.ratePlanName}</strong> para confirmar
+						</span>
+						<Input data-rate-plan-delete-confirmation autocomplete="off" />
+					</label>
+					<p class="text-sm text-rose-700" data-rate-plan-delete-feedback />
+					<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+						<Button type="button" variant="secondary" data-close-rate-plan-delete>
+							Cancelar
+						</Button>
+						<Button type="submit" variant="danger" data-confirm-rate-plan-delete disabled>
+							Eliminar tarifa
+						</Button>
+					</div>
+				</form>
+			</dialog>
+		)
+	}
 </Layout>
 
 <script>
