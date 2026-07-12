@@ -1,4 +1,4 @@
-import { and, asc, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { asc, db, eq, Product, RatePlan, Variant } from "astro:db"
 import {
 	listCommercialPriceRulesByRatePlan,
 	listCommercialPriceRulesByRatePlans,
@@ -81,7 +81,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
+			.where(eq(Product.providerId, providerId))
 			.all()
 
 		if (!rows.length) return []
