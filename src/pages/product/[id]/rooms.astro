@@ -52,7 +52,7 @@ const layoutProps = addRoomPlaybook.active
 ---
 
 <Layout {...layoutProps}>
-	<section class="space-y-8">
+	<section class="space-y-8" data-rooms-summary-page data-product-id={productId}>
 		<header
 			class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6"
 		>
@@ -437,54 +437,76 @@ const layoutProps = addRoomPlaybook.active
 				return card
 			}
 
-			fetch(`/api/internal/rooms-summary?productId=${encodeURIComponent(productId)}`, {
-				headers: { accept: "application/json" },
-			})
-				.then(async (response) => {
-					if (!response.ok) throw new Error(`rooms_summary_${response.status}`)
-					return await response.json()
-				})
-				.then((payload) => {
-					const rooms = Array.isArray(payload?.variants) ? payload.variants : []
-					const list = document.getElementById("roomsList")
-					const skeleton = document.getElementById("roomsSkeleton")
-					const empty = document.getElementById("roomsEmptyState")
+			const bootRoomsSummaryPage = () => {
+				const root = document.querySelector("[data-rooms-summary-page]")
+				if (!(root instanceof HTMLElement)) return
+				if (root.dataset.productId !== productId) return
+				if (
+					root.dataset.roomsSummaryState === "loading" ||
+					root.dataset.roomsSummaryState === "ready"
+				) {
+					return
+				}
+				root.dataset.roomsSummaryState = "loading"
 
-					setText("roomsTotal", rooms.length)
-					setText(
-						"roomsWithCapacity",
-						rooms.filter((room) => Boolean(room?.states?.capacityComplete)).length
-					)
-					setText(
-						"roomsWithPhotos",
-						rooms.filter((room) => Number(room?.photos?.count ?? 0) > 0).length
-					)
-					setText(
-						"roomsWithTariffs",
-						rooms.filter((room) => Number(room?.tariffs?.count ?? 0) > 0).length
-					)
-
-					if (list) {
-						list.innerHTML = ""
-						for (const room of rooms) list.append(roomCard(room))
-					}
-
-					skeleton?.classList.add("hidden")
-					if (rooms.length > 0) {
-						list?.classList.remove("hidden")
-						empty?.classList.add("hidden")
-					} else {
-						list?.classList.add("hidden")
-						empty?.classList.remove("hidden")
-					}
+				fetch(`/api/internal/rooms-summary?productId=${encodeURIComponent(productId)}`, {
+					headers: { accept: "application/json" },
 				})
-				.catch(() => {
-					const skeleton = document.getElementById("roomsSkeleton")
-					if (skeleton) {
-						skeleton.innerHTML =
-							'<article class="rounded-xl border border-slate-200 bg-slate-100 p-5 text-sm text-slate-600">No se pudo cargar la ficha de habitaciones.</article>'
-					}
-				})
+					.then(async (response) => {
+						if (!response.ok) throw new Error(`rooms_summary_${response.status}`)
+						return await response.json()
+					})
+					.then((payload) => {
+						const rooms = Array.isArray(payload?.variants) ? payload.variants : []
+						const list = document.getElementById("roomsList")
+						const skeleton = document.getElementById("roomsSkeleton")
+						const empty = document.getElementById("roomsEmptyState")
+
+						setText("roomsTotal", rooms.length)
+						setText(
+							"roomsWithCapacity",
+							rooms.filter((room) => Boolean(room?.states?.capacityComplete)).length
+						)
+						setText(
+							"roomsWithPhotos",
+							rooms.filter((room) => Number(room?.photos?.count ?? 0) > 0).length
+						)
+						setText(
+							"roomsWithTariffs",
+							rooms.filter((room) => Number(room?.tariffs?.count ?? 0) > 0).length
+						)
+
+						if (list) {
+							list.innerHTML = ""
+							for (const room of rooms) list.append(roomCard(room))
+						}
+
+						skeleton?.classList.add("hidden")
+						if (rooms.length > 0) {
+							list?.classList.remove("hidden")
+							empty?.classList.add("hidden")
+						} else {
+							list?.classList.add("hidden")
+							empty?.classList.remove("hidden")
+						}
+						root.dataset.roomsSummaryState = "ready"
+					})
+					.catch(() => {
+						root.dataset.roomsSummaryState = "error"
+						const skeleton = document.getElementById("roomsSkeleton")
+						if (skeleton) {
+							skeleton.innerHTML =
+								'<article class="rounded-xl border border-slate-200 bg-slate-100 p-5 text-sm text-slate-600">No se pudo cargar la ficha de habitaciones.</article>'
+						}
+					})
+			}
+
+			document.addEventListener("astro:page-load", bootRoomsSummaryPage)
+			if (document.readyState === "loading") {
+				document.addEventListener("DOMContentLoaded", bootRoomsSummaryPage, { once: true })
+			} else {
+				bootRoomsSummaryPage()
+			}
 		})()
 	</script>
 </Layout>
