@@ -13,6 +13,7 @@ import {
 	AmenityRoom,
 } from "astro:db"
 import { isDepartmentId } from "@/data/departments"
+import { ROOM_TYPES } from "@/data/room/room-types"
 
 function dept(id: string) {
 	if (!isDepartmentId(id)) {
@@ -901,6 +902,9 @@ export default async function seed() {
 		// 	// 	// 		description: "Cama en habitación compartida; usado en hostales y alojamientos económicos.",
 		// 	// 	// 	},
 	])
+	await db
+		.insert(RoomType)
+		.values(ROOM_TYPES.filter((roomType) => !["single", "double"].includes(roomType.id)))
 
 	await db.insert(AmenityRoom).values([
 		{ id: "air_conditioning", name: "Aire acondicionado", category: "Confort" },
@@ -926,9 +930,8 @@ export default async function seed() {
 		(process.env.LOCAL_QA_AUTH_ENABLED === "true" ||
 			process.env.FASTT_SEED_FINANCIAL_DEMO === "true")
 	) {
-		const { default: seedFinancialOperationalDemo } = await import(
-			"../src/scripts/seed-financial-operational-demo"
-		)
+		const { default: seedFinancialOperationalDemo } =
+			await import("../src/scripts/seed-financial-operational-demo")
 		await seedFinancialOperationalDemo()
 	}
 
