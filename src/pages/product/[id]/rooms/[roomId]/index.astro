@@ -6,11 +6,7 @@ import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.
 import Section from "@/components/ui/Section.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import {
-	buildAddRoomHref,
-	getNextAddRoomStep,
-	resolveAddRoomPlaybookFromUrl,
-} from "@/lib/playbook/add-room"
+import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -19,12 +15,10 @@ import { routes } from "@/lib/routes"
 import {
 	ArrowLeft,
 	BedDouble,
-	CalendarDays,
 	Camera,
 	ClipboardCheck,
 	CircleCheck,
 	DoorOpen,
-	Eye,
 	Hotel,
 	ImagePlus,
 	RefreshCw,
@@ -48,29 +42,28 @@ if (!owned) return Astro.redirect("/product/create")
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 
 const tabs = [
-	{ id: "perfil", label: "Perfil", icon: DoorOpen },
+	{ id: "perfil", label: "Resumen", icon: DoorOpen },
 	{ id: "fotos", label: "Fotos", icon: Camera },
-	{ id: "preview", label: "Preview huésped", icon: Eye },
-	{ id: "disponibilidad", label: "Disponibilidad", icon: CalendarDays },
 	{ id: "publicacion", label: "Publicación", icon: ClipboardCheck },
 ]
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
-	return Astro.redirect(
-		buildAddRoomHref(routes.productRoomDetail(productId, roomId), "room-photos")
-	)
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("playbook", "add-room")
+	params.set("step", "room-photos")
+	return Astro.redirect(`${routes.productRoomDetail(productId, roomId)}?${params.toString()}`)
 }
 const addRoomCtx = {
 	productId,
 	variantId: roomId,
 	ratePlanId: addRoomPlaybook.ratePlanId || undefined,
 }
+const activeAddRoomStepId = addRoomPlaybook.stepId ?? "room-photos"
+const isRoomPhotosPlaybook = addRoomPlaybook.active && activeAddRoomStepId === "room-photos"
 const addRoomContinueHref = addRoomPlaybook.active
-	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "room-photos", addRoomCtx)?.buildHref(
-			addRoomCtx
-		) ?? null)
+	? (getNextAddRoomStep(activeAddRoomStepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
 	: null
 const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
 const layoutProps = addRoomPlaybook.active
@@ -78,7 +71,7 @@ const layoutProps = addRoomPlaybook.active
 			title: "Contenido del alojamiento · Habitación",
 			playbookId: "add-room" as const,
 			active: true,
-			stepId: addRoomPlaybook.stepId ?? "room-photos",
+			stepId: activeAddRoomStepId,
 			productId,
 			variantId: roomId,
 			ratePlanId: addRoomPlaybook.ratePlanId,
@@ -90,9 +83,15 @@ const layoutProps = addRoomPlaybook.active
 
 <Layout {...layoutProps}>
 	<section class="space-y-8">
-		<header class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-sm">
-			<div class="grid gap-0 lg:grid-cols-[1fr_340px]">
-				<div class="space-y-5 p-5 md:p-6">
+		<header
+			class:list={[
+				isRoomPhotosPlaybook
+					? "flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5"
+					: "overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-sm",
+			]}
+		>
+			<div class:list={[isRoomPhotosPlaybook ? "contents" : "grid gap-0 lg:grid-cols-[1fr_340px]"]}>
+				<div class:list={["space-y-5", isRoomPhotosPlaybook ? "" : "p-5 md:p-6"]}>
 					<a
 						href={routes.productRoomsForProduct(productId)}
 						data-astro-prefetch
@@ -102,63 +101,91 @@ const layoutProps = addRoomPlaybook.active
 						Volver a habitaciones
 					</a>
 					<div class="space-y-2">
-						<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
+						<p
+							class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+						>
 							<Hotel class="h-4 w-4" />
-							Alojamiento · Habitación
+							{
+								isRoomPhotosPlaybook
+									? `${owned.name} · Nueva habitación`
+									: "Alojamiento · Habitación"
+							}
 						</p>
 						<h1 id="roomTitle" class="text-3xl font-semibold text-slate-100">
-							Cargando habitación...
+							{isRoomPhotosPlaybook ? "Fotos de la habitación" : "Cargando habitación..."}
 						</h1>
 						<p class="max-w-3xl text-sm leading-6 text-slate-400">
-							Administra la ficha como la verá el huésped: perfil, fotos, preview, disponibilidad y
-							publicación en un solo workspace.
+							{
+								isRoomPhotosPlaybook
+									? "Sube imágenes nítidas de la cama, el baño y la distribución real. La primera foto será la principal antes de continuar con la tarifa."
+									: "Administra la ficha como la verá el huésped: perfil, fotos, preview, disponibilidad y publicación en un solo workspace."
+							}
 						</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
-						<Badge id="roomStatusBadge" variant="neutral">Cargando...</Badge>
-						<Button id="evaluateHeaderBtn" type="button">
-							<RefreshCw class="mr-2 h-4 w-4" />
-							Actualizar publicación
-						</Button>
-						<Button
-							href={routes.productRoomProfile(productId, roomId)}
-							data-astro-prefetch
-							variant="secondary"
-						>
-							Editar perfil
-						</Button>
+						{
+							isRoomPhotosPlaybook ? null : (
+								<>
+									<Badge id="roomStatusBadge" variant="neutral">
+										Cargando...
+									</Badge>
+									<Button id="evaluateHeaderBtn" type="button">
+										<RefreshCw class="mr-2 h-4 w-4" />
+										Actualizar publicación
+									</Button>
+									<Button
+										href={routes.productRoomProfile(productId, roomId)}
+										data-astro-prefetch
+										variant="secondary"
+									>
+										Editar perfil
+									</Button>
+								</>
+							)
+						}
 					</div>
 				</div>
-				<aside
-					class="border-t border-slate-800 bg-slate-900/80 p-5 lg:border-l lg:border-t-0 md:p-6"
-				>
-					<p class="flex items-center gap-2 text-sm font-semibold text-slate-100">
-						<Sparkles class="h-4 w-4 text-slate-300" />
-						Readiness de habitación
-					</p>
-					<div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-700">
-						<div id="roomProgressBar" class="h-full w-0 bg-slate-50"></div>
-					</div>
-					<div class="mt-4 grid grid-cols-3 gap-2 text-sm">
-						<div class="rounded-lg border border-slate-700 p-3">
-							<p class="text-xs text-slate-400">Listo</p>
-							<p id="roomProgressCompleted" class="mt-1 text-lg font-semibold text-white">—/4</p>
-						</div>
-						<div class="rounded-lg border border-slate-700 p-3">
-							<p class="text-xs text-slate-400">Pendiente</p>
-							<p id="roomProgressPending" class="mt-1 text-lg font-semibold text-white">—</p>
-						</div>
-						<div class="rounded-lg border border-slate-700 p-3">
-							<p class="text-xs text-slate-400">Progreso</p>
-							<p id="roomProgressPercent" class="mt-1 text-lg font-semibold text-white">—%</p>
-						</div>
-					</div>
-				</aside>
+				{
+					isRoomPhotosPlaybook ? null : (
+						<aside class="border-t border-slate-800 bg-slate-900/80 p-5 md:p-6 lg:border-t-0 lg:border-l">
+							<p class="flex items-center gap-2 text-sm font-semibold text-slate-100">
+								<Sparkles class="h-4 w-4 text-slate-300" />
+								Readiness de habitación
+							</p>
+							<div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-700">
+								<div id="roomProgressBar" class="h-full w-0 bg-slate-50" />
+							</div>
+							<div class="mt-4 grid grid-cols-3 gap-2 text-sm">
+								<div class="rounded-lg border border-slate-700 p-3">
+									<p class="text-xs text-slate-400">Listo</p>
+									<p id="roomProgressCompleted" class="mt-1 text-lg font-semibold text-white">
+										—/4
+									</p>
+								</div>
+								<div class="rounded-lg border border-slate-700 p-3">
+									<p class="text-xs text-slate-400">Pendiente</p>
+									<p id="roomProgressPending" class="mt-1 text-lg font-semibold text-white">
+										—
+									</p>
+								</div>
+								<div class="rounded-lg border border-slate-700 p-3">
+									<p class="text-xs text-slate-400">Progreso</p>
+									<p id="roomProgressPercent" class="mt-1 text-lg font-semibold text-white">
+										—%
+									</p>
+								</div>
+							</div>
+						</aside>
+					)
+				}
 			</div>
 		</header>
 
 		<nav
-			class="sticky top-0 z-10 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-sm"
+			class:list={[
+				"sticky top-0 z-10 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-sm",
+				isRoomPhotosPlaybook ? "hidden" : "",
+			]}
 			aria-label="Secciones de habitación"
 		>
 			<div class="flex min-w-max gap-2">
@@ -186,11 +213,14 @@ const layoutProps = addRoomPlaybook.active
 		</nav>
 
 		<div class="space-y-8">
-			<section data-room-panel="perfil" class="space-y-6">
+			<section
+				data-room-panel="perfil"
+				class:list={["space-y-6", isRoomPhotosPlaybook ? "hidden" : ""]}
+			>
 				<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
 					<Section
-						title="Perfil para huéspedes"
-						description="La información esencial que ayuda a decidir si esta habitación es adecuada."
+						title="Resumen de habitación"
+						description="Perfil, preview y próximos ajustes de la experiencia huésped."
 					>
 						<div id="profileCards" class="grid gap-4 md:grid-cols-2">
 							{
@@ -227,11 +257,22 @@ const layoutProps = addRoomPlaybook.active
 				</div>
 			</section>
 
-			<section data-room-panel="fotos" class="hidden space-y-6">
-				<Section
-					title="Photo tour de la habitación"
-					description="La foto principal es obligatoria: aparecerá en Dónde dormirás y define la confianza visual del huésped."
-				>
+			<section
+				data-room-panel="fotos"
+				class:list={["space-y-6", isRoomPhotosPlaybook ? "" : "hidden"]}
+			>
+				{
+					isRoomPhotosPlaybook ? null : (
+						<header class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-950">Fotos de la habitación</h2>
+							<p class="text-sm leading-6 text-slate-500">
+								La foto principal es obligatoria: aparecerá en Dónde dormirás y define la confianza
+								visual del huésped.
+							</p>
+						</header>
+					)
+				}
+				<div class="space-y-4">
 					<Card class="space-y-5 bg-slate-100">
 						<div class="flex flex-wrap items-center justify-between gap-3">
 							<p class="flex items-center gap-2 text-sm text-slate-600">
@@ -262,7 +303,7 @@ const layoutProps = addRoomPlaybook.active
 							}
 						</div>
 					</Card>
-				</Section>
+				</div>
 			</section>
 
 			<section data-room-panel="preview" class="hidden space-y-6">
@@ -423,7 +464,12 @@ const layoutProps = addRoomPlaybook.active
 
 	<script
 		is:inline
-		define:vars={{ productId, roomId, addRoomPlaybookActive: addRoomPlaybook.active }}
+		define:vars={{
+			productId,
+			roomId,
+			addRoomPlaybookActive: addRoomPlaybook.active,
+			isRoomPhotosPlaybook,
+		}}
 	>
 		;(function () {
 			const shellStart = performance.now()
@@ -461,6 +507,20 @@ const layoutProps = addRoomPlaybook.active
 				if (element) element.textContent = String(value)
 			}
 
+			const hasPersistableRoomImages = () =>
+				Array.isArray(roomImages) && roomImages.some((image) => safeText(image?.url))
+
+			const syncRoomImageSaveState = (options = {}) => {
+				const hasImages = hasPersistableRoomImages()
+				if (roomImageSaveBtn instanceof HTMLButtonElement) {
+					roomImageSaveBtn.disabled = !hasImages
+					roomImageSaveBtn.setAttribute("aria-disabled", hasImages ? "false" : "true")
+				}
+				if (!hasImages && options.showHint && roomImageFeedback) {
+					roomImageFeedback.textContent = "Sube al menos una foto antes de guardar la galería."
+				}
+			}
+
 			const tabButtons = Array.from(document.querySelectorAll("[data-room-tab]"))
 			const panels = Array.from(document.querySelectorAll("[data-room-panel]"))
 			const tabIds = new Set(
@@ -474,7 +534,7 @@ const layoutProps = addRoomPlaybook.active
 				return tabIds.has(normalized) ? normalized : "perfil"
 			}
 			const showTab = (id, options = {}) => {
-				const targetId = normalizeTabId(id)
+				const targetId = addRoomPlaybookActive ? "fotos" : normalizeTabId(id)
 				for (const button of tabButtons) {
 					const active = button.getAttribute("data-room-tab") === targetId
 					button.setAttribute("aria-selected", active ? "true" : "false")
@@ -499,7 +559,15 @@ const layoutProps = addRoomPlaybook.active
 			showTab(window.location.hash || (addRoomPlaybookActive ? "fotos" : "perfil"), {
 				skipHash: true,
 			})
-			window.addEventListener("hashchange", () => showTab(window.location.hash, { skipHash: true }))
+			if (addRoomPlaybookActive && window.location.hash !== "#fotos") {
+				window.history.replaceState(null, "", "#fotos")
+			}
+			window.addEventListener("hashchange", () => {
+				showTab(window.location.hash, { skipHash: true })
+				if (addRoomPlaybookActive && window.location.hash !== "#fotos") {
+					window.history.replaceState(null, "", "#fotos")
+				}
+			})
 
 			const statusClass = (tone) => {
 				if (tone === "success") return "border-green-200 bg-green-100 text-green-800"
@@ -690,6 +758,7 @@ const layoutProps = addRoomPlaybook.active
 			}
 
 			const renderRoomImages = () => {
+				syncRoomImageSaveState()
 				if (!roomImageGrid) return
 				roomImageGrid.innerHTML = ""
 				if (!Array.isArray(roomImages) || roomImages.length === 0) {
@@ -836,7 +905,8 @@ const layoutProps = addRoomPlaybook.active
 			}
 
 			const hydrate = (payload) => {
-				setText("roomTitle", safeText(payload?.variant?.name, "Habitación"))
+				const roomName = safeText(payload?.variant?.name, "Habitación")
+				setText("roomTitle", isRoomPhotosPlaybook ? `Fotos de ${roomName}` : roomName)
 				const statusBadge = document.getElementById("roomStatusBadge")
 				if (statusBadge) {
 					statusBadge.textContent = safeText(payload?.variant?.statusLabel, "Borrador")
@@ -891,6 +961,7 @@ const layoutProps = addRoomPlaybook.active
 				if (!(input instanceof HTMLInputElement)) return
 				const files = Array.from(input.files ?? [])
 				if (files.length === 0) return
+				if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
 				if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
 				try {
 					const signData = new FormData()
@@ -932,10 +1003,15 @@ const layoutProps = addRoomPlaybook.active
 						roomImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
 				} finally {
 					input.value = ""
+					syncRoomImageSaveState()
 				}
 			})
 
 			roomImageSaveBtn?.addEventListener("click", async () => {
+				if (!hasPersistableRoomImages()) {
+					syncRoomImageSaveState({ showHint: true })
+					return
+				}
 				if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
 				if (roomImageFeedback) roomImageFeedback.textContent = "Guardando galería..."
 				try {
@@ -972,7 +1048,6 @@ const layoutProps = addRoomPlaybook.active
 							step: "create-rate",
 							flow: "add-room",
 							variantId: roomId,
-							openDialog: "1",
 						})
 						window.location.href = `/rates/plans/manage?${params.toString()}`
 						return
@@ -980,7 +1055,7 @@ const layoutProps = addRoomPlaybook.active
 				} catch (error) {
 					if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
 				} finally {
-					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = false
+					syncRoomImageSaveState()
 				}
 			})
 
