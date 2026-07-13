@@ -1,6 +1,6 @@
 ---
 import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
-import Section from "@/components/ui/Section.astro"
+import Button from "@/components/ui/Button.astro"
 import {
 	productRepository,
 	variantManagementRepository,
@@ -80,35 +80,42 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 
 <WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
 	<section class="space-y-8 text-slate-100">
-		<header class="rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-sm md:p-6">
-			<p class="flex items-center gap-2 text-sm font-medium text-slate-400">
-				<Hotel class="h-4 w-4" />
-				Alojamiento · Habitación
-			</p>
-			<h1 class="mt-2 text-3xl font-semibold text-slate-100">Editar habitación</h1>
-			<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-				Mantén clara la experiencia de descanso: ocupación, camas, baño, vista y comodidades que el
-				huésped verá antes de reservar.
-			</p>
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="space-y-2">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					<Hotel class="h-4 w-4" />
+					{owned.name} · Habitación
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">Editar {variant.name}</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					Actualiza la información física que verá el huésped: nombre, capacidad, camas, baño, vista
+					y comodidades.
+				</p>
+			</div>
+			<Button
+				href={routes.productRoomDetail(productId, variantId)}
+				data-astro-prefetch
+				variant="secondary"
+			>
+				Ver habitación
+			</Button>
 		</header>
 
-		<Section
-			title="Perfil de descanso"
-			description="Información visible para huéspedes y útil para completar la publicación."
-		>
-			<RoomProfileEditor
-				productId={productId}
-				variantId={variantId}
-				mode="edit"
-				roomName={variant.name}
-				roomDescription={variant.description}
-				roomCode={variant.externalCode}
-				capacity={capacity}
-				profile={profile}
-				roomTypes={roomTypes}
-				amenities={amenities}
-				selectedAmenityIds={selectedAmenityIds}
-			/>
-		</Section>
+		<RoomProfileEditor
+			productId={productId}
+			variantId={variantId}
+			mode="edit"
+			roomName={variant.name}
+			roomDescription={variant.description}
+			roomCode={variant.externalCode}
+			capacity={capacity}
+			profile={profile}
+			roomTypes={roomTypes}
+			amenities={amenities}
+			selectedAmenityIds={selectedAmenityIds}
+			showIntro={false}
+		/>
 	</section>
 </WorkspaceLayout>

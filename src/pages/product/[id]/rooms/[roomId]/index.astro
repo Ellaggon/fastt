@@ -1,10 +1,8 @@
 ---
-import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
-import Section from "@/components/ui/Section.astro"
-import { productRepository } from "@/container"
+import { productRepository, variantManagementRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -12,18 +10,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import {
-	ArrowLeft,
-	BedDouble,
-	Camera,
-	ClipboardCheck,
-	CircleCheck,
-	DoorOpen,
-	Hotel,
-	ImagePlus,
-	RefreshCw,
-	Sparkles,
-} from "@lucide/astro"
+import { Camera, Hotel, ImagePlus, RefreshCw, Sparkles } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -41,13 +28,17 @@ const owned = await productRepository.ensureProductOwnedByProvider(productId, pr
 if (!owned) return Astro.redirect("/product/create")
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 
-const tabs = [
-	{ id: "perfil", label: "Perfil", icon: DoorOpen },
-	{ id: "fotos", label: "Fotos", icon: Camera },
-	{ id: "preview", label: "Preview huésped", icon: BedDouble },
-	{ id: "disponibilidad", label: "Disponibilidad", icon: Sparkles },
-	{ id: "publicacion", label: "Publicación", icon: ClipboardCheck },
-]
+const variant = await variantManagementRepository.getVariantById(roomId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(routes.productRoomsForProduct(productId))
+}
+if (
+	String(variant.kind ?? "")
+		.trim()
+		.toLowerCase() !== "hotel_room"
+) {
+	return Astro.redirect(routes.productRoomsForProduct(productId))
+}
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
@@ -57,6 +48,7 @@ if (!addRoomPlaybook.active && flow === "add-room") {
 	params.set("step", "room-photos")
 	return Astro.redirect(`${routes.productRoomDetail(productId, roomId)}?${params.toString()}`)
 }
+
 const addRoomCtx = {
 	productId,
 	variantId: roomId,
@@ -81,238 +73,283 @@ const layoutProps = addRoomPlaybook.active
 			continueHref: addRoomContinueHref,
 		}
 	: { title: "Contenido del alojamiento · Habitación" }
+
+const photosHref = `${routes.productRoomDetail(productId, roomId)}#fotos`
+const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualizacion`
 ---
 
 <Layout {...layoutProps}>
-	<section class="space-y-8">
-		<header
-			class:list={[
-				isRoomPhotosPlaybook
-					? "flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5"
-					: "overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-sm",
-			]}
-		>
-			<div class:list={[isRoomPhotosPlaybook ? "contents" : "grid gap-0 lg:grid-cols-[1fr_340px]"]}>
-				<div class:list={["space-y-5", isRoomPhotosPlaybook ? "" : "p-5 md:p-6"]}>
-					<a
-						href={routes.productRoomsForProduct(productId)}
+	<section
+		id="roomWorkspaceRoot"
+		class="space-y-8 text-slate-100"
+		data-product-id={productId}
+		data-room-id={roomId}
+	>
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="space-y-2">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					<Hotel class="h-4 w-4" />
+					{owned.name} · {isRoomPhotosPlaybook ? "Nueva habitación" : "Habitación"}
+				</p>
+				<h1 id="roomTitle" class="text-3xl font-semibold text-slate-100">
+					{isRoomPhotosPlaybook ? `Fotos de ${variant.name}` : variant.name}
+				</h1>
+				<p id="roomHeaderDescription" class="max-w-3xl text-sm leading-6 text-slate-400">
+					{
+						isRoomPhotosPlaybook
+							? "Agrega imágenes claras de la cama, el baño y la distribución real. La primera foto será la referencia principal para huéspedes."
+							: "Resumen de cómo se muestra, se vende y se opera esta habitación dentro del alojamiento."
+					}
+				</p>
+			</div>
+			{
+				!isRoomPhotosPlaybook ? (
+					<Button
+						href={routes.productRoomInventory(productId, roomId)}
 						data-astro-prefetch
-						class="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-100"
+						variant="secondary"
 					>
-						<ArrowLeft class="h-4 w-4" />
-						Volver a habitaciones
-					</a>
-					<div class="space-y-2">
-						<p
-							class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
-						>
-							<Hotel class="h-4 w-4" />
-							{
-								isRoomPhotosPlaybook
-									? `${owned.name} · Nueva habitación`
-									: "Alojamiento · Habitación"
-							}
-						</p>
-						<h1 id="roomTitle" class="text-3xl font-semibold text-slate-100">
-							{isRoomPhotosPlaybook ? "Fotos de la habitación" : "Cargando habitación..."}
-						</h1>
-						<p class="max-w-3xl text-sm leading-6 text-slate-400">
-							{
-								isRoomPhotosPlaybook
-									? "Sube imágenes nítidas de la cama, el baño y la distribución real. La primera foto será la principal antes de continuar con la tarifa."
-									: "Administra la ficha como la verá el huésped: perfil, fotos, preview, disponibilidad y publicación en un solo workspace."
-							}
-						</p>
+						Abrir calendario
+					</Button>
+				) : null
+			}
+		</header>
+
+		{
+			!isRoomPhotosPlaybook ? (
+				<nav
+					class="inline-flex rounded-[20px] bg-slate-900 p-1 text-sm font-semibold text-slate-300 ring-1 ring-slate-800"
+					data-room-tabs
+					aria-label="Secciones de habitación"
+				>
+					<button
+						type="button"
+						data-room-tab="resumen"
+						aria-selected="true"
+						class:list={["rounded-[16px] bg-white px-4 py-2 text-slate-950 transition"]}
+					>
+						Resumen
+					</button>
+					<button
+						type="button"
+						data-room-tab="fotos"
+						aria-selected="false"
+						class:list={[
+							"rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white",
+						]}
+					>
+						Fotos
+					</button>
+					<button
+						type="button"
+						data-room-tab="previsualizacion"
+						aria-selected="false"
+						class:list={[
+							"rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white",
+						]}
+					>
+						Previsualización
+					</button>
+				</nav>
+			) : null
+		}
+
+		<div class="space-y-8">
+			<section
+				data-room-panel="resumen"
+				class:list={["space-y-6", isRoomPhotosPlaybook ? "hidden" : ""]}
+			>
+				<Card class="overflow-hidden p-0">
+					<div id="overviewPrimaryStatus" class="border-b border-slate-200 bg-slate-50 p-5 md:p-6">
+						<div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+							<div class="flex items-start gap-4">
+								<div
+									id="overviewPrimaryIcon"
+									class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+								>
+									<Sparkles class="h-5 w-5" />
+								</div>
+								<div class="space-y-1">
+									<p
+										id="overviewPrimaryEyebrow"
+										class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+									>
+										Requiere atención
+									</p>
+									<h2 id="overviewPrimaryTitle" class="text-xl font-semibold text-slate-950">
+										Cargando estado de la habitación
+									</h2>
+									<p id="overviewPrimaryText" class="max-w-3xl text-sm leading-6 text-slate-600">
+										Estamos revisando perfil, fotos, tarifa y disponibilidad.
+									</p>
+									<p id="readinessFeedback" class="text-sm leading-6 text-slate-500"></p>
+								</div>
+							</div>
+							<div class="flex flex-wrap items-center gap-2 lg:justify-end">
+								<div id="overviewPrimaryAction"></div>
+								<Button id="reevaluateBtn" type="button" variant="secondary" size="sm">
+									<RefreshCw class="h-4 w-4" />
+									Actualizar estado
+								</Button>
+							</div>
+						</div>
 					</div>
-					<div class="flex flex-wrap items-center gap-2">
-						{
-							isRoomPhotosPlaybook ? null : (
-								<>
-									<Badge id="roomStatusBadge" variant="neutral">
-										Cargando...
-									</Badge>
-									<Button id="evaluateHeaderBtn" type="button">
-										<RefreshCw class="mr-2 h-4 w-4" />
-										Actualizar publicación
-									</Button>
+
+					<div class="space-y-6 p-5 md:p-6">
+						<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+							<div>
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<div>
+										<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+											Preparación
+										</p>
+										<h3 class="mt-1 text-base font-semibold text-slate-950">
+											Estado de venta de la habitación
+										</h3>
+									</div>
+								</div>
+								<div
+									id="overviewChecklist"
+									class="mt-4 divide-y divide-slate-100 rounded-[18px] bg-slate-50 ring-1 ring-slate-900/[0.06]"
+								>
+									{
+										["Perfil", "Fotos", "Tarifa", "Disponibilidad"].map((label) => (
+											<div class="flex items-center justify-between gap-4 p-4">
+												<div>
+													<p class="text-sm font-semibold text-slate-950">{label}</p>
+													<div class="mt-2 h-3 w-32 animate-pulse rounded bg-slate-200" />
+												</div>
+												<div class="h-6 w-16 animate-pulse rounded-full bg-slate-200" />
+											</div>
+										))
+									}
+								</div>
+							</div>
+
+							<aside class="space-y-3">
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+									Accesos rápidos
+								</p>
+								<div class="grid gap-2">
 									<Button
 										href={routes.productRoomProfile(productId, roomId)}
 										data-astro-prefetch
 										variant="secondary"
+										className="w-full justify-start"
 									>
-										Editar perfil
+										Editar información
 									</Button>
-								</>
-							)
-						}
+									<Button
+										href={photosHref}
+										data-astro-prefetch
+										variant="secondary"
+										className="w-full justify-start"
+									>
+										Fotos
+									</Button>
+									<Button
+										href={`/rates/plans/manage?variantId=${encodeURIComponent(roomId)}`}
+										data-astro-prefetch
+										variant="secondary"
+										className="w-full justify-start"
+									>
+										Tarifas
+									</Button>
+									<Button
+										href={routes.productRoomInventory(productId, roomId)}
+										data-astro-prefetch
+										variant="secondary"
+										className="w-full justify-start"
+									>
+										Calendario
+									</Button>
+									<Button
+										href={previewHref}
+										data-astro-prefetch
+										variant="secondary"
+										className="w-full justify-start"
+									>
+										Previsualización
+									</Button>
+								</div>
+							</aside>
+						</div>
 					</div>
-				</div>
-				{
-					isRoomPhotosPlaybook ? null : (
-						<aside class="border-t border-slate-800 bg-slate-900/80 p-5 md:p-6 lg:border-t-0 lg:border-l">
-							<p class="flex items-center gap-2 text-sm font-semibold text-slate-100">
-								<Sparkles class="h-4 w-4 text-slate-300" />
-								Readiness de habitación
-							</p>
-							<div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-700">
-								<div id="roomProgressBar" class="h-full w-0 bg-slate-50" />
-							</div>
-							<div class="mt-4 grid grid-cols-3 gap-2 text-sm">
-								<div class="rounded-lg border border-slate-700 p-3">
-									<p class="text-xs text-slate-400">Listo</p>
-									<p id="roomProgressCompleted" class="mt-1 text-lg font-semibold text-white">
-										—/4
-									</p>
-								</div>
-								<div class="rounded-lg border border-slate-700 p-3">
-									<p class="text-xs text-slate-400">Pendiente</p>
-									<p id="roomProgressPending" class="mt-1 text-lg font-semibold text-white">
-										—
-									</p>
-								</div>
-								<div class="rounded-lg border border-slate-700 p-3">
-									<p class="text-xs text-slate-400">Progreso</p>
-									<p id="roomProgressPercent" class="mt-1 text-lg font-semibold text-white">
-										—%
-									</p>
-								</div>
-							</div>
-						</aside>
-					)
-				}
-			</div>
-		</header>
-
-		<nav
-			class:list={[
-				"sticky top-0 z-10 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-sm",
-				isRoomPhotosPlaybook ? "hidden" : "",
-			]}
-			aria-label="Secciones de habitación"
-		>
-			<div class="flex min-w-max gap-2">
-				{
-					tabs.map((tab, index) => {
-						const Icon = tab.icon
-						return (
-							<button
-								type="button"
-								data-room-tab={tab.id}
-								aria-selected={index === 0 ? "true" : "false"}
-								class={`inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition ${
-									index === 0
-										? "bg-white text-slate-950"
-										: "text-slate-300 hover:bg-slate-800 hover:text-white"
-								}`}
-							>
-								<Icon class="h-4 w-4" />
-								{tab.label}
-							</button>
-						)
-					})
-				}
-			</div>
-		</nav>
-
-		<div class="space-y-8">
-			<section
-				data-room-panel="perfil"
-				class:list={["space-y-6", isRoomPhotosPlaybook ? "hidden" : ""]}
-			>
-				<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
-					<Section
-						title="Resumen de habitación"
-						description="Perfil, preview y próximos ajustes de la experiencia huésped."
-					>
-						<div id="profileCards" class="grid gap-4 md:grid-cols-2">
-							{
-								Array.from({ length: 4 }).map(() => (
-									<Card class="min-h-[140px] space-y-3 bg-slate-100">
-										<div class="h-4 w-24 animate-pulse rounded bg-slate-200" />
-										<div class="h-5 w-40 animate-pulse rounded bg-slate-200" />
-										<div class="h-4 w-full animate-pulse rounded bg-slate-200" />
-									</Card>
-								))
-							}
-						</div>
-					</Section>
-					<Card class="h-fit space-y-4 bg-slate-100">
-						<div class="flex items-center gap-3">
-							<div
-								class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-800"
-							>
-								<BedDouble class="h-5 w-5" />
-							</div>
-							<div>
-								<h2 class="font-semibold text-slate-900">Siguiente edición</h2>
-								<p class="text-sm text-slate-600">Actualiza camas, baño, ocupación y notas.</p>
-							</div>
-						</div>
-						<Button
-							href={routes.productRoomProfile(productId, roomId)}
-							data-astro-prefetch
-							className="w-full"
-						>
-							Editar perfil completo
-						</Button>
-					</Card>
-				</div>
+				</Card>
 			</section>
 
 			<section
 				data-room-panel="fotos"
 				class:list={["space-y-6", isRoomPhotosPlaybook ? "" : "hidden"]}
 			>
-				{
-					isRoomPhotosPlaybook ? null : (
-						<header class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-950">Photo tour de la habitación</h2>
-							<p class="text-sm leading-6 text-slate-500">
-								La foto principal es obligatoria: aparecerá en Dónde dormirás y define la confianza
-								visual del huésped.
-							</p>
-						</header>
-					)
-				}
-				<div class="space-y-4">
-					<Card class="space-y-5 bg-slate-100">
-						<div class="flex flex-wrap items-center justify-between gap-3">
-							<p class="flex items-center gap-2 text-sm text-slate-600">
+				<Card class="space-y-5">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<div class="space-y-1">
+							<p class="flex items-center gap-2 text-sm font-semibold text-slate-950">
 								<Camera class="h-4 w-4" />
-								Muestra cama, baño, vista y distribución real. La primera imagen será la foto principal.
+								Galería de la habitación
 							</p>
-							<div class="flex flex-wrap items-center gap-2">
-								<input id="roomImageFiles" type="file" accept="image/*" multiple class="hidden" />
-								<Button id="roomImageUploadBtn" type="button" variant="secondary">
-									<ImagePlus class="mr-2 h-4 w-4" />
-									Subir imágenes
-								</Button>
-								<Button id="roomImageSaveBtn" type="button"> Guardar galería </Button>
-							</div>
+							<p class="max-w-2xl text-sm leading-6 text-slate-600">
+								Muestra cama, baño, vista y distribución real. La primera imagen será la foto
+								principal.
+							</p>
 						</div>
-						<div
-							id="roomPhotoReadiness"
-							class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
-						>
-							Agrega al menos 1 foto. La primera imagen aparecerá en Dónde dormirás.
+						<div class="flex flex-wrap items-center gap-2">
+							<input id="roomImageFiles" type="file" accept="image/*" multiple class="hidden" />
+							<Button id="roomImageUploadBtn" type="button" variant="secondary">
+								<ImagePlus class="mr-2 h-4 w-4" />
+								Subir imágenes
+							</Button>
+							<Button id="roomImageSaveBtn" type="button">Guardar galería</Button>
 						</div>
-						<p id="roomImageFeedback" class="text-sm text-slate-600"></p>
-						<div id="roomImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							{
-								Array.from({ length: 3 }).map(() => (
-									<div class="min-h-[180px] animate-pulse rounded-xl border border-slate-200 bg-white" />
-								))
-							}
-						</div>
-					</Card>
-				</div>
+					</div>
+					<div
+						id="roomPhotoReadiness"
+						class="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+					>
+						Agrega al menos 1 foto. La primera imagen aparecerá en Dónde dormirás.
+					</div>
+					<p id="roomImageFeedback" class="text-sm text-slate-600"></p>
+					<div id="roomImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{
+							Array.from({ length: 3 }).map(() => (
+								<div class="min-h-[180px] animate-pulse rounded-[18px] bg-slate-100" />
+							))
+						}
+					</div>
+				</Card>
 			</section>
 
-			<section data-room-panel="preview" class="hidden space-y-6">
-				<Section
-					title="Así lo verá el huésped"
-					description="Misma tarjeta visible para huéspedes que se usa en el detalle público del alojamiento."
-				>
+			<section data-room-panel="previsualizacion" class="hidden space-y-6">
+				<Card class="space-y-6">
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+								Experiencia huésped
+							</p>
+							<h2 class="mt-1 text-xl font-semibold text-slate-950">
+								Así verá el huésped esta habitación
+							</h2>
+							<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+								Revisa la información visible antes de reservar: nombre, fotos, capacidad, camas,
+								baño, vista y comodidades.
+							</p>
+						</div>
+						<div class="flex flex-wrap items-center gap-2">
+							<Button
+								href={routes.productRoomProfile(productId, roomId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Editar información
+							</Button>
+							<Button href={photosHref} data-astro-prefetch variant="secondary">
+								Editar fotos
+							</Button>
+						</div>
+					</div>
 					<GuestRoomPreviewCards
 						previews={[]}
 						containerId="workspaceGuestRoomPreviewCards"
@@ -321,151 +358,20 @@ const layoutProps = addRoomPlaybook.active
 						statusLabel="Así lo verá el huésped"
 						emptyText="Cargando preview de la habitación..."
 					/>
-				</Section>
-			</section>
-
-			<section data-room-panel="disponibilidad" class="hidden space-y-6">
-				<Section
-					title="Disponibilidad y cupos"
-					description="Handoff operativo: cupos físicos y cobertura diaria para esta habitación."
-				>
-					<div class="grid gap-4 lg:grid-cols-[1fr_320px]">
-						<div id="availabilitySummaryCards" class="grid gap-4 md:grid-cols-2"></div>
-						<Card class="h-fit space-y-4 bg-slate-100">
-							<h2 class="text-lg font-semibold text-slate-900">Operación diaria</h2>
-							<p class="text-sm leading-6 text-slate-600">
-								La edición de cupos vive en disponibilidad. Esta ficha solo resume si la habitación
-								está preparada para publicarse.
-							</p>
-							<Button
-								href={routes.productRoomInventory(productId, roomId)}
-								data-astro-prefetch
-								className="w-full"
-							>
-								Editar disponibilidad y cupos
-							</Button>
-							<Button
-								href={routes.productRoomAvailability(productId, roomId)}
-								data-astro-prefetch
-								variant="secondary"
-								className="w-full"
-							>
-								Ver consulta de venta
-							</Button>
-						</Card>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+							Detalles visibles
+						</p>
+						<div id="profileFacts" class="mt-3 grid gap-3 md:grid-cols-2"></div>
 					</div>
-				</Section>
-			</section>
-
-			<section data-room-panel="publicacion" class="hidden space-y-6">
-				<Section
-					title="Publicación"
-					description="Separa lo que completa la ficha huésped de lo que deja la habitación lista para vender."
-				>
-					<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
-						<Card class="space-y-5 bg-slate-100">
-							<div class="flex flex-wrap items-start justify-between gap-3">
-								<div>
-									<h2 class="flex items-center gap-2 text-xl font-semibold text-slate-900">
-										<ClipboardCheck class="h-5 w-5" />
-										Estado de publicación
-									</h2>
-									<p id="readinessStateText" class="mt-1 text-sm text-slate-600">
-										Estado actual: Cargando...
-									</p>
-								</div>
-								<Badge id="readinessStateBadge" variant="neutral">Cargando</Badge>
-							</div>
-
-							<div class="grid gap-4 xl:grid-cols-2">
-								<div class="rounded-2xl border border-slate-200 bg-white p-4">
-									<div class="flex items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-950">Ficha huésped completa</p>
-											<p class="mt-1 text-xs leading-5 text-slate-500">
-												Perfil, camas, baño, fotos y comodidades. Es lo que construye confianza en
-												el listing.
-											</p>
-										</div>
-										<Badge id="guestReadinessBadge" variant="neutral">Cargando</Badge>
-									</div>
-									<div id="guestReadinessList" class="mt-4 space-y-3">
-										<p class="text-sm text-slate-500">Cargando ficha huésped...</p>
-									</div>
-								</div>
-								<div class="rounded-2xl border border-slate-200 bg-white p-4">
-									<div class="flex items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-950">Lista para vender</p>
-											<p class="mt-1 text-xs leading-5 text-slate-500">
-												Tarifas, disponibilidad y condiciones viven en sus dominios. Habitaciones
-												solo muestra si el traspaso está claro.
-											</p>
-										</div>
-										<Badge id="sellReadinessBadge" variant="neutral">Cargando</Badge>
-									</div>
-									<div id="sellReadinessList" class="mt-4 space-y-3">
-										<p class="text-sm text-slate-500">Cargando readiness comercial...</p>
-									</div>
-								</div>
-							</div>
-
-							<div class="rounded-2xl border border-slate-200 bg-white p-4">
-								<div class="grid gap-4 md:grid-cols-2">
-									<div class="space-y-2">
-										<p class="text-sm font-semibold text-slate-900">Bloqueos de publicación</p>
-										<ul
-											id="blockingErrorsList"
-											class="list-disc space-y-1 pl-5 text-sm text-slate-700"
-										>
-											<li class="list-none text-slate-500">Cargando validaciones...</li>
-										</ul>
-									</div>
-									<div class="space-y-2">
-										<p class="text-sm font-semibold text-slate-900">Mejoras recomendadas</p>
-										<ul
-											id="nonBlockingErrorsList"
-											class="list-disc space-y-1 pl-5 text-sm text-slate-700"
-										>
-											<li class="list-none text-slate-500">Cargando validaciones...</li>
-										</ul>
-									</div>
-								</div>
-							</div>
-
-							<p id="readinessFeedback" class="text-sm text-slate-600"></p>
-
-							<div class="flex justify-end">
-								<Button id="reevaluateBtn" type="button">
-									<RefreshCw class="mr-2 h-4 w-4" />
-									Actualizar revisión
-								</Button>
-							</div>
-						</Card>
-						<Card class="h-fit space-y-4 bg-white">
-							<div class="flex items-center gap-3">
-								<div
-									class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800"
-								>
-									<CircleCheck class="h-5 w-5" />
-								</div>
-								<div>
-									<h2 class="font-semibold text-slate-900">Publicación con confianza</h2>
-									<p class="text-sm text-slate-600">
-										Habitaciones se encarga de la experiencia de estancia. Tarifas, disponibilidad y
-										condiciones conservan la responsabilidad comercial.
-									</p>
-								</div>
-							</div>
-						</Card>
-					</div>
-				</Section>
+				</Card>
 			</section>
 		</div>
 	</section>
 
 	<script
 		is:inline
+		data-astro-rerun
 		define:vars={{
 			productId,
 			roomId,
@@ -474,6 +380,21 @@ const layoutProps = addRoomPlaybook.active
 		}}
 	>
 		;(function () {
+			const previousController = window.__fasttRoomWorkspaceController
+			if (previousController && typeof previousController.abort === "function") {
+				previousController.abort()
+			}
+			const roomWorkspaceController = new AbortController()
+			const roomWorkspaceSignal = roomWorkspaceController.signal
+			window.__fasttRoomWorkspaceController = roomWorkspaceController
+			document.addEventListener(
+				"astro:before-swap",
+				() => {
+					roomWorkspaceController.abort()
+				},
+				{ once: true, signal: roomWorkspaceSignal }
+			)
+
 			const shellStart = performance.now()
 			const logShellVisible = () => {
 				console.debug("shell visible", {
@@ -484,20 +405,31 @@ const layoutProps = addRoomPlaybook.active
 			if (document.readyState === "complete" || document.readyState === "interactive") {
 				logShellVisible()
 			} else {
-				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
+				document.addEventListener("DOMContentLoaded", logShellVisible, {
+					once: true,
+					signal: roomWorkspaceSignal,
+				})
 			}
 
 			if (!productId || !roomId) return
 
 			const feedback = document.getElementById("readinessFeedback")
 			const reevaluateBtn = document.getElementById("reevaluateBtn")
-			const evaluateHeaderBtn = document.getElementById("evaluateHeaderBtn")
 			const roomImageFiles = document.getElementById("roomImageFiles")
 			const roomImageUploadBtn = document.getElementById("roomImageUploadBtn")
 			const roomImageSaveBtn = document.getElementById("roomImageSaveBtn")
 			const roomImageFeedback = document.getElementById("roomImageFeedback")
 			const roomImageGrid = document.getElementById("roomImageGrid")
 			let roomImages = []
+
+			const isCurrentRoomWorkspace = () => {
+				const root = document.getElementById("roomWorkspaceRoot")
+				return (
+					root instanceof HTMLElement &&
+					root.dataset.productId === productId &&
+					root.dataset.roomId === roomId
+				)
+			}
 
 			const safeText = (value, fallback = "") => {
 				const normalized = String(value ?? "").trim()
@@ -533,18 +465,17 @@ const layoutProps = addRoomPlaybook.active
 					.trim()
 					.replace(/^#/, "")
 					.toLowerCase()
-				return tabIds.has(normalized) ? normalized : "perfil"
+				if (normalized === "fotos") return "fotos"
+				return tabIds.has(normalized) ? normalized : "resumen"
 			}
 			const showTab = (id, options = {}) => {
-				const targetId = addRoomPlaybookActive ? "fotos" : normalizeTabId(id)
+				const targetId = isRoomPhotosPlaybook ? "fotos" : normalizeTabId(id)
 				for (const button of tabButtons) {
 					const active = button.getAttribute("data-room-tab") === targetId
 					button.setAttribute("aria-selected", active ? "true" : "false")
-					button.className = `inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition ${
-						active
-							? "bg-white text-slate-950"
-							: "text-slate-300 hover:bg-slate-800 hover:text-white"
-					}`
+					button.className = active
+						? "rounded-[16px] bg-white px-4 py-2 text-slate-950 transition"
+						: "rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
 				}
 				for (const panel of panels) {
 					panel.classList.toggle("hidden", panel.getAttribute("data-room-panel") !== targetId)
@@ -553,210 +484,245 @@ const layoutProps = addRoomPlaybook.active
 					window.history.replaceState(null, "", `#${targetId}`)
 				}
 			}
+			const isSameRoomHashLink = (link) => {
+				try {
+					const url = new URL(link.href, window.location.href)
+					const hashTabId = String(url.hash ?? "")
+						.replace(/^#/, "")
+						.toLowerCase()
+					return (
+						url.origin === window.location.origin &&
+						url.pathname === window.location.pathname &&
+						tabIds.has(hashTabId)
+					)
+				} catch {
+					return false
+				}
+			}
 			for (const button of tabButtons) {
-				button.addEventListener("click", () =>
-					showTab(String(button.getAttribute("data-room-tab")))
+				button.addEventListener(
+					"click",
+					() => showTab(String(button.getAttribute("data-room-tab"))),
+					{ signal: roomWorkspaceSignal }
 				)
 			}
-			showTab(window.location.hash || (addRoomPlaybookActive ? "fotos" : "perfil"), {
+			document.addEventListener(
+				"click",
+				(event) => {
+					const link = event.target instanceof Element ? event.target.closest("a[href]") : null
+					if (!(link instanceof HTMLAnchorElement) || !isSameRoomHashLink(link)) return
+					event.preventDefault()
+					showTab(link.hash)
+				},
+				{ signal: roomWorkspaceSignal }
+			)
+			showTab(window.location.hash || (isRoomPhotosPlaybook ? "fotos" : "resumen"), {
 				skipHash: true,
 			})
-			if (addRoomPlaybookActive && window.location.hash !== "#fotos") {
+			if (isRoomPhotosPlaybook && window.location.hash !== "#fotos") {
 				window.history.replaceState(null, "", "#fotos")
 			}
-			window.addEventListener("hashchange", () => {
-				showTab(window.location.hash, { skipHash: true })
-				if (addRoomPlaybookActive && window.location.hash !== "#fotos") {
-					window.history.replaceState(null, "", "#fotos")
-				}
-			})
+			window.addEventListener(
+				"hashchange",
+				() => {
+					showTab(window.location.hash, { skipHash: true })
+					if (isRoomPhotosPlaybook && window.location.hash !== "#fotos") {
+						window.history.replaceState(null, "", "#fotos")
+					}
+				},
+				{ signal: roomWorkspaceSignal }
+			)
 
-			const statusClass = (tone) => {
-				if (tone === "success") return "border-green-200 bg-green-100 text-green-800"
-				if (tone === "info") return "border-sky-200 bg-sky-50 text-sky-800"
-				return "border-orange-200 bg-orange-100 text-orange-800"
+			const toneClasses = (complete) =>
+				complete
+					? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+					: "bg-amber-50 text-amber-900 ring-amber-200"
+
+			const makeSmallButton = (href, label, variant = "secondary") => {
+				const link = document.createElement("a")
+				link.href = href
+				link.textContent = label
+				link.setAttribute("data-astro-prefetch", "")
+				link.className =
+					variant === "primary"
+						? "fastt-button inline-flex h-9 items-center justify-center rounded px-3 text-sm font-semibold bg-slate-950 text-white hover:bg-slate-800"
+						: "fastt-button inline-flex h-9 items-center justify-center rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+				return link
 			}
 
-			const metricCard = (label, value, icon, tone = "neutral") => {
-				const article = document.createElement("article")
-				const toneClass =
-					tone === "ok"
-						? "border-emerald-200 bg-emerald-50"
-						: tone === "warn"
-							? "border-amber-200 bg-amber-50"
-							: "border-slate-200 bg-white"
-				article.className = `fastt-soft-box p-5 ${toneClass}`
+			const factCard = (label, value, hint) => {
+				const card = document.createElement("article")
+				card.className = "rounded-[18px] bg-slate-50 p-4 ring-1 ring-slate-900/[0.06]"
 				const title = document.createElement("p")
 				title.className = "text-xs font-semibold uppercase tracking-wide text-slate-500"
 				title.textContent = label
 				const body = document.createElement("p")
-				body.className = "mt-2 text-base font-semibold text-slate-950"
+				body.className = "mt-2 text-sm font-semibold text-slate-950"
 				body.textContent = value
-				const hint = document.createElement("p")
-				hint.className = "mt-2 text-sm text-slate-600"
-				hint.textContent = icon
-				article.append(title, body, hint)
-				return article
+				const meta = document.createElement("p")
+				meta.className = "mt-1 text-sm leading-5 text-slate-500"
+				meta.textContent = hint
+				card.append(title, body, meta)
+				return card
 			}
 
-			const renderProfileCards = (payload) => {
-				const container = document.getElementById("profileCards")
+			const concisePricingSummary = (payload) => {
+				const raw = safeText(payload?.summary?.pricing, "Sin tarifa")
+				const lower = raw.toLowerCase()
+				if (lower.includes("precios efectivos pendientes") || lower.includes("faltan precios")) {
+					return "Precio base creado, falta completar precios efectivos."
+				}
+				return raw
+			}
+
+			const renderOverviewChecklist = (payload) => {
+				const container = document.getElementById("overviewChecklist")
 				if (!container) return
+				const blocks = payload?.blocks ?? {}
+				const items = [
+					{
+						label: "Perfil",
+						complete: Boolean(blocks.profile?.complete && blocks.capacity?.complete),
+						summary: safeText(payload?.summary?.capacity, "Capacidad pendiente"),
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}/profile`,
+					},
+					{
+						label: "Fotos",
+						complete: Boolean(blocks.photos?.complete),
+						summary: `${Number(blocks.photos?.count ?? 0)} foto(s)`,
+						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}#fotos`,
+					},
+					{
+						label: "Tarifa",
+						complete: Boolean(blocks.pricing?.complete),
+						summary: concisePricingSummary(payload),
+						href: `/rates/plans/manage?variantId=${encodeURIComponent(roomId)}`,
+					},
+					{
+						label: "Disponibilidad",
+						complete: Boolean(blocks.inventory?.complete),
+						summary: safeText(payload?.summary?.inventory, "Sin disponibilidad"),
+						href: `/rates/calendar?variantId=${encodeURIComponent(roomId)}&focus=availability`,
+					},
+				]
 				container.innerHTML = ""
+				for (const item of items) {
+					const row = document.createElement("a")
+					row.href = item.href
+					row.setAttribute("data-astro-prefetch", "")
+					row.className =
+						"flex items-center justify-between gap-4 p-4 text-sm transition hover:bg-white"
+					const copy = document.createElement("div")
+					copy.className = "min-w-0"
+					const label = document.createElement("p")
+					label.className = "font-semibold text-slate-950"
+					label.textContent = item.label
+					const summary = document.createElement("p")
+					summary.className = "mt-1 line-clamp-2 text-sm leading-5 text-slate-500"
+					summary.textContent = item.summary
+					copy.append(label, summary)
+					const state = document.createElement("span")
+					state.className = `inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${toneClasses(item.complete)}`
+					state.textContent = item.complete ? "Listo" : "Pendiente"
+					row.append(copy, state)
+					container.appendChild(row)
+				}
+			}
+
+			const renderProfileFacts = (payload) => {
+				const container = document.getElementById("profileFacts")
+				if (!container) return
 				const preview = payload?.guestPreview ?? {}
+				container.innerHTML = ""
 				container.append(
-					metricCard(
+					factCard(
 						"Ocupación",
 						safeText(preview.occupancySummary, "Capacidad por confirmar"),
-						String(payload?.summary?.capacity ?? "Define límites de ocupación."),
-						payload?.blocks?.capacity?.complete ? "ok" : "warn"
+						"Rango visible antes de reservar."
 					),
-					metricCard(
-						"Camas",
+					factCard(
+						"Descanso",
 						safeText(preview.sleepSummary, "Camas por confirmar"),
-						"Se mostrará en la sección Dónde dormirás.",
-						payload?.blocks?.profile?.complete ? "ok" : "warn"
+						"Se muestra en Dónde dormirás."
 					),
-					metricCard(
-						"Baño",
+					factCard(
+						"Baño y espacio",
 						safeText(preview.bathroomSummary, "Baño por confirmar"),
-						safeText(preview.sizeSummary || preview.viewSummary, "Completa detalles físicos."),
-						payload?.blocks?.profile?.complete ? "ok" : "warn"
+						safeText(preview.sizeSummary || preview.viewSummary, "Completa tamaño, vista o balcón.")
 					),
-					metricCard(
+					factCard(
 						"Comodidades",
 						`${Array.isArray(preview.amenityLabels) ? preview.amenityLabels.length : 0} seleccionadas`,
-						"Propias de esta habitación.",
-						Array.isArray(preview.amenityLabels) && preview.amenityLabels.length > 0 ? "ok" : "warn"
+						"Servicios propios de esta habitación."
 					)
 				)
 			}
 
-			const getErrorAction = (code) => {
-				const value = String(code || "")
-					.trim()
-					.toLowerCase()
-				if (value === "missing_capacity" || value === "missing_subtype") {
+			const getNextAction = (payload) => {
+				const blocks = payload?.blocks ?? {}
+				if (!blocks.profile?.complete || !blocks.capacity?.complete) {
 					return {
+						eyebrow: "Requiere atención",
+						title: "Completa la información de la habitación",
+						text: "Define capacidad, camas, baño y detalles físicos para que el huésped entienda qué está reservando.",
 						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}/profile`,
-						label: "Completar perfil",
+						label: "Editar información",
 					}
 				}
-				if (
-					value === "pricing_missing" ||
-					value === "no_default_rate_plan" ||
-					value === "effective_pricing_missing" ||
-					value === "pricing_invalid"
-				) {
-					return { href: "/rates/plans/manage", label: "Abrir tarifas" }
-				}
-				if (value === "inventory_missing") {
+				if (!blocks.photos?.complete) {
 					return {
-						href: `/rates/calendar?variantId=${encodeURIComponent(roomId)}&focus=availability`,
-						label: "Editar disponibilidad",
-					}
-				}
-				if (value === "missing_room_photo") {
-					return {
+						eyebrow: "Requiere atención",
+						title: "Agrega una foto clara de la habitación",
+						text: "La primera imagen será la referencia visual principal en la experiencia del huésped.",
 						href: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}#fotos`,
-						label: "Agregar fotos",
+						label: "Editar fotos",
 					}
 				}
-				return null
+				if (!blocks.pricing?.complete) {
+					return {
+						eyebrow: "Requiere atención",
+						title: "Falta completar precios para vender esta habitación",
+						text: "Tienes una tarifa base creada, pero todavía faltan precios efectivos para los próximos días.",
+						href: `/rates/plans/manage?variantId=${encodeURIComponent(roomId)}`,
+						label: "Abrir tarifas",
+					}
+				}
+				if (!blocks.inventory?.complete) {
+					return {
+						eyebrow: "Requiere atención",
+						title: "Abre fechas disponibles en el calendario",
+						text: "La habitación necesita al menos un rango disponible para poder recibir reservas.",
+						href: `/rates/calendar?variantId=${encodeURIComponent(roomId)}&focus=availability`,
+						label: "Abrir calendario",
+					}
+				}
+				return {
+					eyebrow: "Lista para venderse",
+					title: "La habitación está preparada para recibir reservas",
+					text: "La habitación está lista para venderse con confianza.",
+					href: `/rates/calendar?variantId=${encodeURIComponent(roomId)}&focus=availability`,
+					label: "Ver calendario",
+					complete: true,
+				}
 			}
 
-			const renderReadinessSplit = (payload) => {
-				const renderColumn = (column, listId, badgeId) => {
-					const list = document.getElementById(listId)
-					const badge = document.getElementById(badgeId)
-					const complete = Boolean(column?.complete)
-					const completedItems = Number(column?.completedItems ?? 0)
-					const totalItems = Number(column?.totalItems ?? 0)
-					if (badge) {
-						badge.textContent = complete
-							? "Completa"
-							: `${completedItems}/${Math.max(totalItems, 0)} listo(s)`
-						badge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${complete ? statusClass("success") : statusClass("warning")}`
-					}
-					if (!list) return
-					list.innerHTML = ""
-					const items = Array.isArray(column?.items) ? column.items : []
-					if (items.length === 0) {
-						const empty = document.createElement("p")
-						empty.className = "text-sm text-slate-500"
-						empty.textContent = "Sin validaciones disponibles."
-						list.appendChild(empty)
-						return
-					}
-					for (const item of items) {
-						const row = document.createElement("article")
-						row.className = `rounded-xl border p-3 ${item?.complete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`
-						const header = document.createElement("div")
-						header.className = "flex items-start justify-between gap-3"
-						const text = document.createElement("div")
-						const label = document.createElement("p")
-						label.className = "text-sm font-semibold text-slate-950"
-						label.textContent = safeText(item?.label, "Sección")
-						const summary = document.createElement("p")
-						summary.className = "mt-1 text-xs leading-5 text-slate-600"
-						summary.textContent = safeText(item?.summary, "Pendiente")
-						text.append(label, summary)
-						const state = document.createElement("span")
-						state.className = `shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${item?.complete ? "border-emerald-200 bg-white text-emerald-800" : "border-amber-200 bg-white text-amber-800"}`
-						state.textContent = item?.externalOwner
-							? "Otro dominio"
-							: item?.complete
-								? "Listo"
-								: "Pendiente"
-						header.append(text, state)
-						row.appendChild(header)
-						const href = safeText(item?.actionHref)
-						const actionLabel = safeText(item?.actionLabel)
-						if (href && actionLabel && (!item?.complete || item?.externalOwner)) {
-							const link = document.createElement("a")
-							link.href = href
-							link.textContent = actionLabel
-							link.className =
-								"mt-3 inline-flex text-xs font-semibold text-slate-950 underline hover:text-slate-700"
-							link.setAttribute("data-astro-prefetch", "")
-							row.appendChild(link)
-						}
-						list.appendChild(row)
-					}
+			const renderNextAction = (payload) => {
+				const action = getNextAction(payload)
+				setText("overviewPrimaryEyebrow", action.eyebrow)
+				setText("overviewPrimaryTitle", action.title)
+				setText("overviewPrimaryText", action.text)
+				const icon = document.getElementById("overviewPrimaryIcon")
+				if (icon) {
+					icon.className = action.complete
+						? "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+						: "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-amber-50 text-amber-800 ring-1 ring-amber-200"
 				}
-				renderColumn(payload?.readinessSplit?.guest, "guestReadinessList", "guestReadinessBadge")
-				renderColumn(payload?.readinessSplit?.sell, "sellReadinessList", "sellReadinessBadge")
-			}
-
-			const renderErrors = (container, items, emptyText) => {
-				if (!container) return
-				container.innerHTML = ""
-				if (!Array.isArray(items) || items.length === 0) {
-					const li = document.createElement("li")
-					li.className = "list-none text-slate-500"
-					li.textContent = emptyText
-					container.appendChild(li)
-					return
-				}
-				for (const item of items) {
-					const li = document.createElement("li")
-					const code = String(item?.code || "")
-					const message = safeText(item?.message, code || "Pendiente")
-					const action = getErrorAction(code)
-					li.className = "space-x-2"
-					const text = document.createElement("span")
-					text.textContent = message
-					li.appendChild(text)
-					if (action) {
-						const link = document.createElement("a")
-						link.href = action.href
-						link.textContent = action.label
-						link.className = "text-slate-950 underline hover:text-slate-700"
-						link.setAttribute("data-astro-prefetch", "")
-						li.appendChild(link)
-					}
-					container.appendChild(li)
-				}
+				const slot = document.getElementById("overviewPrimaryAction")
+				if (!slot) return
+				slot.innerHTML = ""
+				slot.appendChild(
+					makeSmallButton(action.href, action.label, action.complete ? "secondary" : "primary")
+				)
 			}
 
 			const renderRoomImages = () => {
@@ -767,29 +733,29 @@ const layoutProps = addRoomPlaybook.active
 					const empty = document.createElement("div")
 					empty.className = "fastt-empty-state col-span-full p-6 text-sm text-slate-600"
 					empty.textContent =
-						"Aún no hay fotos. Agrega al menos una imagen clara de la cama y el baño. Esta imagen aparecerá en Dónde dormirás."
+						"Aún no hay fotos. Agrega al menos una imagen clara de la cama y el baño."
 					roomImageGrid.appendChild(empty)
 					return
 				}
 				roomImages.forEach((image, index) => {
 					const card = document.createElement("article")
-					card.className = "space-y-3 rounded-xl border border-slate-200 bg-white p-3"
+					card.className = "space-y-3 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-900/[0.06]"
 					const preview = document.createElement("img")
 					preview.src = String(image.url)
 					preview.alt = `Foto de habitación ${index + 1}`
-					preview.className = "h-36 w-full rounded-lg object-cover"
+					preview.className = "h-40 w-full rounded-[16px] object-cover"
 					const meta = document.createElement("div")
 					meta.className = "flex flex-wrap items-center gap-2"
 					const order = document.createElement("span")
 					order.className =
-						"inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+						"inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
 					order.textContent = index === 0 ? "Principal" : `Foto ${index + 1}`
 					meta.appendChild(order)
 					if (index === 0) {
 						const guestPlacement = document.createElement("span")
 						guestPlacement.className =
-							"inline-flex rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-						guestPlacement.textContent = "Esta imagen aparecerá en Dónde dormirás"
+							"inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-200"
+						guestPlacement.textContent = "Visible en Dónde dormirás"
 						meta.appendChild(guestPlacement)
 					}
 					const actions = document.createElement("div")
@@ -800,8 +766,8 @@ const layoutProps = addRoomPlaybook.active
 						button.disabled = disabled
 						button.className =
 							tone === "danger"
-								? "fastt-button inline-flex h-8 items-center justify-center rounded border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-40"
-								: "fastt-button inline-flex h-8 items-center justify-center rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 disabled:opacity-40"
+								? "fastt-button inline-flex h-8 items-center justify-center rounded bg-red-50 px-2 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+								: "fastt-button inline-flex h-8 items-center justify-center rounded bg-white px-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 disabled:opacity-40"
 						button.textContent = label
 						button.addEventListener("click", onClick)
 						return button
@@ -845,8 +811,8 @@ const layoutProps = addRoomPlaybook.active
 				const count = Number(photos?.count ?? 0)
 				const complete = Boolean(photos?.complete)
 				container.className = complete
-					? "fastt-notice rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"
-					: "fastt-notice rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+					? "rounded-[18px] bg-emerald-50 p-4 text-sm leading-6 text-emerald-900 ring-1 ring-emerald-200"
+					: "rounded-[18px] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-200"
 				container.textContent = complete
 					? `${count} foto(s) listas. La primera imagen aparecerá en Dónde dormirás.`
 					: "Agrega al menos 1 foto. La primera imagen aparecerá en Dónde dormirás y es obligatoria para publicar."
@@ -886,182 +852,145 @@ const layoutProps = addRoomPlaybook.active
 				}
 			}
 
-			const renderAvailability = (payload) => {
-				const container = document.getElementById("availabilitySummaryCards")
-				if (!container) return
-				container.innerHTML = ""
-				container.append(
-					metricCard(
-						"Cobertura diaria",
-						String(payload?.summary?.inventory ?? "Sin disponibilidad"),
-						"Se gestiona desde disponibilidad y cupos.",
-						payload?.blocks?.inventory?.complete ? "ok" : "warn"
-					),
-					metricCard(
-						"Tarifas",
-						String(payload?.summary?.pricing ?? "Sin tarifas"),
-						"Las tarifas viven en Habitaciones y tarifas.",
-						payload?.blocks?.pricing?.complete ? "ok" : "warn"
-					)
-				)
-			}
-
 			const hydrate = (payload) => {
 				const roomName = safeText(payload?.variant?.name, "Habitación")
 				setText("roomTitle", isRoomPhotosPlaybook ? `Fotos de ${roomName}` : roomName)
-				const statusBadge = document.getElementById("roomStatusBadge")
-				if (statusBadge) {
-					statusBadge.textContent = safeText(payload?.variant?.statusLabel, "Borrador")
-					statusBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(payload?.variant?.statusVariant)}`
-				}
-
-				const percent = Number(payload?.progress?.progressPercent ?? 0)
-				const progressBar = document.getElementById("roomProgressBar")
-				if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
 				setText(
-					"roomProgressCompleted",
-					`${Number(payload?.progress?.completedBlocks ?? 0)}/${Number(payload?.progress?.totalBlocks ?? 3)}`
+					"roomHeaderDescription",
+					isRoomPhotosPlaybook
+						? "Agrega imágenes claras de la cama, el baño y la distribución real. La primera foto será la referencia principal para huéspedes."
+						: "Resumen de cómo se muestra, se vende y se opera esta habitación dentro del alojamiento."
 				)
-				setText("roomProgressPending", Number(payload?.progress?.pendingBlocks ?? 0))
-				setText("roomProgressPercent", `${percent}%`)
-
 				roomImages = Array.isArray(payload?.variant?.images) ? payload.variant.images.slice() : []
-				renderProfileCards(payload)
+				renderOverviewChecklist(payload)
+				renderProfileFacts(payload)
+				renderNextAction(payload)
 				renderRoomImages()
 				renderPhotoReadiness(payload)
 				renderGuestPreview(payload)
-				renderAvailability(payload)
-				renderReadinessSplit(payload)
-
-				setText(
-					"readinessStateText",
-					`Estado actual: ${safeText(payload?.readiness?.stateLabel, "Borrador")}`
-				)
-				const readinessBadge = document.getElementById("readinessStateBadge")
-				if (readinessBadge) {
-					readinessBadge.textContent = safeText(payload?.readiness?.stateLabel, "Borrador")
-					readinessBadge.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(payload?.readiness?.stateVariant)}`
-				}
-				renderErrors(
-					document.getElementById("blockingErrorsList"),
-					payload?.readiness?.blockingErrors ?? [],
-					"Sin bloqueantes."
-				)
-				renderErrors(
-					document.getElementById("nonBlockingErrorsList"),
-					payload?.readiness?.nonBlockingErrors ?? [],
-					"Sin pendientes adicionales."
-				)
 			}
 
-			roomImageUploadBtn?.addEventListener("click", () => {
-				if (roomImageFiles instanceof HTMLInputElement) roomImageFiles.click()
-			})
+			roomImageUploadBtn?.addEventListener(
+				"click",
+				() => {
+					if (roomImageFiles instanceof HTMLInputElement) roomImageFiles.click()
+				},
+				{ signal: roomWorkspaceSignal }
+			)
 
-			roomImageFiles?.addEventListener("change", async (event) => {
-				const input = event.currentTarget
-				if (!(input instanceof HTMLInputElement)) return
-				const files = Array.from(input.files ?? [])
-				if (files.length === 0) return
-				if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
-				if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
-				try {
-					const signData = new FormData()
-					files.forEach((file) => signData.append("file", file))
-					signData.set("prefix", "rooms")
-					const signResponse = await fetch("/api/upload/create-signed", {
-						method: "POST",
-						body: signData,
-					})
-					const signPayload = await signResponse.json().catch(() => ({}))
-					if (!signResponse.ok || !Array.isArray(signPayload?.urls)) {
-						if (roomImageFeedback)
-							roomImageFeedback.textContent = "No se pudieron preparar las cargas."
-						return
-					}
-					for (const [index, file] of files.entries()) {
-						const target = signPayload.urls[index]
-						if (!target?.signedUrl || !target?.publicUrl || !target?.key) continue
-						const uploadResponse = await fetch(String(target.signedUrl), {
-							method: "PUT",
-							headers: { "Content-Type": file.type || "application/octet-stream" },
-							body: file,
+			roomImageFiles?.addEventListener(
+				"change",
+				async (event) => {
+					const input = event.currentTarget
+					if (!(input instanceof HTMLInputElement)) return
+					const files = Array.from(input.files ?? [])
+					if (files.length === 0) return
+					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
+					if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
+					try {
+						const signData = new FormData()
+						files.forEach((file) => signData.append("file", file))
+						signData.set("prefix", "rooms")
+						const signResponse = await fetch("/api/upload/create-signed", {
+							method: "POST",
+							body: signData,
 						})
-						if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
-						roomImages.push({
-							id: `local-${crypto.randomUUID()}`,
-							url: String(target.publicUrl),
-							objectKey: String(target.key),
-							order: roomImages.length,
-							isPrimary: roomImages.length === 0,
-						})
-					}
-					renderRoomImages()
-					if (roomImageFeedback) {
-						roomImageFeedback.textContent = "Imágenes cargadas. Guarda la galería para persistir."
-					}
-				} catch (error) {
-					if (roomImageFeedback)
-						roomImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
-				} finally {
-					input.value = ""
-					syncRoomImageSaveState()
-				}
-			})
-
-			roomImageSaveBtn?.addEventListener("click", async () => {
-				if (!hasPersistableRoomImages()) {
-					syncRoomImageSaveState({ showHint: true })
-					return
-				}
-				if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
-				if (roomImageFeedback) roomImageFeedback.textContent = "Guardando galería..."
-				try {
-					const formData = new FormData()
-					formData.set("variantId", roomId)
-					for (const image of roomImages) {
-						formData.append("imageUrl", String(image.url))
-						const objectKey =
-							image?.objectKey ??
-							(() => {
-								try {
-									return new URL(String(image.url)).pathname.replace(/^\/+/, "")
-								} catch {
-									return ""
-								}
-							})()
-						formData.append("imageObjectKey", String(objectKey ?? ""))
-					}
-					const response = await fetch("/api/variant/images", { method: "POST", body: formData })
-					const payload = await response.json().catch(() => ({}))
-					if (!response.ok) {
-						if (roomImageFeedback) {
-							roomImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
+						const signPayload = await signResponse.json().catch(() => ({}))
+						if (!signResponse.ok || !Array.isArray(signPayload?.urls)) {
+							if (roomImageFeedback)
+								roomImageFeedback.textContent = "No se pudieron preparar las cargas."
+							return
 						}
+						for (const [index, file] of files.entries()) {
+							const target = signPayload.urls[index]
+							if (!target?.signedUrl || !target?.publicUrl || !target?.key) continue
+							const uploadResponse = await fetch(String(target.signedUrl), {
+								method: "PUT",
+								headers: { "Content-Type": file.type || "application/octet-stream" },
+								body: file,
+							})
+							if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
+							roomImages.push({
+								id: `local-${crypto.randomUUID()}`,
+								url: String(target.publicUrl),
+								objectKey: String(target.key),
+								order: roomImages.length,
+								isPrimary: roomImages.length === 0,
+							})
+						}
+						renderRoomImages()
+						if (roomImageFeedback) {
+							roomImageFeedback.textContent = "Imágenes cargadas. Guarda la galería para persistir."
+						}
+					} catch (error) {
+						if (roomImageFeedback)
+							roomImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
+					} finally {
+						input.value = ""
+						syncRoomImageSaveState()
+					}
+				},
+				{ signal: roomWorkspaceSignal }
+			)
+
+			roomImageSaveBtn?.addEventListener(
+				"click",
+				async () => {
+					if (!hasPersistableRoomImages()) {
+						syncRoomImageSaveState({ showHint: true })
 						return
 					}
-					roomImages = Array.isArray(payload?.images) ? payload.images.slice() : roomImages
-					renderRoomImages()
-					await loadRoom()
-					if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
-					if (addRoomPlaybookActive && roomImages.length > 0) {
-						const params = new URLSearchParams({
-							playbook: "add-room",
-							step: "create-rate",
-							flow: "add-room",
-							variantId: roomId,
-						})
-						window.location.href = `/rates/plans/manage?${params.toString()}`
-						return
+					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
+					if (roomImageFeedback) roomImageFeedback.textContent = "Guardando galería..."
+					try {
+						const formData = new FormData()
+						formData.set("variantId", roomId)
+						for (const image of roomImages) {
+							formData.append("imageUrl", String(image.url))
+							const objectKey =
+								image?.objectKey ??
+								(() => {
+									try {
+										return new URL(String(image.url)).pathname.replace(/^\/+/, "")
+									} catch {
+										return ""
+									}
+								})()
+							formData.append("imageObjectKey", String(objectKey ?? ""))
+						}
+						const response = await fetch("/api/variant/images", { method: "POST", body: formData })
+						const payload = await response.json().catch(() => ({}))
+						if (!response.ok) {
+							if (roomImageFeedback) {
+								roomImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
+							}
+							return
+						}
+						roomImages = Array.isArray(payload?.images) ? payload.images.slice() : roomImages
+						renderRoomImages()
+						await loadRoom()
+						if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
+						if (addRoomPlaybookActive && roomImages.length > 0) {
+							const params = new URLSearchParams({
+								playbook: "add-room",
+								step: "create-rate",
+								flow: "add-room",
+								variantId: roomId,
+							})
+							window.location.href = `/rates/plans/manage?${params.toString()}`
+							return
+						}
+					} catch (error) {
+						if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
+					} finally {
+						syncRoomImageSaveState()
 					}
-				} catch (error) {
-					if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
-				} finally {
-					syncRoomImageSaveState()
-				}
-			})
+				},
+				{ signal: roomWorkspaceSignal }
+			)
 
 			const loadRoom = async () => {
+				if (!isCurrentRoomWorkspace()) return null
 				const hydrationStart = performance.now()
 				try {
 					const response = await fetch(
@@ -1077,20 +1006,14 @@ const layoutProps = addRoomPlaybook.active
 					})
 					return payload
 				} catch (error) {
-					if (feedback)
-						feedback.textContent = `No se pudo cargar la ficha de habitación: ${String(error)}`
+					if (feedback) feedback.textContent = `No se pudo cargar la habitación: ${String(error)}`
 					return null
 				}
 			}
 
-			const setBusy = (isBusy) => {
-				if (reevaluateBtn) reevaluateBtn.disabled = isBusy
-				if (evaluateHeaderBtn) evaluateHeaderBtn.disabled = isBusy
-			}
-
 			const evaluateReadiness = async () => {
-				setBusy(true)
-				if (feedback) feedback.textContent = "Evaluando publicación..."
+				if (reevaluateBtn instanceof HTMLButtonElement) reevaluateBtn.disabled = true
+				if (feedback) feedback.textContent = "Evaluando habitación..."
 				try {
 					const form = new FormData()
 					form.set("variantId", String(roomId || ""))
@@ -1109,13 +1032,26 @@ const layoutProps = addRoomPlaybook.active
 				} catch (error) {
 					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
 				} finally {
-					setBusy(false)
+					if (reevaluateBtn instanceof HTMLButtonElement) reevaluateBtn.disabled = false
 				}
 			}
 
-			evaluateHeaderBtn?.addEventListener("click", evaluateReadiness)
-			reevaluateBtn?.addEventListener("click", evaluateReadiness)
-			void loadRoom()
+			reevaluateBtn?.addEventListener("click", evaluateReadiness, { signal: roomWorkspaceSignal })
+			const refreshRoomWorkspace = () => {
+				if (!isCurrentRoomWorkspace()) return
+				showTab(window.location.hash || (isRoomPhotosPlaybook ? "fotos" : "resumen"), {
+					skipHash: true,
+				})
+				void loadRoom()
+			}
+			window.addEventListener(
+				"pageshow",
+				(event) => {
+					if (event.persisted) refreshRoomWorkspace()
+				},
+				{ signal: roomWorkspaceSignal }
+			)
+			refreshRoomWorkspace()
 		})()
 	</script>
 </Layout>
