@@ -127,7 +127,7 @@ async function stepCompletionFlags(
 			"subtype": Boolean(aggregate.subtype),
 			"room-profile": isHotel && activeVariants.length > 0,
 			"rate": Boolean(commercialCompletion?.tariffsComplete),
-			"conditions": Boolean(commercialCompletion?.pricingComplete),
+			"conditions": Boolean(commercialCompletion?.conditionsComplete),
 			"calendar": Boolean(commercialCompletion?.inventoryComplete),
 			"house-rules": isHotel && completedHouseRuleTypes.length >= 4,
 			"preview": false,

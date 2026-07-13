@@ -153,7 +153,11 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit">
+						<Button
+							id="submitBtn"
+							type="submit"
+							className={playbookResolved.active ? "fastt-playbook-cta" : ""}
+						>
 							{playbookResolved.active ? "Guardar y continuar" : "Guardar contenido"}
 						</Button>
 					</div>

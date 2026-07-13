@@ -451,7 +451,11 @@ const limousineSubtype =
 						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit">
+						<Button
+							id="submitBtn"
+							type="submit"
+							className={playbook.active ? "fastt-playbook-cta" : ""}
+						>
 							{playbook.active ? "Guardar y continuar" : "Guardar subtipo"}
 						</Button>
 					</div>

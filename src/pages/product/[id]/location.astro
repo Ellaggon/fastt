@@ -121,7 +121,11 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 						>
 							Volver
 						</Button>
-						<Button id="submitBtn" type="submit">
+						<Button
+							id="submitBtn"
+							type="submit"
+							className={playbook.active ? "fastt-playbook-cta" : ""}
+						>
 							{playbook.active ? "Guardar y continuar" : "Guardar ubicación"}
 						</Button>
 					</div>

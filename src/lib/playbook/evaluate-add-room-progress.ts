@@ -12,6 +12,7 @@ import {
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
+import { REQUIRED_POLICY_CATEGORIES, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
 	type AddRoomContext,
 	type AddRoomStepId,
@@ -59,6 +60,7 @@ export type VariantCompletion = {
 	photosComplete: boolean
 	tariffsComplete: boolean
 	pricingComplete: boolean
+	conditionsComplete: boolean
 	inventoryComplete: boolean
 	isComplete: boolean
 	defaultRatePlanId: string | null
@@ -67,7 +69,8 @@ export type VariantCompletion = {
 export async function loadVariantCompletion(
 	productId: string,
 	providerId: string,
-	variantId: string
+	variantId: string,
+	preferredRatePlanId?: string | null
 ): Promise<VariantCompletion | null> {
 	const aggregate = await getProductVariantsAggregate(productId, providerId)
 	if (!aggregate) return null
@@ -112,22 +115,48 @@ export async function loadVariantCompletion(
 	])
 
 	const activeTariffs = tariffRows.filter((row) => Boolean(row.isActive))
-	const defaultTariff = activeTariffs.find((row) => row.isDefault) ?? activeTariffs[0] ?? null
+	const preferredTariffId = String(preferredRatePlanId ?? "").trim()
+	const defaultTariff =
+		(preferredTariffId
+			? activeTariffs.find((row) => String(row.id) === preferredTariffId)
+			: null) ??
+		activeTariffs.find((row) => row.isDefault) ??
+		activeTariffs[0] ??
+		null
 	const capacityComplete = Boolean(variant.capacity)
 	const photosComplete = imageRows.length > 0
 	const tariffsComplete = activeTariffs.length > 0
 	const pricingComplete = Boolean(
 		variant.pricing?.hasBaseRate && variant.pricing?.hasDefaultRatePlan && effectiveRows.length > 0
 	)
+	const resolvedPolicies = defaultTariff
+		? await resolveEffectivePolicies({
+				productId,
+				variantId,
+				ratePlanId: String(defaultTariff.id),
+				channel: "web",
+				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
+				onMissingCategory: "return_null",
+			})
+		: null
+	const conditionsComplete = Boolean(
+		resolvedPolicies && resolvedPolicies.missingCategories.length === 0
+	)
 	const inventoryComplete = inventoryRows.length >= readinessInventoryMinDays
 	const isComplete =
-		capacityComplete && photosComplete && tariffsComplete && pricingComplete && inventoryComplete
+		capacityComplete &&
+		photosComplete &&
+		tariffsComplete &&
+		pricingComplete &&
+		conditionsComplete &&
+		inventoryComplete
 
 	return {
 		capacityComplete,
 		photosComplete,
 		tariffsComplete,
 		pricingComplete,
+		conditionsComplete,
 		inventoryComplete,
 		isComplete,
 		defaultRatePlanId: defaultTariff ? String(defaultTariff.id) : null,
@@ -161,7 +190,12 @@ export async function evaluateAddRoomProgress(
 	}
 
 	if (variantId) {
-		const variantState = await loadVariantCompletion(productId, providerId, variantId)
+		const variantState = await loadVariantCompletion(
+			productId,
+			providerId,
+			variantId,
+			ctx.ratePlanId
+		)
 		if (!variantState) return null
 		if (!ctx.ratePlanId && variantState.defaultRatePlanId) {
 			ctx.ratePlanId = variantState.defaultRatePlanId
@@ -171,7 +205,7 @@ export async function evaluateAddRoomProgress(
 			"create-room": variantState.capacityComplete,
 			"room-photos": variantState.photosComplete,
 			"create-rate": variantState.tariffsComplete,
-			"conditions": variantState.pricingComplete,
+			"conditions": variantState.conditionsComplete,
 			"availability": variantState.inventoryComplete,
 			"confirmation": variantState.isComplete,
 		}

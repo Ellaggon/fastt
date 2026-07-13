@@ -7,7 +7,7 @@ import {
 } from "@/lib/playbook/launch-accommodation"
 
 describe("playbook/launch-accommodation", () => {
-	it("returns the canonical hotel launch flow without the create step once a product exists", () => {
+	it("returns the canonical hotel launch flow with stable numbering across creation", () => {
 		const ctx: LaunchContext = {
 			productId: "prod_123",
 			isHotel: true,
@@ -18,6 +18,7 @@ describe("playbook/launch-accommodation", () => {
 		const steps = getApplicableLaunchSteps(ctx)
 
 		expect(steps.map((step) => step.id)).toEqual([
+			"create",
 			"content",
 			"location",
 			"images",
@@ -63,6 +64,7 @@ describe("playbook/launch-accommodation", () => {
 		})
 
 		expect(steps.map((step) => step.id)).toEqual([
+			"create",
 			"content",
 			"location",
 			"images",

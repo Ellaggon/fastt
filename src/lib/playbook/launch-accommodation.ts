@@ -85,6 +85,7 @@ export const LAUNCH_STEPS: LaunchStepDefinition[] = [
 		buildHref: (ctx) => {
 			const params = new URLSearchParams({
 				productId: ctx.productId,
+				openDialog: "1",
 			})
 			if (ctx.variantId) params.set("variantId", ctx.variantId)
 			return buildPlaybookHref(`/rates/plans/manage?${params.toString()}`, "rate")
@@ -157,10 +158,7 @@ export function buildPlaybookHref(path: string, step: LaunchStepId): string {
 }
 
 export function getApplicableLaunchSteps(ctx: LaunchContext): LaunchStepDefinition[] {
-	return LAUNCH_STEPS.filter((step) => {
-		if (step.id === "create" && ctx.productId) return false
-		return step.appliesTo(ctx)
-	})
+	return LAUNCH_STEPS.filter((step) => step.appliesTo(ctx))
 }
 
 export function getLaunchStepById(

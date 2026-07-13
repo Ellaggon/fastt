@@ -4,6 +4,7 @@ import { db, DailyInventory, EffectivePricingV2, Image } from "astro:db"
 import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
 import { upsertProductContent, upsertProductLocation } from "@/modules/catalog/public"
+import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
 	upsertDestination,
@@ -30,6 +31,59 @@ async function insertVariantImage(variantId: string) {
 		order: 0,
 		isPrimary: true,
 	})
+}
+
+async function assignRequiredPolicies(params: { providerId: string; ratePlanId: string }) {
+	const policies = []
+	policies.push(
+		await createPolicyCapa6({
+			ownerProviderId: params.providerId,
+			category: "Cancellation",
+			description: "Flexible cancellation",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2026-12-31",
+			cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
+		} as any)
+	)
+	policies.push(
+		await createPolicyCapa6({
+			ownerProviderId: params.providerId,
+			category: "Payment",
+			description: "Pay at property",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2026-12-31",
+			rules: { paymentType: "pay_at_property" },
+		} as any)
+	)
+	policies.push(
+		await createPolicyCapa6({
+			ownerProviderId: params.providerId,
+			category: "CheckIn",
+			description: "Standard check-in",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2026-12-31",
+			rules: { checkInFrom: "15:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
+		} as any)
+	)
+	policies.push(
+		await createPolicyCapa6({
+			ownerProviderId: params.providerId,
+			category: "NoShow",
+			description: "First night no-show",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2026-12-31",
+			rules: { penaltyType: "first_night" },
+		} as any)
+	)
+
+	for (const policy of policies) {
+		await replacePolicyAssignmentCapa6({
+			policyId: policy.policyId,
+			scope: "rate_plan",
+			scopeId: params.ratePlanId,
+			channel: "web",
+		})
+	}
 }
 
 describe("integration/playbook launch progress", () => {
@@ -115,6 +169,7 @@ describe("integration/playbook launch progress", () => {
 			baseAmount: 120,
 			baseCurrency: "USD",
 		})
+		await assignRequiredPolicies({ providerId, ratePlanId })
 		await db.insert(EffectivePricingV2).values({
 			id: `ep_launch_${suffix}`,
 			variantId,

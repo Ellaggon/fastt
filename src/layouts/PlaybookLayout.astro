@@ -32,6 +32,7 @@ interface Props {
 	ratePlanId?: string
 	isHotel?: boolean
 	continueHref?: string | null
+	continueLabel?: string
 	hideFooter?: boolean
 }
 
@@ -45,6 +46,7 @@ const {
 	ratePlanId = "",
 	isHotel = false,
 	continueHref = null,
+	continueLabel = "Continuar →",
 	hideFooter = false,
 } = Astro.props
 
@@ -137,7 +139,9 @@ if (isComplete && active && productId) {
 	if (previousStep) {
 		previousHref = isAddRoom
 			? (getPreviousAddRoomStep(stepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
-			: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
+			: previousStep.id === "create" && productId
+				? null
+				: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
 	}
 
 	if (active && stepNumber && totalSteps > 0) {
@@ -210,7 +214,7 @@ const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositi
 
 	{
 		showFooter ? (
-			<footer class="mt-8 flex flex-col gap-4 border-t border-slate-800 pt-6 sm:flex-row sm:items-center sm:justify-between">
+			<footer class="fastt-playbook-footer flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div class="min-h-10">
 					{previousHref ? (
 						<Button
@@ -232,9 +236,13 @@ const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositi
 					{isTerminalStep && isComplete ? (
 						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
 					) : isTerminalStep ? (
-						<Button href={exitHref}>{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}</Button>
+						<Button href={exitHref} className="fastt-playbook-cta">
+							{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}
+						</Button>
 					) : resolvedContinueHref ? (
-						<Button href={resolvedContinueHref}>Continuar →</Button>
+						<Button href={resolvedContinueHref} className="fastt-playbook-cta">
+							{continueLabel}
+						</Button>
 					) : null}
 				</div>
 			</footer>
