@@ -188,7 +188,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const sectionTitles = enterpriseNavigation.map((section) => section.title)
 		expect(sectionTitles).toEqual([
 			"Inicio",
-			"Alojamientos",
+			"Servicios",
+			"Alojamiento",
 			"Venta",
 			"Reservas",
 			"Finanzas",
@@ -317,7 +318,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 			Inicio: ["Command Center"],
 			Venta: ["Rooms & Rates", "Venta"],
 			Reservas: ["Reservations"],
-			Alojamientos: ["Property Content", "Contenido de alojamiento"],
+			Servicios: ["Servicios"],
+			Alojamiento: ["Alojamiento", "Property Content", "Contenido de alojamiento"],
 			Finanzas: ["Payments & Finance"],
 			Analítica: ["Analytics & Performance"],
 			Conectividad: ["Connectivity"],
@@ -393,6 +395,49 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(labels).not.toContain("Operaciones masivas")
 		expect(labels).not.toContain("Auditoría")
 		expect(visible.flatMap((section) => section.planned ?? [])).toEqual([])
+	})
+
+	it("shows only accommodation service tools for accommodation-only providers", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			productTypes: ["Hotel"],
+		})
+		const services = visible.find((section) => section.title === "Servicios")
+		const accommodation = visible.find((section) => section.title === "Alojamiento")
+
+		expect(services?.items.map((item) => item.label)).toEqual(["Alojamiento"])
+		expect(accommodation?.items.map((item) => item.label)).toEqual([
+			"Habitaciones",
+			"Reglas para huéspedes",
+		])
+	})
+
+	it("separates services from accommodation tools when providers have multiple rubros", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			productTypes: ["Hotel", "Tour", "Package"],
+		})
+		const services = visible.find((section) => section.title === "Servicios")
+		const accommodation = visible.find((section) => section.title === "Alojamiento")
+
+		expect(services?.items.map((item) => item.label)).toEqual(["Alojamiento", "Tours", "Paquetes"])
+		expect(accommodation?.items.map((item) => item.label)).toEqual([
+			"Habitaciones",
+			"Reglas para huéspedes",
+		])
+	})
+
+	it("hides accommodation-only tools when the provider has other services but no accommodation", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			productTypes: ["Tour", "Package", "Limousine"],
+		})
+		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+
+		expect(visible.map((section) => section.title)).not.toContain("Alojamiento")
+		expect(labels).toEqual(expect.arrayContaining(["Tours", "Paquetes", "Traslados", "Tarifas"]))
+		expect(labels).not.toContain("Habitaciones")
+		expect(labels).not.toContain("Reglas para huéspedes")
 	})
 
 	it("reveals professional surfaces when the provider has scale", () => {
@@ -849,7 +894,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("Panel del proveedor")
 		expect(sidebarSource).not.toContain('title: "Operación"')
 		expect(sidebarSource).toContain('title: "Inicio"')
-		expect(sidebarSource).toContain('title: "Alojamientos"')
+		expect(sidebarSource).toContain('title: onlyHotelService ? "Servicio" : "Servicios"')
 		expect(sidebarSource).toContain('title: "Venta"')
 		expect(sidebarSource).toContain('title: "Configuración"')
 		expect(sidebarSource).toContain('sections: ["Configuración"]')
@@ -861,7 +906,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("section.planned")
 		expect(sidebarSource).not.toContain("Próximamente")
 		expect(sidebarSource).not.toContain("Sección activa")
-		expect(governanceSource).toContain('title: "Alojamientos"')
+		expect(governanceSource).toContain('title: "Servicios"')
+		expect(governanceSource).toContain('title: "Alojamiento"')
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain("12 tarifas")
@@ -955,7 +1001,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 
 		expect(routesSource).not.toContain("pricingCalendar")
-		expect(routesSource).not.toContain("catalog:")
+		expect(routesSource).not.toContain("catalog: {")
 		expect(sidebarSource).not.toContain("/api/internal")
 		expect(sidebarSource).not.toContain("Calendar (Deprecated)")
 		expect(sidebarSource).not.toContain("Financial Control")

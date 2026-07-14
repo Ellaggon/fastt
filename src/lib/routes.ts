@@ -8,14 +8,20 @@ export const routes = {
 	taxFees: () => "/provider/tax-fees",
 	providerTaxFees: () => "/provider/tax-fees",
 	providerVerification: () => "/provider/verification",
-	accommodations: () => "/product",
-	productList: () => "/product",
-	productListByType: (productType: string) =>
-		`/product?type=${encodeURIComponent(String(productType))}`,
+	accommodations: () => "/catalog/accommodations",
+	productList: () => "/catalog/accommodations",
+	productListByType(productType: string) {
+		const type = String(productType).trim().toLowerCase()
+		if (type === "tour") return "/catalog/tours"
+		if (type === "package") return "/catalog/packages"
+		if (type === "limousine") return "/catalog/limousines"
+		return "/catalog/accommodations"
+	},
 	catalogAccommodations: () => "/catalog/accommodations",
 	catalogAccommodationRooms: () => "/catalog/accommodations/rooms",
 	catalogTours: () => "/catalog/tours",
 	catalogPackages: () => "/catalog/packages",
+	catalogLimousines: () => "/catalog/limousines",
 	rooms: () => "/catalog/accommodations/rooms",
 	productRooms: () => "/catalog/accommodations/rooms",
 	productRoomsForProduct: (productId: string) =>

@@ -63,6 +63,7 @@ export type SidebarDisclosureMode =
 export type SidebarDisclosureContext = {
 	mode: SidebarDisclosureMode
 	activeHref?: string
+	productTypes?: readonly string[]
 }
 
 export type RoomsAndRatesOwnership = "commercial" | "physical" | "financial"
@@ -227,33 +228,45 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		pattern: "/catalog/accommodations/rooms",
 		status: "canonical",
 		context: "provider-workspace",
-		owner: "Contenido de alojamiento",
+		owner: "Alojamiento",
 		rationale:
 			"Selector de habitaciones para alojamientos; las habitaciones pertenecen al vertical hotel/alojamiento, no a una oferta genérica.",
 	},
 	{
 		pattern: "/catalog/accommodations",
-		status: "transitional",
+		status: "canonical",
 		context: "provider-workspace",
-		owner: "Contenido de alojamiento",
-		rationale:
-			"Alias vertical que abre el catálogo filtrado a alojamientos mientras la raíz genérica de ofertas converge.",
+		owner: "Servicios",
+		rationale: "Servicio de alojamiento gestionado por el proveedor.",
 	},
 	{
 		pattern: "/catalog/tours",
-		status: "transitional",
+		status: "canonical",
 		context: "provider-workspace",
-		owner: "Contenido de alojamiento",
-		rationale:
-			"Alias vertical que abre el catálogo filtrado a tours mientras la raíz genérica de ofertas converge.",
+		owner: "Servicios",
+		rationale: "Servicio de tours gestionado por el proveedor cuando ese rubro existe.",
 	},
 	{
 		pattern: "/catalog/packages",
-		status: "transitional",
+		status: "canonical",
 		context: "provider-workspace",
-		owner: "Contenido de alojamiento",
+		owner: "Servicios",
+		rationale: "Servicio de paquetes gestionado por el proveedor cuando ese rubro existe.",
+	},
+	{
+		pattern: "/catalog/limousines",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Servicios",
+		rationale: "Servicio de traslados gestionado por el proveedor cuando ese rubro existe.",
+	},
+	{
+		pattern: "/product",
+		status: "legacy",
+		context: "provider-workspace",
+		owner: "Servicios",
 		rationale:
-			"Alias vertical que abre el catálogo filtrado a paquetes mientras la raíz genérica de ofertas converge.",
+			"Ruta legacy que redirige al servicio principal del proveedor o al vertical correspondiente por compatibilidad.",
 	},
 	{
 		pattern: "/product/:id/rooms",
@@ -852,20 +865,49 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
-		title: "Alojamientos",
-		subtitle: "Ficha, habitaciones y reglas",
-		owner: "Contenido del alojamiento",
+		title: "Servicios",
+		subtitle: "Rubros del proveedor",
+		owner: "Servicios",
 		context: "provider-workspace",
 		operationalIntent:
-			"Gestiona alojamientos, habitaciones, reglas para huéspedes y vista previa con lenguaje cliente-first.",
+			"Gestiona solo los rubros activos del proveedor; los servicios no usados no aparecen en la operación diaria.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Alojamientos",
+				label: "Alojamiento",
 				href: routes.accommodations(),
 				status: "canonical",
 				summary: "Ficha, fotos, descripción, ubicación, habitaciones y vista previa.",
 			},
+			{
+				label: "Tours",
+				href: routes.catalogTours(),
+				status: "canonical",
+				summary: "Experiencias, itinerario, punto de encuentro, cupos y horarios.",
+			},
+			{
+				label: "Paquetes",
+				href: routes.catalogPackages(),
+				status: "canonical",
+				summary: "Programas, días/noches, inclusiones, servicios y fotos.",
+			},
+			{
+				label: "Traslados",
+				href: routes.catalogLimousines(),
+				status: "canonical",
+				summary: "Vehículos, capacidad, zonas, recogida, dropoff y disponibilidad.",
+			},
+		],
+	},
+	{
+		title: "Alojamiento",
+		subtitle: "Habitaciones y reglas",
+		owner: "Alojamiento",
+		context: "provider-workspace",
+		operationalIntent:
+			"Gestiona herramientas específicas del alojamiento: habitaciones físicas y reglas para huéspedes.",
+		maturity: "operational",
+		items: [
 			{
 				label: "Habitaciones",
 				href: routes.rooms(),
@@ -1015,10 +1057,35 @@ function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
 	return item.href === routes.ratesMultiCalendar()
 }
 
+function normalizedServiceTypes(context: SidebarDisclosureContext): Set<string> {
+	const values = (context.productTypes ?? [])
+		.map((value) =>
+			String(value ?? "")
+				.trim()
+				.toLowerCase()
+		)
+		.filter(Boolean)
+	return new Set(values.length ? values : ["hotel"])
+}
+
+function hasHotelService(context: SidebarDisclosureContext): boolean {
+	return normalizedServiceTypes(context).has("hotel")
+}
+
+function shouldShowServiceItem(item: EnterpriseNavigationItem, context: SidebarDisclosureContext) {
+	const serviceTypes = normalizedServiceTypes(context)
+	if (item.href === routes.accommodations()) return serviceTypes.has("hotel")
+	if (item.href === routes.catalogTours()) return serviceTypes.has("tour")
+	if (item.href === routes.catalogPackages()) return serviceTypes.has("package")
+	if (item.href === routes.catalogLimousines()) return serviceTypes.has("limousine")
+	return true
+}
+
 function shouldShowSectionForDisclosure(
 	section: EnterpriseNavigationSection,
 	context: SidebarDisclosureContext
 ): boolean {
+	if (section.title === "Alojamiento") return hasHotelService(context)
 	if (context.mode !== "small-provider") return true
 	return section.title !== "Analítica"
 }
@@ -1027,6 +1094,7 @@ function shouldShowItemForDisclosure(
 	item: EnterpriseNavigationItem,
 	context: SidebarDisclosureContext
 ): boolean {
+	if (!shouldShowServiceItem(item, context)) return false
 	if (context.mode !== "small-provider") return true
 	return !isAdvancedSidebarItem(item)
 }
@@ -1093,7 +1161,7 @@ export const salesOperationalMap: readonly RoomsAndRatesOperationalLane[] = [
 				label: "Alojamientos y habitaciones",
 				href: routes.accommodations(),
 				status: "canonical",
-				owner: "Alojamientos",
+				owner: "Servicios",
 				description:
 					"Setup de catálogo; hoteles entregan habitaciones como contexto físico al inventario.",
 			},
