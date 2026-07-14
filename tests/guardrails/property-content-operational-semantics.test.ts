@@ -36,7 +36,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Descripción",
 				"Habitaciones",
 				"Tipo y características",
-				"Detalle interno",
+				"Acciones principales",
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",

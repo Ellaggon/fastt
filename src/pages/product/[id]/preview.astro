@@ -4,7 +4,7 @@ import { buildGuestRoomPreviews } from "@/components/productUI/room-section.view
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
+import ProgressBar from "@/components/ui/ProgressBar.astro"
 import { productRepository } from "@/container"
 import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -19,6 +19,7 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { resolveReservationConditionsHref } from "@/lib/product-preview/resolveReservationConditionsHref"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
@@ -29,8 +30,8 @@ import {
 	resolveHotelAmenities,
 	resolveHotelType,
 } from "@/modules/catalog/public"
+import { ArrowRight, BedDouble, CircleCheck, Hotel, ShieldCheck } from "@lucide/astro"
 import {
-	essentialHouseRuleTypes,
 	houseRuleGroups,
 	houseRuleLabels,
 } from "@/modules/house-rules/presentation/houseRulePresentation"
@@ -135,10 +136,6 @@ const guestExpectationsSnapshot = isHotel
 	? await buildGuestStayExpectationsSnapshot(productId)
 	: null
 const houseRules = guestExpectationsSnapshot?.rules ?? []
-const houseRuleTypeSet = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
-const missingHouseRules = isHotel
-	? essentialHouseRuleTypes.filter((type) => !houseRuleTypeSet.has(type))
-	: []
 const houseRuleLabelByType = houseRuleLabels as Record<string, string>
 const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: any) => {
 	const type = String(rule.type ?? "Other")
@@ -148,6 +145,7 @@ const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: an
 }, {})
 
 let guestRoomPreviews: ReturnType<typeof buildGuestRoomPreviews> = []
+let conditionsHref = routes.rates()
 if (isHotel) {
 	const variantsAggregate = await getProductVariantsAggregate(productId, providerId)
 	const roomVariants = variantsAggregate?.variants ?? []
@@ -204,6 +202,8 @@ if (isHotel) {
 		productFallbackImage: primaryImage || "https://placehold.co/1200x800?text=Habitacion",
 		productFallbackGallery,
 	})
+
+	conditionsHref = await resolveReservationConditionsHref({ productId, variantIds: roomVariantIds })
 }
 
 const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
@@ -241,25 +241,27 @@ try {
 	isHotel={isHotel}
 	hideFooter={playbookId === "complete-to-publish" && stepId === "preview"}
 >
-	<section class="space-y-8">
-		<header class="flex flex-wrap items-start justify-between gap-4">
-			<div class="space-y-2">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Alojamientos · Revisión antes de publicar
+	<section class="space-y-7">
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="max-w-3xl space-y-1.5">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					<Hotel class="h-4 w-4" aria-hidden="true" />
+					{vertical.labels.workspaceSingular}
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Vista previa</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Confirma qué entenderán los viajeros antes de reservar: fotos, contenido, condiciones
-					{isHotel ? " y reglas de la casa" : ""}. Esta revisión no cambia precios, inventario ni
-					venta.
+				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">
+					Vista previa de {aggregate.displayName}
+				</h1>
+				<p class="max-w-2xl text-sm leading-6 text-slate-400">
+					Revisa cómo se verá la ficha pública antes de publicarla. Confirma fotos, habitaciones,
+					condiciones y reglas para huéspedes.
 				</p>
 			</div>
-			<div class="flex flex-wrap items-center gap-2">
-				<Button href={routes.productDetail(productId)} variant="secondary"
-					>Volver a {vertical.labels.singular}</Button
-				>
+			<div class="flex flex-wrap items-center justify-end gap-2">
+				<Button href={routes.productDetail(productId)} variant="secondary"> Volver a ficha </Button>
 				{
-					publicDetailHref ? (
+					isPublished && publicDetailHref ? (
 						<Button href={publicDetailHref} variant="secondary">
 							Abrir página pública
 						</Button>
@@ -268,135 +270,117 @@ try {
 			</div>
 		</header>
 
-		<section class="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-			<Card className="space-y-4 border-slate-800 bg-slate-950 text-slate-100">
-				<div class="flex items-start justify-between gap-3">
-					<div>
-						<p class="text-sm font-semibold">Estado de publicación</p>
-						<p class="mt-1 text-sm text-slate-400">
-							{completedChecks} de {checks.length} bloques principales listos.
-						</p>
+		<Card className="bg-white">
+			<div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+				<div class="space-y-4">
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-slate-950">Antes de publicar</p>
+							<p class="text-sm leading-6 text-slate-600">
+								{completedChecks} de {checks.length} bloques principales listos.
+							</p>
+						</div>
+						<Badge variant={isPublished ? "success" : readyToPublish ? "success" : "warning"}>
+							{
+								isPublished
+									? "Publicado"
+									: readyToPublish
+										? "Listo para publicar"
+										: `${readinessPercent}% listo`
+							}
+						</Badge>
 					</div>
-					<Badge variant={isPublished ? "success" : readyToPublish ? "success" : "warning"}>
+					<ProgressBar value={readinessPercent} />
+					<p class="text-sm leading-6 text-slate-600">
 						{
 							isPublished
-								? "Publicado"
+								? "El alojamiento ya está publicado. Usa esta revisión para detectar ajustes de contenido."
 								: readyToPublish
-									? "Listo para publicar"
-									: `${readinessPercent}% listo`
+									? "La ficha está completa para huéspedes. Publica cuando estés listo."
+									: blockerLabels.length
+										? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
+										: "Revisa lo pendiente antes de publicar."
 						}
-					</Badge>
-				</div>
-				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
-					<div class="h-full bg-emerald-400" style={`width: ${readinessPercent}%`}></div>
-				</div>
-				<p class="text-sm text-slate-300">
+					</p>
 					{
-						isPublished
-							? "Tu alojamiento ya está publicado y puede recibir reservas."
-							: readyToPublish
-								? "El viajero puede ver una ficha coherente. Publica cuando estés listo."
-								: blockerLabels.length
-									? `Faltan: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
-									: "Revisa lo pendiente antes de publicar."
+						!readyToPublish && !isPublished ? (
+							<div class="grid gap-2 pt-1 md:grid-cols-2">
+								{checks
+									.filter((check) => !check.complete)
+									.slice(0, 4)
+									.map((check) => (
+										<a
+											href={checkHref(check)}
+											class="fastt-soft-box flex items-start justify-between gap-3 bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 transition hover:bg-white"
+										>
+											<span>
+												<span class="font-semibold text-slate-950">{check.label}</span>
+												<span class="mt-0.5 block text-xs leading-5 text-slate-500">
+													{check.detail}
+												</span>
+											</span>
+											<Badge variant="warning">Revisar</Badge>
+										</a>
+									))}
+							</div>
+						) : (
+							<div class="flex items-center gap-2 text-sm font-medium text-emerald-700">
+								<CircleCheck class="h-4 w-4" aria-hidden="true" />
+								Todo lo obligatorio está listo.
+							</div>
+						)
 					}
-				</p>
-				<div class="flex flex-wrap gap-2 pt-1">
+				</div>
+				<div class="flex flex-wrap gap-2 lg:justify-end">
 					{
 						isPublished ? (
-							<Button href={routes.productDetail(productId)}>Ir a la ficha</Button>
+							<Button href={routes.productDetail(productId)}>Ir a ficha</Button>
 						) : readyToPublish ? (
-							<Button id="publishProductBtn" type="button">
+							<Button class="publish-product-button" type="button">
 								Publicar alojamiento
 							</Button>
 						) : (
-							<Button href={completePreparationHref}>Completar preparación</Button>
+							<Button href={completePreparationHref}>
+								Completar preparación
+								<ArrowRight class="h-4 w-4" aria-hidden="true" />
+							</Button>
 						)
 					}
-					{
-						!isPublished && !readyToPublish ? (
-							<Button href={completePreparationHref} variant="secondary">
-								Ver qué falta
-							</Button>
-						) : null
-					}
 				</div>
-				<p id="publishFeedback" class="hidden text-sm text-slate-400"></p>
-			</Card>
+			</div>
+			<p id="publishFeedback" class="mt-4 hidden text-sm text-slate-500"></p>
+		</Card>
 
-			<Card className="space-y-3 bg-white text-slate-800">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<p class="text-sm font-semibold text-slate-900">Antes de publicar</p>
-						<p class="mt-1 text-sm text-slate-600">
-							Una revisión simple para que la ficha sea clara para el huésped.
-						</p>
-					</div>
-					{
-						isHotel ? (
-							<div class="flex flex-wrap gap-2">
-								<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-									Reglas para huéspedes
-								</Button>
-								<Button href={routes.rates()} variant="secondary" size="sm">
-									Tarifas
-								</Button>
-							</div>
-						) : null
-					}
-				</div>
-				<div class="grid gap-3 md:grid-cols-2">
-					{
-						checks.map((check) => (
-							<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-								<div class="flex items-start justify-between gap-3">
-									<div>
-										<p class="text-sm font-semibold text-slate-900">{check.label}</p>
-										<p class="mt-1 text-xs leading-5 text-slate-600">{check.detail}</p>
-									</div>
-									<Badge variant={check.complete ? "success" : "warning"}>
-										{check.complete ? "Listo" : "Revisar"}
-									</Badge>
-								</div>
-								<div class="mt-3">
-									<Button href={checkHref(check)} variant="secondary" size="sm">
-										{check.cta}
-									</Button>
-								</div>
-							</div>
-						))
-					}
-				</div>
-			</Card>
-		</section>
-
-		<Section
-			title="Vista previa"
-			description="Cómo se lee la ficha con contenido, fotos y condiciones visibles para viajeros."
-		>
+		<section class="space-y-4">
+			<header class="space-y-1">
+				<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
+				<p class="text-sm leading-6 text-slate-400">
+					Así se leerá el contenido principal para el huésped.
+				</p>
+			</header>
 			<Card className="overflow-hidden bg-white p-0 text-slate-800">
 				{
 					primaryImage ? (
-						<img src={primaryImage} alt={aggregate.displayName} class="h-72 w-full object-cover" />
+						<img src={primaryImage} alt={aggregate.displayName} class="h-80 w-full object-cover" />
 					) : (
-						<div class="flex h-72 items-center justify-center bg-slate-100 text-sm text-slate-500">
+						<div class="flex h-80 items-center justify-center bg-slate-100 text-sm text-slate-500">
 							Agrega fotos para dar una primera impresión clara.
 						</div>
 					)
 				}
-				<div class="space-y-6 p-5">
+				<div class="space-y-6 p-5 md:p-6">
 					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div>
+						<div class="space-y-1">
 							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
 								{vertical.labels.workspaceSingular}
 							</p>
-							<h2 class="mt-1 text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
-							<p class="mt-1 text-sm text-slate-500">
+							<h2 class="text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
+							<p class="text-sm text-slate-500">
 								{aggregate.location.address || "Ubicación pendiente"}
 							</p>
 						</div>
-						<Badge variant={readyToPublish ? "success" : "warning"}>
-							{readyToPublish ? "Lista para huéspedes" : "Borrador"}
+						<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
+							{readyToPublish || isPublished ? "Lista para huéspedes" : "Borrador"}
 						</Badge>
 					</div>
 
@@ -404,20 +388,20 @@ try {
 						imagePreviews.length > 1 ? (
 							<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
 								{imagePreviews.map((image) => (
-									<img src={image.url} alt="Listing preview" class="h-20 rounded-md object-cover" />
+									<img src={image.url} alt="Vista previa" class="h-20 rounded-lg object-cover" />
 								))}
 							</div>
 						) : null
 					}
 
-					<div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-						<div class="space-y-4">
+					<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+						<div class="space-y-5">
 							<div>
-								<p class="text-sm font-semibold text-slate-900">Sobre esta oferta</p>
-								<p class="mt-2 text-sm leading-6 text-slate-700">
+								<p class="text-sm font-semibold text-slate-900">Sobre este alojamiento</p>
+								<p class="mt-2 text-sm leading-7 text-slate-700">
 									{
 										description ||
-											"Agrega una descripción clara para que el viajero entienda la oferta."
+											"Agrega una descripción clara para que el huésped entienda el alojamiento."
 									}
 								</p>
 							</div>
@@ -425,24 +409,27 @@ try {
 								<p class="text-sm font-semibold text-slate-900">Destacados</p>
 								{
 									highlights.length ? (
-										<ul class="mt-2 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+										<ul class="mt-3 flex flex-wrap gap-2 text-sm text-slate-700">
 											{highlights.map((item) => (
-												<li class="rounded-md bg-slate-50 px-3 py-2">{String(item)}</li>
+												<li class="rounded-full bg-slate-100 px-3 py-1.5">{String(item)}</li>
 											))}
 										</ul>
 									) : (
 										<p class="mt-2 text-sm text-slate-500">
-											Agrega al menos un destacado visible para viajeros.
+											Agrega al menos un destacado visible para huéspedes.
 										</p>
 									)
 								}
 							</div>
 						</div>
 
-						<div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-							<p class="text-sm font-semibold text-slate-900">Confianza de reserva</p>
+						<div class="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+							<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+								<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
+								Confianza de reserva
+							</p>
 							<p class="text-sm leading-6 text-slate-600">
-								Los viajeros deben entender cancelación, pagos, no presentación e ingreso antes de
+								El huésped debe entender cancelación, pagos, no presentación e ingreso antes de
 								reservar.
 							</p>
 							<div class="flex flex-wrap gap-2">
@@ -459,48 +446,55 @@ try {
 					</div>
 				</div>
 			</Card>
-		</Section>
+		</section>
 
 		{
 			isHotel ? (
-				<Section
-					title="Dónde dormirán los huéspedes"
-					description="Vista de habitaciones, camas, baño, fotos y comodidades como aparecerán en la ficha pública."
-				>
+				<section class="space-y-4">
+					<header class="flex flex-wrap items-end justify-between gap-3">
+						<div class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">Dónde dormirán los huéspedes</h2>
+							<p class="text-sm leading-6 text-slate-400">
+								Habitaciones que el huésped podrá revisar antes de reservar.
+							</p>
+						</div>
+						<Button
+							href={`/product/${encodeURIComponent(productId)}/rooms`}
+							variant="secondary"
+							size="sm"
+						>
+							<BedDouble class="h-4 w-4" aria-hidden="true" />
+							Editar habitaciones
+						</Button>
+					</header>
 					{guestRoomPreviews.length ? (
 						<GuestRoomPreviewCards
 							previews={guestRoomPreviews}
-							cardClass="border-slate-200 bg-white text-slate-800"
+							cardClass="fastt-row-card bg-white text-slate-900 ring-1 ring-slate-200/70"
 							gridClass="grid gap-4 lg:grid-cols-2"
 						/>
 					) : (
 						<Card className="border-amber-200 bg-amber-50 text-amber-950">
 							<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>
 							<p class="mt-1 text-sm leading-6">
-								Completa la ficha de habitación con camas, baño, capacidad, fotos y notas para que
-								el huésped pueda entender dónde dormirá.
+								Completa camas, baño, capacidad, fotos y notas para que el huésped entienda dónde
+								dormirá.
 							</p>
-							<div class="mt-4">
-								<Button
-									href={`/product/${encodeURIComponent(productId)}/rooms`}
-									variant="secondary"
-									size="sm"
-								>
-									Editar habitaciones
-								</Button>
-							</div>
 						</Card>
 					)}
-				</Section>
+				</section>
 			) : null
 		}
 
 		{
 			vertical.vertical === "package" ? (
-				<Section
-					title="Incluye / No incluye"
-					description="Estas listas pertenecen al paquete. No son destacados editoriales."
-				>
+				<section class="space-y-4">
+					<header class="space-y-1">
+						<h2 class="text-lg font-semibold text-slate-100">Incluye / No incluye</h2>
+						<p class="text-sm leading-6 text-slate-400">
+							Listas visibles del paquete antes de publicar.
+						</p>
+					</header>
 					<div class="grid gap-4 md:grid-cols-2">
 						<Card className="bg-white text-slate-800">
 							<p class="text-sm font-semibold text-slate-900">Incluye</p>
@@ -526,20 +520,32 @@ try {
 								</ul>
 							) : (
 								<p class="mt-2 text-sm text-slate-500">
-									Las exclusiones son opcionales, pero ayudan a evitar dudas antes de reservar.
+									Las exclusiones ayudan a evitar dudas antes de reservar.
 								</p>
 							)}
 						</Card>
 					</div>
-				</Section>
+				</section>
 			) : null
 		}
 
-		<Section
-			title="Condiciones que verá el huésped"
-			description="Las condiciones de reserva se configuran dentro de cada tarifa. Esta vista confirma cómo las verá el huésped."
-		>
-			<div class="grid gap-4 md:grid-cols-2">
+		<section class="space-y-4">
+			<header class="flex flex-wrap items-end justify-between gap-3">
+				<div class="space-y-1">
+					<h2 class="text-lg font-semibold text-slate-100">Condiciones que verá el huésped</h2>
+					<p class="text-sm leading-6 text-slate-400">
+						Resumen visible de cancelación, pago, no presentación y llegada.
+					</p>
+				</div>
+				{
+					isHotel ? (
+						<Button href={conditionsHref} variant="secondary" size="sm">
+							Editar condiciones
+						</Button>
+					) : null
+				}
+			</header>
+			<div class="grid gap-3 md:grid-cols-2">
 				{
 					policyResolutionError ? (
 						<Card className="border-red-200 bg-red-50 text-red-900">
@@ -551,18 +557,13 @@ try {
 							const category = String(policy.category ?? "")
 							return (
 								<Card className="bg-white text-slate-800">
-									<div class="flex items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-900">
-												{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
-													category}
-											</p>
-											<p class="mt-1 text-sm leading-6 text-slate-600">
-												{String(policy.description ?? "Sin detalle visible.")}
-											</p>
-										</div>
-										<Badge variant="info">v{Number(policy.version ?? 0)}</Badge>
-									</div>
+									<p class="text-sm font-semibold text-slate-900">
+										{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+											category}
+									</p>
+									<p class="mt-2 text-sm leading-6 text-slate-600">
+										{String(policy.description ?? "Sin detalle visible.")}
+									</p>
 								</Card>
 							)
 						})
@@ -574,29 +575,37 @@ try {
 					)
 				}
 			</div>
-		</Section>
+		</section>
 
 		{
 			isHotel ? (
-				<Section
-					title="Reglas para huéspedes"
-					description="Explican comportamiento y operación de estadía. No son precios, restricciones ni penalidades de cancelación."
-				>
-					<Card className="space-y-5 bg-white text-slate-800">
+				<section class="space-y-4">
+					<header class="flex flex-wrap items-end justify-between gap-3">
+						<div class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">Reglas para huéspedes</h2>
+							<p class="text-sm leading-6 text-slate-400">
+								Comportamiento, llegada y operación de estadía que el huésped verá antes de
+								reservar.
+							</p>
+						</div>
+						<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+							Editar reglas
+						</Button>
+					</header>
+					<Card className="bg-white text-slate-800">
 						{houseRules.length ? (
 							<div class="grid gap-4 lg:grid-cols-2">
 								{houseRuleGroups.map((group) => {
 									const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
 									if (!items.length) return null
 									return (
-										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+										<div class="space-y-2">
 											<p class="text-sm font-semibold text-slate-900">{group.label}</p>
-											<p class="mt-1 text-xs text-slate-500">{group.description}</p>
-											<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+											<ul class="space-y-2 text-sm leading-6 text-slate-700">
 												{items.map((rule: any) => {
 													const type = String(rule.type ?? "Other")
 													return (
-														<li>
+														<li class="rounded-xl bg-slate-50 px-3 py-2">
 															<span class="font-medium text-slate-900">
 																{houseRuleLabelByType[type] ?? "Otra regla"}:
 															</span>{" "}
@@ -610,7 +619,7 @@ try {
 								})}
 							</div>
 						) : (
-							<div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+							<div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
 								<p class="text-sm font-semibold text-slate-900">
 									Aún no hay reglas para huéspedes.
 								</p>
@@ -620,19 +629,64 @@ try {
 							</div>
 						)}
 					</Card>
-				</Section>
+				</section>
 			) : null
 		}
+
+		<Card className="bg-slate-950 text-slate-100">
+			<div class="flex flex-wrap items-center justify-between gap-4">
+				<div class="space-y-1">
+					<p class="text-sm font-semibold">
+						{
+							isPublished
+								? "Ficha publicada"
+								: readyToPublish
+									? "Lista para publicar"
+									: "Preparación pendiente"
+						}
+					</p>
+					<p class="text-sm leading-6 text-slate-400">
+						{
+							isPublished
+								? "Puedes volver a la ficha para seguir gestionando el alojamiento."
+								: readyToPublish
+									? "La revisión final está completa para huéspedes."
+									: "Completa los pendientes antes de publicar el alojamiento."
+						}
+					</p>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<Button href={routes.productDetail(productId)} variant="secondary">
+						Volver a ficha
+					</Button>
+					{
+						!isPublished && readyToPublish ? (
+							<Button class="publish-product-button" type="button">
+								Publicar alojamiento
+							</Button>
+						) : !isPublished ? (
+							<Button href={completePreparationHref}>Completar preparación</Button>
+						) : null
+					}
+				</div>
+			</div>
+		</Card>
 	</section>
 
 	<script is:inline define:vars={{ productId, productDetailHref: routes.productDetail(productId) }}>
 		;(function () {
-			const publishBtn = document.getElementById("publishProductBtn")
+			const publishButtons = Array.from(document.querySelectorAll(".publish-product-button"))
 			const feedback = document.getElementById("publishFeedback")
-			if (!publishBtn || !productId) return
+			if (!publishButtons.length || !productId) return
 
-			publishBtn.addEventListener("click", async () => {
-				publishBtn.disabled = true
+			const setDisabled = (disabled) => {
+				for (const button of publishButtons) {
+					button.disabled = disabled
+				}
+			}
+
+			const publish = async () => {
+				setDisabled(true)
 				if (feedback) {
 					feedback.classList.remove("hidden")
 					feedback.textContent = "Verificando requisitos y publicando..."
@@ -656,7 +710,7 @@ try {
 							: String(evaluatePayload.error || "No se pudo validar el alojamiento.")
 						if (feedback)
 							feedback.textContent = errors || "Completa los requisitos antes de publicar."
-						publishBtn.disabled = false
+						setDisabled(false)
 						return
 					}
 
@@ -673,16 +727,20 @@ try {
 									.join("\n")
 							: String(publishPayload.error || "No se pudo publicar el alojamiento.")
 						if (feedback) feedback.textContent = errors
-						publishBtn.disabled = false
+						setDisabled(false)
 						return
 					}
 
 					window.location.href = productDetailHref
 				} catch (error) {
 					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
-					publishBtn.disabled = false
+					setDisabled(false)
 				}
-			})
+			}
+
+			for (const button of publishButtons) {
+				button.addEventListener("click", publish)
+			}
 		})()
 	</script>
 </PlaybookLayout>
