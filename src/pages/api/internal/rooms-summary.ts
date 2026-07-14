@@ -1,20 +1,9 @@
 import type { APIRoute } from "astro"
-import {
-	and,
-	asc,
-	DailyInventory,
-	EffectivePricingV2,
-	eq,
-	Image,
-	inArray,
-	RatePlan,
-	db,
-} from "astro:db"
+import { and, asc, DailyInventory, Image, inArray, RatePlan, db } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const kindLabel = (kind: string | null) => {
 	const normalized = String(kind ?? "")
@@ -28,9 +17,6 @@ const kindLabel = (kind: string | null) => {
 }
 
 const readinessInventoryMinDays = 30
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
@@ -81,22 +67,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const variantIds = aggregate.variants.map((variant) => String(variant.id)).filter(Boolean)
 	const ratePlanName = await resolveRatePlanNameColumn()
-	const [effectiveRows, inventoryRows, imageRows, tariffRows] = variantIds.length
+	const [inventoryRows, imageRows, tariffRows] = variantIds.length
 		? await Promise.all([
-				db
-					.select({
-						variantId: RatePlan.variantId,
-					})
-					.from(EffectivePricingV2)
-					.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricingV2.ratePlanId))
-					.where(
-						and(
-							inArray(RatePlan.variantId, variantIds),
-							eq(RatePlan.isDefault, true),
-							eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
-						)
-					)
-					.all(),
 				db
 					.select({
 						variantId: DailyInventory.variantId,
@@ -134,9 +106,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.orderBy(asc(ratePlanName), asc(RatePlan.id))
 					.all(),
 			])
-		: [[], [], [], []]
+		: [[], [], []]
 
-	const effectiveVariantSet = new Set(effectiveRows.map((row) => String(row.variantId)))
 	const inventoryCountByVariant = new Map<string, number>()
 	for (const row of inventoryRows) {
 		const id = String(row.variantId)
@@ -177,9 +148,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const capacityComplete = Boolean(variant.capacity)
 		const subtypeComplete = Boolean(variant.subtype)
 		const pricingComplete = Boolean(
-			variant.pricing?.hasBaseRate &&
-			variant.pricing?.hasDefaultRatePlan &&
-			effectiveVariantSet.has(String(variant.id))
+			variant.pricing?.hasBaseRate && variant.pricing?.hasDefaultRatePlan
 		)
 		const inventoryDays = Number(inventoryCountByVariant.get(String(variant.id)) ?? 0)
 		const inventoryComplete = inventoryDays >= readinessInventoryMinDays
