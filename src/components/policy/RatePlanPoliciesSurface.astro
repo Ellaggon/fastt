@@ -54,6 +54,7 @@ interface Props {
 	productId?: string
 	isProfessionalMode?: boolean
 	showPlanSummary?: boolean
+	showHeader?: boolean
 }
 
 const {
@@ -61,18 +62,17 @@ const {
 	description,
 	policyPlans,
 	productId,
-	isProfessionalMode = false,
+	isProfessionalMode: requestedProfessionalMode = false,
 	showPlanSummary = true,
+	showHeader = true,
 } = Astro.props
+const isProfessionalMode = requestedProfessionalMode && (showHeader || showPlanSummary)
+const isGuidedSurface = !showHeader && !showPlanSummary
 
 const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
 	key: category.value,
 	label: category.label,
 }))
-
-const houseRulesHref = productId
-	? `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}&focus=arrival`
-	: routes.providerHouseRules()
 
 function formattedResolvedAt(value: string): string {
 	const date = new Date(value)
@@ -82,15 +82,47 @@ function formattedResolvedAt(value: string): string {
 		timeStyle: "short",
 	}).format(date)
 }
+
+function providerHouseRulesHref(productId?: string): string {
+	const params = new URLSearchParams()
+	if (productId) params.set("productId", productId)
+	params.set("focus", "arrival")
+	const query = params.toString()
+	return query ? `${routes.providerHouseRules()}?${query}` : routes.providerHouseRules()
+}
+
+function guidedStatus(missing: boolean): {
+	label: string
+	variant: "info" | "success" | "warning"
+} {
+	if (missing) return { label: "Pendiente", variant: "warning" }
+	if (isGuidedSurface) return { label: "Preconfigurada", variant: "info" }
+	return { label: "Completa", variant: "success" }
+}
+
+function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | "warning" } {
+	if (missing) return { label: "Pendiente", variant: "warning" }
+	return { label: "Heredada del hotel", variant: "neutral" }
+}
 ---
 
-<section class="space-y-4" aria-labelledby="rate-plan-contract-title">
-	<header class="flex flex-wrap items-start justify-between gap-4">
-		<div class="space-y-1">
-			<h2 id="rate-plan-contract-title" class="text-xl font-semibold text-slate-950">{title}</h2>
-			<p class="max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
-		</div>
-	</header>
+<section
+	class:list={[showHeader ? "space-y-4" : "space-y-0"]}
+	aria-label={!showHeader ? title : undefined}
+	aria-labelledby={showHeader ? "rate-plan-contract-title" : undefined}
+>
+	{
+		showHeader ? (
+			<header class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-1">
+					<h2 id="rate-plan-contract-title" class="text-xl font-semibold text-slate-950">
+						{title}
+					</h2>
+					<p class="max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
+				</div>
+			</header>
+		) : null
+	}
 
 	{
 		policyPlans.map((plan) => {
@@ -99,11 +131,26 @@ function formattedResolvedAt(value: string): string {
 			const paymentMissing = plan.missingCategories.includes("Payment")
 			const arrivalMissing = plan.missingCategories.includes("CheckIn")
 			const cancellationBlockComplete = !cancellationMissing && !noShowMissing
+			const cancellationStatus = guidedStatus(!cancellationBlockComplete)
+			const paymentStatus = guidedStatus(paymentMissing)
+			const arrivalStatusValue = arrivalStatus(arrivalMissing)
+			const arrivalSourceLabel =
+				isGuidedSurface && plan.contractFacts.arrivalSource === "Tarifa"
+					? "Condición inicial"
+					: plan.contractFacts.arrivalSource
 			const technicalDrawerId = `policy-technical-${plan.ratePlanId}`
 
 			return (
 				<>
-					<article class="overflow-hidden border-y border-slate-200" data-plan-id={plan.ratePlanId}>
+					<article
+						class:list={[
+							"overflow-hidden",
+							showHeader || showPlanSummary || isProfessionalMode
+								? "border-y border-slate-200"
+								: "border-b border-slate-200",
+						]}
+						data-plan-id={plan.ratePlanId}
+					>
 						{(showPlanSummary || isProfessionalMode) && (
 							<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/65 px-1 py-4 sm:px-4">
 								{showPlanSummary && (
@@ -153,180 +200,207 @@ function formattedResolvedAt(value: string): string {
 						)}
 
 						<div class="divide-y divide-slate-200">
-							<section
-								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
-								data-contract-block="cancellation-no-show"
-							>
-								<div class="flex items-start gap-3">
-									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-										<ShieldCheck class="h-5 w-5" />
-									</span>
-									<div>
-										<div class="flex flex-wrap items-center gap-2">
-											<h4 class="font-semibold text-slate-950">Cancelación y no presentación</h4>
-											<Badge variant={cancellationBlockComplete ? "success" : "warning"}>
-												{cancellationBlockComplete ? "Completa" : "Incompleta"}
-											</Badge>
+							<section class="py-5" data-contract-block="cancellation-no-show">
+								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+											<ShieldCheck class="h-5 w-5" />
+										</span>
+										<div class="min-w-0">
+											<div class="flex flex-wrap items-center gap-2">
+												<h4 class="font-semibold text-slate-950">Cancelación y no presentación</h4>
+												<Badge variant={cancellationStatus.variant}>
+													{cancellationStatus.label}
+												</Badge>
+											</div>
+											<p class="mt-1 text-sm leading-5 text-slate-500">
+												Qué ocurre si el huésped cancela o no llega.
+											</p>
 										</div>
-										<p class="mt-1 text-sm leading-5 text-slate-500">
-											Qué ocurre si el huésped cancela o no llega.
-										</p>
 									</div>
-								</div>
 
-								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.cancellationPreset}
-										</dd>
+									<div class="px-1 sm:px-4">
+										<div class="flex flex-wrap justify-end gap-2">
+											<Button
+												type="button"
+												variant={cancellationMissing ? "primary" : "secondary"}
+												size="sm"
+												class="policy-assignment-open"
+												data-assignment-mode="preset"
+												data-assignment-scope="rate_plan"
+												data-assignment-scope-id={plan.ratePlanId}
+												data-assignment-category="Cancellation"
+											>
+												{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
+												{cancellationMissing && <ArrowRight class="h-4 w-4" />}
+											</Button>
+											<Button
+												type="button"
+												variant={noShowMissing ? "primary" : "ghost"}
+												size="sm"
+												class="policy-assignment-open"
+												data-assignment-mode="preset"
+												data-assignment-scope="rate_plan"
+												data-assignment-scope-id={plan.ratePlanId}
+												data-assignment-category="NoShow"
+											>
+												{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
+											</Button>
+										</div>
 									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Cancelación gratuita</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.cancellationDeadline}
-										</dd>
-									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Penalidad</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.cancellationPenalty}
-										</dd>
-									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.noShowCharge}
-										</dd>
-									</div>
-								</dl>
 
-								<div class="flex flex-wrap gap-2 lg:max-w-48 lg:justify-end">
-									<Button
-										type="button"
-										variant={cancellationMissing ? "primary" : "secondary"}
-										size="sm"
-										class="policy-assignment-open"
-										data-assignment-mode="preset"
-										data-assignment-scope="rate_plan"
-										data-assignment-scope-id={plan.ratePlanId}
-										data-assignment-category="Cancellation"
-									>
-										{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
-										{cancellationMissing && <ArrowRight class="h-4 w-4" />}
-									</Button>
-									<Button
-										type="button"
-										variant={noShowMissing ? "primary" : "ghost"}
-										size="sm"
-										class="policy-assignment-open"
-										data-assignment-mode="preset"
-										data-assignment-scope="rate_plan"
-										data-assignment-scope-id={plan.ratePlanId}
-										data-assignment-category="NoShow"
-									>
-										{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
-									</Button>
+									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-2 sm:px-4 lg:col-start-2 xl:grid-cols-4">
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.cancellationPreset}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Cancelación gratuita</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.cancellationDeadline}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Penalidad</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.cancellationPenalty}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.noShowCharge}
+											</dd>
+										</div>
+									</dl>
 								</div>
 							</section>
 
-							<section
-								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
-								data-contract-block="payment-guarantee"
-							>
-								<div class="flex items-start gap-3">
-									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-										<CreditCard class="h-5 w-5" />
-									</span>
-									<div>
-										<div class="flex flex-wrap items-center gap-2">
-											<h4 class="font-semibold text-slate-950">Pago y garantía</h4>
-											<Badge variant={paymentMissing ? "warning" : "success"}>
-												{paymentMissing ? "Incompleta" : "Completa"}
-											</Badge>
+							<section class="py-5" data-contract-block="payment-guarantee">
+								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+											<CreditCard class="h-5 w-5" />
+										</span>
+										<div class="min-w-0">
+											<div class="flex flex-wrap items-center gap-2">
+												<h4 class="font-semibold text-slate-950">Pago y garantía</h4>
+												<Badge variant={paymentStatus.variant}>{paymentStatus.label}</Badge>
+											</div>
+											<p class="mt-1 text-sm leading-5 text-slate-500">
+												Cuándo se cobra y qué asegura la reserva.
+											</p>
 										</div>
-										<p class="mt-1 text-sm leading-5 text-slate-500">
-											Cuándo se cobra y qué asegura la reserva.
-										</p>
 									</div>
+
+									<div class="px-1 sm:px-4">
+										<div class="flex justify-end">
+											<Button
+												type="button"
+												variant={paymentMissing ? "primary" : "secondary"}
+												size="sm"
+												class="policy-assignment-open"
+												data-assignment-mode="preset"
+												data-assignment-scope="rate_plan"
+												data-assignment-scope-id={plan.ratePlanId}
+												data-assignment-category="Payment"
+											>
+												{paymentMissing ? "Configurar pago" : "Cambiar pago"}
+												{paymentMissing && <ArrowRight class="h-4 w-4" />}
+											</Button>
+										</div>
+									</div>
+
+									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-3 sm:px-4 lg:col-start-2">
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.paymentTiming}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.paymentAmount}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Garantía</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.paymentGuarantee}
+											</dd>
+										</div>
+									</dl>
 								</div>
-
-								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-3">
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.paymentTiming}
-										</dd>
-									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.paymentAmount}
-										</dd>
-									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Garantía</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.paymentGuarantee}
-										</dd>
-									</div>
-								</dl>
-
-								<Button
-									type="button"
-									variant={paymentMissing ? "primary" : "secondary"}
-									size="sm"
-									class="policy-assignment-open"
-									data-assignment-mode="preset"
-									data-assignment-scope="rate_plan"
-									data-assignment-scope-id={plan.ratePlanId}
-									data-assignment-category="Payment"
-								>
-									{paymentMissing ? "Configurar pago" : "Cambiar pago"}
-									{paymentMissing && <ArrowRight class="h-4 w-4" />}
-								</Button>
 							</section>
 
-							<section
-								class="grid gap-5 px-1 py-5 sm:px-4 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.6fr)_auto] lg:items-center"
-								data-contract-block="arrival-departure"
-							>
-								<div class="flex items-start gap-3">
-									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-										<CalendarClock class="h-5 w-5" />
-									</span>
-									<div>
-										<div class="flex flex-wrap items-center gap-2">
-											<h4 class="font-semibold text-slate-950">Llegada y salida</h4>
-											<Badge variant={arrivalMissing ? "warning" : "neutral"}>
-												{arrivalMissing ? "Falta en el hotel" : "Heredada del hotel"}
-											</Badge>
+							<section class="py-5" data-contract-block="arrival-departure">
+								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+											<CalendarClock class="h-5 w-5" />
+										</span>
+										<div class="min-w-0">
+											<div class="flex flex-wrap items-center gap-2">
+												<h4 class="font-semibold text-slate-950">Llegada y salida</h4>
+												<Badge variant={arrivalStatusValue.variant}>
+													{arrivalStatusValue.label}
+												</Badge>
+											</div>
+											<p class="mt-1 text-sm leading-5 text-slate-500">
+												Horarios compartidos por las tarifas del alojamiento.
+											</p>
 										</div>
-										<p class="mt-1 text-sm leading-5 text-slate-500">
-											Horarios compartidos por las tarifas del alojamiento.
-										</p>
 									</div>
+
+									{isGuidedSurface ? (
+										<div class="px-1 sm:px-4">
+											<div class="flex justify-end">
+												<Button
+													type="button"
+													variant={arrivalMissing ? "primary" : "secondary"}
+													size="sm"
+													class="policy-arrival-open"
+													data-arrival-scope-id={productId}
+												>
+													{arrivalMissing ? "Configurar horarios" : "Editar horarios"}
+													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+												</Button>
+											</div>
+										</div>
+									) : (
+										<div class="px-1 sm:px-4">
+											<div class="flex justify-end">
+												<Button
+													href={providerHouseRulesHref(productId)}
+													variant={arrivalMissing ? "primary" : "secondary"}
+													size="sm"
+												>
+													{arrivalMissing ? "Configurar llegada" : "Editar en alojamiento"}
+													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+												</Button>
+											</div>
+										</div>
+									)}
+
+									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2">
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Horario</dt>
+											<dd class="mt-1 text-sm font-semibold text-slate-900">
+												{plan.contractFacts.arrivalSchedule}
+											</dd>
+										</div>
+										<div>
+											<dt class="text-xs font-medium text-slate-500">Origen</dt>
+											<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+												<Building2 class="h-4 w-4 text-slate-400" />
+												{arrivalSourceLabel}
+											</dd>
+										</div>
+									</dl>
 								</div>
-
-								<dl class="grid gap-x-5 gap-y-3 sm:grid-cols-2">
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Horario</dt>
-										<dd class="mt-1 text-sm font-semibold text-slate-900">
-											{plan.contractFacts.arrivalSchedule}
-										</dd>
-									</div>
-									<div>
-										<dt class="text-xs font-medium text-slate-500">Origen</dt>
-										<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
-											<Building2 class="h-4 w-4 text-slate-400" />
-											{plan.contractFacts.arrivalSource}
-										</dd>
-									</div>
-								</dl>
-
-								<Button href={houseRulesHref} variant="secondary" size="sm">
-									{arrivalMissing ? "Configurar en alojamiento" : "Editar en alojamiento"}
-								</Button>
 							</section>
 						</div>
 					</article>

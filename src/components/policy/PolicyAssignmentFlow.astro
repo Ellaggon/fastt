@@ -1,4 +1,5 @@
 ---
+import { X } from "@lucide/astro"
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
@@ -24,33 +25,95 @@ const {
 const policyCategoryLabels = Object.fromEntries(
 	POLICY_CATEGORY_OPTIONS.map((category) => [category.value, category.label])
 )
+const policyModalCopy = {
+	Cancellation: {
+		eyebrow: "Condición de reserva",
+		title: "Cancelación",
+		description: "Elige o personaliza qué ocurre si el huésped cancela antes de llegar.",
+		choiceLabel: "Política de cancelación",
+		previewLabel: "Así lo verá el huésped",
+		previewDescription: "Resumen visible antes de reservar.",
+		impactLabel: "Impacto",
+		impactText: "Esta política reemplazará la cancelación actual de esta tarifa.",
+	},
+	NoShow: {
+		eyebrow: "Condición de reserva",
+		title: "No presentación",
+		description: "Define qué se cobra cuando el huésped no llega a la reserva.",
+		choiceLabel: "Política de no presentación",
+		previewLabel: "Así lo verá el huésped",
+		previewDescription: "Resumen visible antes de reservar.",
+		impactLabel: "Impacto",
+		impactText: "Esta regla reemplazará la no presentación actual de esta tarifa.",
+	},
+	Payment: {
+		eyebrow: "Condición de pago",
+		title: "Pago",
+		description: "Define cuándo paga el huésped y qué importe asegura la reserva.",
+		choiceLabel: "Forma de pago",
+		previewLabel: "Así lo verá el huésped",
+		previewDescription: "Resumen visible antes de reservar.",
+		impactLabel: "Impacto",
+		impactText: "Esta regla reemplazará el pago actual de esta tarifa.",
+	},
+	CheckIn: {
+		eyebrow: "Regla del alojamiento",
+		title: "Llegada y salida",
+		description: "Define los horarios que verá el huésped antes de reservar.",
+		choiceLabel: "Horario de llegada y salida",
+		previewLabel: "Así lo verá el huésped",
+		previewDescription: "Horarios visibles antes de reservar.",
+		impactLabel: "Impacto",
+		impactText: "Estos horarios se aplicarán al alojamiento y a sus tarifas futuras.",
+	},
+}
 ---
 
 <div
 	id="policyAssignmentOverlay"
-	class="fixed inset-0 z-[70] hidden bg-slate-950/40 p-4 backdrop-blur-sm"
+	class="fixed inset-0 z-[70] hidden flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm"
 	data-default-scope={defaultScope}
 	data-default-scope-id={defaultScopeId}
 	data-default-channel={defaultChannel}
 >
 	<div
-		class="fastt-dialog mx-auto flex max-h-[92vh] w-full max-w-4xl flex-col border bg-white text-slate-900"
+		class:list={[
+			"fastt-modal-panel fastt-dialog mx-auto flex max-h-[92vh] w-full flex-col border bg-white text-slate-900",
+			"max-w-5xl",
+		]}
 	>
 		<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
 			<div>
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+				<p
+					id="policyAssignmentEyebrow"
+					class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+				>
 					Asignación de condiciones
 				</p>
-				<h2 class="mt-1 text-xl font-semibold">Asignar condición</h2>
-				<p class="mt-1 text-sm text-slate-600">
+				<h2 id="policyAssignmentTitle" class="mt-1 text-xl font-semibold">Asignar condición</h2>
+				<p id="policyAssignmentDescription" class="mt-1 text-sm text-slate-600">
 					Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar.
 				</p>
 			</div>
-			<Button type="button" id="policyAssignmentClose" variant="secondary"> Cerrar </Button>
+			<Button
+				type="button"
+				id="policyAssignmentClose"
+				variant="ghost"
+				size="sm"
+				class="fastt-modal-close px-2"
+				aria-label="Cerrar"
+			>
+				<X class="size-5" />
+			</Button>
 		</div>
 
 		<div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-			<div class="grid gap-4 md:grid-cols-[1fr_320px]">
+			<div
+				class:list={[
+					"grid gap-5",
+					isProfessionalMode ? "md:grid-cols-[1fr_340px]" : "md:grid-cols-[minmax(0,1fr)_360px]",
+				]}
+			>
 				<form id="policyAssignmentForm" class="space-y-5">
 					<section
 						class:list={[
@@ -63,22 +126,61 @@ const policyCategoryLabels = Object.fromEntries(
 						<div class="mt-3 grid gap-2 sm:grid-cols-2">
 							<label class="fastt-row-card cursor-pointer p-3 text-sm">
 								<input type="radio" name="assignmentMode" value="existing" />
-								<span class="ml-2 font-medium">Usar condición existente</span>
+								<span class="ml-2 font-medium">Condición existente</span>
+								<span class="sr-only">Usar condición existente</span>
 								<span class="mt-1 block text-slate-500">Selecciona una condición publicada.</span>
 							</label>
 							<label class="fastt-row-card cursor-pointer p-3 text-sm">
 								<input type="radio" name="assignmentMode" value="preset" checked />
-								<span class="ml-2 font-medium">Crear desde plantilla</span>
+								<span class="ml-2 font-medium">Plantillas</span>
 								<span class="mt-1 block text-slate-500">Crea y asigna una condición publicada.</span
 								>
 							</label>
 						</div>
 					</section>
 
-					<section class="fastt-soft-box border border-slate-200 p-4">
-						<p class="text-sm font-semibold text-slate-900">
-							{isProfessionalMode ? "2. Condición" : "1. Condición"}
+					<section
+						class:list={[isProfessionalMode && "fastt-soft-box border border-slate-200 p-4"]}
+					>
+						<p
+							class:list={["text-sm font-semibold text-slate-900", !isProfessionalMode && "hidden"]}
+						>
+							{isProfessionalMode ? "2. Condición" : "Política"}
 						</p>
+						<div
+							class:list={[
+								"fastt-soft-box mt-3 border border-slate-200 bg-slate-50 p-1",
+								isProfessionalMode && "hidden",
+							]}
+							aria-label="Origen de la condición"
+						>
+							<div id="assignmentSimpleModeGrid" class="grid gap-1 sm:grid-cols-2">
+								<button
+									type="button"
+									class="assignment-simple-mode fastt-button justify-center rounded-md px-3 py-2 text-center text-sm font-medium"
+									data-assignment-simple-mode="preset"
+									aria-pressed="true"
+								>
+									Plantillas
+								</button>
+								<button
+									type="button"
+									class="assignment-simple-mode fastt-button justify-center rounded-md px-3 py-2 text-center text-sm font-medium text-slate-500"
+									data-assignment-simple-mode="existing"
+									aria-pressed="false"
+								>
+									Existente
+								</button>
+								<button
+									type="button"
+									class="assignment-simple-mode fastt-button hidden justify-center rounded-md px-3 py-2 text-center text-sm font-medium text-slate-500"
+									data-assignment-simple-mode="draft"
+									aria-pressed="false"
+								>
+									Personalizar
+								</button>
+							</div>
+						</div>
 						<div
 							id="assignmentExistingFields"
 							class:list={["mt-3 space-y-3", !isProfessionalMode && "hidden"]}
@@ -90,9 +192,17 @@ const policyCategoryLabels = Object.fromEntries(
 						</div>
 						<div
 							id="assignmentPresetFields"
-							class:list={["mt-3 grid gap-3 sm:grid-cols-2", isProfessionalMode && "hidden"]}
+							class:list={[
+								"mt-3 grid gap-3",
+								isProfessionalMode ? "hidden sm:grid-cols-2" : "grid-cols-1",
+							]}
 						>
-							<label class="block text-sm font-medium text-slate-700">
+							<label
+								class:list={[
+									"block text-sm font-medium text-slate-700",
+									!isProfessionalMode && "hidden",
+								]}
+							>
 								Categoría
 								<Select id="assignmentCategory" class="mt-1">
 									{
@@ -102,11 +212,25 @@ const policyCategoryLabels = Object.fromEntries(
 									}
 								</Select>
 							</label>
-							<label class="block text-sm font-medium text-slate-700">
-								Plantilla
-								<Select id="assignmentPreset" class="mt-1" />
+							<label
+								class:list={[
+									"block text-sm font-medium text-slate-700",
+									!isProfessionalMode && "sr-only",
+								]}
+							>
+								<span id="assignmentPresetLabel">Plantilla</span>
+								<Select
+									id="assignmentPreset"
+									class:list={["mt-1", !isProfessionalMode && "sr-only"]}
+								/>
 							</label>
-							<label class="block text-sm font-medium text-slate-700 sm:col-span-2">
+							<div id="assignmentPresetCards" class:list={[isProfessionalMode && "hidden"]}></div>
+							<label
+								class:list={[
+									"block text-sm font-medium text-slate-700 sm:col-span-2",
+									!isProfessionalMode && "hidden",
+								]}
+							>
 								Nombre de la condición
 								<Input
 									id="assignmentDescription"
@@ -115,9 +239,125 @@ const policyCategoryLabels = Object.fromEntries(
 								/>
 							</label>
 						</div>
+						<div id="assignmentCustomFields" class="mt-3 hidden space-y-4">
+							<div class="space-y-4" data-assignment-custom-category="Cancellation">
+								<div class="grid gap-3 sm:grid-cols-2">
+									<label class="block text-sm font-medium text-slate-700">
+										Cancelación gratis hasta
+										<div class="mt-1 flex items-center gap-2">
+											<Input id="assignmentCancellationFreeDays" type="number" min="0" value="1" />
+											<span class="text-sm text-slate-500">día(s) antes</span>
+										</div>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Penalidad después
+										<div class="mt-1 flex items-center gap-2">
+											<Input
+												id="assignmentCancellationPenalty"
+												type="number"
+												min="0"
+												max="100"
+												value="100"
+											/>
+											<span class="text-sm text-slate-500">% de la reserva</span>
+										</div>
+									</label>
+								</div>
+							</div>
+							<div class="space-y-4" data-assignment-custom-category="Payment">
+								<div class="grid gap-3 sm:grid-cols-3">
+									<label class="block text-sm font-medium text-slate-700">
+										Cuándo paga
+										<Select id="assignmentPaymentType" class="mt-1">
+											<option value="pay_at_property">Al llegar</option>
+											<option value="prepayment">Prepago</option>
+										</Select>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Porcentaje
+										<div class="mt-1 flex items-center gap-2">
+											<Input
+												id="assignmentPrepaymentPercentage"
+												type="number"
+												min="1"
+												max="100"
+												value="50"
+											/>
+											<span class="text-sm text-slate-500">%</span>
+										</div>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Días antes
+										<Input
+											id="assignmentPrepaymentDays"
+											type="number"
+											min="0"
+											value="0"
+											class="mt-1"
+										/>
+									</label>
+								</div>
+							</div>
+							<div class="space-y-4" data-assignment-custom-category="CheckIn">
+								<div class="grid gap-3 sm:grid-cols-3">
+									<label class="block text-sm font-medium text-slate-700">
+										Llegada desde
+										<Input id="assignmentCheckInFrom" type="time" value="15:00" class="mt-1" />
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Llegada hasta
+										<Input id="assignmentCheckInUntil" type="time" value="22:00" class="mt-1" />
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Salida hasta
+										<Input id="assignmentCheckOutUntil" type="time" value="11:00" class="mt-1" />
+									</label>
+								</div>
+							</div>
+							<div class="space-y-4" data-assignment-custom-category="NoShow">
+								<div class="grid gap-3 sm:grid-cols-2">
+									<label class="block text-sm font-medium text-slate-700">
+										Si no llega
+										<Select id="assignmentNoShowPenaltyType" class="mt-1">
+											<option value="first_night">Cobrar primera noche</option>
+											<option value="full">Cobrar estadía completa</option>
+											<option value="percentage">Cobrar porcentaje</option>
+										</Select>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Porcentaje
+										<div class="mt-1 flex items-center gap-2">
+											<Input
+												id="assignmentNoShowPenaltyAmount"
+												type="number"
+												min="0"
+												max="100"
+												value="100"
+											/>
+											<span class="text-sm text-slate-500">%</span>
+										</div>
+									</label>
+								</div>
+							</div>
+							<div
+								class="fastt-soft-box border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-600"
+							>
+								La condición personalizada se guardará y reemplazará la condición actual del alcance
+								seleccionado.
+							</div>
+						</div>
+						<div id="assignmentExistingCards" class:list={["mt-3", isProfessionalMode && "hidden"]}>
+						</div>
+						<div id="assignmentCustomHelp" class:list={["mt-3", isProfessionalMode && "hidden"]}>
+						</div>
 					</section>
 
-					<section class="fastt-soft-box border border-slate-200 p-4">
+					<section
+						class:list={[
+							"fastt-soft-box border border-slate-200 p-4",
+							!isProfessionalMode && "hidden",
+						]}
+					>
 						<p class="text-sm font-semibold text-slate-900">
 							{isProfessionalMode ? "3. Alcance" : "2. Alcance"}
 						</p>
@@ -161,19 +401,35 @@ const policyCategoryLabels = Object.fromEntries(
 					</section>
 				</form>
 
-				<aside class="fastt-drawer-soft-card space-y-3 p-4">
-					<p class="text-sm font-semibold text-slate-900">Impacto antes de confirmar</p>
-					<div id="assignmentImpact" class="space-y-2 text-sm text-slate-700">
-						Cargando opciones...
-					</div>
-					<div class="fastt-drawer-secondary-card p-3">
+				<aside
+					class:list={[
+						isProfessionalMode
+							? "fastt-drawer-soft-card space-y-3 p-4"
+							: "space-y-4 border-t border-slate-200 pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5",
+					]}
+				>
+					<div>
 						<p id="assignmentPreviewTitle" class="text-sm font-semibold text-slate-950">
 							Vista previa de la condición
 						</p>
 						<p id="assignmentPreviewDescription" class="mt-1 text-xs text-slate-700">
 							Consecuencias visibles para operar sin leer reglas técnicas.
 						</p>
-						<div id="assignmentGuestPreview" class="mt-3 space-y-2 text-sm text-slate-950"></div>
+					</div>
+					<div id="assignmentGuestPreview" class="space-y-2 text-sm text-slate-950"></div>
+					<details class:list={[isProfessionalMode && "hidden"]}>
+						<summary class="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-950">
+							Detalle técnico
+						</summary>
+						<div id="assignmentImpact" class="mt-3 space-y-2 text-sm text-slate-700">
+							Cargando opciones...
+						</div>
+					</details>
+					<div
+						id="assignmentProfessionalImpact"
+						class:list={["space-y-2 text-sm text-slate-700", !isProfessionalMode && "hidden"]}
+					>
+						Cargando opciones...
 					</div>
 					<div id="assignmentStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
 				</aside>
@@ -181,12 +437,15 @@ const policyCategoryLabels = Object.fromEntries(
 		</div>
 
 		<div
-			class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-6 py-4"
+			class:list={[
+				"flex flex-wrap items-center gap-3 border-t border-slate-200 px-6 py-4",
+				isProfessionalMode ? "justify-between" : "justify-end",
+			]}
 		>
-			<p class="text-sm text-slate-600">
+			<p class:list={["text-sm text-slate-600", !isProfessionalMode && "hidden"]}>
 				La asignación reemplaza la condición activa de la misma categoría para este alcance y canal.
 			</p>
-			<Button type="button" id="policyAssignmentSubmit"> Confirmar asignación </Button>
+			<Button type="button" id="policyAssignmentSubmit"> Guardar cambios </Button>
 		</div>
 	</div>
 </div>
@@ -197,26 +456,51 @@ const policyCategoryLabels = Object.fromEntries(
 		isProfessionalMode,
 		policyCategoryLabels,
 		policyCategoryPreviewCopy: POLICY_CATEGORY_PREVIEW_COPY,
+		policyModalCopy,
 	}}
 >
 	// @ts-nocheck
 	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
 	const assignmentClose = document.getElementById("policyAssignmentClose")
 	const assignmentSubmit = document.getElementById("policyAssignmentSubmit")
+	const assignmentEyebrow = document.getElementById("policyAssignmentEyebrow")
+	const assignmentTitle = document.getElementById("policyAssignmentTitle")
+	const assignmentDescription = document.getElementById("policyAssignmentDescription")
 	const existingFields = document.getElementById("assignmentExistingFields")
 	const presetFields = document.getElementById("assignmentPresetFields")
 	const policySelect = document.getElementById("assignmentPolicyId")
 	const categorySelect = document.getElementById("assignmentCategory")
 	const presetSelect = document.getElementById("assignmentPreset")
+	const presetCards = document.getElementById("assignmentPresetCards")
+	const existingCards = document.getElementById("assignmentExistingCards")
+	const customHelp = document.getElementById("assignmentCustomHelp")
+	const customFields = document.getElementById("assignmentCustomFields")
+	const customCategoryPanels = Array.from(
+		document.querySelectorAll("[data-assignment-custom-category]")
+	)
+	const cancellationFreeDaysInput = document.getElementById("assignmentCancellationFreeDays")
+	const cancellationPenaltyInput = document.getElementById("assignmentCancellationPenalty")
+	const paymentTypeInput = document.getElementById("assignmentPaymentType")
+	const prepaymentPercentageInput = document.getElementById("assignmentPrepaymentPercentage")
+	const prepaymentDaysInput = document.getElementById("assignmentPrepaymentDays")
+	const checkInFromInput = document.getElementById("assignmentCheckInFrom")
+	const checkInUntilInput = document.getElementById("assignmentCheckInUntil")
+	const checkOutUntilInput = document.getElementById("assignmentCheckOutUntil")
+	const noShowPenaltyTypeInput = document.getElementById("assignmentNoShowPenaltyType")
+	const noShowPenaltyAmountInput = document.getElementById("assignmentNoShowPenaltyAmount")
+	const presetLabel = document.getElementById("assignmentPresetLabel")
 	const descriptionInput = document.getElementById("assignmentDescription")
 	const scopeSelect = document.getElementById("assignmentScope")
 	const scopeIdSelect = document.getElementById("assignmentScopeId")
 	const channelSelect = document.getElementById("assignmentChannel")
 	const impactBox = document.getElementById("assignmentImpact")
+	const professionalImpactBox = document.getElementById("assignmentProfessionalImpact")
 	const guestPreviewBox = document.getElementById("assignmentGuestPreview")
 	const previewTitle = document.getElementById("assignmentPreviewTitle")
 	const previewDescription = document.getElementById("assignmentPreviewDescription")
 	const statusBox = document.getElementById("assignmentStatus")
+	const simpleModeGrid = document.getElementById("assignmentSimpleModeGrid")
+	const simpleModeButtons = Array.from(document.querySelectorAll("[data-assignment-simple-mode]"))
 
 	const assignmentState = {
 		loaded: false,
@@ -225,6 +509,7 @@ const policyCategoryLabels = Object.fromEntries(
 		options: { policies: [], presets: [], scopes: { product: [], variant: [], rate_plan: [] } },
 	}
 	let previewRequestSeq = 0
+	let simpleAssignmentMode = "preset"
 
 	function assignmentEscape(value) {
 		return String(value ?? "")
@@ -235,7 +520,7 @@ const policyCategoryLabels = Object.fromEntries(
 	}
 
 	function selectedMode() {
-		if (!isProfessionalMode) return "preset"
+		if (!isProfessionalMode) return simpleAssignmentMode
 		return document.querySelector('input[name="assignmentMode"]:checked')?.value || "preset"
 	}
 
@@ -256,6 +541,42 @@ const policyCategoryLabels = Object.fromEntries(
 				description: "Consecuencias visibles antes de confirmar la asignación.",
 			}
 		)
+	}
+
+	function modalCopy(category) {
+		return (
+			policyModalCopy?.[category] || {
+				eyebrow: "Condición de reserva",
+				title: `Editar ${String(categoryLabel(category)).toLowerCase()}`,
+				description: "Define la condición que verá el huésped antes de reservar.",
+				choiceLabel: "Plantilla",
+				previewLabel: "Así lo verá el huésped",
+				previewDescription: "Resumen visible antes de reservar.",
+				impactLabel: "Impacto",
+				impactText: "Esta condición reemplazará la configuración actual.",
+			}
+		)
+	}
+
+	function renderModalChrome(category) {
+		const copy = modalCopy(category)
+		if (assignmentEyebrow)
+			assignmentEyebrow.textContent = isProfessionalMode
+				? "Asignación de condiciones"
+				: copy.eyebrow
+		if (assignmentTitle)
+			assignmentTitle.textContent = isProfessionalMode ? "Asignar condición" : copy.title
+		if (assignmentDescription) {
+			assignmentDescription.textContent = isProfessionalMode
+				? "Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar."
+				: copy.description
+		}
+		if (presetLabel) presetLabel.textContent = copy.choiceLabel || "Plantilla"
+		if (previewTitle && !isProfessionalMode) previewTitle.textContent = copy.previewLabel
+		if (previewDescription && !isProfessionalMode) {
+			previewDescription.textContent =
+				copy.previewDescription || "Resumen visible antes de reservar."
+		}
 	}
 
 	function showStatus(kind, message) {
@@ -282,6 +603,7 @@ const policyCategoryLabels = Object.fromEntries(
 		assignmentState.loaded = true
 		renderPolicyOptions()
 		renderPresetOptions()
+		renderExistingCards()
 		renderScopeOptions()
 		renderImpact()
 	}
@@ -313,6 +635,127 @@ const policyCategoryLabels = Object.fromEntries(
 					)
 					.join("")
 			: '<option value="">Sin plantillas para esta categoría</option>'
+		if (presetCards && !isProfessionalMode) {
+			presetCards.innerHTML = presets.length
+				? `<div class="fastt-policy-option-list space-y-2">${presets
+						.map(
+							(preset, index) => `
+								<button
+									type="button"
+									class="policy-preset-card fastt-button fastt-row-card flex w-full items-start justify-between gap-3 p-3 text-left"
+									data-preset-key="${assignmentEscape(preset.key)}"
+									aria-pressed="${index === 0 ? "true" : "false"}"
+								>
+									<span class="min-w-0">
+										<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(preset.label)}</span>
+										<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(preset.description || "")}</span>
+									</span>
+									<span class="policy-preset-check ${index === 0 ? "" : "hidden"} shrink-0 rounded-full bg-slate-950 px-2 py-0.5 text-xs font-semibold text-white">✓</span>
+								</button>
+							`
+						)
+						.join("")}</div>`
+				: '<p class="text-sm text-slate-500">No hay plantillas disponibles para esta condición.</p>'
+			for (const card of presetCards.querySelectorAll(".policy-preset-card")) {
+				card.addEventListener("click", () => {
+					if (presetSelect) presetSelect.value = String(card.dataset.presetKey || "")
+					renderPresetCardsState()
+					renderImpact()
+				})
+			}
+		}
+		renderCustomHelp(category)
+	}
+
+	function renderPresetCardsState() {
+		if (!presetCards || !presetSelect) return
+		for (const card of presetCards.querySelectorAll(".policy-preset-card")) {
+			const selected = String(card.dataset.presetKey || "") === String(presetSelect.value || "")
+			card.setAttribute("aria-pressed", selected ? "true" : "false")
+			card.classList.toggle("border-slate-950", selected)
+			card.classList.toggle("bg-slate-50", selected)
+			card.querySelector(".policy-preset-check")?.classList.toggle("hidden", !selected)
+		}
+	}
+
+	function renderExistingCards() {
+		if (!existingCards || !categorySelect) return
+		const category = categorySelect.value
+		const policies = (assignmentState.options.policies || []).filter(
+			(policy) => String(policy.category) === category
+		)
+		existingCards.innerHTML = policies.length
+			? `<div class="fastt-policy-option-list space-y-2">${policies
+					.map(
+						(policy, index) => `
+							<button
+								type="button"
+								class="policy-existing-card fastt-button fastt-row-card flex w-full items-start justify-between gap-3 p-3 text-left"
+								data-policy-id="${assignmentEscape(policy.id)}"
+								aria-pressed="${index === 0 ? "true" : "false"}"
+							>
+								<span class="min-w-0">
+									<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(policy.label)}</span>
+									<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(policy.helper || "Condición publicada disponible para este proveedor.")}</span>
+								</span>
+								<span class="policy-existing-check ${index === 0 ? "" : "hidden"} shrink-0 rounded-full bg-slate-950 px-2 py-0.5 text-xs font-semibold text-white">✓</span>
+							</button>
+						`
+					)
+					.join("")}</div>`
+			: `
+				<div class="fastt-soft-box border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+					No hay condiciones publicadas para ${assignmentEscape(categoryLabel(category)).toLowerCase()}.
+				</div>
+			`
+		if (
+			policies.length &&
+			policySelect &&
+			!policies.some((policy) => policy.id === policySelect.value)
+		) {
+			policySelect.value = policies[0].id
+		}
+		for (const card of existingCards.querySelectorAll(".policy-existing-card")) {
+			card.addEventListener("click", () => {
+				setMode("existing")
+				if (policySelect) policySelect.value = String(card.dataset.policyId || "")
+				renderExistingCardsState()
+				renderImpact()
+			})
+		}
+		renderExistingCardsState()
+	}
+
+	function renderExistingCardsState() {
+		if (!existingCards || !policySelect) return
+		for (const card of existingCards.querySelectorAll(".policy-existing-card")) {
+			const selected = String(card.dataset.policyId || "") === String(policySelect.value || "")
+			card.setAttribute("aria-pressed", selected ? "true" : "false")
+			card.classList.toggle("border-slate-950", selected)
+			card.classList.toggle("bg-slate-50", selected)
+			card.querySelector(".policy-existing-check")?.classList.toggle("hidden", !selected)
+		}
+	}
+
+	function renderCustomFieldsState(category = categorySelect?.value) {
+		for (const panel of customCategoryPanels) {
+			panel.classList.toggle(
+				"hidden",
+				String(panel.dataset.assignmentCustomCategory || "") !== String(category || "")
+			)
+		}
+		const paymentIsPrepayment = paymentTypeInput?.value === "prepayment"
+		prepaymentPercentageInput
+			?.closest("label")
+			?.classList.toggle("opacity-50", !paymentIsPrepayment)
+		prepaymentDaysInput?.closest("label")?.classList.toggle("opacity-50", !paymentIsPrepayment)
+		const noShowIsPercentage = noShowPenaltyTypeInput?.value === "percentage"
+		noShowPenaltyAmountInput?.closest("label")?.classList.toggle("opacity-50", !noShowIsPercentage)
+	}
+
+	function renderCustomHelp(category = categorySelect?.value) {
+		if (!customHelp) return
+		customHelp.innerHTML = ""
 	}
 
 	function renderScopeOptions(preferredId = "") {
@@ -345,35 +788,136 @@ const policyCategoryLabels = Object.fromEntries(
 		const scopeOption = (assignmentState.options.scopes?.[scope] || []).find(
 			(item) => String(item.id) === String(scopeId)
 		)
-		const category = mode === "existing" ? policy?.category : categorySelect?.value
+		const category =
+			mode === "existing"
+				? policy?.category || categorySelect?.value
+				: mode === "draft"
+					? categorySelect?.value
+					: categorySelect?.value
 		return { mode, policy, preset, scope, scopeId, scopeOption, category }
 	}
 
 	function previewPayload(selected = currentSelection()) {
-		return selected.mode === "existing"
-			? {
-					mode: "existing",
-					policyId: selected.policy?.id || "",
-					scope: selected.scope,
-					scopeId: selected.scopeId,
-					channel: channelSelect?.value || null,
-				}
-			: {
-					mode: "preset",
-					category: categorySelect?.value,
-					policyPresetKey: selected.preset?.key || "",
-					scope: selected.scope,
-					scopeId: selected.scopeId,
-					channel: channelSelect?.value || null,
-				}
+		if (selected.mode === "existing") {
+			return {
+				mode: "existing",
+				policyId: selected.policy?.id || "",
+				scope: selected.scope,
+				scopeId: selected.scopeId,
+				channel: channelSelect?.value || null,
+			}
+		}
+		if (selected.mode === "draft") {
+			return {
+				mode: "draft",
+				category: selected.category,
+				description: draftDescription(selected.category),
+				rules: draftRules(selected.category),
+				cancellationTiers: draftCancellationTiers(),
+				scope: selected.scope,
+				scopeId: selected.scopeId,
+				channel: channelSelect?.value || null,
+			}
+		}
+		return {
+			mode: "preset",
+			category: categorySelect?.value,
+			policyPresetKey: selected.preset?.key || "",
+			scope: selected.scope,
+			scopeId: selected.scopeId,
+			channel: channelSelect?.value || null,
+		}
+	}
+
+	function numberValue(input, fallback) {
+		const parsed = Number(input?.value ?? fallback)
+		return Number.isFinite(parsed) ? parsed : fallback
+	}
+
+	function draftCancellationTiers() {
+		const freeDays = Math.max(0, Math.round(numberValue(cancellationFreeDaysInput, 1)))
+		const penalty = Math.max(0, Math.min(100, numberValue(cancellationPenaltyInput, 100)))
+		const tiers = [{ daysBeforeArrival: freeDays, penaltyType: "percentage", penaltyAmount: 0 }]
+		if (freeDays === 0)
+			return [{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: penalty }]
+		tiers.push({ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: penalty })
+		return tiers
+	}
+
+	function draftRules(category = categorySelect?.value) {
+		if (category === "Payment") {
+			const paymentType = paymentTypeInput?.value || "pay_at_property"
+			const rules = { paymentType }
+			if (paymentType === "prepayment") {
+				rules.prepaymentPercentage = Math.max(
+					1,
+					Math.min(100, numberValue(prepaymentPercentageInput, 50))
+				)
+				rules.prepaymentDaysBeforeArrival = Math.max(
+					0,
+					Math.round(numberValue(prepaymentDaysInput, 0))
+				)
+			}
+			return rules
+		}
+		if (category === "CheckIn") {
+			return {
+				checkInFrom: checkInFromInput?.value || "15:00",
+				checkInUntil: checkInUntilInput?.value || "22:00",
+				checkOutUntil: checkOutUntilInput?.value || "11:00",
+			}
+		}
+		if (category === "NoShow") {
+			const penaltyType = noShowPenaltyTypeInput?.value || "first_night"
+			const rules = { penaltyType }
+			if (penaltyType === "percentage") {
+				rules.penaltyAmount = Math.max(0, Math.min(100, numberValue(noShowPenaltyAmountInput, 100)))
+			}
+			return rules
+		}
+		return {}
+	}
+
+	function draftDescription(category = categorySelect?.value) {
+		if (category === "Cancellation") {
+			const freeDays = Math.max(0, Math.round(numberValue(cancellationFreeDaysInput, 1)))
+			const penalty = Math.max(0, Math.min(100, numberValue(cancellationPenaltyInput, 100)))
+			return `Cancelación gratis hasta ${freeDays} día(s) antes · penalidad ${penalty}%`
+		}
+		if (category === "Payment") {
+			if ((paymentTypeInput?.value || "pay_at_property") === "prepayment") {
+				return `Prepago ${numberValue(prepaymentPercentageInput, 50)}%`
+			}
+			return "Pago al llegar"
+		}
+		if (category === "CheckIn") {
+			const rules = draftRules("CheckIn")
+			return `Llegada ${rules.checkInFrom}–${rules.checkInUntil} · salida hasta ${rules.checkOutUntil}`
+		}
+		if (category === "NoShow") {
+			const type = noShowPenaltyTypeInput?.value || "first_night"
+			if (type === "full") return "No presentación: estadía completa"
+			if (type === "percentage")
+				return `No presentación: ${numberValue(noShowPenaltyAmountInput, 100)}%`
+			return "No presentación: primera noche"
+		}
+		return "Condición personalizada"
 	}
 
 	async function renderBackendPreview() {
 		if (!guestPreviewBox) return false
 		const selected = currentSelection()
 		const pendingCopy = previewCopy(selected.category)
-		if (previewTitle) previewTitle.textContent = pendingCopy.title
+		if (previewTitle) {
+			previewTitle.textContent = isProfessionalMode
+				? pendingCopy.title
+				: modalCopy(selected.category).previewLabel
+		}
 		if (previewDescription) previewDescription.textContent = pendingCopy.description
+		if (previewDescription && !isProfessionalMode) {
+			previewDescription.textContent =
+				modalCopy(selected.category).previewDescription || "Resumen visible antes de reservar."
+		}
 		assignmentState.previewReady = false
 		if (!selected.scopeId) {
 			guestPreviewBox.innerHTML =
@@ -389,6 +933,20 @@ const policyCategoryLabels = Object.fromEntries(
 			guestPreviewBox.innerHTML =
 				'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Selecciona una plantilla para calcular el preview real.</div>'
 			return false
+		}
+		if (selected.mode === "draft") {
+			const rules = draftRules(selected.category)
+			if (
+				(selected.category === "CheckIn" &&
+					(!rules.checkInFrom || !rules.checkInUntil || !rules.checkOutUntil)) ||
+				(selected.category === "Payment" && !rules.paymentType) ||
+				(selected.category === "NoShow" && !rules.penaltyType) ||
+				(selected.category === "Cancellation" && !draftCancellationTiers().length)
+			) {
+				guestPreviewBox.innerHTML =
+					'<div class="fastt-soft-box border border-slate-200 bg-white/80 p-2">Completa los datos para calcular el preview.</div>'
+				return false
+			}
 		}
 
 		const seq = ++previewRequestSeq
@@ -412,21 +970,23 @@ const policyCategoryLabels = Object.fromEntries(
 			}
 			const items = Array.isArray(payload.preview) ? payload.preview : []
 			if (previewTitle) {
-				previewTitle.textContent =
-					payload?.presentation?.title || `Vista previa de ${categoryLabel(selected.category)}`
+				previewTitle.textContent = isProfessionalMode
+					? payload?.presentation?.title || `Vista previa de ${categoryLabel(selected.category)}`
+					: modalCopy(selected.category).previewLabel
 			}
 			if (previewDescription) {
-				previewDescription.textContent =
-					payload?.presentation?.description ||
-					"Consecuencias visibles antes de confirmar la asignación."
+				previewDescription.textContent = !isProfessionalMode
+					? modalCopy(selected.category).previewDescription || "Resumen visible antes de reservar."
+					: payload?.presentation?.description ||
+						"Consecuencias visibles antes de confirmar la asignación."
 			}
 			const previewItemsHtml = items.length
 				? `
-					<div class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+					<div class="fastt-policy-preview-list overflow-hidden rounded-md border border-slate-200 bg-white">
 						${items
 							.map(
 								(item) => `
-									<div class="border-b border-slate-100 px-3 py-2.5 last:border-b-0" data-preview-key="${assignmentEscape(item.key)}">
+									<div class="border-b border-slate-100 px-3 py-2 last:border-b-0" data-preview-key="${assignmentEscape(item.key)}">
 										<p class="text-xs font-medium text-slate-500">${assignmentEscape(item.label)}</p>
 										<p class="mt-0.5 font-semibold text-slate-950">${assignmentEscape(item.value)}</p>
 										${item.detail ? `<p class="mt-0.5 text-xs leading-5 text-slate-600">${assignmentEscape(item.detail)}</p>` : ""}
@@ -456,17 +1016,19 @@ const policyCategoryLabels = Object.fromEntries(
 	}
 
 	function renderImpact() {
-		if (!impactBox) return
+		if (!impactBox && !professionalImpactBox) return
 		const selected = currentSelection()
 		const channel = channelSelect?.value || "Todos los canales"
 		const source =
 			selected.mode === "existing"
 				? selected.policy?.label || "Selecciona una condición publicada"
-				: selected.preset?.label || "Selecciona una plantilla"
+				: selected.mode === "draft"
+					? "Horario personalizado"
+					: selected.preset?.label || "Selecciona una plantilla"
 		const destination = selected.scopeOption
 			? `${scopeLabel(selected.scope)}: ${selected.scopeOption.label}`
 			: `${scopeLabel(selected.scope)} sin seleccionar`
-		impactBox.innerHTML = `
+		const technicalHtml = `
 			<div class="rounded-lg border border-slate-200 bg-white p-3">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Origen</p>
 				<p class="mt-1 font-medium text-slate-900">${assignmentEscape(source)}</p>
@@ -481,15 +1043,52 @@ const policyCategoryLabels = Object.fromEntries(
 				<p class="mt-1">Reemplazará la condición activa de ${assignmentEscape(categoryLabel(selected.category))} para este alcance y canal, manteniendo historial y auditoría.</p>
 			</div>
 		`
+		if (impactBox) {
+			const copy = modalCopy(selected.category)
+			impactBox.innerHTML = isProfessionalMode
+				? technicalHtml
+				: `
+					<div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${assignmentEscape(copy.impactLabel)}</p>
+						<p class="mt-1 text-sm leading-5 text-slate-700">${assignmentEscape(copy.impactText)}</p>
+						${selected.scopeOption ? `<p class="mt-2 text-xs text-slate-500">Destino: ${assignmentEscape(selected.scopeOption.label)}</p>` : ""}
+					</div>
+				`
+		}
+		if (professionalImpactBox) professionalImpactBox.innerHTML = technicalHtml
 		renderBackendPreview()
 	}
 
 	function setMode(mode) {
+		if (!isProfessionalMode) {
+			simpleAssignmentMode =
+				mode === "existing" ? "existing" : mode === "draft" ? "draft" : "preset"
+		}
 		document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
 			input.checked = input.value === mode
 		})
-		existingFields?.classList.toggle("hidden", mode !== "existing")
+		existingFields?.classList.toggle("hidden", !isProfessionalMode || mode !== "existing")
 		presetFields?.classList.toggle("hidden", mode !== "preset")
+		customFields?.classList.toggle("hidden", mode !== "draft")
+		existingCards?.classList.toggle("hidden", mode !== "existing")
+		presetCards?.classList.toggle("hidden", mode !== "preset")
+		customHelp?.classList.toggle("hidden", mode !== "preset")
+		for (const button of simpleModeButtons) {
+			const isDraftButton = button.dataset.assignmentSimpleMode === "draft"
+			const canDraft = !isProfessionalMode
+			button.classList.toggle("hidden", isDraftButton && !canDraft)
+			const active = button.dataset.assignmentSimpleMode === selectedMode()
+			button.setAttribute("aria-pressed", active ? "true" : "false")
+			button.classList.toggle("bg-white", active)
+			button.classList.toggle("text-slate-950", active)
+			button.classList.toggle("shadow-sm", active)
+			button.classList.toggle("text-slate-500", !active)
+		}
+		simpleModeGrid?.classList.toggle("sm:grid-cols-3", !isProfessionalMode)
+		simpleModeGrid?.classList.toggle("sm:grid-cols-2", isProfessionalMode)
+		renderCustomFieldsState(categorySelect?.value)
+		renderExistingCardsState()
+		renderPresetCardsState()
 		renderImpact()
 	}
 
@@ -517,9 +1116,13 @@ const policyCategoryLabels = Object.fromEntries(
 			if (!isProfessionalMode) channelSelect.value = ""
 		}
 		renderPresetOptions()
+		renderExistingCards()
+		renderPresetCardsState()
+		renderModalChrome(categorySelect?.value || defaultCategory)
 		setMode(defaultMode)
 		statusBox?.classList.add("hidden")
 		assignmentOverlay?.classList.remove("hidden")
+		assignmentClose?.focus()
 		renderImpact()
 	}
 
@@ -549,13 +1152,13 @@ const policyCategoryLabels = Object.fromEntries(
 			}
 		}
 
-		const sourceLabel =
-			selected.mode === "existing" ? selected.policy.label : `${selected.preset.label} nuevo`
-		const channelLabel = isProfessionalMode
-			? `canal ${channelSelect?.value || "Todos los canales"}`
-			: "Todos los canales"
-		const confirmText = `Vas a asignar "${sourceLabel}" a ${scopeLabel(selected.scope)} "${selected.scopeOption?.label || selected.scopeId}". Esto reemplaza la condición activa de la misma categoría para ${channelLabel}.`
-		if (!window.confirm(confirmText)) return
+		if (isProfessionalMode) {
+			const sourceLabel =
+				selected.mode === "existing" ? selected.policy.label : `${selected.preset.label} nuevo`
+			const channelLabel = `canal ${channelSelect?.value || "Todos los canales"}`
+			const confirmText = `Vas a asignar "${sourceLabel}" a ${scopeLabel(selected.scope)} "${selected.scopeOption?.label || selected.scopeId}". Esto reemplaza la condición activa de la misma categoría para ${channelLabel}.`
+			if (!window.confirm(confirmText)) return
+		}
 
 		assignmentSubmit.disabled = true
 		const body =
@@ -567,17 +1170,29 @@ const policyCategoryLabels = Object.fromEntries(
 						scopeId: selected.scopeId,
 						channel: channelSelect?.value || null,
 					}
-				: {
-						mode: "preset",
-						category: categorySelect?.value,
-						policyPresetKey: selected.preset.key,
-						description:
-							descriptionInput?.value ||
-							`${categoryLabel(categorySelect?.value)} ${selected.preset.label}`,
-						scope: selected.scope,
-						scopeId: selected.scopeId,
-						channel: channelSelect?.value || null,
-					}
+				: selected.mode === "draft"
+					? {
+							mode: "draft",
+							category: selected.category,
+							description: draftDescription(selected.category),
+							rules: draftRules(selected.category),
+							cancellationTiers:
+								selected.category === "Cancellation" ? draftCancellationTiers() : undefined,
+							scope: selected.scope,
+							scopeId: selected.scopeId,
+							channel: channelSelect?.value || null,
+						}
+					: {
+							mode: "preset",
+							category: categorySelect?.value,
+							policyPresetKey: selected.preset.key,
+							description:
+								descriptionInput?.value ||
+								`${categoryLabel(categorySelect?.value)} ${selected.preset.label}`,
+							scope: selected.scope,
+							scopeId: selected.scopeId,
+							channel: channelSelect?.value || null,
+						}
 		const response = await fetch("/api/policies/assign", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -610,6 +1225,18 @@ const policyCategoryLabels = Object.fromEntries(
 
 	document.addEventListener("click", (event) => {
 		const target = event.target instanceof HTMLElement ? event.target : null
+		const arrivalTrigger = target?.closest(".policy-arrival-open")
+		if (arrivalTrigger instanceof HTMLElement) {
+			openAssignmentFlow({
+				dataset: {
+					assignmentScope: "product",
+					assignmentScopeId: arrivalTrigger.dataset.arrivalScopeId || "",
+					assignmentCategory: "CheckIn",
+					assignmentMode: "draft",
+				},
+			})
+			return
+		}
 		const trigger = target?.closest(".policy-assignment-open")
 		if (trigger instanceof HTMLElement) {
 			openAssignmentFlow(trigger)
@@ -624,15 +1251,50 @@ const policyCategoryLabels = Object.fromEntries(
 	})
 	categorySelect?.addEventListener("change", () => {
 		renderPresetOptions()
+		renderExistingCards()
+		renderPresetCardsState()
+		renderModalChrome(categorySelect.value)
+		renderCustomFieldsState(categorySelect.value)
 		renderImpact()
 	})
-	presetSelect?.addEventListener("change", renderImpact)
-	policySelect?.addEventListener("change", renderImpact)
+	presetSelect?.addEventListener("change", () => {
+		renderPresetCardsState()
+		renderImpact()
+	})
+	policySelect?.addEventListener("change", () => {
+		renderExistingCardsState()
+		renderImpact()
+	})
 	scopeSelect?.addEventListener("change", () => {
 		renderScopeOptions()
+		renderCustomHelp(categorySelect?.value)
 		renderImpact()
 	})
-	scopeIdSelect?.addEventListener("change", renderImpact)
+	scopeIdSelect?.addEventListener("change", () => {
+		renderCustomHelp(categorySelect?.value)
+		renderImpact()
+	})
 	channelSelect?.addEventListener("change", renderImpact)
+	for (const input of [
+		cancellationFreeDaysInput,
+		cancellationPenaltyInput,
+		paymentTypeInput,
+		prepaymentPercentageInput,
+		prepaymentDaysInput,
+		checkInFromInput,
+		checkInUntilInput,
+		checkOutUntilInput,
+		noShowPenaltyTypeInput,
+		noShowPenaltyAmountInput,
+	]) {
+		input?.addEventListener("input", renderImpact)
+		input?.addEventListener("change", () => {
+			renderCustomFieldsState(categorySelect?.value)
+			renderImpact()
+		})
+	}
+	for (const button of simpleModeButtons) {
+		button.addEventListener("click", () => setMode(button.dataset.assignmentSimpleMode || "preset"))
+	}
 	assignmentSubmit?.addEventListener("click", submitAssignment)
 </script>
