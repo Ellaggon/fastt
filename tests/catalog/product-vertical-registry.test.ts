@@ -58,9 +58,7 @@ describe("catalog/product vertical registry", () => {
 		expect(productVerticalRegistry.tour.routes.publicDetailHref("p1")).toBe("/tours/p1")
 		expect(productVerticalRegistry.package.routes.publicDetailHref("p1")).toBe("/packages/p1")
 		expect(productVerticalRegistry.limousine.routes.publicDetailHref("p1")).toBe("/limousines/p1")
-		expect(productVerticalRegistry.hotel.routes.workspaceFilteredHref).toBe(
-			"/catalog/accommodations"
-		)
+		expect(productVerticalRegistry.hotel.routes.workspaceFilteredHref).toBe("/dashboard")
 		expect(productVerticalRegistry.tour.routes.workspaceFilteredHref).toBe("/catalog/tours")
 		expect(productVerticalRegistry.package.routes.workspaceFilteredHref).toBe("/catalog/packages")
 		expect(productVerticalRegistry.limousine.routes.workspaceFilteredHref).toBe(

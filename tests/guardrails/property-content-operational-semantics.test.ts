@@ -24,7 +24,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content framed as a client-first accommodation shell", () => {
 		const requiredSignals: Record<string, string[]> = {
 			"src/pages/product/index.astro": ["Astro.redirect", "routes.catalogAccommodations"],
-			"src/pages/catalog/accommodations.astro": ["Alojamientos", "Fichas de alojamiento"],
+			"src/pages/dashboard/index.astro": [
+				"Inicio",
+				"Resumen Operativo",
+				"¿Administras otro servicio?",
+				"Agregar otro servicio",
+			],
 			"src/pages/product/create.astro": ["Crear alojamiento", "Tipo de oferta"],
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
@@ -220,9 +225,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 	it("keeps Product as generic catalog while rooms stay Hotel-only", () => {
 		const registry = read("src/lib/productVerticalRegistry.ts")
-		const productList = read("src/pages/catalog/accommodations.astro")
 		const productCreate = read("src/pages/product/create.astro")
-		const roomsAggregate = read("src/pages/catalog/accommodations/rooms/index.astro")
+		const roomsAggregate = read("src/pages/dashboard/index.astro")
 		const roomsByProduct = read("src/pages/product/[id]/rooms.astro")
 		const roomWizard = read("src/pages/product/[id]/rooms/new.astro")
 		const roomProfileEditor = read("src/components/rooms/RoomProfileEditor.astro")
@@ -233,12 +237,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(registry).toContain('storageType: "Package"')
 		expect(registry).toContain('storageType: "Limousine"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
-		expect(productList).toContain("Alojamientos")
-		expect(productList).toContain("Fichas de alojamiento")
-		expect(productList).toContain("getProviderCatalogSummary")
 		expect(productCreate).toContain("PRODUCT_VERTICAL_OPTIONS")
 		expect(productCreate).toContain("Crear oferta")
 		expect(roomsAggregate).toContain("lower(${Product.productType}) = 'hotel'")
+		expect(roomsAggregate).toContain("Inicio")
+		expect(roomsAggregate).toContain("buildAddRoomHref")
+		expect(roomsAggregate).toContain("¿Administras otro servicio?")
 		expect(roomsByProduct).toContain("isHotelProductType")
 		expect(roomWizard).toContain("RoomProfileEditor")
 		expect(roomProfileEditor).toContain('value="hotel_room"')
@@ -248,7 +252,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 	})
 
 	it("integrates House Rules into the provider publish confidence loop", () => {
-		const worklist = read("src/pages/catalog/accommodations.astro")
+		const worklist = read("src/pages/dashboard/index.astro")
 		const readiness = read("src/pages/product/[id]/index.astro")
 		const preview = read("src/pages/product/[id]/preview.astro")
 		const houseRules = read("src/pages/provider/house-rules.astro")
@@ -268,7 +272,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const backofficeGovernance = read("src/lib/backoffice-governance.ts")
 
 		expect(routes).toContain("productPreview")
-		expect(worklist).toContain("routes.productPreview(product.id)")
+		expect(worklist).toContain("routes.productRoomsForProduct(product.id)")
+		expect(worklist).toContain("routes.productRoomNew(product.id)")
 		expect(readiness).toContain("routes.productPreview(productId)")
 		expect(readiness).toContain("routes.providerHouseRules()}?productId=")
 		expect(houseRules).toContain("routes.productPreview(selectedProduct.id)")
