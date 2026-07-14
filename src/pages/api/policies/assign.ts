@@ -1,5 +1,8 @@
 import type { APIRoute } from "astro"
-import { replacePolicyAssignmentCapa6UseCase } from "@/container/policies-write.container"
+import {
+	createPolicyCapa6UseCase,
+	replacePolicyAssignmentCapa6UseCase,
+} from "@/container/policies-write.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
 import {
@@ -10,6 +13,7 @@ import type { PolicyCategory } from "@/modules/policies/public"
 
 const validCategories = new Set(["Cancellation", "Payment", "CheckIn", "NoShow"])
 const validScopes = new Set(["product", "variant", "rate_plan"])
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function text(value: unknown) {
 	return String(value ?? "").trim()
@@ -62,6 +66,49 @@ export const POST: APIRoute = async ({ request }) => {
 			policyPresetKey,
 		})
 		policyId = presetPolicy.policyId
+	} else if (mode === "draft") {
+		if (!validCategories.has(category)) {
+			return json(400, { error: "invalid_draft_context" })
+		}
+		const rules = typeof body.rules === "object" && body.rules ? body.rules : {}
+		if (category === "CheckIn") {
+			const checkInFrom = text((rules as Record<string, unknown>).checkInFrom)
+			const checkInUntil = text((rules as Record<string, unknown>).checkInUntil)
+			const checkOutUntil = text((rules as Record<string, unknown>).checkOutUntil)
+			if (
+				!timePattern.test(checkInFrom) ||
+				!timePattern.test(checkInUntil) ||
+				!timePattern.test(checkOutUntil)
+			) {
+				return json(400, { error: "invalid_check_in_times" })
+			}
+		}
+		const created = await createPolicyCapa6UseCase({
+			ownerProviderId: providerId,
+			category,
+			description:
+				text(body.description) ||
+				(category === "CheckIn" ? "Horario personalizado" : "Condición personalizada"),
+			status: "active",
+			stayLengthType: "any",
+			gracePeriod: 0,
+			refundBasis:
+				category === "Cancellation"
+					? "total_booking"
+					: category === "NoShow"
+						? "first_night"
+						: category === "CheckIn"
+							? "none"
+							: "provider_policy",
+			payoutBasis: category === "Payment" || category === "CheckIn" ? "provider_policy" : "gross",
+			localTimezone: "property_local",
+			rules: rules as Record<string, unknown>,
+			cancellationTiers: Array.isArray(body.cancellationTiers)
+				? (body.cancellationTiers as any)
+				: undefined,
+			actorUserId,
+		})
+		policyId = created.policyId
 	} else {
 		return json(400, { error: "invalid_mode" })
 	}

@@ -145,6 +145,7 @@ const layoutProps =
 				ratePlanId,
 				isHotel: true,
 				continueHref: addRoomContinueHref,
+				continueLabel: "Confirmar condiciones y continuar →",
 			}
 		: activePlaybook === "launch"
 			? {
@@ -157,6 +158,7 @@ const layoutProps =
 					ratePlanId,
 					isHotel: true,
 					continueHref: launchContinueHref,
+					continueLabel: "Confirmar condiciones y continuar →",
 				}
 			: { title: `Tarifa · ${row.ratePlanName}` }
 ---
@@ -195,7 +197,7 @@ const layoutProps =
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
 					{
 						isPlaybookMode
-							? "Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
+							? "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
 							: `${row.productName} · ${row.variantName}`
 					}
 				</p>
@@ -214,7 +216,12 @@ const layoutProps =
 			}
 		</header>
 
-		<section class="fastt-workspace-panel overflow-hidden text-slate-900">
+		<section
+			class:list={[
+				"fastt-workspace-panel overflow-hidden text-slate-900",
+				isPlaybookMode ? "bg-white" : "",
+			]}
+		>
 			{
 				isPlaybookMode ? null : (
 					<nav
@@ -241,12 +248,18 @@ const layoutProps =
 			}
 
 			<div
-				class={effectiveActiveView === "conditions" ? "p-5" : "hidden p-5"}
+				class={effectiveActiveView === "conditions"
+					? isPlaybookMode
+						? "px-5"
+						: "p-5"
+					: "hidden p-5"}
 				data-rate-plan-panel="conditions"
 			>
 				<RatePlanPoliciesSurface
 					title="Condiciones de la tarifa"
-					description="Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."
+					description={isPlaybookMode
+						? "Revisa las condiciones iniciales. Puedes cambiarlas ahora o confirmarlas para continuar."
+						: "Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."}
 					policyPlans={policyPlans}
 					checkIn={checkIn}
 					checkOut={checkOut}
@@ -254,6 +267,7 @@ const layoutProps =
 					productId={context.productId}
 					isProfessionalMode={isProfessionalMode}
 					showPlanSummary={!isPlaybookMode}
+					showHeader={!isPlaybookMode}
 				/>
 			</div>
 

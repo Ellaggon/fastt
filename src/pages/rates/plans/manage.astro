@@ -8,9 +8,14 @@ import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import {
+	getNextAddRoomStep,
+	getPreviousAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import {
 	getNextLaunchStep,
+	getPreviousLaunchStep,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -183,13 +188,31 @@ const launchCtx = {
 const addRoomContinueHref = addRoomPlaybook.active
 	? (getNextAddRoomStep("create-rate", addRoomCtx)?.buildHref(addRoomCtx) ?? null)
 	: null
+const addRoomPreviousHref = addRoomPlaybook.active
+	? (getPreviousAddRoomStep("create-rate", addRoomCtx)?.buildHref(addRoomCtx) ?? null)
+	: null
 const launchContinueHref = launchPlaybook.active
 	? (getNextLaunchStep("rate", launchCtx)?.buildHref(launchCtx) ?? null)
+	: null
+const launchPreviousHref = launchPlaybook.active
+	? (getPreviousLaunchStep("rate", launchCtx)?.buildHref(launchCtx) ?? null)
 	: null
 const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
 const isPlaybookRateStep = Boolean(activePlaybook)
 const playbookVariantLabel = matchedVariant?.variantName ?? "esta habitación"
 const playbookProductLabel = matchedVariant?.productName ?? "Alojamiento"
+const playbookPreviousHref =
+	activePlaybook === "add-room"
+		? addRoomPreviousHref
+		: activePlaybook === "launch"
+			? launchPreviousHref
+			: null
+const playbookExitHref =
+	activePlaybook === "add-room" && playbookProductId
+		? routes.productRoomsForProduct(playbookProductId)
+		: activePlaybook === "launch" && playbookProductId
+			? routes.productDetail(playbookProductId)
+			: routes.rates()
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
 	activePlaybook === "add-room"
@@ -264,122 +287,138 @@ const layoutProps =
 
 		{
 			isPlaybookRateStep ? (
-				<form
-					data-rate-plan-create-form
-					data-playbook-rate-form
-					class="fastt-card overflow-hidden border bg-white text-slate-900"
-				>
-					<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-						<div class="space-y-6 p-5 md:p-6">
-							<section class="space-y-4">
-								<div>
-									<h2 class="text-lg font-semibold text-slate-950">Tarifa para esta habitación</h2>
-									<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-										La habitación ya está creada y tiene fotos. Ahora define cómo se venderá:
-										propuesta, nombre visible y precio base.
+				<>
+					<form
+						id="guidedRatePlanForm"
+						data-rate-plan-create-form
+						data-playbook-rate-form
+						class="fastt-card overflow-hidden border bg-white text-slate-900"
+					>
+						<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+							<div class="space-y-6 p-5 md:p-6">
+								<section class="space-y-4">
+									<div>
+										<h2 class="text-lg font-semibold text-slate-950">
+											Tarifa para esta habitación
+										</h2>
+										<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+											La habitación ya está creada y tiene fotos. Ahora define cómo se venderá:
+											propuesta, nombre visible y precio base.
+										</p>
+									</div>
+
+									<div class="grid gap-4 md:grid-cols-2">
+										<label class="block space-y-1.5 text-sm md:col-span-2">
+											<span class="font-medium text-slate-800">Habitación</span>
+											<input type="hidden" name="variantId" value={requestedVariantId} />
+											<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
+												{matchedVariant?.label ?? "Habitación seleccionada"}
+											</div>
+										</label>
+
+										<label class="block space-y-1.5 text-sm">
+											<span class="font-medium text-slate-800">Propuesta comercial</span>
+											<Select name="intent" required>
+												{ratePlanIntentPresets.map((preset) => (
+													<option value={preset.id}>
+														{preset.name} · {preset.summary}
+													</option>
+												))}
+											</Select>
+										</label>
+
+										<label class="block space-y-1.5 text-sm">
+											<span class="font-medium text-slate-800">Nombre visible</span>
+											<Input name="name" value="Tarifa flexible" required />
+										</label>
+
+										<label class="block space-y-1.5 text-sm">
+											<span class="font-medium text-slate-800">Moneda</span>
+											<Select name="currency" required>
+												<option value="BOB">BOB</option>
+												<option value="USD">USD</option>
+											</Select>
+										</label>
+
+										<label class="block space-y-1.5 text-sm">
+											<span class="font-medium text-slate-800">Precio base por noche</span>
+											<Input
+												name="basePrice"
+												type="number"
+												min="1"
+												step="0.01"
+												placeholder="Ej. 450"
+												required
+											/>
+										</label>
+									</div>
+
+									<label class="fastt-soft-box flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 text-sm">
+										<input type="checkbox" name="isDefault" class="mt-0.5 size-4" checked />
+										<span>
+											<strong class="text-slate-900">Usar como tarifa principal</strong>
+											<span class="mt-1 block text-slate-500">
+												Será la tarifa de referencia para esta habitación mientras completas
+												condiciones y disponibilidad.
+											</span>
+										</span>
+									</label>
+								</section>
+							</div>
+
+							<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
+								<h2 class="text-sm font-semibold text-slate-950">Condiciones iniciales</h2>
+								<p class="mt-2 text-sm leading-6 text-slate-600" data-contract-summary>
+									Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de
+									primera noche por no presentación.
+								</p>
+								<div class="fastt-soft-box mt-5 p-4">
+									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										Siguiente paso
+									</p>
+									<p class="mt-2 text-sm font-medium text-slate-950">Condiciones de reserva</p>
+									<p class="mt-1 text-sm leading-6 text-slate-500">
+										Después de guardar ajustarás cancelación, pagos y reglas antes de abrir
+										disponibilidad.
 									</p>
 								</div>
-
-								<div class="grid gap-4 md:grid-cols-2">
-									<label class="block space-y-1.5 text-sm md:col-span-2">
-										<span class="font-medium text-slate-800">Habitación</span>
-										<input type="hidden" name="variantId" value={requestedVariantId} />
-										<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
-											{matchedVariant?.label ?? "Habitación seleccionada"}
-										</div>
-									</label>
-
-									<label class="block space-y-1.5 text-sm">
-										<span class="font-medium text-slate-800">Propuesta comercial</span>
-										<Select name="intent" required>
-											{ratePlanIntentPresets.map((preset) => (
-												<option value={preset.id}>
-													{preset.name} · {preset.summary}
-												</option>
-											))}
-										</Select>
-									</label>
-
-									<label class="block space-y-1.5 text-sm">
-										<span class="font-medium text-slate-800">Nombre visible</span>
-										<Input name="name" value="Tarifa flexible" required />
-									</label>
-
-									<label class="block space-y-1.5 text-sm">
-										<span class="font-medium text-slate-800">Moneda</span>
-										<Select name="currency" required>
-											<option value="BOB">BOB</option>
-											<option value="USD">USD</option>
-										</Select>
-									</label>
-
-									<label class="block space-y-1.5 text-sm">
-										<span class="font-medium text-slate-800">Precio base por noche</span>
-										<Input
-											name="basePrice"
-											type="number"
-											min="1"
-											step="0.01"
-											placeholder="Ej. 450"
-											required
-										/>
-									</label>
-								</div>
-
-								<label class="fastt-soft-box flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 text-sm">
-									<input type="checkbox" name="isDefault" class="mt-0.5 size-4" checked />
-									<span>
-										<strong class="text-slate-900">Usar como tarifa principal</strong>
-										<span class="mt-1 block text-slate-500">
-											Será la tarifa de referencia para esta habitación mientras completas
-											condiciones y disponibilidad.
-										</span>
-									</span>
-								</label>
-							</section>
+							</aside>
 						</div>
-
-						<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
-							<h2 class="text-sm font-semibold text-slate-950">Condiciones iniciales</h2>
-							<p class="mt-2 text-sm leading-6 text-slate-600" data-contract-summary>
-								Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
-								noche por no presentación.
-							</p>
-							<div class="fastt-soft-box mt-5 p-4">
-								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-									Siguiente paso
-								</p>
-								<p class="mt-2 text-sm font-medium text-slate-950">Condiciones de reserva</p>
-								<p class="mt-1 text-sm leading-6 text-slate-500">
-									Después de guardar ajustarás cancelación, pagos y reglas antes de abrir
-									disponibilidad.
-								</p>
-							</div>
-						</aside>
-					</div>
-
-					<footer class="flex flex-col gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
-						<p class="text-sm text-slate-500" data-rate-plan-feedback />
-						<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+					</form>
+					<footer class="fastt-playbook-footer flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+						<div class="min-h-10">
+							{playbookPreviousHref ? (
+								<Button
+									href={playbookPreviousHref}
+									variant="ghost"
+									className="text-slate-300 hover:bg-slate-800 hover:text-white"
+								>
+									← Anterior
+								</Button>
+							) : null}
+						</div>
+						<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+							<p class="text-sm text-slate-400" data-rate-plan-feedback />
 							<Button
-								href={
-									addRoomPlaybook.active && playbookProductId && requestedVariantId
-										? `/product/${encodeURIComponent(playbookProductId)}/rooms/${encodeURIComponent(requestedVariantId)}?playbook=add-room&step=room-photos&flow=add-room#fotos`
-										: launchPlaybook.active && playbookProductId
-											? `/product/${encodeURIComponent(playbookProductId)}/rooms/new?playbook=launch&step=room-profile&flow=create`
-											: routes.rates()
-								}
+								href={playbookExitHref}
 								variant="ghost"
-								className="text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+								className="text-slate-500 hover:bg-slate-800 hover:text-slate-100"
 							>
-								Volver
+								Salir del flujo
 							</Button>
-							<Button type="submit" name="publicationMode" value="draft">
-								Guardar tarifa y continuar
+							<Button
+								type="submit"
+								form="guidedRatePlanForm"
+								name="publicationMode"
+								value="draft"
+								className="fastt-playbook-cta"
+								data-guided-rate-submit
+							>
+								Guardar y continuar →
 							</Button>
 						</div>
 					</footer>
-				</form>
+				</>
 			) : null
 		}
 
@@ -658,7 +697,7 @@ const layoutProps =
 							type="button"
 							variant="ghost"
 							size="sm"
-							class="px-2"
+							class="fastt-modal-close px-2"
 							data-close-rate-plan-dialog
 							aria-label="Cerrar"
 						>
@@ -1006,6 +1045,7 @@ const layoutProps =
 			isDefault: data.get("isDefault") === "on",
 		}
 		form.querySelectorAll("button").forEach((button) => (button.disabled = true))
+		if (submitter instanceof HTMLButtonElement) submitter.disabled = true
 		if (feedback) feedback.textContent = "Creando tarifa, precio y condiciones..."
 		try {
 			const response = await fetch("/api/rateplans/create", {
@@ -1045,6 +1085,7 @@ const layoutProps =
 			form
 				.querySelectorAll<HTMLButtonElement>("button")
 				.forEach((button) => (button.disabled = false))
+			if (submitter instanceof HTMLButtonElement) submitter.disabled = false
 		}
 	})
 

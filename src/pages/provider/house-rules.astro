@@ -330,7 +330,9 @@ const previewPlaybookHref = selectedProductId
 				}
 				{
 					playbook.active && previewPlaybookHref ? (
-						<Button href={previewPlaybookHref}>Continuar a vista previa</Button>
+						<Button href={previewPlaybookHref} className="fastt-playbook-cta">
+							Continuar a vista previa
+						</Button>
 					) : null
 				}
 				{
@@ -380,7 +382,10 @@ const previewPlaybookHref = selectedProductId
 				<Card className="bg-white text-slate-800">
 					<p class="text-sm text-slate-600">Crea un alojamiento antes de agregar reglas.</p>
 					<div class="mt-3">
-						<Button href="/product/create" variant="primary">
+						<Button
+							href="/product/create?playbook=launch&step=create&flow=create"
+							variant="primary"
+						>
 							Crear alojamiento
 						</Button>
 					</div>

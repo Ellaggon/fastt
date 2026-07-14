@@ -13,6 +13,7 @@ import {
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { buildSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 import { routes } from "@/lib/routes"
+import { count, DailyInventory, db, eq } from "astro:db"
 
 const auth = await requireProvider(Astro.request).catch((error: unknown) => {
 	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
@@ -92,6 +93,23 @@ const launchContinueHref = launchPlaybook.active
 		null)
 	: null
 const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const isGuidedAvailabilityStep = Boolean(
+	activePlaybook &&
+	(addRoomPlaybook.stepId === "availability" || launchPlaybook.stepId === "calendar")
+)
+const guidedVariantId = String(addRoomCtx.variantId || launchCtx.variantId || "").trim()
+const guidedInventoryDays =
+	isGuidedAvailabilityStep && guidedVariantId
+		? Number(
+				(
+					await db
+						.select({ value: count() })
+						.from(DailyInventory)
+						.where(eq(DailyInventory.variantId, guidedVariantId))
+						.get()
+				)?.value ?? 0
+			)
+		: 0
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
 	activePlaybook === "add-room"
@@ -126,12 +144,21 @@ const layoutProps =
 		<header class="flex flex-wrap items-start justify-between gap-4">
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					Habitaciones y tarifas
+					{
+						isGuidedAvailabilityStep && matchedRow
+							? `${matchedRow.productName} · Nueva habitación`
+							: "Habitaciones y tarifas"
+					}
 				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">Calendario</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{isGuidedAvailabilityStep ? "Disponibilidad inicial" : "Calendario"}
+				</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo o venta desde un solo
-					lugar.
+					{
+						isGuidedAvailabilityStep
+							? "Elige las primeras fechas en las que esta habitación podrá recibir reservas. Después podrás operar el calendario completo."
+							: "Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo o venta desde un solo lugar."
+					}
 				</p>
 			</div>
 		</header>
@@ -141,6 +168,16 @@ const layoutProps =
 			initialSurface={surface}
 			isProfessional={isProfessionalCalendar}
 			initialMode={initialMode}
+			guidedAvailability={isGuidedAvailabilityStep
+				? {
+						playbook: activePlaybook,
+						productName: matchedRow?.productName ?? "",
+						variantName: matchedRow?.variantName ?? "",
+						ratePlanName: matchedRow?.ratePlanName ?? "",
+						requiredDays: 30,
+						initialInventoryDays: guidedInventoryDays,
+					}
+				: undefined}
 		/>
 	</div>
 </Layout>
