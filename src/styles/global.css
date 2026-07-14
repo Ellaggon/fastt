@@ -94,6 +94,40 @@ body {
 	transform: scale(0.98);
 }
 
+.fastt-playbook-cta {
+	min-width: 10rem;
+	background-color: var(--fastt-color-selection);
+	color: #fff;
+	box-shadow: 0 10px 24px var(--fastt-color-selection-shadow);
+}
+
+.fastt-playbook-cta:not(:disabled):hover {
+	background-color: #1d4ed8;
+	box-shadow: 0 14px 30px var(--fastt-color-selection-shadow);
+}
+
+.fastt-playbook-cta:not(:disabled):active {
+	transform: scale(0.98);
+}
+
+.fastt-playbook-footer {
+	margin-top: 2rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid rgb(30 41 59);
+}
+
+.fastt-modal-close svg {
+	transition: transform var(--fastt-motion-standard) var(--fastt-ease-settle);
+}
+
+.fastt-modal-close:not(:disabled):hover svg {
+	transform: rotate(90deg) scale(1.04);
+}
+
+.fastt-modal-close:not(:disabled):active svg {
+	transform: rotate(90deg) scale(0.92);
+}
+
 .fastt-icon-button {
 	border-radius: var(--fastt-radius-pill);
 	transition:
@@ -236,6 +270,21 @@ body {
 	border-radius: var(--fastt-radius-dialog);
 	overflow: hidden;
 	box-shadow: var(--fastt-shadow-dialog);
+}
+
+.fastt-modal-panel {
+	animation: calendar-dialog-enter var(--fastt-motion-standard) var(--fastt-ease-settle) both;
+}
+
+.fastt-policy-option-list {
+	max-height: min(46vh, 30rem);
+	overflow-y: auto;
+	padding-right: 0.25rem;
+}
+
+.fastt-policy-preview-list {
+	max-height: min(52vh, 34rem);
+	overflow-y: auto;
 }
 
 .fastt-dialog::backdrop {
