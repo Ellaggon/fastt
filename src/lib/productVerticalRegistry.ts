@@ -49,7 +49,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 			search: "/hotels/search",
 		},
 		providerRoutes: {
-			list: "/product?type=Hotel",
+			list: "/catalog/accommodations",
 			create: "/product/create?playbook=launch&step=create&flow=create",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "habitaciones", "reglas"],
@@ -76,7 +76,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 			search: "/tours/search",
 		},
 		providerRoutes: {
-			list: "/product?type=Tour",
+			list: "/catalog/tours",
 			create: "/product/create?type=Tour",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "itinerario"],
@@ -103,7 +103,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 			search: "/packages",
 		},
 		providerRoutes: {
-			list: "/product?type=Package",
+			list: "/catalog/packages",
 			create: "/product/create?type=Package",
 		},
 		requiredSections: ["contenido", "fotos", "itinerario", "incluye"],
@@ -120,17 +120,17 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 		storageType: "Limousine",
 		variantKind: "limousine_service",
 		labels: {
-			singular: "Limusina",
-			plural: "Limusinas",
-			createCta: "Crear limusina",
-			detailTitle: "Ficha de la limusina",
+			singular: "Traslado",
+			plural: "Traslados",
+			createCta: "Crear traslado",
+			detailTitle: "Ficha del traslado",
 		},
 		publicRoutes: {
 			index: "/limousines",
 			search: "/limousines/search",
 		},
 		providerRoutes: {
-			list: "/product?type=Limousine",
+			list: "/catalog/limousines",
 			create: "/product/create?type=Limousine",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "vehiculo", "recogida"],
@@ -143,10 +143,10 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 			"fotos",
 		],
 		createCopy: {
-			title: "Crear limusina",
+			title: "Crear traslado",
 			description:
 				"Crea la identidad mínima del servicio para definir vehículo, recogida, dropoff y capacidad.",
-			namePlaceholder: "Ej: Limusina ejecutiva aeropuerto",
+			namePlaceholder: "Ej: Traslado ejecutivo aeropuerto",
 		},
 	},
 }
@@ -200,7 +200,7 @@ export function productTypeLabel(raw: unknown, fallback = "Oferta"): string {
 	return getProductVerticalDefinition(raw)?.labels.singular ?? fallback
 }
 
-export function productTypePluralLabel(raw: unknown, fallback = "Ofertas"): string {
+export function productTypePluralLabel(raw: unknown, fallback = "Servicios"): string {
 	return getProductVerticalDefinition(raw)?.labels.plural ?? fallback
 }
 

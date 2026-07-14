@@ -18,27 +18,36 @@ describe("catalog/product vertical registry", () => {
 		expect(normalizeProductVertical("Tour")).toBe("tour")
 		expect(normalizeProductVertical("Package")).toBe("package")
 		expect(normalizeProductVertical("paquetes")).toBe("package")
+		expect(normalizeProductVertical("Limousine")).toBe("limousine")
 
 		expect(getProductVerticalEntry("Hotel").labels.workspaceSingular).toBe("Alojamiento")
 		expect(getProductVerticalEntry("Tour").labels.workspaceSingular).toBe("Tour")
 		expect(getProductVerticalEntry("Package").labels.workspaceSingular).toBe("Paquete")
+		expect(getProductVerticalEntry("Limousine").labels.workspaceSingular).toBe("Traslado")
 	})
 
 	it("normalizes productType values to canonical DB casing", () => {
 		expect(normalizeProductTypeValue("hotel")).toBe("Hotel")
 		expect(normalizeProductTypeValue("TOUR")).toBe("Tour")
 		expect(normalizeProductTypeValue("paquete")).toBe("Package")
+		expect(normalizeProductTypeValue("limusina")).toBe("Limousine")
 		expect(normalizeProductTypeValue("unknown")).toBeNull()
 	})
 
-	it("keeps only Hotel, Tour and Package as active product verticals for now", () => {
+	it("keeps customer-facing verticals active without exposing planned rentals", () => {
 		const active = listActiveProductVerticalEntries()
 
-		expect(active.map((entry) => entry.productType)).toEqual(["Hotel", "Tour", "Package"])
+		expect(active.map((entry) => entry.productType)).toEqual([
+			"Hotel",
+			"Tour",
+			"Package",
+			"Limousine",
+		])
 		expect(active.map((entry) => entry.creation.typeOptionLabel)).toEqual([
 			"Alojamiento",
 			"Tour",
 			"Paquete",
+			"Traslado",
 		])
 		expect(productVerticalRegistry.rental.status).toBe("planned")
 		expect(productVerticalRegistry.generic.status).toBe("fallback")
@@ -48,15 +57,20 @@ describe("catalog/product vertical registry", () => {
 		expect(productVerticalRegistry.hotel.routes.publicDetailHref("p1")).toBe("/hotels/p1")
 		expect(productVerticalRegistry.tour.routes.publicDetailHref("p1")).toBe("/tours/p1")
 		expect(productVerticalRegistry.package.routes.publicDetailHref("p1")).toBe("/packages/p1")
-		expect(productVerticalRegistry.hotel.routes.workspaceFilteredHref).toBe("/product?type=Hotel")
-		expect(productVerticalRegistry.tour.routes.workspaceFilteredHref).toBe("/product?type=Tour")
-		expect(productVerticalRegistry.package.routes.workspaceFilteredHref).toBe(
-			"/product?type=Package"
+		expect(productVerticalRegistry.limousine.routes.publicDetailHref("p1")).toBe("/limousines/p1")
+		expect(productVerticalRegistry.hotel.routes.workspaceFilteredHref).toBe(
+			"/catalog/accommodations"
+		)
+		expect(productVerticalRegistry.tour.routes.workspaceFilteredHref).toBe("/catalog/tours")
+		expect(productVerticalRegistry.package.routes.workspaceFilteredHref).toBe("/catalog/packages")
+		expect(productVerticalRegistry.limousine.routes.workspaceFilteredHref).toBe(
+			"/catalog/limousines"
 		)
 
 		expect(productVerticalRegistry.hotel.creation.heading).toBe("Crear alojamiento")
 		expect(productVerticalRegistry.tour.creation.namePlaceholder).toContain("City Tour")
 		expect(productVerticalRegistry.package.creation.namePlaceholder).toContain("4 dias")
+		expect(productVerticalRegistry.limousine.creation.namePlaceholder).toContain("aeropuerto")
 	})
 
 	it("defines readiness sections by vertical without making all products look like hotels", () => {
@@ -69,6 +83,8 @@ describe("catalog/product vertical registry", () => {
 
 		expect(productVerticalRegistry.package.readiness.requiredSections).toContain("inclusions")
 		expect(productVerticalRegistry.package.readiness.requiredSections).not.toContain("rooms")
+		expect(productVerticalRegistry.limousine.readiness.requiredSections).toContain("services")
+		expect(productVerticalRegistry.limousine.readiness.requiredSections).not.toContain("rooms")
 	})
 
 	it("keeps catalog context copy out of restrictions/sellability semantics", () => {
@@ -78,6 +94,7 @@ describe("catalog/product vertical registry", () => {
 		expect(joined).toContain("Prepara la ficha del alojamiento")
 		expect(joined).toContain("Prepara la ficha del tour")
 		expect(joined).toContain("Prepara la ficha del paquete")
+		expect(joined).toContain("Prepara la ficha del traslado")
 		expect(joined).not.toMatch(/Stop Sell|CTA|CTD|Booking Window|cuando se puede vender/i)
 	})
 

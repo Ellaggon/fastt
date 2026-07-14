@@ -1,3 +1,134 @@
 ---
-return Astro.redirect("/product?type=Tour")
+import { ArrowLeft, Map, Plus } from "@lucide/astro"
+
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
+import { PRODUCT_VERTICALS } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+if (!providerId) return Astro.redirect("/provider")
+
+const vertical = PRODUCT_VERTICALS.tour
+const catalog = await getProviderCatalogSummary(providerId, vertical.storageType)
 ---
+
+<WorkspaceLayout title="Tours">
+	<section class="space-y-6">
+		<header
+			class="rounded-[var(--fastt-radius-panel)] bg-slate-950 p-6 text-white shadow-[var(--fastt-shadow-panel)] md:p-8"
+		>
+			<div class="flex flex-wrap items-start justify-between gap-5">
+				<div class="max-w-3xl space-y-3">
+					<a
+						href={routes.dashboard()}
+						class="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"
+					>
+						<ArrowLeft class="h-4 w-4" aria-hidden="true" />Inicio</a
+					>
+					<div class="space-y-2">
+						<p class="inline-flex items-center gap-2 text-sm font-medium text-slate-400">
+							<Map class="h-4 w-4" aria-hidden="true" />
+							Tours
+						</p>
+						<h1 class="text-3xl font-semibold tracking-tight text-white">Tours</h1>
+						<p class="text-sm leading-6 text-slate-300">
+							Prepara experiencias con punto de encuentro, duración, itinerario, fotos, cupos y
+							disponibilidad sin mezclarlo con la operación hotelera.
+						</p>
+					</div>
+				</div>
+				<Button
+					href={vertical.providerRoutes.create}
+					class="bg-white text-slate-950 hover:bg-slate-100"
+				>
+					<Plus class="h-4 w-4" aria-hidden="true" />
+					Crear tour
+				</Button>
+			</div>
+		</header>
+
+		<section class="grid gap-3 md:grid-cols-4" aria-label="Resumen de tours">
+			<Card class="bg-white"
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Tours</p><p
+					class="mt-2 text-3xl font-semibold text-slate-950"
+				>
+					{catalog.summary.total}
+				</p></Card
+			>
+			<Card class="bg-white"
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+					Publicados
+				</p><p class="mt-2 text-3xl font-semibold text-slate-950">
+					{catalog.summary.published}
+				</p></Card
+			>
+			<Card class="bg-white"
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Listos</p><p
+					class="mt-2 text-3xl font-semibold text-slate-950"
+				>
+					{catalog.summary.ready}
+				</p></Card
+			>
+			<Card class="bg-white"
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+					Borradores
+				</p><p class="mt-2 text-3xl font-semibold text-slate-950">{catalog.summary.draft}</p></Card
+			>
+		</section>
+
+		<section class="space-y-4">
+			<div class="space-y-1">
+				<h2 class="text-xl font-semibold text-slate-950">Fichas de tour</h2>
+				<p class="text-sm leading-6 text-slate-500">
+					Cada tour debe explicar qué vivirá el cliente, dónde empieza y cómo se opera el cupo.
+				</p>
+			</div>
+			{
+				catalog.products.length === 0 ? (
+					<Card class="grid gap-4 bg-white md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+						<div class="space-y-1">
+							<h3 class="text-lg font-semibold text-slate-950">Todavía no hay tours</h3>
+							<p class="text-sm leading-6 text-slate-500">
+								Crea una ficha inicial para preparar contenido, itinerario y fotos.
+							</p>
+						</div>
+						<Button href={vertical.providerRoutes.create}>Crear tour</Button>
+					</Card>
+				) : (
+					<div class="grid gap-3">
+						{catalog.products.map((product) => (
+							<Card class="grid gap-4 bg-white p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+								<div class="min-w-0 space-y-1">
+									<div class="flex flex-wrap items-center gap-2">
+										<h3 class="truncate text-base font-semibold text-slate-950">{product.name}</h3>
+										<Badge variant={product.status.variant}>{product.status.label}</Badge>
+									</div>
+									<p class="text-sm text-slate-500">
+										Ficha del tour · contenido, itinerario y fotos
+									</p>
+								</div>
+								<div class="flex flex-wrap justify-end gap-2">
+									<Button href={routes.productPreview(product.id)} variant="secondary" size="sm">
+										Vista previa
+									</Button>
+									<Button href={routes.productDetail(product.id)} size="sm">
+										Editar
+									</Button>
+								</div>
+							</Card>
+						))}
+					</div>
+				)
+			}
+		</section>
+	</section>
+</WorkspaceLayout>
