@@ -1,275 +1,574 @@
 ---
-import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Section from "@/components/ui/Section.astro"
+import Dialog from "@/components/ui/Dialog.astro"
+import Input from "@/components/ui/Input.astro"
+import ProgressBar from "@/components/ui/ProgressBar.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildAddRoomHref, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import {
+	summarizeProductPreparation,
+	type ProductPreparationSummary,
+} from "@/lib/playbook/summarize-product-preparation"
+import { routes } from "@/lib/routes"
+import { ArrowRight, BedDouble, Hotel, House, Plus, ShieldCheck, Trash2 } from "@lucide/astro"
+import { and, db, eq, Product, sql, Variant } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
-if (!user?.email) return Astro.redirect("/SignInPage")
+if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = await getProviderIdFromRequest(Astro.request, user)
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
+
+const rows = await db
+	.select({
+		productId: Product.id,
+		productName: Product.name,
+		productType: Product.productType,
+		variantId: Variant.id,
+		variantName: Variant.name,
+		variantKind: Variant.kind,
+		variantActive: Variant.isActive,
+	})
+	.from(Product)
+	.leftJoin(Variant, eq(Variant.productId, Product.id))
+	.where(and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'hotel'`))
+
+const byProduct = new Map<
+	string,
+	{
+		id: string
+		name: string
+		type: string
+		rooms: Array<{ id: string; name: string; kind: string; active: boolean }>
+	}
+>()
+
+for (const row of rows) {
+	const productId = String(row.productId)
+	const entry = byProduct.get(productId) ?? {
+		id: productId,
+		name: String(row.productName ?? "Alojamiento"),
+		type: String(row.productType ?? "Hotel"),
+		rooms: [],
+	}
+	if (row.variantId) {
+		entry.rooms.push({
+			id: String(row.variantId),
+			name: String(row.variantName ?? "Habitación"),
+			kind: String(row.variantKind ?? "hotel_room"),
+			active: Boolean(row.variantActive ?? true),
+		})
+	}
+	byProduct.set(productId, entry)
+}
+
+const products = Array.from(byProduct.values())
+const preparationEntries: Array<[string, ProductPreparationSummary | null]> = await Promise.all(
+	products.map(
+		async (product): Promise<[string, ProductPreparationSummary | null]> => [
+			product.id,
+			await summarizeProductPreparation({
+				productId: product.id,
+				providerId,
+				request: Astro.request,
+				url: Astro.url,
+			}),
+		]
+	)
+)
+const preparationByProduct = new Map<string, ProductPreparationSummary | null>(preparationEntries)
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const flow = Astro.url.searchParams.get("flow")
+if (!addRoomPlaybook.active && flow === "add-room") {
+	return Astro.redirect(
+		buildAddRoomHref(routes.catalogAccommodationRooms(), "choose-accommodation")
+	)
+}
+if (products.length === 1) {
+	if (addRoomPlaybook.active) {
+		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(products[0].id), "create-room"))
+	}
+}
+
+const totalRooms = products.reduce((sum, product) => sum + product.rooms.length, 0)
+const activeRooms = products.reduce(
+	(sum, product) => sum + product.rooms.filter((room) => room.active).length,
+	0
+)
+const inactiveRooms = Math.max(0, totalRooms - activeRooms)
+const isChoosingForAddRoom = addRoomPlaybook.active
+const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = addRoomPlaybook.active
+	? {
+			title: "Resumen",
+			playbookId: "add-room" as const,
+			active: true,
+			stepId: addRoomPlaybook.stepId ?? "choose-accommodation",
+			productId: "",
+			isHotel: true,
+		}
+	: { title: "Resumen" }
+
+function preparationMessage(preparation: ProductPreparationSummary | null | undefined) {
+	if (!preparation) return "Revisa la preparación del alojamiento antes de publicarlo."
+	if (preparation.isPublished) return "Publicado y visible para huéspedes."
+	if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
+	if (preparation.blockerCount > 0) {
+		const preview = preparation.blockerPreview.join(", ").toLowerCase()
+		return `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"}${preview ? `: ${preview}` : ""}.`
+	}
+	return `${preparation.readinessPercent}% de preparación completada.`
+}
+
+function preparationSupport(
+	roomCount: number,
+	preparation: ProductPreparationSummary | null | undefined
+) {
+	if (roomCount === 0) {
+		return "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
+	}
+	if (preparation?.readyToPublish) {
+		return "La ficha ya tiene lo esencial. Revisa la experiencia final antes de publicarla."
+	}
+	if ((preparation?.blockerCount ?? 0) > 0) {
+		return "Continúa por el primer pendiente y vuelve aquí para revisar habitaciones."
+	}
+	return "Mantén habitaciones, tarifas y disponibilidad actualizadas desde sus herramientas operativas."
+}
 ---
 
-<WorkspaceLayout title="Dashboard">
+<Layout {...layoutProps}>
 	<section class="space-y-8">
-		<header class="space-y-2">
-			<h1 class="text-3xl font-semibold text-slate-100">Dashboard</h1>
-			<p class="text-sm text-slate-400">
-				Resumen de preparación de tus alojamientos: qué falta completar y qué está listo para
-				publicar.
-			</p>
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="space-y-1.5">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
+				>
+					<House class="h-4 w-4" />
+					Inicio
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{isChoosingForAddRoom ? "Elige dónde crear la habitación" : "Resumen Operativo"}
+				</h1>
+				<p class="max-w-2xl text-sm leading-6 text-slate-300">
+					{
+						isChoosingForAddRoom
+							? "Selecciona el alojamiento donde agregarás una nueva habitación."
+							: "Revisa el estado de tus servicios, continúa pendientes y abre las herramientas clave de operación desde un solo lugar."
+					}
+				</p>
+			</div>
 		</header>
 
-		<Section
-			title="Estado de preparación"
-			description="Indicadores del playbook de publicación en tu workspace."
-		>
-			<div id="dashboardStatsGrid" class="grid gap-4 md:grid-cols-3" data-state="loading">
-				<Card id="cardProducts" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">Alojamientos</p>
-					<p id="statProducts" class="text-2xl font-bold text-slate-900">—</p>
-					<p id="statProductsDetail" class="text-sm text-slate-600">Fichas en tu cuenta</p>
-				</Card>
-				<Card id="cardInPreparation" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">En preparación</p>
-					<p id="statInPreparation" class="text-2xl font-bold text-slate-900">—</p>
-					<p class="text-sm text-slate-600">Con pasos pendientes del playbook</p>
-				</Card>
-				<Card id="cardReadyToPublish" class="min-h-[112px] space-y-2 bg-slate-100">
-					<p class="text-sm font-semibold text-slate-900">Listos para publicar</p>
-					<div class="space-y-1">
-						<p id="statReadyToPublish" class="text-2xl font-bold text-slate-900">—</p>
-						<p id="readyToPublishDetail" class="text-sm text-slate-600">
-							Revisión final en vista previa
-						</p>
-					</div>
-				</Card>
-			</div>
-		</Section>
+		<div class="space-y-5">
+			{
+				products.length === 0 ? (
+					<Card class="overflow-hidden p-0">
+						<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+							<div class="space-y-5 p-6">
+								<div class="inline-flex h-11 w-11 items-center justify-center rounded-[var(--fastt-radius-card)] bg-slate-950 text-white">
+									<Hotel class="h-5 w-5" />
+								</div>
+								<div class="space-y-2">
+									<h2 class="text-2xl font-semibold text-slate-950">
+										Prepara tu primer alojamiento
+									</h2>
+									<p class="max-w-2xl text-sm leading-6 text-slate-600">
+										Crea un alojamiento para poder configurar habitaciones, tarifas y disponibilidad
+										desde las herramientas operativas.
+									</p>
+								</div>
+							</div>
+							<aside class="border-t border-slate-200 bg-slate-50 p-6 lg:border-t-0 lg:border-l">
+								<div class="flex h-full flex-col justify-between gap-6">
+									<p class="text-sm leading-6 text-slate-600">
+										El asistente te llevará por la ficha, ubicación, fotos y primera habitación.
+									</p>
+									<div class="flex flex-col gap-2">
+										<Button
+											href="/product/create?playbook=launch&step=create&flow=create"
+											data-astro-prefetch
+										>
+											Preparar mi primer alojamiento
+										</Button>
+									</div>
+								</div>
+							</aside>
+						</div>
+					</Card>
+				) : (
+					<>
+						<div class="grid gap-3 sm:grid-cols-3">
+							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
+								<p class="text-xs font-medium text-slate-400">Alojamientos</p>
+								<p class="mt-1 text-2xl font-semibold">{products.length}</p>
+							</div>
+							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
+								<p class="text-xs font-medium text-slate-400">Habitaciones</p>
+								<p class="mt-1 text-2xl font-semibold">{totalRooms}</p>
+							</div>
+							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
+								<p class="text-xs font-medium text-slate-400">Activas</p>
+								<p class="mt-1 text-2xl font-semibold">
+									{activeRooms}
+									<span class="text-sm font-medium text-slate-400">
+										{" "}
+										· {inactiveRooms} inactivas
+									</span>
+								</p>
+							</div>
+						</div>
 
-		<Section title="Alojamientos recientes" description="Continúa la preparación donde lo dejaste.">
-			<Card class="min-h-[168px] bg-slate-100">
-				<div id="dashboardProductsList" class="space-y-3" data-state="loading">
-					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
-					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
-					<div class="h-10 animate-pulse rounded bg-slate-300"></div>
-				</div>
-			</Card>
-		</Section>
+						<div class="grid gap-4">
+							{products.map((product) => {
+								const activeCount = product.rooms.filter((room) => room.active).length
+								const inactiveCount = Math.max(0, product.rooms.length - activeCount)
+								const primaryHref = isChoosingForAddRoom
+									? buildAddRoomHref(routes.productRoomNew(product.id), "create-room")
+									: routes.productRoomsForProduct(product.id)
+								const primaryLabel = isChoosingForAddRoom
+									? "Crear habitación"
+									: product.rooms.length === 0
+										? "Crear primera habitación"
+										: "Abrir habitaciones"
+								const previewRooms = product.rooms.slice(0, 3)
+								const remainingRooms = Math.max(0, product.rooms.length - previewRooms.length)
+								const preparation = preparationByProduct.get(product.id)
+								const preparationPercent = Math.max(
+									0,
+									Math.min(100, Number(preparation?.readinessPercent ?? 0))
+								)
 
-		<Section title="Acciones rápidas" description="Accesos directos a los flujos principales.">
-			<div class="grid gap-4 md:grid-cols-3">
-				<Card class="space-y-4 bg-slate-100">
-					<div class="space-y-1">
-						<p class="text-lg font-semibold text-slate-900">Proveedor</p>
-						<p class="text-sm text-slate-600">Completa identidad, perfil y verificación.</p>
-					</div>
-					<div class="flex justify-end">
-						<Button href="/provider" className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]">
-							Ir a proveedor
-						</Button>
-					</div>
-				</Card>
+								return (
+									<Card class="overflow-hidden p-0">
+										<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
+											<div class="space-y-5 p-5 md:p-6">
+												<div class="flex flex-wrap items-start justify-between gap-4">
+													<div class="space-y-1">
+														<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+															<Hotel class="h-4 w-4" />
+															Alojamiento
+														</p>
+														<h2 class="text-xl font-semibold text-slate-950">{product.name}</h2>
+														<p class="text-sm text-slate-600">
+															{product.rooms.length} habitación
+															{product.rooms.length === 1 ? "" : "es"} · {activeCount} activa
+															{activeCount === 1 ? "" : "s"}
+														</p>
+													</div>
+													<Button href={primaryHref} data-astro-prefetch>
+														{primaryLabel}
+														<ArrowRight class="h-4 w-4" />
+													</Button>
+												</div>
 
-				<Card class="space-y-4 bg-slate-100">
-					<div class="space-y-1">
-						<p class="text-lg font-semibold text-slate-900">Nuevo alojamiento</p>
-						<p class="text-sm text-slate-600">Inicia el playbook de lanzamiento desde cero.</p>
-					</div>
-					<div class="flex justify-end">
-						<Button
-							href="/product/create?playbook=launch&step=create&flow=create"
-							className="bg-[#1E3A8A] text-white hover:bg-[#1e40af]"
-						>
-							Crear alojamiento
-						</Button>
-					</div>
-				</Card>
+												<div class="space-y-3 rounded-[var(--fastt-radius-card)] bg-slate-50 p-4 ring-1 ring-slate-900/[0.06]">
+													<div class="flex flex-wrap items-start justify-between gap-3">
+														<div class="min-w-0 space-y-1">
+															<p class="text-sm font-semibold text-slate-950">
+																{preparationMessage(preparation)}
+															</p>
+															<p class="text-sm leading-6 text-slate-600">
+																{preparationSupport(product.rooms.length, preparation)}
+															</p>
+														</div>
+														{preparation?.nextStepLabel ? (
+															<span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+																{preparation.nextStepLabel}
+															</span>
+														) : null}
+													</div>
+													{preparation?.isPublished ? null : (
+														<ProgressBar
+															value={preparationPercent}
+															className="h-1.5 rounded-full bg-slate-200"
+														/>
+													)}
+												</div>
 
-				<Card class="space-y-4 bg-slate-100">
-					<div class="space-y-1">
-						<p class="text-lg font-semibold text-slate-900">Reglas para huéspedes</p>
-						<p class="text-sm text-slate-600">
-							Define expectativas de estancia antes de publicar el alojamiento.
-						</p>
+												{product.rooms.length > 0 ? (
+													<div class="space-y-2">
+														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+															Habitaciones recientes
+														</p>
+														<div class="divide-y divide-slate-100 rounded-[var(--fastt-radius-card)] bg-slate-50 ring-1 ring-slate-900/[0.06]">
+															{previewRooms.map((room) => (
+																<a
+																	href={routes.productRoomDetail(product.id, room.id)}
+																	data-astro-prefetch
+																	class="flex items-center justify-between gap-3 px-4 py-3 text-sm transition hover:bg-white"
+																>
+																	<span class="flex min-w-0 items-center gap-3">
+																		<span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-white text-slate-700 ring-1 ring-slate-200">
+																			<BedDouble class="h-4 w-4" />
+																		</span>
+																		<span class="min-w-0">
+																			<span class="block truncate font-semibold text-slate-950">
+																				{room.name}
+																			</span>
+																			<span class="block text-xs text-slate-500">
+																				{room.kind === "hotel_room" ? "Habitación" : room.kind}
+																			</span>
+																		</span>
+																	</span>
+																	<span
+																		class:list={[
+																			"shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1",
+																			room.active
+																				? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+																				: "bg-slate-100 text-slate-600 ring-slate-200",
+																		]}
+																	>
+																		{room.active ? "Activa" : "Inactiva"}
+																	</span>
+																</a>
+															))}
+															{remainingRooms > 0 ? (
+																<p class="px-4 py-3 text-xs font-medium text-slate-500">
+																	+ {remainingRooms} habitación{remainingRooms === 1 ? "" : "es"}{" "}
+																	más
+																</p>
+															) : null}
+														</div>
+													</div>
+												) : null}
+											</div>
+
+											<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
+												<div class="flex h-full flex-col justify-between gap-6">
+													<div class="grid grid-cols-2 gap-3">
+														<div>
+															<p class="text-xs font-medium text-slate-500">Activas</p>
+															<p class="mt-1 text-xl font-semibold text-slate-950">{activeCount}</p>
+														</div>
+														<div>
+															<p class="text-xs font-medium text-slate-500">Inactivas</p>
+															<p class="mt-1 text-xl font-semibold text-slate-950">
+																{inactiveCount}
+															</p>
+														</div>
+													</div>
+													<div class="flex flex-col gap-2">
+														<Button href={primaryHref} data-astro-prefetch className="w-full">
+															{primaryLabel}
+														</Button>
+														{isChoosingForAddRoom ? (
+															<Button
+																href={routes.productRoomsForProduct(product.id)}
+																data-astro-prefetch
+																variant="secondary"
+																className="w-full"
+															>
+																Ver habitaciones
+															</Button>
+														) : (
+															<Button
+																href={buildAddRoomHref(
+																	routes.productRoomNew(product.id),
+																	"create-room"
+																)}
+																data-astro-prefetch
+																variant="secondary"
+																className="w-full"
+															>
+																Nueva habitación
+															</Button>
+														)}
+													</div>
+													{!isChoosingForAddRoom ? (
+														<details class="group border-t border-slate-200 pt-4">
+															<summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-slate-500 transition hover:text-slate-800">
+																<span>Acciones avanzadas</span>
+																<span class="text-slate-400 transition group-open:rotate-45">
+																	+
+																</span>
+															</summary>
+															<div class="mt-3 rounded-[var(--fastt-radius-card)] bg-white p-3 ring-1 ring-slate-900/[0.06]">
+																<p class="text-xs leading-5 text-slate-500">
+																	Usa esta opción solo si este alojamiento fue creado por error o ya
+																	no debe existir en tu operación.
+																</p>
+																<button
+																	type="button"
+																	class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-rose-700 transition hover:text-rose-800"
+																	data-open-product-delete
+																	data-product-id={product.id}
+																	data-product-name={product.name}
+																>
+																	<Trash2 class="h-4 w-4" />
+																	Eliminar alojamiento
+																</button>
+															</div>
+														</details>
+													) : null}
+												</div>
+											</aside>
+										</div>
+										<Dialog
+											class="w-[min(520px,calc(100%-2rem))]"
+											data-product-delete-dialog={product.id}
+										>
+											<form
+												class="space-y-5 p-5"
+												data-product-delete-form
+												data-product-id={product.id}
+												data-product-name={product.name}
+											>
+												<div class="space-y-2">
+													<p class="text-xs font-semibold tracking-wide text-rose-700 uppercase">
+														Eliminar alojamiento
+													</p>
+													<h2 class="text-lg font-semibold text-slate-950">
+														Eliminar {product.name}
+													</h2>
+													<p class="text-sm leading-6 text-slate-600">
+														Se eliminarán la ficha, habitaciones, fotos, tarifas, condiciones e
+														inventario asociados. Esta acción no puede deshacerse.
+													</p>
+												</div>
+												<label class="block space-y-1.5 text-sm">
+													<span class="font-medium text-slate-800">
+														Escribe <strong>{product.name}</strong> para confirmar
+													</span>
+													<Input data-product-delete-confirmation autocomplete="off" />
+												</label>
+												<p class="text-sm text-rose-700" data-product-delete-feedback />
+												<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+													<Button type="button" variant="secondary" data-close-product-delete>
+														Cancelar
+													</Button>
+													<Button
+														type="submit"
+														variant="danger"
+														data-confirm-product-delete
+														disabled
+													>
+														Eliminar alojamiento
+													</Button>
+												</div>
+											</form>
+										</Dialog>
+									</Card>
+								)
+							})}
+						</div>
+					</>
+				)
+			}
+		</div>
+
+		{
+			products.length > 0 && !isChoosingForAddRoom ? (
+				<section class="border-t border-slate-800 pt-5">
+					<div class="grid gap-4 lg:grid-cols-2">
+						<div class="flex min-h-36 flex-col justify-between gap-5 rounded-[var(--fastt-radius-panel)] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+							<div class="flex gap-3">
+								<span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--fastt-radius-card)] bg-slate-950 text-white">
+									<Plus class="h-4 w-4" />
+								</span>
+								<div>
+									<h2 class="text-base font-semibold text-slate-950">
+										¿Administras otro servicio?
+									</h2>
+									<p class="mt-1 text-sm leading-6 text-slate-500">
+										Agrega otro servicio solo si operas una línea distinta, como tours, paquetes o
+										traslados. Si quieres sumar espacios dentro del mismo hotel, crea habitaciones.
+									</p>
+								</div>
+							</div>
+							<div class="flex justify-end">
+								<Button href="/product/create" variant="secondary">
+									Agregar otro servicio
+								</Button>
+							</div>
+						</div>
+						<div class="flex min-h-36 flex-col justify-between gap-5 rounded-[var(--fastt-radius-panel)] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+							<div class="flex gap-3">
+								<span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--fastt-radius-card)] bg-slate-950 text-white">
+									<ShieldCheck class="h-4 w-4" />
+								</span>
+								<div>
+									<h2 class="text-base font-semibold text-slate-950">Proveedor</h2>
+									<p class="mt-1 text-sm leading-6 text-slate-500">
+										Completa identidad, perfil y verificación para que la operación tenga datos
+										confiables antes de publicar o vender.
+									</p>
+								</div>
+							</div>
+							<div class="flex justify-end">
+								<Button href="/provider" variant="secondary">
+									Ir a proveedor
+								</Button>
+							</div>
+						</div>
 					</div>
-					<div class="flex justify-end">
-						<Button href="/provider/house-rules" variant="secondary"> Configurar reglas </Button>
-					</div>
-				</Card>
-			</div>
-		</Section>
+				</section>
+			) : null
+		}
 	</section>
-	<script is:inline>
-		;(function () {
-			const shellStart = performance.now()
-			const markPaint = () => {
-				console.debug("shell visible", {
-					page: "dashboard-surface",
-					durationMs: Number((performance.now() - shellStart).toFixed(1)),
+</Layout>
+
+<script>
+	document.querySelectorAll<HTMLButtonElement>("[data-open-product-delete]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const productId = button.dataset.productId
+			if (!productId) return
+			const dialog = document.querySelector<HTMLDialogElement>(
+				`[data-product-delete-dialog="${CSS.escape(productId)}"]`
+			)
+			dialog?.showModal()
+		})
+	})
+
+	document.querySelectorAll<HTMLDialogElement>("[data-product-delete-dialog]").forEach((dialog) => {
+		const form = dialog.querySelector<HTMLFormElement>("[data-product-delete-form]")
+		const input = form?.querySelector<HTMLInputElement>("[data-product-delete-confirmation]")
+		const submit = form?.querySelector<HTMLButtonElement>("[data-confirm-product-delete]")
+		const feedback = form?.querySelector<HTMLElement>("[data-product-delete-feedback]")
+		const productName = String(form?.dataset.productName ?? "")
+		const productId = String(form?.dataset.productId ?? "")
+
+		dialog.querySelector("[data-close-product-delete]")?.addEventListener("click", () => {
+			dialog.close()
+		})
+		dialog.addEventListener("click", (event) => {
+			if (event.target === dialog) dialog.close()
+		})
+		dialog.addEventListener("close", () => {
+			if (input) input.value = ""
+			if (submit) submit.disabled = true
+			if (feedback) feedback.textContent = ""
+		})
+		input?.addEventListener("input", () => {
+			if (submit) submit.disabled = input.value.trim() !== productName
+		})
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!submit || submit.disabled || !productId) return
+			submit.disabled = true
+			if (feedback) feedback.textContent = "Eliminando alojamiento..."
+			try {
+				const response = await fetch(`/api/products/${encodeURIComponent(productId)}/delete`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ productId }),
 				})
-			}
-			if (document.readyState === "complete" || document.readyState === "interactive") {
-				markPaint()
-			} else {
-				document.addEventListener("DOMContentLoaded", markPaint, { once: true })
-			}
-
-			const statsGrid = document.getElementById("dashboardStatsGrid")
-			const productsList = document.getElementById("dashboardProductsList")
-			const statProducts = document.getElementById("statProducts")
-			const statProductsDetail = document.getElementById("statProductsDetail")
-			const statInPreparation = document.getElementById("statInPreparation")
-			const statReadyToPublish = document.getElementById("statReadyToPublish")
-			const readyToPublishDetail = document.getElementById("readyToPublishDetail")
-
-			const setErrorState = (message) => {
-				if (readyToPublishDetail) readyToPublishDetail.textContent = message
-				if (productsList) {
-					productsList.innerHTML = ""
-					const row = document.createElement("p")
-					row.className = "text-sm text-rose-700"
-					row.textContent = "No se pudo cargar el resumen del dashboard."
-					productsList.appendChild(row)
+				const result = await response.json().catch(() => null)
+				if (!response.ok) {
+					throw new Error(result?.error || result?.message || "No se pudo eliminar el alojamiento")
 				}
-			}
-
-			const statusBadgeClass = (status) => {
-				if (status === "published") return "bg-emerald-100 text-emerald-800"
-				if (status === "ready") return "bg-sky-100 text-sky-800"
-				return "bg-amber-100 text-amber-800"
-			}
-
-			const renderProducts = (items) => {
-				if (!productsList) return
-				productsList.innerHTML = ""
-				if (!Array.isArray(items) || items.length === 0) {
-					const empty = document.createElement("div")
-					empty.className = "rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
-					empty.textContent =
-						"Aún no tienes alojamientos. Crea el primero para iniciar el playbook."
-					productsList.appendChild(empty)
-					return
+				window.location.assign("/dashboard")
+			} catch (error) {
+				if (feedback) {
+					feedback.textContent =
+						error instanceof Error ? error.message : "No se pudo eliminar el alojamiento"
 				}
-
-				for (const item of items) {
-					const preparation = item.preparation || {}
-					const row = document.createElement("div")
-					row.className =
-						"flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
-
-					const main = document.createElement("div")
-					main.className = "min-w-0 flex-1 space-y-1"
-
-					const titleRow = document.createElement("div")
-					titleRow.className = "flex flex-wrap items-center gap-2"
-
-					const name = document.createElement("a")
-					name.href = item.href
-					name.className = "font-medium text-slate-900 hover:underline"
-					name.textContent = item.name || "Alojamiento sin nombre"
-
-					const badge = document.createElement("span")
-					badge.className = `inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(item.status)}`
-					badge.textContent = String(item.statusLabel || "En preparación")
-
-					titleRow.appendChild(name)
-					titleRow.appendChild(badge)
-
-					const meta = document.createElement("p")
-					meta.className = "text-sm text-slate-600"
-					if (item.status === "published") {
-						meta.textContent = "Publicado y visible para huéspedes."
-					} else if (preparation.readyToPublish) {
-						meta.textContent = "Preparación completa. Revisa la vista previa y publica."
-					} else if (preparation.blockerCount > 0) {
-						const preview = Array.isArray(preparation.blockerPreview)
-							? preparation.blockerPreview.join(", ")
-							: ""
-						meta.textContent = `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"}${preview ? `: ${preview.toLowerCase()}` : ""}.`
-					} else {
-						meta.textContent = `${Number(preparation.readinessPercent ?? 0)}% de preparación completada.`
-					}
-
-					const progressTrack = document.createElement("div")
-					progressTrack.className =
-						"h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-200"
-					const progressBar = document.createElement("div")
-					progressBar.className = "h-full bg-slate-900 transition-all"
-					progressBar.style.width = `${Math.max(0, Math.min(100, Number(preparation.readinessPercent ?? 0)))}%`
-					progressTrack.appendChild(progressBar)
-
-					main.append(titleRow, meta)
-					if (item.status !== "published") main.appendChild(progressTrack)
-
-					const actions = document.createElement("div")
-					actions.className = "flex flex-wrap gap-2"
-
-					if (item.status !== "published" && preparation.continuePreparationHref) {
-						const continueBtn = document.createElement("a")
-						continueBtn.href = preparation.continuePreparationHref
-						continueBtn.className =
-							"fastt-button inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
-						continueBtn.textContent = preparation.readyToPublish
-							? "Ir a vista previa"
-							: "Continuar preparación"
-						actions.appendChild(continueBtn)
-					}
-
-					const editBtn = document.createElement("a")
-					editBtn.href = item.href
-					editBtn.className =
-						"fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-					editBtn.textContent = "Abrir ficha"
-					actions.appendChild(editBtn)
-
-					row.append(main, actions)
-					productsList.appendChild(row)
-				}
+				submit.disabled = false
 			}
-
-			const fetchStart = performance.now()
-			fetch("/api/internal/dashboard-summary", { headers: { accept: "application/json" } })
-				.then(async (response) => {
-					if (!response.ok) throw new Error(`dashboard_summary_${response.status}`)
-					return await response.json()
-				})
-				.then((payload) => {
-					const total = Number(payload.totalProducts ?? 0)
-					const published = Number(payload.publishedProducts ?? 0)
-					const inPreparation = Number(payload.inPreparationProducts ?? 0)
-					const readyToPublish = Number(payload.readyToPublishProducts ?? 0)
-
-					if (statProducts) statProducts.textContent = String(total)
-					if (statProductsDetail) {
-						statProductsDetail.textContent =
-							published > 0
-								? `${published} publicado${published === 1 ? "" : "s"}`
-								: "Fichas en tu cuenta"
-					}
-					if (statInPreparation) statInPreparation.textContent = String(inPreparation)
-					if (statReadyToPublish) statReadyToPublish.textContent = String(readyToPublish)
-					if (readyToPublishDetail) {
-						readyToPublishDetail.textContent =
-							readyToPublish > 0
-								? "Pueden publicarse desde la vista previa"
-								: "Completa el playbook para llegar aquí"
-					}
-
-					statsGrid?.querySelectorAll("[data-skeleton]").forEach((node) => node.remove())
-					renderProducts(payload.products)
-					console.debug("data hydrated", {
-						page: "dashboard-surface",
-						durationMs: Number((performance.now() - fetchStart).toFixed(1)),
-					})
-				})
-				.catch(() => {
-					setErrorState("No fue posible cargar los indicadores en este momento.")
-				})
-		})()
-	</script>
-</WorkspaceLayout>
+		})
+	})
+</script>
