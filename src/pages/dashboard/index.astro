@@ -235,6 +235,8 @@ function preparationSupport(
 									: product.rooms.length === 0
 										? "Crear primera habitación"
 										: "Abrir habitaciones"
+								const accommodationHref = routes.productDetail(product.id)
+								const accommodationLabel = "Abrir alojamiento"
 								const previewRooms = product.rooms.slice(0, 3)
 								const remainingRooms = Math.max(0, product.rooms.length - previewRooms.length)
 								const preparation = preparationByProduct.get(product.id)
@@ -260,8 +262,8 @@ function preparationSupport(
 															{activeCount === 1 ? "" : "s"}
 														</p>
 													</div>
-													<Button href={primaryHref} data-astro-prefetch>
-														{primaryLabel}
+													<Button href={accommodationHref} data-astro-prefetch>
+														{accommodationLabel}
 														<ArrowRight class="h-4 w-4" />
 													</Button>
 												</div>

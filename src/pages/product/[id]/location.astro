@@ -11,6 +11,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductFullAggregate } from "@/modules/catalog/public"
+import "leaflet/dist/leaflet.css"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -99,7 +100,12 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 							required
 							description="Haz clic en el mapa para seleccionar la ubicación"
 						>
-							<div id="map" class="h-72 w-full overflow-hidden rounded-lg border border-slate-300">
+							<div
+								id="map"
+								class="h-72 w-full overflow-hidden rounded-lg border border-slate-300"
+								data-lat={initialLat}
+								data-lng={initialLng}
+							>
 							</div>
 							<p id="coordsText" class="mt-2 text-sm text-slate-600"></p>
 						</FormField>
@@ -134,23 +140,17 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 		</section>
 	</section>
 
-	<script
-		src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-		crossorigin=""></script>
-	<script type="module" define:vars={{ initialLat, initialLng }}>
+	<script>
+		import L from "leaflet"
 		import { resolvePlaybookRedirectAfterSave } from "@/lib/playbook/playbook-nav.ts"
 
-		const form = document.getElementById("locationForm")
-		const btn = document.getElementById("submitBtn")
-		const stateLabel = document.getElementById("stateLabel")
-		const stateDetail = document.getElementById("stateDetail")
-		const latInput = document.getElementById("lat")
-		const lngInput = document.getElementById("lng")
-		const coordsText = document.getElementById("coordsText")
+		type LocationState = "empty" | "loading" | "success" | "error" | "disabled"
 
-		function setState(state, detail = "") {
-			const labels = {
+		function setState(state: LocationState, detail = "") {
+			const stateLabel = document.getElementById("stateLabel")
+			const stateDetail = document.getElementById("stateDetail")
+			if (!stateLabel || !stateDetail) return
+			const labels: Record<LocationState, string> = {
 				empty: "Vacío: sin cambios guardados.",
 				loading: "Cargando: guardando ubicación...",
 				success: "Éxito: ubicación guardada correctamente.",
@@ -161,62 +161,90 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 			stateDetail.textContent = detail
 		}
 
-		function updateCoords(lat, lng) {
+		function updateCoords(lat: number, lng: number) {
+			const latInput = document.getElementById("lat")
+			const lngInput = document.getElementById("lng")
+			const coordsText = document.getElementById("coordsText")
+			if (!(latInput instanceof HTMLInputElement) || !(lngInput instanceof HTMLInputElement)) return
 			latInput.value = String(lat)
 			lngInput.value = String(lng)
-			coordsText.textContent = `Coordenadas seleccionadas: ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`
+			if (coordsText) {
+				coordsText.textContent = `Coordenadas seleccionadas: ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`
+			}
 		}
 
-		const map = window.L.map("map").setView([Number(initialLat), Number(initialLng)], 12)
-		window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-			maxZoom: 19,
-			attribution: "&copy; OpenStreetMap",
-		}).addTo(map)
-
-		const marker = window.L.marker([Number(initialLat), Number(initialLng)], {
-			draggable: true,
-		}).addTo(map)
-		updateCoords(initialLat, initialLng)
-
-		map.on("click", (event) => {
-			const { lat, lng } = event.latlng
-			marker.setLatLng([lat, lng])
-			updateCoords(lat, lng)
-		})
-
-		marker.on("dragend", () => {
-			const { lat, lng } = marker.getLatLng()
-			updateCoords(lat, lng)
-		})
-
-		form?.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			setState("loading")
-			btn.disabled = true
-			setState("disabled")
-
-			try {
-				const fd = new FormData(form)
-				const res = await fetch("/api/product/location", { method: "POST", body: fd })
-				const txt = await res.text()
-
-				if (!res.ok) {
-					btn.disabled = false
-					setState("error", `status=${res.status}\n${txt}`)
-					return
-				}
-
-				setState("success", "Guardado correctamente")
-				const targetProductId = String(fd.get("productId") || "")
-				window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-					productId: targetProductId,
-					launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
-					launchStep: "images",
-				})
-			} catch (err) {
-				btn.disabled = false
-				setState("error", `Error de red: ${String(err)}`)
+		function initLocationMap() {
+			const mapElement = document.getElementById("map")
+			const form = document.getElementById("locationForm")
+			const btn = document.getElementById("submitBtn")
+			if (
+				!mapElement ||
+				!(form instanceof HTMLFormElement) ||
+				!(btn instanceof HTMLButtonElement)
+			) {
+				return
 			}
-		})
+
+			if (mapElement.dataset.ready === "true") return
+			mapElement.dataset.ready = "true"
+
+			const initialLat = Number(mapElement.dataset.lat || "-16.495905")
+			const initialLng = Number(mapElement.dataset.lng || "-68.133623")
+			const map = L.map(mapElement).setView([initialLat, initialLng], 12)
+
+			L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+				maxZoom: 19,
+				attribution: "&copy; OpenStreetMap",
+			}).addTo(map)
+
+			const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map)
+			updateCoords(initialLat, initialLng)
+
+			window.setTimeout(() => map.invalidateSize(), 80)
+
+			map.on("click", (event) => {
+				const { lat, lng } = event.latlng
+				marker.setLatLng([lat, lng])
+				updateCoords(lat, lng)
+			})
+
+			marker.on("dragend", () => {
+				const { lat, lng } = marker.getLatLng()
+				updateCoords(lat, lng)
+			})
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault()
+				setState("loading")
+				btn.disabled = true
+				setState("disabled")
+
+				try {
+					const fd = new FormData(form)
+					const res = await fetch("/api/product/location", { method: "POST", body: fd })
+					const txt = await res.text()
+
+					if (!res.ok) {
+						btn.disabled = false
+						setState("error", `status=${res.status}\n${txt}`)
+						return
+					}
+
+					setState("success", "Guardado correctamente")
+					const targetProductId = String(fd.get("productId") || "")
+					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+						productId: targetProductId,
+						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
+						launchStep: "images",
+					})
+				} catch (err) {
+					btn.disabled = false
+					setState("error", `Error de red: ${String(err)}`)
+				}
+			})
+		}
+
+		initLocationMap()
+		document.addEventListener("astro:page-load", initLocationMap)
 	</script>
 </PlaybookLayout>
