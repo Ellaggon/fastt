@@ -5,7 +5,12 @@ const roomId = String(Astro.params.roomId ?? "")
 if (!productId) return Astro.redirect("/product")
 if (!roomId) return Astro.redirect(`/product/${encodeURIComponent(productId)}/rooms`)
 
-return Astro.redirect(
-	`/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(roomId)}#disponibilidad`
-)
+const target = new URL("/rates/calendar", Astro.url)
+target.search = Astro.url.search
+target.searchParams.set("variantId", roomId)
+target.searchParams.set("focus", "availability")
+target.searchParams.set("sourceProductId", productId)
+target.searchParams.set("source", "room-availability-redirect")
+
+return Astro.redirect(target.toString(), 308)
 ---
