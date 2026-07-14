@@ -49,7 +49,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 			search: "/hotels/search",
 		},
 		providerRoutes: {
-			list: "/catalog/accommodations",
+			list: "/dashboard",
 			create: "/product/create?playbook=launch&step=create&flow=create",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "habitaciones", "reglas"],

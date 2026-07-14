@@ -215,7 +215,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		status: "canonical",
 		context: "enterprise-operations",
 		owner: "Command Center",
-		rationale: "Primary operational entry point.",
+		rationale:
+			"Resumen operativo del proveedor con preparación de servicios, accesos frecuentes y señales de continuidad.",
 	},
 	{
 		pattern: "/rooms",
@@ -225,19 +226,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Short alias that redirects to the accommodation rooms workspace.",
 	},
 	{
-		pattern: "/catalog/accommodations/rooms",
-		status: "canonical",
-		context: "provider-workspace",
-		owner: "Alojamiento",
+		pattern: "/catalog/accommodations",
+		status: "legacy",
+		context: "enterprise-operations",
+		owner: "Command Center",
 		rationale:
-			"Selector de habitaciones para alojamientos; las habitaciones pertenecen al vertical hotel/alojamiento, no a una oferta genérica.",
+			"Ruta histórica del resumen de alojamientos; redirige al inicio canónico /dashboard.",
 	},
 	{
-		pattern: "/catalog/accommodations",
-		status: "canonical",
+		pattern: "/catalog/accommodations/rooms",
+		status: "legacy",
 		context: "provider-workspace",
 		owner: "Servicios",
-		rationale: "Servicio de alojamiento gestionado por el proveedor.",
+		rationale:
+			"Compatibilidad para enlaces antiguos del selector de alojamientos; redirige al inicio canónico /dashboard.",
 	},
 	{
 		pattern: "/catalog/tours",
