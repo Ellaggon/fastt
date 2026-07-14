@@ -23,7 +23,8 @@ const editorialSurfaces = [
 describe("Guardrail: Property Content operational semantics", () => {
 	it("keeps Property Content framed as a client-first accommodation shell", () => {
 		const requiredSignals: Record<string, string[]> = {
-			"src/pages/product/index.astro": ["Alojamientos", "Tus", "Preparación para publicar"],
+			"src/pages/product/index.astro": ["Astro.redirect", "routes.catalogAccommodations"],
+			"src/pages/catalog/accommodations.astro": ["Alojamientos", "Fichas de alojamiento"],
 			"src/pages/product/create.astro": ["Crear alojamiento", "Tipo de oferta"],
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
@@ -167,9 +168,10 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(roomWorkspace).toContain("#fotos")
 		expect(roomWorkspace).toContain("roomPhotoReadiness")
 		for (const relativePath of removedLegacyVariantRoutes) {
-			expect(existsSync(join(process.cwd(), relativePath)), `${relativePath} should stay removed`).toBe(
-				false
-			)
+			expect(
+				existsSync(join(process.cwd(), relativePath)),
+				`${relativePath} should stay removed`
+			).toBe(false)
 		}
 		expect(legacyAvailability).toContain("/rates/calendar")
 		expect(legacyAvailability).toContain('target.searchParams.set("focus", "availability")')
@@ -207,19 +209,18 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const governance = read("src/lib/backoffice-governance.ts")
 		const sidebar = read("src/components/dashboard/DashboardSidebar.astro")
 
-		expect(governance).toContain("Alojamientos")
-		expect(governance).toContain("Contenido del alojamiento")
-		expect(governance).toContain("Alojamientos")
+		expect(governance).toContain("Servicios")
+		expect(governance).toContain("Alojamiento")
 		expect(governance).toContain("Habitaciones")
 		expect(governance).toContain("Reglas para huéspedes")
-		expect(governance).toContain("Gestiona alojamientos")
+		expect(governance).toContain("Gestiona solo los rubros activos")
 		expect(sidebar).not.toContain("Próximamente")
 		expect(governance).not.toContain("Property Content NO")
 	})
 
 	it("keeps Product as generic catalog while rooms stay Hotel-only", () => {
 		const registry = read("src/lib/productVerticalRegistry.ts")
-		const productList = read("src/pages/product/index.astro")
+		const productList = read("src/pages/catalog/accommodations.astro")
 		const productCreate = read("src/pages/product/create.astro")
 		const roomsAggregate = read("src/pages/catalog/accommodations/rooms/index.astro")
 		const roomsByProduct = read("src/pages/product/[id]/rooms.astro")
@@ -230,9 +231,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(registry).toContain('storageType: "Hotel"')
 		expect(registry).toContain('storageType: "Tour"')
 		expect(registry).toContain('storageType: "Package"')
+		expect(registry).toContain('storageType: "Limousine"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
 		expect(productList).toContain("Alojamientos")
-		expect(productList).toContain("PRODUCT_VERTICAL_OPTIONS")
+		expect(productList).toContain("Fichas de alojamiento")
+		expect(productList).toContain("getProviderCatalogSummary")
 		expect(productCreate).toContain("PRODUCT_VERTICAL_OPTIONS")
 		expect(productCreate).toContain("Crear oferta")
 		expect(roomsAggregate).toContain("lower(${Product.productType}) = 'hotel'")
@@ -245,7 +248,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 	})
 
 	it("integrates House Rules into the provider publish confidence loop", () => {
-		const worklist = read("src/pages/product/index.astro")
+		const worklist = read("src/pages/catalog/accommodations.astro")
 		const readiness = read("src/pages/product/[id]/index.astro")
 		const preview = read("src/pages/product/[id]/preview.astro")
 		const houseRules = read("src/pages/provider/house-rules.astro")

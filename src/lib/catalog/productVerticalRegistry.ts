@@ -1,6 +1,6 @@
-export type ProductVertical = "hotel" | "tour" | "package" | "rental" | "generic"
+export type ProductVertical = "hotel" | "tour" | "package" | "limousine" | "rental" | "generic"
 
-export type ProductTypeValue = "Hotel" | "Tour" | "Package"
+export type ProductTypeValue = "Hotel" | "Tour" | "Package" | "Limousine"
 
 export type ProductVerticalSectionKey =
 	| "identity"
@@ -156,9 +156,9 @@ export const productVerticalRegistry = {
 			scopeRatePlan: "Plan tarifario",
 		},
 		routes: {
-			workspaceListHref: "/product",
+			workspaceListHref: "/catalog/accommodations",
 			workspaceCreateHref: "/product/create?playbook=launch&step=create&flow=create",
-			workspaceFilteredHref: "/product?type=Hotel",
+			workspaceFilteredHref: "/catalog/accommodations",
 			publicCollectionHref: "/hotels",
 			publicDetailHref: (productId: string) => `/hotels/${encodeId(productId)}`,
 		},
@@ -231,9 +231,9 @@ export const productVerticalRegistry = {
 			scopeRatePlan: "Tarifa",
 		},
 		routes: {
-			workspaceListHref: "/product",
+			workspaceListHref: "/catalog/tours",
 			workspaceCreateHref: "/product/create?type=Tour",
-			workspaceFilteredHref: "/product?type=Tour",
+			workspaceFilteredHref: "/catalog/tours",
 			publicCollectionHref: "/tours",
 			publicDetailHref: (productId: string) => `/tours/${encodeId(productId)}`,
 		},
@@ -305,9 +305,9 @@ export const productVerticalRegistry = {
 			scopeRatePlan: "Tarifa",
 		},
 		routes: {
-			workspaceListHref: "/product",
+			workspaceListHref: "/catalog/packages",
 			workspaceCreateHref: "/product/create?type=Package",
-			workspaceFilteredHref: "/product?type=Package",
+			workspaceFilteredHref: "/catalog/packages",
 			publicCollectionHref: "/packages",
 			publicDetailHref: (productId: string) => `/packages/${encodeId(productId)}`,
 		},
@@ -360,6 +360,73 @@ export const productVerticalRegistry = {
 		contextLine:
 			"Prepara la ficha del paquete: recorrido, dias/noches, inclusiones, fotos, ubicacion y vista previa.",
 	},
+	limousine: {
+		vertical: "limousine",
+		productType: "Limousine",
+		status: "active",
+		labels: {
+			singular: "traslado",
+			plural: "traslados",
+			workspaceSingular: "Traslado",
+			workspacePlural: "Traslados",
+			publicSingular: "Traslado",
+			publicPlural: "Traslados",
+			variantSingular: "servicio",
+			variantPlural: "servicios",
+			ratePlanSingular: "tarifa",
+			ratePlanPlural: "tarifas",
+			scopeProduct: "Traslado",
+			scopeVariant: "Servicio",
+			scopeRatePlan: "Tarifa",
+		},
+		routes: {
+			workspaceListHref: "/catalog/limousines",
+			workspaceCreateHref: "/product/create?type=Limousine",
+			workspaceFilteredHref: "/catalog/limousines",
+			publicCollectionHref: "/limousines",
+			publicDetailHref: (productId: string) => `/limousines/${encodeId(productId)}`,
+		},
+		creation: {
+			title: "Catalogo · Crear traslado",
+			heading: "Crear traslado",
+			description:
+				"Crea la identidad minima del servicio para preparar vehiculo, zonas, capacidad y publicacion.",
+			typeOptionLabel: "Traslado",
+			nameLabel: "Nombre del servicio",
+			namePlaceholder: "Ej: Traslado ejecutivo aeropuerto",
+			destinationLabel: "Destino o zona principal",
+			submitLabel: "Crear traslado",
+			loadingLabel: "Cargando: creando traslado...",
+			successLabel: "Exito: traslado creado correctamente.",
+		},
+		sections: [
+			...commonCatalogSections,
+			{
+				key: "services",
+				label: "Vehiculo y servicio",
+				description: "Capacidad, tipo de vehiculo, zonas de recogida y dropoff.",
+				required: true,
+				owner: "experience",
+			},
+		],
+		readiness: {
+			requiredSections: [
+				"identity",
+				"content",
+				"photos",
+				"location",
+				"subtype",
+				"services",
+				"bookingPolicies",
+				"preview",
+			],
+			recommendedSections: [],
+			publishSummary:
+				"El traslado debe explicar vehiculo, capacidad, zonas, fotos, disponibilidad y condiciones.",
+		},
+		contextLine:
+			"Prepara la ficha del traslado: vehiculo, capacidad, zonas de recogida, dropoff, fotos y vista previa.",
+	},
 	rental: {
 		vertical: "rental",
 		productType: null,
@@ -380,9 +447,9 @@ export const productVerticalRegistry = {
 			scopeRatePlan: "Tarifa",
 		},
 		routes: {
-			workspaceListHref: "/product",
+			workspaceListHref: "/catalog/accommodations",
 			workspaceCreateHref: "/product/create?type=Rental",
-			workspaceFilteredHref: "/product?type=Rental",
+			workspaceFilteredHref: "/catalog/accommodations",
 			publicCollectionHref: null,
 			publicDetailHref: () => null,
 		},
@@ -427,9 +494,9 @@ export const productVerticalRegistry = {
 			scopeRatePlan: "Rate Plan",
 		},
 		routes: {
-			workspaceListHref: "/product",
+			workspaceListHref: "/catalog/accommodations",
 			workspaceCreateHref: "/product/create",
-			workspaceFilteredHref: "/product",
+			workspaceFilteredHref: "/catalog/accommodations",
 			publicCollectionHref: null,
 			publicDetailHref: () => null,
 		},
@@ -456,7 +523,7 @@ export const productVerticalRegistry = {
 	},
 } satisfies Record<ProductVertical, ProductVerticalRegistryEntry>
 
-export const activeProductVerticals = ["hotel", "tour", "package"] as const
+export const activeProductVerticals = ["hotel", "tour", "package", "limousine"] as const
 
 export function normalizeProductVertical(value: unknown): ProductVertical {
 	const raw = String(value ?? "")
@@ -478,6 +545,16 @@ export function normalizeProductVertical(value: unknown): ProductVertical {
 	}
 	if (raw === "package" || raw === "packages" || raw === "paquete" || raw === "paquetes") {
 		return "package"
+	}
+	if (
+		raw === "limousine" ||
+		raw === "limousines" ||
+		raw === "limusina" ||
+		raw === "limusinas" ||
+		raw === "limo" ||
+		raw === "limos"
+	) {
+		return "limousine"
 	}
 	if (raw === "rental" || raw === "rentals" || raw === "vacation_rental") return "rental"
 	return "generic"

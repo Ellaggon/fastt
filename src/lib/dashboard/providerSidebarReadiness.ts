@@ -23,6 +23,7 @@ export type ProviderSidebarReadiness = Partial<Record<string, string>>
 export type ProviderSidebarData = {
 	disclosureMode: SidebarDisclosureMode
 	summaries: ProviderSidebarReadiness
+	productTypes: string[]
 }
 
 type ProviderSidebarMetrics = {
@@ -219,13 +220,14 @@ export async function getProviderSidebarData(
 	context: ProviderAdvancedDisclosureContext = {}
 ): Promise<ProviderSidebarData> {
 	const normalizedProviderId = String(providerId ?? "").trim()
-	if (!normalizedProviderId) return { disclosureMode: "small-provider", summaries: {} }
+	if (!normalizedProviderId)
+		return { disclosureMode: "small-provider", summaries: {}, productTypes: [] }
 
 	const [ratePlanIds, variantIds, productRows, policyReadiness] = await Promise.all([
 		getProviderRatePlanIds(normalizedProviderId),
 		getProviderVariantIds(normalizedProviderId),
 		db
-			.select({ productId: Product.id })
+			.select({ productId: Product.id, productType: Product.productType })
 			.from(Product)
 			.where(eq(Product.providerId, normalizedProviderId))
 			.all(),
@@ -236,6 +238,9 @@ export async function getProviderSidebarData(
 		...variantIds,
 		...productRows.map((row) => String(row.productId)),
 	].filter(Boolean)
+	const productTypes = [
+		...new Set(productRows.map((row) => String(row.productType ?? "").trim()).filter(Boolean)),
+	]
 	const [activePriceRules, activeRestrictions, providerRole] = await Promise.all([
 		countActivePriceRules(ratePlanIds),
 		countActiveRestrictions(scopeIds),
@@ -275,5 +280,6 @@ export async function getProviderSidebarData(
 			[routes.calendar()]: pricingSummary,
 			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} · ${restrictionsSummary}`,
 		},
+		productTypes,
 	}
 }

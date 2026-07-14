@@ -39,6 +39,7 @@ const activeHref =
 
 let sidebarReadiness: ProviderSidebarReadiness = {}
 let disclosureMode: SidebarDisclosureMode = "small-provider"
+let serviceProductTypes: string[] = []
 const professionalToolsEnabledFromCookie = getProfessionalModeCookiePreference(Astro.request)
 try {
 	const user = await getUserFromRequest(Astro.request)
@@ -53,6 +54,7 @@ try {
 		})
 		sidebarReadiness = sidebarData.summaries
 		disclosureMode = sidebarData.disclosureMode
+		serviceProductTypes = sidebarData.productTypes
 	}
 } catch {
 	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
@@ -61,10 +63,12 @@ try {
 		[routes.calendar()]: "Estado no disponible",
 		[routes.ratesMultiCalendar()]: "Estado no disponible",
 	}
+	serviceProductTypes = []
 }
 const visibleNavigation = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 	mode: disclosureMode,
 	activeHref,
+	productTypes: serviceProductTypes,
 })
 const isSectionActive = (items: (typeof visibleNavigation)[number]["items"]) =>
 	items.some((item) => item.href === activeHref || isActive(item.href))
@@ -88,6 +92,12 @@ function summaryTone(summary: string): "neutral" | "success" | "warning" | "dang
 }
 
 const sectionByTitle = new Map(visibleNavigation.map((section) => [section.title, section]))
+const normalizedServiceTypes = serviceProductTypes
+	.map((type) => String(type).trim().toLowerCase())
+	.filter(Boolean)
+const serviceTypes = normalizedServiceTypes.length ? normalizedServiceTypes : ["hotel"]
+const hasHotelService = serviceTypes.includes("hotel")
+const onlyHotelService = hasHotelService && new Set(serviceTypes).size === 1
 const navigationGroups = [
 	{
 		title: "Inicio",
@@ -95,10 +105,19 @@ const navigationGroups = [
 		collapsible: false,
 	},
 	{
-		title: "Alojamientos",
-		sections: ["Alojamientos"],
+		title: onlyHotelService ? "Servicio" : "Servicios",
+		sections: onlyHotelService ? ["Servicios", "Alojamiento"] : ["Servicios"],
 		collapsible: false,
 	},
+	...(onlyHotelService || !hasHotelService
+		? []
+		: [
+				{
+					title: "Alojamiento",
+					sections: ["Alojamiento"],
+					collapsible: false,
+				},
+			]),
 	{
 		title: "Venta",
 		sections: ["Venta"],

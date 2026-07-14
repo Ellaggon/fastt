@@ -1,5 +1,5 @@
 ---
-import { ArrowLeft, Package, Plus } from "@lucide/astro"
+import { ArrowLeft, CarFront, Plus } from "@lucide/astro"
 
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -17,11 +17,11 @@ if (!user) return Astro.redirect("/SignInPage")
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
 if (!providerId) return Astro.redirect("/provider")
 
-const vertical = PRODUCT_VERTICALS.package
+const vertical = PRODUCT_VERTICALS.limousine
 const catalog = await getProviderCatalogSummary(providerId, vertical.storageType)
 ---
 
-<WorkspaceLayout title="Paquetes">
+<WorkspaceLayout title="Traslados">
 	<section class="space-y-6">
 		<header
 			class="rounded-[var(--fastt-radius-panel)] bg-slate-950 p-6 text-white shadow-[var(--fastt-shadow-panel)] md:p-8"
@@ -36,13 +36,13 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 					>
 					<div class="space-y-2">
 						<p class="inline-flex items-center gap-2 text-sm font-medium text-slate-400">
-							<Package class="h-4 w-4" aria-hidden="true" />
-							Paquetes
+							<CarFront class="h-4 w-4" aria-hidden="true" />
+							Traslados
 						</p>
-						<h1 class="text-3xl font-semibold tracking-tight text-white">Paquetes</h1>
+						<h1 class="text-3xl font-semibold tracking-tight text-white">Traslados</h1>
 						<p class="text-sm leading-6 text-slate-300">
-							Construye programas combinados con días/noches, itinerario, inclusiones, servicios y
-							fotos claras antes de publicarlos.
+							Administra servicios con vehículo, capacidad, zonas de recogida, dropoff, fotos y
+							disponibilidad operativa.
 						</p>
 					</div>
 				</div>
@@ -51,14 +51,14 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 					class="bg-white text-slate-950 hover:bg-slate-100"
 				>
 					<Plus class="h-4 w-4" aria-hidden="true" />
-					Crear paquete
+					Crear traslado
 				</Button>
 			</div>
 		</header>
 
-		<section class="grid gap-3 md:grid-cols-4" aria-label="Resumen de paquetes">
+		<section class="grid gap-3 md:grid-cols-4" aria-label="Resumen de traslados">
 			<Card class="bg-white"
-				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Paquetes</p><p
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Traslados</p><p
 					class="mt-2 text-3xl font-semibold text-slate-950"
 				>
 					{catalog.summary.total}
@@ -66,13 +66,13 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 			>
 			<Card class="bg-white"
 				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-					Publicados
+					Publicadas
 				</p><p class="mt-2 text-3xl font-semibold text-slate-950">
 					{catalog.summary.published}
 				</p></Card
 			>
 			<Card class="bg-white"
-				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Listos</p><p
+				><p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Listas</p><p
 					class="mt-2 text-3xl font-semibold text-slate-950"
 				>
 					{catalog.summary.ready}
@@ -87,21 +87,21 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 
 		<section class="space-y-4">
 			<div class="space-y-1">
-				<h2 class="text-xl font-semibold text-slate-950">Fichas de paquete</h2>
+				<h2 class="text-xl font-semibold text-slate-950">Fichas de traslado</h2>
 				<p class="text-sm leading-6 text-slate-500">
-					Un paquete debe dejar claro qué incluye, qué no incluye y cómo se organiza el recorrido.
+					La ficha debe hacer visible el vehículo, capacidad real, zonas y condiciones de traslado.
 				</p>
 			</div>
 			{
 				catalog.products.length === 0 ? (
 					<Card class="grid gap-4 bg-white md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
 						<div class="space-y-1">
-							<h3 class="text-lg font-semibold text-slate-950">Todavía no hay paquetes</h3>
+							<h3 class="text-lg font-semibold text-slate-950">Todavía no hay traslados</h3>
 							<p class="text-sm leading-6 text-slate-500">
-								Crea una ficha inicial para preparar itinerario, inclusiones y servicios.
+								Crea una ficha inicial para preparar vehículo, zonas, fotos y disponibilidad.
 							</p>
 						</div>
-						<Button href={vertical.providerRoutes.create}>Crear paquete</Button>
+						<Button href={vertical.providerRoutes.create}>Crear traslado</Button>
 					</Card>
 				) : (
 					<div class="grid gap-3">
@@ -112,9 +112,7 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 										<h3 class="truncate text-base font-semibold text-slate-950">{product.name}</h3>
 										<Badge variant={product.status.variant}>{product.status.label}</Badge>
 									</div>
-									<p class="text-sm text-slate-500">
-										Ficha del paquete · itinerario, inclusiones y fotos
-									</p>
+									<p class="text-sm text-slate-500">Ficha de traslado · vehículo, zonas y fotos</p>
 								</div>
 								<div class="flex flex-wrap justify-end gap-2">
 									<Button href={routes.productPreview(product.id)} variant="secondary" size="sm">
