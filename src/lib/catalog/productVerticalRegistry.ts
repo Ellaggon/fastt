@@ -157,7 +157,7 @@ export const productVerticalRegistry = {
 		},
 		routes: {
 			workspaceListHref: "/product",
-			workspaceCreateHref: "/product/create?type=Hotel",
+			workspaceCreateHref: "/product/create?playbook=launch&step=create&flow=create",
 			workspaceFilteredHref: "/product?type=Hotel",
 			publicCollectionHref: "/hotels",
 			publicDetailHref: (productId: string) => `/hotels/${encodeId(productId)}`,
