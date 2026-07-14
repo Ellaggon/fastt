@@ -24,6 +24,8 @@ export type ProviderSidebarData = {
 	disclosureMode: SidebarDisclosureMode
 	summaries: ProviderSidebarReadiness
 	productTypes: string[]
+	primaryAccommodationHref?: string | null
+	primaryAccommodationRoomsHref?: string | null
 }
 
 type ProviderSidebarMetrics = {
@@ -81,6 +83,49 @@ async function getProviderVariantIds(providerId: string): Promise<string[]> {
 		.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
 		.all()
 	return rows.map((row) => String(row.variantId))
+}
+
+async function getPrimaryAccommodationLinks(providerId: string): Promise<{
+	href: string | null
+	roomsHref: string | null
+}> {
+	const rows = await db
+		.select({
+			productId: Product.id,
+			productType: Product.productType,
+			variantId: Variant.id,
+		})
+		.from(Product)
+		.leftJoin(Variant, eq(Variant.productId, Product.id))
+		.where(eq(Product.providerId, providerId))
+		.all()
+
+	const products = new Map<string, { id: string; roomCount: number }>()
+	for (const row of rows) {
+		const productType = String(row.productType ?? "")
+			.trim()
+			.toLowerCase()
+		if (productType !== "hotel") continue
+
+		const productId = String(row.productId ?? "").trim()
+		if (!productId) continue
+
+		const product = products.get(productId) ?? { id: productId, roomCount: 0 }
+		if (row.variantId) product.roomCount += 1
+		products.set(productId, product)
+	}
+
+	const primary = Array.from(products.values()).sort((a, b) => {
+		if (b.roomCount !== a.roomCount) return b.roomCount - a.roomCount
+		return a.id.localeCompare(b.id)
+	})[0]
+
+	return primary
+		? {
+				href: routes.productDetail(primary.id),
+				roomsHref: routes.productRoomsForProduct(primary.id),
+			}
+		: { href: null, roomsHref: null }
 }
 
 async function getRatesSummary(
@@ -221,18 +266,26 @@ export async function getProviderSidebarData(
 ): Promise<ProviderSidebarData> {
 	const normalizedProviderId = String(providerId ?? "").trim()
 	if (!normalizedProviderId)
-		return { disclosureMode: "small-provider", summaries: {}, productTypes: [] }
+		return {
+			disclosureMode: "small-provider",
+			summaries: {},
+			productTypes: [],
+			primaryAccommodationHref: null,
+			primaryAccommodationRoomsHref: null,
+		}
 
-	const [ratePlanIds, variantIds, productRows, policyReadiness] = await Promise.all([
-		getProviderRatePlanIds(normalizedProviderId),
-		getProviderVariantIds(normalizedProviderId),
-		db
-			.select({ productId: Product.id, productType: Product.productType })
-			.from(Product)
-			.where(eq(Product.providerId, normalizedProviderId))
-			.all(),
-		getProviderPolicyReadiness(normalizedProviderId),
-	])
+	const [ratePlanIds, variantIds, productRows, policyReadiness, primaryAccommodationLinks] =
+		await Promise.all([
+			getProviderRatePlanIds(normalizedProviderId),
+			getProviderVariantIds(normalizedProviderId),
+			db
+				.select({ productId: Product.id, productType: Product.productType })
+				.from(Product)
+				.where(eq(Product.providerId, normalizedProviderId))
+				.all(),
+			getProviderPolicyReadiness(normalizedProviderId),
+			getPrimaryAccommodationLinks(normalizedProviderId),
+		])
 	const scopeIds = [
 		...ratePlanIds,
 		...variantIds,
@@ -281,5 +334,7 @@ export async function getProviderSidebarData(
 			[routes.ratesMultiCalendar()]: `${plural(ratePlanIds.length, "tarifa")} · ${restrictionsSummary}`,
 		},
 		productTypes,
+		primaryAccommodationHref: primaryAccommodationLinks.href,
+		primaryAccommodationRoomsHref: primaryAccommodationLinks.roomsHref,
 	}
 }

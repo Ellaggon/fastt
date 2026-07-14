@@ -2,6 +2,7 @@ import {
 	db,
 	and,
 	eq,
+	inArray,
 	Product,
 	ProductContent,
 	ProductLocation,
@@ -14,8 +15,23 @@ import {
 	Package,
 	Variant,
 	VariantCapacity,
+	VariantInventoryConfig,
+	VariantReadiness,
+	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
+	CommercialRuleApplication,
+	DailyInventory,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	EffectiveRestriction,
+	PolicyAssignment,
+	ProductService,
+	ProductServiceAttribute,
+	RatePlan,
+	RatePlanOccupancyPolicy,
+	SearchUnitView,
+	TaxFeeAssignment,
 } from "astro:db"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
@@ -342,7 +358,120 @@ export class ProductRepository implements ProductRepositoryPort {
 		const product = await db.select().from(Product).where(eq(Product.id, productId)).get()
 		if (!product) return
 
-		const images = await db.select().from(Image).where(eq(Image.entityId, productId)).all()
+		const variants = await db.select().from(Variant).where(eq(Variant.productId, productId)).all()
+		const variantIds = variants.map((variant) => String(variant.id))
+		const ratePlans = variantIds.length
+			? await db.select().from(RatePlan).where(inArray(RatePlan.variantId, variantIds)).all()
+			: []
+		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
+		const serviceRows = await db
+			.select()
+			.from(ProductService)
+			.where(eq(ProductService.productId, productId))
+			.all()
+		const serviceIds = serviceRows.map((service) => String(service.id))
+		const productImages = await db.select().from(Image).where(eq(Image.entityId, productId)).all()
+		const variantImages = variantIds.length
+			? await db.select().from(Image).where(inArray(Image.entityId, variantIds)).all()
+			: []
+		const images = [...productImages, ...variantImages]
+
+		if (ratePlanIds.length) {
+			await db
+				.delete(CommercialRuleApplication)
+				.where(
+					and(
+						eq(CommercialRuleApplication.scope, "rate_plan"),
+						inArray(CommercialRuleApplication.scopeId, ratePlanIds)
+					)
+				)
+			await db
+				.delete(TaxFeeAssignment)
+				.where(
+					and(
+						eq(TaxFeeAssignment.scope, "rate_plan"),
+						inArray(TaxFeeAssignment.scopeId, ratePlanIds)
+					)
+				)
+			await db
+				.delete(PolicyAssignment)
+				.where(
+					and(
+						eq(PolicyAssignment.scope, "rate_plan"),
+						inArray(PolicyAssignment.scopeId, ratePlanIds)
+					)
+				)
+			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.ratePlanId, ratePlanIds))
+			await db
+				.delete(EffectiveRestriction)
+				.where(inArray(EffectiveRestriction.ratePlanId, ratePlanIds))
+			await db
+				.delete(RatePlanOccupancyPolicy)
+				.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
+			await db.delete(RatePlan).where(inArray(RatePlan.id, ratePlanIds))
+		}
+
+		if (variantIds.length) {
+			await db
+				.delete(CommercialRuleApplication)
+				.where(
+					and(
+						eq(CommercialRuleApplication.scope, "variant"),
+						inArray(CommercialRuleApplication.scopeId, variantIds)
+					)
+				)
+			await db
+				.delete(TaxFeeAssignment)
+				.where(
+					and(eq(TaxFeeAssignment.scope, "variant"), inArray(TaxFeeAssignment.scopeId, variantIds))
+				)
+			await db
+				.delete(PolicyAssignment)
+				.where(
+					and(eq(PolicyAssignment.scope, "variant"), inArray(PolicyAssignment.scopeId, variantIds))
+				)
+			await db.delete(Image).where(inArray(Image.entityId, variantIds))
+			await db.delete(SearchUnitView).where(inArray(SearchUnitView.variantId, variantIds))
+			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, variantIds))
+			await db
+				.delete(EffectiveRestriction)
+				.where(inArray(EffectiveRestriction.variantId, variantIds))
+			await db
+				.delete(EffectiveAvailability)
+				.where(inArray(EffectiveAvailability.variantId, variantIds))
+			await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
+			await db
+				.delete(VariantInventoryConfig)
+				.where(inArray(VariantInventoryConfig.variantId, variantIds))
+			await db.delete(VariantRoomAmenity).where(inArray(VariantRoomAmenity.variantId, variantIds))
+			await db.delete(VariantRoomBed).where(inArray(VariantRoomBed.variantId, variantIds))
+			await db.delete(VariantRoomProfile).where(inArray(VariantRoomProfile.variantId, variantIds))
+			await db.delete(VariantCapacity).where(inArray(VariantCapacity.variantId, variantIds))
+			await db.delete(VariantReadiness).where(inArray(VariantReadiness.variantId, variantIds))
+			await db.delete(Variant).where(inArray(Variant.id, variantIds))
+		}
+
+		if (serviceIds.length) {
+			await db
+				.delete(ProductServiceAttribute)
+				.where(inArray(ProductServiceAttribute.productServiceId, serviceIds))
+			await db.delete(ProductService).where(inArray(ProductService.id, serviceIds))
+		}
+
+		await db
+			.delete(CommercialRuleApplication)
+			.where(
+				and(
+					eq(CommercialRuleApplication.scope, "product"),
+					eq(CommercialRuleApplication.scopeId, productId)
+				)
+			)
+		await db
+			.delete(TaxFeeAssignment)
+			.where(and(eq(TaxFeeAssignment.scope, "product"), eq(TaxFeeAssignment.scopeId, productId)))
+		await db
+			.delete(PolicyAssignment)
+			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
 
 		await db.delete(Image).where(eq(Image.entityId, productId))
 		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))

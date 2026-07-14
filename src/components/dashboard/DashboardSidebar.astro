@@ -21,12 +21,11 @@ interface Props {
 }
 
 const { pathname = "", currentPath = pathname } = Astro.props
-const isRoomSurface = (value: string) =>
-	/^\/catalog\/accommodations\/rooms(?:\/|$)/.test(value) ||
-	/^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
+const isAccommodationHubSurface = (value: string) =>
+	/^\/catalog\/accommodations(?:\/|$)/.test(value)
+const isRoomSurface = (value: string) => /^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
 const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href
 const isActive = (href: string) => {
-	if (href === routes.productRooms() && isRoomSurface(pathname)) return true
 	if (href.includes("?") || href.includes("#")) return currentPath === href
 	const path = hrefPath(href)
 	return pathname === path || pathname.startsWith(`${path}/`)
@@ -40,6 +39,8 @@ const activeHref =
 let sidebarReadiness: ProviderSidebarReadiness = {}
 let disclosureMode: SidebarDisclosureMode = "small-provider"
 let serviceProductTypes: string[] = []
+let primaryAccommodationHref: string | null = null
+let primaryAccommodationRoomsHref: string | null = null
 const professionalToolsEnabledFromCookie = getProfessionalModeCookiePreference(Astro.request)
 try {
 	const user = await getUserFromRequest(Astro.request)
@@ -55,6 +56,8 @@ try {
 		sidebarReadiness = sidebarData.summaries
 		disclosureMode = sidebarData.disclosureMode
 		serviceProductTypes = sidebarData.productTypes
+		primaryAccommodationHref = sidebarData.primaryAccommodationHref ?? null
+		primaryAccommodationRoomsHref = sidebarData.primaryAccommodationRoomsHref ?? null
 	}
 } catch {
 	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
@@ -64,14 +67,42 @@ try {
 		[routes.ratesMultiCalendar()]: "Estado no disponible",
 	}
 	serviceProductTypes = []
+	primaryAccommodationHref = null
+	primaryAccommodationRoomsHref = null
 }
-const visibleNavigation = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+const visibleNavigationBase = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 	mode: disclosureMode,
 	activeHref,
 	productTypes: serviceProductTypes,
 })
+const visibleNavigation = visibleNavigationBase.map((section) => ({
+	...section,
+	items: section.items.map((item) => {
+		if (item.label === "Alojamiento" && primaryAccommodationHref) {
+			return { ...item, href: primaryAccommodationHref }
+		}
+		if (item.label === "Habitaciones" && primaryAccommodationRoomsHref) {
+			return { ...item, href: primaryAccommodationRoomsHref }
+		}
+		return item
+	}),
+}))
 const isSectionActive = (items: (typeof visibleNavigation)[number]["items"]) =>
-	items.some((item) => item.href === activeHref || isActive(item.href))
+	items.some((item) => isItemActive(item))
+
+function isItemActive(item: (typeof enterpriseNavigation)[number]["items"][number]) {
+	if (item.label === "Alojamiento") {
+		const path = hrefPath(item.href)
+		return (
+			(isAccommodationHubSurface(pathname) && activeHref !== item.href) ||
+			(Boolean(path) &&
+				(pathname === path || pathname.startsWith(`${path}/`)) &&
+				!isRoomSurface(pathname))
+		)
+	}
+	if (item.label === "Habitaciones") return isRoomSurface(pathname) || isActive(item.href)
+	return item.href === activeHref || isActive(item.href)
+}
 
 function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number]) {
 	return sidebarReadiness[item.href] ?? ""
@@ -184,7 +215,7 @@ function shouldShowNavGroupHeading(
 								status={item.status}
 								summary={summary}
 								summaryTone={summaryTone(summary)}
-								active={item.href === activeHref}
+								active={isItemActive(item)}
 								prefetch={true}
 							/>
 						</>

@@ -184,7 +184,13 @@ export function getPreviousAddRoomStep(
 }
 
 export function inferAddRoomStepFromPathname(pathname: string): AddRoomStepId | null {
-	if (pathname === "/catalog/accommodations/rooms") return "choose-accommodation"
+	if (
+		pathname === "/dashboard" ||
+		pathname === "/catalog/accommodations" ||
+		pathname === "/catalog/accommodations/rooms"
+	) {
+		return "choose-accommodation"
+	}
 	if (pathname.endsWith("/rooms/new")) return "create-room"
 	if (pathname.includes("/rooms/") && !pathname.endsWith("/rooms/new")) return "room-photos"
 	if (pathname.includes("/rates/plans/manage")) return "create-rate"

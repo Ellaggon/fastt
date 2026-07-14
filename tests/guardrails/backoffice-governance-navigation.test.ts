@@ -318,8 +318,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 			Inicio: ["Command Center"],
 			Venta: ["Rooms & Rates", "Venta"],
 			Reservas: ["Reservations"],
-			Servicios: ["Servicios"],
-			Alojamiento: ["Alojamiento", "Property Content", "Contenido de alojamiento"],
+			Servicios: ["Servicios", "Command Center"],
+			Alojamiento: [
+				"Alojamiento",
+				"Property Content",
+				"Contenido de alojamiento",
+				"Servicios",
+				"Command Center",
+			],
 			Finanzas: ["Payments & Finance"],
 			Analítica: ["Analytics & Performance"],
 			Conectividad: ["Connectivity"],
@@ -908,8 +914,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("Sección activa")
 		expect(governanceSource).toContain('title: "Servicios"')
 		expect(governanceSource).toContain('title: "Alojamiento"')
+		expect(sidebarSource).toContain("isAccommodationHubSurface")
 		expect(sidebarSource).toContain("isRoomSurface")
-		expect(sidebarSource).toContain("routes.productRooms()")
 		expect(sidebarSource).not.toContain("12 tarifas")
 		expect(sidebarSource).not.toContain("9 listas")
 		expect(sidebarSource).not.toContain("3 incompletas")
