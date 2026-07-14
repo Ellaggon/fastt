@@ -23,7 +23,6 @@ import {
 	CommercialRuleApplication,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
 	EffectiveRestriction,
 	PolicyAssignment,
 	ProductService,
@@ -401,7 +400,6 @@ export class ProductRepository implements ProductRepositoryPort {
 						inArray(PolicyAssignment.scopeId, ratePlanIds)
 					)
 				)
-			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.ratePlanId, ratePlanIds))
 			await db
 				.delete(EffectiveRestriction)
 				.where(inArray(EffectiveRestriction.ratePlanId, ratePlanIds))
@@ -432,7 +430,6 @@ export class ProductRepository implements ProductRepositoryPort {
 				)
 			await db.delete(Image).where(inArray(Image.entityId, variantIds))
 			await db.delete(SearchUnitView).where(inArray(SearchUnitView.variantId, variantIds))
-			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, variantIds))
 			await db
 				.delete(EffectiveRestriction)
 				.where(inArray(EffectiveRestriction.variantId, variantIds))
