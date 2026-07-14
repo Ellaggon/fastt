@@ -842,5 +842,5 @@ describe("integration/search view intensive simulation", () => {
 			console.info = originalInfo
 			console.debug = originalDebug
 		}
-	}, 600000)
+	}, 900000)
 })

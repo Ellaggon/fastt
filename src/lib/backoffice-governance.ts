@@ -224,13 +224,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Short alias that redirects to the accommodation rooms workspace.",
 	},
 	{
-		pattern: "/product/rooms",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Contenido de alojamiento",
-		rationale: "Ruta legacy de catálogo que redirige al espacio de habitaciones del alojamiento.",
-	},
-	{
 		pattern: "/catalog/accommodations/rooms",
 		status: "canonical",
 		context: "provider-workspace",

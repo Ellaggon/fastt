@@ -1,7 +1,0 @@
----
-const productId = String(Astro.params.id ?? "")
-
-if (!productId) return Astro.redirect("/product")
-
-return Astro.redirect(`/product/${encodeURIComponent(productId)}/rooms/new`)
----

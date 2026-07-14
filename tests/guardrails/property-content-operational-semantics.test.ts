@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
@@ -142,17 +142,20 @@ describe("Guardrail: Property Content operational semantics", () => {
 		).toEqual([])
 	})
 
-	it("keeps legacy variant URLs as redirects into the canonical room workspace", () => {
+	it("keeps retired variant URLs out of the router and availability pointed to calendar", () => {
 		const routes = read("src/lib/routes.ts")
 		const roomWorkspace = read("src/pages/product/[id]/rooms/[roomId]/index.astro")
-		const legacyNew = read("src/pages/product/[id]/variants/new.astro")
-		const legacyDetail = read("src/pages/product/[id]/variants/[variantId]/index.astro")
-		const legacyCapacity = read("src/pages/product/[id]/variants/[variantId]/capacity.astro")
-		const legacySubtype = read("src/pages/product/[id]/variants/[variantId]/subtype.astro")
-		const legacyCatchAll = read("src/pages/product/[id]/variants/[variantId]/[...legacy].astro")
 		const legacyAvailability = read("src/pages/product/[id]/rooms/[roomId]/availability.astro")
+		const removedLegacyVariantRoutes = [
+			"src/pages/product/[id]/variants/new.astro",
+			"src/pages/product/[id]/variants/[variantId]/index.astro",
+			"src/pages/product/[id]/variants/[variantId]/capacity.astro",
+			"src/pages/product/[id]/variants/[variantId]/subtype.astro",
+			"src/pages/product/[id]/variants/[variantId]/[...legacy].astro",
+		]
 
-		expect(routes).toContain("#disponibilidad")
+		expect(routes).not.toContain("#disponibilidad")
+		expect(routes).toContain("/rates/calendar?variantId=")
 		expect(roomWorkspace).toContain("window.location.hash")
 		expect(roomWorkspace).toContain("hashchange")
 		expect(roomWorkspace).toContain("Galería de la habitación")
@@ -163,13 +166,14 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(roomWorkspace).toContain("renderGuestRoomPreviewCards")
 		expect(roomWorkspace).toContain("#fotos")
 		expect(roomWorkspace).toContain("roomPhotoReadiness")
-		expect(legacyNew).toContain("/rooms/new")
-		expect(legacyDetail).toContain("/rooms/${encodeURIComponent(variantId)}")
-		expect(legacyCapacity).toContain("/profile")
-		expect(legacySubtype).toContain("/profile")
-		expect(legacyCatchAll).toContain("#disponibilidad")
-		expect(legacyCatchAll).toContain("/inventory")
-		expect(legacyAvailability).toContain("#disponibilidad")
+		for (const relativePath of removedLegacyVariantRoutes) {
+			expect(existsSync(join(process.cwd(), relativePath)), `${relativePath} should stay removed`).toBe(
+				false
+			)
+		}
+		expect(legacyAvailability).toContain("/rates/calendar")
+		expect(legacyAvailability).toContain('target.searchParams.set("focus", "availability")')
+		expect(legacyAvailability).not.toContain("#disponibilidad")
 	})
 
 	it("classifies variant surfaces as physical context instead of broad editorial catalog", () => {
