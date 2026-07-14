@@ -50,7 +50,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 		},
 		providerRoutes: {
 			list: "/product?type=Hotel",
-			create: "/product/create?type=Hotel",
+			create: "/product/create?playbook=launch&step=create&flow=create",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "habitaciones", "reglas"],
 		readinessSections: ["identidad", "contenido", "ubicacion", "fotos", "habitaciones"],
