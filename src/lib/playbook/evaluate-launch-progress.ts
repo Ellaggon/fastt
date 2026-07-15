@@ -129,7 +129,7 @@ async function stepCompletionFlags(
 			"rate": Boolean(commercialCompletion?.tariffsComplete),
 			"conditions": Boolean(commercialCompletion?.conditionsComplete),
 			"calendar": Boolean(commercialCompletion?.inventoryComplete),
-			"house-rules": isHotel && completedHouseRuleTypes.length >= 4,
+			"house-rules": isHotel && completedHouseRuleTypes.length === essentialHouseRuleTypes.length,
 			"preview": false,
 		} satisfies Record<LaunchStepId, boolean>,
 		variantId: variantState.variantId,
