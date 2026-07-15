@@ -171,6 +171,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 			isPlaybookMode,
 			resolvePlaybookRedirectAfterSave,
 		} from "@/lib/playbook/playbook-nav.ts"
+		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 
 		const form = document.getElementById("contentForm")
 		const btn = document.getElementById("submitBtn")
@@ -178,6 +179,9 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 		const stateDetail = document.getElementById("stateDetail")
 		const descriptionInput = document.getElementById("description")
 		const descriptionError = document.getElementById("descriptionError")
+		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+			key: `product:${window.location.pathname}:content`,
+		})
 
 		function setState(state, detail = "") {
 			const labels = {
@@ -221,6 +225,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 				}
 
 				setState("success", "Guardado correctamente")
+				draft.clear()
 				setTimeout(() => {
 					const targetProductId = String(fd.get("productId") || "")
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {

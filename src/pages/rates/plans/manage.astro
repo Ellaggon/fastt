@@ -858,6 +858,8 @@ const layoutProps =
 		isPlaybookRateStep,
 	}}
 >
+	import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
+
 	const ratePlanTabs = Array.from(document.querySelectorAll("[data-rate-plan-tab]"))
 	const ratePlanRows = Array.from(document.querySelectorAll("[data-rate-plan-row]"))
 	const ratePlanEmpty = document.querySelector("[data-rate-plan-empty]")
@@ -960,6 +962,9 @@ const layoutProps =
 
 	const dialog = document.querySelector("[data-rate-plan-dialog]")
 	const form = document.querySelector("[data-rate-plan-create-form]")
+	const formDraft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+		key: `rates:${window.location.pathname}:${requestedVariantId || "new-rate"}`,
+	})
 	const feedback = document.querySelector("[data-rate-plan-feedback]")
 	const heading = document.querySelector("[data-wizard-heading]")
 	const contractSummary = document.querySelector("[data-contract-summary]")
@@ -1056,6 +1061,7 @@ const layoutProps =
 			const result = await response.json().catch(() => null)
 			if (!response.ok || !result?.ratePlanId)
 				throw new Error(result?.error || "No se pudo crear la tarifa")
+			formDraft.clear()
 			if (addRoomPlaybookActive) {
 				const params = new URLSearchParams({
 					playbook: "add-room",

@@ -142,6 +142,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 
 	<script>
 		import L from "leaflet"
+		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 		import { resolvePlaybookRedirectAfterSave } from "@/lib/playbook/playbook-nav.ts"
 
 		type LocationState = "empty" | "loading" | "success" | "error" | "disabled"
@@ -187,6 +188,9 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 
 			if (mapElement.dataset.ready === "true") return
 			mapElement.dataset.ready = "true"
+			const draft = bindPlaybookFormDraft(form, {
+				key: `product:${window.location.pathname}:location`,
+			})
 
 			const initialLat = Number(mapElement.dataset.lat || "-16.495905")
 			const initialLng = Number(mapElement.dataset.lng || "-68.133623")
@@ -231,6 +235,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 					}
 
 					setState("success", "Guardado correctamente")
+					draft.clear()
 					const targetProductId = String(fd.get("productId") || "")
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 						productId: targetProductId,

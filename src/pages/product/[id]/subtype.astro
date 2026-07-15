@@ -471,11 +471,15 @@ const limousineSubtype =
 			playbookRedirectHref,
 			resolvePlaybookRedirectAfterSave,
 		} from "@/lib/playbook/playbook-nav.ts"
+		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 
 		const form = document.getElementById("subtypeForm")
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
 		const btn = document.getElementById("submitBtn")
+		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+			key: `product:${window.location.pathname}:subtype`,
+		})
 
 		function setState(state, detail = "") {
 			const labels = {
@@ -506,6 +510,7 @@ const limousineSubtype =
 				}
 				const id = String(fd.get("productId") || "")
 				setState("success", "Guardado correctamente")
+				draft.clear()
 				if (!isPlaybookMode(fd)) {
 					window.location.href = `/product/${encodeURIComponent(id)}`
 					return
