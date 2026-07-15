@@ -63,6 +63,8 @@ export let VariantRoomProfile: any
 export let VariantRoomBed: any
 export let VariantRoomAmenity: any
 export let VariantReadiness: any
+export let ProductService: any
+export let ProductServiceAttribute: any
 export let VariantInventoryConfig: any
 export let DailyInventory: any
 export let EffectiveAvailability: any
@@ -202,6 +204,8 @@ async function init() {
 	VariantRoomBed = drizzleTables.VariantRoomBed
 	VariantRoomAmenity = drizzleTables.VariantRoomAmenity
 	VariantReadiness = drizzleTables.VariantReadiness
+	ProductService = drizzleTables.ProductService
+	ProductServiceAttribute = drizzleTables.ProductServiceAttribute
 	VariantInventoryConfig = drizzleTables.VariantInventoryConfig
 	DailyInventory = drizzleTables.DailyInventory
 	EffectiveAvailability = drizzleTables.EffectiveAvailability

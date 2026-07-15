@@ -9,6 +9,7 @@ import {
 	ProductStatus,
 	HouseRule,
 	Image,
+	ImageUpload,
 	Hotel,
 	Limousine,
 	Tour,
@@ -23,6 +24,7 @@ import {
 	CommercialRuleApplication,
 	DailyInventory,
 	EffectiveAvailability,
+	EffectivePricingV2,
 	EffectiveRestriction,
 	PolicyAssignment,
 	ProductService,
@@ -373,7 +375,30 @@ export class ProductRepository implements ProductRepositoryPort {
 		const variantImages = variantIds.length
 			? await db.select().from(Image).where(inArray(Image.entityId, variantIds)).all()
 			: []
-		const images = [...productImages, ...variantImages]
+		const productObjectPrefix = `products/${productId}/`
+		const pendingProductImages = (await db.select().from(Image).all()).filter((image) =>
+			String((image as any).objectKey ?? "").startsWith(productObjectPrefix)
+		)
+		const imagesById = new Map<string, (typeof productImages)[number]>()
+		for (const image of [...productImages, ...variantImages, ...pendingProductImages]) {
+			imagesById.set(String(image.id), image)
+		}
+		const images = [...imagesById.values()]
+		const imageIds = images.map((image) => String(image.id))
+		const imageObjectKeys = [
+			...new Set(
+				images
+					.map((image) => String((image as any).objectKey ?? "").trim())
+					.filter((objectKey) => objectKey.length > 0)
+			),
+		]
+
+		if (imageIds.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.imageId, imageIds))
+		}
+		if (imageObjectKeys.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.objectKey, imageObjectKeys))
+		}
 
 		if (ratePlanIds.length) {
 			await db
@@ -406,6 +431,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db
 				.delete(RatePlanOccupancyPolicy)
 				.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
+			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.ratePlanId, ratePlanIds))
 			await db.delete(RatePlan).where(inArray(RatePlan.id, ratePlanIds))
 		}
 
@@ -436,6 +462,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db
 				.delete(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))
+			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, variantIds))
 			await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
 			await db
 				.delete(VariantInventoryConfig)
@@ -471,6 +498,9 @@ export class ProductRepository implements ProductRepositoryPort {
 			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
 
 		await db.delete(Image).where(eq(Image.entityId, productId))
+		if (imageIds.length) {
+			await db.delete(Image).where(inArray(Image.id, imageIds))
+		}
 		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
 		await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
 		await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
