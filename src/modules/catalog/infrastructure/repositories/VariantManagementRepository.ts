@@ -8,23 +8,42 @@ import {
 	RoomType,
 	RatePlan,
 	DailyInventory,
+	EffectiveAvailability,
+	EffectiveRestriction,
 	Image,
+	ImageUpload,
+	SearchUnitView,
+	CommercialRuleApplication,
+	TaxFeeAssignment,
+	PolicyAssignment,
+	VariantInventoryConfig,
+	VariantRoomAmenity,
+	VariantRoomBed,
+	BookingRoomDetail,
+	InventoryLock,
+	Hold,
 	eq,
 	and,
 	count,
 	inArray,
 } from "astro:db"
+import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import type { S3Client } from "@aws-sdk/client-s3"
 import type {
 	VariantLifecycleStatus,
 	VariantManagementRepositoryPort,
 	VariantReadinessSnapshot,
 } from "../../application/ports/VariantManagementRepositoryPort"
-import type { RatePlanPricingReadRepositoryPort } from "@/modules/pricing/application/ports/RatePlanPricingReadRepositoryPort"
-import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
+import type { RatePlanPricingReadRepositoryPort } from "../../../pricing/application/ports/RatePlanPricingReadRepositoryPort"
+import { RatePlanPricingReadRepository } from "../../../pricing/infrastructure/repositories/RatePlanPricingReadRepository"
+import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
+import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
 	constructor(
-		private readonly pricingReadRepository: RatePlanPricingReadRepositoryPort = new RatePlanPricingReadRepository()
+		private readonly pricingReadRepository: RatePlanPricingReadRepositoryPort = new RatePlanPricingReadRepository(),
+		private readonly r2?: S3Client,
+		private readonly ratePlanCommands: RatePlanCommandRepositoryPort = new RatePlanCommandRepository()
 	) {}
 
 	async listVariantsByProductId(productId: string): Promise<
@@ -311,6 +330,108 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				isActive: params.isActive ?? undefined,
 			} as any)
 			.where(eq(Variant.id, params.variantId))
+	}
+
+	async deleteVariantCascade(variantId: string) {
+		if (!variantId) return
+		const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
+		if (!variant) return
+
+		const bookingRows = await db
+			.select({ id: BookingRoomDetail.id })
+			.from(BookingRoomDetail)
+			.where(eq(BookingRoomDetail.variantId, variantId))
+			.all()
+		const lockRows = await db
+			.select({ id: InventoryLock.id })
+			.from(InventoryLock)
+			.where(eq(InventoryLock.variantId, variantId))
+			.all()
+		const holdRows = await db
+			.select({ id: Hold.id })
+			.from(Hold)
+			.where(eq(Hold.variantId, variantId))
+			.all()
+		if (bookingRows.length || lockRows.length || holdRows.length) {
+			throw new Error("variant_has_transactions")
+		}
+
+		const ratePlans = await db
+			.select()
+			.from(RatePlan)
+			.where(eq(RatePlan.variantId, variantId))
+			.all()
+		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
+		const images = await db
+			.select()
+			.from(Image)
+			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+			.all()
+		const imageIds = images.map((image) => String(image.id))
+		const imageObjectKeys = [
+			...new Set(
+				images
+					.map((image) => String((image as any).objectKey ?? "").trim())
+					.filter((objectKey) => objectKey.length > 0)
+			),
+		]
+
+		if (imageIds.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.imageId, imageIds))
+		}
+		if (imageObjectKeys.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.objectKey, imageObjectKeys))
+		}
+
+		if (ratePlanIds.length) {
+			for (const ratePlanId of ratePlanIds) {
+				await this.ratePlanCommands.deleteRatePlan(ratePlanId)
+			}
+		}
+
+		await this.ratePlanCommands.purgeEffectivePricingByVariantIds([variantId])
+		await db
+			.delete(CommercialRuleApplication)
+			.where(
+				and(
+					eq(CommercialRuleApplication.scope, "variant"),
+					eq(CommercialRuleApplication.scopeId, variantId)
+				)
+			)
+		await db
+			.delete(TaxFeeAssignment)
+			.where(and(eq(TaxFeeAssignment.scope, "variant"), eq(TaxFeeAssignment.scopeId, variantId)))
+		await db
+			.delete(PolicyAssignment)
+			.where(and(eq(PolicyAssignment.scope, "variant"), eq(PolicyAssignment.scopeId, variantId)))
+		await db
+			.delete(Image)
+			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+		await db.delete(SearchUnitView).where(eq(SearchUnitView.variantId, variantId))
+		await db.delete(EffectiveRestriction).where(eq(EffectiveRestriction.variantId, variantId))
+		await db.delete(EffectiveAvailability).where(eq(EffectiveAvailability.variantId, variantId))
+		await db.delete(DailyInventory).where(eq(DailyInventory.variantId, variantId))
+		await db.delete(VariantInventoryConfig).where(eq(VariantInventoryConfig.variantId, variantId))
+		await db.delete(VariantRoomAmenity).where(eq(VariantRoomAmenity.variantId, variantId))
+		await db.delete(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId))
+		await db.delete(VariantRoomProfile).where(eq(VariantRoomProfile.variantId, variantId))
+		await db.delete(VariantCapacity).where(eq(VariantCapacity.variantId, variantId))
+		await db.delete(VariantReadiness).where(eq(VariantReadiness.variantId, variantId))
+		await db.delete(Variant).where(eq(Variant.id, variantId))
+
+		if (!this.r2 || !process.env.R2_BUCKET_NAME) return
+		for (const key of imageObjectKeys) {
+			try {
+				await this.r2.send(
+					new DeleteObjectCommand({
+						Bucket: process.env.R2_BUCKET_NAME,
+						Key: key,
+					})
+				)
+			} catch (error) {
+				console.warn("Failed to delete variant image from R2", error)
+			}
+		}
 	}
 
 	async countDailyInventoryDays(variantId: string): Promise<number> {

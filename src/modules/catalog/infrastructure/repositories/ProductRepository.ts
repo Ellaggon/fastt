@@ -9,6 +9,7 @@ import {
 	ProductStatus,
 	HouseRule,
 	Image,
+	ImageUpload,
 	Hotel,
 	Limousine,
 	Tour,
@@ -28,7 +29,6 @@ import {
 	ProductService,
 	ProductServiceAttribute,
 	RatePlan,
-	RatePlanOccupancyPolicy,
 	SearchUnitView,
 	TaxFeeAssignment,
 } from "astro:db"
@@ -39,9 +39,14 @@ import type {
 	ProductRepositoryPort,
 	ProductStatusState,
 } from "../../application/ports/ProductRepositoryPort"
+import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
+import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
 
 export class ProductRepository implements ProductRepositoryPort {
-	constructor(private r2?: S3Client) {}
+	constructor(
+		private r2?: S3Client,
+		private readonly ratePlanCommands: RatePlanCommandRepositoryPort = new RatePlanCommandRepository()
+	) {}
 
 	// INVARIANT:
 	// Product persists identity only.
@@ -373,43 +378,39 @@ export class ProductRepository implements ProductRepositoryPort {
 		const variantImages = variantIds.length
 			? await db.select().from(Image).where(inArray(Image.entityId, variantIds)).all()
 			: []
-		const images = [...productImages, ...variantImages]
+		const productObjectPrefix = `products/${productId}/`
+		const pendingProductImages = (await db.select().from(Image).all()).filter((image) =>
+			String((image as any).objectKey ?? "").startsWith(productObjectPrefix)
+		)
+		const imagesById = new Map<string, (typeof productImages)[number]>()
+		for (const image of [...productImages, ...variantImages, ...pendingProductImages]) {
+			imagesById.set(String(image.id), image)
+		}
+		const images = [...imagesById.values()]
+		const imageIds = images.map((image) => String(image.id))
+		const imageObjectKeys = [
+			...new Set(
+				images
+					.map((image) => String((image as any).objectKey ?? "").trim())
+					.filter((objectKey) => objectKey.length > 0)
+			),
+		]
+
+		if (imageIds.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.imageId, imageIds))
+		}
+		if (imageObjectKeys.length) {
+			await db.delete(ImageUpload).where(inArray(ImageUpload.objectKey, imageObjectKeys))
+		}
 
 		if (ratePlanIds.length) {
-			await db
-				.delete(CommercialRuleApplication)
-				.where(
-					and(
-						eq(CommercialRuleApplication.scope, "rate_plan"),
-						inArray(CommercialRuleApplication.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(TaxFeeAssignment)
-				.where(
-					and(
-						eq(TaxFeeAssignment.scope, "rate_plan"),
-						inArray(TaxFeeAssignment.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(PolicyAssignment)
-				.where(
-					and(
-						eq(PolicyAssignment.scope, "rate_plan"),
-						inArray(PolicyAssignment.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(EffectiveRestriction)
-				.where(inArray(EffectiveRestriction.ratePlanId, ratePlanIds))
-			await db
-				.delete(RatePlanOccupancyPolicy)
-				.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
-			await db.delete(RatePlan).where(inArray(RatePlan.id, ratePlanIds))
+			for (const ratePlanId of ratePlanIds) {
+				await this.ratePlanCommands.deleteRatePlan(ratePlanId)
+			}
 		}
 
 		if (variantIds.length) {
+			await this.ratePlanCommands.purgeEffectivePricingByVariantIds(variantIds)
 			await db
 				.delete(CommercialRuleApplication)
 				.where(
@@ -471,6 +472,9 @@ export class ProductRepository implements ProductRepositoryPort {
 			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
 
 		await db.delete(Image).where(eq(Image.entityId, productId))
+		if (imageIds.length) {
+			await db.delete(Image).where(inArray(Image.id, imageIds))
+		}
 		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
 		await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
 		await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
