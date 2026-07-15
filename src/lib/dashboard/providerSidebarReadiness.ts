@@ -26,6 +26,8 @@ export type ProviderSidebarData = {
 	productTypes: string[]
 	primaryAccommodationHref?: string | null
 	primaryAccommodationRoomsHref?: string | null
+	primaryAccommodationHouseRulesHref?: string | null
+	accommodationCount?: number
 }
 
 type ProviderSidebarMetrics = {
@@ -88,6 +90,8 @@ async function getProviderVariantIds(providerId: string): Promise<string[]> {
 async function getPrimaryAccommodationLinks(providerId: string): Promise<{
 	href: string | null
 	roomsHref: string | null
+	houseRulesHref: string | null
+	count: number
 }> {
 	const rows = await db
 		.select({
@@ -124,8 +128,13 @@ async function getPrimaryAccommodationLinks(providerId: string): Promise<{
 		? {
 				href: routes.productDetail(primary.id),
 				roomsHref: routes.productRoomsForProduct(primary.id),
+				houseRulesHref:
+					products.size === 1
+						? `${routes.providerHouseRules()}?productId=${encodeURIComponent(primary.id)}`
+						: routes.providerHouseRules(),
+				count: products.size,
 			}
-		: { href: null, roomsHref: null }
+		: { href: null, roomsHref: null, houseRulesHref: null, count: 0 }
 }
 
 async function getRatesSummary(
@@ -272,6 +281,8 @@ export async function getProviderSidebarData(
 			productTypes: [],
 			primaryAccommodationHref: null,
 			primaryAccommodationRoomsHref: null,
+			primaryAccommodationHouseRulesHref: null,
+			accommodationCount: 0,
 		}
 
 	const [ratePlanIds, variantIds, productRows, policyReadiness, primaryAccommodationLinks] =
@@ -336,5 +347,7 @@ export async function getProviderSidebarData(
 		productTypes,
 		primaryAccommodationHref: primaryAccommodationLinks.href,
 		primaryAccommodationRoomsHref: primaryAccommodationLinks.roomsHref,
+		primaryAccommodationHouseRulesHref: primaryAccommodationLinks.houseRulesHref,
+		accommodationCount: primaryAccommodationLinks.count,
 	}
 }

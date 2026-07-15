@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
+import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { Hotel } from "@lucide/astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -47,9 +48,13 @@ const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.rates())
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
+const ratePlanDetailViews = ["conditions", "price", "details"] as const
+type RatePlanDetailView = (typeof ratePlanDetailViews)[number]
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "conditions")
-const activeView = ["conditions", "price", "details"].includes(requestedView)
-	? requestedView
+const activeView: RatePlanDetailView = ratePlanDetailViews.includes(
+	requestedView as RatePlanDetailView
+)
+	? (requestedView as RatePlanDetailView)
 	: "conditions"
 
 const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
@@ -80,6 +85,17 @@ const removalReadiness = await getRatePlanRemovalReadiness({
 	isActive: Boolean(row.isActive),
 	isDefault: Boolean(row.isDefault),
 })
+const viewTitles = {
+	conditions: `Condiciones tarifarias de ${row.ratePlanName}`,
+	price: `Precio base de ${row.ratePlanName}`,
+	details: `Datos de ${row.ratePlanName}`,
+} as const
+const viewDescriptions = {
+	conditions:
+		"Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras.",
+	price: "Ajusta el precio base de referencia. Los cambios por fecha se hacen desde el calendario.",
+	details: "Gestiona el nombre visible, estado comercial y configuración principal de esta tarifa.",
+} as const
 const tabs = [
 	{ id: "conditions", label: "Condiciones", meta: `${policyCoverageDone}/4` },
 	{
@@ -177,28 +193,21 @@ const layoutProps =
 								{row.productName} · Nueva habitación
 							</>
 						) : (
-							"Habitaciones y tarifas · Tarifa"
+							<>
+								<Hotel class="h-4 w-4" />
+								{row.productName} · {row.variantName}
+							</>
 						)
 					}
 				</p>
-				{
-					isPlaybookMode ? (
-						<h1 class="text-3xl font-semibold text-slate-100">Condiciones de la tarifa</h1>
-					) : (
-						<div class="flex flex-wrap items-center gap-2">
-							<h1 class="text-3xl font-semibold text-slate-100">{row.ratePlanName}</h1>
-							<Badge variant={row.isActive ? "success" : "warning"}>
-								{row.isActive ? "Activa" : "Inactiva"}
-							</Badge>
-							{row.isDefault && <Badge variant="info">Principal</Badge>}
-						</div>
-					)
-				}
+				<h1 class="text-3xl font-semibold text-slate-100">
+					{isPlaybookMode ? "Condiciones de la tarifa" : viewTitles[effectiveActiveView]}
+				</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
 					{
 						isPlaybookMode
 							? "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
-							: `${row.productName} · ${row.variantName}`
+							: viewDescriptions[effectiveActiveView]
 					}
 				</p>
 			</div>
@@ -224,26 +233,30 @@ const layoutProps =
 		>
 			{
 				isPlaybookMode ? null : (
-					<nav
-						class="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-4"
+					<div
+						class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
 						aria-label="Configurar tarifa"
 						data-rate-plan-tabs
 					>
-						{tabs.map((tab) => (
-							<a
-								href={`?vista=${tab.id}`}
-								data-rate-plan-tab={tab.id}
-								aria-current={effectiveActiveView === tab.id ? "page" : undefined}
-								class={`border-b-2 px-3 pb-3 text-sm font-semibold whitespace-nowrap transition ${
-									effectiveActiveView === tab.id
-										? "border-slate-950 text-slate-950"
-										: "border-transparent text-slate-500 hover:text-slate-900"
-								}`}
-							>
-								{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
-							</a>
-						))}
-					</nav>
+						<SegmentedControl class="mb-3" aria-label="Configurar tarifa">
+							{tabs.map((tab) => (
+								<a
+									href={`?vista=${tab.id}`}
+									data-rate-plan-tab={tab.id}
+									aria-current={effectiveActiveView === tab.id ? "page" : undefined}
+									data-active={effectiveActiveView === tab.id ? "true" : "false"}
+									class={`fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+										effectiveActiveView === tab.id
+											? ""
+											: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+									}`}
+								>
+									{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
+								</a>
+							))}
+						</SegmentedControl>
+						<p class="pb-3 text-xs text-slate-500">Configuración de la tarifa</p>
+					</div>
 				)
 			}
 
@@ -256,7 +269,7 @@ const layoutProps =
 				data-rate-plan-panel="conditions"
 			>
 				<RatePlanPoliciesSurface
-					title="Condiciones de la tarifa"
+					title={viewTitles.conditions}
 					description={isPlaybookMode
 						? "Revisa las condiciones iniciales. Puedes cambiarlas ahora o confirmarlas para continuar."
 						: "Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."}
@@ -266,8 +279,8 @@ const layoutProps =
 					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
 					productId={context.productId}
 					isProfessionalMode={isProfessionalMode}
-					showPlanSummary={!isPlaybookMode}
-					showHeader={!isPlaybookMode}
+					showPlanSummary={false}
+					showHeader={false}
 				/>
 			</div>
 
@@ -456,10 +469,9 @@ const layoutProps =
 		}
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
-			tab.classList.toggle("border-slate-950", active)
-			tab.classList.toggle("text-slate-950", active)
-			tab.classList.toggle("border-transparent", !active)
+			tab.dataset.active = active ? "true" : "false"
 			tab.classList.toggle("text-slate-500", !active)
+			tab.classList.toggle("hover:bg-white/70", !active)
 			tab.classList.toggle("hover:text-slate-900", !active)
 			if (active) tab.setAttribute("aria-current", "page")
 			else tab.removeAttribute("aria-current")

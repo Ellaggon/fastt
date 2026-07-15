@@ -41,6 +41,7 @@ let disclosureMode: SidebarDisclosureMode = "small-provider"
 let serviceProductTypes: string[] = []
 let primaryAccommodationHref: string | null = null
 let primaryAccommodationRoomsHref: string | null = null
+let primaryAccommodationHouseRulesHref: string | null = null
 const professionalToolsEnabledFromCookie = getProfessionalModeCookiePreference(Astro.request)
 try {
 	const user = await getUserFromRequest(Astro.request)
@@ -58,6 +59,7 @@ try {
 		serviceProductTypes = sidebarData.productTypes
 		primaryAccommodationHref = sidebarData.primaryAccommodationHref ?? null
 		primaryAccommodationRoomsHref = sidebarData.primaryAccommodationRoomsHref ?? null
+		primaryAccommodationHouseRulesHref = sidebarData.primaryAccommodationHouseRulesHref ?? null
 	}
 } catch {
 	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
@@ -69,6 +71,7 @@ try {
 	serviceProductTypes = []
 	primaryAccommodationHref = null
 	primaryAccommodationRoomsHref = null
+	primaryAccommodationHouseRulesHref = null
 }
 const visibleNavigationBase = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 	mode: disclosureMode,
@@ -83,6 +86,9 @@ const visibleNavigation = visibleNavigationBase.map((section) => ({
 		}
 		if (item.label === "Habitaciones" && primaryAccommodationRoomsHref) {
 			return { ...item, href: primaryAccommodationRoomsHref }
+		}
+		if (item.label === "Reglas para huéspedes" && primaryAccommodationHouseRulesHref) {
+			return { ...item, href: primaryAccommodationHouseRulesHref }
 		}
 		return item
 	}),
