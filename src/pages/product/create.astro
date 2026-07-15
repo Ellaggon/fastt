@@ -105,11 +105,16 @@ const isLaunchHotelFlow = playbook.active || requestedVertical?.vertical === "ho
 	</section>
 
 	<script type="module">
+		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
+
 		const form = document.getElementById("createForm")
 		const btn = document.getElementById("submitBtn")
 		const btnText = btn?.textContent || "Crear producto"
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
+		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+			key: "launch:create",
+		})
 
 		function setState(state, detail = "") {
 			const labels = {
@@ -160,6 +165,7 @@ const isLaunchHotelFlow = playbook.active || requestedVertical?.vertical === "ho
 				}
 
 				setState("success", "Guardado correctamente")
+				draft.clear()
 				window.location.href = `/product/${json.id}/content?playbook=launch&step=content&flow=create`
 			} catch (err) {
 				btn.disabled = false
