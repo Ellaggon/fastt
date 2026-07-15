@@ -83,10 +83,11 @@ function formattedResolvedAt(value: string): string {
 	}).format(date)
 }
 
-function providerHouseRulesHref(productId?: string): string {
+function providerHouseRulesHref(productId?: string, ratePlanId?: string): string {
 	const params = new URLSearchParams()
 	if (productId) params.set("productId", productId)
 	params.set("focus", "arrival")
+	if (ratePlanId) params.set("returnTo", routes.ratePlanPolicies(ratePlanId))
 	const query = params.toString()
 	return query ? `${routes.providerHouseRules()}?${query}` : routes.providerHouseRules()
 }
@@ -374,7 +375,7 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 										<div class="px-1 sm:px-4">
 											<div class="flex justify-end">
 												<Button
-													href={providerHouseRulesHref(productId)}
+													href={providerHouseRulesHref(productId, plan.ratePlanId)}
 													variant={arrivalMissing ? "primary" : "secondary"}
 													size="sm"
 												>
