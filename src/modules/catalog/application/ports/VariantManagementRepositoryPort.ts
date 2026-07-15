@@ -70,6 +70,7 @@ export interface VariantManagementRepositoryPort {
 		status: VariantLifecycleStatus
 		isActive?: boolean
 	}): Promise<void>
+	deleteVariantCascade(variantId: string): Promise<void>
 
 	countDailyInventoryDays(variantId: string): Promise<number>
 	countVariantImages(variantId: string): Promise<number>

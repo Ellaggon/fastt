@@ -42,7 +42,7 @@ export const productRepository = new ProductRepository(r2)
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
 export const imageUploadRepository = new ImageUploadRepository()
-export const variantManagementRepository = new VariantManagementRepository()
+export const variantManagementRepository = new VariantManagementRepository(undefined, r2)
 
 export async function cleanupStaleUploads(params: { olderThanMinutes: number }) {
 	if (!process.env.R2_BUCKET_NAME) throw new Error("R2_BUCKET_NAME is not defined")
