@@ -24,13 +24,11 @@ import {
 	CommercialRuleApplication,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
 	EffectiveRestriction,
 	PolicyAssignment,
 	ProductService,
 	ProductServiceAttribute,
 	RatePlan,
-	RatePlanOccupancyPolicy,
 	SearchUnitView,
 	TaxFeeAssignment,
 } from "astro:db"
@@ -41,9 +39,14 @@ import type {
 	ProductRepositoryPort,
 	ProductStatusState,
 } from "../../application/ports/ProductRepositoryPort"
+import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
+import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
 
 export class ProductRepository implements ProductRepositoryPort {
-	constructor(private r2?: S3Client) {}
+	constructor(
+		private r2?: S3Client,
+		private readonly ratePlanCommands: RatePlanCommandRepositoryPort = new RatePlanCommandRepository()
+	) {}
 
 	// INVARIANT:
 	// Product persists identity only.
@@ -401,41 +404,13 @@ export class ProductRepository implements ProductRepositoryPort {
 		}
 
 		if (ratePlanIds.length) {
-			await db
-				.delete(CommercialRuleApplication)
-				.where(
-					and(
-						eq(CommercialRuleApplication.scope, "rate_plan"),
-						inArray(CommercialRuleApplication.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(TaxFeeAssignment)
-				.where(
-					and(
-						eq(TaxFeeAssignment.scope, "rate_plan"),
-						inArray(TaxFeeAssignment.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(PolicyAssignment)
-				.where(
-					and(
-						eq(PolicyAssignment.scope, "rate_plan"),
-						inArray(PolicyAssignment.scopeId, ratePlanIds)
-					)
-				)
-			await db
-				.delete(EffectiveRestriction)
-				.where(inArray(EffectiveRestriction.ratePlanId, ratePlanIds))
-			await db
-				.delete(RatePlanOccupancyPolicy)
-				.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
-			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.ratePlanId, ratePlanIds))
-			await db.delete(RatePlan).where(inArray(RatePlan.id, ratePlanIds))
+			for (const ratePlanId of ratePlanIds) {
+				await this.ratePlanCommands.deleteRatePlan(ratePlanId)
+			}
 		}
 
 		if (variantIds.length) {
+			await this.ratePlanCommands.purgeEffectivePricingByVariantIds(variantIds)
 			await db
 				.delete(CommercialRuleApplication)
 				.where(
@@ -462,7 +437,6 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db
 				.delete(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))
-			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, variantIds))
 			await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
 			await db
 				.delete(VariantInventoryConfig)

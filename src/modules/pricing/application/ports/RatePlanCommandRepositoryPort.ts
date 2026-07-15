@@ -41,4 +41,5 @@ export interface RatePlanCommandRepositoryPort {
 		description: string | null
 	}): Promise<"not_found" | "ok">
 	deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok">
+	purgeEffectivePricingByVariantIds(variantIds: string[]): Promise<void>
 }

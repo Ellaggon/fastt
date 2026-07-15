@@ -1,4 +1,5 @@
 import { r2 } from "./shared.container"
+import { ratePlanCommandRepository } from "./pricing.container"
 
 import { SubtypeRepository } from "../modules/catalog/infrastructure/repositories/SubtypeRepository"
 import { ProviderRepository } from "../modules/catalog/infrastructure/repositories/ProviderRepository"
@@ -38,11 +39,15 @@ import {
 export const subtypeRepository = new SubtypeRepository()
 export const providerRepository = new ProviderRepository()
 export const providerV2Repository = new ProviderV2Repository()
-export const productRepository = new ProductRepository(r2)
+export const productRepository = new ProductRepository(r2, ratePlanCommandRepository)
 export const productServiceRepository = new ProductServiceRepository()
 export const productImageRepository = new ProductImageRepository()
 export const imageUploadRepository = new ImageUploadRepository()
-export const variantManagementRepository = new VariantManagementRepository(undefined, r2)
+export const variantManagementRepository = new VariantManagementRepository(
+	undefined,
+	r2,
+	ratePlanCommandRepository
+)
 
 export async function cleanupStaleUploads(params: { olderThanMinutes: number }) {
 	if (!process.env.R2_BUCKET_NAME) throw new Error("R2_BUCKET_NAME is not defined")

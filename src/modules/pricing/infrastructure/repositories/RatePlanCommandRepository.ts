@@ -293,4 +293,17 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 
 		return "ok"
 	}
+
+	async purgeEffectivePricingByVariantIds(variantIds: string[]): Promise<void> {
+		const ids = [...new Set(variantIds.map((id) => String(id ?? "").trim()).filter(Boolean))]
+		if (!ids.length) return
+		try {
+			await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, ids))
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			if (!message.includes("no such table") && !message.includes("no such column")) {
+				throw error
+			}
+		}
+	}
 }
