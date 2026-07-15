@@ -104,7 +104,8 @@ const isLaunchHotelFlow = playbook.active || requestedVertical?.vertical === "ho
 		</section>
 	</section>
 
-	<script type="module">
+	<script>
+		// @ts-nocheck
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 
 		const form = document.getElementById("createForm")

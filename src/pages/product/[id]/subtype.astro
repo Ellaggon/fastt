@@ -145,6 +145,7 @@ const limousineSubtype =
 					method="POST"
 					action="/api/product/subtype"
 					class="max-w-3xl space-y-6"
+					data-is-hotel={isHotel ? "true" : "false"}
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -464,7 +465,8 @@ const limousineSubtype =
 		</section>
 	</section>
 
-	<script type="module" define:vars={{ isHotel, productId }}>
+	<script>
+		// @ts-nocheck
 		import {
 			isCompleteToPublishPlaybookMode,
 			isPlaybookMode,
@@ -477,6 +479,7 @@ const limousineSubtype =
 		const stateLabel = document.getElementById("stateLabel")
 		const stateDetail = document.getElementById("stateDetail")
 		const btn = document.getElementById("submitBtn")
+		const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
 		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
 			key: `product:${window.location.pathname}:subtype`,
 		})
