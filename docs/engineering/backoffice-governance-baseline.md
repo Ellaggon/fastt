@@ -76,7 +76,7 @@ Mandatory coverage:
 | /admin/\*\*                                                            | Internal-only            | Internal Admin               | Internal Admin              |
 | /api/internal/dashboard-summary                                        | Canonical                | Enterprise Operations        | Command Center              |
 | /api/internal/product-summary                                          | Canonical                | Provider Workspace           | Property Content            |
-| /api/internal/variants-summary, /api/internal/variant-summary          | Canonical                | Provider Workspace           | Property Content            |
+| /api/internal/rooms-summary, /api/internal/room-summary                | Canonical                | Provider Workspace           | Property Content            |
 | /api/internal/availability-summary, /api/internal/inventory/recompute  | Canonical / Transitional | Enterprise Operations        | Rooms & Rates               |
 | /api/internal/provider-bookings-summary, /api/internal/booking-summary | Canonical                | Enterprise Operations        | Reservations                |
 | /api/internal/provider-summary                                         | Transitional             | Governance                   | Administration & Governance |

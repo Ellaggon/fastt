@@ -130,8 +130,6 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const files = [
 			"src/pages/product/[id]/rooms/new.astro",
 			"src/pages/product/[id]/rooms/[roomId]/index.astro",
-			"src/pages/product/[id]/rooms/[roomId]/inventory.astro",
-			"src/pages/product/[id]/rooms/[roomId]/availability.astro",
 		]
 		const bannedCopy = [/Precios/, /Sin pricing configurado/, /pricing por variante/i, /Producto ·/]
 
@@ -148,11 +146,14 @@ describe("Guardrail: Property Content operational semantics", () => {
 		).toEqual([])
 	})
 
-	it("keeps retired variant URLs out of the router and availability pointed to calendar", () => {
+	it("keeps retired room and variant URLs out of the router", () => {
 		const routes = read("src/lib/routes.ts")
 		const roomWorkspace = read("src/pages/product/[id]/rooms/[roomId]/index.astro")
-		const legacyAvailability = read("src/pages/product/[id]/rooms/[roomId]/availability.astro")
 		const removedLegacyVariantRoutes = [
+			"src/pages/rooms.astro",
+			"src/pages/catalog/accommodations/rooms/index.astro",
+			"src/pages/product/[id]/rooms/[roomId]/inventory.astro",
+			"src/pages/product/[id]/rooms/[roomId]/availability.astro",
 			"src/pages/product/[id]/variants/new.astro",
 			"src/pages/product/[id]/variants/[variantId]/index.astro",
 			"src/pages/product/[id]/variants/[variantId]/capacity.astro",
@@ -178,9 +179,6 @@ describe("Guardrail: Property Content operational semantics", () => {
 				`${relativePath} should stay removed`
 			).toBe(false)
 		}
-		expect(legacyAvailability).toContain("/rates/calendar")
-		expect(legacyAvailability).toContain('target.searchParams.set("focus", "availability")')
-		expect(legacyAvailability).not.toContain("#disponibilidad")
 	})
 
 	it("classifies variant surfaces as physical context instead of broad editorial catalog", () => {

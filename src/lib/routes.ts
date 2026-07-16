@@ -18,7 +18,6 @@ export const routes = {
 		return "/dashboard"
 	},
 	catalogAccommodations: () => "/dashboard",
-	catalogAccommodationRooms: () => "/dashboard",
 	catalogTours: () => "/catalog/tours",
 	catalogPackages: () => "/catalog/packages",
 	catalogLimousines: () => "/catalog/limousines",
@@ -32,9 +31,7 @@ export const routes = {
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}`,
 	productRoomProfile: (productId: string, roomId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/profile`,
-	productRoomAvailability: (_productId: string, roomId: string) =>
-		`/rates/calendar?variantId=${encodeURIComponent(String(roomId))}&focus=availability`,
-	productRoomInventory: (_productId: string, roomId: string) =>
+	productRoomCalendar: (_productId: string, roomId: string) =>
 		`/rates/calendar?variantId=${encodeURIComponent(String(roomId))}&focus=availability`,
 	bookingList: () => "/booking",
 	rates: () => "/rates/plans/manage",

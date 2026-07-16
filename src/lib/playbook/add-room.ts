@@ -32,7 +32,7 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		id: "choose-accommodation",
 		label: "Elegir alojamiento",
 		guestImpact: "Selecciona dónde agregarás la habitación",
-		buildHref: () => buildAddRoomHref(routes.catalogAccommodationRooms(), "choose-accommodation"),
+		buildHref: () => buildAddRoomHref(routes.catalogAccommodations(), "choose-accommodation"),
 		appliesTo: (ctx) => !ctx.productId,
 	},
 	{
@@ -184,11 +184,7 @@ export function getPreviousAddRoomStep(
 }
 
 export function inferAddRoomStepFromPathname(pathname: string): AddRoomStepId | null {
-	if (
-		pathname === "/dashboard" ||
-		pathname === "/catalog/accommodations" ||
-		pathname === "/catalog/accommodations/rooms"
-	) {
+	if (pathname === "/dashboard" || pathname === "/catalog/accommodations") {
 		return "choose-accommodation"
 	}
 	if (pathname.endsWith("/rooms/new")) return "create-room"
@@ -288,5 +284,5 @@ export function buildAddRoomEntryHref(productId?: string): string {
 	if (productId) {
 		return buildAddRoomHref(routes.productRoomNew(productId), "create-room")
 	}
-	return buildAddRoomHref(routes.catalogAccommodationRooms(), "choose-accommodation")
+	return buildAddRoomHref(routes.catalogAccommodations(), "choose-accommodation")
 }
