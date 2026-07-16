@@ -84,9 +84,7 @@ const preparationByProduct = new Map<string, ProductPreparationSummary | null>(p
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
-	return Astro.redirect(
-		buildAddRoomHref(routes.catalogAccommodationRooms(), "choose-accommodation")
-	)
+	return Astro.redirect(buildAddRoomHref(routes.catalogAccommodations(), "choose-accommodation"))
 }
 if (products.length === 1) {
 	if (addRoomPlaybook.active) {

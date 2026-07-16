@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
-import { and, asc, db, eq, Image, inArray } from "astro:db"
+import { DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { and, asc, db, eq, Image, ImageUpload, inArray, or } from "astro:db"
 
-import { productRepository, variantManagementRepository } from "@/container"
+import { productRepository, r2, variantManagementRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
@@ -76,6 +77,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.select({
 				id: Image.id,
 				url: Image.url,
+				objectKey: Image.objectKey,
 			})
 			.from(Image)
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
@@ -86,7 +88,30 @@ export const POST: APIRoute = async ({ request }) => {
 		for (const row of existing) {
 			const url = String(row.url)
 			if (!incomingSet.has(url)) {
-				await db.delete(Image).where(eq(Image.id, String(row.id)))
+				const imageId = String(row.id)
+				const objectKey = String(row.objectKey ?? "").trim()
+				await db
+					.delete(ImageUpload)
+					.where(
+						or(
+							eq(ImageUpload.imageId, imageId),
+							eq(ImageUpload.id, imageId),
+							eq(ImageUpload.objectKey, objectKey)
+						)
+					)
+				await db.delete(Image).where(eq(Image.id, imageId))
+				if (objectKey && process.env.R2_BUCKET_NAME) {
+					try {
+						await r2.send(
+							new DeleteObjectCommand({
+								Bucket: process.env.R2_BUCKET_NAME,
+								Key: objectKey,
+							})
+						)
+					} catch (error) {
+						console.warn("Failed to delete removed variant image from R2", error)
+					}
+				}
 			}
 		}
 

@@ -107,7 +107,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 			{
 				!isRoomPhotosPlaybook ? (
 					<Button
-						href={routes.productRoomInventory(productId, roomId)}
+						href={routes.productRoomCalendar(productId, roomId)}
 						data-astro-prefetch
 						variant="secondary"
 					>
@@ -258,7 +258,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 										Tarifas
 									</Button>
 									<Button
-										href={routes.productRoomInventory(productId, roomId)}
+										href={routes.productRoomCalendar(productId, roomId)}
 										data-astro-prefetch
 										variant="secondary"
 										className="w-full justify-start"
@@ -888,39 +888,55 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
 					if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
 					try {
-						const signData = new FormData()
-						files.forEach((file) => signData.append("file", file))
-						signData.set("prefix", "rooms")
-						const signResponse = await fetch("/api/upload/create-signed", {
-							method: "POST",
-							body: signData,
-						})
-						const signPayload = await signResponse.json().catch(() => ({}))
-						if (!signResponse.ok || !Array.isArray(signPayload?.urls)) {
-							if (roomImageFeedback)
-								roomImageFeedback.textContent = "No se pudieron preparar las cargas."
-							return
-						}
-						for (const [index, file] of files.entries()) {
-							const target = signPayload.urls[index]
-							if (!target?.signedUrl || !target?.publicUrl || !target?.key) continue
-							const uploadResponse = await fetch(String(target.signedUrl), {
+						for (const file of files) {
+							const initData = new FormData()
+							initData.set("productId", productId)
+							initData.set("file", file)
+							const initResponse = await fetch("/api/uploads/init", {
+								method: "POST",
+								body: initData,
+							})
+							const initPayload = await initResponse.json().catch(() => ({}))
+							if (
+								!initResponse.ok ||
+								!initPayload?.imageId ||
+								!initPayload?.objectKey ||
+								!initPayload?.signedUrl
+							) {
+								throw new Error(String(initPayload?.error ?? "upload_init_failed"))
+							}
+							const uploadResponse = await fetch(String(initPayload.signedUrl), {
 								method: "PUT",
 								headers: { "Content-Type": file.type || "application/octet-stream" },
 								body: file,
 							})
 							if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
+							const completeData = new FormData()
+							completeData.set("productId", productId)
+							completeData.set("imageId", String(initPayload.imageId))
+							completeData.set("objectKey", String(initPayload.objectKey))
+							completeData.set("entityType", "variant")
+							completeData.set("entityId", roomId)
+							const completeResponse = await fetch("/api/uploads/complete", {
+								method: "POST",
+								body: completeData,
+							})
+							const completePayload = await completeResponse.json().catch(() => ({}))
+							if (!completeResponse.ok) {
+								throw new Error(String(completePayload?.error ?? "upload_complete_failed"))
+							}
 							roomImages.push({
-								id: `local-${crypto.randomUUID()}`,
-								url: String(target.publicUrl),
-								objectKey: String(target.key),
+								id: String(initPayload.imageId),
+								url: String(initPayload.publicUrl),
+								objectKey: String(initPayload.objectKey),
 								order: roomImages.length,
 								isPrimary: roomImages.length === 0,
 							})
 						}
 						renderRoomImages()
 						if (roomImageFeedback) {
-							roomImageFeedback.textContent = "Imágenes cargadas. Guarda la galería para persistir."
+							roomImageFeedback.textContent =
+								"Imágenes cargadas y vinculadas. Guarda la galería para confirmar el orden."
 						}
 					} catch (error) {
 						if (roomImageFeedback)

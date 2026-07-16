@@ -1,8 +1,0 @@
----
-import { routes } from "@/lib/routes"
-
-const target = new URL(routes.catalogAccommodations(), Astro.url)
-target.search = Astro.url.search
-
-return Astro.redirect(`${target.pathname}${target.search}`)
----

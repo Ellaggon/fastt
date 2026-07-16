@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "seed:room-types": "astro db execute src/scripts/seed-room-types.ts",
     "seed:financial:demo": "astro db execute src/scripts/seed-financial-operational-demo.ts",
+    "audit:r2-images": "astro db execute src/scripts/audit-r2-image-orphans.ts",
     "start": "astro dev --remote",
     "build": "astro build --remote",
     "preview": "astro preview",

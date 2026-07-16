@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
+import { and, db, eq, Image, ImageUpload, Variant } from "astro:db"
 
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -80,58 +81,6 @@ async function readJson(res: Response) {
 }
 
 describe("integration/r2 image upload system (Product V2)", () => {
-	it("create-signed: accepts image/* File and returns { key, signedUrl, publicUrl }", async () => {
-		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
-
-		const { POST } = await import("@/pages/api/upload/create-signed")
-
-		const token = "token_create_signed"
-		const email = "signed@example.com"
-		await upsertProvider({ id: "prov_create_signed", displayName: "Signed", ownerEmail: email })
-
-		const fd = new FormData()
-		fd.append("prefix", "products")
-		fd.append("file", new File([new Uint8Array([1, 2, 3])], "a.png", { type: "image/png" }))
-
-		await withSupabaseAuthStub({ [token]: { id: "u_s", email } }, async () => {
-			const res = await POST({
-				request: makeAuthedFormRequest({ path: "/api/upload/create-signed", token, form: fd }),
-			} as any)
-			expect(res.status).toBe(200)
-			const json = (await readJson(res)) as any
-			expect(Array.isArray(json.urls)).toBe(true)
-			expect(json.urls.length).toBe(1)
-			expect(typeof json.urls[0].key).toBe("string")
-			expect(json.urls[0].key.startsWith("products/")).toBe(true)
-			expect(json.urls[0].signedUrl).toBe("https://signed.r2.test/put-object?sig=test")
-			expect(typeof json.urls[0].publicUrl).toBe("string")
-			expect(json.urls[0].publicUrl.includes("/products/")).toBe(true)
-		})
-	})
-
-	it("create-signed: rejects non-image File (400)", async () => {
-		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
-
-		const { POST } = await import("@/pages/api/upload/create-signed")
-
-		const token = "token_create_signed_2"
-		const email = "signed2@example.com"
-		await upsertProvider({ id: "prov_create_signed_2", displayName: "Signed2", ownerEmail: email })
-
-		const fd = new FormData()
-		fd.append("prefix", "products")
-		fd.append("file", new File([new TextEncoder().encode("x")], "a.txt", { type: "text/plain" }))
-
-		await withSupabaseAuthStub({ [token]: { id: "u_s2", email } }, async () => {
-			const res = await POST({
-				request: makeAuthedFormRequest({ path: "/api/upload/create-signed", token, form: fd }),
-			} as any)
-			expect(res.status).toBe(400)
-			const json = (await readJson(res)) as any
-			expect(String(json?.error || "")).toContain("Only image files")
-		})
-	})
-
 	it("Product V2 images endpoint: sets gallery by imageIds, and replacement deletes previous DB rows + triggers R2 deletion (objectKey only)", async () => {
 		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
 		const destinationId = "dest_int_r2_prod_v2"
@@ -160,14 +109,14 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 		await withSupabaseAuthStub({ [token]: { id: "u_r2", email } }, async () => {
 			const prevSend = r2.send.bind(r2)
-			const sendSpy = vi.fn(
-				async (_cmd: any) =>
-					({
-						ContentType: "image/png",
-						ContentLength: 1,
-						ETag: '"test"',
-					}) as any
-			)
+			const sendSpy = vi.fn(async (command: unknown) => {
+				void command
+				return {
+					ContentType: "image/png",
+					ContentLength: 1,
+					ETag: '"test"',
+				} as any
+			})
 			;(r2 as any).send = sendSpy
 
 			// First attach
@@ -236,6 +185,111 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 			// R2 deletion attempted for the removed image.
 			expect(sendSpy).toHaveBeenCalled()
+			;(r2 as any).send = prevSend
+		})
+	})
+
+	it("Variant images use tracked uploads and removed gallery images are deleted from R2", async () => {
+		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
+		const destinationId = "dest_int_r2_variant"
+		const providerId = "prov_int_r2_variant"
+		const email = "provider-r2-variant@example.com"
+		const token = "token_r2_variant"
+		const productId = `prod_int_r2_variant_${crypto.randomUUID()}`
+		const variantId = `variant_int_r2_${crypto.randomUUID()}`
+
+		await upsertDestination({
+			id: destinationId,
+			name: "R2 Variant Destination",
+			type: "city",
+			country: "CL",
+			slug: "r2-variant-destination",
+		})
+		await upsertProvider({ id: providerId, displayName: "R2 Variant Provider", ownerEmail: email })
+		await upsertProduct({
+			id: productId,
+			name: "R2 Variant Product",
+			productType: "Hotel",
+			destinationId,
+			providerId,
+		})
+		await db.insert(Variant).values({
+			id: variantId,
+			productId,
+			name: "Habitación R2",
+			kind: "hotel_room",
+			status: "ready",
+			isActive: true,
+		})
+
+		const { POST: setVariantImagesPost } = await import("@/pages/api/variant/images")
+
+		await withSupabaseAuthStub({ [token]: { id: "u_r2_variant", email } }, async () => {
+			const prevSend = r2.send.bind(r2)
+			const sendSpy = vi.fn(async (command: unknown) => {
+				void command
+				return {
+					ContentType: "image/png",
+					ContentLength: 1,
+					ETag: '"variant-test"',
+				} as any
+			})
+			;(r2 as any).send = sendSpy
+
+			const initFd = new FormData()
+			initFd.set("productId", productId)
+			initFd.set("file", new File([new Uint8Array([3])], "room.png", { type: "image/png" }))
+			const initRes = await uploadInitPost({
+				request: makeAuthedFormRequest({ path: "/api/uploads/init", token, form: initFd }),
+			} as any)
+			expect(initRes.status).toBe(200)
+			const initJson = (await readJson(initRes)) as any
+
+			const completeFd = new FormData()
+			completeFd.set("productId", productId)
+			completeFd.set("imageId", initJson.imageId)
+			completeFd.set("objectKey", initJson.objectKey)
+			completeFd.set("entityType", "variant")
+			completeFd.set("entityId", variantId)
+			const completeRes = await uploadCompletePost({
+				request: makeAuthedFormRequest({ path: "/api/uploads/complete", token, form: completeFd }),
+			} as any)
+			expect(completeRes.status).toBe(200)
+
+			const attached = await db
+				.select()
+				.from(Image)
+				.where(and(eq(Image.id, initJson.imageId), eq(Image.entityId, variantId)))
+				.all()
+			expect(attached).toHaveLength(1)
+			const upload = await db
+				.select()
+				.from(ImageUpload)
+				.where(eq(ImageUpload.imageId, initJson.imageId))
+				.all()
+			expect(upload).toHaveLength(1)
+			expect(String(upload[0]?.status ?? "")).toBe("completed")
+
+			const emptyGallery = new FormData()
+			emptyGallery.set("variantId", variantId)
+			const removeRes = await setVariantImagesPost({
+				request: makeAuthedFormRequest({
+					path: "/api/variant/images",
+					token,
+					form: emptyGallery,
+				}),
+			} as any)
+			expect(removeRes.status).toBe(200)
+
+			await expect(
+				db.select().from(Image).where(eq(Image.id, initJson.imageId)).all()
+			).resolves.toHaveLength(0)
+			await expect(
+				db.select().from(ImageUpload).where(eq(ImageUpload.imageId, initJson.imageId)).all()
+			).resolves.toHaveLength(0)
+			expect(sendSpy.mock.calls.map(([command]) => (command as any)?.input?.Key)).toContain(
+				initJson.objectKey
+			)
 			;(r2 as any).send = prevSend
 		})
 	})
@@ -312,47 +366,5 @@ describe("integration/r2 image upload system (Product V2)", () => {
 		expect((updated[0] as any).url).toBe("https://example.com/2.jpg")
 		expect((updated[1] as any).url).toBe("https://example.com/1.jpg")
 		;(r2 as any).send = prevSend
-	})
-
-	it("Edge: signed-url PUT failures are not checked by uploadFilesToR2 (legacy helper risk demonstration)", async () => {
-		// This validates current behavior of the client helper: it does not check PUT response ok-ness.
-		// We intentionally keep the assertion aligned with current implementation to avoid failing CI.
-		const { uploadFilesToR2 } = await import("@/lib/upload/uploadFilesToR2")
-
-		const prevFetch = globalThis.fetch
-		globalThis.fetch = (async (input: any, init?: any) => {
-			const url = typeof input === "string" ? input : String(input?.url || "")
-			if (url === "/api/upload/create-signed") {
-				return new Response(
-					JSON.stringify({
-						urls: [
-							{
-								key: "products/fail.png",
-								signedUrl: "https://signed.r2.test/fail",
-								publicUrl: "https://pub.r2.dev/products/fail.png",
-							},
-						],
-					}),
-					{ status: 200, headers: { "Content-Type": "application/json" } }
-				)
-			}
-			if (url === "https://signed.r2.test/fail" && init?.method === "PUT") {
-				return new Response("R2 error", { status: 500 })
-			}
-			return prevFetch(input, init)
-		}) as any
-
-		const file = new File([new Uint8Array([1])], "a.png", { type: "image/png" })
-		const fileList = {
-			0: file,
-			length: 1,
-			item: (i: number) => (i === 0 ? file : null),
-		} as any as FileList
-
-		const urls = await uploadFilesToR2(fileList, "products")
-		// Current behavior: returns public URLs regardless of PUT status.
-		expect(urls).toEqual(["https://pub.r2.dev/products/fail.png"])
-
-		globalThis.fetch = prevFetch
 	})
 })

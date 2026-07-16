@@ -219,27 +219,12 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Resumen operativo del proveedor con preparación de servicios, accesos frecuentes y señales de continuidad.",
 	},
 	{
-		pattern: "/rooms",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Short alias that redirects to the accommodation rooms workspace.",
-	},
-	{
 		pattern: "/catalog/accommodations",
 		status: "legacy",
 		context: "enterprise-operations",
 		owner: "Command Center",
 		rationale:
 			"Ruta histórica del resumen de alojamientos; redirige al inicio canónico /dashboard.",
-	},
-	{
-		pattern: "/catalog/accommodations/rooms",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Servicios",
-		rationale:
-			"Compatibilidad para enlaces antiguos del selector de alojamientos; redirige al inicio canónico /dashboard.",
 	},
 	{
 		pattern: "/catalog/tours",
@@ -338,14 +323,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "enterprise-operations",
 		owner: "Rooms & Rates",
 		rationale: "Superficie de calendario deprecada; no exponer en navegación primaria.",
-	},
-	{
-		pattern: "/product/:id/rooms/:roomId/inventory",
-		status: "legacy",
-		context: "enterprise-operations",
-		owner: "Rooms & Rates",
-		rationale:
-			"Compat redirect hacia /rates/calendar con filtro de habitación y foco de disponibilidad.",
 	},
 	{
 		pattern: "/inventory/bulk",
@@ -485,20 +462,6 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "provider-workspace",
 		owner: "Property Content",
 		rationale: "BFF del espacio de habitación y preparación visible para huéspedes.",
-	},
-	{
-		pattern: "/api/internal/variants-summary",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Compatibility alias for the room-facing rooms-summary BFF.",
-	},
-	{
-		pattern: "/api/internal/variant-summary",
-		status: "legacy",
-		context: "provider-workspace",
-		owner: "Property Content",
-		rationale: "Compatibility alias for the room-facing room-summary BFF.",
 	},
 	{
 		pattern: "/api/internal/availability-summary",

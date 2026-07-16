@@ -241,10 +241,6 @@ describe("Guardrail: backoffice governance navigation", () => {
 				expect.objectContaining({ pattern: "/rates/calendar", status: "canonical" }),
 				expect.objectContaining({ pattern: "/pricing", status: "legacy" }),
 				expect.objectContaining({ pattern: "/pricing/calendar", status: "legacy" }),
-				expect.objectContaining({
-					pattern: "/product/:id/rooms/:roomId/inventory",
-					status: "legacy",
-				}),
 				expect.objectContaining({ pattern: "/inventory", status: "legacy" }),
 				expect.objectContaining({ pattern: "/inventory/bulk", status: "legacy" }),
 				expect.objectContaining({ pattern: "/rates/plans/**", status: "canonical" }),
@@ -1020,19 +1016,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 		const pricing = readFileSync(join(process.cwd(), "src/pages/pricing/index.astro"), "utf8")
 		const calendar = readFileSync(join(process.cwd(), "src/pages/pricing/calendar.astro"), "utf8")
 		const rules = readFileSync(join(process.cwd(), "src/pages/pricing/rules.astro"), "utf8")
-		const roomInventory = readFileSync(
-			join(process.cwd(), "src/pages/product/[id]/rooms/[roomId]/inventory.astro"),
-			"utf8"
-		)
 
-		for (const source of [pricing, calendar, rules, roomInventory]) {
+		for (const source of [pricing, calendar, rules]) {
 			expect(source).toContain("return Astro.redirect")
 			expect(source).not.toContain("WorkspaceLayout")
 			expect(source).not.toContain("PricingCalendar")
 		}
 		expect(calendar).toContain("target.search = Astro.url.search")
 		expect(rules).toContain('target.searchParams.set("tab", "rules")')
-		expect(roomInventory).toContain('target.searchParams.set("focus", "availability")')
 	})
 
 	it("keeps visible CTAs and route helpers off legacy /pricing destinations", () => {
