@@ -5,6 +5,10 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
+	filterItemsByAccommodationScope,
+	getFinancialAccommodationScope,
+} from "../../_client/financial-accommodation-scope"
+import {
 	bookingDisplayName,
 	bookingSubtitle,
 	buildBookingContextIndex,
@@ -202,7 +206,15 @@ function buildItems(payloads: any[]): ExceptionItem[] {
 }
 
 function segmentCount(segment: ExceptionSegment): number {
-	return state.items.filter((item) => item.segment === segment).length
+	return scopedItems().filter((item) => item.segment === segment).length
+}
+
+function scopedItems(): ExceptionItem[] {
+	return filterItemsByAccommodationScope(
+		state.items,
+		getFinancialAccommodationScope(),
+		state.bookingContext
+	)
 }
 
 function ageDays(label: string): number {
@@ -239,7 +251,7 @@ function renderRows(): void {
 	const summary = document.getElementById("financialExceptionsSummary")
 	const summaryHint = document.getElementById("financialExceptionsSummaryHint")
 	if (!rows) return
-	const visible = sortExceptionItems(state.items.filter((item) => item.segment === state.segment))
+	const visible = sortExceptionItems(scopedItems().filter((item) => item.segment === state.segment))
 	if (summary) {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}

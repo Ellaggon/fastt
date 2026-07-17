@@ -39,6 +39,8 @@ export const GET: APIRoute = async ({ request }) => {
 			detailTotalAmount: BookingRoomDetail.totalAmount,
 			detailTaxAmount: BookingRoomDetail.taxAmount,
 			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+			productIdSnapshot: BookingRoomDetail.productIdSnapshot,
+			productId: Product.id,
 			productNameSnapshot: BookingRoomDetail.productNameSnapshot,
 			variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
 			productName: Product.name,

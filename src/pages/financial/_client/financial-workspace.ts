@@ -58,7 +58,9 @@ export function initFinancialWorkspace(): void {
 	const ageFilter = document.getElementById("financialAgeFilter") as HTMLSelectElement | null
 	const searchFilter = document.getElementById("financialSearchFilter") as HTMLInputElement | null
 	const clearFilters = document.getElementById("financialClearFilters") as HTMLButtonElement | null
-	const summary = document.getElementById("financialSummary")
+	const summaryContainers = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-financial-summary]")
+	)
 	const rows = document.getElementById("financialRows")
 	if (!rows || rows.dataset.financialWorkspaceReady === "true") return
 	rows.dataset.financialWorkspaceReady = "true"
@@ -69,6 +71,9 @@ export function initFinancialWorkspace(): void {
 	const drawerBackdrop = document.getElementById("financialReviewBackdrop")
 	const drawerBody = document.getElementById("financialReviewDrawerBody")
 	const drawerClose = document.getElementById("financialReviewDrawerClose")
+	const accommodationContext = document.getElementById("financialAccommodationContext")
+	const selectedAccommodationId = String(accommodationContext?.dataset.productId || "").trim()
+	const selectedAccommodationName = String(accommodationContext?.dataset.productName || "").trim()
 
 	const statusClass = (status: unknown): string => {
 		const map: Record<string, string> = {
@@ -133,6 +138,8 @@ export function initFinancialWorkspace(): void {
 			segment: inboxState.segment,
 			search: String(searchFilter?.value || ""),
 			age: String(ageFilter?.value || "all"),
+			accommodationId: selectedAccommodationId,
+			accommodationName: selectedAccommodationName,
 		}
 	}
 
@@ -146,6 +153,23 @@ export function initFinancialWorkspace(): void {
 				isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
 			})
 		)
+	}
+
+	function accommodationScopedItems(items: any[]): any[] {
+		return filterFinancialRows({
+			items,
+			filters: {
+				actor: "all" as any,
+				segment: "all",
+				search: "",
+				age: "all",
+				accommodationId: selectedAccommodationId,
+				accommodationName: selectedAccommodationName,
+			},
+			rowFor,
+			isTerminalReview,
+			isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
+		})
 	}
 
 	function ageDays(labelText: string): number {
@@ -172,12 +196,12 @@ export function initFinancialWorkspace(): void {
 	}
 
 	function renderSummary(items: any[]): void {
-		if (!summary) return
+		if (!summaryContainers.length) return
 		const metrics = primarySummaryQueues.map((metric) => ({
 			...metric,
 			value: countQueue(items, metric.queue),
 		}))
-		summary.innerHTML = metrics
+		const markup = metrics
 			.map((metric) => {
 				const active = metric.queue === inboxState.segment
 				const buttonClass = financialSummaryClass(active)
@@ -186,10 +210,14 @@ export function initFinancialWorkspace(): void {
 				</button>`
 			})
 			.join("")
-		summary.querySelectorAll("[data-queue]").forEach((button) => {
-			button.addEventListener("click", () => {
-				inboxState.segment = String(button.getAttribute("data-queue") || "needs_action_today")
-				renderFinancialView()
+		summaryContainers.forEach((summary) => {
+			summary.innerHTML = markup
+			summary.querySelectorAll("[data-queue]").forEach((button) => {
+				button.addEventListener("click", () => {
+					inboxState.segment = String(button.getAttribute("data-queue") || "needs_action_today")
+					button.closest("[data-financial-popover]")?.removeAttribute("open")
+					renderFinancialView()
+				})
 			})
 		})
 	}
@@ -200,9 +228,11 @@ export function initFinancialWorkspace(): void {
 
 	function renderFilterSummary(): void {
 		if (!filterSummary) return
-		const actorLabel = selectedOptionLabel(actorFilter, "Todos los equipos")
+		const actorLabel = actorFilter ? selectedOptionLabel(actorFilter, "Todos los responsables") : ""
 		const ageLabel = selectedOptionLabel(ageFilter, "Todas")
-		const parts = [actorLabel, ageLabel === "Todas" ? "Todas las edades" : ageLabel].filter(Boolean)
+		const parts = [actorLabel, ageLabel === "Todas" ? "Cualquier antigüedad" : ageLabel].filter(
+			Boolean
+		)
 		filterSummary.textContent = parts.join(" · ")
 	}
 
@@ -211,7 +241,7 @@ export function initFinancialWorkspace(): void {
 		const nextSegment = primarySummaryQueues.find(
 			(metric) =>
 				metric.queue !== inboxState.segment &&
-				countQueue(workspaceState.combinedItems, metric.queue) > 0
+				countQueue(accommodationScopedItems(workspaceState.combinedItems), metric.queue) > 0
 		)
 		const action = nextSegment
 			? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 ${financialUi.buttonSecondarySm}">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
@@ -422,12 +452,13 @@ export function initFinancialWorkspace(): void {
 
 	function renderFinancialView(): void {
 		mergeFinancialWorkspaceItems(workspaceState)
+		const scopedItems = accommodationScopedItems(workspaceState.combinedItems)
 		const filteredItems = applyFilters(workspaceState.combinedItems)
-		renderSummary(workspaceState.combinedItems)
+		renderSummary(scopedItems)
 		renderFilterSummary()
 		renderRows(filteredItems)
 		if (listSummary) {
-			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
+			const openCount = countQueue(scopedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
 			listSummary.textContent = `${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`

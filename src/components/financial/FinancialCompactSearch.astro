@@ -38,13 +38,16 @@ const { id, placeholder } = Astro.props
 
 	.financial-search-compact__icon {
 		position: absolute;
-		left: 0.75rem;
+		top: 50%;
+		left: 50%;
 		z-index: 1;
 		width: 1rem;
 		height: 1rem;
 		pointer-events: none;
+		transform: translate(-50%, -50%);
 		transition:
 			color var(--fastt-motion-standard) var(--fastt-ease-standard),
+			left var(--fastt-motion-sheet) var(--fastt-ease-settle),
 			transform var(--fastt-motion-standard) var(--fastt-ease-standard);
 	}
 
@@ -76,8 +79,9 @@ const { id, placeholder } = Astro.props
 	.financial-search-compact.is-expanded .financial-search-compact__icon,
 	.financial-search-compact:has(.financial-search-compact__input:not(:placeholder-shown))
 		.financial-search-compact__icon {
+		left: 0.75rem;
 		color: rgb(15 23 42);
-		transform: scale(0.95);
+		transform: translateY(-50%) scale(0.95);
 	}
 
 	.financial-search-compact__input:focus,
@@ -96,10 +100,32 @@ const { id, placeholder } = Astro.props
 	}
 
 	@media (max-width: 639px) {
+		.financial-search-compact,
+		.financial-search-compact__input {
+			box-sizing: border-box !important;
+			width: 100% !important;
+			max-width: none !important;
+		}
+
+		.financial-search-compact__input {
+			-webkit-appearance: none !important;
+			appearance: none !important;
+			display: block !important;
+			height: 2.5rem !important;
+			min-height: 2.5rem !important;
+			padding: 0 !important;
+			border: 1px solid rgb(226 232 240 / 72%) !important;
+			border-radius: var(--fastt-radius-pill) !important;
+			background: rgb(248 250 252 / 72%) !important;
+			box-shadow: none !important;
+			line-height: 1 !important;
+		}
+
 		.financial-search-compact__input:focus,
 		.financial-search-compact.is-expanded .financial-search-compact__input,
 		.financial-search-compact__input:not(:placeholder-shown) {
-			width: min(15rem, calc(100vw - 6rem));
+			width: 100% !important;
+			padding: 0 0.75rem 0 2.35rem !important;
 		}
 	}
 </style>

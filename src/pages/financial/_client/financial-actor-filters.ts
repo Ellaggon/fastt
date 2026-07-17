@@ -10,10 +10,10 @@ export type FinancialActorFilter =
 	| "admin"
 
 export const actorFilterOptions: Array<{ value: FinancialActorFilter; label: string }> = [
-	{ value: "all", label: "Todos los equipos" },
-	{ value: "financial_operations", label: "Operaciones financieras" },
-	{ value: "reconciliation_ops", label: "Liquidaciones" },
-	{ value: "provider_finance", label: "Pagos a proveedores" },
+	{ value: "all", label: "Todos los responsables" },
+	{ value: "financial_operations", label: "Operación financiera" },
+	{ value: "reconciliation_ops", label: "Equipo de liquidación" },
+	{ value: "provider_finance", label: "Equipo de pagos" },
 	{ value: "provider_followup", label: "Seguimiento con proveedores" },
 	{ value: "support", label: "Soporte" },
 	{ value: "admin", label: "Revisión administrativa" },

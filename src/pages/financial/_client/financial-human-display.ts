@@ -1,6 +1,7 @@
 export type FinancialHumanContext = {
 	bookingId?: unknown
 	providerId?: unknown
+	productId?: unknown
 	reservationCode?: unknown
 	bookingCode?: unknown
 	confirmationCode?: unknown
@@ -51,6 +52,7 @@ function contextFromOperation(operation: any): FinancialHumanContext {
 	return {
 		bookingId: operation?.bookingId,
 		providerId: operation?.providerId,
+		productId: operation?.contract?.productId || operation?.productId,
 		productName: operation?.contract?.productName || operation?.productName,
 		variantName: operation?.contract?.variantName || operation?.variantName,
 		checkIn: operation?.stay?.checkIn || operation?.checkInDate || operation?.checkIn,
@@ -82,6 +84,15 @@ export function buildFinancialHumanContext(
 			readPath(raw, "booking.id")
 		),
 		providerId: firstText(fallback?.providerId, raw?.providerId, operation?.providerId),
+		productId: firstText(
+			fallback?.productId,
+			raw?.productId,
+			raw?.productIdSnapshot,
+			readPath(raw, "contract.productId"),
+			readPath(operation, "contract.productId"),
+			operation?.productId,
+			operation?.productIdSnapshot
+		),
 		reservationCode: firstText(
 			raw?.reservationCode,
 			raw?.bookingCode,

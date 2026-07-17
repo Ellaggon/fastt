@@ -21,7 +21,7 @@ export const financialUi = {
 	emptyState: "fastt-empty-state px-4 py-10 text-center text-sm text-slate-500",
 	technicalPre: "mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100",
 	rowOpenButton:
-		"fastt-button mt-3 h-auto rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition group-hover:border-slate-400",
+		"fastt-button mt-2 h-auto rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition group-hover:border-slate-400 sm:mt-3 sm:py-2",
 }
 
 export function financialSegmentClass(active: boolean): string {
