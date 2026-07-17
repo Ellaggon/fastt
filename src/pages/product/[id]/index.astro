@@ -3,6 +3,7 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import ProgressBar from "@/components/ui/ProgressBar.astro"
+import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import {
@@ -20,8 +21,8 @@ import {
 	ArrowRight,
 	BedDouble,
 	CalendarDays,
+	CircleCheck,
 	CircleDollarSign,
-	Hotel,
 	MapPin,
 	ScrollText,
 	ShieldCheck,
@@ -44,6 +45,8 @@ const vertical = getProductVerticalEntry(owned.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
 const isPackage = vertical.vertical === "package"
+const publicDetailHref = vertical.routes.publicDetailHref(productId)
+const publicationSuccess = Astro.url.searchParams.get("published") === "1"
 const detailTitle =
 	vertical.vertical === "hotel"
 		? "Ficha del alojamiento"
@@ -63,9 +66,6 @@ const statusRow = await db
 const status = String(statusRow?.state || "draft")
 	.trim()
 	.toLowerCase()
-const statusBadgeVariant =
-	status === "published" ? "success" : status === "ready" ? "info" : "warning"
-const statusLabel = status === "published" ? "Publicado" : status === "ready" ? "Listo" : "Borrador"
 
 const publishState =
 	status !== "published"
@@ -81,6 +81,7 @@ const completePreparationHref = publishState
 	: buildCompleteToPublishEntryHref(productId)
 const preparationBlockerCount =
 	publishState?.blockers.filter((check) => check.sectionKey !== "preview").length ?? 0
+const hasIncompletePreparation = status !== "published" && preparationBlockerCount > 0
 const conditionVariantIds = isHotel
 	? ((await getProductVariantsAggregate(productId, providerId))?.variants ?? [])
 			.map((variant: any) => String(variant.id ?? "").trim())
@@ -95,33 +96,31 @@ const conditionsHref = isHotel
 	<section class="space-y-7">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="max-w-3xl space-y-1.5">
-				<p
-					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
-				>
-					<Hotel class="h-4 w-4" aria-hidden="true" />
-					{vertical.labels.workspaceSingular}
-				</p>
+				{
+					isHotel ? (
+						<AccommodationContextSwitcher
+							providerId={providerId}
+							productId={productId}
+							currentName={owned.name}
+						/>
+					) : null
+				}
 				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">{owned.name}</h1>
 				<p id="productHeaderMeta" class="text-sm leading-6 text-slate-300">
 					Cargando ubicación y tipo de oferta...
 				</p>
-				<p id="productHeaderSummary" class="max-w-2xl text-sm leading-6 text-slate-400">
+				<p
+					id="productHeaderSummary"
+					class="hidden max-w-2xl text-sm leading-6 text-slate-400 sm:block"
+				>
 					Administra la información pública, habitaciones y reglas de este alojamiento. Las tarifas
 					y el calendario se gestionan desde Venta.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center justify-end gap-2">
-				{status !== "published" ? <Badge variant={statusBadgeVariant}>{statusLabel}</Badge> : null}
 				{
-					status !== "published" && preparationBlockerCount > 0 ? (
-						<Button href={completePreparationHref}>
-							Continuar preparación
-							<ArrowRight class="h-4 w-4" aria-hidden="true" />
-						</Button>
-					) : null
-				}
-				{
-					status !== "published" && publishState?.readyToPublish ? (
+					hasIncompletePreparation ? null : status !== "published" &&
+					  publishState?.readyToPublish ? (
 						<Button href={routes.productPreview(productId)}>Ir a vista previa</Button>
 					) : (
 						<Button href={routes.productPreview(productId)} data-astro-prefetch variant="secondary">
@@ -133,9 +132,41 @@ const conditionsHref = isHotel
 		</header>
 
 		{
-			status !== "published" && publishState ? (
+			publicationSuccess && status === "published" ? (
 				<Card class="bg-white">
 					<div class="flex flex-wrap items-start justify-between gap-5">
+						<div class="flex min-w-0 flex-1 gap-3">
+							<div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+								<CircleCheck class="h-5 w-5" aria-hidden="true" />
+							</div>
+							<div class="space-y-1">
+								<p class="text-sm font-semibold text-slate-950">Alojamiento publicado</p>
+								<p class="max-w-2xl text-sm leading-6 text-slate-600">
+									Ya está activo para huéspedes. Desde aquí puedes seguir gestionando habitaciones,
+									tarifas y disponibilidad diaria.
+								</p>
+							</div>
+						</div>
+						<div class="flex flex-wrap justify-end gap-2">
+							<Button href={routes.calendar()} variant="secondary">
+								<CalendarDays class="h-4 w-4" aria-hidden="true" />
+								Abrir calendario
+							</Button>
+							{publicDetailHref ? (
+								<Button href={publicDetailHref} variant="secondary">
+									Ver página pública
+								</Button>
+							) : null}
+						</div>
+					</div>
+				</Card>
+			) : null
+		}
+
+		{
+			status !== "published" && publishState ? (
+				<Card class="bg-white p-4 sm:p-5 md:p-6">
+					<div class="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
 						<div class="min-w-0 flex-1 space-y-3">
 							<div class="space-y-1">
 								<p class="text-sm font-semibold text-slate-950">Preparación para publicar</p>
@@ -151,7 +182,7 @@ const conditionsHref = isHotel
 								<ProgressBar
 									id="productProgressBar"
 									value={publishState.readinessPercent}
-									class="max-w-xl"
+									class="w-full lg:max-w-xl"
 								/>
 								<p id="productProgressText" class="text-sm text-slate-500">
 									{publishState.completedChecks} de {publishState.totalChecks} pasos listos ·{" "}
@@ -159,11 +190,15 @@ const conditionsHref = isHotel
 								</p>
 							</div>
 						</div>
-						<div class="flex flex-wrap gap-2 pt-0.5">
-							<Button href={completePreparationHref}>
+						<div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row lg:pt-0.5">
+							<Button href={completePreparationHref} class="w-full sm:w-auto">
 								{publishState.readyToPublish ? "Ir a vista previa" : "Continuar preparación"}
 							</Button>
-							<Button href={routes.productPreview(productId)} variant="secondary">
+							<Button
+								href={routes.productPreview(productId)}
+								variant="secondary"
+								class="w-full sm:w-auto"
+							>
 								Ver qué falta
 							</Button>
 						</div>
@@ -629,6 +664,7 @@ const conditionsHref = isHotel
 			</aside>
 		</div>
 	</section>
+
 	<script
 		is:inline
 		data-astro-rerun

@@ -239,7 +239,7 @@ try {
 	stepId={stepId}
 	productId={productId}
 	isHotel={isHotel}
-	hideFooter={playbookId === "complete-to-publish" && stepId === "preview"}
+	hideFooter={playbook.active && stepId === "preview"}
 >
 	<section class="space-y-7">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
@@ -250,12 +250,11 @@ try {
 					<Hotel class="h-4 w-4" aria-hidden="true" />
 					{vertical.labels.workspaceSingular}
 				</p>
-				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">
-					Vista previa de {aggregate.displayName}
-				</h1>
+				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">Revisa y publica</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-400">
-					Revisa cómo se verá la ficha pública antes de publicarla. Confirma fotos, habitaciones,
-					condiciones y reglas para huéspedes.
+					Antes de publicar, confirma fotos, habitaciones, condiciones y reglas para activar {
+						aggregate.displayName
+					} para reservas.
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center justify-end gap-2">
@@ -275,9 +274,23 @@ try {
 				<div class="space-y-4">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="space-y-1">
-							<p class="text-sm font-semibold text-slate-950">Antes de publicar</p>
+							<p class="text-sm font-semibold text-slate-950">
+								{
+									isPublished
+										? "Alojamiento publicado"
+										: readyToPublish
+											? "Listo para publicar"
+											: "Pendientes para publicar"
+								}
+							</p>
 							<p class="text-sm leading-6 text-slate-600">
-								{completedChecks} de {checks.length} bloques principales listos.
+								{
+									isPublished
+										? "La ficha ya está activa. Puedes usar esta pantalla para revisar cómo se presenta al huésped."
+										: readyToPublish
+											? "Todo lo obligatorio está completo. Publica cuando estés listo para recibir reservas."
+											: `${completedChecks} de ${checks.length} bloques principales listos.`
+								}
 							</p>
 						</div>
 						<Badge variant={isPublished ? "success" : readyToPublish ? "success" : "warning"}>
@@ -296,7 +309,7 @@ try {
 							isPublished
 								? "El alojamiento ya está publicado. Usa esta revisión para detectar ajustes de contenido."
 								: readyToPublish
-									? "La ficha está completa para huéspedes. Publica cuando estés listo."
+									? "Revisa la ficha pública debajo. Si todo representa correctamente tu alojamiento, puedes publicarlo."
 									: blockerLabels.length
 										? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
 										: "Revisa lo pendiente antes de publicar."
@@ -341,14 +354,19 @@ try {
 							</Button>
 						) : (
 							<Button href={completePreparationHref}>
-								Completar preparación
+								Completar pendientes
 								<ArrowRight class="h-4 w-4" aria-hidden="true" />
 							</Button>
 						)
 					}
 				</div>
 			</div>
-			<p id="publishFeedback" class="mt-4 hidden text-sm text-slate-500"></p>
+			<div
+				id="publishFeedback"
+				class="mt-4 hidden rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600 ring-1 ring-slate-200"
+				role="status"
+			>
+			</div>
 		</Card>
 
 		<section class="space-y-4">
@@ -632,48 +650,15 @@ try {
 				</section>
 			) : null
 		}
-
-		<Card className="bg-slate-950 text-slate-100">
-			<div class="flex flex-wrap items-center justify-between gap-4">
-				<div class="space-y-1">
-					<p class="text-sm font-semibold">
-						{
-							isPublished
-								? "Ficha publicada"
-								: readyToPublish
-									? "Lista para publicar"
-									: "Preparación pendiente"
-						}
-					</p>
-					<p class="text-sm leading-6 text-slate-400">
-						{
-							isPublished
-								? "Puedes volver a la ficha para seguir gestionando el alojamiento."
-								: readyToPublish
-									? "La revisión final está completa para huéspedes."
-									: "Completa los pendientes antes de publicar el alojamiento."
-						}
-					</p>
-				</div>
-				<div class="flex flex-wrap gap-2">
-					<Button href={routes.productDetail(productId)} variant="secondary">
-						Volver a ficha
-					</Button>
-					{
-						!isPublished && readyToPublish ? (
-							<Button class="publish-product-button" type="button">
-								Publicar alojamiento
-							</Button>
-						) : !isPublished ? (
-							<Button href={completePreparationHref}>Completar preparación</Button>
-						) : null
-					}
-				</div>
-			</div>
-		</Card>
 	</section>
 
-	<script is:inline define:vars={{ productId, productDetailHref: routes.productDetail(productId) }}>
+	<script
+		is:inline
+		define:vars={{
+			productId,
+			productPublishedHref: `${routes.productDetail(productId)}?published=1`,
+		}}
+	>
 		;(function () {
 			const publishButtons = Array.from(document.querySelectorAll(".publish-product-button"))
 			const feedback = document.getElementById("publishFeedback")
@@ -689,7 +674,7 @@ try {
 				setDisabled(true)
 				if (feedback) {
 					feedback.classList.remove("hidden")
-					feedback.textContent = "Verificando requisitos y publicando..."
+					feedback.textContent = "Verificando requisitos..."
 				}
 
 				try {
@@ -731,7 +716,8 @@ try {
 						return
 					}
 
-					window.location.href = productDetailHref
+					if (feedback) feedback.textContent = "Alojamiento publicado. Volviendo a la ficha..."
+					window.location.href = productPublishedHref
 				} catch (error) {
 					if (feedback) feedback.textContent = `Error de red: ${String(error)}`
 					setDisabled(false)
