@@ -116,8 +116,8 @@ describe("integration/financial inbox UX validation", () => {
 		expect(primarySummaryQueues.some((queue) => /advanced|debug|queue/i.test(queue.label))).toBe(
 			false
 		)
-		expect(actorFilterOptions.map((option) => option.label)).toContain("Liquidaciones")
-		expect(actorFilterOptions.map((option) => option.label)).toContain("Pagos a proveedores")
+		expect(actorFilterOptions.map((option) => option.label)).toContain("Equipo de liquidación")
+		expect(actorFilterOptions.map((option) => option.label)).toContain("Equipo de pagos")
 		expect(primaryQueueOptions.map((option) => option.value)).toEqual([
 			"needs_action_today",
 			"blocked",
