@@ -78,18 +78,20 @@ const iconByLabel = {
 	"Verificación": BadgeCheck,
 } as const
 const Icon = iconByLabel[label as keyof typeof iconByLabel] ?? Gauge
-const compactClass = compact ? "py-1.5" : "py-2"
+const compactClass = compact ? "py-0.5" : "py-1"
 const summaryToneClass = {
 	neutral: "text-slate-400",
 	success: "text-emerald-300",
 	warning: "text-amber-300",
 	danger: "text-rose-300",
 }[summaryTone]
+const shouldShowSummary =
+	Boolean(summary) && (active || summaryTone === "warning" || summaryTone === "danger")
 ---
 
 <div
 	class={`group rounded-lg ${compactClass} transition-colors ${
-		active ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/[0.055] hover:text-white"
+		active ? "bg-white text-slate-950" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
 	}`}
 >
 	<a
@@ -98,19 +100,21 @@ const summaryToneClass = {
 		aria-current={active ? "page" : undefined}
 		data-astro-prefetch={prefetch ? true : undefined}
 		data-governance-status={status}
-		class="flex min-h-9 items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
+		class="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
 	>
 		<Icon
-			size={17}
+			size={20}
 			stroke-width={active ? 2.2 : 1.8}
-			class={`shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`}
+			class={`shrink-0 ${active ? "text-slate-950" : "text-slate-400 group-hover:text-white"}`}
 			aria-hidden="true"
 		/>
 		<span class="min-w-0 flex-1 truncate">{label}</span>
 	</a>
 	{
-		summary ? (
-			<p class={`-mt-0.5 truncate pr-2.5 pb-1 pl-[38px] text-xs leading-4 ${summaryToneClass}`}>
+		shouldShowSummary ? (
+			<p
+				class={`-mt-0.5 truncate pr-3 pb-1 pl-11 text-xs leading-4 ${active ? "text-slate-600" : summaryToneClass}`}
+			>
 				{summary}
 			</p>
 		) : null

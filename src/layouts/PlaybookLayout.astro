@@ -9,7 +9,10 @@ import {
 	getAddRoomStepPosition,
 	getPreviousAddRoomStep,
 } from "@/lib/playbook/add-room"
-import { COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE,
+} from "@/lib/playbook/complete-to-publish"
 import { evaluateAddRoomProgress } from "@/lib/playbook/evaluate-add-room-progress"
 import { evaluateCompleteToPublishProgress } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
@@ -33,6 +36,8 @@ interface Props {
 	isHotel?: boolean
 	continueHref?: string | null
 	continueLabel?: string
+	continueDisabled?: boolean
+	continueDisabledTitle?: string
 	hideFooter?: boolean
 }
 
@@ -47,6 +52,8 @@ const {
 	isHotel = false,
 	continueHref = null,
 	continueLabel = "Continuar →",
+	continueDisabled = false,
+	continueDisabledTitle = "Completa los pasos requeridos para continuar.",
 	hideFooter = false,
 } = Astro.props
 
@@ -98,7 +105,7 @@ if (isComplete && active && productId) {
 			const previous = progress.steps
 				.filter((step) => step.isBlocker && step.key !== stepId)
 				.sort((a, b) => Number(a.isCurrent) - Number(b.isCurrent))[0]
-			if (previous) previousHref = previous.href
+			if (previous) previousHref = buildCompleteToPublishHref(previous.href, previous.key)
 			if (!resolvedContinueHref && progress.nextHref) {
 				resolvedContinueHref = progress.nextHref
 			}
@@ -238,6 +245,10 @@ const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositi
 					) : isTerminalStep ? (
 						<Button href={exitHref} className="fastt-playbook-cta">
 							{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}
+						</Button>
+					) : resolvedContinueHref && continueDisabled ? (
+						<Button disabled className="fastt-playbook-cta" title={continueDisabledTitle}>
+							{continueLabel}
 						</Button>
 					) : resolvedContinueHref ? (
 						<Button href={resolvedContinueHref} className="fastt-playbook-cta">

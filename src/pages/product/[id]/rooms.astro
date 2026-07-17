@@ -1,7 +1,7 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import SegmentedControl from "@/components/ui/SegmentedControl.astro"
+import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
@@ -169,10 +169,12 @@ const layoutProps = addRoomPlaybook.active
 			) : (
 				<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 					<div class="space-y-1.5">
-						<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-							<Hotel class="h-4 w-4" />
-							{owned.name} · Habitaciones
-						</p>
+						<AccommodationContextSwitcher
+							providerId={providerId}
+							productId={productId}
+							currentName={owned.name}
+							target="rooms"
+						/>
 						<h1 class="text-3xl font-semibold text-slate-100">Habitaciones</h1>
 						<p class="max-w-2xl text-sm leading-6 text-slate-300">
 							Experiencia de descanso de {owned.name}. Gestiona los espacios físicos que verá el
@@ -194,10 +196,10 @@ const layoutProps = addRoomPlaybook.active
 
 		<section class="space-y-4">
 			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-				<SegmentedControl class="max-w-full" aria-label="Filtrar habitaciones">
+				<nav class="rooms-status-tabs max-w-full" aria-label="Filtrar habitaciones">
 					<button
 						type="button"
-						class:list={["fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
+						class:list={["rooms-status-tab px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
 						data-room-filter="attention"
 						data-active="true"
 						aria-pressed="true"
@@ -206,9 +208,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-500 hover:bg-white/70 hover:text-slate-900",
-						]}
+						class:list={["rooms-status-tab px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
 						data-room-filter="ready"
 						data-active="false"
 						aria-pressed="false"
@@ -217,9 +217,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-500 hover:bg-white/70 hover:text-slate-900",
-						]}
+						class:list={["rooms-status-tab px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
 						data-room-filter="no-rate"
 						data-active="false"
 						aria-pressed="false"
@@ -228,9 +226,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-500 hover:bg-white/70 hover:text-slate-900",
-						]}
+						class:list={["rooms-status-tab px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
 						data-room-filter="no-availability"
 						data-active="false"
 						aria-pressed="false"
@@ -241,16 +237,14 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-500 hover:bg-white/70 hover:text-slate-900",
-						]}
+						class:list={["rooms-status-tab px-3 py-2 text-sm font-semibold whitespace-nowrap"]}
 						data-room-filter="all"
 						data-active="false"
 						aria-pressed="false"
 					>
 						Todas <span id="roomsTabAll" class="ml-1 text-xs opacity-70">—</span>
 					</button>
-				</SegmentedControl>
+				</nav>
 				<p class="text-xs text-slate-400">Evaluación: mínimo 30 noches con disponibilidad</p>
 			</div>
 
@@ -372,6 +366,47 @@ const layoutProps = addRoomPlaybook.active
 		.room-card-shell:hover .room-card-image-media {
 			filter: brightness(1.04) saturate(1.04);
 			transform: scale(1.018);
+		}
+
+		.rooms-status-tabs {
+			display: flex;
+			gap: 0.25rem;
+			overflow-x: auto;
+			border: 0;
+			border-radius: var(--fastt-radius-pill);
+			background: rgb(0 0 0);
+			padding: 0.25rem;
+			box-shadow: none;
+		}
+
+		.rooms-status-tab,
+		.rooms-status-tab[data-active="false"] {
+			flex-shrink: 0;
+			border: 0;
+			border-radius: var(--fastt-radius-pill);
+			background: rgb(0 0 0);
+			color: rgb(203 213 225);
+			box-shadow: none;
+			outline: 0;
+			transition:
+				background-color var(--fastt-motion-fast) ease,
+				color var(--fastt-motion-fast) ease,
+				box-shadow var(--fastt-motion-fast) ease;
+		}
+
+		.rooms-status-tab:hover {
+			background: rgb(0 0 0);
+			color: rgb(248 250 252);
+		}
+
+		.rooms-status-tab[data-active="true"] {
+			background: rgb(248 250 252);
+			color: rgb(15 23 42);
+			box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+			border: 0;
+			outline: 0;
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
 		}
 
 		.room-card-body {
@@ -526,9 +561,6 @@ const layoutProps = addRoomPlaybook.active
 					const active = button instanceof HTMLElement && button.dataset.roomFilter === filter
 					button.setAttribute("data-active", active ? "true" : "false")
 					button.setAttribute("aria-pressed", active ? "true" : "false")
-					button.classList.toggle("text-slate-500", !active)
-					button.classList.toggle("hover:bg-white/70", !active)
-					button.classList.toggle("hover:text-slate-900", !active)
 				}
 				applyRoomFilter()
 			}
