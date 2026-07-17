@@ -234,10 +234,27 @@ function preparationSupport(
 										? "Crear primera habitación"
 										: "Abrir habitaciones"
 								const accommodationHref = routes.productDetail(product.id)
-								const accommodationLabel = "Abrir alojamiento"
+								const preparation = preparationByProduct.get(product.id)
+								const hasPreparationPending =
+									!isChoosingForAddRoom &&
+									!preparation?.isPublished &&
+									(preparation?.blockerCount ?? 0) > 0
+								const isReadyToPublish =
+									!isChoosingForAddRoom &&
+									!preparation?.isPublished &&
+									Boolean(preparation?.readyToPublish)
+								const accommodationPrimaryHref = hasPreparationPending
+									? (preparation?.continuePreparationHref ?? accommodationHref)
+									: isReadyToPublish
+										? (preparation?.previewHref ?? routes.productPreview(product.id))
+										: accommodationHref
+								const accommodationLabel = hasPreparationPending
+									? "Continuar preparación"
+									: isReadyToPublish
+										? "Revisar y publicar"
+										: "Abrir alojamiento"
 								const previewRooms = product.rooms.slice(0, 3)
 								const remainingRooms = Math.max(0, product.rooms.length - previewRooms.length)
-								const preparation = preparationByProduct.get(product.id)
 								const preparationPercent = Math.max(
 									0,
 									Math.min(100, Number(preparation?.readinessPercent ?? 0))
@@ -260,7 +277,7 @@ function preparationSupport(
 															{activeCount === 1 ? "" : "s"}
 														</p>
 													</div>
-													<Button href={accommodationHref} data-astro-prefetch>
+													<Button href={accommodationPrimaryHref} data-astro-prefetch>
 														{accommodationLabel}
 														<ArrowRight class="h-4 w-4" />
 													</Button>
@@ -388,10 +405,23 @@ function preparationSupport(
 																</span>
 															</summary>
 															<div class="mt-3 rounded-[var(--fastt-radius-card)] bg-white p-3 ring-1 ring-slate-900/[0.06]">
-																<p class="text-xs leading-5 text-slate-500">
-																	Usa esta opción solo si este alojamiento fue creado por error o ya
-																	no debe existir en tu operación.
-																</p>
+																<div class="space-y-3">
+																	{hasPreparationPending || isReadyToPublish ? (
+																		<Button
+																			href={accommodationHref}
+																			data-astro-prefetch
+																			variant="secondary"
+																			size="sm"
+																			className="w-full"
+																		>
+																			Abrir alojamiento
+																		</Button>
+																	) : null}
+																	<p class="text-xs leading-5 text-slate-500">
+																		Usa esta opción solo si este alojamiento fue creado por error o
+																		ya no debe existir en tu operación.
+																	</p>
+																</div>
 																<Button
 																	type="button"
 																	variant="ghost"

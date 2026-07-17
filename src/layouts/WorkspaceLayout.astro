@@ -16,10 +16,10 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 	<div class="min-h-screen bg-black text-slate-100">
 		<div class="flex min-h-screen">
 			<aside
-				class="sticky top-0 hidden h-screen w-68 shrink-0 overflow-y-auto border-r border-white/[0.07] bg-slate-950 px-3 py-4 lg:block xl:w-72"
+				class="sticky top-0 hidden h-screen w-68 shrink-0 overflow-y-auto bg-black px-3 py-4 text-slate-100 lg:block xl:w-72"
 			>
 				<div class="mb-3.5 px-2.5">
-					<p class="truncate text-lg font-semibold text-slate-100">Fastt</p>
+					<p class="truncate text-lg font-semibold text-white">Fastt</p>
 				</div>
 				<DashboardSidebar pathname={pathname} currentPath={currentPath} />
 			</aside>
@@ -27,14 +27,12 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
 				<DashboardTopBar />
 				<main class="min-w-0 flex-1">
-					<div class="mx-auto max-w-7xl min-w-0 px-4 py-6 sm:px-6 sm:py-8">
-						<div class="mb-6 lg:hidden">
+					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
+						<div class="mb-4 sm:mb-6 lg:hidden">
 							<details
-								class="max-w-full overflow-hidden rounded-xl border border-white/10 bg-slate-950 p-3"
+								class="max-w-full overflow-hidden rounded-xl border border-white/[0.08] bg-black p-3 text-slate-100"
 							>
-								<summary class="cursor-pointer text-sm font-semibold text-slate-200">
-									Menú
-								</summary>
+								<summary class="cursor-pointer text-sm font-semibold text-white"> Menú </summary>
 								<div class="mt-4">
 									<DashboardSidebar pathname={pathname} currentPath={currentPath} />
 								</div>

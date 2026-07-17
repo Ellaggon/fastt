@@ -23,6 +23,7 @@ interface Props {
 const { pathname = "", currentPath = pathname } = Astro.props
 const isAccommodationHubSurface = (value: string) =>
 	/^\/catalog\/accommodations(?:\/|$)/.test(value)
+const isProductDetailSurface = (value: string) => /^\/product\/[^/]+\/?$/.test(value)
 const isRoomSurface = (value: string) => /^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
 const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href
 const isActive = (href: string) => {
@@ -100,6 +101,7 @@ function isItemActive(item: (typeof enterpriseNavigation)[number]["items"][numbe
 	if (item.label === "Alojamiento") {
 		const path = hrefPath(item.href)
 		return (
+			isProductDetailSurface(pathname) ||
 			(isAccommodationHubSurface(pathname) && activeHref !== item.href) ||
 			(Boolean(path) &&
 				(pathname === path || pathname.startsWith(`${path}/`)) &&
@@ -168,17 +170,17 @@ const navigationGroups = [
 	{
 		title: "Finanzas",
 		sections: ["Finanzas"],
-		collapsible: true,
+		collapsible: false,
 	},
 	{
 		title: "Análisis",
 		sections: ["Analítica"],
-		collapsible: true,
+		collapsible: false,
 	},
 	{
 		title: "Configuración",
 		sections: ["Configuración"],
-		collapsible: true,
+		collapsible: false,
 	},
 ]
 	.map((group) => ({

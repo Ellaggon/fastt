@@ -1,4 +1,6 @@
 ---
+import { LogOut, Settings, ShieldCheck } from "@lucide/astro"
+
 import ProfessionalModeToggle from "@/components/dashboard/ProfessionalModeToggle.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -6,17 +8,16 @@ import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
+import { routes } from "@/lib/routes"
 
 const user = await getUserFromRequest(Astro.request)
 const email = user?.email?.trim() || "Sin sesión"
 const accountInitial = email.slice(0, 1).toUpperCase()
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`
-const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
 let showProfessionalToggle = false
 let professionalToolsEnabled = false
 let disclosureMode: SidebarDisclosureMode = "small-provider"
 let lockedReason = ""
-let professionalToolsFeedback = ""
 const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
 
 try {
@@ -51,14 +52,21 @@ try {
 	showProfessionalToggle = false
 }
 
-if (professionalToolsParam === "saved") {
-	professionalToolsFeedback = "Modo actualizado"
-} else if (professionalToolsParam === "error") {
-	professionalToolsFeedback = "No se pudo cambiar"
-}
+const accountLinks = [
+	{
+		href: routes.settings(),
+		label: "Perfil y configuración",
+		Icon: Settings,
+	},
+	{
+		href: routes.verification(),
+		label: "Verificación",
+		Icon: ShieldCheck,
+	},
+]
 ---
 
-<header class="border-b border-slate-800 bg-slate-950">
+<header class="bg-black">
 	<div
 		class="mx-auto flex min-h-14 max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6 lg:justify-end"
 	>
@@ -71,53 +79,72 @@ if (professionalToolsParam === "saved") {
 		</a>
 		{
 			showProfessionalToggle ? (
-				<div class="flex min-w-0 flex-1 items-center justify-center gap-2 lg:mr-auto lg:flex-none">
+				<div class="hidden min-w-0 flex-1 items-center justify-center gap-2 sm:flex lg:mr-auto lg:flex-none">
 					<ProfessionalModeToggle
 						enabled={professionalToolsEnabled}
 						disclosureMode={disclosureMode}
 						lockedReason={lockedReason}
 						returnTo={returnTo}
 					/>
-					{professionalToolsFeedback ? (
-						<span
-							class={`hidden text-xs font-medium sm:inline ${
-								professionalToolsParam === "error" ? "text-amber-300" : "text-slate-400"
-							}`}
-						>
-							{professionalToolsFeedback}
-						</span>
-					) : null}
 				</div>
 			) : null
 		}
-		<details class="relative ml-auto lg:hidden">
+		<details class="relative ml-auto">
 			<summary
-				class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-sm font-semibold text-slate-100 transition hover:bg-slate-800 [&::-webkit-details-marker]:hidden"
+				class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-white/[0.08] bg-black text-sm font-semibold text-white transition hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden"
 				aria-label="Cuenta"
 			>
 				{accountInitial}
 			</summary>
 			<div
-				class="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-2xl"
+				class="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-white/[0.08] bg-black p-3 shadow-2xl"
 			>
-				<p class="truncate text-sm font-medium text-slate-100">{email}</p>
-				<p class="mt-1 text-xs text-slate-500">Cuenta del proveedor</p>
+				<div class="flex items-center gap-3 border-b border-white/[0.08] pb-3">
+					<span
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-950"
+						aria-hidden="true"
+					>
+						{accountInitial}
+					</span>
+					<div class="min-w-0">
+						<p class="truncate text-sm font-semibold text-white">{email}</p>
+						<p class="mt-0.5 text-xs text-slate-400">Cuenta del proveedor</p>
+					</div>
+				</div>
+				{
+					showProfessionalToggle ? (
+						<div class="border-b border-white/[0.08] py-3 sm:hidden">
+							<ProfessionalModeToggle
+								enabled={professionalToolsEnabled}
+								disclosureMode={disclosureMode}
+								lockedReason={lockedReason}
+								returnTo={returnTo}
+							/>
+						</div>
+					) : null
+				}
+				<div class="py-2">
+					{
+						accountLinks.map(({ href, label, Icon }) => (
+							<a
+								href={href}
+								class="flex min-h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08] hover:text-white"
+								data-astro-prefetch
+							>
+								<Icon size={17} stroke-width={1.9} class="text-slate-400" aria-hidden="true" />
+								<span>{label}</span>
+							</a>
+						))
+					}
+				</div>
 				<a
 					href="/api/auth/logout"
-					class="mt-3 flex h-9 items-center justify-center rounded-md border border-slate-700 px-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+					class="flex min-h-9 items-center gap-3 rounded-md border-t border-white/[0.08] px-2.5 pt-3 text-sm font-semibold text-slate-100 transition hover:text-white"
 				>
-					Salir
+					<LogOut size={17} stroke-width={1.9} class="text-slate-400" aria-hidden="true" />
+					<span>Salir</span>
 				</a>
 			</div>
 		</details>
-		<div class="hidden items-center justify-end gap-4 text-sm lg:flex">
-			<span class="max-w-[18rem] truncate text-slate-300">{email}</span>
-			<a
-				href="/api/auth/logout"
-				class="rounded-md border border-slate-700 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-800"
-			>
-				Salir
-			</a>
-		</div>
 	</div>
 </header>
