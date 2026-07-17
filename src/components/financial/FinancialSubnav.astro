@@ -9,21 +9,31 @@ interface Props {
 const { pathname = Astro.url.pathname } = Astro.props
 const isActive = (href: string) =>
 	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
+const selectedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const scopedHref = (href: string) => {
+	if (!selectedProductId) return href
+	const params = new URLSearchParams()
+	params.set("productId", selectedProductId)
+	return `${href}?${params.toString()}`
+}
 ---
 
-<SegmentedControl class="mb-4 inline-flex max-w-full flex-wrap" aria-label="Navegación financiera">
+<SegmentedControl
+	class="financial-subnav mb-4 w-full max-w-full flex-nowrap px-3 md:px-6"
+	aria-label="Navegación financiera"
+>
 	{
 		financialNavigationItems.map((item) => {
 			const active = isActive(item.href)
 			return (
 				<a
-					href={item.href}
+					href={scopedHref(item.href)}
 					data-workspace-nav
 					data-financial-nav
 					data-astro-prefetch="viewport"
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
-					class={`fastt-segmented-item inline-flex h-9 items-center overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap ${
+					class={`fastt-segmented-item inline-flex h-9 min-w-max shrink-0 items-center rounded-full px-3 text-sm font-medium whitespace-nowrap ${
 						active ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
 					}`}
 				>
@@ -33,3 +43,14 @@ const isActive = (href: string) =>
 		})
 	}
 </SegmentedControl>
+
+<style>
+	.financial-subnav {
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+	}
+
+	.financial-subnav::-webkit-scrollbar {
+		display: none;
+	}
+</style>

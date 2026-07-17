@@ -44,9 +44,11 @@ export type FinancialOperationBookingRow = {
 	detailTotalAmount: unknown
 	detailTaxAmount: unknown
 	providerIdSnapshot: unknown
+	productIdSnapshot?: unknown
 	productNameSnapshot: unknown
 	variantNameSnapshot: unknown
 	ratePlanNameSnapshot: unknown
+	productId?: unknown
 	productName: unknown
 	variantName: unknown
 }
@@ -280,6 +282,7 @@ export function buildFinancialOperationReview(params: {
 		},
 		contract: {
 			version: first.contractSnapshotVersion ?? "missing_contract_snapshot_version",
+			productId: first.productIdSnapshot ?? first.productId ?? null,
 			productName: first.productNameSnapshot ?? first.productName ?? null,
 			variantName: first.variantNameSnapshot ?? first.variantName ?? null,
 			ratePlanName: first.ratePlanNameSnapshot ?? null,

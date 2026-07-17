@@ -41,7 +41,7 @@ function applyFinancialView(view: FinancialViewId): void {
 		const active = linkView === view
 		link.toggleAttribute("aria-current", active)
 		link.dataset.active = active ? "true" : "false"
-		link.className = `fastt-segmented-item inline-flex h-9 items-center overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap ${
+		link.className = `fastt-segmented-item inline-flex h-9 min-w-max shrink-0 items-center rounded-full px-3 text-sm font-medium whitespace-nowrap ${
 			active ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
 		}`
 	})

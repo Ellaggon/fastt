@@ -20,6 +20,8 @@ export type ProviderFinanceBookingSnapshotRow = {
 	detailTotalAmount: unknown
 	detailTaxAmount: unknown
 	providerIdSnapshot: unknown
+	productIdSnapshot?: unknown
+	productId?: unknown
 	productNameSnapshot: unknown
 	variantNameSnapshot: unknown
 	ratePlanNameSnapshot?: unknown
@@ -71,6 +73,8 @@ export type ProviderFinanceReviewItem = {
 	operationalOwner: ProviderFinanceOperationalOwner
 	nextOperationalAction: string
 	contract: {
+		productId?: string | null
+		productName?: string | null
 		grossAmount: number
 		taxAmount: number
 		roomSnapshotCount: number
@@ -392,6 +396,8 @@ export function buildProviderFinanceSummary(params: {
 			nextOperationalAction:
 				primaryDetail?.nextOperationalAction ?? "Monitor provider finance visibility.",
 			contract: {
+				productId: String(rows[0]?.productIdSnapshot ?? rows[0]?.productId ?? "").trim() || null,
+				productName: String(rows[0]?.productNameSnapshot ?? "").trim() || null,
 				grossAmount,
 				taxAmount,
 				roomSnapshotCount: rows.filter((row) => row.detailId != null).length,

@@ -94,8 +94,8 @@ export function renderFinancialRowHtml(params: {
 						? "blocked"
 						: "neutral"
 	return `
-		<article class="fastt-row-card group cursor-pointer p-4 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
-			<div class="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.55fr)_minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
+		<article class="fastt-row-card group cursor-pointer p-3 sm:p-4 ${blockerClass}" data-review-key="${deps.escapeHtml(deps.itemKey(item))}">
+			<div class="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.55fr)_minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
 				<div>
 					<div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
 						<span class="h-2.5 w-2.5 rounded-full ${stateDotClass(stateKind)}" aria-hidden="true"></span>
@@ -103,15 +103,15 @@ export function renderFinancialRowHtml(params: {
 						<span class="text-slate-300">/</span>
 						<span>${deps.escapeHtml(deps.label(priority))}</span>
 					</div>
-					<h3 class="mt-2 text-base font-semibold ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${deps.escapeHtml(row.title)}</h3>
+					<h3 class="mt-2 text-sm font-semibold sm:text-base ${item.code === "clean_record" ? "text-emerald-700" : "text-slate-950"}">${deps.escapeHtml(row.title)}</h3>
 					<div class="mt-1 text-sm font-medium text-slate-700">${bookingContext}</div>
 					<p class="mt-1 max-w-2xl text-xs leading-5 text-slate-500">${deps.escapeHtml(subtitle)} · ${deps.escapeHtml(providerLabel)}</p>
-					<p class="mt-2 max-w-2xl text-sm leading-6 text-slate-700">${deps.escapeHtml(row.description)}</p>
+					<p class="mt-2 max-w-2xl text-sm leading-5 text-slate-700 sm:leading-6">${deps.escapeHtml(row.description)}</p>
 					${providerFinanceLine}
 				</div>
 				<div>
 					<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">${deps.escapeHtml(row.amountLabel)}</p>
-					<p class="mt-1 text-lg font-bold text-slate-950">${row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(row.amountCurrency, row.amount))}</p>
+					<p class="mt-1 text-base font-bold text-slate-950 sm:text-lg">${row.amount == null ? "No disponible" : deps.escapeHtml(deps.money(row.amountCurrency, row.amount))}</p>
 				</div>
 				<div>
 					<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Qué impide avanzar</p>

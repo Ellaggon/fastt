@@ -5,6 +5,10 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
+	filterItemsByAccommodationScope,
+	getFinancialAccommodationScope,
+} from "../../_client/financial-accommodation-scope"
+import {
 	bookingDisplayName,
 	bookingSubtitle,
 	buildBookingContextIndex,
@@ -219,7 +223,15 @@ function buildItems(payload: any): ProviderPayableItem[] {
 }
 
 function segmentCount(segment: ProviderPayablesSegment): number {
-	return state.items.filter((item) => item.segment === segment).length
+	return scopedItems().filter((item) => item.segment === segment).length
+}
+
+function scopedItems(): ProviderPayableItem[] {
+	return filterItemsByAccommodationScope(
+		state.items,
+		getFinancialAccommodationScope(),
+		state.bookingContext
+	)
 }
 
 function sortProviderPayableItems(items: ProviderPayableItem[]): ProviderPayableItem[] {
@@ -252,7 +264,7 @@ function renderRows(): void {
 	const summaryHint = document.getElementById("providerPayablesSummaryHint")
 	if (!rows) return
 	const visible = sortProviderPayableItems(
-		state.items.filter((item) => item.segment === state.segment)
+		scopedItems().filter((item) => item.segment === state.segment)
 	)
 	if (summary) {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
