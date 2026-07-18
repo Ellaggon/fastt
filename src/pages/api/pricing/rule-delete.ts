@@ -3,7 +3,7 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { deletePriceRule, ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import {
 	priceRuleCommandRepository,
@@ -115,6 +115,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		await invalidateVariant(variantId, v.productId)
+		await invalidateProvider(providerId)
 
 		return new Response(JSON.stringify({ ...result, warnings: [] }), {
 			status: 200,

@@ -2,6 +2,8 @@ import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProvider } from "@/lib/cache/invalidation"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { createProduct } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 
@@ -41,6 +43,13 @@ export const POST: APIRoute = async ({ request }) => {
 				destinationId: raw.destinationId,
 			}
 		)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId: id,
+			providerId,
+			request,
+			source: "product.create",
+		})
+		await invalidateProvider(providerId)
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

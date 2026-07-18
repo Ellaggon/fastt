@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { updateProductSubtype } from "@/modules/catalog/public"
 import { productRepository, subtypeRepository } from "@/container"
 
@@ -139,7 +140,15 @@ export const POST: APIRoute = async ({ request }) => {
 			subtypeType,
 			subtype,
 		})
-		if (response.ok) await invalidateProduct(productId)
+		if (response.ok) {
+			await invalidateProduct(productId)
+			await refreshProductPreparationSnapshotAfterMutation({
+				productId,
+				providerId,
+				request,
+				source: "product.subtype",
+			})
+		}
 		return response
 	} catch (err) {
 		console.error("product/subtype error:", err)

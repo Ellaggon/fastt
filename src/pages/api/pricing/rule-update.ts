@@ -3,7 +3,7 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import {
 	ensurePricingCoverageRuntime,
 	resolveRatePlanOwnerContext,
@@ -184,6 +184,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		await invalidateVariant(resolvedVariantId, resolvedProductId)
+		await invalidateProvider(providerId)
 
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,

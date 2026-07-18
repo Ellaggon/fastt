@@ -3,7 +3,8 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { createVariant } from "@/modules/catalog/public"
 import {
 	variantManagementRepository,
@@ -53,6 +54,13 @@ export const POST: APIRoute = async ({ request }) => {
 			{ productId, name, kind, description }
 		)
 		await invalidateVariant(result.variantId, productId)
+		await invalidateProvider(providerId)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId,
+			providerId,
+			request,
+			source: "variant.create",
+		})
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

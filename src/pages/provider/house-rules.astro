@@ -10,6 +10,7 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
 import { routes } from "@/lib/routes"
 import {
@@ -24,6 +25,7 @@ import {
 	createHouseRule,
 	deleteHouseRule,
 	listHouseRulesByProduct,
+	listHouseRulesByProductIds,
 	type HouseRule,
 	type HouseRulePayload,
 	type HouseRuleType,
@@ -61,13 +63,10 @@ async function loadProviderProducts(providerId: string): Promise<ProductOption[]
 }
 
 async function loadRulesByProduct(products: ProductOption[]) {
-	const pairs = await Promise.all(
-		products.map(async (product) => ({
-			productId: product.id,
-			rules: (await listHouseRulesByProduct(product.id)) as HouseRule[],
-		}))
-	)
-	return new Map(pairs.map((pair) => [pair.productId, pair.rules]))
+	return (await listHouseRulesByProductIds(products.map((product) => product.id))) as Map<
+		string,
+		HouseRule[]
+	>
 }
 
 function boolFromForm(form: FormData, key: string): boolean | undefined {
@@ -195,6 +194,13 @@ if (Astro.request.method === "POST") {
 					rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
 				})
 			}
+			await refreshProductPreparationSnapshotAfterMutation({
+				productId,
+				providerId: auth.providerId,
+				request: Astro.request,
+				url: Astro.url,
+				source: "provider.house-rules.create",
+			})
 			return redirectToHouseRules("created", productId)
 		}
 		if (action === "apply-quick-setup") {
@@ -219,6 +225,13 @@ if (Astro.request.method === "POST") {
 				actorUserId: auth.user.id,
 				rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
 			})
+			await refreshProductPreparationSnapshotAfterMutation({
+				productId,
+				providerId: auth.providerId,
+				request: Astro.request,
+				url: Astro.url,
+				source: "provider.house-rules.quick-setup",
+			})
 			return redirectToHouseRules("preset-applied", productId)
 		}
 		if (action === "delete-house-rule") {
@@ -237,6 +250,13 @@ if (Astro.request.method === "POST") {
 					rules: (await listHouseRulesByProduct(ownedRule.productId)) as HouseRule[],
 				})
 			}
+			await refreshProductPreparationSnapshotAfterMutation({
+				productId: ownedRule.productId,
+				providerId: auth.providerId,
+				request: Astro.request,
+				url: Astro.url,
+				source: "provider.house-rules.delete",
+			})
 			return redirectToHouseRules("deleted", ownedRule.productId)
 		}
 	} catch (error) {

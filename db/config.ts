@@ -68,6 +68,7 @@ const Image = defineTable({
 		order: column.number({ default: 0 }),
 		isPrimary: column.boolean({ default: false }),
 	},
+	indexes: [{ on: ["entityType", "entityId"] }, { on: ["entityId"] }],
 })
 
 // Safe-minimum upload tracking for R2. Used to clean up incomplete uploads.
@@ -157,6 +158,7 @@ const Product = defineTable({
 		providerId: column.text({ references: () => Provider.columns.id, optional: true }),
 		destinationId: column.text({ references: () => Destination.columns.id }),
 	},
+	indexes: [{ on: ["providerId", "productType"] }, { on: ["providerId"] }],
 })
 
 // House Rules (CAPA 6.5): UI-driven property information. Not part of booking contract.
@@ -178,6 +180,29 @@ const ProductStatus = defineTable({
 		state: column.text({ default: "draft" }), // draft | ready | published
 		validationErrorsJson: column.json({ optional: true }),
 	},
+})
+const ProductPreparationSnapshot = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		status: column.text({ default: "draft" }),
+		statusLabel: column.text({ default: "En preparación" }),
+		statusVariant: column.text({ default: "warning" }),
+		isPublished: column.boolean({ default: false }),
+		readinessPercent: column.number({ default: 0 }),
+		blockerCount: column.number({ default: 0 }),
+		blockerPreviewJson: column.json({ optional: true }),
+		readyToPublish: column.boolean({ default: false }),
+		continuePreparationHref: column.text(),
+		previewHref: column.text(),
+		nextStepLabel: column.text({ optional: true }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["providerId", "updatedAt"] },
+		{ on: ["providerId", "readyToPublish"] },
+		{ on: ["providerId", "status"] },
+	],
 })
 const ProductContent = defineTable({
 	columns: {
@@ -257,6 +282,7 @@ const Variant = defineTable({
 		externalCode: column.text({ optional: true }),
 		isActive: column.boolean({ default: true }),
 	},
+	indexes: [{ on: ["productId", "isActive"] }, { on: ["productId", "kind"] }],
 })
 
 // CAPA 3 (Variant): strong capacity model (new source of truth for capacity).
@@ -555,6 +581,7 @@ const RatePlan = defineTable({
 		isActive: column.boolean({ default: true }),
 		createdAt: column.date({ default: NOW }),
 	},
+	indexes: [{ on: ["variantId", "isActive"] }, { on: ["variantId", "isDefault", "isActive"] }],
 })
 const RatePlanOccupancyPolicy = defineTable({
 	columns: {
@@ -1170,6 +1197,7 @@ export default defineDb({
 		Product,
 		HouseRule,
 		ProductStatus,
+		ProductPreparationSnapshot,
 		ProductContent,
 		ProductLocation,
 		Hotel,

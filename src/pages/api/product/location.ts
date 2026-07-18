@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { upsertProductLocation } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 
@@ -50,6 +51,12 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		)
 		await invalidateProduct(raw.productId)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId: raw.productId,
+			providerId,
+			request,
+			source: "product.location",
+		})
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

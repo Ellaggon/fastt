@@ -30,6 +30,7 @@ export type { RatePlanPricingContext } from "./application/use-cases/rate-plan-p
 export * from "./application/use-cases/get-rateplan-owner-context"
 export * from "./application/use-cases/bulk-pricing-service"
 export * from "./application/schemas/commercial-rate-plan.schemas"
+export * from "./application/schemas/pricing-baseline.schemas"
 
 // Application ports
 export * from "./application/ports/PricingRepositoryPort"

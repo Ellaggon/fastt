@@ -9,6 +9,7 @@ import {
 	productRepository,
 	ratePlanPricingReadRepository,
 } from "@/container"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -41,6 +42,12 @@ export const POST: APIRoute = async ({ request }) => {
 			{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
 			{ variantId }
 		)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId: v.productId,
+			providerId,
+			request,
+			source: "variant.evaluate",
+		})
 		return new Response(JSON.stringify(result), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },

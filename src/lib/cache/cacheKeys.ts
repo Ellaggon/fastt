@@ -5,6 +5,9 @@ export const cacheKeys = {
 	providerBookingsSummary(providerId: string, status: string, from: string, to: string): string {
 		return `ws:provider:${providerId}:bookings:summary:${status}:${from}:${to}`
 	},
+	providerSidebar(providerId: string, userId: string, professionalToolsEnabled: string): string {
+		return `ws:provider:${providerId}:sidebar:${userId}:${professionalToolsEnabled}`
+	},
 	productSurface(productId: string): string {
 		return `ws:product:${productId}:surface`
 	},
@@ -36,6 +39,7 @@ export const cacheKeys = {
 
 export const cacheTtls = {
 	providerSurface: 60,
+	providerSidebar: 20,
 	providerBookingsSummary: 30,
 	productSurface: 60,
 	productVariantsList: 30,

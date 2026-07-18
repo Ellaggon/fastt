@@ -10,13 +10,14 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { buildAddRoomHref, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
-	summarizeProductPreparation,
+	listProductPreparationSnapshots,
 	type ProductPreparationSummary,
 } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
 import { ArrowRight, BedDouble, Hotel, House, Plus, ShieldCheck, Trash2 } from "@lucide/astro"
 import { and, db, eq, Product, sql, Variant } from "astro:db"
 
+const dashboardStartedAt = performance.now()
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
@@ -67,20 +68,10 @@ for (const row of rows) {
 }
 
 const products = Array.from(byProduct.values())
-const preparationEntries: Array<[string, ProductPreparationSummary | null]> = await Promise.all(
-	products.map(
-		async (product): Promise<[string, ProductPreparationSummary | null]> => [
-			product.id,
-			await summarizeProductPreparation({
-				productId: product.id,
-				providerId,
-				request: Astro.request,
-				url: Astro.url,
-			}),
-		]
-	)
+const preparationByProduct = await listProductPreparationSnapshots(
+	providerId,
+	products.map((product) => product.id)
 )
-const preparationByProduct = new Map<string, ProductPreparationSummary | null>(preparationEntries)
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
@@ -110,6 +101,11 @@ const layoutProps = addRoomPlaybook.active
 			isHotel: true,
 		}
 	: { title: "Resumen" }
+
+Astro.response.headers.set(
+	"Server-Timing",
+	`dashboard;dur=${Number((performance.now() - dashboardStartedAt).toFixed(1))}`
+)
 
 function preparationMessage(preparation: ProductPreparationSummary | null | undefined) {
 	if (!preparation) return "Revisa la preparación del alojamiento antes de publicarlo."
@@ -261,7 +257,11 @@ function preparationSupport(
 								)
 
 								return (
-									<Card class="overflow-hidden p-0">
+									<Card
+										class="overflow-hidden p-0"
+										data-dashboard-product-card
+										data-product-id={product.id}
+									>
 										<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
 											<div class="space-y-5 p-5 md:p-6">
 												<div class="flex flex-wrap items-start justify-between gap-4">
@@ -277,7 +277,11 @@ function preparationSupport(
 															{activeCount === 1 ? "" : "s"}
 														</p>
 													</div>
-													<Button href={accommodationPrimaryHref} data-astro-prefetch>
+													<Button
+														href={accommodationPrimaryHref}
+														data-astro-prefetch
+														data-preparation-action
+													>
 														{accommodationLabel}
 														<ArrowRight class="h-4 w-4" />
 													</Button>
@@ -286,25 +290,36 @@ function preparationSupport(
 												<div class="space-y-3 rounded-[var(--fastt-radius-card)] bg-slate-50 p-4 ring-1 ring-slate-900/[0.06]">
 													<div class="flex flex-wrap items-start justify-between gap-3">
 														<div class="min-w-0 space-y-1">
-															<p class="text-sm font-semibold text-slate-950">
+															<p
+																class="text-sm font-semibold text-slate-950"
+																data-preparation-message
+																data-room-count={product.rooms.length}
+															>
 																{preparationMessage(preparation)}
 															</p>
-															<p class="text-sm leading-6 text-slate-600">
+															<p class="text-sm leading-6 text-slate-600" data-preparation-support>
 																{preparationSupport(product.rooms.length, preparation)}
 															</p>
 														</div>
-														{preparation?.nextStepLabel ? (
-															<span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-																{preparation.nextStepLabel}
-															</span>
-														) : null}
+														<span
+															class:list={[
+																"rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200",
+																preparation?.nextStepLabel ? "" : "hidden",
+															]}
+															data-preparation-next-step
+														>
+															{preparation?.nextStepLabel ?? ""}
+														</span>
 													</div>
-													{preparation?.isPublished ? null : (
+													<div
+														class:list={[preparation?.isPublished ? "hidden" : ""]}
+														data-preparation-progress
+													>
 														<ProgressBar
 															value={preparationPercent}
 															className="h-1.5 rounded-full bg-slate-200"
 														/>
-													)}
+													</div>
 												</div>
 
 												{product.rooms.length > 0 ? (
@@ -606,4 +621,106 @@ function preparationSupport(
 			}
 		})
 	})
+
+	const productCards = Array.from(
+		document.querySelectorAll<HTMLElement>("[data-dashboard-product-card][data-product-id]")
+	)
+	const productIds = productCards.map((card) => card.dataset.productId).filter(Boolean)
+
+	function preparationMessage(preparation: any) {
+		if (!preparation) return "Revisa la preparación del alojamiento antes de publicarlo."
+		if (preparation.isPublished) return "Publicado y visible para huéspedes."
+		if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
+		if (Number(preparation.blockerCount ?? 0) > 0) {
+			const preview = Array.isArray(preparation.blockerPreview)
+				? preparation.blockerPreview.map((label: unknown) => String(label).toLowerCase()).join(", ")
+				: ""
+			return `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"}${preview ? `: ${preview}` : ""}.`
+		}
+		return `${Math.round(Number(preparation.readinessPercent ?? 0))}% de preparación completada.`
+	}
+
+	function preparationSupport(roomCount: number, preparation: any) {
+		if (roomCount === 0) {
+			return "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
+		}
+		if (preparation?.readyToPublish) {
+			return "La ficha ya tiene lo esencial. Revisa la experiencia final antes de publicarla."
+		}
+		if (Number(preparation?.blockerCount ?? 0) > 0) {
+			return "Continúa por el primer pendiente y vuelve aquí para revisar habitaciones."
+		}
+		return "Mantén habitaciones, tarifas y disponibilidad actualizadas desde sus herramientas operativas."
+	}
+
+	function setActionLabel(action: HTMLElement, label: string) {
+		const textNodes = Array.from(action.childNodes).filter(
+			(node) => node.nodeType === Node.TEXT_NODE
+		)
+		const textNode =
+			textNodes.find((node) => String(node.textContent ?? "").trim().length > 0) ?? textNodes[0]
+		if (textNode) {
+			textNode.textContent = label
+		} else {
+			action.prepend(document.createTextNode(label))
+		}
+	}
+
+	function updatePreparationCard(card: HTMLElement, preparation: any) {
+		const roomCount = Number(
+			card.querySelector<HTMLElement>("[data-room-count]")?.dataset.roomCount ?? 0
+		)
+		const message = card.querySelector<HTMLElement>("[data-preparation-message]")
+		const support = card.querySelector<HTMLElement>("[data-preparation-support]")
+		const nextStep = card.querySelector<HTMLElement>("[data-preparation-next-step]")
+		const action = card.querySelector<HTMLAnchorElement>("[data-preparation-action]")
+		const progressContainer = card.querySelector<HTMLElement>("[data-preparation-progress]")
+		const progressBar = progressContainer?.querySelector<HTMLElement>('[role="progressbar"]')
+		const progressValue = progressBar?.querySelector<HTMLElement>(".fastt-progress-value")
+		const readinessPercent = Math.max(0, Math.min(100, Number(preparation?.readinessPercent ?? 0)))
+
+		if (message) message.textContent = preparationMessage(preparation)
+		if (support) support.textContent = preparationSupport(roomCount, preparation)
+		if (nextStep) {
+			nextStep.textContent = preparation?.nextStepLabel ?? ""
+			nextStep.classList.toggle("hidden", !preparation?.nextStepLabel)
+		}
+		if (action) {
+			const hasPending = !preparation?.isPublished && Number(preparation?.blockerCount ?? 0) > 0
+			const isReadyToPublish = !preparation?.isPublished && Boolean(preparation?.readyToPublish)
+			if (hasPending) {
+				action.href = preparation.continuePreparationHref
+				setActionLabel(action, "Continuar preparación")
+			} else if (isReadyToPublish) {
+				action.href = preparation.previewHref
+				setActionLabel(action, "Revisar y publicar")
+			}
+		}
+		if (progressContainer)
+			progressContainer.classList.toggle("hidden", Boolean(preparation?.isPublished))
+		if (progressBar) progressBar.setAttribute("aria-valuenow", String(readinessPercent))
+		if (progressValue) progressValue.style.width = `${readinessPercent}%`
+	}
+
+	if (productIds.length > 0) {
+		window
+			.fetch("/api/internal/product-preparation-refresh", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productIds }),
+			})
+			.then((response) => (response.ok ? response.json() : null))
+			.then((payload) => {
+				if (!payload || !Array.isArray(payload.products)) return
+				const byProductId = new Map(
+					payload.products.map((preparation: any) => [String(preparation.productId), preparation])
+				)
+				for (const card of productCards) {
+					const productId = card.dataset.productId
+					const preparation = productId ? byProductId.get(productId) : null
+					if (preparation) updatePreparationCard(card, preparation)
+				}
+			})
+			.catch(() => {})
+	}
 </script>
