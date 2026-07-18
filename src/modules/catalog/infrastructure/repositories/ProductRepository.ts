@@ -479,9 +479,12 @@ export class ProductRepository implements ProductRepositoryPort {
 		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
 		await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
 		await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
-		await db
-			.delete(ProductPreparationSnapshot)
-			.where(eq(ProductPreparationSnapshot.productId, productId))
+		const preparationSnapshot = ProductPreparationSnapshot as { productId?: unknown } | undefined
+		if (preparationSnapshot?.productId) {
+			await db
+				.delete(ProductPreparationSnapshot)
+				.where(eq(ProductPreparationSnapshot.productId, productId))
+		}
 		await db.delete(ProductStatus).where(eq(ProductStatus.productId, productId))
 
 		const pt = String(product.productType || "").toLowerCase()

@@ -44,6 +44,7 @@ export let Destination: any
 export let Product: any
 export let HouseRule: any
 export let ProductStatus: any
+export let ProductPreparationSnapshot: any
 export let ProductContent: any
 export let ProductLocation: any
 export let Image: any
@@ -185,6 +186,7 @@ async function init() {
 	Product = drizzleTables.Product
 	HouseRule = drizzleTables.HouseRule
 	ProductStatus = drizzleTables.ProductStatus
+	ProductPreparationSnapshot = drizzleTables.ProductPreparationSnapshot
 	ProductContent = drizzleTables.ProductContent
 	ProductLocation = drizzleTables.ProductLocation
 	Image = drizzleTables.Image
