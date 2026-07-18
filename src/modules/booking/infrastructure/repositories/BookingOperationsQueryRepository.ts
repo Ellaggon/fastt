@@ -12,6 +12,7 @@ import {
 	lte,
 	PaymentTransaction,
 	Product,
+	sql,
 	User,
 	Variant,
 } from "astro:db"
@@ -38,6 +39,7 @@ type ListFilters = {
 	status?: string
 	from?: string
 	to?: string
+	limit?: number
 }
 
 type BookingDetailKey = {
@@ -203,12 +205,52 @@ function countBy(
 
 export class BookingOperationsQueryRepository {
 	async listByProvider(filters: ListFilters) {
+		const limit = Math.max(1, Math.min(Number(filters.limit ?? 25) || 25, 100))
 		const predicates = [eq(Booking.providerId, filters.providerId)]
 		if (filters.status && filters.status !== "all") {
 			predicates.push(eq(Booking.status, filters.status))
 		}
 		if (filters.from) predicates.push(gte(Booking.checkInDate, filters.from))
 		if (filters.to) predicates.push(lte(Booking.checkOutDate, filters.to))
+
+		const totalRow = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(Booking)
+			.where(and(...predicates))
+			.get()
+		const total = Number(totalRow?.count ?? 0)
+		const bookingIdRows = await db
+			.select({ bookingId: Booking.id })
+			.from(Booking)
+			.where(and(...predicates))
+			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
+			.limit(limit + 1)
+			.all()
+		const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
+		if (!pagedBookingIds.length) {
+			return {
+				items: [],
+				summary: {
+					total,
+					upcomingArrivals: 0,
+					inHouse: 0,
+					departuresDue: 0,
+					checkedOut: 0,
+					noShow: 0,
+					cancelled: 0,
+					refundHandoffRequired: 0,
+					reconciliationPending: 0,
+					contractSnapshotsReady: 0,
+					modificationWorkflow: "not_automated",
+				},
+				pagination: {
+					limit,
+					returned: 0,
+					total,
+					hasMore: false,
+				},
+			}
+		}
 
 		const rows = await db
 			.select({
@@ -244,7 +286,7 @@ export class BookingOperationsQueryRepository {
 			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
 			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
-			.where(and(...predicates))
+			.where(and(eq(Booking.providerId, filters.providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
 			.all()
 
@@ -344,7 +386,7 @@ export class BookingOperationsQueryRepository {
 		return {
 			items,
 			summary: {
-				total: items.length,
+				total,
 				upcomingArrivals: countBy(items, "upcoming_arrival"),
 				inHouse: countBy(items, "in_house"),
 				departuresDue: countBy(items, "departure_due"),
@@ -361,6 +403,12 @@ export class BookingOperationsQueryRepository {
 					(item) => item.snapshotState === "contract_snapshot_present"
 				).length,
 				modificationWorkflow: "not_automated",
+			},
+			pagination: {
+				limit,
+				returned: items.length,
+				total,
+				hasMore: bookingIdRows.length > limit,
 			},
 		}
 	}
