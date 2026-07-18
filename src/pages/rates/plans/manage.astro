@@ -4,8 +4,8 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
 import Input from "@/components/ui/Input.astro"
-import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
@@ -426,23 +426,23 @@ const layoutProps =
 			!isPlaybookRateStep ? (
 				<section class="fastt-card border bg-white text-slate-900">
 					<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4">
-						<SegmentedControl class="mb-3" aria-label="Estado de tarifas" data-rate-plan-tabs>
+						<TabsOutsidePanel class="mb-3" aria-label="Estado de tarifas" data-rate-plan-tabs>
 							{tabs.map((tab) => (
 								<a
 									href={`?vista=${tab.id}`}
 									data-rate-plan-tab={tab.id}
 									aria-current={activeView === tab.id ? "page" : undefined}
 									data-active={activeView === tab.id ? "true" : "false"}
-									class={`fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+									class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
 										activeView === tab.id
 											? ""
-											: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+											: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
 									}`}
 								>
 									{tab.label} <span class="ml-1 text-xs opacity-70">{tab.count}</span>
 								</a>
 							))}
-						</SegmentedControl>
+						</TabsOutsidePanel>
 						<p class="pb-3 text-xs text-slate-500">Evaluación: próximos 30 días</p>
 					</div>
 
@@ -890,9 +890,9 @@ const layoutProps =
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
 			tab.dataset.active = active ? "true" : "false"
-			tab.classList.toggle("text-slate-500", !active)
-			tab.classList.toggle("hover:bg-white/70", !active)
-			tab.classList.toggle("hover:text-slate-900", !active)
+			tab.classList.toggle("text-slate-600", !active)
+			tab.classList.toggle("hover:bg-sky-100/80", !active)
+			tab.classList.toggle("hover:text-sky-950", !active)
 			if (active) tab.setAttribute("aria-current", "page")
 			else tab.removeAttribute("aria-current")
 		}
