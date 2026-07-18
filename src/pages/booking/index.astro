@@ -257,6 +257,14 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						))
 					}
 				</div>
+				<div
+					id="bookingLoadMoreWrap"
+					class="hidden border-t border-slate-200 bg-white px-4 py-3 text-center"
+				>
+					<Button id="bookingLoadMore" type="button" variant="secondary" size="sm">
+						Cargar más reservas
+					</Button>
+				</div>
 			</Card>
 		</Section>
 	</section>
@@ -277,6 +285,8 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					items: [],
 					activeTab: initialVista || "today",
 					query: "",
+					limit: 25,
+					hasMore: false,
 				}
 				const form = document.getElementById("bookingFilters")
 				const rows = document.getElementById("bookingRows")
@@ -292,6 +302,8 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 				const filtersToggle = document.getElementById("bookingFiltersToggle")
 				const advancedFilters = document.getElementById("bookingAdvancedFilters")
 				const filterCount = document.getElementById("bookingFilterCount")
+				const loadMoreWrap = document.getElementById("bookingLoadMoreWrap")
+				const loadMoreButton = document.getElementById("bookingLoadMore")
 
 				const todayIso = () => new Date().toISOString().slice(0, 10)
 				const money = (currency, value) =>
@@ -524,6 +536,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					renderMetrics()
 					renderRows(items)
 					if (summary) summary.textContent = `${items.length} reservas en esta vista.`
+					loadMoreWrap?.classList.toggle("hidden", !state.hasMore)
 				}
 				const fetchBookings = async () => {
 					const started = performance.now()
@@ -542,6 +555,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						if (from) qs.set("from", from)
 						if (to) qs.set("to", to)
 						if (status && status !== "all") qs.set("status", status)
+						qs.set("limit", String(state.limit))
 						const response = await fetch(
 							`/api/internal/provider-bookings-summary?${qs.toString()}`,
 							{
@@ -551,6 +565,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
 						const payload = await response.json()
 						state.items = Array.isArray(payload?.items) ? payload.items : []
+						state.hasMore = Boolean(payload?.pagination?.hasMore)
 						render()
 						if (latency)
 							latency.textContent = `${Number((performance.now() - started).toFixed(0))} ms`
@@ -592,7 +607,19 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 				})
 				form?.addEventListener("submit", (event) => {
 					event.preventDefault()
+					state.limit = 25
 					void fetchBookings()
+				})
+				loadMoreButton?.addEventListener("click", async () => {
+					loadMoreButton.setAttribute("disabled", "true")
+					loadMoreButton.textContent = "Cargando..."
+					state.limit += 25
+					try {
+						await fetchBookings()
+					} finally {
+						loadMoreButton.removeAttribute("disabled")
+						loadMoreButton.textContent = "Cargar más reservas"
+					}
 				})
 				void fetchBookings()
 			}

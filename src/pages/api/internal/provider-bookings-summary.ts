@@ -38,11 +38,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 				.toLowerCase(),
 			from: String(url.searchParams.get("from") ?? "").trim() || undefined,
 			to: String(url.searchParams.get("to") ?? "").trim() || undefined,
+			limit: Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100)),
 		})
 		logEndpoint()
+		const durationMs = Number((performance.now() - startedAt).toFixed(1))
 		return new Response(JSON.stringify(result), {
 			status: 200,
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				"Server-Timing": `provider-bookings-summary;dur=${durationMs}`,
+			},
 		})
 	} catch (error) {
 		logEndpoint()
