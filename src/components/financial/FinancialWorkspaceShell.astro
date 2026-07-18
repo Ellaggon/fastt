@@ -10,8 +10,8 @@ interface Props {
 const { title, description, note = "" } = Astro.props
 ---
 
-<section class="space-y-4">
-	<header class="flex flex-col gap-2">
+<section class="space-y-8">
+	<header class="flex flex-col gap-2 border-b border-slate-800 pb-5">
 		<slot name="context" />
 		<h1 class="text-3xl font-bold tracking-tight text-white">{title}</h1>
 		<p class="max-w-3xl text-sm leading-6 text-slate-300">{description}</p>

@@ -5,6 +5,7 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Section from "@/components/ui/Section.astro"
 import Select from "@/components/ui/Select.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
@@ -22,8 +23,10 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 ---
 
 <WorkspaceLayout title="Reservas">
-	<section class="space-y-6">
-		<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+	<section class="space-y-8" data-booking-page>
+		<header
+			class="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between"
+		>
 			<div class="space-y-2">
 				<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
 					Operación diaria
@@ -40,7 +43,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 			</div>
 		</header>
 
-		<div id="bookingMetrics" class="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+		<div id="bookingMetrics" class="grid grid-cols-2 gap-3 xl:grid-cols-4">
 			{
 				[
 					["Llegan hoy", "—", "Check-ins esperados"],
@@ -48,25 +51,20 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					["En estancia", "—", "Huéspedes alojados"],
 					["Pago pendiente", "—", "Reservas con saldo"],
 				].map(([label, value, detail]) => (
-					<Card class="border-slate-800 bg-slate-950 p-3 text-white shadow-sm sm:p-4">
-						<p class="text-[11px] font-semibold tracking-wide text-slate-300 uppercase sm:text-xs">
-							{label}
-						</p>
-						<p class="mt-1 text-xl font-semibold tracking-tight text-white sm:mt-2 sm:text-2xl">
-							{value}
-						</p>
-						<p class="mt-1 hidden text-xs text-slate-400 sm:block">{detail}</p>
-					</Card>
+					<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
+						<p class="text-xs font-medium text-slate-400">{label}</p>
+						<p class="mt-1 text-2xl font-semibold tracking-tight text-slate-100">{value}</p>
+						<p class="mt-1 hidden text-xs text-slate-500 sm:block">{detail}</p>
+					</div>
 				))
 			}
 		</div>
 
-		<Card class="border-slate-200 bg-white p-0">
-			<div class="flex flex-col gap-3 px-3 pt-3 md:flex-row md:items-center md:justify-between">
-				<nav
-					class="flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1"
-					aria-label="Vistas de reservas"
-				>
+		<Card class="fastt-workspace-panel border bg-white p-0 text-slate-900">
+			<div
+				class="flex flex-col gap-3 border-b border-slate-200 px-4 pt-4 md:flex-row md:items-center md:justify-between"
+			>
+				<TabsOutsidePanel class="mb-3" aria-label="Vistas de reservas">
 					{
 						[
 							["today", "Hoy"],
@@ -78,8 +76,13 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						].map(([value, label]) => (
 							<button
 								type="button"
-								class="booking-tab fastt-button inline-flex h-9 shrink-0 items-center rounded-md border border-transparent px-3 text-sm font-semibold text-slate-500 transition hover:bg-white/70 hover:text-slate-900"
+								class={`booking-tab fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+									value === initialVista
+										? ""
+										: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+								}`}
 								data-booking-tab={value}
+								data-active={value === initialVista ? "true" : "false"}
 								aria-pressed={value === initialVista ? "true" : "false"}
 							>
 								{label}
@@ -93,11 +96,11 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 							</button>
 						))
 					}
-				</nav>
+				</TabsOutsidePanel>
 				<p class="pb-3 text-xs text-slate-500 md:pb-0">Cola operativa de recepción</p>
 			</div>
 			<form id="bookingFilters" class="space-y-3">
-				<div class="grid gap-2 p-3 sm:grid-cols-[minmax(220px,1fr)_auto]">
+				<div class="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(220px,1fr)_auto]">
 					<label class="sr-only" for="bookingSearch">Buscar</label>
 					<Input
 						id="bookingSearch"
@@ -120,7 +123,10 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 							class="ml-2 hidden rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700"></span>
 					</Button>
 				</div>
-				<div id="bookingAdvancedFilters" class="hidden border-t border-slate-200 bg-slate-50 p-3">
+				<div
+					id="bookingAdvancedFilters"
+					class="hidden border-t border-slate-200 bg-slate-50 px-4 py-3"
+				>
 					<div
 						class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
 					>
@@ -182,10 +188,15 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 			</form>
 		</Card>
 
-		<Section title="Cola de reservas" description="Prioriza la próxima acción de recepción.">
-			<Card class="min-h-[320px] border-slate-200 bg-white p-0">
+		<Section
+			title="Cola de reservas"
+			description="Prioriza la próxima acción de recepción."
+			class="space-y-5"
+			titleClass="text-slate-100"
+		>
+			<Card class="fastt-workspace-panel min-h-[320px] border bg-white p-0 text-slate-900">
 				<div
-					class="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+					class="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
 				>
 					<p id="bookingListSummary" class="text-sm text-slate-600">Cargando reservas...</p>
 					<p id="bookingListLatency" class="text-xs text-slate-400"></p>
@@ -194,7 +205,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 				<div class="hidden overflow-x-auto lg:block">
 					<table class="min-w-full text-left text-sm">
 						<thead
-							class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500"
+							class="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500"
 						>
 							<tr>
 								<th class="px-4 py-3">Huésped</th>
@@ -235,7 +246,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 					</table>
 				</div>
 
-				<div id="bookingCards" class="space-y-3 p-3 lg:hidden">
+				<div id="bookingCards" class="space-y-3 bg-slate-50/80 p-3 lg:hidden">
 					{
 						Array.from({ length: 4 }).map(() => (
 							<div class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
@@ -250,211 +261,222 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 		</Section>
 	</section>
 
-	<script is:inline define:vars={{ initialFrom, initialTo, initialStatus, initialVista }}>
+	<script
+		is:inline
+		data-astro-rerun
+		define:vars={{ initialFrom, initialTo, initialStatus, initialVista }}
+	>
 		;(function () {
-			const state = {
-				items: [],
-				activeTab: initialVista || "today",
-				query: "",
-			}
-			const form = document.getElementById("bookingFilters")
-			const rows = document.getElementById("bookingRows")
-			const cards = document.getElementById("bookingCards")
-			const summary = document.getElementById("bookingListSummary")
-			const latency = document.getElementById("bookingListLatency")
-			const applyBtn = document.getElementById("applyFiltersBtn")
-			const fromInput = document.getElementById("from")
-			const toInput = document.getElementById("to")
-			const statusInput = document.getElementById("status")
-			const searchInput = document.getElementById("bookingSearch")
-			const metrics = document.getElementById("bookingMetrics")
-			const filtersToggle = document.getElementById("bookingFiltersToggle")
-			const advancedFilters = document.getElementById("bookingAdvancedFilters")
-			const filterCount = document.getElementById("bookingFilterCount")
+			const bootBookingPage = () => {
+				const root = document.querySelector("[data-booking-page]")
+				if (!(root instanceof HTMLElement)) return
+				if (root.dataset.bookingBootReady === "true") return
+				root.dataset.bookingBootReady = "true"
 
-			const todayIso = () => new Date().toISOString().slice(0, 10)
-			const money = (currency, value) =>
-				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
-			const guestName = (item) =>
-				String(item?.guestName || item?.guestEmail || "Huésped por registrar")
-			const parseIsoDate = (value) => {
-				const raw = String(value || "").trim()
-				if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
-				const parsed = new Date(`${raw}T00:00:00.000Z`)
-				if (Number.isNaN(parsed.getTime())) return null
-				return parsed
-			}
-			const shortDate = (value, includeYear = false) => {
-				const date = parseIsoDate(value)
-				if (!date) return "—"
-				return date.toLocaleDateString("es-CL", {
-					day: "numeric",
-					month: "short",
-					year: includeYear ? "numeric" : undefined,
-					timeZone: "UTC",
-				})
-			}
-			const stayLabel = (item) => {
-				const checkIn = String(item?.checkIn || "")
-				const checkOut = String(item?.checkOut || "")
-				const inDate = parseIsoDate(checkIn)
-				const outDate = parseIsoDate(checkOut)
-				const includeYear =
-					Boolean(inDate && outDate && inDate.getUTCFullYear() !== outDate.getUTCFullYear()) ||
-					Boolean(inDate && inDate.getUTCFullYear() !== new Date().getUTCFullYear()) ||
-					Boolean(outDate && outDate.getUTCFullYear() !== new Date().getUTCFullYear())
-				return `${shortDate(checkIn, includeYear)} → ${shortDate(checkOut, includeYear)}`
-			}
-			const paymentLabel = (item) => {
-				const pending = Number(item?.payment?.pendingAmount || 0)
-				const total = money(item?.currency, item?.totalAmount)
-				return pending > 0
-					? `${total} · falta ${money(item?.currency, pending)}`
-					: `${total} · pagada`
-			}
-			const statusCopy = (item) => {
-				const state = String(item?.lifecycleState || "")
-				if (state === "upcoming_arrival")
-					return ["Próxima llegada", "bg-sky-50 text-sky-800 border-sky-200"]
-				if (state === "in_house")
-					return ["En estancia", "bg-emerald-50 text-emerald-700 border-emerald-200"]
-				if (state === "departure_due")
-					return ["Salida pendiente", "bg-amber-50 text-amber-700 border-amber-200"]
-				if (state === "checked_out")
-					return ["Finalizada", "bg-slate-100 text-slate-700 border-slate-200"]
-				if (state === "no_show")
-					return ["No presentación", "bg-orange-50 text-orange-700 border-orange-200"]
-				if (state === "cancelled") return ["Cancelada", "bg-red-50 text-red-700 border-red-200"]
-				return ["Pendiente", "bg-slate-100 text-slate-700 border-slate-200"]
-			}
-			const nextAction = (item) => {
-				const lifecycle = String(item?.lifecycleState || "")
-				const pending = Number(item?.payment?.pendingAmount || 0)
-				if (lifecycle === "upcoming_arrival") return "Confirmar llegada"
-				if (lifecycle === "in_house") return "Registrar salida"
-				if (lifecycle === "departure_due") return "Registrar salida"
-				if (lifecycle === "cancelled") return "Ver reembolso"
-				if (pending > 0) return "Registrar pago"
-				return "Ver reserva"
-			}
-			const activeFilterCount = () => {
-				const from = String(fromInput?.value || "").trim()
-				const to = String(toInput?.value || "").trim()
-				const status = String(statusInput?.value || "all")
-					.trim()
-					.toLowerCase()
-				return [from, to, status !== "all" ? status : ""].filter(Boolean).length
-			}
-			const updateFilterBadge = () => {
-				if (!filterCount) return
-				const count = activeFilterCount()
-				filterCount.textContent = String(count)
-				filterCount.classList.toggle("hidden", count === 0)
-			}
-			const tabMatches = (item, tab) => {
-				const today = todayIso()
-				const lifecycle = String(item?.lifecycleState || "")
-				if (tab === "all") return true
-				if (tab === "today") {
-					return (
-						item?.checkIn === today || item?.checkOut === today || lifecycle === "departure_due"
-					)
+				const state = {
+					items: [],
+					activeTab: initialVista || "today",
+					query: "",
 				}
-				if (tab === "upcoming") return lifecycle === "upcoming_arrival"
-				if (tab === "in_house") return lifecycle === "in_house"
-				if (tab === "departures") return lifecycle === "departure_due" || item?.checkOut === today
-				if (tab === "cancelled") return lifecycle === "cancelled"
-				return true
-			}
-			const filteredItems = () => {
-				const query = state.query.trim().toLowerCase()
-				return state.items
-					.filter((item) => tabMatches(item, state.activeTab))
-					.filter((item) => {
-						if (!query) return true
-						return [
-							guestName(item),
-							item?.bookingId,
-							item?.guestEmail,
-							item?.productName,
-							item?.variantName,
-						]
-							.map((value) => String(value || "").toLowerCase())
-							.some((value) => value.includes(query))
-					})
-			}
-			const updateTabs = () => {
-				document.querySelectorAll("[data-booking-tab]").forEach((button) => {
-					const selected = button.getAttribute("data-booking-tab") === state.activeTab
-					button.setAttribute("aria-pressed", selected ? "true" : "false")
-					button.className = selected
-						? "booking-tab fastt-button inline-flex h-9 shrink-0 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-950 shadow-sm transition"
-						: "booking-tab fastt-button inline-flex h-9 shrink-0 items-center rounded-md border border-transparent px-3 text-sm font-semibold text-slate-500 transition hover:bg-white/70 hover:text-slate-900"
-				})
-				const tabs = ["today", "upcoming", "in_house", "departures", "cancelled", "all"]
-				for (const tab of tabs) {
-					const count = state.items.filter((item) => tabMatches(item, tab)).length
-					document.querySelectorAll(`[data-booking-tab-count="${tab}"]`).forEach((node) => {
-						node.textContent = String(count)
-						node.setAttribute("data-has-count", count > 0 ? "true" : "false")
-						node.classList.toggle("hidden", count === 0)
+				const form = document.getElementById("bookingFilters")
+				const rows = document.getElementById("bookingRows")
+				const cards = document.getElementById("bookingCards")
+				const summary = document.getElementById("bookingListSummary")
+				const latency = document.getElementById("bookingListLatency")
+				const applyBtn = document.getElementById("applyFiltersBtn")
+				const fromInput = document.getElementById("from")
+				const toInput = document.getElementById("to")
+				const statusInput = document.getElementById("status")
+				const searchInput = document.getElementById("bookingSearch")
+				const metrics = document.getElementById("bookingMetrics")
+				const filtersToggle = document.getElementById("bookingFiltersToggle")
+				const advancedFilters = document.getElementById("bookingAdvancedFilters")
+				const filterCount = document.getElementById("bookingFilterCount")
+
+				const todayIso = () => new Date().toISOString().slice(0, 10)
+				const money = (currency, value) =>
+					`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
+				const guestName = (item) =>
+					String(item?.guestName || item?.guestEmail || "Huésped por registrar")
+				const parseIsoDate = (value) => {
+					const raw = String(value || "").trim()
+					if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
+					const parsed = new Date(`${raw}T00:00:00.000Z`)
+					if (Number.isNaN(parsed.getTime())) return null
+					return parsed
+				}
+				const shortDate = (value, includeYear = false) => {
+					const date = parseIsoDate(value)
+					if (!date) return "—"
+					return date.toLocaleDateString("es-CL", {
+						day: "numeric",
+						month: "short",
+						year: includeYear ? "numeric" : undefined,
+						timeZone: "UTC",
 					})
 				}
-			}
-			const renderMetrics = () => {
-				if (!metrics) return
-				const today = todayIso()
-				const pendingPayment = state.items.filter(
-					(item) => Number(item?.payment?.pendingAmount || 0) > 0
-				).length
-				const values = [
-					[
-						"Llegan hoy",
-						state.items.filter((item) => item?.checkIn === today).length,
-						"Check-ins esperados",
-					],
-					[
-						"Salen hoy",
-						state.items.filter((item) => item?.checkOut === today).length,
-						"Check-outs pendientes",
-					],
-					[
-						"En estancia",
-						state.items.filter((item) => item?.lifecycleState === "in_house").length,
-						"Huéspedes alojados",
-					],
-					["Pago pendiente", pendingPayment, "Reservas con saldo"],
-				]
-				metrics.innerHTML = values
-					.map(
-						([
-							label,
-							value,
-							detail,
-						]) => `<div class="fastt-card rounded-[var(--fastt-radius-card)] border border-slate-800 bg-slate-950 p-4 text-white shadow-sm">
-							<p class="text-xs font-semibold uppercase tracking-wide text-slate-300">${label}</p>
-							<p class="mt-2 text-2xl font-semibold tracking-tight text-white">${value}</p>
-							<p class="mt-1 text-xs text-slate-400">${detail}</p>
+				const stayLabel = (item) => {
+					const checkIn = String(item?.checkIn || "")
+					const checkOut = String(item?.checkOut || "")
+					const inDate = parseIsoDate(checkIn)
+					const outDate = parseIsoDate(checkOut)
+					const includeYear =
+						Boolean(inDate && outDate && inDate.getUTCFullYear() !== outDate.getUTCFullYear()) ||
+						Boolean(inDate && inDate.getUTCFullYear() !== new Date().getUTCFullYear()) ||
+						Boolean(outDate && outDate.getUTCFullYear() !== new Date().getUTCFullYear())
+					return `${shortDate(checkIn, includeYear)} → ${shortDate(checkOut, includeYear)}`
+				}
+				const paymentLabel = (item) => {
+					const pending = Number(item?.payment?.pendingAmount || 0)
+					const total = money(item?.currency, item?.totalAmount)
+					return pending > 0
+						? `${total} · falta ${money(item?.currency, pending)}`
+						: `${total} · pagada`
+				}
+				const statusCopy = (item) => {
+					const state = String(item?.lifecycleState || "")
+					if (state === "upcoming_arrival")
+						return ["Próxima llegada", "bg-sky-50 text-sky-800 border-sky-200"]
+					if (state === "in_house")
+						return ["En estancia", "bg-emerald-50 text-emerald-700 border-emerald-200"]
+					if (state === "departure_due")
+						return ["Salida pendiente", "bg-amber-50 text-amber-700 border-amber-200"]
+					if (state === "checked_out")
+						return ["Finalizada", "bg-slate-100 text-slate-700 border-slate-200"]
+					if (state === "no_show")
+						return ["No presentación", "bg-orange-50 text-orange-700 border-orange-200"]
+					if (state === "cancelled") return ["Cancelada", "bg-red-50 text-red-700 border-red-200"]
+					return ["Pendiente", "bg-slate-100 text-slate-700 border-slate-200"]
+				}
+				const nextAction = (item) => {
+					const lifecycle = String(item?.lifecycleState || "")
+					const pending = Number(item?.payment?.pendingAmount || 0)
+					if (lifecycle === "upcoming_arrival") return "Confirmar llegada"
+					if (lifecycle === "in_house") return "Registrar salida"
+					if (lifecycle === "departure_due") return "Registrar salida"
+					if (lifecycle === "cancelled") return "Ver reembolso"
+					if (pending > 0) return "Registrar pago"
+					return "Ver reserva"
+				}
+				const activeFilterCount = () => {
+					const from = String(fromInput?.value || "").trim()
+					const to = String(toInput?.value || "").trim()
+					const status = String(statusInput?.value || "all")
+						.trim()
+						.toLowerCase()
+					return [from, to, status !== "all" ? status : ""].filter(Boolean).length
+				}
+				const updateFilterBadge = () => {
+					if (!filterCount) return
+					const count = activeFilterCount()
+					filterCount.textContent = String(count)
+					filterCount.classList.toggle("hidden", count === 0)
+				}
+				const tabMatches = (item, tab) => {
+					const today = todayIso()
+					const lifecycle = String(item?.lifecycleState || "")
+					if (tab === "all") return true
+					if (tab === "today") {
+						return (
+							item?.checkIn === today || item?.checkOut === today || lifecycle === "departure_due"
+						)
+					}
+					if (tab === "upcoming") return lifecycle === "upcoming_arrival"
+					if (tab === "in_house") return lifecycle === "in_house"
+					if (tab === "departures") return lifecycle === "departure_due" || item?.checkOut === today
+					if (tab === "cancelled") return lifecycle === "cancelled"
+					return true
+				}
+				const filteredItems = () => {
+					const query = state.query.trim().toLowerCase()
+					return state.items
+						.filter((item) => tabMatches(item, state.activeTab))
+						.filter((item) => {
+							if (!query) return true
+							return [
+								guestName(item),
+								item?.bookingId,
+								item?.guestEmail,
+								item?.productName,
+								item?.variantName,
+							]
+								.map((value) => String(value || "").toLowerCase())
+								.some((value) => value.includes(query))
+						})
+				}
+				const updateTabs = () => {
+					document.querySelectorAll("[data-booking-tab]").forEach((button) => {
+						const selected = button.getAttribute("data-booking-tab") === state.activeTab
+						button.setAttribute("aria-pressed", selected ? "true" : "false")
+						button.setAttribute("data-active", selected ? "true" : "false")
+						button.className = selected
+							? "booking-tab fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap"
+							: "booking-tab fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+					})
+					const tabs = ["today", "upcoming", "in_house", "departures", "cancelled", "all"]
+					for (const tab of tabs) {
+						const count = state.items.filter((item) => tabMatches(item, tab)).length
+						document.querySelectorAll(`[data-booking-tab-count="${tab}"]`).forEach((node) => {
+							node.textContent = String(count)
+							node.setAttribute("data-has-count", count > 0 ? "true" : "false")
+							node.classList.toggle("hidden", count === 0)
+						})
+					}
+				}
+				const renderMetrics = () => {
+					if (!metrics) return
+					const today = todayIso()
+					const pendingPayment = state.items.filter(
+						(item) => Number(item?.payment?.pendingAmount || 0) > 0
+					).length
+					const values = [
+						[
+							"Llegan hoy",
+							state.items.filter((item) => item?.checkIn === today).length,
+							"Check-ins esperados",
+						],
+						[
+							"Salen hoy",
+							state.items.filter((item) => item?.checkOut === today).length,
+							"Check-outs pendientes",
+						],
+						[
+							"En estancia",
+							state.items.filter((item) => item?.lifecycleState === "in_house").length,
+							"Huéspedes alojados",
+						],
+						["Pago pendiente", pendingPayment, "Reservas con saldo"],
+					]
+					metrics.innerHTML = values
+						.map(
+							([
+								label,
+								value,
+								detail,
+							]) => `<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
+							<p class="text-xs font-medium text-slate-400">${label}</p>
+							<p class="mt-1 text-2xl font-semibold tracking-tight text-slate-100">${value}</p>
+							<p class="mt-1 text-xs text-slate-500">${detail}</p>
 						</div>`
-					)
-					.join("")
-			}
-			const renderRows = (items) => {
-				if (!rows || !cards) return
-				if (!items.length) {
-					const empty =
-						'<tr><td colspan="6" class="px-4 py-12 text-center"><p class="font-medium text-slate-700">No hay reservas para esta vista.</p><p class="mt-1 text-sm text-slate-500">Cuando exista una reserva con esta condición aparecerá aquí.</p></td></tr>'
-					rows.innerHTML = empty
-					cards.innerHTML =
-						'<div class="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-medium text-slate-700">No hay reservas para esta vista.</p><p class="mt-1 text-sm text-slate-500">Cuando exista una reserva con esta condición aparecerá aquí.</p></div>'
-					return
+						)
+						.join("")
 				}
-				rows.innerHTML = items
-					.map((item) => {
-						const [label, badge] = statusCopy(item)
-						const stay = stayLabel(item)
-						const accommodation = `${String(item?.productName || "Alojamiento")} · ${String(item?.variantName || "Habitación")}`
-						return `<tr class="border-b border-slate-100 align-top hover:bg-slate-50">
+				const renderRows = (items) => {
+					if (!rows || !cards) return
+					if (!items.length) {
+						const empty =
+							'<tr><td colspan="6" class="px-4 py-12 text-center"><p class="font-medium text-slate-700">No hay reservas para esta vista.</p><p class="mt-1 text-sm text-slate-500">Cuando exista una reserva con esta condición aparecerá aquí.</p></td></tr>'
+						rows.innerHTML = empty
+						cards.innerHTML =
+							'<div class="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-medium text-slate-700">No hay reservas para esta vista.</p><p class="mt-1 text-sm text-slate-500">Cuando exista una reserva con esta condición aparecerá aquí.</p></div>'
+						return
+					}
+					rows.innerHTML = items
+						.map((item) => {
+							const [label, badge] = statusCopy(item)
+							const stay = stayLabel(item)
+							const accommodation = `${String(item?.productName || "Alojamiento")} · ${String(item?.variantName || "Habitación")}`
+							return `<tr class="border-b border-slate-100 align-top hover:bg-slate-50">
 							<td class="px-4 py-4">
 								<p class="font-semibold text-slate-950">${guestName(item)}</p>
 							</td>
@@ -474,13 +496,13 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 								<a class="fastt-button inline-flex h-8 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800" href="/booking/${encodeURIComponent(String(item?.bookingId || ""))}" data-astro-prefetch>${nextAction(item)}</a>
 							</td>
 						</tr>`
-					})
-					.join("")
-				cards.innerHTML = items
-					.map((item) => {
-						const [label, badge] = statusCopy(item)
-						const stay = stayLabel(item)
-						return `<article class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
+						})
+						.join("")
+					cards.innerHTML = items
+						.map((item) => {
+							const [label, badge] = statusCopy(item)
+							const stay = stayLabel(item)
+							return `<article class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
 							<div class="flex items-start justify-between gap-3">
 								<div>
 									<p class="font-semibold text-slate-950">${guestName(item)}</p>
@@ -492,84 +514,98 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 							<p class="mt-3 text-sm font-medium text-slate-900">${paymentLabel(item)}</p>
 							<a class="fastt-button mt-4 inline-flex h-9 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800" href="/booking/${encodeURIComponent(String(item?.bookingId || ""))}" data-astro-prefetch>${nextAction(item)}</a>
 						</article>`
-					})
-					.join("")
-			}
-			const render = () => {
-				const items = filteredItems()
-				updateTabs()
-				updateFilterBadge()
-				renderMetrics()
-				renderRows(items)
-				if (summary) summary.textContent = `${items.length} reservas en esta vista.`
-			}
-			const fetchBookings = async () => {
-				const started = performance.now()
-				if (applyBtn) {
-					applyBtn.setAttribute("disabled", "true")
-					applyBtn.textContent = "Cargando..."
+						})
+						.join("")
 				}
-				if (summary) summary.textContent = "Cargando reservas..."
-				try {
-					const qs = new URLSearchParams()
-					const from = String(fromInput?.value || initialFrom || "").trim()
-					const to = String(toInput?.value || initialTo || "").trim()
-					const status = String(statusInput?.value || initialStatus || "all")
-						.trim()
-						.toLowerCase()
-					if (from) qs.set("from", from)
-					if (to) qs.set("to", to)
-					if (status && status !== "all") qs.set("status", status)
-					const response = await fetch(`/api/internal/provider-bookings-summary?${qs.toString()}`, {
-						headers: { accept: "application/json" },
-					})
-					if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
-					const payload = await response.json()
-					state.items = Array.isArray(payload?.items) ? payload.items : []
-					render()
-					if (latency)
-						latency.textContent = `${Number((performance.now() - started).toFixed(0))} ms`
-				} catch {
-					state.items = []
-					render()
-					if (summary) summary.textContent = "No se pudo cargar el listado de reservas."
-					if (latency) latency.textContent = ""
-				} finally {
+				const render = () => {
+					const items = filteredItems()
+					updateTabs()
+					updateFilterBadge()
+					renderMetrics()
+					renderRows(items)
+					if (summary) summary.textContent = `${items.length} reservas en esta vista.`
+				}
+				const fetchBookings = async () => {
+					const started = performance.now()
 					if (applyBtn) {
-						applyBtn.removeAttribute("disabled")
-						applyBtn.textContent = "Aplicar"
+						applyBtn.setAttribute("disabled", "true")
+						applyBtn.textContent = "Cargando..."
+					}
+					if (summary) summary.textContent = "Cargando reservas..."
+					try {
+						const qs = new URLSearchParams()
+						const from = String(fromInput?.value || initialFrom || "").trim()
+						const to = String(toInput?.value || initialTo || "").trim()
+						const status = String(statusInput?.value || initialStatus || "all")
+							.trim()
+							.toLowerCase()
+						if (from) qs.set("from", from)
+						if (to) qs.set("to", to)
+						if (status && status !== "all") qs.set("status", status)
+						const response = await fetch(
+							`/api/internal/provider-bookings-summary?${qs.toString()}`,
+							{
+								headers: { accept: "application/json" },
+							}
+						)
+						if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
+						const payload = await response.json()
+						state.items = Array.isArray(payload?.items) ? payload.items : []
+						render()
+						if (latency)
+							latency.textContent = `${Number((performance.now() - started).toFixed(0))} ms`
+					} catch {
+						state.items = []
+						render()
+						if (summary) summary.textContent = "No se pudo cargar el listado de reservas."
+						if (latency) latency.textContent = ""
+					} finally {
+						if (applyBtn) {
+							applyBtn.removeAttribute("disabled")
+							applyBtn.textContent = "Aplicar"
+						}
 					}
 				}
-			}
-			const setFiltersOpen = (open) => {
-				advancedFilters?.classList.toggle("hidden", !open)
-				filtersToggle?.setAttribute("aria-expanded", open ? "true" : "false")
-			}
-			if (activeFilterCount() > 0) setFiltersOpen(true)
-			filtersToggle?.addEventListener("click", () => {
-				setFiltersOpen(advancedFilters?.classList.contains("hidden") ?? true)
-			})
-			fromInput?.addEventListener("change", updateFilterBadge)
-			toInput?.addEventListener("change", updateFilterBadge)
-			statusInput?.addEventListener("change", updateFilterBadge)
-			document.querySelectorAll("[data-booking-tab]").forEach((button) => {
-				button.addEventListener("click", () => {
-					state.activeTab = button.getAttribute("data-booking-tab") || "today"
-					const url = new URL(window.location.href)
-					url.searchParams.set("vista", state.activeTab)
-					window.history.replaceState({}, "", url.toString())
+				const setFiltersOpen = (open) => {
+					advancedFilters?.classList.toggle("hidden", !open)
+					filtersToggle?.setAttribute("aria-expanded", open ? "true" : "false")
+				}
+				if (activeFilterCount() > 0) setFiltersOpen(true)
+				filtersToggle?.addEventListener("click", () => {
+					setFiltersOpen(advancedFilters?.classList.contains("hidden") ?? true)
+				})
+				fromInput?.addEventListener("change", updateFilterBadge)
+				toInput?.addEventListener("change", updateFilterBadge)
+				statusInput?.addEventListener("change", updateFilterBadge)
+				document.querySelectorAll("[data-booking-tab]").forEach((button) => {
+					button.addEventListener("click", () => {
+						state.activeTab = button.getAttribute("data-booking-tab") || "today"
+						const url = new URL(window.location.href)
+						url.searchParams.set("vista", state.activeTab)
+						window.history.replaceState({}, "", url.toString())
+						render()
+					})
+				})
+				searchInput?.addEventListener("input", () => {
+					state.query = String(searchInput.value || "")
 					render()
 				})
-			})
-			searchInput?.addEventListener("input", () => {
-				state.query = String(searchInput.value || "")
-				render()
-			})
-			form?.addEventListener("submit", (event) => {
-				event.preventDefault()
+				form?.addEventListener("submit", (event) => {
+					event.preventDefault()
+					void fetchBookings()
+				})
 				void fetchBookings()
-			})
-			void fetchBookings()
+			}
+
+			if (document.documentElement.dataset.bookingBootEventsReady !== "true") {
+				document.documentElement.dataset.bookingBootEventsReady = "true"
+				document.addEventListener("astro:page-load", bootBookingPage)
+			}
+			if (document.readyState === "loading") {
+				document.addEventListener("DOMContentLoaded", bootBookingPage, { once: true })
+			} else {
+				bootBookingPage()
+			}
 		})()
 	</script>
 </WorkspaceLayout>

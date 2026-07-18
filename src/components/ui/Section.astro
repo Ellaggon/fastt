@@ -1,11 +1,18 @@
 ---
-const { title, description, className = "", class: classProp = "", ...props } = Astro.props
+const {
+	title,
+	description,
+	className = "",
+	class: classProp = "",
+	titleClass = "text-slate-950",
+	...props
+} = Astro.props
 const finalClass = `space-y-4 ${className} ${classProp}`.trim()
 ---
 
 <section class={finalClass} {...props}>
 	<header class="space-y-1">
-		<h2 class="text-lg font-semibold text-slate-950">{title}</h2>
+		<h2 class:list={["text-lg font-semibold", titleClass]}>{title}</h2>
 		{description ? <p class="text-sm leading-6 text-slate-500">{description}</p> : null}
 	</header>
 	<div class="space-y-4">

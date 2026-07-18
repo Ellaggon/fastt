@@ -1,5 +1,5 @@
 ---
-import SegmentedControl from "@/components/ui/SegmentedControl.astro"
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { financialNavigationItems } from "@/lib/financial/financialNavigation"
 
 interface Props {
@@ -16,10 +16,14 @@ const scopedHref = (href: string) => {
 	params.set("productId", selectedProductId)
 	return `${href}?${params.toString()}`
 }
+const compactLabelByLabel: Record<string, string> = {
+	"Bandeja financiera": "Bandeja",
+	"Pagos a proveedores": "Proveedores",
+}
 ---
 
-<SegmentedControl
-	class="financial-subnav mb-4 w-full max-w-full flex-nowrap px-3 md:px-6"
+<TabsInsidePanel
+	class="financial-subnav max-w-full flex-nowrap bg-black"
 	aria-label="Navegación financiera"
 >
 	{
@@ -33,16 +37,18 @@ const scopedHref = (href: string) => {
 					data-astro-prefetch="viewport"
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
-					class={`fastt-segmented-item inline-flex h-9 min-w-max shrink-0 items-center rounded-full px-3 text-sm font-medium whitespace-nowrap ${
-						active ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+					aria-label={item.label}
+					title={item.label}
+					class={`fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
+						active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
 					}`}
 				>
-					{item.label}
+					{compactLabelByLabel[item.label] ?? item.label}
 				</a>
 			)
 		})
 	}
-</SegmentedControl>
+</TabsInsidePanel>
 
 <style>
 	.financial-subnav {
@@ -52,5 +58,13 @@ const scopedHref = (href: string) => {
 
 	.financial-subnav::-webkit-scrollbar {
 		display: none;
+	}
+
+	.financial-subnav {
+		background: #000;
+	}
+
+	.financial-subnav .fastt-tabs-inside-panel__item[data-active="false"] {
+		background: #000;
 	}
 </style>

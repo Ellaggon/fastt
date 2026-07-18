@@ -32,7 +32,7 @@ const routeToView: Record<string, FinancialViewId> = {
 const normalizedPath = Astro.url.pathname.replace(/\/$/, "") || "/"
 const initialView = routeToView[normalizedPath] || "inbox"
 const viewClass = (view: FinancialViewId) =>
-	view === initialView ? "space-y-4" : "hidden space-y-4"
+	view === initialView ? "space-y-6 md:space-y-8" : "hidden space-y-6 md:space-y-8"
 
 let isSimpleFinancialView = true
 let providerId = ""
@@ -98,8 +98,8 @@ try {
 	}
 	<section data-financial-view="inbox" class={viewClass("inbox")}>
 		<Card class="fastt-workspace-panel overflow-visible p-0">
-			<div>
-				<div class="space-y-3 sm:space-y-4">
+			<div class="p-5 md:p-6">
+				<div class="space-y-5 md:space-y-6">
 					<div class="financial-controls">
 						<div
 							id="financialSummary"
@@ -264,7 +264,7 @@ try {
 							placeholder="Buscar reserva, alojamiento, proveedor o referencia..."
 						/>
 					</div>
-					<div>
+					<div class="border-t border-slate-200 pt-5 md:pt-6">
 						<p id="financialListSummary" class="text-sm leading-6 text-slate-700">
 							Cargando casos que requieren atención, espera o cierre...
 						</p>
@@ -276,7 +276,7 @@ try {
 			</div>
 			<div
 				id="financialRows"
-				class="space-y-1.5 overflow-hidden rounded-b-3xl bg-slate-50/80 py-1.5 sm:space-y-2 sm:p-2"
+				class="space-y-2 overflow-hidden border-t border-slate-200 bg-slate-50/80 p-2 sm:space-y-2.5"
 			>
 				<div class="px-3 py-6 text-center text-sm text-slate-500 sm:px-4 sm:py-8">
 					Cargando casos...

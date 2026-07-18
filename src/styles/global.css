@@ -244,25 +244,23 @@ body {
 }
 
 .fastt-segmented-control {
-	border: 1px solid rgb(226 232 240 / 80%);
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 74%);
+	border: 0;
+	box-shadow: none;
 }
 
 .fastt-segmented-item {
 	border-radius: var(--fastt-radius-pill);
-	border: 1px solid transparent;
+	border: 0;
 	transition:
 		background-color var(--fastt-motion-fast) ease,
-		border-color var(--fastt-motion-fast) ease,
 		color var(--fastt-motion-fast) ease,
 		box-shadow var(--fastt-motion-fast) ease;
 }
 
 .fastt-segmented-item[data-active="true"] {
-	border-color: rgb(226 232 240 / 92%);
-	background: var(--fastt-color-surface);
-	color: var(--fastt-color-ink-soft);
-	box-shadow: var(--fastt-shadow-control);
+	background: rgb(255 255 255);
+	color: rgb(15 23 42);
+	box-shadow: none;
 }
 
 .fastt-dialog {

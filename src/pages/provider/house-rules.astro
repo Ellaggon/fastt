@@ -726,13 +726,9 @@ const successMessage =
 											const rules = selectedRulesByType.get(type) ?? []
 											const isEssential = essentialHouseRuleTypes.includes(type)
 											const isComplete = rules.length > 0
-											const shouldOpenRule =
-												!isGuidedRules &&
-												((!isComplete && isEssential) ||
-													(focus === "arrival" && (type === "CheckIn" || type === "Checkout")))
 											return (
 												<Card className="bg-white text-slate-800" data-house-rule-type={type}>
-													<details class="group" open={shouldOpenRule}>
+													<details class="group">
 														<summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3">
 															<div class="min-w-0">
 																<div class="flex flex-wrap items-center gap-2">
@@ -1138,7 +1134,7 @@ const successMessage =
 						</div>
 					</section>
 
-					<aside class={isGuidedRules ? "hidden" : "order-first space-y-4 xl:order-none"}>
+					<aside class={isGuidedRules ? "hidden" : "hidden space-y-4 xl:order-none xl:block"}>
 						<Card className="bg-white text-slate-900 xl:sticky xl:top-6">
 							<div class="flex flex-wrap items-start justify-between gap-3">
 								<div>
