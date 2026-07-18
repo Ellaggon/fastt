@@ -49,7 +49,8 @@ const currentAccommodation = accommodations.find((item) => item.id === productId
 	name: currentName,
 	href: buildAccommodationHref(productId),
 }
-const hasMultipleAccommodations = accommodations.length > 1
+const hasAccommodationOptions = accommodations.length > 0
+const hasOtherAccommodations = accommodations.some((item) => item.id !== productId)
 ---
 
 <div class="accommodation-context-switcher gap-1">
@@ -58,7 +59,7 @@ const hasMultipleAccommodations = accommodations.length > 1
 		Alojamiento
 	</span>
 	{
-		hasMultipleAccommodations ? (
+		hasAccommodationOptions ? (
 			<details class="accommodation-switcher" data-accommodation-switcher>
 				<summary class="accommodation-switcher__trigger" aria-label="Cambiar alojamiento actual">
 					<ChevronDown class="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -90,6 +91,11 @@ const hasMultipleAccommodations = accommodations.length > 1
 								</a>
 							)
 						})}
+						{!hasOtherAccommodations ? (
+							<p class="px-2 py-2 text-xs leading-5 text-slate-500">
+								No hay otros alojamientos disponibles.
+							</p>
+						) : null}
 					</div>
 				</div>
 			</details>

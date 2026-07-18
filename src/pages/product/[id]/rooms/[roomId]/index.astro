@@ -1,7 +1,9 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
@@ -10,7 +12,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { Camera, Hotel, ImagePlus, RefreshCw, Sparkles } from "@lucide/astro"
+import { Camera, ImagePlus, RefreshCw, Sparkles } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -87,12 +89,12 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 	>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-2">
-				<p
-					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
-				>
-					<Hotel class="h-4 w-4" />
-					{owned.name} · {isRoomPhotosPlaybook ? "Nueva habitación" : "Habitación"}
-				</p>
+				<AccommodationContextSwitcher
+					providerId={providerId}
+					productId={productId}
+					currentName={owned.name}
+					target="rooms"
+				/>
 				<h1 id="roomTitle" class="text-3xl font-semibold text-slate-100">
 					{isRoomPhotosPlaybook ? `Fotos de ${variant.name}` : variant.name}
 				</h1>
@@ -119,25 +121,23 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 
 		{
 			!isRoomPhotosPlaybook ? (
-				<nav
-					class="inline-flex rounded-[20px] bg-slate-900 p-1 text-sm font-semibold text-slate-300 ring-1 ring-slate-800"
-					data-room-tabs
-					aria-label="Secciones de habitación"
-				>
+				<TabsInsidePanel data-room-tabs aria-label="Secciones de habitación">
 					<button
 						type="button"
 						data-room-tab="resumen"
+						data-active="true"
 						aria-selected="true"
-						class:list={["rounded-[16px] bg-white px-4 py-2 text-slate-950 transition"]}
+						class:list={["fastt-tabs-inside-panel__item px-4 py-2 whitespace-nowrap"]}
 					>
 						Resumen
 					</button>
 					<button
 						type="button"
 						data-room-tab="fotos"
+						data-active="false"
 						aria-selected="false"
 						class:list={[
-							"rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white",
+							"fastt-tabs-inside-panel__item px-4 py-2 text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
 						]}
 					>
 						Fotos
@@ -145,14 +145,15 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 					<button
 						type="button"
 						data-room-tab="previsualizacion"
+						data-active="false"
 						aria-selected="false"
 						class:list={[
-							"rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white",
+							"fastt-tabs-inside-panel__item px-4 py-2 text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
 						]}
 					>
 						Previsualización
 					</button>
-				</nav>
+				</TabsInsidePanel>
 			) : null
 		}
 
@@ -473,9 +474,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 				for (const button of tabButtons) {
 					const active = button.getAttribute("data-room-tab") === targetId
 					button.setAttribute("aria-selected", active ? "true" : "false")
-					button.className = active
-						? "rounded-[16px] bg-white px-4 py-2 text-slate-950 transition"
-						: "rounded-[16px] px-4 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+					button.setAttribute("data-active", active ? "true" : "false")
 				}
 				for (const panel of panels) {
 					panel.classList.toggle("hidden", panel.getAttribute("data-room-panel") !== targetId)
