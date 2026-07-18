@@ -1,7 +1,9 @@
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
@@ -47,11 +49,23 @@ const state: {
 	segment: ExceptionSegment
 	items: ExceptionItem[]
 	bookingContext: Map<string, FinancialHumanContext>
+	operationsPayload: any | null
+	exceptionsPayload: any | null
+	nextCursor: string | null
+	hasMore: boolean
+	loadingMore: boolean
 } = {
 	segment: "needs_review",
 	items: [],
 	bookingContext: new Map(),
+	operationsPayload: null,
+	exceptionsPayload: null,
+	nextCursor: null,
+	hasMore: false,
+	loadingMore: false,
 }
+
+const PAGE_LIMIT = 25
 
 const segmentLabels: Record<ExceptionSegment, string> = {
 	needs_review: "Requieren revisión",
@@ -256,6 +270,7 @@ function renderRows(): void {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
 	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<ExceptionSegment, string> = {
 			needs_review: "No hay excepciones que requieran revisión.",
@@ -361,6 +376,26 @@ function wireRows(): void {
 	})
 }
 
+function applyPayloads(operationsPayload: any, exceptionsPayload: any): void {
+	state.operationsPayload = operationsPayload
+	state.exceptionsPayload = exceptionsPayload
+	state.nextCursor = String(operationsPayload?.pagination?.nextCursor || "") || null
+	state.hasMore = Boolean(operationsPayload?.pagination?.hasMore && state.nextCursor)
+	state.bookingContext = buildBookingContextIndex(operationsPayload)
+	state.items = buildItems([operationsPayload, exceptionsPayload])
+	render()
+}
+
+function renderLoadMore(): void {
+	const wrap = document.getElementById("financialExceptionsLoadMoreWrap")
+	const button = document.getElementById("financialExceptionsLoadMore") as HTMLButtonElement | null
+	wrap?.classList.toggle("hidden", !state.hasMore)
+	if (button) {
+		button.disabled = state.loadingMore
+		button.textContent = state.loadingMore ? "Cargando..." : "Cargar más excepciones"
+	}
+}
+
 function render(): void {
 	renderSegments()
 	renderRows()
@@ -372,19 +407,12 @@ async function load(): Promise<void> {
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		const cachedExceptions = getCachedFinancialJson(financialEndpointUrls.exceptions)
 		if (cachedOperations || cachedExceptions) {
-			state.bookingContext = buildBookingContextIndex(cachedOperations)
-			state.items = buildItems([
-				cachedOperations || { items: [] },
-				cachedExceptions || { items: [] },
-			])
-			render()
+			applyPayloads(cachedOperations || { items: [] }, cachedExceptions || { items: [] })
 			void Promise.all([
 				refreshFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 				refreshFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
 			]).then(([operationsPayload, exceptionsPayload]) => {
-				state.bookingContext = buildBookingContextIndex(operationsPayload)
-				state.items = buildItems([operationsPayload, exceptionsPayload])
-				render()
+				applyPayloads(operationsPayload, exceptionsPayload)
 			})
 			return
 		}
@@ -392,9 +420,7 @@ async function load(): Promise<void> {
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 			fetchFinancialJson(financialEndpointUrls.exceptions).catch(() => ({ items: [] })),
 		])
-		state.bookingContext = buildBookingContextIndex(operationsPayload)
-		state.items = buildItems([operationsPayload, exceptionsPayload])
-		render()
+		applyPayloads(operationsPayload, exceptionsPayload)
 	} catch {
 		const rows = document.getElementById("financialExceptionsRows")
 		const summary = document.getElementById("financialExceptionsSummary")
@@ -402,6 +428,30 @@ async function load(): Promise<void> {
 		if (rows) {
 			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-slate-500">No se pudieron cargar las excepciones financieras.</div>`
 		}
+	}
+}
+
+async function loadMoreExceptions(): Promise<void> {
+	if (!state.nextCursor || state.loadingMore) return
+	state.loadingMore = true
+	renderLoadMore()
+	try {
+		const operationsPayload = await fetchFinancialJson(
+			financialUrlWithCursor(financialEndpointUrls.operations, {
+				limit: PAGE_LIMIT,
+				cursor: state.nextCursor,
+			}),
+			{ force: true }
+		).catch(() => ({ items: [] }))
+		applyPayloads(
+			mergeFinancialPayloadById(state.operationsPayload, operationsPayload, (item) =>
+				String(item?.bookingId || "")
+			),
+			state.exceptionsPayload || { items: [] }
+		)
+	} finally {
+		state.loadingMore = false
+		renderLoadMore()
 	}
 }
 
@@ -415,6 +465,9 @@ export function initFinancialExceptionsWorkspace(): void {
 			render()
 		})
 	})
+	document
+		.getElementById("financialExceptionsLoadMore")
+		?.addEventListener("click", () => void loadMoreExceptions())
 	document.getElementById("financialExceptionsDrawerClose")?.addEventListener("click", closeDrawer)
 	document
 		.getElementById("financialExceptionsDrawerBackdrop")

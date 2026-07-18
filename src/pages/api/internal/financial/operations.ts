@@ -8,6 +8,8 @@ import {
 	desc,
 	eq,
 	inArray,
+	lt,
+	or,
 	Product,
 	Provider,
 	Variant,
@@ -25,6 +27,25 @@ type FinancialExceptionCode =
 	| "missing_refund_reference"
 	| "incomplete_contract_snapshot"
 	| "multi_room_review"
+
+type BookingCursor = {
+	confirmedAt: Date
+	id: string
+}
+
+function parseBookingCursor(value: string | null): BookingCursor | null {
+	if (!value) return null
+	const [time, id] = value.split("|")
+	const confirmedAt = new Date(Number(time))
+	if (!id || Number.isNaN(confirmedAt.getTime())) return null
+	return { confirmedAt, id }
+}
+
+function bookingCursorFromRow(row: { bookingId: unknown; confirmedAt?: unknown }): string | null {
+	const date = row.confirmedAt ? new Date(String(row.confirmedAt)) : null
+	if (!date || Number.isNaN(date.getTime())) return null
+	return `${date.getTime()}|${String(row.bookingId)}`
+}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -49,6 +70,54 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const stateFilter = String(url.searchParams.get("state") ?? "all")
 			.trim()
 			.toLowerCase()
+		const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
+		const cursor = parseBookingCursor(url.searchParams.get("cursor"))
+		const bookingPredicates = [eq(Booking.providerId, providerId)]
+		if (cursor) {
+			bookingPredicates.push(
+				or(
+					lt(Booking.confirmedAt, cursor.confirmedAt),
+					and(eq(Booking.confirmedAt, cursor.confirmedAt), lt(Booking.id, cursor.id))
+				)!
+			)
+		}
+		const bookingIdRows = await db
+			.select({ bookingId: Booking.id, confirmedAt: Booking.confirmedAt })
+			.from(Booking)
+			.where(and(...bookingPredicates))
+			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
+			.limit(limit + 1)
+			.all()
+		const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
+		if (!pagedBookingIds.length) {
+			return new Response(
+				JSON.stringify({
+					summary: {
+						totalBookings: 0,
+						openExceptions: 0,
+						contractValue: 0,
+						taxesVisible: 0,
+						refundHandoffPending: 0,
+						evidencePartial: 0,
+						evidenceMatched: 0,
+						snapshotReady: 0,
+						evidenceUnknown: 0,
+						missingReferenceCount: 0,
+						snapshotGapCount: 0,
+						multiRoomReview: 0,
+					},
+					items: [],
+					pagination: { limit, returned: 0, hasMore: false, nextCursor: null },
+					boundaries: {
+						pricing: "snapshot_only_no_live_pricing",
+						inventory: "no_inventory_mutation",
+						payments: "visibility_not_psp_orchestration",
+						accounting: "not_a_ledger",
+					},
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } }
+			)
+		}
 		const rows = await db
 			.select({
 				bookingId: Booking.id,
@@ -80,7 +149,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.leftJoin(Provider, eq(Provider.id, Booking.providerId))
 			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
-			.where(and(eq(Booking.providerId, providerId)))
+			.where(and(eq(Booking.providerId, providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 			.all()
 
@@ -199,6 +268,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 			JSON.stringify({
 				summary,
 				items,
+				pagination: {
+					limit,
+					returned: items.length,
+					hasMore: bookingIdRows.length > limit,
+					nextCursor:
+						bookingIdRows.length > limit ? bookingCursorFromRow(bookingIdRows[limit - 1]) : null,
+				},
 				boundaries: {
 					pricing: "snapshot_only_no_live_pricing",
 					inventory: "no_inventory_mutation",

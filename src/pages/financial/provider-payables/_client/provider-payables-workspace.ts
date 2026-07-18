@@ -1,7 +1,9 @@
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
@@ -55,11 +57,21 @@ const state: {
 	segment: ProviderPayablesSegment
 	items: ProviderPayableItem[]
 	bookingContext: Map<string, FinancialHumanContext>
+	payload: any | null
+	nextCursor: string | null
+	hasMore: boolean
+	loadingMore: boolean
 } = {
 	segment: "blocked",
 	items: [],
 	bookingContext: new Map(),
+	payload: null,
+	nextCursor: null,
+	hasMore: false,
+	loadingMore: false,
 }
+
+const PAGE_LIMIT = 25
 
 const segmentLabels: Record<ProviderPayablesSegment, string> = {
 	blocked: "Bloqueados",
@@ -270,6 +282,7 @@ function renderRows(): void {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
 	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<ProviderPayablesSegment, string> = {
 			blocked: "No hay pagos pendientes bloqueados.",
@@ -319,6 +332,26 @@ function renderRows(): void {
 			</article>`
 		})
 		.join("")
+}
+
+function applyPayload(payload: any, operationsPayload: any): void {
+	state.payload = payload
+	state.nextCursor = String(payload?.pagination?.nextCursor || "") || null
+	state.hasMore = Boolean(payload?.pagination?.hasMore && state.nextCursor)
+	state.bookingContext = buildBookingContextIndex(operationsPayload)
+	state.items = buildItems(payload)
+	renderSegments()
+	renderRows()
+}
+
+function renderLoadMore(): void {
+	const wrap = document.getElementById("providerPayablesLoadMoreWrap")
+	const button = document.getElementById("providerPayablesLoadMore") as HTMLButtonElement | null
+	wrap?.classList.toggle("hidden", !state.hasMore)
+	if (button) {
+		button.disabled = state.loadingMore
+		button.textContent = state.loadingMore ? "Cargando..." : "Cargar más pagos"
+	}
 }
 
 function detailRow(label: string, value: unknown): string {
@@ -383,10 +416,7 @@ async function loadProviderPayables(): Promise<void> {
 		const cached = getCachedFinancialJson(financialEndpointUrls.providerFinance)
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
-			state.bookingContext = buildBookingContextIndex(cachedOperations)
-			state.items = buildItems(cached)
-			renderSegments()
-			renderRows()
+			applyPayload(cached, cachedOperations)
 			void Promise.all([
 				refreshFinancialJson(financialEndpointUrls.providerFinance),
 				fetchFinancialJson(financialEndpointUrls.operations).catch(
@@ -394,10 +424,7 @@ async function loadProviderPayables(): Promise<void> {
 				),
 			])
 				.then(([payload, operationsPayload]) => {
-					state.bookingContext = buildBookingContextIndex(operationsPayload)
-					state.items = buildItems(payload)
-					renderSegments()
-					renderRows()
+					applyPayload(payload, operationsPayload)
 				})
 				.catch(() => {})
 			return
@@ -406,10 +433,7 @@ async function loadProviderPayables(): Promise<void> {
 			fetchFinancialJson(financialEndpointUrls.providerFinance),
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 		])
-		state.bookingContext = buildBookingContextIndex(operationsPayload)
-		state.items = buildItems(payload)
-		renderSegments()
-		renderRows()
+		applyPayload(payload, operationsPayload)
 	} catch {
 		const rows = document.getElementById("providerPayablesRows")
 		const summary = document.getElementById("providerPayablesSummary")
@@ -420,6 +444,31 @@ async function loadProviderPayables(): Promise<void> {
 	}
 }
 
+async function loadMoreProviderPayables(): Promise<void> {
+	if (!state.nextCursor || state.loadingMore) return
+	state.loadingMore = true
+	renderLoadMore()
+	try {
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(
+				financialUrlWithCursor(financialEndpointUrls.providerFinance, {
+					limit: PAGE_LIMIT,
+					cursor: state.nextCursor,
+				}),
+				{ force: true }
+			),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		applyPayload(
+			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
+			operationsPayload
+		)
+	} finally {
+		state.loadingMore = false
+		renderLoadMore()
+	}
+}
+
 export function initProviderPayablesWorkspace(): void {
 	const rows = document.getElementById("providerPayablesRows")
 	if (!rows || rows.dataset.providerPayablesReady === "true") return
@@ -427,6 +476,10 @@ export function initProviderPayablesWorkspace(): void {
 	document.addEventListener("click", (event) => {
 		const target = event.target
 		if (!(target instanceof Element)) return
+		if (target.closest("#providerPayablesLoadMore")) {
+			void loadMoreProviderPayables()
+			return
+		}
 		const segmentButton = target.closest(
 			"[data-provider-payables-segment]"
 		) as HTMLButtonElement | null

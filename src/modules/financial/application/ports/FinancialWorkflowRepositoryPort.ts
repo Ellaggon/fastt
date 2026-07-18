@@ -82,6 +82,7 @@ export type RefundHandoffRepositoryPort = {
 		bookingIds?: string[]
 		status?: RefundHandoffRecord["status"] | "all"
 		limit?: number
+		cursor?: { openedAt: Date; id: string } | null
 	}): Promise<RefundHandoffRecord[]>
 	findActiveByBookingId(bookingId: string, providerId: string): Promise<RefundHandoffRecord | null>
 	createIfAbsent(input: RefundHandoffCreateInput): Promise<{

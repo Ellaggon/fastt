@@ -8,7 +8,9 @@ import { actorNoiseHint } from "./financial-actor-filters"
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "./financial-data-cache"
 import { countFinancialQueue, filterFinancialRows } from "./financial-filters"
@@ -66,6 +68,8 @@ export function initFinancialWorkspace(): void {
 	rows.dataset.financialWorkspaceReady = "true"
 	const listSummary = document.getElementById("financialListSummary")
 	const listHint = document.getElementById("financialListHint")
+	const loadMoreWrap = document.getElementById("financialLoadMoreWrap")
+	const loadMoreButton = document.getElementById("financialLoadMore")
 	const filterSummary = document.getElementById("financialFilterSummary")
 	const drawer = document.getElementById("financialReviewDrawer")
 	const drawerBackdrop = document.getElementById("financialReviewBackdrop")
@@ -74,6 +78,12 @@ export function initFinancialWorkspace(): void {
 	const accommodationContext = document.getElementById("financialAccommodationContext")
 	const selectedAccommodationId = String(accommodationContext?.dataset.productId || "").trim()
 	const selectedAccommodationName = String(accommodationContext?.dataset.productName || "").trim()
+	const pagingState = {
+		operationsLimit: 25,
+		operationsPayload: null as any,
+		operationsNextCursor: null as string | null,
+		operationsHasMore: false,
+	}
 
 	const statusClass = (status: unknown): string => {
 		const map: Record<string, string> = {
@@ -464,6 +474,7 @@ export function initFinancialWorkspace(): void {
 			listSummary.textContent = `${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`
 			if (listHint) listHint.textContent = actorNoiseHint(actor)
 		}
+		if (loadMoreWrap) loadMoreWrap.classList.toggle("hidden", !pagingState.operationsHasMore)
 	}
 
 	function applyWorkspacePayloads(payloads: WorkspacePayloads): void {
@@ -476,6 +487,12 @@ export function initFinancialWorkspace(): void {
 			reconciliationPayload,
 			providerFinancePayload,
 		} = payloads
+		pagingState.operationsPayload = operationsPayload
+		pagingState.operationsNextCursor =
+			String(operationsPayload?.pagination?.nextCursor || "") || null
+		pagingState.operationsHasMore = Boolean(
+			operationsPayload?.pagination?.hasMore && pagingState.operationsNextCursor
+		)
 		Object.assign(workspaceState, {
 			operationsItems: Array.isArray(operationsPayload?.items) ? operationsPayload.items : [],
 			workflowItems: Array.isArray(exceptionsPayload?.items) ? exceptionsPayload.items : [],
@@ -506,16 +523,12 @@ export function initFinancialWorkspace(): void {
 		const eventsPayload = getCachedFinancialJson(financialEndpointUrls.reviewEvents)
 		const referencesPayload = getCachedFinancialJson(financialEndpointUrls.references)
 		const handoffsPayload = getCachedFinancialJson(financialEndpointUrls.refundHandoffs)
-		const reconciliationPayload = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
-		const providerFinancePayload = getCachedFinancialJson(financialEndpointUrls.providerFinance)
 		if (
 			!operationsPayload &&
 			!exceptionsPayload &&
 			!eventsPayload &&
 			!referencesPayload &&
-			!handoffsPayload &&
-			!reconciliationPayload &&
-			!providerFinancePayload
+			!handoffsPayload
 		) {
 			return null
 		}
@@ -525,8 +538,8 @@ export function initFinancialWorkspace(): void {
 			eventsPayload: eventsPayload || { items: [], degraded: true },
 			referencesPayload: referencesPayload || { items: [], degraded: true },
 			handoffsPayload: handoffsPayload || { items: [], degraded: true },
-			reconciliationPayload: reconciliationPayload || { items: [], degraded: true },
-			providerFinancePayload: providerFinancePayload || { items: [], degraded: true },
+			reconciliationPayload: { items: [], deferred: true },
+			providerFinancePayload: { items: [], deferred: true },
 		}
 	}
 
@@ -541,16 +554,16 @@ export function initFinancialWorkspace(): void {
 			eventsPayload,
 			referencesPayload,
 			handoffsPayload,
-			reconciliationPayload,
-			providerFinancePayload,
 		] = await Promise.all([
-			load(financialEndpointUrls.operations).catch(() => emptyPayload),
+			load(
+				financialUrlWithCursor(financialEndpointUrls.operations, {
+					limit: pagingState.operationsLimit,
+				})
+			).catch(() => emptyPayload),
 			load(financialEndpointUrls.exceptions).catch(() => emptyPayload),
 			load(financialEndpointUrls.reviewEvents).catch(() => emptyPayload),
 			load(financialEndpointUrls.references).catch(() => emptyPayload),
 			load(financialEndpointUrls.refundHandoffs).catch(() => emptyPayload),
-			load(financialEndpointUrls.reconciliationQueue).catch(() => emptyPayload),
-			load(financialEndpointUrls.providerFinance).catch(() => emptyPayload),
 		])
 		return {
 			operationsPayload,
@@ -558,8 +571,8 @@ export function initFinancialWorkspace(): void {
 			eventsPayload,
 			referencesPayload,
 			handoffsPayload,
-			reconciliationPayload,
-			providerFinancePayload,
+			reconciliationPayload: { items: [], deferred: true },
+			providerFinancePayload: { items: [], deferred: true },
 		}
 	}
 
@@ -589,6 +602,47 @@ export function initFinancialWorkspace(): void {
 	actorFilter?.addEventListener("change", renderFinancialView)
 	ageFilter?.addEventListener("change", renderFinancialView)
 	searchFilter?.addEventListener("input", renderFinancialView)
+	loadMoreButton?.addEventListener("click", async () => {
+		if (loadMoreButton instanceof HTMLButtonElement) {
+			loadMoreButton.disabled = true
+			loadMoreButton.textContent = "Cargando..."
+		}
+		const nextCursor = pagingState.operationsNextCursor
+		try {
+			if (!nextCursor) return
+			const nextOperationsPayload = await fetchFinancialJson(
+				financialUrlWithCursor(financialEndpointUrls.operations, {
+					limit: pagingState.operationsLimit,
+					cursor: nextCursor,
+				}),
+				{ force: true }
+			).catch(() => ({ items: [] }))
+			applyWorkspacePayloads({
+				operationsPayload: mergeFinancialPayloadById(
+					pagingState.operationsPayload,
+					nextOperationsPayload,
+					(item) => String(item?.bookingId || "")
+				),
+				exceptionsPayload: getCachedFinancialJson(financialEndpointUrls.exceptions) || {
+					items: [],
+				},
+				eventsPayload: getCachedFinancialJson(financialEndpointUrls.reviewEvents) || { items: [] },
+				referencesPayload: getCachedFinancialJson(financialEndpointUrls.references) || {
+					items: [],
+				},
+				handoffsPayload: getCachedFinancialJson(financialEndpointUrls.refundHandoffs) || {
+					items: [],
+				},
+				reconciliationPayload: { items: [], deferred: true },
+				providerFinancePayload: { items: [], deferred: true },
+			})
+		} finally {
+			if (loadMoreButton instanceof HTMLButtonElement) {
+				loadMoreButton.disabled = false
+				loadMoreButton.textContent = "Cargar más casos"
+			}
+		}
+	})
 	drawerClose?.addEventListener("click", closeDrawer)
 	drawerBackdrop?.addEventListener("click", closeDrawer)
 	void fetchOperations()

@@ -19,17 +19,81 @@ const store: FinancialCacheStore =
 const headers = { accept: "application/json" }
 
 export const financialEndpointUrls = {
-	operations: "/api/internal/financial/operations",
-	exceptions: "/api/internal/financial/exceptions?status=all&limit=250",
-	reviewEvents: "/api/internal/financial/review-events?limit=250",
-	references: "/api/internal/financial/references?limit=500",
-	refundHandoffs: "/api/internal/financial/refund-handoffs?status=all&limit=500",
-	reconciliationQueue: "/api/internal/financial/reconciliation-queue?limit=250",
-	providerFinance: "/api/internal/financial/provider-finance",
+	operations: "/api/internal/financial/operations?limit=25",
+	exceptions: "/api/internal/financial/exceptions?status=all&limit=50",
+	reviewEvents: "/api/internal/financial/review-events?limit=50",
+	references: "/api/internal/financial/references?limit=100",
+	refundHandoffs: "/api/internal/financial/refund-handoffs?status=all&limit=100",
+	reconciliationQueue: "/api/internal/financial/reconciliation-queue?limit=50",
+	providerFinance: "/api/internal/financial/provider-finance?limit=25",
 } as const
 
+export type FinancialDataSource = keyof typeof financialEndpointUrls
+
+export const financialDataSourceUrls = financialEndpointUrls
+
+export type FinancialPagination = {
+	limit?: number
+	returned?: number
+	hasMore?: boolean
+	nextCursor?: string | null
+}
+
+export function financialUrlWithParams(
+	url: string,
+	params: Record<string, string | number | null | undefined>
+): string {
+	const [pathname, query = ""] = url.split("?")
+	const search = new URLSearchParams(query)
+	for (const [key, value] of Object.entries(params)) {
+		if (value == null || value === "") search.delete(key)
+		else search.set(key, String(value))
+	}
+	const serialized = search.toString()
+	return serialized ? `${pathname}?${serialized}` : pathname
+}
+
+export function financialUrlWithCursor(
+	url: string,
+	params: { limit?: number; cursor?: string | null }
+): string {
+	return financialUrlWithParams(url, {
+		limit: params.limit,
+		cursor: params.cursor || null,
+	})
+}
+
+export function mergeFinancialPayloadById<T extends { items?: any[] }>(
+	current: T | null | undefined,
+	next: T,
+	idForItem: (item: any) => string = (item) => String(item?.id || item?.bookingId || "")
+): T {
+	const mergedItems: any[] = []
+	const seen = new Set<string>()
+	for (const item of [
+		...(Array.isArray(current?.items) ? current.items : []),
+		...(Array.isArray(next?.items) ? next.items : []),
+	]) {
+		const key = idForItem(item) || JSON.stringify(item)
+		if (seen.has(key)) continue
+		seen.add(key)
+		mergedItems.push(item)
+	}
+	return {
+		...(current || ({} as T)),
+		...next,
+		items: mergedItems,
+	} as T
+}
+
 export const financialRouteEndpointMap: Record<string, string[]> = {
-	"/financial": Object.values(financialEndpointUrls),
+	"/financial": [
+		financialEndpointUrls.operations,
+		financialEndpointUrls.exceptions,
+		financialEndpointUrls.reviewEvents,
+		financialEndpointUrls.references,
+		financialEndpointUrls.refundHandoffs,
+	],
 	"/financial/collections": [financialEndpointUrls.reconciliationQueue],
 	"/financial/settlements": [financialEndpointUrls.reconciliationQueue],
 	"/financial/provider-payables": [financialEndpointUrls.providerFinance],
