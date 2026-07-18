@@ -34,10 +34,13 @@ const { title } = Astro.props
 	<body class="font-sans">
 		<slot />
 		<script>
-			import { bootFinancialExperience } from "@/pages/financial/_client/financial-page-boot"
-
 			const bootPageWorkspaces = () => {
-				bootFinancialExperience()
+				if (!window.location.pathname.startsWith("/financial")) return
+				import("@/pages/financial/_client/financial-page-boot").then(
+					({ bootFinancialExperience }) => {
+						bootFinancialExperience()
+					}
+				)
 			}
 
 			document.addEventListener("astro:page-load", bootPageWorkspaces)
