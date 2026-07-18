@@ -1,6 +1,7 @@
 import { parse as parseCookie } from "cookie"
 import { createHash } from "node:crypto"
-import { db, eq, User } from "astro:db"
+import { db, sql, User } from "astro:db"
+import { LOCAL_QA_LOGOUT_COOKIE } from "./authCookies"
 import { fetchSupabaseUser } from "./supabaseClient"
 
 export type AuthUser = { id: string; email: string }
@@ -33,9 +34,17 @@ export function getSessionIdFromRequest(request: Request): string | null {
 	return hashToken(token)
 }
 
-function getLocalQaUser(): AuthUser | null {
+export function isLocalQaAuthLoggedOut(request: Request): boolean {
+	const raw = request.headers.get("cookie")
+	if (!raw) return false
+	const c = parseCookie(raw)
+	return c[LOCAL_QA_LOGOUT_COOKIE] === "true"
+}
+
+function getLocalQaUser(request: Request): AuthUser | null {
 	if (process.env.NODE_ENV === "production") return null
 	if (process.env.LOCAL_QA_AUTH_ENABLED !== "true") return null
+	if (isLocalQaAuthLoggedOut(request)) return null
 	const id = String(process.env.LOCAL_QA_AUTH_USER_ID ?? "").trim()
 	const email = String(process.env.LOCAL_QA_AUTH_EMAIL ?? "")
 		.trim()
@@ -48,7 +57,7 @@ function getLocalQaUser(): AuthUser | null {
  * Reads the access token from Authorization header or cookies and validates it with Supabase.
  */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
-	const localQaUser = getLocalQaUser()
+	const localQaUser = getLocalQaUser(request)
 	if (localQaUser) return localQaUser
 
 	const token = readBearerToken(request) || readCookieToken(request)
@@ -65,11 +74,17 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 			const existing = await db
 				.select({ id: User.id })
 				.from(User)
-				.where(eq(User.email, email))
+				.where(sql`lower(${User.email}) = ${email}`)
 				.get()
 			if (existing?.id) return { id: existing.id, email }
 
 			await db.insert(User).values({ id: u.id, email }).onConflictDoNothing()
+			const persisted = await db
+				.select({ id: User.id })
+				.from(User)
+				.where(sql`lower(${User.email}) = ${email}`)
+				.get()
+			if (persisted?.id) return { id: persisted.id, email }
 		} catch {
 			// Keep auth non-blocking even if persistence sync fails.
 		}

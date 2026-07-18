@@ -9,6 +9,22 @@ if (user) {
 
 const error = Astro.url.searchParams.get("error")
 const message = Astro.url.searchParams.get("message")
+
+const errorMessages: Record<string, string> = {
+	invalid_credentials: "Email o contraseña incorrectos.",
+	auth_unavailable: "No se pudo conectar con el servicio de autenticación. Intenta de nuevo.",
+	missing_fields: "Completa email y contraseña.",
+	missing_email: "Escribe tu email para recuperar la contraseña.",
+	recovery_failed: "No se pudo enviar el correo de recuperación. Intenta de nuevo.",
+	recovery_unavailable:
+		"No se pudo conectar con el servicio de recuperación. Revisa la configuración de Supabase.",
+}
+
+const successMessages: Record<string, string> = {
+	check_email: "Revisa tu email para confirmar la cuenta.",
+	recovery_email_sent: "Te enviamos un enlace para recuperar la contraseña.",
+	password_updated: "Contraseña actualizada. Ya puedes iniciar sesión.",
+}
 ---
 
 <Layout title="Iniciar Sesión">
@@ -21,12 +37,16 @@ const message = Astro.url.searchParams.get("message")
 			<article class="flex flex-col gap-4">
 				{
 					error && (
-						<p class="rounded-md bg-red-900/40 px-3 py-2 text-sm text-red-200">Error: {error}</p>
+						<p class="rounded-md bg-red-900/40 px-3 py-2 text-sm text-red-200">
+							{errorMessages[error] || "Ocurrió un error. Intenta de nuevo."}
+						</p>
 					)
 				}
 				{
 					message && (
-						<p class="rounded-md bg-slate-900/40 px-3 py-2 text-sm text-slate-200">{message}</p>
+						<p class="rounded-md bg-slate-900/40 px-3 py-2 text-sm text-slate-200">
+							{successMessages[message] || message}
+						</p>
 					)
 				}
 				<div>
@@ -59,6 +79,25 @@ const message = Astro.url.searchParams.get("message")
 							class="mt-2 w-full rounded-xl bg-slate-950 px-3 py-2 text-white shadow-sm transition hover:bg-slate-800"
 						>
 							Ingresar
+						</button>
+					</form>
+
+					<form method="post" action="/api/auth/recover-password" class="mt-4 flex flex-col gap-3">
+						<p class="text-xs text-gray-400">¿Olvidaste tu contraseña?</p>
+						<label class="block text-sm font-medium text-gray-400">
+							Email
+							<input
+								type="email"
+								name="email"
+								required
+								class="mt-1 block w-full rounded-xl border border-gray-600 bg-gray-700 px-3 py-2 text-white shadow-sm focus:border-slate-300 focus:outline-none focus:ring-slate-300 sm:text-sm"
+							/>
+						</label>
+						<button
+							type="submit"
+							class="w-full rounded-xl border border-gray-600 bg-transparent px-3 py-2 text-white shadow-sm transition hover:bg-gray-800"
+						>
+							Enviar recuperación
 						</button>
 					</form>
 

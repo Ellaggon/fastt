@@ -208,3 +208,74 @@ export async function signUp(params: {
 
 	return { ok: true, session }
 }
+
+export async function sendPasswordRecoveryEmail(params: {
+	email: string
+	redirectTo?: string
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+	const cfg = getSupabaseConfig()
+	if (!cfg) return { ok: false, error: "Supabase not configured", status: 500 }
+
+	const recoverUrl =
+		params.redirectTo && params.redirectTo.length > 0
+			? `${cfg.url}/auth/v1/recover?redirect_to=${encodeURIComponent(params.redirectTo)}`
+			: `${cfg.url}/auth/v1/recover`
+
+	const resp = await fetchSupabase(
+		recoverUrl,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"apikey": getAuthApiKey(cfg),
+			},
+			body: JSON.stringify({ email: params.email }),
+		},
+		"password_recovery"
+	)
+
+	if (!resp) {
+		return { ok: false, error: "Supabase auth service unavailable", status: 503 }
+	}
+
+	if (!resp.ok) {
+		const txt = await resp.text().catch(() => "")
+		return { ok: false, error: txt || "Password recovery failed", status: resp.status }
+	}
+
+	return { ok: true }
+}
+
+export async function updatePassword(params: {
+	accessToken: string
+	password: string
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+	const cfg = getSupabaseConfig()
+	if (!cfg) return { ok: false, error: "Supabase not configured", status: 500 }
+	if (!params.accessToken) return { ok: false, error: "Missing access token", status: 401 }
+
+	const resp = await fetchSupabase(
+		`${cfg.url}/auth/v1/user`,
+		{
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+				"Authorization": `Bearer ${params.accessToken}`,
+				"apikey": getAuthApiKey(cfg),
+			},
+			body: JSON.stringify({ password: params.password }),
+		},
+		"update_password"
+	)
+
+	if (!resp) {
+		return { ok: false, error: "Supabase auth service unavailable", status: 503 }
+	}
+
+	if (!resp.ok) {
+		const txt = await resp.text().catch(() => "")
+		return { ok: false, error: txt || "Password update failed", status: resp.status }
+	}
+
+	return { ok: true }
+}
