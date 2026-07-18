@@ -450,6 +450,21 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Provider-facing BFF for launch and add-room playbook step progress and navigation.",
 	},
 	{
+		pattern: "/api/internal/product-preparation-refresh",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Property Content",
+		rationale:
+			"Provider-facing BFF that refreshes materialized preparation snapshots for dashboard cards.",
+	},
+	{
+		pattern: "/api/internal/product-preparation-backfill",
+		status: "internal-only",
+		context: "internal-admin",
+		owner: "Property Content",
+		rationale: "Admin/maintenance backfill for preparation snapshots; not used by provider UI.",
+	},
+	{
 		pattern: "/api/internal/rooms-summary",
 		status: "canonical",
 		context: "provider-workspace",
