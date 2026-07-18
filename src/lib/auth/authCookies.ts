@@ -1,6 +1,8 @@
 import { serialize } from "cookie"
 import type { SupabaseSession } from "./supabaseClient"
 
+export const LOCAL_QA_LOGOUT_COOKIE = "fastt-local-qa-logged-out"
+
 type CookieOpts = {
 	secure: boolean
 }
@@ -29,7 +31,7 @@ export function buildAuthCookieHeaders(session: SupabaseSession): string[] {
 		maxAge: 60 * 60 * 24 * 30, // 30 days
 	})
 
-	return [access, refresh]
+	return [access, refresh, buildClearLocalQaLogoutCookie()]
 }
 
 export function buildClearAuthCookieHeaders(): string[] {
@@ -43,4 +45,20 @@ export function buildClearAuthCookieHeaders(): string[] {
 		serialize("access_token", "", { ...opts, maxAge: 0 }),
 		serialize("supabase_access_token", "", { ...opts, maxAge: 0 }),
 	]
+}
+
+export function buildLocalQaLogoutCookie(): string {
+	const secure = process.env.NODE_ENV === "production"
+	return serialize(LOCAL_QA_LOGOUT_COOKIE, "true", {
+		...baseCookieOptions({ secure }),
+		maxAge: 60 * 60 * 24 * 30,
+	})
+}
+
+export function buildClearLocalQaLogoutCookie(): string {
+	const secure = process.env.NODE_ENV === "production"
+	return serialize(LOCAL_QA_LOGOUT_COOKIE, "", {
+		...baseCookieOptions({ secure }),
+		maxAge: 0,
+	})
 }

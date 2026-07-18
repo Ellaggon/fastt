@@ -1,7 +1,12 @@
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { providerRepository } from "@/container"
-import { getSessionIdFromRequest, getUserFromRequest, type AuthUser } from "./getUserFromRequest"
+import {
+	getSessionIdFromRequest,
+	getUserFromRequest,
+	isLocalQaAuthLoggedOut,
+	type AuthUser,
+} from "./getUserFromRequest"
 
 /**
  * Compatibility helper used by existing pages/routes.
@@ -17,7 +22,8 @@ export async function getProviderIdFromRequest(
 	if (
 		process.env.NODE_ENV !== "production" &&
 		process.env.LOCAL_QA_AUTH_ENABLED === "true" &&
-		process.env.LOCAL_QA_PROVIDER_ID
+		process.env.LOCAL_QA_PROVIDER_ID &&
+		!isLocalQaAuthLoggedOut(request)
 	) {
 		return String(process.env.LOCAL_QA_PROVIDER_ID).trim() || null
 	}

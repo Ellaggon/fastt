@@ -16,9 +16,10 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const result = await signInWithPassword({ email, password })
 	if (!result.ok) {
+		const error = result.status >= 500 ? "auth_unavailable" : "invalid_credentials"
 		return new Response(null, {
 			status: 302,
-			headers: { Location: `/SignInPage?error=invalid_credentials` },
+			headers: { Location: `/SignInPage?error=${error}` },
 		})
 	}
 

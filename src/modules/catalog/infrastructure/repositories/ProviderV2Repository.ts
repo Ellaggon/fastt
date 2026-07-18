@@ -6,6 +6,7 @@ import {
 	ProviderProfile,
 	ProviderUser,
 	ProviderVerification,
+	sql,
 	User,
 } from "astro:db"
 import type {
@@ -15,8 +16,15 @@ import type {
 
 export class ProviderV2Repository implements ProviderV2RepositoryPort {
 	private async getProviderIdByUserLinkEmail(email: string): Promise<string | null> {
-		if (!email) return null
-		const user = await db.select({ id: User.id }).from(User).where(eq(User.email, email)).get()
+		const normalizedEmail = String(email ?? "")
+			.trim()
+			.toLowerCase()
+		if (!normalizedEmail) return null
+		const user = await db
+			.select({ id: User.id })
+			.from(User)
+			.where(sql`lower(${User.email}) = ${normalizedEmail}`)
+			.get()
 		if (!user?.id) return null
 		const link = await db
 			.select({ providerId: ProviderUser.providerId })
@@ -31,10 +39,14 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 		userEmailForLink: string
 		role: "owner" | "admin" | "staff"
 	}): Promise<void> {
+		const normalizedEmail = String(params.userEmailForLink ?? "")
+			.trim()
+			.toLowerCase()
+		if (!normalizedEmail) return
 		const user = await db
 			.select({ id: User.id })
 			.from(User)
-			.where(eq(User.email, params.userEmailForLink))
+			.where(sql`lower(${User.email}) = ${normalizedEmail}`)
 			.get()
 		if (!user?.id) return
 

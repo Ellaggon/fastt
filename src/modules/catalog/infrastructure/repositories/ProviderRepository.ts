@@ -1,4 +1,4 @@
-import { and, db, Provider, ProviderUser, User, eq } from "astro:db"
+import { and, db, Provider, ProviderUser, User, eq, sql } from "astro:db"
 import type { ProviderRepositoryPort } from "../../application/ports/ProviderRepositoryPort"
 
 export class ProviderRepository implements ProviderRepositoryPort {
@@ -36,10 +36,14 @@ export class ProviderRepository implements ProviderRepositoryPort {
 		await db.transaction(async (tx) => {
 			await tx.insert(Provider).values(params.provider)
 
+			const normalizedEmail = String(params.sessionEmail ?? "")
+				.trim()
+				.toLowerCase()
+			if (!normalizedEmail) return
 			const user = await tx
 				.select({ id: User.id })
 				.from(User)
-				.where(eq(User.email, params.sessionEmail))
+				.where(sql`lower(${User.email}) = ${normalizedEmail}`)
 				.get()
 			if (!user?.id) return
 
