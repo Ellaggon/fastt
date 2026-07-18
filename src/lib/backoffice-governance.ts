@@ -797,6 +797,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Authentication callback.",
 	},
 	{
+		pattern: "/auth/reset-password",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Identity",
+		rationale: "Password reset surface reached from recovery email links.",
+	},
+	{
 		pattern: "/",
 		status: "public",
 		context: "public-marketplace",
