@@ -117,6 +117,27 @@ export async function getProviderIdFromRequest(
 		return providerByUserLink.id
 	}
 
+	const providerByEmailLink = await providerRepository.getProviderByUserEmail(user.email)
+	if (providerByEmailLink?.id) {
+		await providerRepository.ensureProviderUserOwnerLink({
+			providerId: providerByEmailLink.id,
+			userId: user.id,
+		})
+		if (sessionCacheKey) {
+			void persistentCache
+				.set(sessionCacheKey, providerByEmailLink.id, cacheTtls.authProviderBySession)
+				.catch(() => {})
+		}
+		console.info(
+			JSON.stringify({
+				type: "provider_resolution",
+				path: "provider_user_email_repair",
+				userId: user.id,
+			})
+		)
+		return providerByEmailLink.id
+	}
+
 	console.info(
 		JSON.stringify({
 			type: "provider_resolution",

@@ -8,7 +8,7 @@ export async function requireProvider(
 ): Promise<{ user: AuthUser; providerId: string }> {
 	const user = await requireAuth(request, { unauthorizedResponse: opts?.unauthorizedResponse })
 
-	const providerId = await getProviderIdFromRequest(request)
+	const providerId = await getProviderIdFromRequest(request, user)
 
 	if (!providerId) {
 		throw (

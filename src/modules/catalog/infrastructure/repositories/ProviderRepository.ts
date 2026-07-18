@@ -23,6 +23,38 @@ export class ProviderRepository implements ProviderRepositoryPort {
 		}
 	}
 
+	async getProviderByUserEmail(email: string) {
+		const normalizedEmail = String(email ?? "")
+			.trim()
+			.toLowerCase()
+		if (!normalizedEmail) return null
+		if (!(User as any)?.id || !(ProviderUser as any)?.providerId || !(ProviderUser as any)?.userId)
+			return null
+		try {
+			const linkedUser = await db
+				.select({ id: User.id })
+				.from(User)
+				.where(sql`lower(${User.email}) = ${normalizedEmail}`)
+				.get()
+			if (!linkedUser?.id) return null
+
+			const link = await db
+				.select({ providerId: ProviderUser.providerId })
+				.from(ProviderUser)
+				.where(eq(ProviderUser.userId, linkedUser.id))
+				.get()
+			if (!link?.providerId) return null
+
+			return await db
+				.select({ id: Provider.id })
+				.from(Provider)
+				.where(eq(Provider.id, link.providerId))
+				.get()
+		} catch {
+			return null
+		}
+	}
+
 	async createProviderAndAssignToUser(params: {
 		providerId: string
 		sessionEmail: string
