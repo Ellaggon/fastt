@@ -1,7 +1,9 @@
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
@@ -47,11 +49,21 @@ const state: {
 	segment: CollectionSegment
 	items: CollectionItem[]
 	bookingContext: Map<string, FinancialHumanContext>
+	payload: any | null
+	nextCursor: string | null
+	hasMore: boolean
+	loadingMore: boolean
 } = {
 	segment: "requires_proof",
 	items: [],
 	bookingContext: new Map(),
+	payload: null,
+	nextCursor: null,
+	hasMore: false,
+	loadingMore: false,
 }
+
+const PAGE_LIMIT = 50
 
 const segmentLabels: Record<CollectionSegment, string> = {
 	requires_proof: "Requieren comprobante",
@@ -266,6 +278,7 @@ function renderRows(): void {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
 	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<CollectionSegment, string> = {
 			requires_proof: "No hay cobros que requieran comprobante.",
@@ -313,6 +326,26 @@ function renderRows(): void {
 			</article>`
 		})
 		.join("")
+}
+
+function applyPayload(payload: any, operationsPayload: any): void {
+	state.payload = payload
+	state.nextCursor = String(payload?.pagination?.nextCursor || "") || null
+	state.hasMore = Boolean(payload?.pagination?.hasMore && state.nextCursor)
+	state.bookingContext = buildBookingContextIndex(operationsPayload)
+	state.items = buildItems(payload)
+	renderSegments()
+	renderRows()
+}
+
+function renderLoadMore(): void {
+	const wrap = document.getElementById("collectionsLoadMoreWrap")
+	const button = document.getElementById("collectionsLoadMore") as HTMLButtonElement | null
+	wrap?.classList.toggle("hidden", !state.hasMore)
+	if (button) {
+		button.disabled = state.loadingMore
+		button.textContent = state.loadingMore ? "Cargando..." : "Cargar más cobros"
+	}
 }
 
 function detailRow(label: string, value: unknown): string {
@@ -365,10 +398,7 @@ async function loadCollections(): Promise<void> {
 		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
-			state.bookingContext = buildBookingContextIndex(cachedOperations)
-			state.items = buildItems(cached)
-			renderSegments()
-			renderRows()
+			applyPayload(cached, cachedOperations)
 			void Promise.all([
 				refreshFinancialJson(financialEndpointUrls.reconciliationQueue),
 				fetchFinancialJson(financialEndpointUrls.operations).catch(
@@ -376,10 +406,7 @@ async function loadCollections(): Promise<void> {
 				),
 			])
 				.then(([payload, operationsPayload]) => {
-					state.bookingContext = buildBookingContextIndex(operationsPayload)
-					state.items = buildItems(payload)
-					renderSegments()
-					renderRows()
+					applyPayload(payload, operationsPayload)
 				})
 				.catch(() => {})
 			return
@@ -388,10 +415,7 @@ async function loadCollections(): Promise<void> {
 			fetchFinancialJson(financialEndpointUrls.reconciliationQueue),
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 		])
-		state.bookingContext = buildBookingContextIndex(operationsPayload)
-		state.items = buildItems(payload)
-		renderSegments()
-		renderRows()
+		applyPayload(payload, operationsPayload)
 	} catch {
 		const rows = document.getElementById("collectionsRows")
 		const summary = document.getElementById("collectionsSummary")
@@ -402,6 +426,31 @@ async function loadCollections(): Promise<void> {
 	}
 }
 
+async function loadMoreCollections(): Promise<void> {
+	if (!state.nextCursor || state.loadingMore) return
+	state.loadingMore = true
+	renderLoadMore()
+	try {
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(
+				financialUrlWithCursor(financialEndpointUrls.reconciliationQueue, {
+					limit: PAGE_LIMIT,
+					cursor: state.nextCursor,
+				}),
+				{ force: true }
+			),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		applyPayload(
+			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
+			operationsPayload
+		)
+	} finally {
+		state.loadingMore = false
+		renderLoadMore()
+	}
+}
+
 export function initCollectionsWorkspace(): void {
 	const rows = document.getElementById("collectionsRows")
 	if (!rows || rows.dataset.collectionsReady === "true") return
@@ -409,6 +458,10 @@ export function initCollectionsWorkspace(): void {
 	document.addEventListener("click", (event) => {
 		const target = event.target
 		if (!(target instanceof Element)) return
+		if (target.closest("#collectionsLoadMore")) {
+			void loadMoreCollections()
+			return
+		}
 		const segmentButton = target.closest("[data-collections-segment]") as HTMLButtonElement | null
 		if (segmentButton?.dataset.collectionsSegment) {
 			state.segment = segmentButton.dataset.collectionsSegment as CollectionSegment

@@ -1,4 +1,13 @@
-import { and, desc, eq, inArray, RefundHandoffRecord as RefundHandoffTable, db } from "astro:db"
+import {
+	and,
+	desc,
+	eq,
+	inArray,
+	lt,
+	or,
+	RefundHandoffRecord as RefundHandoffTable,
+	db,
+} from "astro:db"
 
 import type {
 	RefundHandoffCreateInput,
@@ -54,6 +63,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		bookingIds?: string[]
 		status?: RefundHandoffRecord["status"] | "all"
 		limit?: number
+		cursor?: { openedAt: Date; id: string } | null
 	}): Promise<RefundHandoffRecord[]> {
 		const providerId = String(params?.providerId ?? "").trim()
 		if (!providerId) return []
@@ -62,11 +72,22 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		if (bookingIds.length) filters.push(inArray(RefundHandoffTable.bookingId, bookingIds))
 		if (params?.status && params.status !== "all")
 			filters.push(eq(RefundHandoffTable.status, params.status))
+		if (params?.cursor) {
+			filters.push(
+				or(
+					lt(RefundHandoffTable.openedAt, params.cursor.openedAt),
+					and(
+						eq(RefundHandoffTable.openedAt, params.cursor.openedAt),
+						lt(RefundHandoffTable.id, params.cursor.id)
+					)
+				)!
+			)
+		}
 		const rows = await db
 			.select()
 			.from(RefundHandoffTable)
 			.where(and(...filters))
-			.orderBy(desc(RefundHandoffTable.openedAt))
+			.orderBy(desc(RefundHandoffTable.openedAt), desc(RefundHandoffTable.id))
 			.limit(Math.max(1, Math.min(Number(params?.limit || 500), 1000)))
 			.all()
 		return rows.map(map)

@@ -1,7 +1,9 @@
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
@@ -52,11 +54,21 @@ const state: {
 	segment: SettlementSegment
 	items: SettlementItem[]
 	bookingContext: Map<string, FinancialHumanContext>
+	payload: any | null
+	nextCursor: string | null
+	hasMore: boolean
+	loadingMore: boolean
 } = {
 	segment: "amount_mismatch",
 	items: [],
 	bookingContext: new Map(),
+	payload: null,
+	nextCursor: null,
+	hasMore: false,
+	loadingMore: false,
 }
+
+const PAGE_LIMIT = 50
 
 const segmentLabels: Record<SettlementSegment, string> = {
 	amount_mismatch: "Montos diferentes",
@@ -291,6 +303,7 @@ function renderRows(): void {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
 	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<SettlementSegment, string> = {
 			amount_mismatch: "No hay diferencias de monto visibles.",
@@ -340,6 +353,26 @@ function renderRows(): void {
 			</article>`
 		})
 		.join("")
+}
+
+function applyPayload(payload: any, operationsPayload: any): void {
+	state.payload = payload
+	state.nextCursor = String(payload?.pagination?.nextCursor || "") || null
+	state.hasMore = Boolean(payload?.pagination?.hasMore && state.nextCursor)
+	state.bookingContext = buildBookingContextIndex(operationsPayload)
+	state.items = buildItems(payload)
+	renderSegments()
+	renderRows()
+}
+
+function renderLoadMore(): void {
+	const wrap = document.getElementById("settlementsLoadMoreWrap")
+	const button = document.getElementById("settlementsLoadMore") as HTMLButtonElement | null
+	wrap?.classList.toggle("hidden", !state.hasMore)
+	if (button) {
+		button.disabled = state.loadingMore
+		button.textContent = state.loadingMore ? "Cargando..." : "Cargar más liquidaciones"
+	}
 }
 
 function detailRow(label: string, value: unknown): string {
@@ -398,10 +431,7 @@ async function loadSettlements(): Promise<void> {
 		const cached = getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
-			state.bookingContext = buildBookingContextIndex(cachedOperations)
-			state.items = buildItems(cached)
-			renderSegments()
-			renderRows()
+			applyPayload(cached, cachedOperations)
 			void Promise.all([
 				refreshFinancialJson(financialEndpointUrls.reconciliationQueue),
 				fetchFinancialJson(financialEndpointUrls.operations).catch(
@@ -409,10 +439,7 @@ async function loadSettlements(): Promise<void> {
 				),
 			])
 				.then(([payload, operationsPayload]) => {
-					state.bookingContext = buildBookingContextIndex(operationsPayload)
-					state.items = buildItems(payload)
-					renderSegments()
-					renderRows()
+					applyPayload(payload, operationsPayload)
 				})
 				.catch(() => {})
 			return
@@ -421,10 +448,7 @@ async function loadSettlements(): Promise<void> {
 			fetchFinancialJson(financialEndpointUrls.reconciliationQueue),
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 		])
-		state.bookingContext = buildBookingContextIndex(operationsPayload)
-		state.items = buildItems(payload)
-		renderSegments()
-		renderRows()
+		applyPayload(payload, operationsPayload)
 	} catch {
 		const rows = document.getElementById("settlementsRows")
 		const summary = document.getElementById("settlementsSummary")
@@ -435,6 +459,31 @@ async function loadSettlements(): Promise<void> {
 	}
 }
 
+async function loadMoreSettlements(): Promise<void> {
+	if (!state.nextCursor || state.loadingMore) return
+	state.loadingMore = true
+	renderLoadMore()
+	try {
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(
+				financialUrlWithCursor(financialEndpointUrls.reconciliationQueue, {
+					limit: PAGE_LIMIT,
+					cursor: state.nextCursor,
+				}),
+				{ force: true }
+			),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		applyPayload(
+			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
+			operationsPayload
+		)
+	} finally {
+		state.loadingMore = false
+		renderLoadMore()
+	}
+}
+
 export function initSettlementsWorkspace(): void {
 	const rows = document.getElementById("settlementsRows")
 	if (!rows || rows.dataset.settlementsReady === "true") return
@@ -442,6 +491,10 @@ export function initSettlementsWorkspace(): void {
 	document.addEventListener("click", (event) => {
 		const target = event.target
 		if (!(target instanceof Element)) return
+		if (target.closest("#settlementsLoadMore")) {
+			void loadMoreSettlements()
+			return
+		}
 		const segmentButton = target.closest("[data-settlements-segment]") as HTMLButtonElement | null
 		if (segmentButton?.dataset.settlementsSegment) {
 			state.segment = segmentButton.dataset.settlementsSegment as SettlementSegment

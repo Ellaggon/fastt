@@ -1,7 +1,9 @@
 import {
 	fetchFinancialJson,
 	financialEndpointUrls,
+	financialUrlWithCursor,
 	getCachedFinancialJson,
+	mergeFinancialPayloadById,
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
@@ -57,12 +59,22 @@ const state: {
 	items: RefundItem[]
 	selectedItem: RefundItem | null
 	bookingContext: Map<string, FinancialHumanContext>
+	payload: any | null
+	nextCursor: string | null
+	hasMore: boolean
+	loadingMore: boolean
 } = {
 	segment: "needs_review",
 	items: [],
 	selectedItem: null,
 	bookingContext: new Map(),
+	payload: null,
+	nextCursor: null,
+	hasMore: false,
+	loadingMore: false,
 }
+
+const PAGE_LIMIT = 100
 
 const segmentLabels: Record<RefundSegment, string> = {
 	needs_review: "Requieren revisión",
@@ -275,6 +287,7 @@ function renderRows(): void {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
 	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<RefundSegment, string> = {
 			needs_review: "No hay reembolsos que requieran revisión.",
@@ -321,6 +334,26 @@ function renderRows(): void {
 			</article>`
 		})
 		.join("")
+}
+
+function applyPayload(payload: any, operationsPayload: any): void {
+	state.payload = payload
+	state.nextCursor = String(payload?.pagination?.nextCursor || "") || null
+	state.hasMore = Boolean(payload?.pagination?.hasMore && state.nextCursor)
+	state.bookingContext = buildBookingContextIndex(operationsPayload)
+	state.items = buildItems(payload)
+	renderSegments()
+	renderRows()
+}
+
+function renderLoadMore(): void {
+	const wrap = document.getElementById("refundsLoadMoreWrap")
+	const button = document.getElementById("refundsLoadMore") as HTMLButtonElement | null
+	wrap?.classList.toggle("hidden", !state.hasMore)
+	if (button) {
+		button.disabled = state.loadingMore
+		button.textContent = state.loadingMore ? "Cargando..." : "Cargar más reembolsos"
+	}
 }
 
 function detailRow(label: string, value: unknown): string {
@@ -427,10 +460,7 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 			: getCachedFinancialJson(financialEndpointUrls.refundHandoffs)
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
-			state.bookingContext = buildBookingContextIndex(cachedOperations)
-			state.items = buildItems(cached)
-			renderSegments()
-			renderRows()
+			applyPayload(cached, cachedOperations)
 			void Promise.all([
 				refreshFinancialJson(financialEndpointUrls.refundHandoffs),
 				fetchFinancialJson(financialEndpointUrls.operations).catch(
@@ -438,10 +468,7 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 				),
 			])
 				.then(([payload, operationsPayload]) => {
-					state.bookingContext = buildBookingContextIndex(operationsPayload)
-					state.items = buildItems(payload)
-					renderSegments()
-					renderRows()
+					applyPayload(payload, operationsPayload)
 				})
 				.catch(() => {})
 			return
@@ -452,16 +479,35 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 				: fetchFinancialJson(financialEndpointUrls.refundHandoffs),
 			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
 		])
-		state.bookingContext = buildBookingContextIndex(operationsPayload)
-		state.items = buildItems(payload)
-		renderSegments()
-		renderRows()
+		applyPayload(payload, operationsPayload)
 	} catch {
 		const rows = document.getElementById("refundsRows")
 		const summary = document.getElementById("refundsSummary")
 		if (summary) summary.textContent = "No se pudo cargar el seguimiento de reembolsos."
 		if (rows)
 			rows.innerHTML = `<div class="px-4 py-8 text-center text-sm text-rose-700">Intenta recargar la página. No se ejecutó ningún reembolso.</div>`
+	}
+}
+
+async function loadMoreRefunds(): Promise<void> {
+	if (!state.nextCursor || state.loadingMore) return
+	state.loadingMore = true
+	renderLoadMore()
+	try {
+		const [payload, operationsPayload] = await Promise.all([
+			fetchFinancialJson(
+				financialUrlWithCursor(financialEndpointUrls.refundHandoffs, {
+					limit: PAGE_LIMIT,
+					cursor: state.nextCursor,
+				}),
+				{ force: true }
+			),
+			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+		])
+		applyPayload(mergeFinancialPayloadById(state.payload, payload), operationsPayload)
+	} finally {
+		state.loadingMore = false
+		renderLoadMore()
 	}
 }
 
@@ -472,6 +518,10 @@ export function initRefundsWorkspace(): void {
 	document.addEventListener("click", (event) => {
 		const target = event.target
 		if (!(target instanceof Element)) return
+		if (target.closest("#refundsLoadMore")) {
+			void loadMoreRefunds()
+			return
+		}
 		const segmentButton = target.closest("[data-refunds-segment]") as HTMLButtonElement | null
 		if (segmentButton?.dataset.refundsSegment) {
 			state.segment = segmentButton.dataset.refundsSegment as RefundSegment

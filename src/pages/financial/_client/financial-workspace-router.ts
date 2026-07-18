@@ -28,7 +28,7 @@ function normalizePath(pathname: string): string {
 	return pathname.replace(/\/$/, "") || "/"
 }
 
-function viewForPath(pathname: string): FinancialViewId | null {
+export function viewForFinancialPath(pathname: string): FinancialViewId | null {
 	return routeToView[normalizePath(pathname)] || null
 }
 
@@ -37,7 +37,7 @@ function applyFinancialView(view: FinancialViewId): void {
 		section.classList.toggle("hidden", section.dataset.financialView !== view)
 	})
 	document.querySelectorAll<HTMLAnchorElement>("a[data-financial-nav]").forEach((link) => {
-		const linkView = viewForPath(new URL(link.href).pathname)
+		const linkView = viewForFinancialPath(new URL(link.href).pathname)
 		const active = linkView === view
 		link.toggleAttribute("aria-current", active)
 		link.dataset.active = active ? "true" : "false"
@@ -49,17 +49,18 @@ function applyFinancialView(view: FinancialViewId): void {
 }
 
 function navigateFinancialView(url: URL): void {
-	const view = viewForPath(url.pathname)
+	const view = viewForFinancialPath(url.pathname)
 	if (!view) return
 	window.history.pushState({ financialView: view }, "", `${url.pathname}${url.search}${url.hash}`)
 	applyFinancialView(view)
 	window.scrollTo({ top: 0, behavior: "instant" })
 }
 
-export function initFinancialWorkspaceRouter(): void {
-	const initialView = viewForPath(window.location.pathname)
+export function initFinancialWorkspaceRouter(onViewChange?: (view: FinancialViewId) => void): void {
+	const initialView = viewForFinancialPath(window.location.pathname)
 	if (!initialView) return
 	applyFinancialView(initialView)
+	onViewChange?.(initialView)
 
 	if (document.documentElement.dataset.financialRouterReady === "true") return
 	document.documentElement.dataset.financialRouterReady = "true"
@@ -71,14 +72,19 @@ export function initFinancialWorkspaceRouter(): void {
 		if (!link) return
 		const url = new URL(link.href)
 		if (url.origin !== window.location.origin) return
-		if (!viewForPath(url.pathname)) return
+		if (!viewForFinancialPath(url.pathname)) return
 		event.preventDefault()
 		if (normalizePath(url.pathname) === normalizePath(window.location.pathname)) return
 		navigateFinancialView(url)
+		const view = viewForFinancialPath(url.pathname)
+		if (view) onViewChange?.(view)
 	})
 
 	window.addEventListener("popstate", () => {
-		const view = viewForPath(window.location.pathname)
-		if (view) applyFinancialView(view)
+		const view = viewForFinancialPath(window.location.pathname)
+		if (view) {
+			applyFinancialView(view)
+			onViewChange?.(view)
+		}
 	})
 }
