@@ -1,0 +1,30 @@
+---
+const { className = "", class: classProp = "", ...props } = Astro.props
+const finalClass =
+	`fastt-tabs-inside-panel inline-flex gap-1 overflow-x-auto rounded-[20px] p-1 text-sm font-semibold text-slate-300 ring-1 ring-slate-800 ${className} ${classProp}`.trim()
+---
+
+<nav class={finalClass} {...props}>
+	<slot />
+</nav>
+
+<style is:global>
+	.fastt-tabs-inside-panel__item {
+		border: 0 !important;
+		border-radius: 16px;
+		box-shadow: none;
+		transition:
+			background-color var(--fastt-motion-fast) ease,
+			color var(--fastt-motion-fast) ease;
+	}
+
+	.fastt-tabs-inside-panel__item[data-active="true"] {
+		background: rgb(255 255 255);
+		color: rgb(15 23 42);
+	}
+
+	.fastt-tabs-inside-panel__item[data-active="true"]:hover {
+		background: rgb(255 255 255);
+		color: rgb(15 23 42);
+	}
+</style>
