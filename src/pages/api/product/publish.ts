@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { publishProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -48,6 +49,12 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId,
+			providerId,
+			request,
+			source: "product.publish",
+		})
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

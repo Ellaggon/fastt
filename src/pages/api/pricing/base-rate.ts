@@ -4,10 +4,12 @@ import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
-import { setRatePlanPricingBaselineSchema } from "@/modules/pricing/application/schemas/pricing-baseline.schemas"
-import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import {
+	resolveRatePlanOwnerContext,
+	setRatePlanPricingBaselineSchema,
+} from "@/modules/pricing/public"
 import { variantManagementRepository, productRepository } from "@/container"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -135,6 +137,7 @@ export const POST: APIRoute = async ({ request }) => {
 			} as any)
 		}
 		await invalidateVariant(variantId, v.productId)
+		await invalidateProvider(providerId)
 
 		return new Response(
 			JSON.stringify({

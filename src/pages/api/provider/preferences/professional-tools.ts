@@ -5,6 +5,7 @@ import {
 	PROFESSIONAL_MODE_COOKIE,
 	type ProfessionalModeCookieValue,
 } from "@/lib/dashboard/professionalModeCookie"
+import { invalidateProvider } from "@/lib/cache/invalidation"
 import { setProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
 
 function safeReturnPath(value: unknown): string {
@@ -97,6 +98,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				actorUserId: user.id,
 				enabled,
 			})
+			await invalidateProvider(providerId)
 			persisted = "database"
 		} catch (error) {
 			void error

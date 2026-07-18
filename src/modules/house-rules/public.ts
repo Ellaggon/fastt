@@ -18,6 +18,11 @@ export async function listHouseRulesByProduct(productId: string) {
 	return listHouseRulesByProductUseCase(productId)
 }
 
+export async function listHouseRulesByProductIds(productIds: string[]) {
+	const { listHouseRulesByProductIdsUseCase } = await import("@/container/house-rules.container")
+	return listHouseRulesByProductIdsUseCase(productIds)
+}
+
 export async function buildGuestStayExpectationsSnapshot(
 	productId: string,
 	options?: { capturedAt?: Date }

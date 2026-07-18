@@ -4,6 +4,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -37,6 +38,12 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const result = await evaluateProductReadiness({ repo: productRepository }, raw)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId: raw.productId,
+			providerId,
+			request,
+			source: "product.evaluate",
+		})
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

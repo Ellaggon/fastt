@@ -17,5 +17,14 @@ export interface HouseRuleRepositoryPort {
 			createdAt: Date
 		}>
 	>
+	listByProductIds(productIds: string[]): Promise<
+		Array<{
+			id: string
+			productId: string
+			type: HouseRuleType
+			payloadJson: HouseRulePayload
+			createdAt: Date
+		}>
+	>
 	delete(id: string): Promise<void>
 }

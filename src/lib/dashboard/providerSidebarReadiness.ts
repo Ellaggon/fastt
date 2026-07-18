@@ -14,6 +14,8 @@ import {
 	listCommercialPriceRulesByRatePlans,
 	listCommercialSellabilityRulesForScopes,
 } from "@/lib/commercial-rules/commercialRulesRepository"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { readThrough } from "@/lib/cache/readThrough"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
 import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
@@ -285,6 +287,25 @@ export async function getProviderSidebarData(
 			accommodationCount: 0,
 		}
 
+	const professionalToolsCachePart =
+		typeof context.professionalToolsEnabled === "boolean"
+			? String(context.professionalToolsEnabled)
+			: "provider-default"
+	const roleCachePart = String(context.providerRole ?? "provider-role-default")
+	const cacheKey = cacheKeys.providerSidebar(
+		normalizedProviderId,
+		String(context.userId ?? "anonymous"),
+		`${professionalToolsCachePart}:${roleCachePart}`
+	)
+	return readThrough(cacheKey, cacheTtls.providerSidebar, async () =>
+		loadProviderSidebarData(normalizedProviderId, context)
+	)
+}
+
+async function loadProviderSidebarData(
+	normalizedProviderId: string,
+	context: ProviderAdvancedDisclosureContext
+): Promise<ProviderSidebarData> {
 	const [ratePlanIds, variantIds, productRows, policyReadiness, primaryAccommodationLinks] =
 		await Promise.all([
 			getProviderRatePlanIds(normalizedProviderId),

@@ -12,6 +12,7 @@ import {
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -253,6 +254,12 @@ export const POST: APIRoute = async ({ request }) => {
 				ok: true,
 			})
 		)
+		await refreshProductPreparationSnapshotAfterMutation({
+			productId: owningProductId,
+			providerId,
+			request,
+			source: "uploads.complete",
+		})
 		return new Response(
 			JSON.stringify({
 				ok: true,

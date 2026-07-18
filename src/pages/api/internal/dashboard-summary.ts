@@ -2,10 +2,10 @@ import type { APIRoute } from "astro"
 import { db, eq, inArray, Product, ProductStatus } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
+import { listProductPreparationSnapshots } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
 
-export const GET: APIRoute = async ({ request, url }) => {
+export const GET: APIRoute = async ({ request }) => {
 	const startedAt = performance.now()
 	const endpointName = "dashboard-summary"
 	const logEndpoint = () => {
@@ -68,19 +68,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const inPreparationProducts = Math.max(0, totalProducts - publishedProducts - readyProducts)
 
 	const listProducts = products.slice(0, 5)
-	const preparationSummaries = await Promise.all(
-		listProducts.map((product) =>
-			summarizeProductPreparation({
-				productId: product.id,
-				providerId,
-				status: statusMap.get(product.id),
-				request,
-				url,
-			})
-		)
+	const preparationByProduct = await listProductPreparationSnapshots(
+		providerId,
+		listProducts.map((product) => product.id)
 	)
 
-	const readyToPublishFromPlaybook = preparationSummaries.filter(
+	const preparationSummaries = listProducts.map(
+		(product) => preparationByProduct.get(product.id) ?? null
+	)
+	const readyToPublishFromSnapshot = preparationSummaries.filter(
 		(summary) => summary && !summary.isPublished && summary.readyToPublish
 	).length
 
@@ -108,18 +104,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 	})
 
 	logEndpoint()
+	const durationMs = Number((performance.now() - startedAt).toFixed(1))
 	return new Response(
 		JSON.stringify({
 			totalProducts,
 			publishedProducts,
 			inPreparationProducts,
 			readyProducts,
-			readyToPublishProducts: Math.max(readyProducts, readyToPublishFromPlaybook),
+			readyToPublishProducts: Math.max(readyProducts, readyToPublishFromSnapshot),
 			products: productList,
 		}),
 		{
 			status: 200,
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				"Server-Timing": `dashboard-summary;dur=${durationMs}`,
+			},
 		}
 	)
 }
