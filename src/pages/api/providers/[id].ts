@@ -10,6 +10,13 @@ function shouldReturnHtmlRedirect(request: Request): boolean {
 	return accept.includes("text/html")
 }
 
+function redirectToProvider(request: Request, params: Record<string, string>): Response {
+	const url = new URL("/provider", request.url)
+	url.searchParams.set("step", "register")
+	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+	return Response.redirect(url, 303)
+}
+
 async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Response> {
 	const { request, params } = ctx
 	void params.id
@@ -17,6 +24,9 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 	try {
 		const providerId = await getProviderIdFromRequest(request)
 		if (!providerId) {
+			if (shouldReturnHtmlRedirect(request)) {
+				return redirectToProvider(request, { error: "provider_not_found" })
+			}
 			return new Response(JSON.stringify({ error: "Provider not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
@@ -49,12 +59,18 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		})
 	} catch (error) {
 		if (error instanceof ValidationError) {
+			if (shouldReturnHtmlRedirect(request)) {
+				return redirectToProvider(request, { error: "validation_error" })
+			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: error.errors }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 
+		if (shouldReturnHtmlRedirect(request)) {
+			return redirectToProvider(request, { error: "save_failed" })
+		}
 		const message = error instanceof Error ? error.message : "Unknown error"
 		return new Response(JSON.stringify({ error: message }), {
 			status: 500,
@@ -63,5 +79,8 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 	}
 }
 
+export const GET: APIRoute = async ({ request }) => {
+	return redirectToProvider(request, { error: "invalid_method" })
+}
 export const PATCH: APIRoute = handleProviderUpdate
 export const POST: APIRoute = handleProviderUpdate

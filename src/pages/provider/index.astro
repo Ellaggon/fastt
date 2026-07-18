@@ -50,6 +50,16 @@ userId = user.id
 
 const successParam = String(Astro.url.searchParams.get("success") ?? "").trim()
 const showSuccess = successParam === "saved" || successParam === "updated"
+const errorParam = String(Astro.url.searchParams.get("error") ?? "").trim()
+const providerErrorMessages: Record<string, string> = {
+	invalid_method: "La acción no se envió correctamente. Intenta guardar nuevamente.",
+	session_expired: "Tu sesión no se pudo validar. Vuelve a iniciar sesión e intenta de nuevo.",
+	provider_not_found:
+		"No pudimos asociar esta sesión con tu proveedor. Intenta cerrar sesión y volver a entrar.",
+	validation_error: "Revisa los campos obligatorios antes de guardar.",
+	save_failed: "No pudimos guardar la identidad del proveedor en este momento.",
+}
+const providerErrorMessage = providerErrorMessages[errorParam] ?? null
 
 let provider: ProviderAggregate["provider"] | null = null
 let profile: ProviderAggregate["profile"] | null = null
@@ -104,6 +114,19 @@ const professionalToolsUpdatedLabel = professionalToolsUpdatedAt
 							</p>
 						</div>
 						<Badge variant="success">Guardado</Badge>
+					</div>
+				</Card>
+			)
+		}
+		{
+			providerErrorMessage && (
+				<Card>
+					<div class="flex items-center justify-between gap-4">
+						<div class="space-y-1">
+							<p class="text-lg font-semibold text-slate-900">No se pudo guardar</p>
+							<p class="text-sm text-slate-600">{providerErrorMessage}</p>
+						</div>
+						<Badge variant="error">Error</Badge>
 					</div>
 				</Card>
 			)
