@@ -18,37 +18,44 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("integration/provider governance", () => {
 	it("blocks provider capabilities when mandatory configuration is incomplete", async () => {
-		const providerId = "provider_governance_blocked"
-		const ownerEmail = "governance.blocked@example.com"
-		const ownerId = `user_${ownerEmail}`
+		const previousEnforce = process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
+		process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = "1"
+		try {
+			const providerId = "provider_governance_blocked"
+			const ownerEmail = "governance.blocked@example.com"
+			const ownerId = `user_${ownerEmail}`
 
-		await upsertProvider({
-			id: providerId,
-			legalName: "Gobernanza Pendiente S.R.L.",
-			displayName: "Gobernanza Pendiente",
-			ownerEmail,
-		})
-
-		const summary = await evaluateProviderGovernance(providerId, {
-			currentUserId: ownerId,
-			persist: true,
-		})
-
-		expect(summary.capabilities.publish).toBe(false)
-		expect(summary.capabilities.booking).toBe(false)
-		expect(summary.capabilities.payments).toBe(false)
-		expect(summary.permissions.canEditProfile).toBe(true)
-		expect(summary.blockers.map((blocker) => blocker.id)).toEqual(
-			expect.arrayContaining(["operations", "verification", "fiscality", "payments"])
-		)
-
-		await expect(
-			assertProviderCapability({
-				providerId,
-				currentUserId: ownerId,
-				capability: "publish",
+			await upsertProvider({
+				id: providerId,
+				legalName: "Gobernanza Pendiente S.R.L.",
+				displayName: "Gobernanza Pendiente",
+				ownerEmail,
 			})
-		).rejects.toThrow("PROVIDER_CONFIGURATION_BLOCKED:publish")
+
+			const summary = await evaluateProviderGovernance(providerId, {
+				currentUserId: ownerId,
+				persist: true,
+			})
+
+			expect(summary.capabilities.publish).toBe(false)
+			expect(summary.capabilities.booking).toBe(false)
+			expect(summary.capabilities.payments).toBe(false)
+			expect(summary.permissions.canEditProfile).toBe(true)
+			expect(summary.blockers.map((blocker) => blocker.id)).toEqual(
+				expect.arrayContaining(["operations", "verification", "fiscality", "payments"])
+			)
+
+			await expect(
+				assertProviderCapability({
+					providerId,
+					currentUserId: ownerId,
+					capability: "publish",
+				})
+			).rejects.toThrow("PROVIDER_CONFIGURATION_BLOCKED:publish")
+		} finally {
+			if (previousEnforce === undefined) delete process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
+			else process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = previousEnforce
+		}
 	})
 
 	it("unlocks capabilities and persists a configuration state when governance data is complete", async () => {
