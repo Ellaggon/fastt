@@ -1,0 +1,37 @@
+---
+import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
+import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderFullAggregate } from "@/modules/catalog/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user?.id) return Astro.redirect("/SignInPage")
+
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+const aggregate = providerId ? await getProviderFullAggregate(providerId, user.id) : null
+const provider = aggregate?.provider ?? null
+const profile = aggregate?.profile ?? null
+const hasProvider = Boolean(provider?.id)
+---
+
+<ProviderSettingsLayout
+	title="Perfil del proveedor"
+	heading="Perfil del proveedor"
+	description="Administra identidad comercial y datos operativos desde una ruta canónica de configuración."
+>
+	{
+		!hasProvider && (
+			<Notice variant="warning" title="Primero crea la identidad comercial">
+				El perfil operativo se habilita cuando exista un proveedor asociado a tu cuenta.
+			</Notice>
+		)
+	}
+
+	<div class="grid gap-6 xl:grid-cols-2">
+		<ProviderRegisterForm provider={provider} hasProvider={hasProvider} />
+		<ProviderProfileForm isProviderAvailable={hasProvider} profile={profile} />
+	</div>
+</ProviderSettingsLayout>

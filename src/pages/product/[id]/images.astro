@@ -10,13 +10,14 @@ import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { routes } from "@/lib/routes"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")

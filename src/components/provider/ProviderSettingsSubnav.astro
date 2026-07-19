@@ -1,0 +1,96 @@
+---
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
+import { routes } from "@/lib/routes"
+
+interface Props {
+	pathname?: string
+}
+
+const { pathname = Astro.url.pathname } = Astro.props
+
+const items = [
+	{
+		label: "Resumen",
+		href: routes.providerSettings(),
+		aliases: ["/provider"],
+	},
+	{
+		label: "Perfil",
+		href: routes.providerSettingsProfile(),
+		aliases: [
+			"/provider/profile",
+			"/provider/register",
+			"/provider?step=profile",
+			"/provider?step=register",
+		],
+	},
+	{
+		label: "Verificación",
+		href: routes.providerSettingsVerification(),
+		aliases: ["/provider/verification", "/provider?step=verification"],
+	},
+	{
+		label: "Impuestos y cargos",
+		href: routes.providerSettingsTaxFees(),
+		aliases: ["/provider/tax-fees"],
+	},
+	{
+		label: "Integraciones",
+		href: routes.providerSettingsIntegrations(),
+		aliases: ["/system/integrations"],
+	},
+	{
+		label: "Equipo",
+		href: routes.providerSettingsTeam(),
+		aliases: [],
+	},
+]
+
+const currentPath = `${Astro.url.pathname}${Astro.url.search}`
+const isActive = (item: (typeof items)[number]) => {
+	if (item.href === routes.providerSettings()) {
+		return pathname === item.href || item.aliases.includes(currentPath)
+	}
+	return (
+		pathname === item.href ||
+		pathname.startsWith(`${item.href}/`) ||
+		item.aliases.includes(currentPath)
+	)
+}
+---
+
+<TabsInsidePanel
+	class="provider-settings-subnav max-w-full flex-nowrap bg-black"
+	aria-label="Navegación de configuración del proveedor"
+>
+	{
+		items.map((item) => {
+			const active = isActive(item)
+			return (
+				<a
+					href={item.href}
+					data-workspace-nav
+					data-astro-prefetch="viewport"
+					data-active={active ? "true" : "false"}
+					aria-current={active ? "page" : undefined}
+					class={`fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
+						active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
+					}`}
+				>
+					{item.label}
+				</a>
+			)
+		})
+	}
+</TabsInsidePanel>
+
+<style>
+	.provider-settings-subnav {
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+	}
+
+	.provider-settings-subnav::-webkit-scrollbar {
+		display: none;
+	}
+</style>

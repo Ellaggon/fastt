@@ -22,7 +22,7 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const rows = await db
 	.select({
@@ -550,7 +550,7 @@ function preparationSupport(
 								</div>
 							</div>
 							<div class="flex justify-end">
-								<Button href="/provider" variant="secondary">
+								<Button href={routes.providerSettings()} variant="secondary">
 									Ir a proveedor
 								</Button>
 							</div>

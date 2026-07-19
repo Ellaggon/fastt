@@ -1,3 +1,5 @@
 ---
-return Astro.redirect("/provider?step=register")
+import { routes } from "@/lib/routes"
+
+return Astro.redirect(routes.providerSettingsProfile())
 ---

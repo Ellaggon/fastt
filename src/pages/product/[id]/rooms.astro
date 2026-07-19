@@ -21,7 +21,7 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "").trim()
 if (!productId) return Astro.redirect(routes.productList())

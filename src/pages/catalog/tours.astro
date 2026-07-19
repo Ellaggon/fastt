@@ -15,7 +15,7 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const vertical = PRODUCT_VERTICALS.tour
 const catalog = await getProviderCatalogSummary(providerId, vertical.storageType)

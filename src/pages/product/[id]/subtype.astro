@@ -11,6 +11,7 @@ import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalDefinition } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
 import { getProductById } from "@/modules/catalog/public"
 import { db, eq, Hotel, Limousine, Package, Tour } from "astro:db"
 
@@ -18,7 +19,7 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
-if (!providerId) return Astro.redirect("/provider")
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")

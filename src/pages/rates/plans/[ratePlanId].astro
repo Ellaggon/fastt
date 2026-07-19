@@ -34,7 +34,7 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 	throw e
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.provider())
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
 const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
 const sidebarData = await getProviderSidebarData(auth.providerId, {

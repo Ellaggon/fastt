@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import { routes } from "@/lib/routes"
 
 const { provider, hasProvider = false } = Astro.props
 const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}` : "/api/providers"
@@ -10,18 +11,22 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 
 <section class="space-y-4">
 	<header class="space-y-1">
-		<h2 class="text-lg font-semibold text-slate-100">Identidad del proveedor</h2>
+		<p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+			Configuración del proveedor
+		</p>
+		<h2 class="text-lg font-semibold text-slate-100">Identidad comercial</h2>
 		<p class="text-sm text-slate-300">
-			Cree o complete los datos de identidad de su cuenta de proveedor.
+			Define cómo se reconoce el negocio dentro de Fastt y en los controles internos.
 		</p>
 	</header>
 	<Card>
 		<form method="POST" action={formAction} class="max-w-3xl space-y-6">
 			<div class="space-y-4">
 				<div class="space-y-1">
-					<h3 class="text-xl font-semibold text-slate-900">Identidad</h3>
+					<h3 class="text-xl font-semibold text-slate-900">Datos base</h3>
 					<p class="text-sm text-slate-600">
-						Aquí solo se solicitan los campos mínimos obligatorios.
+						Estos campos son el punto de partida para verificación, impuestos, pagos e
+						integraciones.
 					</p>
 				</div>
 				<FormField label="Nombre comercial" htmlFor="displayName" required>
@@ -32,7 +37,7 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 				</FormField>
 			</div>
 			<div class="flex items-center justify-end gap-3">
-				<Button href="/provider" variant="secondary"> Volver </Button>
+				<Button href={routes.providerSettings()} variant="secondary"> Volver </Button>
 				<Button type="submit"> Guardar identidad </Button>
 			</div>
 		</form>
