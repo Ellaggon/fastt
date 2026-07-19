@@ -10,7 +10,7 @@ import { setProviderProfessionalToolsPreference } from "@/lib/providerProfession
 
 function safeReturnPath(value: unknown): string {
 	const candidate = String(value ?? "").trim()
-	if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/provider"
+	if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/provider/settings"
 	return candidate
 }
 

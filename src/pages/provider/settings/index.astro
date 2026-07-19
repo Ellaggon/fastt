@@ -1,0 +1,475 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const readiness = Array.isArray(summary?.readiness) ? summary.readiness : []
+const blockingMatrix = Array.isArray(summary?.blockingMatrix) ? summary.blockingMatrix : []
+const blockers = Array.isArray(summary?.blockers) ? summary.blockers : []
+const risks = Array.isArray(summary?.risks) ? summary.risks : []
+const auditEvents = Array.isArray(summary?.auditEvents) ? summary.auditEvents : []
+const capabilities = summary?.capabilities ?? {}
+const counts = summary?.counts ?? {}
+const simulation = summary?.publicationSimulation ?? null
+const progressPercent = Number(summary?.progress?.progressPercent ?? 0)
+const progressLabel = String(summary?.progress?.message ?? "No se pudo calcular el estado.")
+const providerName = String(summary?.provider?.displayName ?? "Proveedor")
+
+let professionalToolsEnabled = false
+let professionalToolsUpdatedAt: Date | null = null
+try {
+	const preferences = await getProviderProfessionalToolsPreference(auth.providerId)
+	professionalToolsEnabled = preferences.professionalToolsEnabled
+	professionalToolsUpdatedAt = preferences.updatedAt
+} catch {
+	professionalToolsEnabled = false
+	professionalToolsUpdatedAt = null
+}
+
+const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
+const professionalToolsSaved = professionalToolsParam === "saved"
+const professionalToolsError = professionalToolsParam === "error"
+const professionalToolsUpdatedLabel = professionalToolsUpdatedAt
+	? professionalToolsUpdatedAt.toLocaleDateString("es-BO", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+		})
+	: "Sin cambios aún"
+
+function formatDate(value: string | Date | null | undefined) {
+	if (!value) return "Sin fecha"
+	return new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(new Date(value))
+}
+---
+
+<ProviderSettingsLayout
+	title="Configuración del proveedor"
+	heading="Resumen de configuración"
+	description="Centro de control para identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
+>
+	<div slot="actions" class="flex flex-wrap gap-3">
+		<Button href={summary?.actions?.primaryCtaAction ?? routes.providerSettingsProfile()}>
+			{summary?.actions?.primaryCtaLabel ?? "Continuar configuración"}
+		</Button>
+	</div>
+
+	{
+		professionalToolsSaved ? (
+			<Notice variant="success" title="Herramientas profesionales actualizadas">
+				El sidebar se ajustará según la preferencia del proveedor, escala y rol.
+			</Notice>
+		) : null
+	}
+	{
+		professionalToolsError ? (
+			<Notice variant="warning" title="No se pudo actualizar">
+				Revisa que la migración de preferencias del proveedor esté aplicada.
+			</Notice>
+		) : null
+	}
+
+	<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+		<Card class="border-slate-800 bg-slate-950 text-white">
+			<div class="space-y-5">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<p class="text-sm text-slate-400">Proveedor</p>
+						<h2 class="mt-1 text-2xl font-semibold text-white">{providerName}</h2>
+					</div>
+					<Badge variant={blockers.length ? "warning" : "success"}>
+						{blockers.length ? "Con bloqueos" : "Base lista"}
+					</Badge>
+				</div>
+				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
+					<div
+						class="h-full bg-white"
+						style={`width: ${Math.max(0, Math.min(100, progressPercent))}%`}
+					>
+					</div>
+				</div>
+				<p class="text-sm leading-6 text-slate-300">{progressLabel}</p>
+			</div>
+		</Card>
+
+		<div class="grid gap-4 md:grid-cols-2">
+			<Card>
+				<p class="text-sm font-semibold text-slate-950">Bloqueos</p>
+				<p class="mt-2 text-3xl font-semibold text-slate-950">{blockers.length}</p>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Elementos que impiden considerar completa la configuración base.
+				</p>
+			</Card>
+			<Card>
+				<p class="text-sm font-semibold text-slate-950">Riesgos</p>
+				<p class="mt-2 text-3xl font-semibold text-slate-950">{risks.length}</p>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Alertas que no bloquean todo, pero conviene revisar antes de escalar.
+				</p>
+			</Card>
+		</div>
+	</section>
+
+	<section class="grid gap-4 md:grid-cols-4">
+		<Card>
+			<p class="text-sm font-semibold text-slate-950">Publicación</p>
+			<Badge class="mt-3" variant={capabilities.publish ? "success" : "warning"}>
+				{capabilities.publish ? "Habilitada" : "Bloqueada"}
+			</Badge>
+		</Card>
+		<Card>
+			<p class="text-sm font-semibold text-slate-950">Reservas</p>
+			<Badge class="mt-3" variant={capabilities.booking ? "success" : "warning"}>
+				{capabilities.booking ? "Habilitadas" : "Bloqueadas"}
+			</Badge>
+		</Card>
+		<Card>
+			<p class="text-sm font-semibold text-slate-950">Cobros</p>
+			<Badge class="mt-3" variant={capabilities.payments ? "success" : "warning"}>
+				{capabilities.payments ? "Habilitados" : "Bloqueados"}
+			</Badge>
+		</Card>
+		<Card>
+			<p class="text-sm font-semibold text-slate-950">Integraciones</p>
+			<Badge class="mt-3" variant={capabilities.integrations ? "success" : "neutral"}>
+				{capabilities.integrations ? "Listas" : "Sin activar"}
+			</Badge>
+		</Card>
+	</section>
+
+	{
+		blockers.length > 0 && (
+			<Notice variant="warning" title="Qué bloquea qué">
+				Este resumen muestra exactamente qué capacidad queda bloqueada y por qué. Resuelve los
+				bloqueos de publicación y cobros antes de abrir venta en producción.
+			</Notice>
+		)
+	}
+
+	<section class="grid gap-4 xl:grid-cols-4">
+		{
+			blockingMatrix.map((item: any) => (
+				<Card class={item.enabled ? "border-emerald-200" : "border-amber-200"}>
+					<div class="flex h-full flex-col gap-4">
+						<div class="flex items-start justify-between gap-3">
+							<h2 class="text-lg font-semibold text-slate-950">{item.label}</h2>
+							<Badge variant={item.enabled ? "success" : "warning"}>
+								{item.enabled ? "Activa" : "Bloqueada"}
+							</Badge>
+						</div>
+						<p class="text-sm leading-6 text-slate-600">{item.message}</p>
+						<div class="grid gap-2">
+							{item.blockers.length ? (
+								item.blockers.map((blocker: any) => (
+									<a href={blocker.href} class="block">
+										<Card
+											variant="soft"
+											class="p-3 text-sm font-semibold text-slate-800 transition hover:bg-white"
+										>
+											{blocker.label}
+										</Card>
+									</a>
+								))
+							) : (
+								<p class="rounded-[var(--fastt-radius-control)] bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+									Sin bloqueos directos
+								</p>
+							)}
+						</div>
+					</div>
+				</Card>
+			))
+		}
+	</section>
+
+	<section class="grid gap-4 xl:grid-cols-2">
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Readiness</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Estado consolidado de cada área de configuración.
+					</p>
+				</div>
+				<div class="space-y-3">
+					{
+						readiness.map((item: any) => (
+							<a href={item.href} class="block">
+								<Card
+									variant="soft"
+									class="flex items-center justify-between gap-4 transition hover:border-slate-300 hover:bg-white"
+								>
+									<div>
+										<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+										<p class="mt-1 text-sm text-slate-600">
+											{item.complete ? "Listo para operar" : "Requiere configuración"}
+										</p>
+									</div>
+									<Badge variant={item.complete ? "success" : "warning"}>
+										{item.complete ? "Completo" : "Pendiente"}
+									</Badge>
+								</Card>
+							</a>
+						))
+					}
+				</div>
+			</div>
+		</Card>
+
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Riesgos y permisos</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Señales de configuración que necesitan gobernanza antes de activar automatizaciones.
+					</p>
+				</div>
+				<div class="space-y-3">
+					{
+						risks.length ? (
+							risks.map((risk: any) => (
+								<a href={risk.href} class="block">
+									<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
+										<div class="flex items-start justify-between gap-4">
+											<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
+											<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
+												{risk.severity === "medium" ? "Medio" : "Bajo"}
+											</Badge>
+										</div>
+									</Card>
+								</a>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								No hay riesgos activos en el resumen actual.
+							</Card>
+						)
+					}
+				</div>
+			</div>
+		</Card>
+	</section>
+
+	<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+		<Card>
+			<div class="space-y-4">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<h2 class="text-xl font-semibold text-slate-950">Simulación antes de publicar</h2>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Estimación fiscal y de pagos con la configuración actual del proveedor.
+						</p>
+					</div>
+					<Badge variant={simulation?.canPublishSafely ? "success" : "warning"}>
+						{simulation?.canPublishSafely ? "Lista" : "Revisar"}
+					</Badge>
+				</div>
+				<div class="grid gap-3 sm:grid-cols-3">
+					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Base</p>
+						<p class="mt-2 text-xl font-semibold text-slate-950">
+							{simulation?.currency ?? "USD"}
+							{Number(simulation?.baseAmount ?? 0).toFixed(2)}
+						</p>
+					</div>
+					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+							Impuestos
+						</p>
+						<p class="mt-2 text-xl font-semibold text-slate-950">
+							{simulation?.currency ?? "USD"}
+							{Number(simulation?.estimatedTax ?? 0).toFixed(2)}
+						</p>
+					</div>
+					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
+						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+							Pago proveedor
+						</p>
+						<p class="mt-2 text-xl font-semibold text-slate-950">
+							{simulation?.currency ?? "USD"}
+							{Number(simulation?.estimatedPayout ?? 0).toFixed(2)}
+						</p>
+					</div>
+				</div>
+				<p class="text-sm leading-6 text-slate-600">{simulation?.message}</p>
+			</div>
+		</Card>
+
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Auditoría reciente</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Cambios sensibles registrados en perfil, fiscalidad, pagos e integraciones.
+					</p>
+				</div>
+				<div class="space-y-3">
+					{
+						auditEvents.length ? (
+							auditEvents.map((event: any) => (
+								<Card variant="soft">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div>
+											<p class="text-sm font-semibold text-slate-950">{event.action}</p>
+											<p class="mt-1 text-sm text-slate-600">
+												{event.entityType} · {event.actorEmail ?? "Sistema"}
+											</p>
+										</div>
+										<Badge
+											variant={
+												event.riskLevel === "high"
+													? "error"
+													: event.riskLevel === "medium"
+														? "warning"
+														: "neutral"
+											}
+										>
+											{event.riskLevel}
+										</Badge>
+									</div>
+									<p class="mt-2 text-xs text-slate-500">{formatDate(event.createdAt)}</p>
+								</Card>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								Aún no hay eventos de auditoría visibles.
+							</Card>
+						)
+					}
+				</div>
+			</div>
+		</Card>
+	</section>
+
+	<section class="grid gap-4 md:grid-cols-4">
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
+			<p class="mt-2 text-2xl font-semibold text-slate-950">
+				{Number(counts.verifiedDocuments ?? 0)} / {Number(counts.documents ?? 0)}
+			</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+				Cuentas de pago
+			</p>
+			<p class="mt-2 text-2xl font-semibold text-slate-950">
+				{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
+			</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectores</p>
+			<p class="mt-2 text-2xl font-semibold text-slate-950">
+				{Number(counts.connectedIntegrations ?? 0)} / {Number(counts.integrations ?? 0)}
+			</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Auditoría</p>
+			<p class="mt-2 text-2xl font-semibold text-slate-950">
+				{Number(counts.auditEvents ?? 0)}
+			</p>
+		</Card>
+	</section>
+
+	<section class="space-y-4">
+		<header class="space-y-1">
+			<h2 class="text-lg font-semibold text-slate-950">Preferencias del espacio de trabajo</h2>
+			<p class="text-sm text-slate-600">
+				Preferencias que cambian cómo se organiza el sidebar y las herramientas visibles.
+			</p>
+		</header>
+		<Card>
+			<form method="post" action="/api/provider/preferences/professional-tools" class="space-y-5">
+				<input type="hidden" name="returnTo" value={routes.providerSettings()} />
+				<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+					<div class="max-w-2xl space-y-2">
+						<div class="flex flex-wrap items-center gap-3">
+							<h2 class="text-xl font-semibold text-slate-900">Herramientas profesionales</h2>
+							<Badge variant={professionalToolsEnabled ? "success" : "neutral"}>
+								{professionalToolsEnabled ? "Activadas" : "Desactivadas"}
+							</Badge>
+						</div>
+						<p class="text-sm leading-6 text-slate-600">
+							Activa herramientas para manejar muchas tarifas, reglas, inventario físico y
+							operaciones masivas.
+						</p>
+						<p class="text-sm leading-6 text-slate-600">
+							Recomendado si administras varios hoteles, muchas habitaciones o reglas recurrentes.
+						</p>
+						<p class="text-xs text-slate-500">
+							Última actualización: {professionalToolsUpdatedLabel}
+						</p>
+					</div>
+					<div
+						class="fastt-tabs min-w-[220px] border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700 shadow-sm"
+						role="radiogroup"
+						aria-label="Modo de experiencia"
+					>
+						<label class="block">
+							<input
+								type="radio"
+								name="mode"
+								value="simple"
+								checked={!professionalToolsEnabled}
+								class="peer sr-only fastt-check-input"
+							/>
+							<span
+								class="fastt-tab block cursor-pointer px-4 py-2 text-center text-slate-600 transition peer-checked:bg-slate-950 peer-checked:text-white"
+							>
+								Simple
+							</span>
+						</label>
+						<label class="mt-1 block">
+							<input
+								type="radio"
+								name="mode"
+								value="professional"
+								checked={professionalToolsEnabled}
+								class="peer sr-only fastt-check-input"
+							/>
+							<span
+								class="fastt-tab block cursor-pointer px-4 py-2 text-center text-slate-600 transition peer-checked:bg-slate-950 peer-checked:text-white"
+							>
+								Pro
+							</span>
+						</label>
+					</div>
+				</div>
+				<Card variant="soft">
+					<p class="text-sm font-semibold text-slate-900">Modo Simple</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						Muestra la operación diaria: Tarifas y Calendario. El contrato se completa dentro de
+						cada tarifa.
+					</p>
+					<p class="mt-3 text-sm font-semibold text-slate-900">Modo Pro</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						El sidebar puede mostrar Reglas de venta y herramientas profesionales. Las operaciones
+						de cupo y disponibilidad siguen dentro de Calendario.
+					</p>
+				</Card>
+				<div class="flex justify-end">
+					<Button type="submit">Guardar preferencia</Button>
+				</div>
+			</form>
+		</Card>
+	</section>
+</ProviderSettingsLayout>

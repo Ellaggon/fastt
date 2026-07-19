@@ -23,26 +23,26 @@ function formatDefinitionValue(definition: DefinitionSummary) {
 function formatAppliesPer(value: DefinitionSummary["appliesPer"]) {
 	switch (value) {
 		case "stay":
-			return "Per stay"
+			return "Por estadía"
 		case "night":
-			return "Per night"
+			return "Por noche"
 		case "guest":
-			return "Per guest"
+			return "Por huésped"
 		case "guest_night":
-			return "Per guest per night"
+			return "Por huésped por noche"
 	}
 }
 
 function warningTitle(code: string) {
 	switch (code) {
 		case "high_percentage":
-			return "Check the amount"
+			return "Revisar monto"
 		case "overlap_detected":
-			return "Possible overlap"
+			return "Posible solapamiento"
 		case "duplicate_code":
-			return "Similar charge already exists"
+			return "Ya existe un cargo similar"
 		default:
-			return "Please review"
+			return "Requiere revisión"
 	}
 }
 
@@ -70,22 +70,23 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 
 	return (
 		<section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-			<Notice variant="error" className="xl:col-span-2">
-				DEBUG: TaxFeePage is rendering. definitions={definitions.length} mode={mode}
-			</Notice>
 			<Card as="aside">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<div>
-						<p className="text-xs font-semibold text-slate-500 uppercase">Definitions</p>
-						<h2 className="mt-2 text-2xl font-semibold text-slate-950">Existing taxes & fees</h2>
+						<p className="text-xs font-semibold text-slate-500 uppercase">Definiciones</p>
+						<h2 className="mt-2 text-2xl font-semibold text-slate-950">
+							Impuestos y cargos existentes
+						</h2>
 					</div>
-					<Button type="button" onClick={startCreating}>
-						Create tax or fee
-					</Button>
+					{hasDefinitions && (
+						<Button type="button" onClick={startCreating}>
+							Crear
+						</Button>
+					)}
 				</div>
 
 				{warnings.length > 0 && (
-					<Notice variant="warning" title="Needs attention" className="mb-4">
+					<Notice variant="warning" title="Requiere atención" className="mb-4">
 						<div className="mt-3 space-y-3">
 							{warnings.map((warning, index) => (
 								<div key={`${warning.code}-${index}`}>
@@ -100,15 +101,12 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 				{!hasDefinitions ? (
 					<div className="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-5">
 						<h3 className="text-lg font-semibold text-slate-950">
-							No taxes or fees configured yet
+							Aún no hay impuestos ni cargos configurados
 						</h3>
 						<p className="mt-2 text-sm leading-6 text-slate-600">
 							Agrega impuestos o cargos para que los huéspedes vean precios correctos antes de
 							reservar.
 						</p>
-						<Button type="button" onClick={startCreating} className="mt-4">
-							Create tax or fee
-						</Button>
 					</div>
 				) : (
 					<div className="space-y-3">
@@ -119,12 +117,14 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 							>
 								<div className="flex items-start justify-between gap-4">
 									<div>
-										<Badge variant="neutral">{definition.kind === "tax" ? "Tax" : "Fee"}</Badge>
+										<Badge variant="neutral">
+											{definition.kind === "tax" ? "Impuesto" : "Cargo"}
+										</Badge>
 										<h3 className="mt-2 text-lg font-semibold text-slate-950">{definition.name}</h3>
 										<p className="mt-1 text-sm text-slate-600">
 											{definition.inclusionType === "included"
-												? "Included in price"
-												: "Added at checkout"}
+												? "Incluido en el precio"
+												: "Se agrega al confirmar"}
 										</p>
 									</div>
 									<Button
@@ -133,7 +133,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 										variant="secondary"
 										size="sm"
 									>
-										Edit
+										Editar
 									</Button>
 								</div>
 								<p className="mt-3 text-sm text-slate-700">
@@ -154,20 +154,22 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 
 				{mode === "idle" ? (
 					<Card className="border-dashed border-slate-300 bg-white/90 p-8">
-						<p className="text-xs font-semibold text-slate-500 uppercase">Wizard</p>
+						<p className="text-xs font-semibold text-slate-500 uppercase">Asistente</p>
 						<h2 className="mt-3 text-2xl font-semibold text-slate-950">
 							{hasDefinitions
-								? "Create a new tax or fee, or edit an existing one"
-								: "Start your first tax or fee"}
+								? "Crea una regla nueva o edita una existente"
+								: "Crea tu primer impuesto o cargo"}
 						</h2>
 						<p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
 							{hasDefinitions
-								? "Use the create button to add something new, or choose Edit on any item to reopen it in the wizard."
-								: "Use the button below to open the wizard. We will guide you step by step from preset to preview."}
+								? "Usa Crear en el encabezado de definiciones para agregar una regla nueva, o Editar para revisar una existente."
+								: "El asistente te guía desde el preset hasta una vista previa real antes de asignar."}
 						</p>
-						<Button type="button" onClick={startCreating} className="mt-6">
-							Create tax or fee
-						</Button>
+						{!hasDefinitions && (
+							<Button type="button" onClick={startCreating} className="mt-6">
+								Crear impuesto o cargo
+							</Button>
+						)}
 					</Card>
 				) : (
 					<TaxFeeWizard

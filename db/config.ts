@@ -120,10 +120,128 @@ const ProviderProfile = defineTable({
 		defaultCurrency: column.text({ default: "USD" }),
 		supportEmail: column.text({ optional: true }),
 		supportPhone: column.text({ optional: true }),
+		taxResidenceCountry: column.text({ optional: true }),
+		businessRegistrationNumber: column.text({ optional: true }),
+		fiscalStatus: column.text({ default: "not_configured" }),
+		paymentReadinessStatus: column.text({ default: "not_configured" }),
+		integrationReadinessStatus: column.text({ default: "not_configured" }),
+		governanceUpdatedAt: column.date({ optional: true }),
 		professionalToolsEnabled: column.boolean({ default: false }),
 		professionalToolsUpdatedAt: column.date({ optional: true }),
 		professionalToolsUpdatedBy: column.text({ optional: true, references: () => User.columns.id }),
 	},
+})
+const ProviderDocument = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		type: column.text(),
+		status: column.text({ default: "pending" }),
+		fileUrl: column.text({ optional: true }),
+		metadataJson: column.json({ optional: true }),
+		reviewedAt: column.date({ optional: true }),
+		reviewedBy: column.text({ optional: true, references: () => User.columns.id }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "type"] }, { on: ["providerId", "status"] }],
+})
+const ProviderTaxConfiguration = defineTable({
+	columns: {
+		providerId: column.text({ primaryKey: true, references: () => Provider.columns.id }),
+		status: column.text({ default: "not_configured" }),
+		taxResidenceCountry: column.text({ optional: true }),
+		businessRegistrationNumber: column.text({ optional: true }),
+		taxRegime: column.text({ optional: true }),
+		invoicingMode: column.text({ default: "platform_receipt" }),
+		metadataJson: column.json({ optional: true }),
+		updatedAt: column.date({ default: NOW }),
+		updatedBy: column.text({ optional: true, references: () => User.columns.id }),
+	},
+	indexes: [{ on: ["status"] }, { on: ["taxResidenceCountry"] }],
+})
+const ProviderPaymentAccount = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		status: column.text({ default: "not_configured" }),
+		provider: column.text(),
+		currency: column.text(),
+		accountReference: column.text({ optional: true }),
+		payoutSchedule: column.text({ default: "manual" }),
+		metadataJson: column.json({ optional: true }),
+		verifiedAt: column.date({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "provider"] }],
+})
+const ProviderIntegrationConnection = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		connectorKey: column.text(),
+		status: column.text({ default: "not_configured" }),
+		mode: column.text({ default: "sandbox" }),
+		scopesJson: column.json({ optional: true }),
+		credentialsRef: column.text({ optional: true }),
+		lastSyncAt: column.date({ optional: true }),
+		lastSyncStatus: column.text({ optional: true }),
+		errorMessage: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["providerId", "connectorKey"], unique: true },
+		{ on: ["providerId", "status"] },
+	],
+})
+const ProviderIntegrationSyncLog = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		connectorKey: column.text(),
+		connectionId: column.text({ optional: true, references: () => ProviderIntegrationConnection.columns.id }),
+		eventType: column.text(),
+		status: column.text(),
+		mode: column.text({ default: "sandbox" }),
+		message: column.text({ optional: true }),
+		metadataJson: column.json({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["providerId", "connectorKey", "createdAt"] },
+		{ on: ["providerId", "status"] },
+	],
+})
+const ProviderAuditLog = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		actorUserId: column.text({ optional: true, references: () => User.columns.id }),
+		action: column.text(),
+		entityType: column.text(),
+		entityId: column.text({ optional: true }),
+		beforeJson: column.json({ optional: true }),
+		afterJson: column.json({ optional: true }),
+		riskLevel: column.text({ default: "low" }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "createdAt"] }, { on: ["providerId", "entityType"] }],
+})
+const ProviderConfigurationState = defineTable({
+	columns: {
+		providerId: column.text({ primaryKey: true, references: () => Provider.columns.id }),
+		canPublish: column.boolean({ default: false }),
+		canAcceptBookings: column.boolean({ default: false }),
+		canCollectPayments: column.boolean({ default: false }),
+		canUseIntegrations: column.boolean({ default: false }),
+		readinessPercent: column.number({ default: 0 }),
+		blockersJson: column.json({ optional: true }),
+		risksJson: column.json({ optional: true }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["canPublish"] }, { on: ["canAcceptBookings"] }, { on: ["canCollectPayments"] }],
 })
 const ProviderVerification = defineTable({
 	columns: {
@@ -1182,6 +1300,13 @@ export default defineDb({
 		// 1 master
 		Provider,
 		ProviderProfile,
+		ProviderDocument,
+		ProviderTaxConfiguration,
+		ProviderPaymentAccount,
+		ProviderIntegrationConnection,
+		ProviderIntegrationSyncLog,
+		ProviderAuditLog,
+		ProviderConfigurationState,
 		ProviderVerification,
 		ProviderUser,
 		Destination,

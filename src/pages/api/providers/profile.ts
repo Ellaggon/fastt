@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { db, ProviderAuditLog } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
@@ -34,6 +35,16 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
 			supportEmail: String(form.get("supportEmail") ?? "").trim() || undefined,
 			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
+			taxResidenceCountry:
+				String(form.get("taxResidenceCountry") ?? "")
+					.trim()
+					.toUpperCase() || undefined,
+			businessRegistrationNumber:
+				String(form.get("businessRegistrationNumber") ?? "").trim() || undefined,
+			fiscalStatus: String(form.get("fiscalStatus") ?? "").trim() || undefined,
+			paymentReadinessStatus: String(form.get("paymentReadinessStatus") ?? "").trim() || undefined,
+			integrationReadinessStatus:
+				String(form.get("integrationReadinessStatus") ?? "").trim() || undefined,
 		}
 
 		const result = await upsertProviderProfileV2(
@@ -41,9 +52,31 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			{ providerId, ...raw }
 		)
 		await invalidateProvider(providerId)
+		await db
+			.insert(ProviderAuditLog)
+			.values({
+				id: crypto.randomUUID(),
+				providerId,
+				actorUserId: user.id,
+				action: "provider.profile.upsert",
+				entityType: "ProviderProfile",
+				entityId: providerId,
+				afterJson: raw,
+				riskLevel:
+					raw.fiscalStatus || raw.paymentReadinessStatus || raw.integrationReadinessStatus
+						? "medium"
+						: "low",
+				createdAt: new Date(),
+			})
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error)
+				if (!message.includes("ProviderAuditLog") && !message.includes("no such table")) {
+					throw error
+				}
+			})
 
 		if (shouldReturnHtmlRedirect(request)) {
-			const url = new URL("/provider?success=saved", request.url)
+			const url = new URL("/provider/settings/profile?success=saved", request.url)
 			return Response.redirect(url, 303)
 		}
 

@@ -4,6 +4,7 @@ import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import { publishProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -41,6 +42,11 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		await assertProviderCapability({
+			providerId,
+			currentUserId: user.id,
+			capability: "publish",
+		})
 		const result = await publishProduct({ repo: productRepository }, { productId })
 
 		if (!result.ok) {
@@ -72,6 +78,18 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+		if (e instanceof Error && e.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			return new Response(
+				JSON.stringify({
+					error: "provider_configuration_blocked",
+					...(e as any).details,
+				}),
+				{
+					status: 423,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		return new Response(JSON.stringify({ error: msg }), {

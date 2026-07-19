@@ -131,6 +131,11 @@ export type ProviderFullAggregate = {
 		defaultCurrency: string | null
 		supportEmail: string | null
 		supportPhone: string | null
+		taxResidenceCountry: string | null
+		businessRegistrationNumber: string | null
+		fiscalStatus: string | null
+		paymentReadinessStatus: string | null
+		integrationReadinessStatus: string | null
 	} | null
 	latestVerification: {
 		status: string | null

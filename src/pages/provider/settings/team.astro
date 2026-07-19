@@ -1,0 +1,140 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const users = Array.isArray(summary?.users) ? summary.users : []
+const permissions = summary?.permissions ?? {}
+const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePermissions : []
+---
+
+<ProviderSettingsLayout
+	title="Equipo y permisos"
+	heading="Equipo"
+	description="Base de gobierno para usuarios, roles y cambios sensibles dentro de la configuración del proveedor."
+>
+	<Notice variant="info" title="Gobernanza en preparación">
+		Los permisos efectivos ya se calculan desde la relación real del usuario con el proveedor. Las
+		invitaciones nuevas pueden montarse sobre este modelo sin cambiar la matriz de gobierno.
+	</Notice>
+
+	<div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Usuarios actuales</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Personas con relación directa al proveedor según el resumen consolidado.
+					</p>
+				</div>
+				<div class="space-y-3">
+					{
+						users.length ? (
+							users.map((user: any) => (
+								<Card variant="soft" class="flex items-center justify-between gap-4">
+									<div>
+										<p class="text-sm font-semibold text-slate-950">{user.email}</p>
+										<p class="mt-1 text-sm text-slate-600">Rol: {user.role}</p>
+									</div>
+									<Badge variant="success">Activo</Badge>
+								</Card>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								No hay usuarios asociados en el resumen actual.
+							</Card>
+						)
+					}
+				</div>
+			</div>
+		</Card>
+
+		<Card>
+			<div class="space-y-4">
+				<h2 class="text-xl font-semibold text-slate-950">Permisos efectivos</h2>
+				<div class="space-y-3 text-sm text-slate-600">
+					<p>Editar perfil: {permissions.canEditProfile ? "habilitado" : "restringido"}</p>
+					<p>Fiscalidad: {permissions.canManageFiscality ? "habilitado" : "restringido"}</p>
+					<p>Integraciones: {permissions.canManageIntegrations ? "habilitado" : "restringido"}</p>
+					<p>Invitar equipo: {permissions.canInviteTeam ? "habilitado" : "restringido"}</p>
+				</div>
+			</div>
+		</Card>
+	</div>
+
+	<Card>
+		<div class="space-y-4">
+			<div>
+				<h2 class="text-xl font-semibold text-slate-950">Matriz por rol</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Qué puede cambiar cada tipo de usuario en áreas sensibles de configuración.
+				</p>
+			</div>
+			<div class="overflow-x-auto">
+				<table class="min-w-full text-left text-sm">
+					<thead
+						class="border-b border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500"
+					>
+						<tr>
+							<th class="py-3 pr-4">Rol</th>
+							<th class="py-3 pr-4">Perfil</th>
+							<th class="py-3 pr-4">Fiscalidad</th>
+							<th class="py-3 pr-4">Pagos</th>
+							<th class="py-3 pr-4">Integraciones</th>
+							<th class="py-3 pr-4">Equipo</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-200">
+						{
+							rolePermissions.map((role: any) => (
+								<tr>
+									<td class="py-3 pr-4 font-semibold text-slate-950">{role.label}</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canEditProfile ? "success" : "neutral"}>
+											{role.canEditProfile ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canManageFiscality ? "success" : "neutral"}>
+											{role.canManageFiscality ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canManagePayments ? "success" : "neutral"}>
+											{role.canManagePayments ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canManageIntegrations ? "success" : "neutral"}>
+											{role.canManageIntegrations ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canInviteTeam ? "success" : "neutral"}>
+											{role.canInviteTeam ? "Sí" : "No"}
+										</Badge>
+									</td>
+								</tr>
+							))
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</Card>
+</ProviderSettingsLayout>

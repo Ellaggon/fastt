@@ -4,15 +4,19 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import { routes } from "@/lib/routes"
 
 const { isProviderAvailable, profile } = Astro.props
 ---
 
 <section class="space-y-4">
 	<header class="space-y-1">
+		<p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+			Configuración del proveedor
+		</p>
 		<h2 class="text-lg font-semibold text-slate-100">Perfil operativo</h2>
 		<p class="text-sm text-slate-300">
-			Configure los valores operativos por defecto del proveedor.
+			Configura los valores que usan reservas, calendario, comunicaciones y precios por defecto.
 		</p>
 	</header>
 	<Card>
@@ -22,7 +26,7 @@ const { isProviderAvailable, profile } = Astro.props
 					<p class="text-sm text-slate-600">
 						Complete primero la identidad para habilitar el perfil operativo.
 					</p>
-					<Button href="/provider?step=register">Ir a identidad</Button>
+					<Button href={routes.providerSettingsProfile()}>Ir a identidad</Button>
 				</div>
 			)
 		}
@@ -33,7 +37,8 @@ const { isProviderAvailable, profile } = Astro.props
 						<div class="space-y-1">
 							<h3 class="text-xl font-semibold text-slate-900">Operación</h3>
 							<p class="text-sm text-slate-600">
-								Estos campos son obligatorios para alcanzar estado listo.
+								Estos campos habilitan una operación consistente entre zonas horarias, moneda y
+								soporte.
 							</p>
 						</div>
 						<FormField label="Zona horaria" htmlFor="timezone" required>
@@ -83,9 +88,112 @@ const { isProviderAvailable, profile } = Astro.props
 						<FormField label="Teléfono de soporte" htmlFor="supportPhone">
 							<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
 						</FormField>
+						<div class="space-y-1 pt-2">
+							<h3 class="text-xl font-semibold text-slate-900">Gobernanza</h3>
+							<p class="text-sm text-slate-600">
+								Estos datos alimentan los controles de fiscalidad, pagos e integraciones.
+							</p>
+						</div>
+						<FormField label="País de residencia fiscal" htmlFor="taxResidenceCountry">
+							<Select id="taxResidenceCountry" name="taxResidenceCountry">
+								<option value="">Sin definir</option>
+								<option value="BO" selected={profile?.taxResidenceCountry === "BO"}>
+									Bolivia
+								</option>
+								<option value="CL" selected={profile?.taxResidenceCountry === "CL"}>
+									Chile
+								</option>
+								<option value="US" selected={profile?.taxResidenceCountry === "US"}>
+									Estados Unidos
+								</option>
+								<option value="ES" selected={profile?.taxResidenceCountry === "ES"}>
+									España
+								</option>
+							</Select>
+						</FormField>
+						<FormField label="Registro comercial o fiscal" htmlFor="businessRegistrationNumber">
+							<Input
+								id="businessRegistrationNumber"
+								name="businessRegistrationNumber"
+								value={profile?.businessRegistrationNumber ?? ""}
+							/>
+						</FormField>
+						<FormField label="Estado fiscal" htmlFor="fiscalStatus">
+							<Select id="fiscalStatus" name="fiscalStatus">
+								<option
+									value="not_configured"
+									selected={(profile?.fiscalStatus ?? "not_configured") === "not_configured"}
+								>
+									No configurado
+								</option>
+								<option value="pending" selected={profile?.fiscalStatus === "pending"}>
+									Pendiente
+								</option>
+								<option value="verified" selected={profile?.fiscalStatus === "verified"}>
+									Verificado
+								</option>
+								<option
+									value="requires_attention"
+									selected={profile?.fiscalStatus === "requires_attention"}
+								>
+									Requiere atención
+								</option>
+							</Select>
+						</FormField>
+						<FormField label="Estado de pagos" htmlFor="paymentReadinessStatus">
+							<Select id="paymentReadinessStatus" name="paymentReadinessStatus">
+								<option
+									value="not_configured"
+									selected={
+										(profile?.paymentReadinessStatus ?? "not_configured") === "not_configured"
+									}
+								>
+									No configurado
+								</option>
+								<option value="pending" selected={profile?.paymentReadinessStatus === "pending"}>
+									Pendiente
+								</option>
+								<option value="verified" selected={profile?.paymentReadinessStatus === "verified"}>
+									Verificado
+								</option>
+								<option
+									value="requires_attention"
+									selected={profile?.paymentReadinessStatus === "requires_attention"}
+								>
+									Requiere atención
+								</option>
+							</Select>
+						</FormField>
+						<FormField label="Estado de integraciones" htmlFor="integrationReadinessStatus">
+							<Select id="integrationReadinessStatus" name="integrationReadinessStatus">
+								<option
+									value="not_configured"
+									selected={
+										(profile?.integrationReadinessStatus ?? "not_configured") === "not_configured"
+									}
+								>
+									No configurado
+								</option>
+								<option
+									value="pending"
+									selected={profile?.integrationReadinessStatus === "pending"}
+								>
+									Pendiente
+								</option>
+								<option value="ready" selected={profile?.integrationReadinessStatus === "ready"}>
+									Listo
+								</option>
+								<option
+									value="requires_attention"
+									selected={profile?.integrationReadinessStatus === "requires_attention"}
+								>
+									Requiere atención
+								</option>
+							</Select>
+						</FormField>
 					</div>
 					<div class="flex items-center justify-end gap-3">
-						<Button href="/provider" variant="secondary">
+						<Button href={routes.providerSettings()} variant="secondary">
 							Volver
 						</Button>
 						<Button type="submit">Guardar perfil</Button>

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
+import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 export const GET: APIRoute = async ({ request }) => {
@@ -109,19 +110,19 @@ export const GET: APIRoute = async ({ request }) => {
 					: "neutral"
 
 	const primaryCtaAction = !identityComplete
-		? "/provider?step=register"
+		? routes.providerSettingsProfile()
 		: !operationalComplete
-			? "/provider?step=profile"
+			? routes.providerSettingsProfile()
 			: !verificationComplete
-				? "/provider?step=verification"
-				: "/dashboard"
+				? routes.providerSettingsVerification()
+				: routes.dashboard()
 
 	const primaryCtaLabel =
-		primaryCtaAction === "/dashboard"
+		primaryCtaAction === routes.dashboard()
 			? "Ir al panel"
-			: primaryCtaAction === "/provider?step=register"
+			: !identityComplete
 				? "Completar identidad"
-				: primaryCtaAction === "/provider?step=profile"
+				: !operationalComplete
 					? "Completar perfil"
 					: "Ver detalles"
 
