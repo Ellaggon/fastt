@@ -1,0 +1,245 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { listProviderIntegrations } from "@/lib/provider-integrations"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const url = new URL(Astro.request.url)
+const success = url.searchParams.get("success")
+const error = url.searchParams.get("error")
+const connectors = await listProviderIntegrations({
+	providerId: auth.providerId,
+	currentUserId: auth.user.id,
+})
+
+const connectedCount = connectors.filter((connector) =>
+	["connected", "syncing"].includes(connector.status)
+).length
+const attentionCount = connectors.filter((connector) =>
+	["requires_attention", "error", "revoked"].includes(connector.status)
+).length
+const productionCount = connectors.filter((connector) => connector.mode === "production").length
+const lastSync = connectors
+	.map((connector) => connector.lastSyncAt)
+	.filter(Boolean)
+	.sort((a, b) => Number(b) - Number(a))[0]
+
+const successMessages: Record<string, string> = {
+	integration_saved: "Integración guardada.",
+	integration_revoked: "Credenciales revocadas.",
+	sync_tested: "Sincronización de prueba registrada.",
+}
+
+function formatDate(value: Date | null) {
+	if (!value) return "Sin actividad"
+	return new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value)
+}
+---
+
+<ProviderSettingsLayout
+	title="Integraciones"
+	eyebrow="Configuración del proveedor · Conectividad"
+	heading="Integraciones"
+	description="Administra conexiones externas con persistencia, permisos, credenciales, modo sandbox/producción y logs de sincronización por proveedor."
+>
+	<div slot="actions">
+		<Button href={routes.providerSettingsVerification()} variant="secondary"
+			>Revisar verificación</Button
+		>
+	</div>
+
+	{
+		success && successMessages[success] ? (
+			<Notice variant="success" title="Cambio aplicado">
+				{successMessages[success]}
+			</Notice>
+		) : null
+	}
+	{
+		error ? (
+			<Notice variant="warning" title="No se pudo completar la acción">
+				{error}
+			</Notice>
+		) : null
+	}
+
+	<div class="grid gap-4 md:grid-cols-4">
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectados</p>
+			<p class="mt-3 text-2xl font-semibold text-slate-950">{connectedCount}/{connectors.length}</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Atención</p>
+			<p class="mt-3 text-2xl font-semibold text-slate-950">{attentionCount}</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Producción</p>
+			<p class="mt-3 text-2xl font-semibold text-slate-950">{productionCount}</p>
+		</Card>
+		<Card variant="soft" class="bg-white">
+			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Última sync</p>
+			<p class="mt-3 text-sm font-semibold text-slate-950">{formatDate(lastSync ?? null)}</p>
+		</Card>
+	</div>
+
+	<Notice variant="info" title="Gobierno de conectores">
+		Producción solo queda disponible cuando la gobernanza del proveedor permite integraciones.
+		Sandbox permite preparar scopes y credenciales sin activar operación externa.
+	</Notice>
+
+	<div class="grid gap-4 xl:grid-cols-2">
+		{
+			connectors.map((connector) => (
+				<Card>
+					<div class="flex flex-col gap-5">
+						<div class="flex flex-wrap items-start justify-between gap-4">
+							<div>
+								<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+									{connector.category}
+								</p>
+								<h2 class="mt-2 text-xl font-semibold text-slate-950">{connector.name}</h2>
+							</div>
+							<div class="flex flex-wrap justify-end gap-2">
+								<Badge variant={connector.tone}>{connector.statusLabel}</Badge>
+								<Badge variant={connector.mode === "production" ? "success" : "info"}>
+									{connector.mode === "production" ? "Producción" : "Sandbox"}
+								</Badge>
+							</div>
+						</div>
+
+						<p class="text-sm leading-6 text-slate-600">{connector.description}</p>
+
+						<div class="grid gap-4 lg:grid-cols-[1fr_0.85fr]">
+							<Card variant="soft" class="p-4">
+								<form method="post" action={`/api/provider/integrations/${connector.key}/connect`}>
+									<div class="grid gap-4">
+										<label class="grid gap-2 text-sm font-semibold text-slate-900">
+											Modo
+											<Select name="mode">
+												<option value="sandbox" selected={connector.mode === "sandbox"}>
+													Sandbox
+												</option>
+												<option
+													value="production"
+													selected={connector.mode === "production"}
+													disabled={!connector.canUseProduction}
+												>
+													Producción
+												</option>
+											</Select>
+										</label>
+
+										<label class="grid gap-2 text-sm font-semibold text-slate-900">
+											Referencia de credenciales
+											<Input
+												name="credentialsRef"
+												value={connector.credentialsRef}
+												placeholder="vault://proveedor/conector"
+											/>
+										</label>
+
+										<div>
+											<p class="text-sm font-semibold text-slate-900">Permisos</p>
+											<div class="mt-3 grid gap-2">
+												{connector.availableScopes.map((scope) => (
+													<label class="flex items-center gap-2 text-sm text-slate-700">
+														<input
+															type="checkbox"
+															name="scopes"
+															value={scope.key}
+															checked={connector.scopes.includes(scope.key)}
+															class="fastt-check-input h-4 w-4 rounded border-slate-300"
+														/>
+														<span>{scope.label}</span>
+													</label>
+												))}
+											</div>
+										</div>
+
+										<div class="flex flex-wrap gap-2">
+											<Button type="submit" size="sm">
+												Guardar
+											</Button>
+										</div>
+									</div>
+								</form>
+							</Card>
+
+							<Card variant="plain" class="p-4">
+								<p class="text-sm font-semibold text-slate-950">Requisitos</p>
+								<ul class="mt-3 grid gap-2 text-sm text-slate-600">
+									{connector.requirements.map((requirement) => (
+										<li>{requirement}</li>
+									))}
+								</ul>
+								<div class="mt-4 border-t border-slate-200 pt-4">
+									<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
+									<div class="mt-3 grid gap-2">
+										{connector.logs.length ? (
+											connector.logs.map((log) => (
+												<Card variant="soft" class="p-3">
+													<div class="flex items-center justify-between gap-3">
+														<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
+															{log.eventType}
+														</p>
+														<Badge variant={log.status === "error" ? "error" : "neutral"}>
+															{log.status}
+														</Badge>
+													</div>
+													<p class="mt-2 text-sm text-slate-700">{log.message}</p>
+													<p class="mt-1 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+												</Card>
+											))
+										) : (
+											<p class="text-sm text-slate-500">Sin eventos registrados.</p>
+										)}
+									</div>
+								</div>
+							</Card>
+						</div>
+
+						<div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+							<form method="post" action={`/api/provider/integrations/${connector.key}/sync`}>
+								<Button
+									type="submit"
+									variant="secondary"
+									size="sm"
+									disabled={connector.status === "not_configured" || connector.status === "revoked"}
+								>
+									Probar sync
+								</Button>
+							</form>
+							<form method="post" action={`/api/provider/integrations/${connector.key}/revoke`}>
+								<Button
+									type="submit"
+									variant="danger"
+									size="sm"
+									disabled={connector.status === "not_configured" || connector.status === "revoked"}
+								>
+									Revocar
+								</Button>
+							</form>
+						</div>
+					</div>
+				</Card>
+			))
+		}
+	</div>
+</ProviderSettingsLayout>
