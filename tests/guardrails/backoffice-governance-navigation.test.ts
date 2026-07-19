@@ -605,7 +605,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/lib/dashboard/professionalModeCookie.ts"),
 			"utf8"
 		)
-		const settings = readFileSync(join(process.cwd(), "src/pages/provider/index.astro"), "utf8")
+		const settings = readFileSync(
+			join(process.cwd(), "src/pages/provider/settings/index.astro"),
+			"utf8"
+		)
 		const endpoint = readFileSync(
 			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
 			"utf8"

@@ -1018,30 +1018,30 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		context: "governance",
 		operationalIntent:
 			"Setup del proveedor fuera de la operación diaria: perfil, verificación, impuestos, cargos e integraciones.",
-		maturity: "transitional",
+		maturity: "operational",
 		items: [
 			{
 				label: "Perfil del proveedor",
 				href: routes.settings(),
-				status: "transitional",
+				status: "canonical",
 				summary: "Datos de cuenta y negocio.",
 			},
 			{
 				label: "Verificación",
 				href: routes.verification(),
-				status: "transitional",
+				status: "canonical",
 				summary: "Identidad y aprobación.",
 			},
 			{
 				label: "Impuestos y cargos",
 				href: routes.taxFees(),
-				status: "transitional",
+				status: "canonical",
 				summary: "Cargos que se aplican al vender.",
 			},
 			{
 				label: "Integraciones",
 				href: routes.integrations(),
-				status: "transitional",
+				status: "canonical",
 				summary: "Conexiones externas.",
 			},
 		],
