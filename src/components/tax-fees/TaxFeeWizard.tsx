@@ -110,7 +110,7 @@ const PRESETS: Preset[] = [
 		key: "VAT",
 		kind: "tax",
 		label: "VAT / IVA",
-		description: "A percentage tax included in the displayed price.",
+		description: "Impuesto porcentual incluido en el precio mostrado.",
 		calculationType: "percentage",
 		appliesPer: "stay",
 		inclusionType: "included",
@@ -118,8 +118,8 @@ const PRESETS: Preset[] = [
 	{
 		key: "CITY_TAX",
 		kind: "tax",
-		label: "City Tax",
-		description: "A fixed local tax commonly charged per guest per night.",
+		label: "Tasa municipal",
+		description: "Impuesto local fijo que suele cobrarse por huésped y noche.",
 		calculationType: "fixed",
 		appliesPer: "guest_night",
 		inclusionType: "excluded",
@@ -127,8 +127,8 @@ const PRESETS: Preset[] = [
 	{
 		key: "SERVICE_FEE",
 		kind: "fee",
-		label: "Service Fee",
-		description: "A percentage-based operational fee added to the stay subtotal.",
+		label: "Cargo de servicio",
+		description: "Cargo operativo porcentual agregado al subtotal de la estadía.",
 		calculationType: "percentage",
 		appliesPer: "stay",
 		inclusionType: "excluded",
@@ -136,8 +136,8 @@ const PRESETS: Preset[] = [
 	{
 		key: "CLEANING_FEE",
 		kind: "fee",
-		label: "Cleaning Fee",
-		description: "A one-time fixed fee charged once per stay.",
+		label: "Cargo de limpieza",
+		description: "Cargo fijo que se cobra una vez por estadía.",
 		calculationType: "fixed",
 		appliesPer: "stay",
 		inclusionType: "excluded",
@@ -145,8 +145,8 @@ const PRESETS: Preset[] = [
 	{
 		key: "RESORT_FEE",
 		kind: "fee",
-		label: "Resort Fee",
-		description: "A fixed fee commonly charged per night for on-site services.",
+		label: "Cargo de resort",
+		description: "Cargo fijo por noche para servicios del establecimiento.",
 		calculationType: "fixed",
 		appliesPer: "night",
 		inclusionType: "excluded",
@@ -154,71 +154,75 @@ const PRESETS: Preset[] = [
 	{
 		key: "CUSTOM",
 		kind: "both",
-		label: "Custom",
-		description: "Start from a neutral setup and configure the charge manually.",
+		label: "Personalizado",
+		description: "Comienza desde una configuración neutral y define el cargo manualmente.",
 	},
 ]
 
 const STEP_LABELS = [
-	{ id: 1, title: "Type" },
+	{ id: 1, title: "Tipo" },
 	{ id: 2, title: "Preset" },
-	{ id: 3, title: "Amount" },
-	{ id: 4, title: "Scope" },
-	{ id: 5, title: "Review" },
-	{ id: 6, title: "Preview" },
+	{ id: 3, title: "Monto" },
+	{ id: 4, title: "Alcance" },
+	{ id: 5, title: "Revisión" },
+	{ id: 6, title: "Vista previa" },
 ]
 
 const APPLIES_PER_OPTIONS: Array<{ value: AppliesPer; label: string }> = [
-	{ value: "stay", label: "Per stay" },
-	{ value: "night", label: "Per night" },
-	{ value: "guest", label: "Per guest" },
-	{ value: "guest_night", label: "Per guest per night" },
+	{ value: "stay", label: "Por estadía" },
+	{ value: "night", label: "Por noche" },
+	{ value: "guest", label: "Por huésped" },
+	{ value: "guest_night", label: "Por huésped por noche" },
 ]
 
 const INCLUDED_OPTIONS: Array<{ value: InclusionType; label: string; helper: string }> = [
 	{
 		value: "included",
-		label: "Included in price",
-		helper: "Guests see this already inside the shown price.",
+		label: "Incluido en el precio",
+		helper: "El huésped lo ve incorporado en el precio publicado.",
 	},
 	{
 		value: "excluded",
-		label: "Added at checkout",
-		helper: "Guests see this added on top of the shown price.",
+		label: "Agregado al confirmar",
+		helper: "El huésped lo ve sumado sobre el precio publicado.",
 	},
 ]
 
 const CALCULATION_OPTIONS: Array<{ value: CalculationType; label: string; helper: string }> = [
 	{
 		value: "percentage",
-		label: "Percentage",
-		helper: "Calculated as a percentage of the stay subtotal.",
+		label: "Porcentaje",
+		helper: "Se calcula como porcentaje del subtotal de la estadía.",
 	},
 	{
 		value: "fixed",
-		label: "Fixed",
-		helper: "Charged as a flat amount using the selected frequency.",
+		label: "Monto fijo",
+		helper: "Se cobra como monto plano usando la frecuencia seleccionada.",
 	},
 ]
 
 const KIND_OPTIONS: Array<{ value: TaxFeeKind; label: string; description: string }> = [
 	{
 		value: "tax",
-		label: "Tax",
-		description: "Government or local charges such as VAT or city tax.",
+		label: "Impuesto",
+		description: "Cargos gubernamentales o locales como IVA o tasas municipales.",
 	},
 	{
 		value: "fee",
-		label: "Fee",
-		description: "Operational charges such as cleaning or service fees.",
+		label: "Cargo",
+		description: "Cargos operativos como limpieza, servicio o costos del establecimiento.",
 	},
 ]
 
 const SCOPE_OPTIONS: Array<{ value: ScopeType; label: string; helper: string }> = [
-	{ value: "product", label: "Product", helper: "Apply to a full hotel or property listing." },
-	{ value: "variant", label: "Variant", helper: "Apply only to one sellable room or unit." },
-	{ value: "rate_plan", label: "Rate plan", helper: "Apply to a specific rate plan only." },
-	{ value: "provider", label: "Provider", helper: "Apply broadly across this provider account." },
+	{ value: "product", label: "Producto", helper: "Aplicar a un hotel o servicio completo." },
+	{ value: "variant", label: "Unidad", helper: "Aplicar solo a una habitación o unidad vendible." },
+	{ value: "rate_plan", label: "Tarifa", helper: "Aplicar solo a una tarifa específica." },
+	{
+		value: "provider",
+		label: "Proveedor",
+		helper: "Aplicar de forma amplia a la cuenta del proveedor.",
+	},
 ]
 
 function makeTomorrow(offsetDays: number) {
@@ -280,12 +284,12 @@ function groupWarnings(warnings: ApiWarning[]): WarningGroup[] {
 	for (const warning of warnings) {
 		const title =
 			warning.code === "high_percentage"
-				? "Check the amount"
+				? "Revisar monto"
 				: warning.code === "overlap_detected"
-					? "Possible overlap"
+					? "Posible solapamiento"
 					: warning.code === "duplicate_code"
-						? "Similar charge already exists"
-						: "Please review"
+						? "Ya existe un cargo similar"
+						: "Requiere revisión"
 
 		const existing = grouped.get(title) ?? []
 		existing.push(warning)
@@ -327,6 +331,22 @@ function isValidDateRange(from: string, to: string) {
 async function readJsonSafe(response: Response) {
 	const text = await response.text()
 	return text ? JSON.parse(text) : null
+}
+
+function readableApiError(value: unknown, fallback: string) {
+	const raw = String(value ?? "").trim()
+	if (!raw) return fallback
+	const normalized = raw.toLowerCase()
+	if (normalized.includes("duplicate")) return "Ya existe una definición similar."
+	if (normalized === "not found" || normalized.includes("not_found"))
+		return "No se encontró el recurso solicitado."
+	if (normalized.includes("unauthorized")) return "Tu sesión no está autorizada para esta acción."
+	if (normalized.includes("preview failed")) return "No se pudo ejecutar la vista previa."
+	if (normalized.includes("assignment failed")) return "No se pudo guardar la asignación."
+	if (normalized.includes("failed to save")) return "No se pudo guardar la definición."
+	if (normalized.includes("failed to refresh")) return "No se pudieron actualizar las definiciones."
+	if (normalized.includes("validation")) return "Revisa los campos obligatorios antes de continuar."
+	return raw
 }
 
 export default function TaxFeeWizard(props: TaxFeeWizardProps) {
@@ -376,7 +396,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					? current
 					: {
 							...current,
-							name: current.kind === "tax" ? "Custom Tax" : "Custom Fee",
+							name: current.kind === "tax" ? "Impuesto personalizado" : "Cargo personalizado",
 						}
 			}
 			const preset = PRESETS.find((item) => item.key === current.presetKey)
@@ -431,7 +451,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			const response = await fetch("/api/provider/tax-fees/definitions")
 			const body = await readJsonSafe(response)
 			if (!response.ok) {
-				throw new Error(body?.message || body?.error || "Failed to refresh definitions")
+				throw new Error(
+					readableApiError(
+						body?.message || body?.error,
+						"No se pudieron actualizar las definiciones"
+					)
+				)
 			}
 			const nextDefinitions = Array.isArray(body?.definitions) ? body.definitions : []
 			const nextWarnings = Array.isArray(body?.warnings) ? body.warnings : []
@@ -439,7 +464,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setListWarnings(nextWarnings)
 			props.onDefinitionsChange?.(nextDefinitions, nextWarnings)
 		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : "Failed to refresh definitions")
+			setErrorMessage(
+				error instanceof Error ? error.message : "No se pudieron actualizar las definiciones"
+			)
 		} finally {
 			setIsRefreshingDefinitions(false)
 		}
@@ -511,7 +538,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			presetKey: preset.key,
 			name:
 				preset.key === "CUSTOM"
-					? current.name || (current.kind === "tax" ? "Custom Tax" : "Custom Fee")
+					? current.name ||
+						(current.kind === "tax" ? "Impuesto personalizado" : "Cargo personalizado")
 					: preset.label,
 			code: "",
 			calculationType: preset.calculationType ?? current.calculationType,
@@ -571,7 +599,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			})
 			const body = await readJsonSafe(response)
 			if (!response.ok) {
-				throw new Error(body?.message || body?.error || "Failed to save definition")
+				throw new Error(
+					readableApiError(body?.message || body?.error, "No se pudo guardar la definición")
+				)
 			}
 
 			const nextId = body?.id
@@ -582,12 +612,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			await refreshDefinitions()
 			setSuccessMessage(
 				editingDefinitionId
-					? "Definition updated. Run preview before assigning."
-					: "Definition saved. Run preview before assigning."
+					? "Definición actualizada. Ejecuta una vista previa antes de asignar."
+					: "Definición guardada. Ejecuta una vista previa antes de asignar."
 			)
 			setStep(6)
 		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : "Failed to save definition")
+			setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la definición")
 		} finally {
 			setIsSavingDefinition(false)
 		}
@@ -612,7 +642,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			})
 			const body = await readJsonSafe(response)
 			if (!response.ok) {
-				throw new Error(body?.message || body?.error || "Preview failed")
+				throw new Error(
+					readableApiError(body?.message || body?.error, "No se pudo ejecutar la vista previa")
+				)
 			}
 
 			setPreviewResult(body)
@@ -622,7 +654,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setHasSuccessfulPreview(false)
 			setPreviewResult(null)
 			setPreviewWarnings([])
-			setErrorMessage(error instanceof Error ? error.message : "Preview failed")
+			setErrorMessage(
+				error instanceof Error ? error.message : "No se pudo ejecutar la vista previa"
+			)
 		} finally {
 			setIsPreviewLoading(false)
 		}
@@ -646,16 +680,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			})
 			const body = await readJsonSafe(response)
 			if (!response.ok) {
-				throw new Error(body?.message || body?.error || "Assignment failed")
+				throw new Error(
+					readableApiError(body?.message || body?.error, "No se pudo guardar la asignación")
+				)
 			}
 
 			setListWarnings(Array.isArray(body?.warnings) ? body.warnings : [])
 			await refreshDefinitions()
-			setSuccessMessage("Definition assigned successfully.")
+			setSuccessMessage("Definición asignada correctamente.")
 			resetWizard()
-			props.onAssignmentSuccess?.("Tax or fee assigned successfully.")
+			props.onAssignmentSuccess?.("Impuesto o cargo asignado correctamente.")
 		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : "Assignment failed")
+			setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la asignación")
 		} finally {
 			setIsSavingAssignment(false)
 		}
@@ -683,9 +719,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					<Card as="aside">
 						<div className="mb-4 flex items-center justify-between">
 							<div>
-								<p className="text-xs font-semibold text-slate-500 uppercase">Definitions</p>
+								<p className="text-xs font-semibold text-slate-500 uppercase">Definiciones</p>
 								<h2 className="mt-2 text-2xl font-semibold text-slate-950">
-									Existing taxes & fees
+									Impuestos y cargos existentes
 								</h2>
 							</div>
 							<Button
@@ -697,12 +733,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								variant="secondary"
 								size="sm"
 							>
-								{isRefreshingDefinitions ? "Refreshing..." : "New definition"}
+								{isRefreshingDefinitions ? "Actualizando..." : "Nueva definición"}
 							</Button>
 						</div>
 
 						{listWarnings.length > 0 && (
-							<Notice variant="warning" title="Needs attention" className="mb-4">
+							<Notice variant="warning" title="Requiere atención" className="mb-4">
 								<div className="mt-3 space-y-3">
 									{listWarningGroups.map((group) => (
 										<div key={group.title}>
@@ -721,7 +757,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						<div className="space-y-3">
 							{definitions.length === 0 ? (
 								<div className="fastt-empty-state rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
-									No taxes or fees configured yet.
+									Aún no hay impuestos ni cargos configurados.
 								</div>
 							) : (
 								definitions.map((definition) => (
@@ -731,7 +767,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									>
 										<div className="flex items-start justify-between gap-4">
 											<div>
-												<Badge>{definition.kind}</Badge>
+												<Badge>{definition.kind === "tax" ? "Impuesto" : "Cargo"}</Badge>
 												<h3 className="mt-2 text-lg font-semibold text-slate-950">
 													{definition.name}
 												</h3>
@@ -743,7 +779,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 												variant="secondary"
 												size="sm"
 											>
-												Edit
+												Editar
 											</Button>
 										</div>
 										<p className="mt-3 text-sm text-slate-700">
@@ -800,7 +836,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					)}
 
 					{previewWarnings.length > 0 && (
-						<Notice variant="warning" title="Review before saving" className="mb-4">
+						<Notice variant="warning" title="Revisar antes de guardar" className="mb-4">
 							<div className="mt-3 space-y-3">
 								{warningGroups.map((group) => (
 									<div key={group.title}>
@@ -819,9 +855,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 1 && (
 						<div className="space-y-4">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">What are you adding?</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">¿Qué estás agregando?</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									Start by choosing whether this is a government tax or an operational fee.
+									Comienza definiendo si es un impuesto legal/local o un cargo operativo.
 								</p>
 							</div>
 							<div className="grid gap-4 md:grid-cols-2">
@@ -842,10 +878,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 2 && (
 						<div className="space-y-4">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Choose a starting preset</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">Elige un preset inicial</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									Start with the closest match. We will fill in the usual setup for you so you
-									mostly just need to confirm the amount.
+									Parte desde la opción más cercana. El asistente completa la configuración común
+									para que solo confirmes los detalles importantes.
 								</p>
 							</div>
 							<div className="grid gap-4 md:grid-cols-2">
@@ -866,20 +902,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 3 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Set the amount</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">Define el monto</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									We already filled the common setup for{" "}
+									Ya completamos la configuración base para{" "}
 									<strong className="font-semibold text-slate-900">
-										{selectedPreset?.label ?? "this charge"}
+										{selectedPreset?.label ?? "este cargo"}
 									</strong>
-									. Most of the time you only need to confirm the amount and how guests will see it.
+									. Normalmente solo necesitas confirmar el monto y cómo lo verá el huésped.
 								</p>
 							</div>
 
 							<div className="space-y-3">
-								<span className="text-sm font-medium text-slate-700">
-									How is this charge set up?
-								</span>
+								<span className="text-sm font-medium text-slate-700">¿Cómo se calcula?</span>
 								<div className="grid gap-3 md:grid-cols-2">
 									{CALCULATION_OPTIONS.map((option) => (
 										<ChoiceCard
@@ -888,7 +922,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											onClick={() => setCalculationType(option.value)}
 										>
 											<div className="text-base font-semibold text-slate-950">
-												{option.value === "percentage" ? "Percentage of price" : "Fixed amount"}
+												{option.value === "percentage" ? "Porcentaje del precio" : "Monto fijo"}
 											</div>
 											<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
 										</ChoiceCard>
@@ -899,7 +933,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
 									<span className="text-sm font-medium text-slate-700">
-										{draft.calculationType === "percentage" ? "Percentage amount" : "Charge amount"}
+										{draft.calculationType === "percentage" ? "Porcentaje" : "Monto del cargo"}
 									</span>
 									<Input
 										type="number"
@@ -913,7 +947,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 								{draft.calculationType === "fixed" && (
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Currency</span>
+										<span className="text-sm font-medium text-slate-700">Moneda</span>
 										<Select
 											value={draft.currency}
 											onChange={(event) => updateDraft({ currency: event.target.value })}
@@ -930,7 +964,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
 									<span className="text-sm font-medium text-slate-700">
-										How should guests see it?
+										¿Cómo debe verlo el huésped?
 									</span>
 									<div className="grid gap-3">
 										{INCLUDED_OPTIONS.map((option) => (
@@ -947,29 +981,29 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</div>
 
 								<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4">
-									<p className="text-sm font-medium text-slate-700">Current setup</p>
+									<p className="text-sm font-medium text-slate-700">Configuración actual</p>
 									<dl className="mt-3 space-y-3 text-sm text-slate-700">
 										<div className="flex items-center justify-between gap-4">
-											<dt>Type</dt>
+											<dt>Tipo</dt>
 											<dd className="font-medium text-slate-950">
-												{draft.kind === "tax" ? "Tax" : "Fee"}
+												{draft.kind === "tax" ? "Impuesto" : "Cargo"}
 											</dd>
 										</div>
 										<div className="flex items-center justify-between gap-4">
 											<dt>Preset</dt>
 											<dd className="font-medium text-slate-950">
-												{selectedPreset?.label ?? "Custom"}
+												{selectedPreset?.label ?? "Personalizado"}
 											</dd>
 										</div>
 										<div className="flex items-center justify-between gap-4">
-											<dt>Frequency</dt>
+											<dt>Frecuencia</dt>
 											<dd className="font-medium text-slate-950">
 												{APPLIES_PER_OPTIONS.find((item) => item.value === draft.appliesPer)?.label}
 											</dd>
 										</div>
 									</dl>
 									<p className="mt-4 text-xs text-slate-500">
-										Need to change how often this applies? You can adjust it in the advanced step.
+										Si necesitas cambiar la frecuencia, puedes ajustarla en el paso de revisión.
 									</p>
 								</div>
 							</div>
@@ -979,12 +1013,10 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 4 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">
-									Choose where it will apply
-								</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">Elige dónde se aplicará</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									The preview API needs the product context, and the final assignment will use the
-									selected scope.
+									La vista previa necesita contexto de producto y la asignación final usará el
+									alcance seleccionado.
 								</p>
 							</div>
 
@@ -1003,7 +1035,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Scope ID</span>
+									<span className="text-sm font-medium text-slate-700">ID del alcance</span>
 									<Input
 										value={draft.scopeId}
 										onChange={(event) => updateDraft({ scopeId: event.target.value })}
@@ -1020,7 +1052,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Product ID for preview</span>
+									<span className="text-sm font-medium text-slate-700">
+										ID de producto para vista previa
+									</span>
 									<Input
 										value={draft.productId}
 										onChange={(event) => updateDraft({ productId: event.target.value })}
@@ -1029,7 +1063,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</label>
 
 								<label className="flex flex-col gap-2 md:col-span-2">
-									<span className="text-sm font-medium text-slate-700">Channel (optional)</span>
+									<span className="text-sm font-medium text-slate-700">Canal opcional</span>
 									<Input
 										value={draft.channel}
 										onChange={(event) => updateDraft({ channel: event.target.value })}
@@ -1043,16 +1077,16 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 5 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Advanced details</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">Detalles de revisión</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									Only adjust these if you need something more specific. We will save the definition
-									first, then run a real preview before assignment.
+									Ajusta estos campos solo si necesitas una regla más específica. Primero se guarda
+									la definición y luego se ejecuta una vista previa real antes de asignar.
 								</p>
 							</div>
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Charge name</span>
+									<span className="text-sm font-medium text-slate-700">Nombre del cargo</span>
 									<Input
 										value={draft.name}
 										onChange={(event) => updateDraft({ name: event.target.value, code: "" })}
@@ -1061,7 +1095,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 
 								<label className="flex flex-col gap-2">
 									<span className="text-sm font-medium text-slate-700">
-										How often does it apply?
+										¿Con qué frecuencia aplica?
 									</span>
 									<Select
 										value={draft.appliesPer}
@@ -1076,15 +1110,13 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										))}
 									</Select>
 									<p className="text-xs text-slate-500">
-										Most presets already set this correctly. Change it only if your charge works
-										differently.
+										La mayoría de presets ya define esto correctamente. Cámbialo solo si tu cargo
+										funciona distinto.
 									</p>
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">
-										Effective from (optional)
-									</span>
+									<span className="text-sm font-medium text-slate-700">Vigente desde opcional</span>
 									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
@@ -1095,9 +1127,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</label>
 
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">
-										Effective to (optional)
-									</span>
+									<span className="text-sm font-medium text-slate-700">Vigente hasta opcional</span>
 									<Input
 										type="text"
 										placeholder="AAAA-MM-DD"
@@ -1109,10 +1139,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							</div>
 
 							<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-								<p className="font-medium text-slate-900">Internal fields are handled for you</p>
+								<p className="font-medium text-slate-900">
+									Los campos internos se gestionan automáticamente
+								</p>
 								<p className="mt-1">
-									Code and priority are generated internally. You only need to confirm how guests
-									should see the charge.
+									El código y la prioridad se generan internamente. Solo confirma cómo debe ver el
+									huésped este cargo.
 								</p>
 							</div>
 						</div>
@@ -1121,16 +1153,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 6 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Run real backend preview</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">
+									Ejecuta una vista previa real
+								</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									This preview comes directly from the live CAPA 7 backend. It helps you check how
-									the price will look to guests before you assign the charge.
+									La simulación usa el backend real para revisar cómo verá el huésped el precio
+									antes de asignar la regla.
 								</p>
 							</div>
 
 							<div className="grid gap-4 md:grid-cols-2">
 								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Base amount</span>
+									<span className="text-sm font-medium text-slate-700">Monto base</span>
 									<Input
 										type="number"
 										step="0.01"
@@ -1160,7 +1194,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</label>
 								<div className="grid gap-4 sm:grid-cols-2">
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Adults</span>
+										<span className="text-sm font-medium text-slate-700">Adultos</span>
 										<Input
 											type="number"
 											min="0"
@@ -1169,7 +1203,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										/>
 									</label>
 									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Children</span>
+										<span className="text-sm font-medium text-slate-700">Niños</span>
 										<Input
 											type="number"
 											min="0"
@@ -1186,11 +1220,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									onClick={() => void runPreview()}
 									disabled={isPreviewLoading || !definitionId || !draft.productId.trim()}
 								>
-									{isPreviewLoading ? "Running preview..." : "Run preview"}
+									{isPreviewLoading ? "Ejecutando..." : "Ejecutar vista previa"}
 								</Button>
 								{editingDefinitionId && (
 									<Badge variant="neutral" className="px-4 py-2 text-sm">
-										Editing mode: definition updates only. Assignment is separate.
+										Modo edición: se actualiza la definición. La asignación se gestiona por
+										separado.
 									</Badge>
 								)}
 							</div>
@@ -1198,27 +1233,29 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							{previewResult && (
 								<div className="fastt-soft-box space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-5">
 									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
-										<p className="text-sm font-medium text-slate-700">Price</p>
+										<p className="text-sm font-medium text-slate-700">Precio</p>
 										<p className="mt-1 text-2xl font-semibold text-slate-950">
 											{formatMoney(previewResult.breakdown.base, previewCurrency)}
 										</p>
 										<div className="mt-3 flex flex-wrap gap-2">
 											{previewResult.flags.hasIncluded && (
-												<Badge variant="success">Includes charges</Badge>
+												<Badge variant="success">Incluye cargos</Badge>
 											)}
 											{previewResult.flags.hasExcluded && (
-												<Badge variant="warning">More charges at checkout</Badge>
+												<Badge variant="warning">Cargos adicionales al confirmar</Badge>
 											)}
 										</div>
 									</div>
 
 									<div className="grid gap-4 md:grid-cols-2">
 										<div>
-											<h3 className="text-sm font-semibold text-slate-900">Included in price</h3>
+											<h3 className="text-sm font-semibold text-slate-900">
+												Incluidos en el precio
+											</h3>
 											<ul className="mt-2 space-y-2 text-sm text-slate-700">
 												{includedLines.length === 0 ? (
 													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
-														Nothing extra is included here.
+														No hay cargos incluidos adicionales.
 													</li>
 												) : (
 													includedLines.map((line, index) => (
@@ -1245,11 +1282,11 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											</ul>
 										</div>
 										<div>
-											<h3 className="text-sm font-semibold text-slate-900">Additional charges</h3>
+											<h3 className="text-sm font-semibold text-slate-900">Cargos adicionales</h3>
 											<ul className="mt-2 space-y-2 text-sm text-slate-700">
 												{excludedLines.length === 0 ? (
 													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
-														No extra charges will be added later.
+														No se agregarán cargos extra después.
 													</li>
 												) : (
 													excludedLines.map((line, index) => (
@@ -1298,7 +1335,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								}
 								variant="secondary"
 							>
-								Back
+								Volver
 							</Button>
 							<Button
 								type="button"
@@ -1309,7 +1346,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								disabled={isSavingDefinition || isPreviewLoading || isSavingAssignment}
 								variant="secondary"
 							>
-								Reset
+								Reiniciar
 							</Button>
 						</div>
 
@@ -1320,7 +1357,11 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									onClick={nextStep}
 									disabled={!stepValid || isSavingDefinition}
 								>
-									{step === 5 ? (isSavingDefinition ? "Saving..." : "Save definition") : "Next"}
+									{step === 5
+										? isSavingDefinition
+											? "Guardando..."
+											: "Guardar definición"
+										: "Siguiente"}
 								</Button>
 							)}
 
@@ -1331,7 +1372,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									disabled={!hasSuccessfulPreview || !definitionId || isSavingAssignment}
 									variant="success"
 								>
-									{isSavingAssignment ? "Saving..." : "Save and assign"}
+									{isSavingAssignment ? "Guardando..." : "Guardar y asignar"}
 								</Button>
 							)}
 
@@ -1339,14 +1380,14 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								<Button
 									type="button"
 									onClick={() => {
-										setSuccessMessage("Definition changes saved.")
+										setSuccessMessage("Cambios guardados.")
 										void refreshDefinitions()
-										props.onEditingComplete?.("Tax or fee updated successfully.")
+										props.onEditingComplete?.("Impuesto o cargo actualizado correctamente.")
 									}}
 									disabled={!hasSuccessfulPreview}
 									variant="success"
 								>
-									Finish editing
+									Finalizar edición
 								</Button>
 							)}
 						</div>

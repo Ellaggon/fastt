@@ -12,7 +12,7 @@ export const PUT: APIRoute = async () =>
 			headers: {
 				"Content-Type": "application/json",
 				"Deprecation": "true",
-				"Link": '</provider/tax-fees>; rel="canonical"',
+				"Link": '</provider/settings/tax-fees>; rel="canonical"',
 			},
 		}
 	)
