@@ -51,6 +51,16 @@ export let Image: any
 export let ImageUpload: any
 export let Provider: any
 export let User: any
+export let ProviderProfile: any
+export let ProviderDocument: any
+export let ProviderTaxConfiguration: any
+export let ProviderPaymentAccount: any
+export let ProviderIntegrationConnection: any
+export let ProviderIntegrationSyncLog: any
+export let ProviderAuditLog: any
+export let ProviderConfigurationState: any
+export let ProviderVerification: any
+export let ProviderFinancialProfile: any
 export let ProviderUser: any
 export let Hotel: any
 export let Tour: any
@@ -193,6 +203,16 @@ async function init() {
 	ImageUpload = drizzleTables.ImageUpload
 	Provider = drizzleTables.Provider
 	User = drizzleTables.User
+	ProviderProfile = drizzleTables.ProviderProfile
+	ProviderDocument = drizzleTables.ProviderDocument
+	ProviderTaxConfiguration = drizzleTables.ProviderTaxConfiguration
+	ProviderPaymentAccount = drizzleTables.ProviderPaymentAccount
+	ProviderIntegrationConnection = drizzleTables.ProviderIntegrationConnection
+	ProviderIntegrationSyncLog = drizzleTables.ProviderIntegrationSyncLog
+	ProviderAuditLog = drizzleTables.ProviderAuditLog
+	ProviderConfigurationState = drizzleTables.ProviderConfigurationState
+	ProviderVerification = drizzleTables.ProviderVerification
+	ProviderFinancialProfile = drizzleTables.ProviderFinancialProfile
 	ProviderUser = drizzleTables.ProviderUser
 	Hotel = drizzleTables.Hotel
 	Tour = drizzleTables.Tour

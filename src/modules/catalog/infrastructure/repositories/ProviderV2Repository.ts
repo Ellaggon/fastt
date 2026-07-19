@@ -137,6 +137,11 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 		defaultCurrency: string
 		supportEmail?: string | null
 		supportPhone?: string | null
+		taxResidenceCountry?: string | null
+		businessRegistrationNumber?: string | null
+		fiscalStatus?: string | null
+		paymentReadinessStatus?: string | null
+		integrationReadinessStatus?: string | null
 	}): Promise<void> {
 		const existing = await db
 			.select({ providerId: ProviderProfile.providerId })
@@ -151,6 +156,12 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 				defaultCurrency: params.defaultCurrency,
 				supportEmail: params.supportEmail ?? null,
 				supportPhone: params.supportPhone ?? null,
+				taxResidenceCountry: params.taxResidenceCountry ?? null,
+				businessRegistrationNumber: params.businessRegistrationNumber ?? null,
+				fiscalStatus: params.fiscalStatus ?? "not_configured",
+				paymentReadinessStatus: params.paymentReadinessStatus ?? "not_configured",
+				integrationReadinessStatus: params.integrationReadinessStatus ?? "not_configured",
+				governanceUpdatedAt: new Date(),
 			})
 			return
 		}
@@ -162,6 +173,12 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 				defaultCurrency: params.defaultCurrency,
 				supportEmail: params.supportEmail ?? null,
 				supportPhone: params.supportPhone ?? null,
+				taxResidenceCountry: params.taxResidenceCountry ?? null,
+				businessRegistrationNumber: params.businessRegistrationNumber ?? null,
+				fiscalStatus: params.fiscalStatus ?? "not_configured",
+				paymentReadinessStatus: params.paymentReadinessStatus ?? "not_configured",
+				integrationReadinessStatus: params.integrationReadinessStatus ?? "not_configured",
+				governanceUpdatedAt: new Date(),
 			})
 			.where(eq(ProviderProfile.providerId, params.providerId))
 	}

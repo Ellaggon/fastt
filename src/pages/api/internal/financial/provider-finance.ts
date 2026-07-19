@@ -23,6 +23,7 @@ import {
 	providerStatementRepository,
 	reconciliationMatchRepository,
 } from "@/container/financial.container"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import { buildProviderFinanceSummary } from "@/modules/financial/public"
 
 import { json, requireFinancialProvider } from "./_stage2"
@@ -49,6 +50,24 @@ function bookingCursorFromRow(row: { bookingId: unknown; confirmedAt?: unknown }
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
+	try {
+		await assertProviderCapability({
+			providerId: auth.providerId,
+			currentUserId: auth.user?.id ?? null,
+			capability: "payments",
+		})
+	} catch (error) {
+		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			return json(
+				{
+					error: "provider_configuration_blocked",
+					...(error as any).details,
+				},
+				423
+			)
+		}
+		throw error
+	}
 	const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
 	const cursor = parseBookingCursor(url.searchParams.get("cursor"))
 	const bookingPredicates = [eq(Booking.providerId, auth.providerId)]

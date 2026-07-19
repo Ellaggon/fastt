@@ -1,9 +1,10 @@
 import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
-import { and, Booking, db, eq, InventoryLock, Product, sql } from "astro:db"
+import { and, Booking, db, eq, InventoryLock, Product, sql, Variant } from "astro:db"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
 import { applyInventoryMutation } from "@/modules/inventory/public"
@@ -54,6 +55,17 @@ async function findLinkedBookingByHold(
 		bookingId: String(linked.bookingId),
 		status: String(linked.status ?? "confirmed"),
 	}
+}
+
+async function findProviderIdByHold(holdId: string): Promise<string | null> {
+	const row = await db
+		.select({ providerId: Product.providerId })
+		.from(InventoryLock)
+		.leftJoin(Variant, eq(Variant.id, InventoryLock.variantId))
+		.leftJoin(Product, eq(Product.id, Variant.productId))
+		.where(eq(InventoryLock.holdId, holdId))
+		.get()
+	return String(row?.providerId ?? "").trim() || null
 }
 
 async function serializeBookingConfirm<T>(holdId: string, fn: () => Promise<T>): Promise<T> {
@@ -112,6 +124,13 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const parsed = schema.parse(payload)
 		requestedHoldId = parsed.holdId
+		const providerIdForHold = await findProviderIdByHold(parsed.holdId)
+		if (!providerIdForHold) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
+		await assertProviderCapability({
+			providerId: providerIdForHold,
+			currentUserId: user?.id ?? null,
+			capability: "booking",
+		})
 
 		const result = await serializeBookingConfirm(parsed.holdId, async () =>
 			applyInventoryMutation({
@@ -233,6 +252,18 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			return new Response(
+				JSON.stringify({
+					error: "provider_configuration_blocked",
+					...(error as any).details,
+				}),
+				{
+					status: 423,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 		const code = error instanceof Error ? error.message : "INTERNAL_ERROR"
 		if (

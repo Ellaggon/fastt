@@ -32,7 +32,7 @@ import type {
 	CatalogReadModelRepositoryPort,
 	VariantFullAggregate,
 } from "@/modules/catalog/application/ports/CatalogReadModelRepositoryPort"
-import { RatePlanPricingReadRepository } from "@/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
+import { RatePlanPricingReadRepository } from "../../../pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 export class CatalogReadModelRepository implements CatalogReadModelRepositoryPort {
 	private readonly pricingReadRepository = new RatePlanPricingReadRepository()
 
@@ -438,6 +438,11 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					defaultCurrency: ProviderProfile.defaultCurrency,
 					supportEmail: ProviderProfile.supportEmail,
 					supportPhone: ProviderProfile.supportPhone,
+					taxResidenceCountry: ProviderProfile.taxResidenceCountry,
+					businessRegistrationNumber: ProviderProfile.businessRegistrationNumber,
+					fiscalStatus: ProviderProfile.fiscalStatus,
+					paymentReadinessStatus: ProviderProfile.paymentReadinessStatus,
+					integrationReadinessStatus: ProviderProfile.integrationReadinessStatus,
 				},
 				providerUserRole: ProviderUser.role,
 				providerUserUserId: ProviderUser.userId,

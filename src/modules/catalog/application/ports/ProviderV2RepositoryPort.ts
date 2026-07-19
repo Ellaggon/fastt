@@ -26,6 +26,11 @@ export interface ProviderV2RepositoryPort {
 		defaultCurrency: string
 		supportEmail?: string | null
 		supportPhone?: string | null
+		taxResidenceCountry?: string | null
+		businessRegistrationNumber?: string | null
+		fiscalStatus?: string | null
+		paymentReadinessStatus?: string | null
+		integrationReadinessStatus?: string | null
 	}): Promise<void>
 
 	setVerificationStatus(params: {
