@@ -62,6 +62,7 @@ export let ProviderConfigurationState: any
 export let ProviderVerification: any
 export let ProviderFinancialProfile: any
 export let ProviderUser: any
+export let ProviderInvitation: any
 export let Hotel: any
 export let Tour: any
 export let Package: any
@@ -214,6 +215,7 @@ async function init() {
 	ProviderVerification = drizzleTables.ProviderVerification
 	ProviderFinancialProfile = drizzleTables.ProviderFinancialProfile
 	ProviderUser = drizzleTables.ProviderUser
+	ProviderInvitation = drizzleTables.ProviderInvitation
 	Hotel = drizzleTables.Hotel
 	Tour = drizzleTables.Tour
 	Package = drizzleTables.Package

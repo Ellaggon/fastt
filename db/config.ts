@@ -120,10 +120,14 @@ const ProviderProfile = defineTable({
 		defaultCurrency: column.text({ default: "USD" }),
 		supportEmail: column.text({ optional: true }),
 		supportPhone: column.text({ optional: true }),
+		// Legacy compatibility only. Canonical fiscal identity lives in ProviderTaxConfiguration.
 		taxResidenceCountry: column.text({ optional: true }),
 		businessRegistrationNumber: column.text({ optional: true }),
 		fiscalStatus: column.text({ default: "not_configured" }),
+		// Legacy compatibility only. Canonical payout methods live in ProviderPaymentAccount;
+		// ProviderFinancialProfile is the derived finance readiness summary.
 		paymentReadinessStatus: column.text({ default: "not_configured" }),
+		// Legacy compatibility only. Integration readiness is derived from ProviderIntegrationConnection.
 		integrationReadinessStatus: column.text({ default: "not_configured" }),
 		governanceUpdatedAt: column.date({ optional: true }),
 		professionalToolsEnabled: column.boolean({ default: false }),
@@ -149,6 +153,8 @@ const ProviderDocument = defineTable({
 const ProviderTaxConfiguration = defineTable({
 	columns: {
 		providerId: column.text({ primaryKey: true, references: () => Provider.columns.id }),
+		// Canonical provider fiscal identity/readiness. TaxFeeDefinition/Assignment are the
+		// separate commercial tax and fee application model.
 		status: column.text({ default: "not_configured" }),
 		taxResidenceCountry: column.text({ optional: true }),
 		businessRegistrationNumber: column.text({ optional: true }),
@@ -164,6 +170,8 @@ const ProviderPaymentAccount = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
+		// Canonical payout/payment method record. Financial eligibility rolls up separately in
+		// ProviderFinancialProfile.
 		status: column.text({ default: "not_configured" }),
 		provider: column.text(),
 		currency: column.text(),
@@ -262,9 +270,25 @@ const ProviderUser = defineTable({
 		providerId: column.text({ references: () => Provider.columns.id }),
 		userId: column.text({ references: () => User.columns.id }),
 		role: column.text({ default: "owner" }), // owner | admin | staff
+		permissionsJson: column.json({ optional: true }), // optional domain overrides over the base role
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["providerId", "userId"], unique: true }],
+})
+const ProviderInvitation = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		email: column.text(),
+		role: column.text(), // admin | staff
+		status: column.text({ default: "pending" }), // pending | accepted | canceled | expired
+		invitedBy: column.text({ references: () => User.columns.id }),
+		acceptedAt: column.date({ optional: true }),
+		expiresAt: column.date(),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "email"] }],
 })
 const Product = defineTable({
 	columns: {
@@ -1218,6 +1242,8 @@ const ReconciliationMatch = defineTable({
 const ProviderFinancialProfile = defineTable({
 	columns: {
 		providerId: column.text({ primaryKey: true }),
+		// Derived finance readiness summary consumed by financial operations. Do not use this as the
+		// primary payout method or fiscal identity store.
 		payoutMethodReference: column.text({ optional: true }),
 		payoutSchedule: column.text(),
 		currency: column.text(),
@@ -1309,6 +1335,7 @@ export default defineDb({
 		ProviderConfigurationState,
 		ProviderVerification,
 		ProviderUser,
+		ProviderInvitation,
 		Destination,
 		RoomType,
 		AmenityRoom,
