@@ -79,11 +79,6 @@ describe("catalog/provider-v2/upsertProviderProfileV2 (unit)", () => {
 			defaultCurrency: "USD",
 			supportEmail: "support@test.com",
 			supportPhone: "+56912345678",
-			taxResidenceCountry: null,
-			businessRegistrationNumber: null,
-			fiscalStatus: null,
-			paymentReadinessStatus: null,
-			integrationReadinessStatus: null,
 		})
 		expect(res).toEqual({ providerId: "prov_abc" })
 	})
