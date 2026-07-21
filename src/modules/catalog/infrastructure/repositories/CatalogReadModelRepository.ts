@@ -14,10 +14,7 @@ import {
 	ProductLocation,
 	ProductStatus,
 	Provider,
-	ProviderIntegrationConnection,
-	ProviderPaymentAccount,
 	ProviderProfile,
-	ProviderTaxConfiguration,
 	ProviderUser,
 	ProviderVerification,
 	RatePlan,
@@ -441,16 +438,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					defaultCurrency: ProviderProfile.defaultCurrency,
 					supportEmail: ProviderProfile.supportEmail,
 					supportPhone: ProviderProfile.supportPhone,
-					legacyTaxResidenceCountry: ProviderProfile.taxResidenceCountry,
-					legacyBusinessRegistrationNumber: ProviderProfile.businessRegistrationNumber,
-					legacyFiscalStatus: ProviderProfile.fiscalStatus,
-					legacyPaymentReadinessStatus: ProviderProfile.paymentReadinessStatus,
-					legacyIntegrationReadinessStatus: ProviderProfile.integrationReadinessStatus,
-					taxResidenceCountry: ProviderTaxConfiguration.taxResidenceCountry,
-					businessRegistrationNumber: ProviderTaxConfiguration.businessRegistrationNumber,
-					fiscalStatus: ProviderTaxConfiguration.status,
-					paymentReadinessStatus: ProviderPaymentAccount.status,
-					integrationReadinessStatus: ProviderIntegrationConnection.status,
 				},
 				providerUserRole: ProviderUser.role,
 				providerUserUserId: ProviderUser.userId,
@@ -459,12 +446,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			})
 			.from(Provider)
 			.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, Provider.id))
-			.leftJoin(ProviderTaxConfiguration, eq(ProviderTaxConfiguration.providerId, Provider.id))
-			.leftJoin(ProviderPaymentAccount, eq(ProviderPaymentAccount.providerId, Provider.id))
-			.leftJoin(
-				ProviderIntegrationConnection,
-				eq(ProviderIntegrationConnection.providerId, Provider.id)
-			)
 			.leftJoin(ProviderUser, eq(ProviderUser.providerId, Provider.id))
 			.leftJoin(User, eq(User.id, ProviderUser.userId))
 			.where(eq(Provider.id, providerId))
@@ -480,19 +461,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					defaultCurrency: rawProfile.defaultCurrency,
 					supportEmail: rawProfile.supportEmail,
 					supportPhone: rawProfile.supportPhone,
-					taxResidenceCountry:
-						rawProfile.taxResidenceCountry ?? rawProfile.legacyTaxResidenceCountry ?? null,
-					businessRegistrationNumber:
-						rawProfile.businessRegistrationNumber ??
-						rawProfile.legacyBusinessRegistrationNumber ??
-						null,
-					fiscalStatus: rawProfile.fiscalStatus ?? rawProfile.legacyFiscalStatus ?? null,
-					paymentReadinessStatus:
-						rawProfile.paymentReadinessStatus ?? rawProfile.legacyPaymentReadinessStatus ?? null,
-					integrationReadinessStatus:
-						rawProfile.integrationReadinessStatus ??
-						rawProfile.legacyIntegrationReadinessStatus ??
-						null,
 				}
 			: null
 

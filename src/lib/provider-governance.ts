@@ -46,6 +46,7 @@ export type ProviderGovernanceSummary = {
 		canManageFiscality: boolean
 		canManagePayments: boolean
 		canManageIntegrations: boolean
+		canManageDocuments: boolean
 		canInviteTeam: boolean
 	}
 	counts: {
@@ -66,6 +67,7 @@ export type ProviderGovernanceSummary = {
 }
 
 const settingsRoutes = {
+	summary: "/provider/settings",
 	profile: "/provider/settings/profile",
 	verification: "/provider/settings/verification",
 	taxFees: "/provider/settings/tax-fees",
@@ -134,11 +136,6 @@ export async function evaluateProviderGovernance(
 					defaultCurrency: ProviderProfile.defaultCurrency,
 					supportEmail: ProviderProfile.supportEmail,
 					supportPhone: ProviderProfile.supportPhone,
-					taxResidenceCountry: ProviderProfile.taxResidenceCountry,
-					businessRegistrationNumber: ProviderProfile.businessRegistrationNumber,
-					fiscalStatus: ProviderProfile.fiscalStatus,
-					paymentReadinessStatus: ProviderProfile.paymentReadinessStatus,
-					integrationReadinessStatus: ProviderProfile.integrationReadinessStatus,
 				},
 			})
 			.from(Provider)
@@ -244,10 +241,8 @@ export async function evaluateProviderGovernance(
 	const connectedIntegrations = integrationRows.filter((row) =>
 		["connected", "syncing"].includes(String(row.status))
 	)
-	const fiscalStatus = String(taxConfiguration?.status ?? profile?.fiscalStatus ?? "")
-	const taxResidenceCountry =
-		taxConfiguration?.taxResidenceCountry ?? profile?.taxResidenceCountry ?? null
-	const paymentReadinessStatus = String(profile?.paymentReadinessStatus ?? "")
+	const fiscalStatus = String(taxConfiguration?.status ?? "")
+	const taxResidenceCountry = taxConfiguration?.taxResidenceCountry ?? null
 
 	const identityComplete = Boolean(provider.displayName?.trim() && provider.legalName?.trim())
 	const operationsComplete = Boolean(
@@ -260,12 +255,9 @@ export async function evaluateProviderGovernance(
 	)
 	const paymentsComplete = Boolean(
 		verifiedPaymentAccounts.length > 0 ||
-		["active", "ready"].includes(String(financialProfile?.status ?? "")) ||
-		paymentReadinessStatus === "verified"
+		["active", "ready"].includes(String(financialProfile?.status ?? ""))
 	)
-	const integrationsReady = Boolean(
-		connectedIntegrations.length > 0 || profile?.integrationReadinessStatus === "ready"
-	)
+	const integrationsReady = connectedIntegrations.length > 0
 	const teamComplete = teamRows.some((row) => ["owner", "admin"].includes(String(row.role)))
 	const currentUserLink = opts.currentUserId
 		? teamRows.find((row) => row.userId === opts.currentUserId)
@@ -315,7 +307,8 @@ export async function evaluateProviderGovernance(
 			id: "payments",
 			label: "Cuenta de pago verificada",
 			complete: paymentsComplete,
-			href: settingsRoutes.profile,
+			// Payout methods are owned by ProviderPaymentAccount; dedicated settings UI is pending.
+			href: settingsRoutes.summary,
 			capabilities: ["payments"],
 		},
 		{

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { db, ProviderAuditLog, ProviderProfile, ProviderVerification, TaxFeeDefinition } from "astro:db"
+import {
+	db,
+	ProviderAuditLog,
+	ProviderProfile,
+	ProviderTaxConfiguration,
+	ProviderVerification,
+	TaxFeeDefinition,
+} from "astro:db"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { GET as publicationSimulationGet } from "@/pages/api/provider/settings/publication-simulation"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -71,11 +78,16 @@ describe("e2e/provider settings mature experience", () => {
 			timezone: "America/Santiago",
 			defaultCurrency: "USD",
 			supportEmail: "soporte@experiencia.test",
-			taxResidenceCountry: "BO",
-			fiscalStatus: "verified",
-			paymentReadinessStatus: "not_configured",
-			integrationReadinessStatus: "ready",
 			governanceUpdatedAt: now,
+		})
+		await db.insert(ProviderTaxConfiguration).values({
+			providerId,
+			status: "verified",
+			taxResidenceCountry: "BO",
+			businessRegistrationNumber: "NIT-EXP",
+			invoicingMode: "platform_receipt",
+			updatedAt: now,
+			updatedBy: ownerId,
 		})
 		await db.insert(ProviderVerification).values({
 			id: "verification_settings_experience",

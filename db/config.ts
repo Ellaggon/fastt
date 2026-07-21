@@ -116,19 +116,14 @@ const User = defineTable({
 const ProviderProfile = defineTable({
 	columns: {
 		providerId: column.text({ primaryKey: true, references: () => Provider.columns.id }),
+		// Operational provider settings only (Airbnb-style account/ops profile).
+		// Fiscal identity -> ProviderTaxConfiguration
+		// Payout methods -> ProviderPaymentAccount (readiness derived, not stored here)
+		// Integrations readiness -> derived from ProviderIntegrationConnection
 		timezone: column.text(),
 		defaultCurrency: column.text({ default: "USD" }),
 		supportEmail: column.text({ optional: true }),
 		supportPhone: column.text({ optional: true }),
-		// Legacy compatibility only. Canonical fiscal identity lives in ProviderTaxConfiguration.
-		taxResidenceCountry: column.text({ optional: true }),
-		businessRegistrationNumber: column.text({ optional: true }),
-		fiscalStatus: column.text({ default: "not_configured" }),
-		// Legacy compatibility only. Canonical payout methods live in ProviderPaymentAccount;
-		// ProviderFinancialProfile is the derived finance readiness summary.
-		paymentReadinessStatus: column.text({ default: "not_configured" }),
-		// Legacy compatibility only. Integration readiness is derived from ProviderIntegrationConnection.
-		integrationReadinessStatus: column.text({ default: "not_configured" }),
 		governanceUpdatedAt: column.date({ optional: true }),
 		professionalToolsEnabled: column.boolean({ default: false }),
 		professionalToolsUpdatedAt: column.date({ optional: true }),
@@ -139,10 +134,15 @@ const ProviderDocument = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
+		// Canonical compliance document for KYC/business verification.
+		// Types: government_id | business_registration | tax_document | ownership_proof |
+		// operating_license | address_proof
 		type: column.text(),
+		// Lifecycle: pending (submitted) | verified | rejected | superseded
 		status: column.text({ default: "pending" }),
 		fileUrl: column.text({ optional: true }),
 		metadataJson: column.json({ optional: true }),
+		reviewNotes: column.text({ optional: true }),
 		reviewedAt: column.date({ optional: true }),
 		reviewedBy: column.text({ optional: true, references: () => User.columns.id }),
 		createdAt: column.date({ default: NOW }),

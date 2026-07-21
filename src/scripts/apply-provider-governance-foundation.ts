@@ -1,11 +1,6 @@
 import { db, sql } from "astro:db"
 
 const providerProfileColumns = [
-	`ALTER TABLE "ProviderProfile" ADD COLUMN "taxResidenceCountry" TEXT`,
-	`ALTER TABLE "ProviderProfile" ADD COLUMN "businessRegistrationNumber" TEXT`,
-	`ALTER TABLE "ProviderProfile" ADD COLUMN "fiscalStatus" TEXT NOT NULL DEFAULT 'not_configured'`,
-	`ALTER TABLE "ProviderProfile" ADD COLUMN "paymentReadinessStatus" TEXT NOT NULL DEFAULT 'not_configured'`,
-	`ALTER TABLE "ProviderProfile" ADD COLUMN "integrationReadinessStatus" TEXT NOT NULL DEFAULT 'not_configured'`,
 	`ALTER TABLE "ProviderProfile" ADD COLUMN "governanceUpdatedAt" INTEGER`,
 ]
 
@@ -17,6 +12,7 @@ const governanceSchema = [
 		"status" TEXT NOT NULL DEFAULT 'pending',
 		"fileUrl" TEXT,
 		"metadataJson" TEXT,
+		"reviewNotes" TEXT,
 		"reviewedAt" INTEGER,
 		"reviewedBy" TEXT REFERENCES "User" ("id"),
 		"createdAt" INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -24,6 +20,7 @@ const governanceSchema = [
 	)`,
 	`CREATE INDEX IF NOT EXISTS "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type")`,
 	`CREATE INDEX IF NOT EXISTS "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status")`,
+	`ALTER TABLE "ProviderDocument" ADD COLUMN "reviewNotes" TEXT`,
 	`CREATE TABLE IF NOT EXISTS "ProviderTaxConfiguration" (
 		"providerId" TEXT PRIMARY KEY NOT NULL REFERENCES "Provider" ("id"),
 		"status" TEXT NOT NULL DEFAULT 'not_configured',

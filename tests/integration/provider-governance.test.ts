@@ -7,6 +7,7 @@ import {
 	ProviderIntegrationConnection,
 	ProviderPaymentAccount,
 	ProviderProfile,
+	ProviderTaxConfiguration,
 	ProviderUser,
 	ProviderVerification,
 	TaxFeeDefinition,
@@ -78,12 +79,17 @@ describe("integration/provider governance", () => {
 			defaultCurrency: "USD",
 			supportEmail: "soporte@gobernanza.test",
 			supportPhone: "+59170000000",
+			governanceUpdatedAt: now,
+		})
+		await db.insert(ProviderTaxConfiguration).values({
+			providerId,
+			status: "verified",
 			taxResidenceCountry: "BO",
 			businessRegistrationNumber: "NIT-123456",
-			fiscalStatus: "verified",
-			paymentReadinessStatus: "verified",
-			integrationReadinessStatus: "ready",
-			governanceUpdatedAt: now,
+			taxRegime: "general",
+			invoicingMode: "platform_receipt",
+			updatedAt: now,
+			updatedBy: ownerId,
 		})
 		await db.insert(ProviderVerification).values({
 			id: "verification_governance_ready",

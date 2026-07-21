@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-	db,
-	eq,
-	ProviderPaymentAccount,
-	ProviderProfile,
-	ProviderTaxConfiguration,
-} from "astro:db"
+import { db, eq, ProviderProfile, ProviderTaxConfiguration } from "astro:db"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
@@ -63,7 +57,7 @@ function makeAuthedFormRequest(params: { token: string; form: FormData }): Reque
 }
 
 describe("integration/provider profile canonical settings", () => {
-	it("keeps operations in ProviderProfile and writes fiscality/payout readiness to canonical tables", async () => {
+	it("writes only operational fields to ProviderProfile and never touches fiscal identity", async () => {
 		const providerId = "provider_profile_canonical_settings"
 		const token = "t_profile_canonical_settings"
 		const email = "profile.canonical@example.com"
@@ -81,11 +75,6 @@ describe("integration/provider profile canonical settings", () => {
 		form.set("defaultCurrency", "USD")
 		form.set("supportEmail", "soporte@canonical.test")
 		form.set("supportPhone", "+59170000000")
-		form.set("taxResidenceCountry", "BO")
-		form.set("businessRegistrationNumber", "NIT-123456")
-		form.set("fiscalStatus", "verified")
-		form.set("paymentReadinessStatus", "verified")
-		form.set("integrationReadinessStatus", "ready")
 
 		await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
 			const response = await providerProfilePost({
@@ -106,36 +95,16 @@ describe("integration/provider profile canonical settings", () => {
 			supportEmail: "soporte@canonical.test",
 			supportPhone: "+59170000000",
 		})
-		expect(profile?.taxResidenceCountry).toBeNull()
-		expect(profile?.businessRegistrationNumber).toBeNull()
-		expect(profile?.fiscalStatus).toBe("not_configured")
-		expect(profile?.paymentReadinessStatus).toBe("not_configured")
-		expect(profile?.integrationReadinessStatus).toBe("not_configured")
+		expect(profile).not.toHaveProperty("taxResidenceCountry")
+		expect(profile).not.toHaveProperty("fiscalStatus")
+		expect(profile).not.toHaveProperty("paymentReadinessStatus")
+		expect(profile).not.toHaveProperty("integrationReadinessStatus")
 
 		const taxConfiguration = await db
 			.select()
 			.from(ProviderTaxConfiguration)
 			.where(eq(ProviderTaxConfiguration.providerId, providerId))
 			.get()
-		expect(taxConfiguration).toMatchObject({
-			status: "verified",
-			taxResidenceCountry: "BO",
-			businessRegistrationNumber: "NIT-123456",
-			updatedBy: userId,
-		})
-
-		const paymentAccount = await db
-			.select()
-			.from(ProviderPaymentAccount)
-			.where(eq(ProviderPaymentAccount.providerId, providerId))
-			.get()
-		expect(paymentAccount).toMatchObject({
-			status: "verified",
-			provider: "manual_profile",
-			currency: "USD",
-			accountReference: "profile-readiness",
-			payoutSchedule: "manual",
-		})
-		expect(paymentAccount?.verifiedAt).toBeTruthy()
+		expect(taxConfiguration).toBeFalsy()
 	})
 })

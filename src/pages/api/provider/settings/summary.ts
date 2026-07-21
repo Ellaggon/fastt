@@ -4,6 +4,8 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { listProviderDocuments } from "@/lib/provider-documents"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 import { listTaxFeeDefinitionsByProviderUseCase } from "@/container/taxes-fees.container"
 import { buildTaxFeeWarnings } from "@/modules/taxes-fees/public"
@@ -169,6 +171,8 @@ export const GET: APIRoute = async ({ request }) => {
 		.orderBy(desc(ProviderInvitation.createdAt))
 		.all()
 		.catch(() => [])
+	const documents = await listProviderDocuments(providerId).catch(() => [])
+	const taxConfiguration = await getProviderTaxConfiguration(providerId).catch(() => null)
 
 	const risks = [
 		...governance.risks,
@@ -196,11 +200,6 @@ export const GET: APIRoute = async ({ request }) => {
 			defaultCurrency: profile?.defaultCurrency || "",
 			supportEmail: profile?.supportEmail || "",
 			supportPhone: profile?.supportPhone || "",
-			taxResidenceCountry: profile?.taxResidenceCountry || "",
-			businessRegistrationNumber: profile?.businessRegistrationNumber || "",
-			fiscalStatus: profile?.fiscalStatus || "not_configured",
-			paymentReadinessStatus: profile?.paymentReadinessStatus || "not_configured",
-			integrationReadinessStatus: profile?.integrationReadinessStatus || "not_configured",
 		},
 		verification: {
 			status: latestVerification?.status ?? "pending",
@@ -264,5 +263,7 @@ export const GET: APIRoute = async ({ request }) => {
 			expiresAt: invitation.expiresAt,
 			createdAt: invitation.createdAt,
 		})),
+		documents,
+		taxConfiguration,
 	})
 }

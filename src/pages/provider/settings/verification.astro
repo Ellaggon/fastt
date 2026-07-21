@@ -1,7 +1,14 @@
 ---
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { listProviderDocuments, providerDocumentTypes } from "@/lib/provider-documents"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
@@ -15,12 +22,231 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSetti
 
 const aggregate =
 	typeof auth === "string" ? null : await getProviderFullAggregate(auth.providerId, auth.user.id)
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const permissions = summary?.permissions ?? {}
+const documents =
+	typeof auth === "string" ? [] : await listProviderDocuments(auth.providerId).catch(() => [])
+const result = Astro.url.searchParams.get("result")
+const pendingCount = documents.filter((doc) => doc.status === "pending").length
+const verifiedCount = documents.filter((doc) => doc.status === "verified").length
+const rejectedCount = documents.filter((doc) => doc.status === "rejected").length
+
+const resultMessages: Record<string, { title: string; body: string }> = {
+	submitted: {
+		title: "Documento enviado",
+		body: "El documento quedó pendiente de revisión y alimenta el readiness de cumplimiento.",
+	},
+	verified: {
+		title: "Documento verificado",
+		body: "El documento quedó marcado como verificado y desbloquea gobernanza de pagos/integraciones.",
+	},
+	rejected: {
+		title: "Documento rechazado",
+		body: "Se registró el rechazo con notas de revisión para que el proveedor pueda reenviar.",
+	},
+}
 ---
 
 <ProviderSettingsLayout
-	title="Verificación del proveedor"
+	title="Verificación y documentos"
 	heading="Verificación"
-	description="Revisa el estado de cumplimiento que habilita publicación, cobros e integraciones sensibles."
+	description="Cumplimiento operativo: estado de verificación y documentos de respaldo (identidad, empresa, fiscalidad y propiedad)."
 >
-	<ProviderVerificationView latestVerification={aggregate?.latestVerification} showHeader={false} />
+	{
+		result && resultMessages[result] ? (
+			<Notice variant="success" title={resultMessages[result].title}>
+				{resultMessages[result].body}
+			</Notice>
+		) : null
+	}
+
+	<ProviderVerificationView
+		latestVerification={aggregate?.latestVerification}
+		documents={documents}
+		showHeader={false}
+	/>
+
+	<div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+		<Card>
+			<div class="space-y-4">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h2 class="text-xl font-semibold text-slate-950">Documentos de cumplimiento</h2>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Flujo alineado con KYC de Airbnb y onboarding de Expedia: carga, tipo, estado y notas
+							de revisión.
+						</p>
+					</div>
+					<div class="flex flex-wrap gap-2">
+						<Badge variant={pendingCount ? "warning" : "neutral"}>
+							{pendingCount} pendiente{pendingCount === 1 ? "" : "s"}
+						</Badge>
+						<Badge variant={verifiedCount ? "success" : "neutral"}>
+							{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
+						</Badge>
+						<Badge variant={rejectedCount ? "error" : "neutral"}>
+							{rejectedCount} rechazado{rejectedCount === 1 ? "" : "s"}
+						</Badge>
+					</div>
+				</div>
+
+				<div class="space-y-3">
+					{
+						documents.length ? (
+							documents.map((doc) => (
+								<Card variant="soft" class="space-y-3">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div>
+											<p class="text-sm font-semibold text-slate-950">{doc.typeLabel}</p>
+											<p class="mt-1 text-sm text-slate-600">
+												{doc.fileName || "Sin nombre de archivo"}
+												{doc.mimeType ? ` · ${doc.mimeType}` : ""}
+											</p>
+											{doc.submissionNotes ? (
+												<p class="mt-2 text-sm leading-6 text-slate-600">
+													Nota de envío: {doc.submissionNotes}
+												</p>
+											) : null}
+											{doc.reviewNotes ? (
+												<p class="mt-2 text-sm leading-6 text-slate-600">
+													Nota de revisión: {doc.reviewNotes}
+												</p>
+											) : null}
+										</div>
+										<Badge
+											variant={
+												doc.tone === "success"
+													? "success"
+													: doc.tone === "error"
+														? "error"
+														: doc.tone === "warning"
+															? "warning"
+															: "neutral"
+											}
+										>
+											{doc.statusLabel}
+										</Badge>
+									</div>
+
+									{permissions.canManageDocuments && doc.status === "pending" ? (
+										<div class="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+											<form
+												method="post"
+												action="/api/provider/settings/documents"
+												class="space-y-2"
+											>
+												<input type="hidden" name="action" value="review" />
+												<input type="hidden" name="id" value={doc.id} />
+												<input type="hidden" name="status" value="verified" />
+												<label class="grid gap-1 text-xs font-medium text-slate-600">
+													Notas de revisión (opcional)
+													<Input name="reviewNotes" placeholder="Documento legible y vigente" />
+												</label>
+												<Button type="submit" size="sm">
+													Verificar
+												</Button>
+											</form>
+											<form
+												method="post"
+												action="/api/provider/settings/documents"
+												class="space-y-2"
+											>
+												<input type="hidden" name="action" value="review" />
+												<input type="hidden" name="id" value={doc.id} />
+												<input type="hidden" name="status" value="rejected" />
+												<label class="grid gap-1 text-xs font-medium text-slate-600">
+													Motivo de rechazo
+													<Input
+														name="reviewNotes"
+														placeholder="Imagen borrosa / documento vencido"
+														required
+													/>
+												</label>
+												<Button type="submit" variant="secondary" size="sm">
+													Rechazar
+												</Button>
+											</form>
+										</div>
+									) : null}
+								</Card>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								Aún no hay documentos cargados. Sube al menos un respaldo para completar la
+								dimensión de documentos en gobernanza.
+							</Card>
+						)
+					}
+				</div>
+			</div>
+		</Card>
+
+		<Card>
+			{
+				permissions.canManageDocuments ? (
+					<form
+						class="space-y-4"
+						method="post"
+						action="/api/provider/settings/documents"
+						enctype="multipart/form-data"
+					>
+						<input type="hidden" name="action" value="submit" />
+						<div>
+							<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
+							<p class="mt-2 text-sm leading-6 text-slate-600">
+								Adjunta PDF o imagen (máx. 12&nbsp;MB). También puedes registrar una URL de
+								referencia si el archivo ya está alojado.
+							</p>
+						</div>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							Tipo
+							<Select name="type" required>
+								{providerDocumentTypes.map((item) => (
+									<option value={item.value}>{item.label}</option>
+								))}
+							</Select>
+						</label>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							Archivo
+							<input
+								type="file"
+								name="file"
+								accept=".pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+								class="fastt-field block w-full text-sm text-slate-700 file:mr-3 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+							/>
+						</label>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							URL de referencia (opcional)
+							<Input type="url" name="fileUrl" placeholder="https://storage.example.com/doc.pdf" />
+						</label>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							Notas de envío (opcional)
+							<Input name="submissionNotes" placeholder="Versión vigente 2026 / NIT actualizado" />
+						</label>
+						<Card variant="soft" class="text-sm leading-6 text-slate-600">
+							<ul class="list-disc space-y-1 pl-4">
+								{providerDocumentTypes.map((item) => (
+									<li>
+										<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
+									</li>
+								))}
+							</ul>
+						</Card>
+						<Button type="submit">Enviar a revisión</Button>
+					</form>
+				) : (
+					<div class="space-y-3">
+						<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							Tu rol actual no puede cargar ni revisar documentos de cumplimiento.
+						</p>
+					</div>
+				)
+			}
+		</Card>
+	</div>
 </ProviderSettingsLayout>

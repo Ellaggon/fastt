@@ -32,6 +32,7 @@ const permissionLabels = [
 	["canManageFiscality", "Fiscalidad"],
 	["canManagePayments", "Pagos"],
 	["canManageIntegrations", "Integraciones"],
+	["canManageDocuments", "Documentos"],
 	["canInviteTeam", "Equipo"],
 ]
 ---
@@ -183,10 +184,12 @@ const permissionLabels = [
 	<Card>
 		<div class="space-y-4">
 			<h2 class="text-xl font-semibold text-slate-950">Permisos efectivos</h2>
-			<div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+			<div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
 				<p>Editar perfil: {permissions.canEditProfile ? "habilitado" : "restringido"}</p>
 				<p>Fiscalidad: {permissions.canManageFiscality ? "habilitado" : "restringido"}</p>
+				<p>Pagos: {permissions.canManagePayments ? "habilitado" : "restringido"}</p>
 				<p>Integraciones: {permissions.canManageIntegrations ? "habilitado" : "restringido"}</p>
+				<p>Documentos: {permissions.canManageDocuments ? "habilitado" : "restringido"}</p>
 				<p>Invitar equipo: {permissions.canInviteTeam ? "habilitado" : "restringido"}</p>
 			</div>
 		</div>
@@ -211,6 +214,7 @@ const permissionLabels = [
 							<th class="py-3 pr-4">Fiscalidad</th>
 							<th class="py-3 pr-4">Pagos</th>
 							<th class="py-3 pr-4">Integraciones</th>
+							<th class="py-3 pr-4">Documentos</th>
 							<th class="py-3 pr-4">Equipo</th>
 						</tr>
 					</thead>
@@ -237,6 +241,11 @@ const permissionLabels = [
 									<td class="py-3 pr-4">
 										<Badge variant={role.canManageIntegrations ? "success" : "neutral"}>
 											{role.canManageIntegrations ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canManageDocuments ? "success" : "neutral"}>
+											{role.canManageDocuments ? "Sí" : "No"}
 										</Badge>
 									</td>
 									<td class="py-3 pr-4">
