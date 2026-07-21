@@ -18,6 +18,7 @@ export type ProviderConnectorKey =
 
 export type ProviderConnectorStatus =
 	| "not_configured"
+	| "pending"
 	| "connected"
 	| "requires_attention"
 	| "syncing"
@@ -155,21 +156,38 @@ function normalizeScopes(connector: ProviderConnectorCatalogItem, rawScopes: unk
 function statusLabel(status: ProviderConnectorStatus): string {
 	const labels = {
 		not_configured: "No configurado",
+		pending: "Pendiente de prueba",
 		connected: "Conectado",
 		requires_attention: "Requiere atención",
 		syncing: "Sincronizando",
 		error: "Error",
 		revoked: "Revocado",
 	}
-	return labels[status]
+	return labels[status] ?? status
 }
 
 function statusTone(status: ProviderConnectorStatus): ProviderIntegrationCard["tone"] {
 	if (status === "connected") return "success"
-	if (status === "syncing") return "info"
+	if (status === "syncing" || status === "pending") return "info"
 	if (status === "requires_attention" || status === "revoked") return "warning"
 	if (status === "error") return "error"
 	return "neutral"
+}
+
+function asConnectorStatus(value: unknown): ProviderConnectorStatus {
+	const raw = String(value ?? "not_configured").trim()
+	if (
+		raw === "pending" ||
+		raw === "connected" ||
+		raw === "requires_attention" ||
+		raw === "syncing" ||
+		raw === "error" ||
+		raw === "revoked" ||
+		raw === "not_configured"
+	) {
+		return raw
+	}
+	return "not_configured"
 }
 
 function connectionAuditSnapshot(
@@ -253,7 +271,7 @@ export async function listProviderIntegrations(params: {
 
 	return connectorCatalog.map((connector) => {
 		const connection = connections.find((row) => row.connectorKey === connector.key)
-		const status = String(connection?.status ?? "not_configured") as ProviderConnectorStatus
+		const status = asConnectorStatus(connection?.status ?? "not_configured")
 		const mode = normalizeMode(connection?.mode)
 		return {
 			...connector,
@@ -317,7 +335,8 @@ export async function connectProviderIntegration(params: {
 		.get()
 		.catch(() => null)
 	const now = new Date()
-	const status: ProviderConnectorStatus = credentialsRef ? "connected" : "requires_attention"
+	// Credentials alone never mean "connected" (Expedia connectivity test / Airbnb channel smoke).
+	const status: ProviderConnectorStatus = credentialsRef ? "pending" : "requires_attention"
 	const values = {
 		providerId: params.providerId,
 		connectorKey,
@@ -325,7 +344,9 @@ export async function connectProviderIntegration(params: {
 		mode,
 		scopesJson: scopes,
 		credentialsRef: credentialsRef || undefined,
-		errorMessage: credentialsRef ? undefined : "Falta referencia de credenciales.",
+		errorMessage: credentialsRef
+			? "Ejecuta una prueba de sync para marcar el conector como conectado."
+			: "Falta referencia de credenciales.",
 		lastSyncStatus: existing?.lastSyncStatus ?? undefined,
 		lastSyncAt: existing?.lastSyncAt ?? undefined,
 		updatedAt: now,
@@ -345,7 +366,7 @@ export async function connectProviderIntegration(params: {
 			status,
 			mode,
 			message: credentialsRef
-				? "Configuración actualizada."
+				? "Configuración actualizada. Pendiente de prueba de sync."
 				: "Configuración guardada con credenciales pendientes.",
 			metadataJson: { scopes },
 		})
@@ -374,11 +395,11 @@ export async function connectProviderIntegration(params: {
 		providerId: params.providerId,
 		connectorKey,
 		connectionId: id,
-		eventType: "configuration.connected",
+		eventType: "configuration.saved",
 		status,
 		mode,
 		message: credentialsRef
-			? "Conector configurado."
+			? "Conector configurado. Ejecuta una prueba de sync para activarlo."
 			: "Conector creado con credenciales pendientes.",
 		metadataJson: { scopes },
 	})
@@ -471,19 +492,23 @@ export async function syncProviderIntegration(params: {
 		.get()
 	if (!existing?.id) throw new Error("CONNECTION_NOT_FOUND")
 
-	const hasCredentials = Boolean(String(existing.credentialsRef ?? "").trim())
-	const status: ProviderConnectorStatus = hasCredentials ? "connected" : "error"
-	const message = hasCredentials
-		? "Sincronización de prueba completada."
-		: "No se puede sincronizar sin credenciales."
+	const credentialsRef = String(existing.credentialsRef ?? "").trim()
+	const { runConnectorSmokeTest } = await import("@/lib/provider-connector-smoke")
+	const smoke = await runConnectorSmokeTest({
+		connectorKey,
+		credentialsRef,
+		mode: String(existing.mode ?? "sandbox"),
+	})
+	const status: ProviderConnectorStatus = smoke.ok ? "connected" : "error"
+	const message = smoke.message
 	const before = connectionAuditSnapshot(existing)
 	await db
 		.update(ProviderIntegrationConnection)
 		.set({
 			status,
 			lastSyncAt: new Date(),
-			lastSyncStatus: hasCredentials ? "success" : "error",
-			errorMessage: hasCredentials ? undefined : message,
+			lastSyncStatus: smoke.ok ? "success" : "error",
+			errorMessage: smoke.ok ? null : message,
 			updatedAt: new Date(),
 		})
 		.where(eq(ProviderIntegrationConnection.id, existing.id))
@@ -492,10 +517,15 @@ export async function syncProviderIntegration(params: {
 		connectorKey,
 		connectionId: existing.id,
 		eventType: "sync.test",
-		status: hasCredentials ? "success" : "error",
+		status: smoke.ok ? "success" : "error",
 		mode: normalizeMode(existing.mode),
 		message,
-		metadataJson: { scopes: existing.scopesJson ?? [] },
+		metadataJson: {
+			scopes: existing.scopesJson ?? [],
+			smokeTest: true,
+			probe: smoke.probe,
+			latencyMs: smoke.latencyMs,
+		},
 	})
 	await insertAudit({
 		providerId: params.providerId,
@@ -506,12 +536,12 @@ export async function syncProviderIntegration(params: {
 		afterJson: connectionAuditSnapshot({
 			...existing,
 			status,
-			lastSyncStatus: hasCredentials ? "success" : "error",
-			errorMessage: hasCredentials ? null : message,
+			lastSyncStatus: smoke.ok ? "success" : "error",
+			errorMessage: smoke.ok ? null : message,
 		}),
 		riskLevel: "medium",
 	})
-	return { status, message }
+	return { status, message, smoke }
 }
 
 async function insertIntegrationLog(params: {

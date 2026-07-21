@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+	and,
 	db,
 	eq,
 	ProviderIntegrationConnection,
@@ -42,7 +43,7 @@ describe("integration/provider integrations product", () => {
 			.get()
 
 		expect(connection?.connectorKey).toBe("channel_manager")
-		expect(connection?.status).toBe("connected")
+		expect(connection?.status).toBe("pending")
 		expect(connection?.mode).toBe("sandbox")
 		expect(connection?.scopesJson).toEqual(["availability:sync", "rates:sync"])
 
@@ -58,6 +59,21 @@ describe("integration/provider integrations product", () => {
 		expect(card?.lastSyncStatus).toBe("success")
 		expect(card?.logs.some((log) => log.eventType === "sync.test")).toBe(true)
 
+		await connectProviderIntegration({
+			providerId,
+			currentUserId: ownerId,
+			connectorKey: "payment_gateway",
+			mode: "sandbox",
+			scopes: ["payments:authorize"],
+			credentialsRef: "not-a-real-probe",
+		})
+		const failed = await syncProviderIntegration({
+			providerId,
+			currentUserId: ownerId,
+			connectorKey: "payment_gateway",
+		})
+		expect(failed.status).toBe("error")
+
 		await revokeProviderIntegration({
 			providerId,
 			currentUserId: ownerId,
@@ -67,7 +83,12 @@ describe("integration/provider integrations product", () => {
 		const revoked = await db
 			.select()
 			.from(ProviderIntegrationConnection)
-			.where(eq(ProviderIntegrationConnection.providerId, providerId))
+			.where(
+				and(
+					eq(ProviderIntegrationConnection.providerId, providerId),
+					eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+				)
+			)
 			.get()
 		expect(revoked?.status).toBe("revoked")
 		expect(revoked?.credentialsRef).toBeNull()
@@ -78,11 +99,7 @@ describe("integration/provider integrations product", () => {
 			.where(eq(ProviderIntegrationSyncLog.providerId, providerId))
 			.all()
 		expect(logs.map((log) => log.eventType)).toEqual(
-			expect.arrayContaining([
-				"configuration.connected",
-				"sync.test",
-				"credentials.revoked",
-			])
+			expect.arrayContaining(["configuration.saved", "sync.test", "credentials.revoked"])
 		)
 	})
 })
