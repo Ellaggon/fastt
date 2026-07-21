@@ -6,7 +6,6 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	listProviderDocuments,
 	providerDocumentTypes,
-	reviewProviderDocument,
 	submitProviderDocument,
 	validateDocumentFile,
 } from "@/lib/provider-documents"
@@ -32,12 +31,6 @@ const submitSchema = z.object({
 	mimeType: z.string().trim().max(120).optional(),
 	sizeBytes: z.coerce.number().int().positive().optional(),
 	submissionNotes: z.string().trim().max(2000).optional(),
-})
-
-const reviewSchema = z.object({
-	id: z.string().trim().min(1),
-	status: z.enum(["verified", "rejected"]),
-	reviewNotes: z.string().trim().max(2000).optional(),
 })
 
 function json(payload: unknown, status = 200) {
@@ -111,22 +104,16 @@ export const POST: APIRoute = async ({ request }) => {
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "submit")
 
+		// Document review is internal-admin only (/api/admin/providers/documents).
 		if (action === "review") {
-			const parsed = reviewSchema.parse({
-				id: form.get("id"),
-				status: form.get("status"),
-				reviewNotes: form.get("reviewNotes") || undefined,
-			})
-			const reviewed = await reviewProviderDocument({
-				providerId,
-				actorUserId: user.id,
-				documentId: parsed.id,
-				status: parsed.status,
-				reviewNotes: parsed.reviewNotes,
-			})
-			return shouldReturnHtmlRedirect(request)
-				? redirectToVerification(request, parsed.status === "verified" ? "verified" : "rejected")
-				: json({ ok: true, document: reviewed })
+			return json(
+				{
+					error: "forbidden",
+					message:
+						"La verificación de documentos la realiza el equipo interno de Fastt. Usa /admin/providers.",
+				},
+				403
+			)
 		}
 
 		const file = form.get("file")
@@ -140,6 +127,11 @@ export const POST: APIRoute = async ({ request }) => {
 			submissionNotes: form.get("submissionNotes") || undefined,
 		})
 
+		let fileBytes: Uint8Array | null = null
+		if (file instanceof File && typeof file.arrayBuffer === "function") {
+			fileBytes = new Uint8Array(await file.arrayBuffer())
+		}
+
 		const submitted = await submitProviderDocument({
 			providerId,
 			actorUserId: user.id,
@@ -149,6 +141,7 @@ export const POST: APIRoute = async ({ request }) => {
 			mimeType: parsed.mimeType,
 			sizeBytes: parsed.sizeBytes,
 			submissionNotes: parsed.submissionNotes,
+			fileBytes,
 		})
 
 		return shouldReturnHtmlRedirect(request)

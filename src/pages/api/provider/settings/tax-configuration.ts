@@ -14,7 +14,6 @@ import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { and, db, eq, ProviderUser } from "astro:db"
 
 const upsertSchema = z.object({
-	status: z.enum(["not_configured", "pending", "verified", "requires_attention"]),
 	taxResidenceCountry: z
 		.string()
 		.trim()
@@ -93,17 +92,16 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const parsed = upsertSchema.parse({
-			status: form.get("status") || "not_configured",
 			taxResidenceCountry: form.get("taxResidenceCountry") ?? "",
 			businessRegistrationNumber: form.get("businessRegistrationNumber") ?? "",
 			taxRegime: form.get("taxRegime") ?? "",
 			invoicingMode: form.get("invoicingMode") || "platform_receipt",
 		})
 
+		// Status is derived server-side (pending | not_configured). Providers cannot self-verify.
 		const taxConfiguration = await upsertProviderTaxConfiguration({
 			providerId,
 			actorUserId: user.id,
-			status: parsed.status,
 			taxResidenceCountry: parsed.taxResidenceCountry,
 			businessRegistrationNumber: parsed.businessRegistrationNumber,
 			taxRegime: parsed.taxRegime,

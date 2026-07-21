@@ -6,11 +6,7 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
-import {
-	providerInvoicingModes,
-	providerTaxConfigurationStatuses,
-	providerTaxRegimes,
-} from "@/lib/provider-tax-configuration"
+import { providerInvoicingModes, providerTaxRegimes } from "@/lib/provider-tax-configuration"
 
 type Props = {
 	taxConfiguration?: ProviderTaxConfigurationRecord | null
@@ -35,7 +31,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				<p class="mt-2 text-sm leading-6 text-slate-600">
 					Quién eres fiscalmente para reporting, payouts y retenciones. Equivale al taxpayer info de
 					Airbnb y al Tax and Registration de Expedia — no define qué impuestos cobras en una
-					reserva.
+					reserva. El estado de validación lo confirma el equipo Fastt; tú solo envías los datos.
 				</p>
 			</div>
 			<Badge
@@ -43,11 +39,30 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 					? "success"
 					: status === "requires_attention"
 						? "error"
-						: "warning"}
+						: status === "pending"
+							? "warning"
+							: "neutral"}
 			>
 				{taxConfiguration?.statusLabel ?? "No configurado"}
 			</Badge>
 		</div>
+
+		{
+			status === "pending" ? (
+				<Card variant="soft" class="text-sm leading-6 text-slate-600">
+					Datos enviados. Están pendientes de validación por el equipo interno de Fastt (mismo
+					patrón que la verificación de cumplimiento).
+				</Card>
+			) : null
+		}
+		{
+			status === "requires_attention" ? (
+				<Card variant="soft" class="text-sm leading-6 text-slate-600">
+					La identidad fiscal requiere corrección. Actualiza los campos y vuelve a guardar para
+					reenviar a revisión.
+				</Card>
+			) : null
+		}
 
 		{
 			canManageFiscality ? (
@@ -104,16 +119,6 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 								))}
 							</Select>
 						</FormField>
-
-						<FormField label="Estado del perfil fiscal" htmlFor="status">
-							<Select id="status" name="status" required>
-								{providerTaxConfigurationStatuses.map((item) => (
-									<option value={item.value} selected={status === item.value}>
-										{item.label}
-									</option>
-								))}
-							</Select>
-						</FormField>
 					</div>
 
 					<FormField
@@ -138,10 +143,15 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 								</li>
 							))}
 						</ul>
+						<p class="mt-3">
+							Al guardar con datos de identidad, el estado pasa a{" "}
+							<span class="font-medium text-slate-800">Pendiente de validación</span>. No puedes
+							marcar Verificado tú mismo.
+						</p>
 					</Card>
 
 					<div class="flex justify-end">
-						<Button type="submit">Guardar perfil fiscal</Button>
+						<Button type="submit">Enviar identidad fiscal</Button>
 					</div>
 				</form>
 			) : (

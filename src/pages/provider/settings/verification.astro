@@ -132,45 +132,12 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 										</Badge>
 									</div>
 
-									{permissions.canManageDocuments && doc.status === "pending" ? (
-										<div class="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
-											<form
-												method="post"
-												action="/api/provider/settings/documents"
-												class="space-y-2"
-											>
-												<input type="hidden" name="action" value="review" />
-												<input type="hidden" name="id" value={doc.id} />
-												<input type="hidden" name="status" value="verified" />
-												<label class="grid gap-1 text-xs font-medium text-slate-600">
-													Notas de revisión (opcional)
-													<Input name="reviewNotes" placeholder="Documento legible y vigente" />
-												</label>
-												<Button type="submit" size="sm">
-													Verificar
-												</Button>
-											</form>
-											<form
-												method="post"
-												action="/api/provider/settings/documents"
-												class="space-y-2"
-											>
-												<input type="hidden" name="action" value="review" />
-												<input type="hidden" name="id" value={doc.id} />
-												<input type="hidden" name="status" value="rejected" />
-												<label class="grid gap-1 text-xs font-medium text-slate-600">
-													Motivo de rechazo
-													<Input
-														name="reviewNotes"
-														placeholder="Imagen borrosa / documento vencido"
-														required
-													/>
-												</label>
-												<Button type="submit" variant="secondary" size="sm">
-													Rechazar
-												</Button>
-											</form>
-										</div>
+									{doc.status === "pending" ? (
+										<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
+											En revisión por el equipo interno de Fastt. No puedes verificar ni rechazar
+											documentos desde esta cuenta (mismo patrón que Airbnb/Expedia: tú envías, la
+											plataforma valida).
+										</p>
 									) : null}
 								</Card>
 							))
@@ -198,8 +165,9 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 						<div>
 							<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Adjunta PDF o imagen (máx. 12&nbsp;MB). También puedes registrar una URL de
-								referencia si el archivo ya está alojado.
+								Adjunta PDF o imagen (máx. 12&nbsp;MB). Con R2 configurado el archivo se sube al
+								storage privado (`r2:…`); no uses `local://` en producción. Set KYC mínimo:
+								identidad, registro mercantil y documento fiscal.
 							</p>
 						</div>
 						<label class="grid gap-2 text-sm font-medium text-slate-700">

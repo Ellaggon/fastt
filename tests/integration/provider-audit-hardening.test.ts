@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderAuditLog, ProviderPaymentAccount } from "astro:db"
+import { db, eq, ProviderAuditLog } from "astro:db"
 import {
 	connectProviderIntegration,
 	revokeProviderIntegration,
 } from "@/lib/provider-integrations"
-import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { POST as invitationsPost } from "@/pages/api/provider/settings/invitations"
+import { POST as paymentAccountsPost } from "@/pages/api/provider/settings/payment-accounts"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
 import { POST as taxConfigurationPost } from "@/pages/api/provider/settings/tax-configuration"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -114,7 +114,7 @@ describe("provider sensitive audit hardening", () => {
 			const taxForm = new FormData()
 			taxForm.set("status", "verified")
 			taxForm.set("taxResidenceCountry", "CL")
-			taxForm.set("businessRegistrationNumber", "76.123.456-7")
+			taxForm.set("businessRegistrationNumber", "76.123.456-0")
 			taxForm.set("taxRegime", "general")
 			taxForm.set("invoicingMode", "platform_receipt")
 			const taxRes = await taxConfigurationPost({
@@ -158,36 +158,23 @@ describe("provider sensitive audit hardening", () => {
 			connectorKey: "webhooks_api",
 		})
 
-		// Payments no longer mutate from profile. Simulate the canonical write path
-		// until a dedicated payout-account settings API exists.
-		const paymentId = crypto.randomUUID()
-		const now = new Date()
-		await db.insert(ProviderPaymentAccount).values({
-			id: paymentId,
-			providerId,
-			status: "verified",
-			provider: "manual_bank",
-			currency: "USD",
-			accountReference: "acct_audit",
-			payoutSchedule: "weekly",
-			verifiedAt: now,
-			createdAt: now,
-			updatedAt: now,
-		})
-		await writeProviderAuditLog({
-			providerId,
-			actorUserId: userId,
-			action: "provider.payment_account.create",
-			entityType: "ProviderPaymentAccount",
-			entityId: paymentId,
-			beforeJson: null,
-			afterJson: {
-				id: paymentId,
-				status: "verified",
-				provider: "manual_bank",
-				currency: "USD",
-			},
-			riskLevel: "high",
+		await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
+			const paymentForm = new FormData()
+			paymentForm.set("method", "bank_transfer")
+			paymentForm.set("currency", "USD")
+			paymentForm.set("accountHolderName", "Auditoria Endurecida S.R.L.")
+			paymentForm.set("bankName", "Banco Audit")
+			paymentForm.set("country", "CL")
+			paymentForm.set("accountIdentifier", "1234567890")
+			paymentForm.set("payoutSchedule", "weekly")
+			const paymentRes = await paymentAccountsPost({
+				request: makeAuthedRequest(
+					"/api/provider/settings/payment-accounts",
+					token,
+					paymentForm
+				),
+			} as any)
+			expect(paymentRes.status).toBe(201)
 		})
 
 		const audit = await listAudit(providerId)
@@ -205,7 +192,7 @@ describe("provider sensitive audit hardening", () => {
 		expect(paymentAudit).toBeTruthy()
 		expectSensitiveAudit(paymentAudit!)
 		expect(paymentAudit!.riskLevel).toBe("high")
-		expect(paymentAudit!.afterJson).toMatchObject({ status: "verified", currency: "USD" })
+		expect(paymentAudit!.afterJson).toMatchObject({ status: "pending", currency: "USD" })
 
 		const fiscalAudit = audit.find((row) => row.action === "provider.tax_configuration.upsert")
 		expect(fiscalAudit).toBeTruthy()
@@ -213,7 +200,7 @@ describe("provider sensitive audit hardening", () => {
 		expect(fiscalAudit!.riskLevel).toBe("high")
 		expect(fiscalAudit!.beforeJson).toBeNull()
 		expect(fiscalAudit!.afterJson).toMatchObject({
-			status: "verified",
+			status: "pending",
 			taxResidenceCountry: "CL",
 		})
 
@@ -239,7 +226,7 @@ describe("provider sensitive audit hardening", () => {
 		expect(connectAudit!.beforeJson).toBeNull()
 		expect(connectAudit!.afterJson).toMatchObject({
 			connectorKey: "webhooks_api",
-			status: "connected",
+			status: "pending",
 			credentialsRef: "[redacted]",
 		})
 
@@ -248,7 +235,7 @@ describe("provider sensitive audit hardening", () => {
 		expectSensitiveAudit(revokeAudit!)
 		expect(revokeAudit!.riskLevel).toBe("high")
 		expect(revokeAudit!.beforeJson).toMatchObject({
-			status: "connected",
+			status: "pending",
 			credentialsRef: "[redacted]",
 		})
 		expect(revokeAudit!.afterJson).toMatchObject({
