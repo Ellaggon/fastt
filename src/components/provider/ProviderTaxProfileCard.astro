@@ -1,0 +1,164 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
+import {
+	providerInvoicingModes,
+	providerTaxConfigurationStatuses,
+	providerTaxRegimes,
+} from "@/lib/provider-tax-configuration"
+
+type Props = {
+	taxConfiguration?: ProviderTaxConfigurationRecord | null
+	canManageFiscality?: boolean
+}
+
+const { taxConfiguration = null, canManageFiscality = false } = Astro.props as Props
+const status = taxConfiguration?.status ?? "not_configured"
+const country = taxConfiguration?.taxResidenceCountry ?? ""
+const regime = taxConfiguration?.taxRegime ?? ""
+const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
+---
+
+<Card>
+	<div class="space-y-5">
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Bloque 1 · Identidad fiscal
+				</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-950">Perfil fiscal del proveedor</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Quién eres fiscalmente para reporting, payouts y retenciones. Equivale al taxpayer info de
+					Airbnb y al Tax and Registration de Expedia — no define qué impuestos cobras en una
+					reserva.
+				</p>
+			</div>
+			<Badge
+				variant={status === "verified"
+					? "success"
+					: status === "requires_attention"
+						? "error"
+						: "warning"}
+			>
+				{taxConfiguration?.statusLabel ?? "No configurado"}
+			</Badge>
+		</div>
+
+		{
+			canManageFiscality ? (
+				<form method="post" action="/api/provider/settings/tax-configuration" class="space-y-4">
+					<div class="grid gap-4 md:grid-cols-2">
+						<FormField
+							label="País de residencia fiscal"
+							htmlFor="taxResidenceCountry"
+							description="ISO-2. Usado para cumplimiento y elegibilidad de payouts."
+						>
+							<Select id="taxResidenceCountry" name="taxResidenceCountry">
+								<option value="">Sin definir</option>
+								<option value="BO" selected={country === "BO"}>
+									Bolivia (BO)
+								</option>
+								<option value="CL" selected={country === "CL"}>
+									Chile (CL)
+								</option>
+								<option value="US" selected={country === "US"}>
+									Estados Unidos (US)
+								</option>
+								<option value="ES" selected={country === "ES"}>
+									España (ES)
+								</option>
+								<option value="PE" selected={country === "PE"}>
+									Perú (PE)
+								</option>
+								<option value="AR" selected={country === "AR"}>
+									Argentina (AR)
+								</option>
+							</Select>
+						</FormField>
+
+						<FormField
+							label="NIT / registro mercantil"
+							htmlFor="businessRegistrationNumber"
+							description="Identificador fiscal o número de registro comercial."
+						>
+							<Input
+								id="businessRegistrationNumber"
+								name="businessRegistrationNumber"
+								value={taxConfiguration?.businessRegistrationNumber ?? ""}
+								placeholder="NIT-123456 / EIN / CIF"
+							/>
+						</FormField>
+
+						<FormField label="Régimen fiscal" htmlFor="taxRegime">
+							<Select id="taxRegime" name="taxRegime">
+								<option value="">Sin definir</option>
+								{providerTaxRegimes.map((item) => (
+									<option value={item.value} selected={regime === item.value}>
+										{item.label}
+									</option>
+								))}
+							</Select>
+						</FormField>
+
+						<FormField label="Estado del perfil fiscal" htmlFor="status">
+							<Select id="status" name="status" required>
+								{providerTaxConfigurationStatuses.map((item) => (
+									<option value={item.value} selected={status === item.value}>
+										{item.label}
+									</option>
+								))}
+							</Select>
+						</FormField>
+					</div>
+
+					<FormField
+						label="Modo de facturación"
+						htmlFor="invoicingMode"
+						description="Define quién emite el comprobante al huésped; no cambia el motor de impuestos de venta."
+					>
+						<Select id="invoicingMode" name="invoicingMode" required>
+							{providerInvoicingModes.map((item) => (
+								<option value={item.value} selected={invoicingMode === item.value}>
+									{item.label}
+								</option>
+							))}
+						</Select>
+					</FormField>
+
+					<Card variant="soft" class="text-sm leading-6 text-slate-600">
+						<ul class="list-disc space-y-1 pl-4">
+							{providerInvoicingModes.map((item) => (
+								<li>
+									<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
+								</li>
+							))}
+						</ul>
+					</Card>
+
+					<div class="flex justify-end">
+						<Button type="submit">Guardar perfil fiscal</Button>
+					</div>
+				</form>
+			) : (
+				<div class="space-y-3 text-sm leading-6 text-slate-600">
+					<p>Tu rol actual no puede editar la identidad fiscal del proveedor.</p>
+					{taxConfiguration?.isConfigured ? (
+						<ul class="list-disc space-y-1 pl-4">
+							<li>País: {taxConfiguration.taxResidenceCountry || "Sin definir"}</li>
+							<li>Registro: {taxConfiguration.businessRegistrationNumber || "Sin definir"}</li>
+							<li>Régimen: {taxConfiguration.taxRegime || "Sin definir"}</li>
+							<li>Facturación: {taxConfiguration.invoicingModeLabel}</li>
+						</ul>
+					) : (
+						<p>Todavía no hay un perfil fiscal configurado.</p>
+					)}
+				</div>
+			)
+		}
+	</div>
+</Card>

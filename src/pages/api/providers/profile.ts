@@ -1,121 +1,39 @@
 import type { APIRoute } from "astro"
-import {
-	and,
-	db,
-	eq,
-	ProviderAuditLog,
-	ProviderPaymentAccount,
-	ProviderTaxConfiguration,
-} from "astro:db"
+import { db, eq, ProviderProfile } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
 import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
+import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
 	return accept.includes("text/html")
 }
 
-function fiscalStatusToTaxConfigurationStatus(value: string | undefined) {
-	if (value === "verified") return "verified"
-	if (value === "pending") return "pending"
-	if (value === "requires_attention") return "requires_attention"
-	return "not_configured"
-}
-
-function paymentReadinessToPaymentAccountStatus(value: string | undefined) {
-	if (value === "verified") return "verified"
-	if (value === "pending") return "pending"
-	if (value === "requires_attention") return "requires_attention"
-	return "not_configured"
-}
-
-async function upsertProviderTaxConfiguration(params: {
-	providerId: string
-	actorUserId?: string | null
-	taxResidenceCountry?: string | null
-	businessRegistrationNumber?: string | null
-	fiscalStatus?: string
-}) {
-	const now = new Date()
-	const values = {
-		providerId: params.providerId,
-		status: fiscalStatusToTaxConfigurationStatus(params.fiscalStatus),
-		taxResidenceCountry: params.taxResidenceCountry ?? undefined,
-		businessRegistrationNumber: params.businessRegistrationNumber ?? undefined,
-		updatedAt: now,
-		updatedBy: params.actorUserId ?? undefined,
+function profileSnapshot(
+	row: {
+		timezone: string
+		defaultCurrency: string
+		supportEmail: string | null
+		supportPhone: string | null
+	} | null
+) {
+	if (!row) return null
+	return {
+		timezone: row.timezone,
+		defaultCurrency: row.defaultCurrency,
+		supportEmail: row.supportEmail,
+		supportPhone: row.supportPhone,
 	}
-
-	await db
-		.insert(ProviderTaxConfiguration)
-		.values(values)
-		.onConflictDoUpdate({
-			target: [ProviderTaxConfiguration.providerId],
-			set: {
-				status: values.status,
-				taxResidenceCountry: values.taxResidenceCountry,
-				businessRegistrationNumber: values.businessRegistrationNumber,
-				updatedAt: values.updatedAt,
-				updatedBy: values.updatedBy,
-			},
-		})
-}
-
-async function upsertProviderPaymentAccountFromReadiness(params: {
-	providerId: string
-	defaultCurrency: string
-	paymentReadinessStatus?: string
-}) {
-	const now = new Date()
-	const provider = "manual_profile"
-	const existing = await db
-		.select({ id: ProviderPaymentAccount.id })
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.providerId, params.providerId),
-				eq(ProviderPaymentAccount.provider, provider)
-			)
-		)
-		.get()
-		.catch(() => null)
-	const status = paymentReadinessToPaymentAccountStatus(params.paymentReadinessStatus)
-	const values = {
-		providerId: params.providerId,
-		status,
-		provider,
-		currency: params.defaultCurrency,
-		accountReference: status === "not_configured" ? undefined : "profile-readiness",
-		payoutSchedule: "manual",
-		verifiedAt: status === "verified" ? now : undefined,
-		updatedAt: now,
-	}
-
-	if (existing?.id) {
-		await db
-			.update(ProviderPaymentAccount)
-			.set(values)
-			.where(eq(ProviderPaymentAccount.id, existing.id))
-		return existing.id
-	}
-
-	const id = crypto.randomUUID()
-	await db.insert(ProviderPaymentAccount).values({
-		id,
-		...values,
-		createdAt: now,
-	})
-	return id
 }
 
 export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	try {
 		const user = await getUserFromRequest(request)
-		if (!user?.email) {
+		if (!user?.email || !user?.id) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {
 				status: 401,
 				headers: { "Content-Type": "application/json" },
@@ -135,17 +53,21 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
 			supportEmail: String(form.get("supportEmail") ?? "").trim() || undefined,
 			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
-			taxResidenceCountry:
-				String(form.get("taxResidenceCountry") ?? "")
-					.trim()
-					.toUpperCase() || undefined,
-			businessRegistrationNumber:
-				String(form.get("businessRegistrationNumber") ?? "").trim() || undefined,
-			fiscalStatus: String(form.get("fiscalStatus") ?? "").trim() || undefined,
-			paymentReadinessStatus: String(form.get("paymentReadinessStatus") ?? "").trim() || undefined,
-			integrationReadinessStatus:
-				String(form.get("integrationReadinessStatus") ?? "").trim() || undefined,
 		}
+
+		const beforeProfile = profileSnapshot(
+			(await db
+				.select({
+					timezone: ProviderProfile.timezone,
+					defaultCurrency: ProviderProfile.defaultCurrency,
+					supportEmail: ProviderProfile.supportEmail,
+					supportPhone: ProviderProfile.supportPhone,
+				})
+				.from(ProviderProfile)
+				.where(eq(ProviderProfile.providerId, providerId))
+				.get()
+				.catch(() => null)) ?? null
+		)
 
 		const result = await upsertProviderProfileV2(
 			{ repo: providerV2Repository },
@@ -157,41 +79,26 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 				supportPhone: raw.supportPhone,
 			}
 		)
-		await upsertProviderTaxConfiguration({
+		await invalidateProvider(providerId)
+
+		await writeProviderAuditLog({
 			providerId,
 			actorUserId: user.id,
-			taxResidenceCountry: raw.taxResidenceCountry,
-			businessRegistrationNumber: raw.businessRegistrationNumber,
-			fiscalStatus: raw.fiscalStatus,
+			action: "provider.profile.upsert",
+			entityType: "ProviderProfile",
+			entityId: providerId,
+			beforeJson: beforeProfile,
+			afterJson: {
+				timezone: raw.timezone,
+				defaultCurrency: raw.defaultCurrency,
+				supportEmail: raw.supportEmail ?? null,
+				supportPhone: raw.supportPhone ?? null,
+			},
+			riskLevel: inferSettingsRiskLevel({
+				domain: "profile",
+				changedKeys: Object.keys(raw),
+			}),
 		})
-		await upsertProviderPaymentAccountFromReadiness({
-			providerId,
-			defaultCurrency: raw.defaultCurrency,
-			paymentReadinessStatus: raw.paymentReadinessStatus,
-		})
-		await invalidateProvider(providerId)
-		await db
-			.insert(ProviderAuditLog)
-			.values({
-				id: crypto.randomUUID(),
-				providerId,
-				actorUserId: user.id,
-				action: "provider.profile.upsert",
-				entityType: "ProviderProfile",
-				entityId: providerId,
-				afterJson: raw,
-				riskLevel:
-					raw.fiscalStatus || raw.paymentReadinessStatus || raw.integrationReadinessStatus
-						? "medium"
-						: "low",
-				createdAt: new Date(),
-			})
-			.catch((error) => {
-				const message = error instanceof Error ? error.message : String(error)
-				if (!message.includes("ProviderAuditLog") && !message.includes("no such table")) {
-					throw error
-				}
-			})
 
 		if (shouldReturnHtmlRedirect(request)) {
 			const url = new URL("/provider/settings/profile?success=saved", request.url)

@@ -1,9 +1,13 @@
 ---
+import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
 import TaxFeePage from "@/components/tax-fees/TaxFeePage"
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -14,35 +18,116 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
-const defsRes = await fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
-	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
-})
+const cookie = Astro.request.headers.get("cookie") ?? ""
+const [defsRes, summaryRes] = await Promise.all([
+	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
+		headers: { cookie },
+	}),
+	fetch(new URL("/api/provider/settings/summary", Astro.url), {
+		headers: { cookie },
+	}),
+])
 const defsBody = defsRes.ok ? await defsRes.json() : null
+const summary = summaryRes.ok ? await summaryRes.json() : null
 const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
 const initialWarnings = Array.isArray(defsBody?.warnings) ? defsBody.warnings : []
 const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : "idle"
+const result = Astro.url.searchParams.get("result")
+const taxConfiguration = await getProviderTaxConfiguration(auth.providerId).catch(() => null)
+const permissions = summary?.permissions ?? {}
+const canManageFiscality = Boolean(permissions.canManageFiscality)
+const definitionCount = initialDefinitions.length
+const activeCount = initialDefinitions.filter((item: any) => item.status === "active").length
 ---
 
 <ProviderSettingsLayout
-	title="Impuestos y cargos"
-	eyebrow="Configuración del proveedor · Fiscalidad comercial"
-	heading="Impuestos y cargos"
-	description="Gestiona reglas fiscales y cargos visibles antes de reservar. Estas definiciones alimentan tarifas, reservas, búsqueda y snapshots financieros."
+	title="Fiscalidad"
+	eyebrow="Configuración del proveedor · Fiscalidad"
+	heading="Fiscalidad"
+	description="Dos dominios separados: identidad fiscal del proveedor (quién eres) e impuestos/cargos de venta (qué cobras al huésped)."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={routes.dashboard()} variant="secondary">Panel</Button>
+		<Button href={routes.providerSettingsVerification()} variant="secondary">Documentos</Button>
 		<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
 	</div>
 
-	<Notice variant="info" title="Flujo recomendado">
-		Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
-		ventas.
+	{
+		result === "tax_profile_saved" ? (
+			<Notice variant="success" title="Perfil fiscal guardado">
+				La identidad fiscal quedó en ProviderTaxConfiguration y alimenta gobernanza de payouts.
+			</Notice>
+		) : null
+	}
+
+	<Notice variant="info" title="Separación Airbnb / Expedia">
+		<p class="leading-6">
+			<strong>Perfil fiscal</strong> = taxpayer / tax registration (reporting, retenciones, elegibilidad
+			de cobros). <strong>Impuestos y cargos de venta</strong> = occupancy taxes y fees del checkout (desglose
+			de precio). No mezclar ambos.
+		</p>
 	</Notice>
 
-	<TaxFeePage
-		client:load
-		initialDefinitions={initialDefinitions}
-		initialWarnings={initialWarnings}
-		initialMode={initialMode}
+	<div class="grid gap-3 sm:grid-cols-3">
+		<Card variant="soft" class="space-y-1">
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Perfil fiscal</p>
+			<p class="text-lg font-semibold text-slate-950">
+				{taxConfiguration?.statusLabel ?? "No configurado"}
+			</p>
+		</Card>
+		<Card variant="soft" class="space-y-1">
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				Definiciones de venta
+			</p>
+			<p class="text-lg font-semibold text-slate-950">
+				{definitionCount} total · {activeCount} activas
+			</p>
+		</Card>
+		<Card variant="soft" class="flex items-center justify-between gap-3">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Permiso</p>
+				<p class="text-lg font-semibold text-slate-950">Fiscalidad</p>
+			</div>
+			<Badge variant={canManageFiscality ? "success" : "neutral"}>
+				{canManageFiscality ? "Editable" : "Solo lectura"}
+			</Badge>
+		</Card>
+	</div>
+
+	<ProviderTaxProfileCard
+		taxConfiguration={taxConfiguration}
+		canManageFiscality={canManageFiscality}
 	/>
+
+	<section class="space-y-4">
+		<div class="flex flex-wrap items-end justify-between gap-3">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Bloque 2 · Aplicación comercial
+				</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-100">
+					Impuestos y cargos aplicables a ventas
+				</h2>
+				<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+					Reglas que se aplican al precio de la reserva (TaxFeeDefinition + TaxFeeAssignment).
+					Alimentan tarifas, búsqueda, checkout y snapshots financieros — no sustituyen el perfil
+					fiscal.
+				</p>
+			</div>
+			<Button href={`${routes.providerSettingsTaxFees()}?create=1`} variant="secondary">
+				Nueva definición
+			</Button>
+		</div>
+
+		<Notice variant="info" title="Flujo recomendado">
+			Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
+			ventas.
+		</Notice>
+
+		<TaxFeePage
+			client:load
+			initialDefinitions={initialDefinitions}
+			initialWarnings={initialWarnings}
+			initialMode={initialMode}
+		/>
+	</section>
 </ProviderSettingsLayout>
