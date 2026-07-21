@@ -3,11 +3,11 @@ import {
 	desc,
 	eq,
 	and,
-	ProviderAuditLog,
 	ProviderIntegrationConnection,
 	ProviderIntegrationSyncLog,
 } from "astro:db"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 
 export type ProviderConnectorKey =
 	| "payment_gateway"
@@ -172,28 +172,56 @@ function statusTone(status: ProviderConnectorStatus): ProviderIntegrationCard["t
 	return "neutral"
 }
 
+function connectionAuditSnapshot(
+	row: {
+		id?: string | null
+		connectorKey?: string | null
+		status?: string | null
+		mode?: string | null
+		scopesJson?: unknown
+		credentialsRef?: string | null
+		lastSyncStatus?: string | null
+		errorMessage?: string | null
+	} | null
+) {
+	if (!row) return null
+	return {
+		id: row.id ?? null,
+		connectorKey: row.connectorKey ?? null,
+		status: row.status ?? null,
+		mode: normalizeMode(row.mode),
+		scopes: Array.isArray(row.scopesJson) ? row.scopesJson.map(String) : [],
+		credentialsRef: row.credentialsRef ? String(row.credentialsRef) : null,
+		lastSyncStatus: row.lastSyncStatus ? String(row.lastSyncStatus) : null,
+		errorMessage: row.errorMessage ? String(row.errorMessage) : null,
+	}
+}
+
 async function insertAudit(params: {
 	providerId: string
 	actorUserId?: string | null
 	action: string
 	entityId?: string | null
+	beforeJson?: unknown
 	afterJson?: unknown
 	riskLevel?: "low" | "medium" | "high"
 }) {
-	await db
-		.insert(ProviderAuditLog)
-		.values({
-			id: crypto.randomUUID(),
-			providerId: params.providerId,
-			actorUserId: params.actorUserId ?? undefined,
-			action: params.action,
-			entityType: "ProviderIntegrationConnection",
-			entityId: params.entityId ?? undefined,
-			afterJson: params.afterJson,
-			riskLevel: params.riskLevel ?? "medium",
-			createdAt: new Date(),
-		})
-		.catch(() => undefined)
+	if (!params.actorUserId) return
+	await writeProviderAuditLog({
+		providerId: params.providerId,
+		actorUserId: params.actorUserId,
+		action: params.action,
+		entityType: "ProviderIntegrationConnection",
+		entityId: params.entityId,
+		beforeJson: params.beforeJson ?? null,
+		afterJson: params.afterJson ?? null,
+		riskLevel:
+			params.riskLevel ??
+			inferSettingsRiskLevel({
+				domain: "integrations",
+				changedKeys: ["status", "mode", "credentialsRef"],
+			}),
+	})
 }
 
 export function listProviderConnectorCatalog(): ProviderConnectorCatalogItem[] {
@@ -304,6 +332,7 @@ export async function connectProviderIntegration(params: {
 	}
 
 	if (existing?.id) {
+		const before = connectionAuditSnapshot(existing)
 		await db
 			.update(ProviderIntegrationConnection)
 			.set(values)
@@ -325,7 +354,12 @@ export async function connectProviderIntegration(params: {
 			actorUserId: params.currentUserId,
 			action: "provider.integration.update",
 			entityId: existing.id,
-			afterJson: values,
+			beforeJson: before,
+			afterJson: connectionAuditSnapshot({ id: existing.id, ...values }),
+			riskLevel: inferSettingsRiskLevel({
+				domain: "integrations",
+				changedKeys: ["status", "mode", "credentialsRef", "scopes"],
+			}),
 		})
 		return existing.id
 	}
@@ -353,7 +387,12 @@ export async function connectProviderIntegration(params: {
 		actorUserId: params.currentUserId,
 		action: "provider.integration.connect",
 		entityId: id,
-		afterJson: values,
+		beforeJson: null,
+		afterJson: connectionAuditSnapshot({ id, ...values }),
+		riskLevel: inferSettingsRiskLevel({
+			domain: "integrations",
+			changedKeys: ["status", "mode", "credentialsRef", "scopes"],
+		}),
 	})
 	return id
 }
@@ -375,6 +414,14 @@ export async function revokeProviderIntegration(params: {
 		)
 		.get()
 	if (!existing?.id) return null
+
+	const before = connectionAuditSnapshot(existing)
+	const after = {
+		...before,
+		status: "revoked",
+		credentialsRef: null,
+		errorMessage: "Credenciales revocadas por el proveedor.",
+	}
 
 	await db
 		.update(ProviderIntegrationConnection)
@@ -399,6 +446,8 @@ export async function revokeProviderIntegration(params: {
 		actorUserId: params.currentUserId,
 		action: "provider.integration.revoke",
 		entityId: existing.id,
+		beforeJson: before,
+		afterJson: after,
 		riskLevel: "high",
 	})
 	return existing.id
@@ -427,6 +476,7 @@ export async function syncProviderIntegration(params: {
 	const message = hasCredentials
 		? "Sincronización de prueba completada."
 		: "No se puede sincronizar sin credenciales."
+	const before = connectionAuditSnapshot(existing)
 	await db
 		.update(ProviderIntegrationConnection)
 		.set({
@@ -452,7 +502,14 @@ export async function syncProviderIntegration(params: {
 		actorUserId: params.currentUserId,
 		action: "provider.integration.sync_test",
 		entityId: existing.id,
-		afterJson: { status, message },
+		beforeJson: before,
+		afterJson: connectionAuditSnapshot({
+			...existing,
+			status,
+			lastSyncStatus: hasCredentials ? "success" : "error",
+			errorMessage: hasCredentials ? null : message,
+		}),
+		riskLevel: "medium",
 	})
 	return { status, message }
 }

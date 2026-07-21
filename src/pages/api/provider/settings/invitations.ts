@@ -1,9 +1,10 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, ProviderAuditLog, ProviderInvitation, ProviderUser, sql } from "astro:db"
+import { and, db, eq, ProviderInvitation, ProviderUser, sql } from "astro:db"
 import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 
 const inviteSchema = z.object({
@@ -61,11 +62,18 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "create")
+		const teamRisk = inferSettingsRiskLevel({ domain: "team" })
 
 		if (action === "cancel") {
 			const parsed = cancelSchema.parse({ id: form.get("id") })
 			const existing = await db
-				.select({ id: ProviderInvitation.id, status: ProviderInvitation.status })
+				.select({
+					id: ProviderInvitation.id,
+					email: ProviderInvitation.email,
+					role: ProviderInvitation.role,
+					status: ProviderInvitation.status,
+					expiresAt: ProviderInvitation.expiresAt,
+				})
 				.from(ProviderInvitation)
 				.where(
 					and(eq(ProviderInvitation.id, parsed.id), eq(ProviderInvitation.providerId, providerId))
@@ -80,19 +88,26 @@ export const POST: APIRoute = async ({ request }) => {
 				.set({ status: "canceled", updatedAt: new Date() })
 				.where(eq(ProviderInvitation.id, parsed.id))
 
-			await db
-				.insert(ProviderAuditLog)
-				.values({
-					id: crypto.randomUUID(),
-					providerId,
-					actorUserId: user.id,
-					action: "provider.invitation.cancel",
-					entityType: "ProviderInvitation",
-					entityId: parsed.id,
-					riskLevel: "medium",
-					createdAt: new Date(),
-				})
-				.catch(() => {})
+			await writeProviderAuditLog({
+				providerId,
+				actorUserId: user.id,
+				action: "provider.invitation.cancel",
+				entityType: "ProviderInvitation",
+				entityId: parsed.id,
+				beforeJson: {
+					email: existing.email,
+					role: existing.role,
+					status: existing.status,
+					expiresAt: existing.expiresAt,
+				},
+				afterJson: {
+					email: existing.email,
+					role: existing.role,
+					status: "canceled",
+					expiresAt: existing.expiresAt,
+				},
+				riskLevel: teamRisk,
+			})
 
 			return shouldReturnHtmlRedirect(request)
 				? redirectToTeam(request, "canceled")
@@ -134,20 +149,22 @@ export const POST: APIRoute = async ({ request }) => {
 			updatedAt: now,
 		})
 
-		await db
-			.insert(ProviderAuditLog)
-			.values({
-				id: crypto.randomUUID(),
-				providerId,
-				actorUserId: user.id,
-				action: "provider.invitation.create",
-				entityType: "ProviderInvitation",
-				entityId: id,
-				afterJson: { email: parsed.email, role: parsed.role, status: "pending" },
-				riskLevel: "medium",
-				createdAt: now,
-			})
-			.catch(() => {})
+		await writeProviderAuditLog({
+			providerId,
+			actorUserId: user.id,
+			action: "provider.invitation.create",
+			entityType: "ProviderInvitation",
+			entityId: id,
+			beforeJson: null,
+			afterJson: {
+				email: parsed.email,
+				role: parsed.role,
+				status: "pending",
+				expiresAt,
+				invitedBy: user.id,
+			},
+			riskLevel: teamRisk,
+		})
 
 		return shouldReturnHtmlRedirect(request)
 			? redirectToTeam(request, "invited")
