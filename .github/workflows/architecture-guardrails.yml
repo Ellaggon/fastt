@@ -40,5 +40,8 @@ jobs:
       - name: Guardrails suite
         run: pnpm test tests/guardrails
 
+      - name: Governance capability suite (enforced)
+        run: pnpm run test:governance
+
       - name: Full test suite
         run: pnpm test

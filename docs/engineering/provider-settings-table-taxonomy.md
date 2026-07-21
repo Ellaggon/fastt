@@ -72,6 +72,11 @@ putting taxpayer forms inside listing tax tools (or the reverse).
 | `TaxFeeDefinition` | Taxes & Fees | Canonical commercial tax or fee rule applied to sellable prices. |
 | `TaxFeeAssignment` | Taxes & Fees | Scope/channel application of a definition to provider, product, variant, rate or global scope. |
 
+**TaxConfiguration status ownership (Airbnb/Expedia-aligned):** the provider may
+only produce `not_configured` | `pending` by submitting identity fields.
+Transitions to `verified` | `requires_attention` are internal-admin only
+(`POST /api/admin/providers/tax-configuration`). Providers never self-certify.
+
 Cross-reference: `TaxFeeDefinition` / `TaxFeeAssignment` are also listed in the
 Rooms & Rates taxonomy because booking, search and finance consume them. Their
 **write owner** remains taxes/fees, not provider profile.
@@ -86,6 +91,14 @@ Multiple accounts per provider are allowed. Readiness is derived from verified
 accounts (and optionally rolled into `ProviderFinancialProfile`), never stored
 as a boolean on `ProviderProfile`.
 
+**PaymentAccount status ownership (Airbnb/Expedia-aligned):** the provider may
+only **submit** payout methods (`POST /api/provider/settings/payment-accounts`);
+creates are always `pending`. Transitions to `verified` |
+`requires_attention` are internal-admin only
+(`POST /api/admin/providers/payment-accounts`). On verify, the rollup
+`ProviderFinancialProfile` is updated to `ready`. Providers never self-certify
+payout accounts (micro-deposit / admin review is the future verification path).
+
 ### Compliance And Verification
 
 | Table | Owner | Role |
@@ -93,9 +106,21 @@ as a boolean on `ProviderProfile`.
 | `ProviderDocument` | Verification | Submitted compliance artifacts (identity, business registration, tax docs, ownership, licenses, address proof) with review lifecycle. |
 | `ProviderVerification` | Verification | Append-only compliance decisions (`pending` / `approved` / `rejected`). Latest row by `createdAt`/`id` is the effective decision. |
 
+Providers may **submit** documents (`POST /api/provider/settings/documents`).
+Verify/reject is internal-admin only (`POST /api/admin/providers/documents`),
+mirroring Airbnb KYC and Expedia onboarding document review.
+
 `ProviderVerification` is source of truth for the decision stream. It is not a
 substitute for `ProviderAuditLog` (which records field-level mutations across
 domains).
+
+**Unified internal console (Airbnb Trust & Safety / Expedia partner ops):**
+`/admin/providers` is the single ops surface for pending work across
+verification, tax configuration, documents and payout accounts, plus a
+compliance audit trail (`ProviderAuditLog`). Queue aggregation lives in
+`provider-admin-compliance` / `GET /api/admin/providers/compliance`. Dimensional
+filters (`all` | `verification` | `fiscal` | `documents` | `payments` | `audit`)
+never grant providers review powers.
 
 ### Team And Access
 
@@ -135,10 +160,49 @@ Non-table derived signals (computed in governance, not persisted as columns on
 
 | Signal | Derived From |
 | --- | --- |
-| Payment readiness | Verified `ProviderPaymentAccount` rows and/or `ProviderFinancialProfile.status` |
-| Integration readiness | `ProviderIntegrationConnection` in `connected` / `syncing` |
-| Fiscal readiness | `ProviderTaxConfiguration.status` and/or active `TaxFeeDefinition` + residence country |
-| Documents readiness | Verified `ProviderDocument` rows and/or approved `ProviderVerification` |
+| Payment readiness | Verified `ProviderPaymentAccount` only (`ProviderFinancialProfile` is rollup, not a shortcut). Upsert to `ready` requires a verified payout account. |
+| Integration readiness | `ProviderIntegrationConnection.status = connected` **and** successful smoke `lastSyncStatus` (`success`/`ok`). Saving credentials yields `pending` until sync test. |
+| Fiscal readiness | `ProviderTaxConfiguration.status = verified` only. Active `TaxFeeDefinition` + country is a **risk** if taxpayer is unverified, never `complete`. |
+| Documents readiness | Verified minimum KYC set: `government_id` + `business_registration` + `tax_document`. Approved `ProviderVerification` does **not** bypass. |
+
+**Progress surfaces:** `/api/provider/settings/summary` and `/api/internal/provider-summary`
+both derive progress from `evaluateProviderGovernance` (8 checks). Do not reintroduce
+a 3-step shortcut.
+
+**Payout secrets:** full account/IBAN is stored encrypted (`accountIdentifierEnc` in
+`metadataJson`) via `provider-payment-secrets`. Never persist plaintext
+`accountIdentifier`. Admin review decrypts in memory only. Generate
+`PROVIDER_PAYOUT_SECRETS_KEY` with `openssl rand -base64 48` (operator-owned secret).
+
+**Document storage:** with R2 configured, uploads store `r2:provider-documents/...`
+refs; admin opens files via signed preview
+(`GET /api/admin/providers/documents/preview`). `local://` is test/local-only.
+
+**Publish gates:** product publish and rate-plan activation both call
+`assertProviderCapability("publish")` in addition to inventory/pricing checks.
+
+**Integrations policy (P2-6):** connector smoke success is **optional for
+publish/booking**. Missing or pending integrations are `risks` only — they never
+block `capabilities.publish`. Integrations gate only the `integrations`
+capability surface.
+
+**Payout ownership (P2-1):** admin may initiate a micro-deposit challenge;
+provider confirms two amounts → verified. Admin override verify remains allowed.
+
+**Connector smoke (P2-2):** `syncProviderIntegration` marks `connected` only after
+`runConnectorSmokeTest` succeeds (`https://` probe, valid `vault://`, or
+`test://smoke-ok` harness).
+
+**Taxpayer format (P2-3):** `validateTaxpayerRegistrationNumber` runs on fiscal
+upsert and before admin `verified` (CL RUT checksum, BO NIT, US EIN, AR CUIT,
+generic otherwise).
+
+**Ops SLA (P2-5):** `ProviderComplianceAssignment` + `/api/admin/providers/compliance-assignments`.
+
+**Governance anti-bypass (Airbnb/Expedia-aligned):** identity verification, taxpayer
+validation, document KYC, payout verification and connector smoke tests are
+independent gates. Do not collapse them into a single self-serve checkbox or
+treat commercial tax-fee tools as taxpayer verification.
 
 ---
 
@@ -208,7 +272,9 @@ state without re-running full governance.
 | Ops profile | `/api/providers/profile`, `upsertProviderProfileV2` | Tax, payment, integration readiness fields |
 | Fiscal identity | `/api/provider/settings/tax-configuration`, `provider-tax-configuration` | `TaxFeeDefinition` / assignments |
 | Sales taxes & fees | `/api/provider/tax-fees/*`, taxes-fees module | `ProviderTaxConfiguration` |
+| Payout methods | `/api/provider/settings/payment-accounts`, `provider-payment-accounts` (admin review: `/api/admin/providers/payment-accounts`) | Self-verify; readiness flags on `ProviderProfile` |
 | Documents | `/api/provider/settings/documents`, `provider-documents` | Verification decision stream except via review actions |
+| Compliance ops console | `/admin/providers`, `provider-admin-compliance`, `GET /api/admin/providers/compliance` + review POSTs under `/api/admin/providers/*` | Provider-facing self-certify; editing `ProviderConfigurationState` as settings |
 | Team | `/api/provider/settings/invitations`, permissions helpers | Ad-hoc membership tables |
 | Integrations | `/api/provider/integrations/*`, `provider-integrations` | Profile readiness flags |
 | Governance | `evaluateProviderGovernance`, `writeProviderAuditLog` | Manual edits to `ProviderConfigurationState` as if it were settings UI |
