@@ -1,0 +1,56 @@
+---
+import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const permissions = summary?.permissions ?? {}
+const accounts = await listProviderPaymentAccounts(auth.providerId).catch(() => [])
+const result = String(Astro.url.searchParams.get("result") ?? "").trim()
+const defaultCurrency = String(summary?.profile?.defaultCurrency ?? "USD")
+---
+
+<ProviderSettingsLayout
+	title="Pagos"
+	eyebrow="Configuración del proveedor · Pagos"
+	heading="Pagos y liquidaciones"
+	description="Métodos de cobro del proveedor (payouts). Separado de la identidad fiscal y de los impuestos de venta al huésped."
+>
+	<div slot="actions" class="flex flex-wrap gap-3">
+		<Button href={routes.providerSettingsTaxFees()} variant="secondary">Fiscalidad</Button>
+		<Button href={routes.providerSettings()} variant="secondary">Resumen</Button>
+	</div>
+
+	{
+		result === "submitted" ? (
+			<Notice variant="success" title="Cuenta enviada">
+				La cuenta quedó pendiente de validación por el equipo interno de Fastt.
+			</Notice>
+		) : result === "micro_deposit_confirmed" ? (
+			<Notice variant="success" title="Cuenta verificada">
+				Confirmaste el micro-depósito. La cuenta quedó verificada para liquidaciones.
+			</Notice>
+		) : null
+	}
+
+	<ProviderPaymentAccountsCard
+		accounts={accounts}
+		canManagePayments={Boolean(permissions.canManagePayments)}
+		defaultCurrency={defaultCurrency}
+	/>
+</ProviderSettingsLayout>

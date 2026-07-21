@@ -28,6 +28,9 @@ const SENSITIVE_KEYS = new Set([
 	"token",
 	"password",
 	"passwordHash",
+	"accountIdentifier",
+	"accountIdentifierEnc",
+	"ciphertext",
 ])
 
 export function snapshotForProviderAudit(value: unknown): unknown {

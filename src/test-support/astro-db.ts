@@ -58,6 +58,7 @@ export let ProviderPaymentAccount: any
 export let ProviderIntegrationConnection: any
 export let ProviderIntegrationSyncLog: any
 export let ProviderAuditLog: any
+export let ProviderComplianceAssignment: any
 export let ProviderConfigurationState: any
 export let ProviderVerification: any
 export let ProviderFinancialProfile: any
@@ -211,6 +212,7 @@ async function init() {
 	ProviderIntegrationConnection = drizzleTables.ProviderIntegrationConnection
 	ProviderIntegrationSyncLog = drizzleTables.ProviderIntegrationSyncLog
 	ProviderAuditLog = drizzleTables.ProviderAuditLog
+	ProviderComplianceAssignment = drizzleTables.ProviderComplianceAssignment
 	ProviderConfigurationState = drizzleTables.ProviderConfigurationState
 	ProviderVerification = drizzleTables.ProviderVerification
 	ProviderFinancialProfile = drizzleTables.ProviderFinancialProfile
