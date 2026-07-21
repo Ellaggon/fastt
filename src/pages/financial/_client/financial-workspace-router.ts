@@ -56,6 +56,13 @@ function navigateFinancialView(url: URL): void {
 	window.scrollTo({ top: 0, behavior: "instant" })
 }
 
+function isSameOriginFinancialNav(link: HTMLAnchorElement): URL | null {
+	const url = new URL(link.href)
+	if (url.origin !== window.location.origin) return null
+	if (!viewForFinancialPath(url.pathname)) return null
+	return url
+}
+
 export function initFinancialWorkspaceRouter(onViewChange?: (view: FinancialViewId) => void): void {
 	const initialView = viewForFinancialPath(window.location.pathname)
 	if (!initialView) return
@@ -65,20 +72,28 @@ export function initFinancialWorkspaceRouter(onViewChange?: (view: FinancialView
 	if (document.documentElement.dataset.financialRouterReady === "true") return
 	document.documentElement.dataset.financialRouterReady = "true"
 
-	document.addEventListener("click", (event) => {
-		const target = event.target
-		if (!(target instanceof Element)) return
-		const link = target.closest<HTMLAnchorElement>("a[data-financial-nav]")
-		if (!link) return
-		const url = new URL(link.href)
-		if (url.origin !== window.location.origin) return
-		if (!viewForFinancialPath(url.pathname)) return
-		event.preventDefault()
-		if (normalizePath(url.pathname) === normalizePath(window.location.pathname)) return
-		navigateFinancialView(url)
-		const view = viewForFinancialPath(url.pathname)
-		if (view) onViewChange?.(view)
-	})
+	// Capture phase so preventDefault runs before Astro ClientRouter's bubble handler.
+	// Otherwise ClientRouter swaps in fresh SSR "Cargando…" placeholders and the SPA boot skips.
+	document.addEventListener(
+		"click",
+		(event) => {
+			if (event.defaultPrevented) return
+			if (event.button !== 0) return
+			if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+			const target = event.target
+			if (!(target instanceof Element)) return
+			const link = target.closest<HTMLAnchorElement>("a[data-financial-nav]")
+			if (!link) return
+			const url = isSameOriginFinancialNav(link)
+			if (!url) return
+			event.preventDefault()
+			if (normalizePath(url.pathname) === normalizePath(window.location.pathname)) return
+			navigateFinancialView(url)
+			const view = viewForFinancialPath(url.pathname)
+			if (view) onViewChange?.(view)
+		},
+		true
+	)
 
 	window.addEventListener("popstate", () => {
 		const view = viewForFinancialPath(window.location.pathname)

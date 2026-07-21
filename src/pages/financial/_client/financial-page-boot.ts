@@ -58,16 +58,23 @@ const workspaceLoaders: Array<{
 	},
 ]
 
-const initializedViews = new Set<FinancialViewId>()
+/** In-flight boots only — must not outlive an Astro DOM swap. */
+const bootingViews = new Set<FinancialViewId>()
 
 export async function bootFinancialView(view: FinancialViewId | null): Promise<void> {
-	if (!view || initializedViews.has(view)) return
+	if (!view || bootingViews.has(view)) return
 	const workspace = workspaceLoaders.find((entry) => entry.view === view)
 	if (!workspace || !document.querySelector(workspace.selector)) return
-	initializedViews.add(view)
-	const module = await workspace.load()
-	const init = module[workspace.initName]
-	if (typeof init === "function") init()
+	bootingViews.add(view)
+	try {
+		const module = await workspace.load()
+		// DOM may have been replaced while the module was loading; re-check.
+		if (!document.querySelector(workspace.selector)) return
+		const init = module[workspace.initName]
+		if (typeof init === "function") init()
+	} finally {
+		bootingViews.delete(view)
+	}
 }
 
 export function prewarmCurrentFinancialPage(): void {
@@ -76,6 +83,8 @@ export function prewarmCurrentFinancialPage(): void {
 
 export function wireFinancialNavigationPrewarm(): void {
 	document.querySelectorAll<HTMLAnchorElement>("a[data-financial-nav]").forEach((link) => {
+		if (link.dataset.financialPrewarmWired === "true") return
+		link.dataset.financialPrewarmWired = "true"
 		const prewarm = () => {
 			const pathname = new URL(link.href).pathname.replace(/\/$/, "") || "/"
 			prewarmFinancialEndpoints(financialRouteEndpointMap[pathname] || [])
