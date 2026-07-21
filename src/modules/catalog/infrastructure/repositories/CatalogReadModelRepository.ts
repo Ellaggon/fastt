@@ -438,11 +438,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					defaultCurrency: ProviderProfile.defaultCurrency,
 					supportEmail: ProviderProfile.supportEmail,
 					supportPhone: ProviderProfile.supportPhone,
-					taxResidenceCountry: ProviderProfile.taxResidenceCountry,
-					businessRegistrationNumber: ProviderProfile.businessRegistrationNumber,
-					fiscalStatus: ProviderProfile.fiscalStatus,
-					paymentReadinessStatus: ProviderProfile.paymentReadinessStatus,
-					integrationReadinessStatus: ProviderProfile.integrationReadinessStatus,
 				},
 				providerUserRole: ProviderUser.role,
 				providerUserUserId: ProviderUser.userId,
@@ -459,7 +454,15 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 		if (!rows.length) return null
 
 		const provider = rows[0].provider
-		const profile = rows[0].profile ?? null
+		const rawProfile = rows[0].profile ?? null
+		const profile = rawProfile
+			? {
+					timezone: rawProfile.timezone,
+					defaultCurrency: rawProfile.defaultCurrency,
+					supportEmail: rawProfile.supportEmail,
+					supportPhone: rawProfile.supportPhone,
+				}
+			: null
 
 		const ownerPreferred =
 			rows.find((row) => row.providerUserRole === "owner" && row.ownerId) ??

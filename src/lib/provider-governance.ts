@@ -15,6 +15,7 @@ import {
 	ProviderVerification,
 	TaxFeeDefinition,
 } from "astro:db"
+import { resolveProviderPermissions } from "@/lib/provider-permissions"
 
 export type ProviderCapability = "publish" | "booking" | "payments" | "integrations"
 
@@ -45,6 +46,7 @@ export type ProviderGovernanceSummary = {
 		canManageFiscality: boolean
 		canManagePayments: boolean
 		canManageIntegrations: boolean
+		canManageDocuments: boolean
 		canInviteTeam: boolean
 	}
 	counts: {
@@ -65,6 +67,7 @@ export type ProviderGovernanceSummary = {
 }
 
 const settingsRoutes = {
+	summary: "/provider/settings",
 	profile: "/provider/settings/profile",
 	verification: "/provider/settings/verification",
 	taxFees: "/provider/settings/tax-fees",
@@ -133,11 +136,6 @@ export async function evaluateProviderGovernance(
 					defaultCurrency: ProviderProfile.defaultCurrency,
 					supportEmail: ProviderProfile.supportEmail,
 					supportPhone: ProviderProfile.supportPhone,
-					taxResidenceCountry: ProviderProfile.taxResidenceCountry,
-					businessRegistrationNumber: ProviderProfile.businessRegistrationNumber,
-					fiscalStatus: ProviderProfile.fiscalStatus,
-					paymentReadinessStatus: ProviderProfile.paymentReadinessStatus,
-					integrationReadinessStatus: ProviderProfile.integrationReadinessStatus,
 				},
 			})
 			.from(Provider)
@@ -225,6 +223,7 @@ export async function evaluateProviderGovernance(
 				.select({
 					userId: ProviderUser.userId,
 					role: ProviderUser.role,
+					permissionsJson: ProviderUser.permissionsJson,
 				})
 				.from(ProviderUser)
 				.where(eq(ProviderUser.providerId, id))
@@ -242,6 +241,8 @@ export async function evaluateProviderGovernance(
 	const connectedIntegrations = integrationRows.filter((row) =>
 		["connected", "syncing"].includes(String(row.status))
 	)
+	const fiscalStatus = String(taxConfiguration?.status ?? "")
+	const taxResidenceCountry = taxConfiguration?.taxResidenceCountry ?? null
 
 	const identityComplete = Boolean(provider.displayName?.trim() && provider.legalName?.trim())
 	const operationsComplete = Boolean(
@@ -250,25 +251,21 @@ export async function evaluateProviderGovernance(
 	const verificationComplete = latestVerification?.status === "approved"
 	const documentsComplete = verifiedDocuments.length > 0 || verificationComplete
 	const fiscalComplete = Boolean(
-		profile?.fiscalStatus === "verified" ||
-		taxConfiguration?.status === "verified" ||
-		(activeTaxDefinitions.length > 0 &&
-			(profile?.taxResidenceCountry || taxConfiguration?.taxResidenceCountry))
+		fiscalStatus === "verified" || (activeTaxDefinitions.length > 0 && taxResidenceCountry)
 	)
 	const paymentsComplete = Boolean(
-		profile?.paymentReadinessStatus === "verified" ||
 		verifiedPaymentAccounts.length > 0 ||
-		financialProfile?.status === "active"
+		["active", "ready"].includes(String(financialProfile?.status ?? ""))
 	)
-	const integrationsReady = Boolean(
-		profile?.integrationReadinessStatus === "ready" || connectedIntegrations.length > 0
-	)
+	const integrationsReady = connectedIntegrations.length > 0
 	const teamComplete = teamRows.some((row) => ["owner", "admin"].includes(String(row.role)))
-	const currentUserRole = opts.currentUserId
-		? teamRows.find((row) => row.userId === opts.currentUserId)?.role
+	const currentUserLink = opts.currentUserId
+		? teamRows.find((row) => row.userId === opts.currentUserId)
 		: null
-	const canAdminister = ["owner", "admin"].includes(String(currentUserRole ?? ""))
-	const isOwner = currentUserRole === "owner"
+	const permissions = resolveProviderPermissions({
+		role: currentUserLink?.role,
+		permissionsJson: currentUserLink?.permissionsJson,
+	})
 
 	const readiness: ProviderGovernanceCheck[] = [
 		{
@@ -310,7 +307,8 @@ export async function evaluateProviderGovernance(
 			id: "payments",
 			label: "Cuenta de pago verificada",
 			complete: paymentsComplete,
-			href: settingsRoutes.profile,
+			// Payout methods are owned by ProviderPaymentAccount; dedicated settings UI is pending.
+			href: settingsRoutes.summary,
 			capabilities: ["payments"],
 		},
 		{
@@ -375,13 +373,7 @@ export async function evaluateProviderGovernance(
 		readiness,
 		blockers,
 		risks,
-		permissions: {
-			canEditProfile: canAdminister,
-			canManageFiscality: canAdminister,
-			canManagePayments: canAdminister,
-			canManageIntegrations: canAdminister,
-			canInviteTeam: isOwner,
-		},
+		permissions,
 		counts: {
 			documents: documentRows.length,
 			verifiedDocuments: verifiedDocuments.length,

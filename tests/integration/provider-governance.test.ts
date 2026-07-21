@@ -7,8 +7,11 @@ import {
 	ProviderIntegrationConnection,
 	ProviderPaymentAccount,
 	ProviderProfile,
+	ProviderTaxConfiguration,
+	ProviderUser,
 	ProviderVerification,
 	TaxFeeDefinition,
+	User,
 } from "astro:db"
 import {
 	assertProviderCapability,
@@ -76,12 +79,17 @@ describe("integration/provider governance", () => {
 			defaultCurrency: "USD",
 			supportEmail: "soporte@gobernanza.test",
 			supportPhone: "+59170000000",
+			governanceUpdatedAt: now,
+		})
+		await db.insert(ProviderTaxConfiguration).values({
+			providerId,
+			status: "verified",
 			taxResidenceCountry: "BO",
 			businessRegistrationNumber: "NIT-123456",
-			fiscalStatus: "verified",
-			paymentReadinessStatus: "verified",
-			integrationReadinessStatus: "ready",
-			governanceUpdatedAt: now,
+			taxRegime: "general",
+			invoicingMode: "platform_receipt",
+			updatedAt: now,
+			updatedBy: ownerId,
 		})
 		await db.insert(ProviderVerification).values({
 			id: "verification_governance_ready",
@@ -170,5 +178,45 @@ describe("integration/provider governance", () => {
 		expect(state?.canAcceptBookings).toBe(true)
 		expect(state?.canCollectPayments).toBe(true)
 		expect(state?.canUseIntegrations).toBe(true)
+	})
+
+	it("keeps roles simple while honoring granular permission overrides", async () => {
+		const providerId = "provider_governance_permission_overrides"
+		const ownerEmail = "permission.owner@example.com"
+		const staffEmail = "permission.staff@example.com"
+		const staffId = `user_${staffEmail}`
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Permisos Granulares S.R.L.",
+			displayName: "Permisos Granulares",
+			ownerEmail,
+		})
+		await db.insert(User).values({ id: staffId, email: staffEmail }).onConflictDoNothing()
+		await db.insert(ProviderUser).values({
+			id: "provider_user_permission_override",
+			providerId,
+			userId: staffId,
+			role: "staff",
+			permissionsJson: {
+				canEditProfile: true,
+				canManageFiscality: false,
+				canManagePayments: false,
+				canManageIntegrations: false,
+				canInviteTeam: true,
+			},
+		})
+
+		const summary = await evaluateProviderGovernance(providerId, {
+			currentUserId: staffId,
+		})
+
+		expect(summary.permissions).toMatchObject({
+			canEditProfile: true,
+			canManageFiscality: false,
+			canManagePayments: false,
+			canManageIntegrations: false,
+			canInviteTeam: true,
+		})
 	})
 })

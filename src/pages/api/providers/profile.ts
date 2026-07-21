@@ -1,21 +1,39 @@
 import type { APIRoute } from "astro"
-import { db, ProviderAuditLog } from "astro:db"
+import { db, eq, ProviderProfile } from "astro:db"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
 import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
+import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
 	return accept.includes("text/html")
 }
 
+function profileSnapshot(
+	row: {
+		timezone: string
+		defaultCurrency: string
+		supportEmail: string | null
+		supportPhone: string | null
+	} | null
+) {
+	if (!row) return null
+	return {
+		timezone: row.timezone,
+		defaultCurrency: row.defaultCurrency,
+		supportEmail: row.supportEmail,
+		supportPhone: row.supportPhone,
+	}
+}
+
 export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	try {
 		const user = await getUserFromRequest(request)
-		if (!user?.email) {
+		if (!user?.email || !user?.id) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {
 				status: 401,
 				headers: { "Content-Type": "application/json" },
@@ -35,45 +53,52 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
 			supportEmail: String(form.get("supportEmail") ?? "").trim() || undefined,
 			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
-			taxResidenceCountry:
-				String(form.get("taxResidenceCountry") ?? "")
-					.trim()
-					.toUpperCase() || undefined,
-			businessRegistrationNumber:
-				String(form.get("businessRegistrationNumber") ?? "").trim() || undefined,
-			fiscalStatus: String(form.get("fiscalStatus") ?? "").trim() || undefined,
-			paymentReadinessStatus: String(form.get("paymentReadinessStatus") ?? "").trim() || undefined,
-			integrationReadinessStatus:
-				String(form.get("integrationReadinessStatus") ?? "").trim() || undefined,
 		}
+
+		const beforeProfile = profileSnapshot(
+			(await db
+				.select({
+					timezone: ProviderProfile.timezone,
+					defaultCurrency: ProviderProfile.defaultCurrency,
+					supportEmail: ProviderProfile.supportEmail,
+					supportPhone: ProviderProfile.supportPhone,
+				})
+				.from(ProviderProfile)
+				.where(eq(ProviderProfile.providerId, providerId))
+				.get()
+				.catch(() => null)) ?? null
+		)
 
 		const result = await upsertProviderProfileV2(
 			{ repo: providerV2Repository },
-			{ providerId, ...raw }
+			{
+				providerId,
+				timezone: raw.timezone,
+				defaultCurrency: raw.defaultCurrency,
+				supportEmail: raw.supportEmail,
+				supportPhone: raw.supportPhone,
+			}
 		)
 		await invalidateProvider(providerId)
-		await db
-			.insert(ProviderAuditLog)
-			.values({
-				id: crypto.randomUUID(),
-				providerId,
-				actorUserId: user.id,
-				action: "provider.profile.upsert",
-				entityType: "ProviderProfile",
-				entityId: providerId,
-				afterJson: raw,
-				riskLevel:
-					raw.fiscalStatus || raw.paymentReadinessStatus || raw.integrationReadinessStatus
-						? "medium"
-						: "low",
-				createdAt: new Date(),
-			})
-			.catch((error) => {
-				const message = error instanceof Error ? error.message : String(error)
-				if (!message.includes("ProviderAuditLog") && !message.includes("no such table")) {
-					throw error
-				}
-			})
+
+		await writeProviderAuditLog({
+			providerId,
+			actorUserId: user.id,
+			action: "provider.profile.upsert",
+			entityType: "ProviderProfile",
+			entityId: providerId,
+			beforeJson: beforeProfile,
+			afterJson: {
+				timezone: raw.timezone,
+				defaultCurrency: raw.defaultCurrency,
+				supportEmail: raw.supportEmail ?? null,
+				supportPhone: raw.supportPhone ?? null,
+			},
+			riskLevel: inferSettingsRiskLevel({
+				domain: "profile",
+				changedKeys: Object.keys(raw),
+			}),
+		})
 
 		if (shouldReturnHtmlRedirect(request)) {
 			const url = new URL("/provider/settings/profile?success=saved", request.url)

@@ -1,13 +1,19 @@
 import type { APIRoute } from "astro"
-import { db, desc, eq, ProviderAuditLog, ProviderUser, User } from "astro:db"
+import { db, desc, eq, ProviderAuditLog, ProviderInvitation, ProviderUser, User } from "astro:db"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { listProviderDocuments } from "@/lib/provider-documents"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 import { listTaxFeeDefinitionsByProviderUseCase } from "@/container/taxes-fees.container"
 import { buildTaxFeeWarnings } from "@/modules/taxes-fees/public"
 import { routes } from "@/lib/routes"
+import {
+	buildProviderRolePermissionMatrix,
+	resolveProviderPermissions,
+} from "@/lib/provider-permissions"
 
 function json(payload: unknown, status = 200) {
 	return new Response(JSON.stringify(payload), {
@@ -23,35 +29,7 @@ const capabilityLabels = {
 	integrations: "Integraciones",
 }
 
-const rolePermissions = [
-	{
-		role: "owner",
-		label: "Propietario",
-		canEditProfile: true,
-		canManageFiscality: true,
-		canManagePayments: true,
-		canManageIntegrations: true,
-		canInviteTeam: true,
-	},
-	{
-		role: "admin",
-		label: "Administrador",
-		canEditProfile: true,
-		canManageFiscality: true,
-		canManagePayments: true,
-		canManageIntegrations: true,
-		canInviteTeam: false,
-	},
-	{
-		role: "staff",
-		label: "Operación",
-		canEditProfile: false,
-		canManageFiscality: false,
-		canManagePayments: false,
-		canManageIntegrations: false,
-		canInviteTeam: false,
-	},
-]
+const rolePermissions = buildProviderRolePermissionMatrix()
 
 function buildBlockingMatrix(governance: Awaited<ReturnType<typeof evaluateProviderGovernance>>) {
 	return (Object.keys(capabilityLabels) as Array<keyof typeof capabilityLabels>).map(
@@ -169,6 +147,7 @@ export const GET: APIRoute = async ({ request }) => {
 			id: User.id,
 			email: User.email,
 			role: ProviderUser.role,
+			permissionsJson: ProviderUser.permissionsJson,
 			createdAt: ProviderUser.createdAt,
 		})
 		.from(ProviderUser)
@@ -176,6 +155,24 @@ export const GET: APIRoute = async ({ request }) => {
 		.where(eq(ProviderUser.providerId, providerId))
 		.all()
 		.catch(() => [])
+	const invitations = await db
+		.select({
+			id: ProviderInvitation.id,
+			email: ProviderInvitation.email,
+			role: ProviderInvitation.role,
+			status: ProviderInvitation.status,
+			invitedBy: ProviderInvitation.invitedBy,
+			acceptedAt: ProviderInvitation.acceptedAt,
+			expiresAt: ProviderInvitation.expiresAt,
+			createdAt: ProviderInvitation.createdAt,
+		})
+		.from(ProviderInvitation)
+		.where(eq(ProviderInvitation.providerId, providerId))
+		.orderBy(desc(ProviderInvitation.createdAt))
+		.all()
+		.catch(() => [])
+	const documents = await listProviderDocuments(providerId).catch(() => [])
+	const taxConfiguration = await getProviderTaxConfiguration(providerId).catch(() => null)
 
 	const risks = [
 		...governance.risks,
@@ -203,11 +200,6 @@ export const GET: APIRoute = async ({ request }) => {
 			defaultCurrency: profile?.defaultCurrency || "",
 			supportEmail: profile?.supportEmail || "",
 			supportPhone: profile?.supportPhone || "",
-			taxResidenceCountry: profile?.taxResidenceCountry || "",
-			businessRegistrationNumber: profile?.businessRegistrationNumber || "",
-			fiscalStatus: profile?.fiscalStatus || "not_configured",
-			paymentReadinessStatus: profile?.paymentReadinessStatus || "not_configured",
-			integrationReadinessStatus: profile?.integrationReadinessStatus || "not_configured",
 		},
 		verification: {
 			status: latestVerification?.status ?? "pending",
@@ -243,10 +235,35 @@ export const GET: APIRoute = async ({ request }) => {
 					id: user.id,
 					email: user.email,
 					role: user.role,
+					permissions: resolveProviderPermissions({
+						role: user.role,
+						permissionsJson: user.permissionsJson,
+					}),
+					permissionsJson: user.permissionsJson,
 					createdAt: user.createdAt,
 				}))
 			: ownerUser
-				? [{ id: ownerUser.id, email: ownerUser.email, role: "owner" }]
+				? [
+						{
+							id: ownerUser.id,
+							email: ownerUser.email,
+							role: "owner",
+							permissions: resolveProviderPermissions({ role: "owner" }),
+							permissionsJson: null,
+						},
+					]
 				: [],
+		invitations: invitations.map((invitation) => ({
+			id: invitation.id,
+			email: invitation.email,
+			role: invitation.role,
+			status: invitation.status,
+			invitedBy: invitation.invitedBy,
+			acceptedAt: invitation.acceptedAt,
+			expiresAt: invitation.expiresAt,
+			createdAt: invitation.createdAt,
+		})),
+		documents,
+		taxConfiguration,
 	})
 }

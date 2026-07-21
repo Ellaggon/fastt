@@ -4,6 +4,11 @@ This document classifies the operational tables used by Rooms & Rates, booking, 
 and policy resolution. It is intentionally small: each table should have one role so the
 system does not drift back into duplicate contractual sources.
 
+Sibling contract for provider settings / fiscal identity / team / integrations:
+[`provider-settings-table-taxonomy.md`](./provider-settings-table-taxonomy.md).
+Sales `TaxFeeDefinition` / `TaxFeeAssignment` are listed in both; write ownership
+stays with taxes/fees.
+
 ## Source Of Truth
 
 Source-of-truth tables are the editable contractual or operational inputs. Mutations

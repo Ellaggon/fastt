@@ -1,7 +1,10 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { routes } from "@/lib/routes"
@@ -19,8 +22,19 @@ const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.u
 })
 const summary = summaryRes.ok ? await summaryRes.json() : null
 const users = Array.isArray(summary?.users) ? summary.users : []
+const invitations = Array.isArray(summary?.invitations) ? summary.invitations : []
 const permissions = summary?.permissions ?? {}
 const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePermissions : []
+const result = Astro.url.searchParams.get("result")
+const pendingInvitations = invitations.filter((invitation: any) => invitation.status === "pending")
+const permissionLabels = [
+	["canEditProfile", "Perfil"],
+	["canManageFiscality", "Fiscalidad"],
+	["canManagePayments", "Pagos"],
+	["canManageIntegrations", "Integraciones"],
+	["canManageDocuments", "Documentos"],
+	["canInviteTeam", "Equipo"],
+]
 ---
 
 <ProviderSettingsLayout
@@ -28,10 +42,20 @@ const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePe
 	heading="Equipo"
 	description="Base de gobierno para usuarios, roles y cambios sensibles dentro de la configuración del proveedor."
 >
-	<Notice variant="info" title="Gobernanza en preparación">
-		Los permisos efectivos ya se calculan desde la relación real del usuario con el proveedor. Las
-		invitaciones nuevas pueden montarse sobre este modelo sin cambiar la matriz de gobierno.
-	</Notice>
+	{
+		result === "invited" && (
+			<Notice variant="success" title="Invitación registrada">
+				La invitación quedó pendiente en el panel del equipo.
+			</Notice>
+		)
+	}
+	{
+		result === "canceled" && (
+			<Notice variant="success" title="Invitación cancelada">
+				La invitación pendiente fue marcada como cancelada.
+			</Notice>
+		)
+	}
 
 	<div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
 		<Card>
@@ -50,6 +74,15 @@ const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePe
 									<div>
 										<p class="text-sm font-semibold text-slate-950">{user.email}</p>
 										<p class="mt-1 text-sm text-slate-600">Rol: {user.role}</p>
+										{user.permissions && (
+											<div class="mt-3 flex flex-wrap gap-2">
+												{permissionLabels.map(([key, label]) => (
+													<Badge variant={user.permissions[key] ? "success" : "neutral"}>
+														{label}: {user.permissions[key] ? "Sí" : "No"}
+													</Badge>
+												))}
+											</div>
+										)}
 									</div>
 									<Badge variant="success">Activo</Badge>
 								</Card>
@@ -65,17 +98,102 @@ const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePe
 		</Card>
 
 		<Card>
-			<div class="space-y-4">
-				<h2 class="text-xl font-semibold text-slate-950">Permisos efectivos</h2>
-				<div class="space-y-3 text-sm text-slate-600">
-					<p>Editar perfil: {permissions.canEditProfile ? "habilitado" : "restringido"}</p>
-					<p>Fiscalidad: {permissions.canManageFiscality ? "habilitado" : "restringido"}</p>
-					<p>Integraciones: {permissions.canManageIntegrations ? "habilitado" : "restringido"}</p>
-					<p>Invitar equipo: {permissions.canInviteTeam ? "habilitado" : "restringido"}</p>
-				</div>
-			</div>
+			{
+				permissions.canInviteTeam ? (
+					<form class="space-y-4" method="post" action="/api/provider/settings/invitations">
+						<div>
+							<h2 class="text-xl font-semibold text-slate-950">Invitar persona</h2>
+							<p class="mt-2 text-sm leading-6 text-slate-600">
+								Registra una invitación pendiente para sumar a alguien al proveedor.
+							</p>
+						</div>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							Correo
+							<Input type="email" name="email" placeholder="persona@empresa.com" required />
+						</label>
+						<label class="grid gap-2 text-sm font-medium text-slate-700">
+							Rol
+							<Select name="role" required>
+								<option value="admin">Administrador</option>
+								<option value="staff">Operación</option>
+							</Select>
+						</label>
+						<Button type="submit">Crear invitación</Button>
+					</form>
+				) : (
+					<div class="space-y-4">
+						<h2 class="text-xl font-semibold text-slate-950">Invitaciones</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							Tu rol actual no permite invitar ni cancelar miembros del equipo.
+						</p>
+					</div>
+				)
+			}
 		</Card>
 	</div>
+
+	<Card>
+		<div class="space-y-4">
+			<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Invitaciones pendientes</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Personas invitadas que todavía no tienen relación activa con el proveedor.
+					</p>
+				</div>
+				<Badge variant={pendingInvitations.length ? "warning" : "success"}>
+					{pendingInvitations.length} pendiente{pendingInvitations.length === 1 ? "" : "s"}
+				</Badge>
+			</div>
+			<div class="space-y-3">
+				{
+					pendingInvitations.length ? (
+						pendingInvitations.map((invitation: any) => (
+							<Card
+								variant="soft"
+								class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+							>
+								<div>
+									<p class="text-sm font-semibold text-slate-950">{invitation.email}</p>
+									<p class="mt-1 text-sm text-slate-600">
+										Rol: {invitation.role} · Expira:{" "}
+										{new Date(invitation.expiresAt).toLocaleDateString("es-BO")}
+									</p>
+								</div>
+								{permissions.canInviteTeam && (
+									<form method="post" action="/api/provider/settings/invitations">
+										<input type="hidden" name="action" value="cancel" />
+										<input type="hidden" name="id" value={invitation.id} />
+										<Button type="submit" variant="secondary" size="sm">
+											Cancelar
+										</Button>
+									</form>
+								)}
+							</Card>
+						))
+					) : (
+						<Card variant="soft" class="text-sm text-slate-600">
+							No hay invitaciones pendientes.
+						</Card>
+					)
+				}
+			</div>
+		</div>
+	</Card>
+
+	<Card>
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-slate-950">Permisos efectivos</h2>
+			<div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
+				<p>Editar perfil: {permissions.canEditProfile ? "habilitado" : "restringido"}</p>
+				<p>Fiscalidad: {permissions.canManageFiscality ? "habilitado" : "restringido"}</p>
+				<p>Pagos: {permissions.canManagePayments ? "habilitado" : "restringido"}</p>
+				<p>Integraciones: {permissions.canManageIntegrations ? "habilitado" : "restringido"}</p>
+				<p>Documentos: {permissions.canManageDocuments ? "habilitado" : "restringido"}</p>
+				<p>Invitar equipo: {permissions.canInviteTeam ? "habilitado" : "restringido"}</p>
+			</div>
+		</div>
+	</Card>
 
 	<Card>
 		<div class="space-y-4">
@@ -96,6 +214,7 @@ const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePe
 							<th class="py-3 pr-4">Fiscalidad</th>
 							<th class="py-3 pr-4">Pagos</th>
 							<th class="py-3 pr-4">Integraciones</th>
+							<th class="py-3 pr-4">Documentos</th>
 							<th class="py-3 pr-4">Equipo</th>
 						</tr>
 					</thead>
@@ -122,6 +241,11 @@ const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePe
 									<td class="py-3 pr-4">
 										<Badge variant={role.canManageIntegrations ? "success" : "neutral"}>
 											{role.canManageIntegrations ? "Sí" : "No"}
+										</Badge>
+									</td>
+									<td class="py-3 pr-4">
+										<Badge variant={role.canManageDocuments ? "success" : "neutral"}>
+											{role.canManageDocuments ? "Sí" : "No"}
 										</Badge>
 									</td>
 									<td class="py-3 pr-4">

@@ -1,19 +1,4 @@
 ALTER TABLE "ProviderProfile"
-	ADD COLUMN "taxResidenceCountry" TEXT;
-
-ALTER TABLE "ProviderProfile"
-	ADD COLUMN "businessRegistrationNumber" TEXT;
-
-ALTER TABLE "ProviderProfile"
-	ADD COLUMN "fiscalStatus" TEXT NOT NULL DEFAULT 'not_configured';
-
-ALTER TABLE "ProviderProfile"
-	ADD COLUMN "paymentReadinessStatus" TEXT NOT NULL DEFAULT 'not_configured';
-
-ALTER TABLE "ProviderProfile"
-	ADD COLUMN "integrationReadinessStatus" TEXT NOT NULL DEFAULT 'not_configured';
-
-ALTER TABLE "ProviderProfile"
 	ADD COLUMN "governanceUpdatedAt" INTEGER;
 
 CREATE TABLE IF NOT EXISTS "ProviderDocument" (
@@ -23,6 +8,7 @@ CREATE TABLE IF NOT EXISTS "ProviderDocument" (
 	"status" TEXT NOT NULL DEFAULT 'pending',
 	"fileUrl" TEXT,
 	"metadataJson" TEXT,
+	"reviewNotes" TEXT,
 	"reviewedAt" INTEGER,
 	"reviewedBy" TEXT REFERENCES "User" ("id"),
 	"createdAt" INTEGER NOT NULL DEFAULT (unixepoch()),
