@@ -27,7 +27,7 @@ import {
 	ScrollText,
 	ShieldCheck,
 } from "@lucide/astro"
-import { db, eq, ProductStatus } from "astro:db"
+import { first, db, eq, ProductStatus } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -61,7 +61,7 @@ const statusRow = await db
 	.select({ state: ProductStatus.state })
 	.from(ProductStatus)
 	.where(eq(ProductStatus.productId, productId))
-	.get()
+	.then(first)
 
 const status = String(statusRow?.state || "draft")
 	.trim()

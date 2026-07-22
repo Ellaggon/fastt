@@ -1,9 +1,11 @@
 import {
+	first,
 	and,
 	desc,
 	db,
 	eq,
 	EffectivePricingV2,
+	gt,
 	gte,
 	inArray,
 	isNull,
@@ -11,8 +13,7 @@ import {
 	lt,
 	or,
 	RatePlanOccupancyPolicy,
-	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { logger } from "@/lib/observability/logger"
 
 type OccupancyPolicyRow = {
@@ -59,13 +60,13 @@ export class PricingV2Repository {
 					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
 					or(
 						isNull(RatePlanOccupancyPolicy.effectiveTo),
-						sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+						gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 					)
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
 			.limit(2)
-			.all()
+
 		const row = rows[0]
 		if (!row) {
 			return this.getBaseFromExistingEffectivePricing(params)
@@ -111,7 +112,7 @@ export class PricingV2Repository {
 			)
 			.orderBy(desc(EffectivePricingV2.computedAt), desc(EffectivePricingV2.id))
 			.limit(1)
-			.get()
+			.then(first)
 		if (!row) return null
 		return {
 			baseAmount: Number((row as any).baseAmount ?? 0),
@@ -146,13 +147,13 @@ export class PricingV2Repository {
 					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
 					or(
 						isNull(RatePlanOccupancyPolicy.effectiveTo),
-						sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+						gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 					)
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
 			.limit(2)
-			.all()
+
 		const row = rows[0]
 		if (row && rows.length > 1) {
 			logger.warn("pricing_v2_policy_overlap_detected", {
@@ -199,10 +200,10 @@ export class PricingV2Repository {
 				ratePlanId: params.ratePlanId,
 				date: params.date,
 				occupancyKey: params.occupancyKey,
-				baseComponent: params.baseComponent,
-				occupancyAdjustment: params.occupancyAdjustment,
-				ruleAdjustment: params.ruleAdjustment,
-				finalBasePrice: params.finalBasePrice,
+				baseComponent: String(params.baseComponent),
+				occupancyAdjustment: String(params.occupancyAdjustment),
+				ruleAdjustment: String(params.ruleAdjustment),
+				finalBasePrice: String(params.finalBasePrice),
 				currency: params.currency,
 				computedAt: params.computedAt,
 				sourceVersion: params.sourceVersion,
@@ -215,10 +216,10 @@ export class PricingV2Repository {
 					EffectivePricingV2.occupancyKey,
 				],
 				set: {
-					baseComponent: params.baseComponent,
-					occupancyAdjustment: params.occupancyAdjustment,
-					ruleAdjustment: params.ruleAdjustment,
-					finalBasePrice: params.finalBasePrice,
+					baseComponent: String(params.baseComponent),
+					occupancyAdjustment: String(params.occupancyAdjustment),
+					ruleAdjustment: String(params.ruleAdjustment),
+					finalBasePrice: String(params.finalBasePrice),
 					currency: params.currency,
 					computedAt: params.computedAt,
 					sourceVersion: params.sourceVersion,
@@ -253,7 +254,7 @@ export class PricingV2Repository {
 					occupancyPredicate
 				)
 			)
-			.all()
+
 		return rows.map((row) => ({
 			date: String(row.date),
 			occupancyKey: String(row.occupancyKey),

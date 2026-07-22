@@ -1,4 +1,4 @@
-import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { first, and, db, eq, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 import type {
@@ -25,7 +25,7 @@ export class RatePlanPricingContextRepository implements RatePlanPricingContextR
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(RatePlan.id, params.ratePlanId), eq(Product.providerId, params.providerId)))
-			.get()
+			.then(first)
 
 		if (!row) return null
 		return {

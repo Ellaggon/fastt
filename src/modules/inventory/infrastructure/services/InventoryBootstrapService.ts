@@ -1,6 +1,6 @@
 // Source: legacy implementation from src/core/inventory/InventoryBootstrapService.ts
 
-import { db, DailyInventory, eq } from "astro:db"
+import { db, DailyInventory, eq } from "@/shared/infrastructure/db/compat"
 
 export class InventoryBootstrapService {
 	async bootstrap(params: { variantId: string; totalInventory: number; days?: number }) {

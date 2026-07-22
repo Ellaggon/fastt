@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	asc,
 	db,
@@ -25,7 +26,7 @@ import {
 	VariantRoomProfile,
 	VariantReadiness,
 	RoomType,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { ensureObjectKey } from "@/lib/images/objectKey"
 import type {
@@ -57,7 +58,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 			.where(eq(Product.id, productId))
 			.limit(1)
-			.all()
 
 		const row = rows[0]
 		if (!row) return null
@@ -73,7 +73,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.from(Image)
 			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
 			.orderBy(asc(Image.order))
-			.all()
 
 		const modernDescription = row.contentDescription ? String(row.contentDescription).trim() : null
 		const description: string | null = modernDescription || null
@@ -151,7 +150,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(Package, eq(Package.productId, Product.id))
 			.leftJoin(Limousine, eq(Limousine.productId, Product.id))
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
-			.get()
+			.then(first)
 
 		if (!row) return null
 
@@ -166,7 +165,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.from(Image)
 			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
 			.orderBy(asc(Image.order))
-			.all()
 
 		const normalizedType = String(row.productType ?? "")
 			.trim()
@@ -278,7 +276,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				)
 			)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
-			.all()
 
 		if (!rows.length) return null
 		const hasBaseRateByDefaultPlan = new Map<string, boolean>()
@@ -374,7 +371,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					eq(Product.providerId, providerId)
 				)
 			)
-			.get()
+			.then(first)
 
 		if (!row) return null
 		const summary =
@@ -449,7 +446,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(ProviderUser, eq(ProviderUser.providerId, Provider.id))
 			.leftJoin(User, eq(User.id, ProviderUser.userId))
 			.where(eq(Provider.id, providerId))
-			.all()
 
 		if (!rows.length) return null
 
@@ -486,7 +482,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				.from(ProviderVerification)
 				.where(eq(ProviderVerification.providerId, providerId))
 				.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-				.get()) ?? null
+				.then(first)) ?? null
 
 		return {
 			provider,

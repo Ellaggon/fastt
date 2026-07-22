@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, eq, ProviderProfile } from "astro:db"
+import { first, db, eq, ProviderProfile } from "@/shared/infrastructure/db/compat"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
@@ -65,7 +65,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 				})
 				.from(ProviderProfile)
 				.where(eq(ProviderProfile.providerId, providerId))
-				.get()
+				.then(first)
 				.catch(() => null)) ?? null
 		)
 

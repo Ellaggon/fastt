@@ -1,4 +1,5 @@
 import {
+	first,
 	db,
 	desc,
 	eq,
@@ -14,7 +15,7 @@ import {
 	ProviderUser,
 	ProviderVerification,
 	TaxFeeDefinition,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { evaluateRequiredKycDocumentsComplete } from "@/lib/provider-documents"
 
@@ -143,7 +144,7 @@ export async function evaluateProviderGovernance(
 			.from(Provider)
 			.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, Provider.id))
 			.where(eq(Provider.id, id))
-			.get(),
+			.then(first),
 		db
 			.select({
 				status: ProviderVerification.status,
@@ -153,7 +154,7 @@ export async function evaluateProviderGovernance(
 			.from(ProviderVerification)
 			.where(eq(ProviderVerification.providerId, id))
 			.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-			.get(),
+			.then(first),
 		safe([], () =>
 			db
 				.select({
@@ -163,7 +164,6 @@ export async function evaluateProviderGovernance(
 				})
 				.from(ProviderDocument)
 				.where(eq(ProviderDocument.providerId, id))
-				.all()
 		),
 		safe(null, () =>
 			db
@@ -174,13 +174,13 @@ export async function evaluateProviderGovernance(
 				})
 				.from(ProviderTaxConfiguration)
 				.where(eq(ProviderTaxConfiguration.providerId, id))
-				.get()
+				.then(first)
 		),
 		db
 			.select({ id: TaxFeeDefinition.id, status: TaxFeeDefinition.status })
 			.from(TaxFeeDefinition)
 			.where(eq(TaxFeeDefinition.providerId, id))
-			.all()
+
 			.catch(() => []),
 		safe([], () =>
 			db
@@ -190,7 +190,6 @@ export async function evaluateProviderGovernance(
 				})
 				.from(ProviderPaymentAccount)
 				.where(eq(ProviderPaymentAccount.providerId, id))
-				.all()
 		),
 		db
 			.select({
@@ -199,7 +198,7 @@ export async function evaluateProviderGovernance(
 			})
 			.from(ProviderFinancialProfile)
 			.where(eq(ProviderFinancialProfile.providerId, id))
-			.get()
+			.then(first)
 			.catch(() => null),
 		safe([], () =>
 			db
@@ -211,7 +210,6 @@ export async function evaluateProviderGovernance(
 				})
 				.from(ProviderIntegrationConnection)
 				.where(eq(ProviderIntegrationConnection.providerId, id))
-				.all()
 		),
 		safe([], () =>
 			db
@@ -219,7 +217,6 @@ export async function evaluateProviderGovernance(
 				.from(ProviderAuditLog)
 				.where(eq(ProviderAuditLog.providerId, id))
 				.limit(20)
-				.all()
 		),
 		safe([], () =>
 			db
@@ -230,7 +227,6 @@ export async function evaluateProviderGovernance(
 				})
 				.from(ProviderUser)
 				.where(eq(ProviderUser.providerId, id))
-				.all()
 		),
 	])
 

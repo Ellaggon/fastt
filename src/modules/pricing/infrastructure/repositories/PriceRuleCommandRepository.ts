@@ -1,4 +1,4 @@
-import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { first, and, db, eq, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import {
 	createCommercialPriceRule,
 	deleteCommercialRule,
@@ -18,7 +18,7 @@ export class PriceRuleCommandRepository implements PriceRuleCommandRepositoryPor
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(RatePlan.id, cmd.ratePlanId), eq(RatePlan.isActive, true)))
-			.get()
+			.then(first)
 		if (!owner?.providerId) throw new Error("rate_plan_provider_not_found")
 		await createCommercialPriceRule({
 			providerId: String(owner.providerId),

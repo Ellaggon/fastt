@@ -1,4 +1,4 @@
-import { db, Destination, sql } from "astro:db"
+import { db, Destination, sql } from "@/shared/infrastructure/db/compat"
 import type {
 	DestinationQueryRepositoryPort,
 	DestinationRow,
@@ -6,11 +6,7 @@ import type {
 
 export class DestinationQueryRepository implements DestinationQueryRepositoryPort {
 	async list(params: { limit: number }): Promise<DestinationRow[]> {
-		return (await db
-			.select()
-			.from(Destination)
-			.limit(params.limit)
-			.all()) as unknown as DestinationRow[]
+		return (await db.select().from(Destination).limit(params.limit)) as unknown as DestinationRow[]
 	}
 
 	async search(params: { q: string; limit: number }): Promise<DestinationRow[]> {
@@ -21,12 +17,11 @@ export class DestinationQueryRepository implements DestinationQueryRepositoryPor
 			.where(
 				sql`(lower(${Destination.name}) LIKE ${pattern} OR lower(${Destination.slug}) LIKE ${pattern} OR lower(${Destination.department}) LIKE ${pattern})`
 			)
-			.limit(params.limit)
-			.all()) as unknown as DestinationRow[]
+			.limit(params.limit)) as unknown as DestinationRow[]
 	}
 }
 
-// import { db, dbUrl, Destination, ilike, or } from "astro:db"
+// import { db, dbUrl, Destination, ilike, or } from "@/shared/infrastructure/db/compat"
 // import type {
 // 	DestinationQueryRepositoryPort,
 // 	DestinationRow,
@@ -38,7 +33,7 @@ export class DestinationQueryRepository implements DestinationQueryRepositoryPor
 // 			.select()
 // 			.from(Destination)
 // 			.limit(params.limit)
-// 			.all()) as unknown as DestinationRow[]
+// 			) as unknown as DestinationRow[]
 // 		if (process.env.DESTINATIONS_DEBUG === "1") {
 // 			console.info("[destinations][repo] dbUrl", dbUrl)
 // 			console.info("[destinations][repo] list_count", rows.length)
@@ -63,7 +58,7 @@ export class DestinationQueryRepository implements DestinationQueryRepositoryPor
 // 				)
 // 			)
 // 			.limit(params.limit)
-// 			.all()) as unknown as DestinationRow[]
+// 			) as unknown as DestinationRow[]
 // 		if (process.env.DESTINATIONS_DEBUG === "1") {
 // 			console.info("[destinations][repo] dbUrl", dbUrl)
 // 			console.info("[destinations][repo] search_input", { q: params.q, limit: params.limit })

@@ -1,4 +1,4 @@
-import { db, ImageUpload, eq, and, lt, Image } from "astro:db"
+import { first, db, ImageUpload, eq, and, lt, Image } from "@/shared/infrastructure/db/compat"
 
 export type ImageUploadRow = {
 	id: string
@@ -52,7 +52,7 @@ export class ImageUploadRepository {
 	}
 
 	async getById(id: string): Promise<ImageUploadRow | null> {
-		const row = await db.select().from(ImageUpload).where(eq(ImageUpload.id, id)).get()
+		const row = await db.select().from(ImageUpload).where(eq(ImageUpload.id, id)).then(first)
 		const normalized = (row as any) ?? null
 		if (normalized) {
 			if (!normalized.imageId) {
@@ -82,7 +82,7 @@ export class ImageUploadRepository {
 			.select({ id: ImageUpload.id, objectKey: ImageUpload.objectKey })
 			.from(ImageUpload)
 			.where(eq(ImageUpload.status, "pending"))
-			.all()
+
 		return rows.filter((row: any) => String(row.objectKey ?? "").startsWith(prefix)).length
 	}
 
@@ -90,7 +90,6 @@ export class ImageUploadRepository {
 		return (await db
 			.select()
 			.from(ImageUpload)
-			.where(and(eq(ImageUpload.status, "pending"), lt(ImageUpload.createdAt, cutoff)))
-			.all()) as any
+			.where(and(eq(ImageUpload.status, "pending"), lt(ImageUpload.createdAt, cutoff)))) as any
 	}
 }

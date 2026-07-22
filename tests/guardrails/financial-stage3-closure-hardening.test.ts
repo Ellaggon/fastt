@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { collectDbWriteTargets, collectImports } from "./_guardrail-ast"
+import { collectDbTableImportMap, collectDbWriteTargets, collectImports } from "./_guardrail-ast"
 import { financialSourceFiles, read } from "./financial-stage2-guardrail-utils"
 
 const reconciliationBuilder =
@@ -98,11 +98,7 @@ describe("Guardrail: financial Stage 3.3 closure hardening", () => {
 					: []
 			)
 			const writes = collectDbWriteTargets(file).flatMap((write) => {
-				const dbImports = new Map(
-					imports
-						.filter((entry) => entry.module === "astro:db")
-						.map((entry) => [entry.local, entry.imported])
-				)
+				const dbImports = collectDbTableImportMap(file)
 				const target = dbImports.get(write.target) ?? write.target
 				return [
 					"Booking",

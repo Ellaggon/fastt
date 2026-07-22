@@ -1,4 +1,13 @@
-import { and, db, EffectiveRestriction, eq, RatePlan, sql, Variant } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	EffectiveRestriction,
+	eq,
+	RatePlan,
+	sql,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 import { ensureCommercialRuleTables } from "@/lib/commercial-rules/commercialRulesRepository"
 
 import type { RestrictionScope } from "../../domain/restrictions/restrictions.types"
@@ -124,13 +133,13 @@ async function resolveVariantContext(variantId: string): Promise<{
 		.select({ productId: Variant.productId })
 		.from(Variant)
 		.where(eq(Variant.id, variantId))
-		.get()
+		.then(first)
 	if (!variant) return null
 	const ratePlans = await db
 		.select({ id: RatePlan.id })
 		.from(RatePlan)
 		.where(and(eq(RatePlan.variantId, variantId), eq(RatePlan.isActive, true)))
-		.all()
+
 	return {
 		productId: String(variant.productId),
 		ratePlans: ratePlans.map((row) => ({
@@ -150,14 +159,14 @@ async function resolveVariantIdsForScope(
 			.select({ id: Variant.id })
 			.from(Variant)
 			.where(eq(Variant.productId, scopeId))
-			.all()
+
 		return variants.map((row) => String(row.id))
 	}
 	const ratePlan = await db
 		.select({ variantId: RatePlan.variantId })
 		.from(RatePlan)
 		.where(eq(RatePlan.id, scopeId))
-		.get()
+		.then(first)
 	return ratePlan?.variantId ? [String(ratePlan.variantId)] : []
 }
 

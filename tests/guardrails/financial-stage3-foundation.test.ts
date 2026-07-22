@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { collectDbWriteTargets, collectImports } from "./_guardrail-ast"
+import { collectDbTableImportMap, collectDbWriteTargets } from "./_guardrail-ast"
 import { financialSourceFiles, read } from "./financial-stage2-guardrail-utils"
 
 const stage3Domains = [
@@ -108,12 +108,7 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 		])
 		const violations = financialSourceFiles.flatMap((file) => {
 			if (!file.startsWith("src/modules/financial/")) return []
-			const imports = collectImports(file)
-			const dbImports = new Map(
-				imports
-					.filter((entry) => entry.module === "astro:db")
-					.map((entry) => [entry.local, entry.imported])
-			)
+			const dbImports = collectDbTableImportMap(file)
 			return collectDbWriteTargets(file).flatMap((write) => {
 				const target = dbImports.get(write.target) ?? write.target
 				return allowed.has(target) ? [] : [`${file}: forbidden financial write target ${target}`]

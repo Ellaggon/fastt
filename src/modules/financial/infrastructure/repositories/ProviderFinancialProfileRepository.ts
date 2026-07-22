@@ -1,4 +1,9 @@
-import { ProviderFinancialProfile as ProviderFinancialProfileTable, db, eq } from "astro:db"
+import {
+	first,
+	ProviderFinancialProfile as ProviderFinancialProfileTable,
+	db,
+	eq,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	ProviderFinancialProfileCreateInput,
@@ -28,7 +33,7 @@ export class ProviderFinancialProfileRepository implements ProviderFinancialProf
 			.select()
 			.from(ProviderFinancialProfileTable)
 			.where(eq(ProviderFinancialProfileTable.providerId, key))
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -45,14 +50,12 @@ export class ProviderFinancialProfileRepository implements ProviderFinancialProf
 				.update(ProviderFinancialProfileTable)
 				.set({ ...input, updatedAt: now } as any)
 				.where(eq(ProviderFinancialProfileTable.providerId, input.providerId))
-				.run()
+
 			return { ...existing, ...input, updatedAt: now }
 		}
 		const row = { ...input, createdAt: now, updatedAt: now }
-		await db
-			.insert(ProviderFinancialProfileTable)
-			.values(row as any)
-			.run()
+		await db.insert(ProviderFinancialProfileTable).values(row as any)
+
 		return map(row)
 	}
 }

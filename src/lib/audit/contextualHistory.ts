@@ -9,7 +9,7 @@ import {
 	Product,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import {
 	listCommercialPriceRulesByRatePlans,
 	listCommercialSellabilityRulesForScopes,
@@ -223,7 +223,6 @@ export async function loadRatesContextualHistory(params: {
 		.where(and(eq(Product.providerId, params.providerId), inArray(RatePlan.id, ratePlanIds)))
 		.orderBy(desc(RatePlan.createdAt))
 		.limit(limit)
-		.all()
 
 	const priceRules = (await listCommercialPriceRulesByRatePlans(ratePlanIds))
 		.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -312,7 +311,6 @@ export async function loadPolicyContextualHistory(params: {
 		.where(eq(PolicyGroup.ownerProviderId, params.providerId))
 		.orderBy(desc(PolicyAuditLog.createdAt))
 		.limit(limit)
-		.all()
 
 	return rows.map((row) => ({
 		id: `policy_audit:${row.id}`,

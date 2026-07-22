@@ -1,4 +1,15 @@
-import { db, DailyInventory, Hold, InventoryLock, and, eq, gte, lt, sql } from "astro:db"
+import {
+	first,
+	db,
+	DailyInventory,
+	Hold,
+	InventoryLock,
+	and,
+	eq,
+	gte,
+	lt,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import { toISODate } from "@/shared/domain/date/date.utils"
 import { logger } from "@/lib/observability/logger"
 import type {
@@ -69,7 +80,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 					sql`${InventoryLock.bookingId} is null`
 				)
 			)
-			.get()
+			.then(first)
 
 		if (!row?.holdId || !row.expiresAt) return null
 		return {
@@ -98,24 +109,21 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 					if (!dates.length) throw new NotAvailableError()
 
 					try {
-						await tx
-							.insert(Hold)
-							.values({
-								id: params.holdId,
-								variantId: params.variantId,
-								ratePlanId: params.ratePlanId == null ? null : String(params.ratePlanId),
-								checkIn: toISODate(params.checkIn),
-								checkOut: toISODate(params.checkOut),
-								channel: params.channel == null ? null : String(params.channel),
-								expiresAt: params.expiresAt,
-								policySnapshotJson: params.policySnapshotJson as any,
-								guestExpectationsSnapshotJson:
-									params.guestExpectationsSnapshotJson == null
-										? null
-										: (params.guestExpectationsSnapshotJson as any),
-								createdAt: new Date(),
-							} as any)
-							.run()
+						await tx.insert(Hold).values({
+							id: params.holdId,
+							variantId: params.variantId,
+							ratePlanId: params.ratePlanId == null ? null : String(params.ratePlanId),
+							checkIn: toISODate(params.checkIn),
+							checkOut: toISODate(params.checkOut),
+							channel: params.channel == null ? null : String(params.channel),
+							expiresAt: params.expiresAt,
+							policySnapshotJson: params.policySnapshotJson as any,
+							guestExpectationsSnapshotJson:
+								params.guestExpectationsSnapshotJson == null
+									? null
+									: (params.guestExpectationsSnapshotJson as any),
+							createdAt: new Date(),
+						} as any)
 					} catch (e) {
 						if (!isMissingHoldTableError(e)) throw e
 						logger.warn("inventory.hold.table_missing", {
@@ -135,7 +143,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.where(
 								and(eq(DailyInventory.variantId, params.variantId), eq(DailyInventory.date, date))
 							)
-							.get()
+							.then(first)
 
 						if (!daily) throw new NotAvailableError()
 						const totalInventory = Number(daily.totalInventory ?? 0)
@@ -155,7 +163,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.where(
 								and(eq(InventoryLock.variantId, params.variantId), eq(InventoryLock.date, date))
 							)
-							.get()
+							.then(first)
 						const heldUnits = Number((lockAgg as any)?.heldUnits ?? 0)
 						const bookedUnits = Number((lockAgg as any)?.bookedUnits ?? 0)
 						if (
@@ -186,25 +194,23 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 									sql`${DailyInventory.reservedCount} + ${params.quantity} <= ${DailyInventory.totalInventory}`
 								)
 							)
-							.run()
+							.returning({ id: DailyInventory.id })
 
-						// libsql/drizzle run() uses `rowsAffected`; sqlite drivers often use `changes`.
-						const affected = Number((res as any)?.rowsAffected ?? (res as any)?.changes ?? 0)
+						const affected = Array.isArray(res)
+							? res.length
+							: Number((res as any)?.rowsAffected ?? (res as any)?.changes ?? 0)
 						if (affected !== 1) throw new NotAvailableError()
 
-						await tx
-							.insert(InventoryLock)
-							.values({
-								id: crypto.randomUUID(),
-								holdId: params.holdId,
-								variantId: params.variantId,
-								date,
-								quantity: params.quantity,
-								expiresAt: params.expiresAt,
-								bookingId: null,
-								createdAt: new Date(),
-							} as any)
-							.run()
+						await tx.insert(InventoryLock).values({
+							id: crypto.randomUUID(),
+							holdId: params.holdId,
+							variantId: params.variantId,
+							date,
+							quantity: params.quantity,
+							expiresAt: params.expiresAt,
+							bookingId: null,
+							createdAt: new Date(),
+						} as any)
 					}
 				})
 
@@ -247,7 +253,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 				})
 				.from(Hold)
 				.where(eq(Hold.id, id))
-				.get()
+				.then(first)
 		} catch (e) {
 			if (!isMissingHoldTableError(e)) throw e
 			return null
@@ -279,7 +285,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 						.where(
 							and(eq(InventoryLock.holdId, params.holdId), sql`${InventoryLock.bookingId} is null`)
 						)
-						.all()
 
 					if (!locks.length) {
 						released = false
@@ -299,7 +304,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 									eq(DailyInventory.date, String(l.date))
 								)
 							)
-							.run()
 					}
 
 					await tx
@@ -307,7 +311,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 						.where(
 							and(eq(InventoryLock.holdId, params.holdId), sql`${InventoryLock.bookingId} is null`)
 						)
-						.run()
 
 					released = true
 					days = locks.length
@@ -342,7 +345,6 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 					sql`${InventoryLock.bookingId} is null`
 				)
 			)
-			.all()
 
 		const map = new Map<
 			string,

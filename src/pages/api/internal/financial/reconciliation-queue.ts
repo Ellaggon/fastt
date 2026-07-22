@@ -13,7 +13,7 @@ import {
 	Product,
 	Provider,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	financialReferenceRepository,
@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.where(and(...bookingPredicates))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 		.limit(limit + 1)
-		.all()
+
 	const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
 	if (!pagedBookingIds.length) {
 		const [unmatchedPaymentTransactions, unmatchedSettlementRecords, duplicateRaw] =
@@ -141,7 +141,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.leftJoin(Product, eq(Product.id, Variant.productId))
 		.where(and(eq(Booking.providerId, auth.providerId), inArray(Booking.id, pagedBookingIds)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
-		.all()
+
 	const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
 
 	const [
@@ -161,8 +161,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				breakdownJson: BookingTaxFee.breakdownJson,
 			})
 			.from(BookingTaxFee)
-			.where(inArray(BookingTaxFee.bookingId, bookingIds))
-			.all(),
+			.where(inArray(BookingTaxFee.bookingId, bookingIds)),
 		paymentTransactionRepository.findByProvider({
 			providerId: auth.providerId,
 			bookingIds,

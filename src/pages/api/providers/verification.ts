@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, desc, eq, ProviderVerification } from "astro:db"
+import { first, db, desc, eq, ProviderVerification } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 
 export const GET: APIRoute = async ({ request }) => {
@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ request }) => {
 			.from(ProviderVerification)
 			.where(eq(ProviderVerification.providerId, providerId))
 			.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-			.get()) ?? null
+			.then(first)) ?? null
 
 	return new Response(
 		JSON.stringify({

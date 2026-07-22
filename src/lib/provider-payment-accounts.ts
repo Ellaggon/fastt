@@ -1,5 +1,6 @@
 import { createHmac, randomInt } from "node:crypto"
 import {
+	first,
 	and,
 	db,
 	desc,
@@ -8,7 +9,7 @@ import {
 	ProviderPaymentAccount,
 	ProviderTaxConfiguration,
 	ProviderUser,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
@@ -287,7 +288,7 @@ async function getProviderRole(providerId: string, userId: string) {
 			.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 			.from(ProviderUser)
 			.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-			.get()) ?? null
+			.then(first)) ?? null
 	)
 }
 
@@ -313,7 +314,7 @@ export async function listProviderPaymentAccounts(
 		.from(ProviderPaymentAccount)
 		.where(eq(ProviderPaymentAccount.providerId, providerId))
 		.orderBy(desc(ProviderPaymentAccount.createdAt), desc(ProviderPaymentAccount.id))
-		.all()
+
 		.catch(() => [])
 
 	return rows.map((row) => mapRow(row, { includeSecret: false }))
@@ -327,7 +328,7 @@ export async function listPendingProviderPaymentAccountsForAdmin(): Promise<
 		.from(ProviderPaymentAccount)
 		.where(eq(ProviderPaymentAccount.status, "pending"))
 		.orderBy(desc(ProviderPaymentAccount.createdAt), desc(ProviderPaymentAccount.id))
-		.all()
+
 		.catch(() => [])
 
 	return rows.map((row) => mapRow(row, { includeSecret: true }))
@@ -413,7 +414,7 @@ export async function createProviderPaymentAccount(params: {
 				eq(ProviderPaymentAccount.status, "pending")
 			)
 		)
-		.all()
+
 		.catch(() => [])
 
 	for (const row of pendingSameProvider) {
@@ -483,7 +484,7 @@ export async function assertHasVerifiedPaymentAccount(providerId: string): Promi
 				eq(ProviderPaymentAccount.status, "verified")
 			)
 		)
-		.get()
+		.then(first)
 		.catch(() => null)
 
 	if (!row?.id) {
@@ -503,7 +504,7 @@ async function syncProviderFinancialProfile(params: {
 		.select({ status: ProviderTaxConfiguration.status })
 		.from(ProviderTaxConfiguration)
 		.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
-		.get()
+		.then(first)
 		.catch(() => null)
 
 	const now = new Date()
@@ -577,7 +578,7 @@ export async function reviewProviderPaymentAccount(params: {
 				eq(ProviderPaymentAccount.providerId, params.providerId)
 			)
 		)
-		.get()
+		.then(first)
 
 	if (!existing?.id) {
 		const error = new Error("not_found")
@@ -617,7 +618,7 @@ export async function reviewProviderPaymentAccount(params: {
 		.select(selectColumns)
 		.from(ProviderPaymentAccount)
 		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.get()
+		.then(first)
 	const after = afterRows ? mapRow(afterRows, { includeSecret: true }) : before
 
 	if (nextStatus === "verified") {
@@ -665,7 +666,7 @@ export async function initiatePaymentAccountMicroDeposit(params: {
 				eq(ProviderPaymentAccount.providerId, params.providerId)
 			)
 		)
-		.get()
+		.then(first)
 
 	if (!existing?.id) {
 		const error = new Error("not_found")
@@ -721,7 +722,7 @@ export async function initiatePaymentAccountMicroDeposit(params: {
 		.select(selectColumns)
 		.from(ProviderPaymentAccount)
 		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.get()
+		.then(first)
 	const after = afterRows
 		? mapRow(afterRows, { includeSecret: true })
 		: mapRow(existing, { includeSecret: true })
@@ -775,7 +776,7 @@ export async function confirmPaymentAccountMicroDeposit(params: {
 				eq(ProviderPaymentAccount.providerId, params.providerId)
 			)
 		)
-		.get()
+		.then(first)
 
 	if (!existing?.id) {
 		const error = new Error("not_found")
@@ -890,7 +891,7 @@ export async function confirmPaymentAccountMicroDeposit(params: {
 		.select(selectColumns)
 		.from(ProviderPaymentAccount)
 		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.get()
+		.then(first)
 	const after = afterRows
 		? mapRow(afterRows, { includeSecret: false })
 		: mapRow(existing, { includeSecret: false })

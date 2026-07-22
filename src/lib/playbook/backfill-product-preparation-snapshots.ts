@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	db,
 	eq,
@@ -7,7 +8,7 @@ import {
 	ProductPreparationSnapshot,
 	ProductStatus,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import {
 	refreshProductPreparationSnapshot,
 	type ProductPreparationSummary,
@@ -71,7 +72,7 @@ export async function backfillProductPreparationSnapshots(
 		})
 		.from(Product)
 		.where(whereClause)
-	const rows = Number.isFinite(limit) ? await baseQuery.limit(limit).all() : await baseQuery.all()
+	const rows = Number.isFinite(limit) ? await baseQuery.limit(limit) : await baseQuery
 
 	const products = rows.filter((row) => Boolean(row.id && row.providerId)) as ProductRow[]
 	const productIds = products.map((product) => product.id)
@@ -80,7 +81,6 @@ export async function backfillProductPreparationSnapshots(
 				.select({ productId: ProductStatus.productId, state: ProductStatus.state })
 				.from(ProductStatus)
 				.where(inArray(ProductStatus.productId, productIds))
-				.all()
 		: []
 	const statusByProduct = new Map(statuses.map((row) => [String(row.productId), row.state]))
 
@@ -112,7 +112,7 @@ export async function backfillProductPreparationSnapshots(
 	const totalSnapshots = await db
 		.select({ count: sql<number>`count(*)` })
 		.from(ProductPreparationSnapshot)
-		.get()
+		.then(first)
 	const durationMs = Number((performance.now() - startedAt).toFixed(1))
 
 	return {

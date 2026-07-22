@@ -15,7 +15,7 @@ import {
 } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
 import { ArrowRight, BedDouble, Hotel, House, Plus, ShieldCheck, Trash2 } from "@lucide/astro"
-import { and, db, eq, Product, sql, Variant } from "astro:db"
+import { and, db, eq, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
 
 const dashboardStartedAt = performance.now()
 const user = await getUserFromRequest(Astro.request)

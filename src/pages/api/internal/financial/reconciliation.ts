@@ -10,7 +10,7 @@ import {
 	Product,
 	Provider,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	buildFinancialOperationReview,
@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, auth.providerId)))
 			.orderBy(desc(BookingRoomDetail.id))
-			.all()
+
 		if (!rows.length) return json({ error: "not_found" }, 404)
 
 		const financialEvidenceRows: Array<{
@@ -85,7 +85,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 			.from(BookingTaxFee)
 			.where(eq(BookingTaxFee.bookingId, bookingId))
-			.all()
+
 		const review = buildFinancialOperationReview({
 			group: rows,
 			financialEvidenceRows,

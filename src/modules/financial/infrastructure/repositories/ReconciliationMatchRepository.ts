@@ -1,4 +1,11 @@
-import { and, desc, eq, ReconciliationMatch as ReconciliationMatchTable, db } from "astro:db"
+import {
+	first,
+	and,
+	desc,
+	eq,
+	ReconciliationMatch as ReconciliationMatchTable,
+	db,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	ReconciliationMatchCreateInput,
@@ -42,7 +49,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 			.select()
 			.from(ReconciliationMatchTable)
 			.where(eq(ReconciliationMatchTable.bookingId, key))
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -62,7 +69,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 					eq(ReconciliationMatchTable.providerId, provider)
 				)
 			)
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -86,7 +93,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 			.where(and(...filters))
 			.orderBy(desc(ReconciliationMatchTable.updatedAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -103,7 +110,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 						eq(ReconciliationMatchTable.providerId, input.providerId)
 					)
 				)
-				.run()
+
 			return (await this.findByBookingIdForProvider(
 				input.bookingId,
 				input.providerId
@@ -116,10 +123,8 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 			createdAt: now,
 			updatedAt: now,
 		}
-		await db
-			.insert(ReconciliationMatchTable)
-			.values(row as any)
-			.run()
+		await db.insert(ReconciliationMatchTable).values(row as any)
+
 		return map(row)
 	}
 
@@ -145,7 +150,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 					eq(ReconciliationMatchTable.providerId, params.providerId)
 				)
 			)
-			.run()
+
 		const rows = await this.findByProvider({ providerId: params.providerId, limit: 1000 })
 		return rows.find((row) => row.id === params.id) ?? null
 	}

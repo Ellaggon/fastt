@@ -1,4 +1,13 @@
-import { db, Destination, Product, and, eq, or, sql } from "astro:db"
+import {
+	first,
+	db,
+	Destination,
+	Product,
+	and,
+	eq,
+	or,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import type {
 	MarketplaceHotelCandidate,
 	MarketplaceHotelSearchRepositoryPort,
@@ -18,7 +27,7 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 			.select({ id: Destination.id })
 			.from(Destination)
 			.where(or(eq(Destination.id, destinationIdOrSlug), eq(Destination.slug, destinationIdOrSlug)))
-			.get()
+			.then(first)
 		if (!dest?.id) return []
 
 		const rows = await db
@@ -43,7 +52,6 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 			.from(Product)
 			.where(and(sql`lower(${Product.productType}) = 'hotel'`, eq(Product.destinationId, dest.id)))
 			.limit(limit)
-			.all()
 
 		return rows.map((r) => ({
 			productId: String(r.productId),

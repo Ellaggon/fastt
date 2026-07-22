@@ -1,18 +1,19 @@
 import {
+	first,
 	and,
 	asc,
 	db,
 	desc,
 	eq,
+	gt,
 	inArray,
 	lte,
 	or,
 	RatePlan,
 	RatePlanOccupancyPolicy,
-	sql,
 	Variant,
 	VariantCapacity,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type {
 	VariantKind,
 	VariantRepositoryPort,
@@ -43,7 +44,7 @@ export class VariantRepository implements VariantRepositoryPort {
 			.from(Variant)
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.where(eq(Variant.id, id))
-			.get()
+			.then(first)
 
 		if (!row) return row
 
@@ -73,7 +74,11 @@ export class VariantRepository implements VariantRepositoryPort {
 	}
 
 	async existsById(id: string): Promise<boolean> {
-		const row = await db.select({ id: Variant.id }).from(Variant).where(eq(Variant.id, id)).get()
+		const row = await db
+			.select({ id: Variant.id })
+			.from(Variant)
+			.where(eq(Variant.id, id))
+			.then(first)
 		return !!row
 	}
 
@@ -96,7 +101,7 @@ export class VariantRepository implements VariantRepositoryPort {
 					or(eq(Variant.isActive, true), inArray(Variant.status, SEARCHABLE_VARIANT_STATUSES))
 				)
 			)
-			.all()
+
 		const baseRateByVariant = await this.resolveBaseRateByVariantIds(
 			rows.map((row) => String(row.id))
 		)
@@ -144,7 +149,6 @@ export class VariantRepository implements VariantRepositoryPort {
 				)
 			)
 			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.all()
 
 		const planByVariant = new Map<string, string>()
 		for (const plan of defaultPlans) {
@@ -169,11 +173,10 @@ export class VariantRepository implements VariantRepositoryPort {
 				and(
 					inArray(RatePlanOccupancyPolicy.ratePlanId, selectedRatePlanIds),
 					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+					gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.all()
 
 		const policyByRatePlan = new Map<string, { basePrice: number; currency: string }>()
 		for (const policy of policies) {

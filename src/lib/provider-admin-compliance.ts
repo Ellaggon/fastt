@@ -1,4 +1,13 @@
-import { db, desc, eq, Provider, ProviderAuditLog, ProviderVerification, User } from "astro:db"
+import {
+	first,
+	db,
+	desc,
+	eq,
+	Provider,
+	ProviderAuditLog,
+	ProviderVerification,
+	User,
+} from "@/shared/infrastructure/db/compat"
 
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
@@ -125,7 +134,7 @@ export async function listPendingProviderVerificationsForAdmin(): Promise<
 		})
 		.from(Provider)
 		.orderBy(desc(Provider.createdAt), desc(Provider.id))
-		.all()
+
 		.catch(() => [])
 
 	const verificationRows = await db
@@ -137,7 +146,7 @@ export async function listPendingProviderVerificationsForAdmin(): Promise<
 		})
 		.from(ProviderVerification)
 		.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-		.all()
+
 		.catch(() => [])
 
 	const latestByProvider = new Map<string, (typeof verificationRows)[number]>()
@@ -187,7 +196,7 @@ export async function listRecentProviderComplianceAudit(params?: {
 		})
 		.from(ProviderAuditLog)
 		.orderBy(desc(ProviderAuditLog.createdAt), desc(ProviderAuditLog.id))
-		.all()
+
 		.catch(() => [])
 
 	const complianceRows = rows
@@ -204,7 +213,7 @@ export async function listRecentProviderComplianceAudit(params?: {
 	const providers = await db
 		.select({ id: Provider.id, displayName: Provider.displayName })
 		.from(Provider)
-		.all()
+
 		.catch(() => [])
 	const providerNameById = new Map(providers.map((row) => [row.id, row.displayName ?? row.id]))
 
@@ -213,7 +222,7 @@ export async function listRecentProviderComplianceAudit(params?: {
 			? await db
 					.select({ id: User.id, email: User.email })
 					.from(User)
-					.all()
+
 					.catch(() => [])
 			: []
 	const actorEmailById = new Map(actors.map((row) => [row.id, row.email ?? null]))
@@ -269,7 +278,7 @@ export async function loadProviderComplianceConsole(params?: {
 	const providers = await db
 		.select({ id: Provider.id, displayName: Provider.displayName })
 		.from(Provider)
-		.all()
+
 		.catch(() => [])
 	const providerNameById = new Map(
 		providers.map((row) => [row.id, row.displayName ?? "Sin nombre"])
@@ -342,7 +351,7 @@ export async function getLatestProviderVerificationStatus(providerId: string): P
 		.from(ProviderVerification)
 		.where(eq(ProviderVerification.providerId, providerId))
 		.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-		.get()
+		.then(first)
 		.catch(() => null)
 
 	if (!row) return null
@@ -405,7 +414,7 @@ export async function loadProviderComplianceDetail(providerId: string) {
 		})
 		.from(Provider)
 		.where(eq(Provider.id, id))
-		.get()
+		.then(first)
 		.catch(() => null)
 	if (!provider?.id) return null
 

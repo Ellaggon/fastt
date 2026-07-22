@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	Booking,
 	BookingPolicySnapshot,
@@ -13,7 +14,7 @@ import {
 	sql,
 	User,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { cacheKeys } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
@@ -216,7 +217,6 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				})
 				.from(InventoryLock)
 				.where(eq(InventoryLock.holdId, holdId))
-				.all()
 
 			if (!holdRows.length) throw new Error("HOLD_NOT_FOUND")
 			const holdDateRange = resolveHoldDateRange(
@@ -230,14 +230,14 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					.select({ id: Booking.id, status: Booking.status })
 					.from(Booking)
 					.where(eq(Booking.id, linkedBookingId))
-					.get()
+					.then(first)
 				if (!existingBooking) throw new Error("HOLD_ALREADY_CONFIRMED")
 				const variantId = String(holdRows[0].variantId)
 				const variant = await tx
 					.select({ productId: Variant.productId })
 					.from(Variant)
 					.where(eq(Variant.id, variantId))
-					.get()
+					.then(first)
 				if (!variant) throw new Error("HOLD_NOT_FOUND")
 				return {
 					bookingId: existingBooking.id,
@@ -262,14 +262,14 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				.select({ productId: Variant.productId, variantName: Variant.name })
 				.from(Variant)
 				.where(eq(Variant.id, variantId))
-				.get()
+				.then(first)
 			if (!variant) throw new Error("HOLD_NOT_FOUND")
 
 			const product = await tx
 				.select({ id: Product.id, providerId: Product.providerId, productName: Product.name })
 				.from(Product)
 				.where(eq(Product.id, variant.productId))
-				.get()
+				.then(first)
 			if (!product) throw new Error("HOLD_NOT_FOUND")
 			if (!product.providerId) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
 
@@ -279,7 +279,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					.select({ policySnapshotJson: Hold.policySnapshotJson })
 					.from(Hold)
 					.where(eq(Hold.id, holdId))
-					.get()
+					.then(first)
 				holdSnapshot = hold?.policySnapshotJson as HoldPolicySnapshot | null | undefined
 			} catch (error) {
 				if (!isMissingHoldTableError(error)) throw error
@@ -314,7 +314,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				.select({ name: ratePlanName })
 				.from(RatePlan)
 				.where(eq(RatePlan.id, snapshot.ratePlanId))
-				.get()
+				.then(first)
 			const guest = params.input.userId
 				? await tx
 						.select({
@@ -324,7 +324,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 						})
 						.from(User)
 						.where(eq(User.id, params.input.userId))
-						.get()
+						.then(first)
 				: null
 			const guestNameSnapshot = guest ? compactName([guest.firstName, guest.lastName]) : null
 			const guestEmailSnapshot = String(guest?.email ?? "").trim() || null
@@ -357,78 +357,72 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			// Pricing total is sourced from the hold snapshot and must remain stable end-to-end.
 			const finalTotal = Number(baseTotal.toFixed(2))
 
-			await tx
-				.insert(Booking)
-				.values({
-					id: bookingId,
-					providerId: product.providerId,
+			await tx.insert(Booking).values({
+				id: bookingId,
+				providerId: product.providerId,
+				userId: params.input.userId ?? null,
+				ratePlanId: snapshot.ratePlanId,
+				bookingDate: now,
+				checkInDate: snapshot.from,
+				checkOutDate: snapshot.to,
+				numAdults: Math.max(1, adults),
+				numChildren: Math.max(0, children),
+				totalAmount: finalTotal,
+				status: "confirmed",
+				operationalStatus: "pending_arrival",
+				currency: snapshot.currency,
+				source: String(params.input.source ?? "web"),
+				confirmedAt: now,
+				guestEmailSnapshot,
+				guestNameSnapshot,
+				guestContactSnapshotJson: {
+					email: guestEmailSnapshot,
+					name: guestNameSnapshot,
 					userId: params.input.userId ?? null,
-					ratePlanId: snapshot.ratePlanId,
-					bookingDate: now,
-					checkInDate: snapshot.from,
-					checkOutDate: snapshot.to,
-					numAdults: Math.max(1, adults),
-					numChildren: Math.max(0, children),
-					totalAmount: finalTotal,
-					status: "confirmed",
-					operationalStatus: "pending_arrival",
-					currency: snapshot.currency,
-					source: String(params.input.source ?? "web"),
-					confirmedAt: now,
-					guestEmailSnapshot,
-					guestNameSnapshot,
-					guestContactSnapshotJson: {
-						email: guestEmailSnapshot,
-						name: guestNameSnapshot,
-						userId: params.input.userId ?? null,
-					},
-					lifecycleAuditJson: lifecycleAuditSnapshot,
-					refundHandoffSnapshotJson: refundHandoffSnapshot,
-					contractSnapshotVersion: "reservations_contract_snapshot_v1",
-				} as any)
-				.run()
+				},
+				lifecycleAuditJson: lifecycleAuditSnapshot,
+				refundHandoffSnapshotJson: refundHandoffSnapshot,
+				contractSnapshotVersion: "reservations_contract_snapshot_v1",
+			} as any)
 
-			await tx
-				.insert(BookingRoomDetail)
-				.values({
-					id: crypto.randomUUID(),
-					bookingId,
-					variantId,
+			await tx.insert(BookingRoomDetail).values({
+				id: crypto.randomUUID(),
+				bookingId,
+				variantId,
+				ratePlanId: snapshot.ratePlanId,
+				checkIn: snapshot.from,
+				checkOut: snapshot.to,
+				adults: Math.max(1, adults),
+				children: Math.max(0, children),
+				subtotalAmount: Number(baseTotal.toFixed(2)),
+				taxAmount: taxesAmount,
+				totalAmount: finalTotal,
+				pricingBreakdownJson: {
+					nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
+					totalPrice: Number(baseTotal.toFixed(2)),
+					currency: snapshot.currency,
 					ratePlanId: snapshot.ratePlanId,
-					checkIn: snapshot.from,
-					checkOut: snapshot.to,
-					adults: Math.max(1, adults),
-					children: Math.max(0, children),
-					subtotalAmount: Number(baseTotal.toFixed(2)),
-					taxAmount: taxesAmount,
-					totalAmount: finalTotal,
-					pricingBreakdownJson: {
-						nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
-						totalPrice: Number(baseTotal.toFixed(2)),
-						currency: snapshot.currency,
-						ratePlanId: snapshot.ratePlanId,
-						occupancyDetail: {
-							adults: Math.max(1, adults),
-							children: Math.max(0, children),
-							infants: Math.max(0, infants),
-						},
-						pricingBreakdownV2: snapshot.pricingBreakdownV2 ?? null,
-						pricingSource: snapshot.pricingSource ?? null,
-					},
-					providerIdSnapshot: product.providerId ?? null,
-					productIdSnapshot: product.id,
-					productNameSnapshot: product.productName,
-					variantNameSnapshot: variant.variantName,
-					ratePlanNameSnapshot: ratePlan?.name ?? null,
-					occupancySnapshotJson: {
+					occupancyDetail: {
 						adults: Math.max(1, adults),
 						children: Math.max(0, children),
 						infants: Math.max(0, infants),
-						label: `${Math.max(1, adults)} adults · ${Math.max(0, children)} children · ${Math.max(0, infants)} infants`,
 					},
-					createdAt: now,
-				} as any)
-				.run()
+					pricingBreakdownV2: snapshot.pricingBreakdownV2 ?? null,
+					pricingSource: snapshot.pricingSource ?? null,
+				},
+				providerIdSnapshot: product.providerId ?? null,
+				productIdSnapshot: product.id,
+				productNameSnapshot: product.productName,
+				variantNameSnapshot: variant.variantName,
+				ratePlanNameSnapshot: ratePlan?.name ?? null,
+				occupancySnapshotJson: {
+					adults: Math.max(1, adults),
+					children: Math.max(0, children),
+					infants: Math.max(0, infants),
+					label: `${Math.max(1, adults)} adults · ${Math.max(0, children)} children · ${Math.max(0, infants)} infants`,
+				},
+				createdAt: now,
+			} as any)
 
 			const policyRows = [
 				holdSnapshot.cancellation,
@@ -446,10 +440,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					createdAt: now,
 				}))
 			if (policyRows.length > 0) {
-				await tx
-					.insert(BookingPolicySnapshot)
-					.values(policyRows as any)
-					.run()
+				await tx.insert(BookingPolicySnapshot).values(policyRows as any)
 			}
 
 			const taxLines = [
@@ -458,28 +449,26 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				...taxBreakdown.fees.included,
 				...taxBreakdown.fees.excluded,
 			]
-			await tx
-				.insert(BookingTaxFee)
-				.values(
-					(taxLines.length > 0 ? taxLines : [null]).map((line) => ({
-						id: crypto.randomUUID(),
-						bookingId,
-						name: line?.name ?? "Taxes and fees snapshot",
-						breakdownJson: taxBreakdown,
-						totalAmount: finalTotal,
-						createdAt: now,
-					})) as any
-				)
-				.run()
+			await tx.insert(BookingTaxFee).values(
+				(taxLines.length > 0 ? taxLines : [null]).map((line) => ({
+					id: crypto.randomUUID(),
+					bookingId,
+					name: line?.name ?? "Taxes and fees snapshot",
+					breakdownJson: taxBreakdown,
+					totalAmount: finalTotal,
+					createdAt: now,
+				})) as any
+			)
 
 			const consumeRes = await tx
 				.update(InventoryLock)
 				.set({ bookingId } as any)
 				.where(and(eq(InventoryLock.holdId, holdId), sql`${InventoryLock.bookingId} is null`))
-				.run()
-			const affected = Number(
-				(consumeRes as any)?.rowsAffected ?? (consumeRes as any)?.changes ?? 0
-			)
+				.returning({ id: InventoryLock.id })
+
+			const affected = Array.isArray(consumeRes)
+				? consumeRes.length
+				: Number((consumeRes as any)?.rowsAffected ?? (consumeRes as any)?.changes ?? 0)
 			if (affected !== holdRows.length) {
 				throw new Error("HOLD_ALREADY_CONFIRMED")
 			}

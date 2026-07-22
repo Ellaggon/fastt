@@ -1,4 +1,4 @@
-import { db, Hotel, Limousine, Tour, Package, eq } from "astro:db"
+import { first, db, Hotel, Limousine, Tour, Package, eq } from "@/shared/infrastructure/db/compat"
 
 export type HotelPayload = {
 	productId: string
@@ -201,18 +201,22 @@ export class SubtypeRepository {
 
 		// Preserve legacy semantics (even though it ignores the tx variable in selects).
 		if (subtype === "hotel") {
-			const r = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+			const r = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
 			return !!r
 		}
 		if (subtype === "tour") {
-			const r = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+			const r = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 			return !!r
 		}
 		if (subtype === "package") {
-			const r = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			const r = await db.select().from(Package).where(eq(Package.productId, productId)).then(first)
 			return !!r
 		}
-		const r = await db.select().from(Limousine).where(eq(Limousine.productId, productId)).get()
+		const r = await db
+			.select()
+			.from(Limousine)
+			.where(eq(Limousine.productId, productId))
+			.then(first)
 		return !!r
 	}
 }

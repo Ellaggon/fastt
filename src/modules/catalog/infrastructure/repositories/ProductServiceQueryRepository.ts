@@ -1,4 +1,13 @@
-import { db, eq, inArray, and, ProductService, ProductServiceAttribute, Service } from "astro:db"
+import {
+	first,
+	db,
+	eq,
+	inArray,
+	and,
+	ProductService,
+	ProductServiceAttribute,
+	Service,
+} from "@/shared/infrastructure/db/compat"
 import type {
 	ProductServiceQueryRepositoryPort,
 	ProductServiceLinkRow,
@@ -17,7 +26,6 @@ export class ProductServiceQueryRepository implements ProductServiceQueryReposit
 				.from(ProductService)
 				.leftJoin(Service, eq(ProductService.serviceId, Service.id))
 				.where(eq(ProductService.productId, productId))
-				.all()
 		).filter((r): r is { serviceId: string; productServiceId: string } => r.serviceId !== null)
 
 		return rows
@@ -36,7 +44,6 @@ export class ProductServiceQueryRepository implements ProductServiceQueryReposit
 			})
 			.from(ProductService)
 			.where(eq(ProductService.productId, productId))
-			.all()
 
 		return rows as unknown as ProductServiceConfigRow[]
 	}
@@ -62,7 +69,7 @@ export class ProductServiceQueryRepository implements ProductServiceQueryReposit
 					eq(ProductService.serviceId, params.serviceId)
 				)
 			)
-			.get()
+			.then(first)
 
 		// NOTE: preserve current behavior (null when not found)
 		if (!row) return null
@@ -77,7 +84,8 @@ export class ProductServiceQueryRepository implements ProductServiceQueryReposit
 		return (await db
 			.select()
 			.from(ProductServiceAttribute)
-			.where(inArray(ProductServiceAttribute.productServiceId, productServiceIds))
-			.all()) as unknown as ProductServiceAttributeRow[]
+			.where(
+				inArray(ProductServiceAttribute.productServiceId, productServiceIds)
+			)) as unknown as ProductServiceAttributeRow[]
 	}
 }

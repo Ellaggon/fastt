@@ -4,9 +4,9 @@ import type { SellableUnit } from "../domain/unit.types"
 
 type UnitPort<TUnit extends SellableUnit> = SellableUnitAdapterPort<TUnit>
 
-export class AdapterRegistry<TUnit extends SellableUnit = SellableUnit>
-	implements AdapterRegistryPort<TUnit>
-{
+export class AdapterRegistry<
+	TUnit extends SellableUnit = SellableUnit,
+> implements AdapterRegistryPort<TUnit> {
 	private adapters = new Map<string, UnitPort<TUnit>>()
 
 	register(type: string, adapter: UnitPort<TUnit>) {

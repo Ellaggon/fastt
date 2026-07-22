@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, ProviderDocument } from "astro:db"
+import { first, and, db, eq, ProviderDocument } from "@/shared/infrastructure/db/compat"
 
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { createProviderDocumentPreviewUrl } from "@/lib/provider-document-storage"
@@ -25,7 +25,7 @@ export const GET: APIRoute = async ({ request }) => {
 			})
 			.from(ProviderDocument)
 			.where(and(eq(ProviderDocument.id, documentId), eq(ProviderDocument.providerId, providerId)))
-			.get()
+			.then(first)
 
 		if (!row?.id || !row.fileUrl) {
 			return new Response(JSON.stringify({ error: "not_found" }), {

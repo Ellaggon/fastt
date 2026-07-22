@@ -1,4 +1,14 @@
-import { and, asc, db, desc, eq, inArray, RatePlan, Variant } from "astro:db"
+import {
+	first,
+	and,
+	asc,
+	db,
+	desc,
+	eq,
+	inArray,
+	RatePlan,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 
 import { routes } from "@/lib/routes"
 
@@ -16,7 +26,7 @@ export async function resolveReservationConditionsHref(params: {
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 		.where(and(inArray(RatePlan.variantId, variantIds), eq(Variant.productId, productId)))
 		.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive), asc(RatePlan.createdAt))
-		.get()
+		.then(first)
 
 	return row?.id ? routes.ratePlanPolicies(String(row.id)) : routes.rates()
 }

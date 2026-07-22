@@ -1,4 +1,4 @@
-import { db, eq, HouseRule as HouseRuleTable, inArray } from "astro:db"
+import { db, eq, HouseRule as HouseRuleTable, inArray } from "@/shared/infrastructure/db/compat"
 
 import type { HouseRulePayload, HouseRuleType } from "../../domain/houseRule"
 import type { HouseRuleRepositoryPort } from "../../application/ports/HouseRuleRepositoryPort"
@@ -31,7 +31,6 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 			})
 			.from(HouseRuleTable)
 			.where(eq(HouseRuleTable.productId, productId))
-			.all()
 
 		return rows as any
 	}
@@ -52,12 +51,11 @@ export class HouseRuleRepository implements HouseRuleRepositoryPort {
 			})
 			.from(HouseRuleTable)
 			.where(inArray(HouseRuleTable.productId, ids))
-			.all()
 
 		return rows as any
 	}
 
 	async delete(id: string) {
-		await db.delete(HouseRuleTable).where(eq(HouseRuleTable.id, id)).run()
+		await db.delete(HouseRuleTable).where(eq(HouseRuleTable.id, id))
 	}
 }

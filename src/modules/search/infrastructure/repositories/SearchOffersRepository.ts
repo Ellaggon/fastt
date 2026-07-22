@@ -1,6 +1,6 @@
 import { variantRepository } from "@/container/pricing.container"
 import { searchReadModelRepository } from "@/container/search-read-model.container"
-import { db, eq, Variant, VariantCapacity } from "astro:db"
+import { db, eq, Variant, VariantCapacity } from "@/shared/infrastructure/db/compat"
 import type { SearchUnit } from "@/modules/search/public"
 import type { UnitType } from "@/modules/search/domain/unit.types"
 import { isUnitType } from "@/modules/search/domain/unit.types"
@@ -34,16 +34,14 @@ export class SearchOffersRepository implements SearchOffersRepositoryPort {
 					status: Variant.status,
 				})
 				.from(Variant)
-				.where(eq(Variant.productId, productId))
-				.all(),
+				.where(eq(Variant.productId, productId)),
 			db
 				.select({
 					variantId: VariantCapacity.variantId,
 					minOccupancy: VariantCapacity.minOccupancy,
 					maxOccupancy: VariantCapacity.maxOccupancy,
 				})
-				.from(VariantCapacity)
-				.all(),
+				.from(VariantCapacity),
 		])
 
 		const capacityByVariantId = new Map(

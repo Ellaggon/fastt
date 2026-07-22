@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { Booking, db, eq } from "astro:db"
+import { Booking, db, eq } from "@/shared/infrastructure/db/compat"
 import { z } from "zod"
 
 import { refundCalculationRepository } from "@/container/financial.container"
@@ -159,7 +159,6 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 			} as any)
 			.where(eq(Booking.id, context.booking.id))
-			.run()
 
 		return json({
 			bookingId: context.booking.id,

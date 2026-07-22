@@ -8,7 +8,7 @@ import {
 	inArray,
 	RatePlan,
 	db,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
@@ -90,18 +90,15 @@ export async function loadVariantCompletion(
 					eq(RatePlan.isDefault, true),
 					eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 				)
-			)
-			.all(),
+			),
 		db
 			.select({ variantId: DailyInventory.variantId })
 			.from(DailyInventory)
-			.where(eq(DailyInventory.variantId, variantId))
-			.all(),
+			.where(eq(DailyInventory.variantId, variantId)),
 		db
 			.select({ id: Image.id })
 			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-			.all(),
+			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId))),
 		db
 			.select({
 				id: RatePlan.id,
@@ -110,8 +107,7 @@ export async function loadVariantCompletion(
 			})
 			.from(RatePlan)
 			.where(eq(RatePlan.variantId, variantId))
-			.orderBy(asc(ratePlanName), asc(RatePlan.id))
-			.all(),
+			.orderBy(asc(ratePlanName), asc(RatePlan.id)),
 	])
 
 	const activeTariffs = tariffRows.filter((row) => Boolean(row.isActive))

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, gte, lt, SearchUnitView } from "astro:db"
+import { and, db, eq, gte, lt, SearchUnitView } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { buildOccupancyKey, evaluateStaySellabilityFromView } from "@/modules/search/public"
@@ -91,7 +91,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					lt(SearchUnitView.date, to)
 				)
 			)
-			.all()
 
 		if (!rows.length) {
 			logEndpoint()

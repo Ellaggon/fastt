@@ -9,7 +9,7 @@ import {
 	Product,
 	sql,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -67,7 +67,6 @@ export const GET: APIRoute = async ({ request }) => {
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(Product.providerId, providerId))
-			.all()
 
 		if (variants.length === 0) {
 			logEndpoint()
@@ -97,8 +96,7 @@ export const GET: APIRoute = async ({ request }) => {
 				})
 				.from(DailyInventory)
 				.where(inArray(DailyInventory.variantId, variantIds))
-				.groupBy(DailyInventory.variantId)
-				.all(),
+				.groupBy(DailyInventory.variantId),
 			db
 				.select({
 					variantId: EffectiveAvailability.variantId,
@@ -108,8 +106,7 @@ export const GET: APIRoute = async ({ request }) => {
 				})
 				.from(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))
-				.groupBy(EffectiveAvailability.variantId)
-				.all(),
+				.groupBy(EffectiveAvailability.variantId),
 			db
 				.select({
 					variantId: DailyInventory.variantId,
@@ -124,8 +121,7 @@ export const GET: APIRoute = async ({ request }) => {
 					)
 				)
 				.where(inArray(DailyInventory.variantId, variantIds))
-				.groupBy(DailyInventory.variantId)
-				.all(),
+				.groupBy(DailyInventory.variantId),
 			db
 				.select({
 					variantId: EffectiveAvailability.variantId,
@@ -133,8 +129,7 @@ export const GET: APIRoute = async ({ request }) => {
 				})
 				.from(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))
-				.groupBy(EffectiveAvailability.variantId)
-				.all(),
+				.groupBy(EffectiveAvailability.variantId),
 		])
 
 		const dailyByVariant = new Map(

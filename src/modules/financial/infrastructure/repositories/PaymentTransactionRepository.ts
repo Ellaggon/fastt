@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	desc,
 	eq,
@@ -6,7 +7,7 @@ import {
 	PaymentTransaction as PaymentTransactionTable,
 	db,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	PaymentTransactionCreateInput,
@@ -42,7 +43,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 			.from(PaymentTransactionTable)
 			.where(eq(PaymentTransactionTable.bookingId, key))
 			.orderBy(desc(PaymentTransactionTable.occurredAt))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -65,7 +66,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 			.where(and(...filters))
 			.orderBy(desc(PaymentTransactionTable.occurredAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -86,7 +87,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 					eq(PaymentTransactionTable.type, params.type)
 				)
 			)
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -107,7 +108,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 			)
 			.orderBy(desc(PaymentTransactionTable.occurredAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 100), 500)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -125,10 +126,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
 		try {
-			await db
-				.insert(PaymentTransactionTable)
-				.values(row as any)
-				.run()
+			await db.insert(PaymentTransactionTable).values(row as any)
 		} catch (error) {
 			const existingAfterCollision = await this.findExisting({
 				providerId: input.providerId,

@@ -1,4 +1,5 @@
 import {
+	first,
 	TaxFeeDefinition as TaxFeeDefinitionTable,
 	TaxFeeAssignment as TaxFeeAssignmentTable,
 	Product,
@@ -8,7 +9,7 @@ import {
 	inArray,
 	isNull,
 	or,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type { TaxFeeCommandRepositoryPort } from "../../application/ports/TaxFeeCommandRepositoryPort"
 import type { TaxFeeResolutionRepositoryPort } from "../../application/ports/TaxFeeResolutionRepositoryPort"
 import type { TaxFeeQueryRepositoryPort } from "../../application/ports/TaxFeeQueryRepositoryPort"
@@ -59,7 +60,7 @@ export class TaxFeeRepository
 			name: params.name,
 			kind: params.kind,
 			calculationType: params.calculationType,
-			value: params.value,
+			value: String(params.value),
 			currency: params.currency,
 			inclusionType: params.inclusionType,
 			appliesPer: params.appliesPer,
@@ -82,7 +83,7 @@ export class TaxFeeRepository
 				name: params.name,
 				kind: params.kind,
 				calculationType: params.calculationType,
-				value: params.value,
+				value: String(params.value),
 				currency: params.currency,
 				inclusionType: params.inclusionType,
 				appliesPer: params.appliesPer,
@@ -113,7 +114,7 @@ export class TaxFeeRepository
 			.select()
 			.from(TaxFeeDefinitionTable)
 			.where(eq(TaxFeeDefinitionTable.id, id))
-			.get()
+			.then(first)
 		return row ? mapDefinition(row) : null
 	}
 
@@ -133,7 +134,7 @@ export class TaxFeeRepository
 					eq(TaxFeeDefinitionTable.status, "active")
 				)
 			)
-			.get()
+			.then(first)
 
 		return row ? mapDefinition(row) : null
 	}
@@ -160,7 +161,7 @@ export class TaxFeeRepository
 					eq(TaxFeeAssignmentTable.status, "active")
 				)
 			)
-			.get()
+			.then(first)
 		return row ? mapAssignment(row) : null
 	}
 
@@ -187,7 +188,7 @@ export class TaxFeeRepository
 						: isNull(TaxFeeAssignmentTable.scopeId)
 				)
 			)
-			.get()
+			.then(first)
 		return row ? mapAssignment(row) : null
 	}
 
@@ -214,7 +215,6 @@ export class TaxFeeRepository
 			.where(
 				and(eq(TaxFeeAssignmentTable.status, "active"), or(...scopeConds), or(...channelConds))
 			)
-			.all()
 
 		return rows.filter(Boolean).map(mapAssignment)
 	}
@@ -225,7 +225,7 @@ export class TaxFeeRepository
 			.select()
 			.from(TaxFeeDefinitionTable)
 			.where(inArray(TaxFeeDefinitionTable.id, ids))
-			.all()
+
 		return rows.map(mapDefinition)
 	}
 
@@ -234,7 +234,7 @@ export class TaxFeeRepository
 			.select()
 			.from(TaxFeeDefinitionTable)
 			.where(eq(TaxFeeDefinitionTable.providerId, providerId))
-			.all()
+
 		return rows.map(mapDefinition)
 	}
 
@@ -253,7 +253,7 @@ export class TaxFeeRepository
 						: isNull(TaxFeeAssignmentTable.scopeId)
 				)
 			)
-			.all()
+
 		return rows.map(mapAssignment)
 	}
 
@@ -262,7 +262,7 @@ export class TaxFeeRepository
 			.select({ providerId: Product.providerId })
 			.from(Product)
 			.where(eq(Product.id, productId))
-			.get()
+			.then(first)
 		return row?.providerId ?? null
 	}
 }

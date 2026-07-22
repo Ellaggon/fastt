@@ -1,4 +1,5 @@
 import {
+	first,
 	db,
 	and,
 	eq,
@@ -32,7 +33,7 @@ import {
 	RatePlan,
 	SearchUnitView,
 	TaxFeeAssignment,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
 import type {
@@ -80,7 +81,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(Product)
 			.where(eq(Product.id, productId))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -96,7 +97,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(Product)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -110,7 +111,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			.select({ productId: ProductContent.productId })
 			.from(ProductContent)
 			.where(eq(ProductContent.productId, params.productId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(ProductContent).values({
@@ -142,7 +143,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			.select({ productId: ProductLocation.productId })
 			.from(ProductLocation)
 			.where(eq(ProductLocation.productId, params.productId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(ProductLocation).values({
@@ -173,7 +174,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			.select({ productId: ProductStatus.productId })
 			.from(ProductStatus)
 			.where(eq(ProductStatus.productId, params.productId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(ProductStatus).values({
@@ -204,7 +205,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(Product)
 			.where(eq(Product.id, productId))
-			.get()
+			.then(first)
 
 		if (!product) return null
 
@@ -217,7 +218,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(ProductContent)
 			.where(eq(ProductContent.productId, productId))
-			.get()
+			.then(first)
 
 		const location = await db
 			.select({
@@ -228,7 +229,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(ProductLocation)
 			.where(eq(ProductLocation.productId, productId))
-			.get()
+			.then(first)
 
 		const status = await db
 			.select({
@@ -238,13 +239,12 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(ProductStatus)
 			.where(eq(ProductStatus.productId, productId))
-			.get()
+			.then(first)
 
 		const images = await db
 			.select({ id: Image.id })
 			.from(Image)
 			.where(eq(Image.entityId, productId))
-			.all()
 
 		const pt = String(product.productType || "")
 			.trim()
@@ -255,7 +255,11 @@ export class ProductRepository implements ProductRepositoryPort {
 			subtypeExists: false,
 		}
 		if (pt === "hotel") {
-			subtypeExists = !!(await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get())
+			subtypeExists = !!(await db
+				.select()
+				.from(Hotel)
+				.where(eq(Hotel.productId, productId))
+				.then(first))
 			const variants = await db
 				.select({
 					id: Variant.id,
@@ -266,14 +270,14 @@ export class ProductRepository implements ProductRepositoryPort {
 				.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))
 				.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "hotel_room")))
-				.all()
+
 			let completeRoomCount = 0
 			for (const variant of variants) {
 				const beds = await db
 					.select({ id: VariantRoomBed.id })
 					.from(VariantRoomBed)
 					.where(eq(VariantRoomBed.variantId, variant.id))
-					.all()
+
 				if (variant.profileVariantId && variant.capacityVariantId && beds.length > 0) {
 					completeRoomCount += 1
 				}
@@ -287,13 +291,13 @@ export class ProductRepository implements ProductRepositoryPort {
 				},
 			}
 		} else if (pt === "tour") {
-			const tour = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+			const tour = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 			subtypeExists = !!tour
 			const schedules = await db
 				.select({ id: Variant.id })
 				.from(Variant)
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
-				.all()
+
 			verticalReadiness = {
 				kind: "tour",
 				subtypeExists,
@@ -304,7 +308,11 @@ export class ProductRepository implements ProductRepositoryPort {
 				},
 			}
 		} else if (pt === "package") {
-			const pkg = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			const pkg = await db
+				.select()
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.then(first)
 			subtypeExists = !!pkg
 			verticalReadiness = {
 				kind: "package",
@@ -322,7 +330,11 @@ export class ProductRepository implements ProductRepositoryPort {
 				},
 			}
 		} else if (pt === "limousine") {
-			const limo = await db.select().from(Limousine).where(eq(Limousine.productId, productId)).get()
+			const limo = await db
+				.select()
+				.from(Limousine)
+				.where(eq(Limousine.productId, productId))
+				.then(first)
 			subtypeExists = !!limo
 			verticalReadiness = {
 				kind: "limousine",
@@ -360,27 +372,27 @@ export class ProductRepository implements ProductRepositoryPort {
 
 	async deleteProductCascade(productId: string) {
 		if (!productId) return
-		const product = await db.select().from(Product).where(eq(Product.id, productId)).get()
+		const product = await db.select().from(Product).where(eq(Product.id, productId)).then(first)
 		if (!product) return
 
-		const variants = await db.select().from(Variant).where(eq(Variant.productId, productId)).all()
+		const variants = await db.select().from(Variant).where(eq(Variant.productId, productId))
 		const variantIds = variants.map((variant) => String(variant.id))
 		const ratePlans = variantIds.length
-			? await db.select().from(RatePlan).where(inArray(RatePlan.variantId, variantIds)).all()
+			? await db.select().from(RatePlan).where(inArray(RatePlan.variantId, variantIds))
 			: []
 		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
 		const serviceRows = await db
 			.select()
 			.from(ProductService)
 			.where(eq(ProductService.productId, productId))
-			.all()
+
 		const serviceIds = serviceRows.map((service) => String(service.id))
-		const productImages = await db.select().from(Image).where(eq(Image.entityId, productId)).all()
+		const productImages = await db.select().from(Image).where(eq(Image.entityId, productId))
 		const variantImages = variantIds.length
-			? await db.select().from(Image).where(inArray(Image.entityId, variantIds)).all()
+			? await db.select().from(Image).where(inArray(Image.entityId, variantIds))
 			: []
 		const productObjectPrefix = `products/${productId}/`
-		const pendingProductImages = (await db.select().from(Image).all()).filter((image) =>
+		const pendingProductImages = (await db.select().from(Image)).filter((image) =>
 			String((image as any).objectKey ?? "").startsWith(productObjectPrefix)
 		)
 		const imagesById = new Map<string, (typeof productImages)[number]>()

@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	CommercialRule,
 	CommercialRuleApplication,
@@ -14,7 +15,7 @@ import {
 	SearchUnitView,
 	sql,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import {
 	createCommercialPriceRule,
 	createCommercialSellabilityRule,
@@ -53,7 +54,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				})
 			} else {
 				const createdAt = cmd.ratePlan.createdAt.toISOString()
-				await tx.run(sql`
+				await tx.execute(sql`
 					insert into "RatePlanTemplate" (
 						"id", "name", "description", "paymentType", "refundable", "createdAt"
 					)
@@ -66,7 +67,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						${createdAt}
 					)
 				`)
-				await tx.run(sql`
+				await tx.execute(sql`
 					insert into "RatePlan" ("id", "templateId", "variantId", "isDefault", "isActive", "createdAt")
 					values (
 						${cmd.ratePlan.id},
@@ -85,7 +86,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(RatePlan.id, cmd.ratePlan.id))
-			.get()
+			.then(first)
 		providerId = owner?.providerId ? String(owner.providerId) : null
 		if (!providerId) return
 		if (cmd.priceRule) {
@@ -130,7 +131,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				})
 				.from(RatePlan)
 				.where(eq(RatePlan.id, params.ratePlanId))
-				.get()
+				.then(first)
 
 			if (!ratePlan) {
 				notFound = true
@@ -161,7 +162,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						isDefault: params.isDefault ?? Boolean(ratePlan.isDefault),
 					})
 					.where(eq(RatePlan.id, params.ratePlanId))
-				await tx.run(sql`
+				await tx.execute(sql`
 					update "RatePlanTemplate"
 					set "name" = ${params.name}, "description" = ${params.description}
 					where "id" = (
@@ -179,7 +180,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 			.select({ id: RatePlan.id })
 			.from(RatePlan)
 			.where(eq(RatePlan.id, ratePlanId))
-			.get()
+			.then(first)
 		if (!existing) return "not_found"
 
 		await db.transaction(async (tx) => {
@@ -200,7 +201,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						.select({ templateId: sql<string>`"RatePlan"."templateId"` })
 						.from(RatePlan)
 						.where(eq(RatePlan.id, ratePlanId))
-						.get()
+						.then(first)
 			const ruleApplications = await removeOptional(async () =>
 				tx
 					.select({
@@ -215,7 +216,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 							eq(CommercialRuleApplication.scopeId, ratePlanId)
 						)
 					)
-					.all()
 			)
 			if (Array.isArray(ruleApplications) && ruleApplications.length > 0) {
 				const applicationIds = ruleApplications.map((row) => String(row.id))
@@ -229,7 +229,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						.select({ id: CommercialRuleApplication.id })
 						.from(CommercialRuleApplication)
 						.where(eq(CommercialRuleApplication.ruleId, ruleId))
-						.get()
+						.then(first)
 					if (!remaining) await tx.delete(CommercialRule).where(eq(CommercialRule.id, ruleId))
 				}
 				for (const ruleSetId of ruleSetIds) {
@@ -237,7 +237,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 						.select({ id: CommercialRule.id })
 						.from(CommercialRule)
 						.where(eq(CommercialRule.ruleSetId, ruleSetId))
-						.get()
+						.then(first)
 					if (!remaining) {
 						await tx.delete(CommercialRuleSet).where(eq(CommercialRuleSet.id, ruleSetId))
 					}
@@ -253,35 +253,35 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 				tx.delete(RatePlanOccupancyPolicy).where(eq(RatePlanOccupancyPolicy.ratePlanId, ratePlanId))
 			)
 			await removeOptional(() =>
-				tx.run(sql`delete from "PriceRule" where "ratePlanId" = ${ratePlanId}`)
+				tx.execute(sql`delete from "PriceRule" where "ratePlanId" = ${ratePlanId}`)
 			)
 			await removeOptional(() =>
-				tx.run(sql`delete from "RatePlanOccupancyOverride" where "ratePlanId" = ${ratePlanId}`)
+				tx.execute(sql`delete from "RatePlanOccupancyOverride" where "ratePlanId" = ${ratePlanId}`)
 			)
 			await removeOptional(() =>
 				tx.delete(SearchUnitView).where(eq(SearchUnitView.ratePlanId, ratePlanId))
 			)
 			await removeOptional(() =>
-				tx.run(sql`
+				tx.execute(sql`
 					delete from "PolicyAssignment"
 					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
 				`)
 			)
 			await removeOptional(() =>
-				tx.run(sql`
+				tx.execute(sql`
 					delete from "PolicyExceptionRule"
 					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
 				`)
 			)
 			await removeOptional(() =>
-				tx.run(sql`
+				tx.execute(sql`
 					delete from "TaxFeeAssignment"
 					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
 				`)
 			)
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
 			if (legacyTemplate?.templateId) {
-				await tx.run(sql`
+				await tx.execute(sql`
 					delete from "RatePlanTemplate"
 					where "id" = ${legacyTemplate.templateId}
 						and not exists (

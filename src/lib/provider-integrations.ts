@@ -1,11 +1,12 @@
 import {
+	first,
 	db,
 	desc,
 	eq,
 	and,
 	ProviderIntegrationConnection,
 	ProviderIntegrationSyncLog,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 
@@ -258,7 +259,7 @@ export async function listProviderIntegrations(params: {
 		.select()
 		.from(ProviderIntegrationConnection)
 		.where(eq(ProviderIntegrationConnection.providerId, params.providerId))
-		.all()
+
 		.catch(() => [])
 	const logs = await db
 		.select()
@@ -266,7 +267,7 @@ export async function listProviderIntegrations(params: {
 		.where(eq(ProviderIntegrationSyncLog.providerId, params.providerId))
 		.orderBy(desc(ProviderIntegrationSyncLog.createdAt))
 		.limit(30)
-		.all()
+
 		.catch(() => [])
 
 	return connectorCatalog.map((connector) => {
@@ -332,7 +333,7 @@ export async function connectProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.get()
+		.then(first)
 		.catch(() => null)
 	const now = new Date()
 	// Credentials alone never mean "connected" (Expedia connectivity test / Airbnb channel smoke).
@@ -433,7 +434,7 @@ export async function revokeProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.get()
+		.then(first)
 	if (!existing?.id) return null
 
 	const before = connectionAuditSnapshot(existing)
@@ -489,7 +490,7 @@ export async function syncProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.get()
+		.then(first)
 	if (!existing?.id) throw new Error("CONNECTION_NOT_FOUND")
 
 	const credentialsRef = String(existing.credentialsRef ?? "").trim()

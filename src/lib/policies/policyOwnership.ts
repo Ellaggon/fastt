@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	db,
 	eq,
@@ -9,7 +10,7 @@ import {
 	Product,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 export type OwnedPolicyScopeIds = {
 	productIds: string[]
@@ -29,7 +30,7 @@ export async function getOwnedPolicyScopeIds(providerId: string): Promise<OwnedP
 		.select({ id: Product.id })
 		.from(Product)
 		.where(eq(Product.providerId, normalizedProviderId))
-		.all()
+
 	const productIds = asIds(products)
 
 	const variants = productIds.length
@@ -37,7 +38,6 @@ export async function getOwnedPolicyScopeIds(providerId: string): Promise<OwnedP
 				.select({ id: Variant.id })
 				.from(Variant)
 				.where(inArray(Variant.productId, productIds))
-				.all()
 		: []
 	const variantIds = asIds(variants)
 
@@ -46,7 +46,6 @@ export async function getOwnedPolicyScopeIds(providerId: string): Promise<OwnedP
 				.select({ id: RatePlan.id })
 				.from(RatePlan)
 				.where(inArray(RatePlan.variantId, variantIds))
-				.all()
 		: []
 	const ratePlanIds = asIds(ratePlans)
 
@@ -100,7 +99,7 @@ export async function getOwnedPolicyGroupIds(
 		.select({ id: PolicyGroup.id })
 		.from(PolicyGroup)
 		.where(eq((PolicyGroup as any).ownerProviderId, String(providerId ?? "").trim()))
-		.all()
+
 	for (const row of directRows) {
 		const groupId = String(row.id ?? "").trim()
 		if (groupId) groups.add(groupId)
@@ -118,7 +117,7 @@ export async function getOwnedPolicyGroupIds(
 			.select({ policyGroupId: PolicyAssignment.policyGroupId })
 			.from(PolicyAssignment)
 			.where(and(...conditions))
-			.all()
+
 		for (const row of rows) {
 			const groupId = String(row.policyGroupId ?? "").trim()
 			if (groupId) groups.add(groupId)
@@ -139,7 +138,7 @@ export async function ensurePolicyOwnedByProvider(params: {
 		.select({ groupId: Policy.groupId })
 		.from(Policy)
 		.where(eq(Policy.id, policyId))
-		.get()
+		.then(first)
 	if (!policy?.groupId) return false
 
 	const ownedGroupIds = await getOwnedPolicyGroupIds(params.providerId, { activeOnly: false })
@@ -160,7 +159,7 @@ export async function ensurePolicyAssignmentOwnedByProvider(params: {
 		})
 		.from(PolicyAssignment)
 		.where(eq(PolicyAssignment.id, assignmentId))
-		.get()
+		.then(first)
 	if (!assignment) return false
 
 	return ensurePolicyScopeOwnedByProvider({

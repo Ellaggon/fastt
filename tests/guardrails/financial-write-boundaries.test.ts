@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { collectDbWriteTargets, collectImports } from "./_guardrail-ast"
+import { collectDbTableImportMap, collectDbWriteTargets } from "./_guardrail-ast"
 import { financialSourceFiles } from "./financial-stage2-guardrail-utils"
 
 describe("Guardrail: financial Stage 2 write boundaries", () => {
@@ -25,14 +25,9 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 		const violations = financialSourceFiles.flatMap((file) => {
 			if (!file.startsWith("src/modules/financial/")) return []
 			if (file.endsWith("FinancialRepository.ts")) return []
-			const imports = collectImports(file)
-			const astroDbImportByLocal = new Map(
-				imports
-					.filter((entry) => entry.module === "astro:db")
-					.map((entry) => [entry.local, entry.imported])
-			)
+			const dbImportByLocal = collectDbTableImportMap(file)
 			return collectDbWriteTargets(file).flatMap((write) => {
-				const importedTable = astroDbImportByLocal.get(write.target) ?? write.target
+				const importedTable = dbImportByLocal.get(write.target) ?? write.target
 				return allowedWorkflowTables.has(importedTable)
 					? []
 					: [
@@ -59,14 +54,9 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 		])
 		const violations = financialSourceFiles.flatMap((file) => {
 			if (!file.startsWith("src/pages/api/internal/financial/")) return []
-			const imports = collectImports(file)
-			const astroDbImportByLocal = new Map(
-				imports
-					.filter((entry) => entry.module === "astro:db")
-					.map((entry) => [entry.local, entry.imported])
-			)
+			const dbImportByLocal = collectDbTableImportMap(file)
 			return collectDbWriteTargets(file).flatMap((write) => {
-				const importedTable = astroDbImportByLocal.get(write.target) ?? write.target
+				const importedTable = dbImportByLocal.get(write.target) ?? write.target
 				return forbiddenTables.has(importedTable)
 					? [`${file}: ${write.method} writes forbidden ownership table ${importedTable}`]
 					: []

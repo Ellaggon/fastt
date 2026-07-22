@@ -1,9 +1,10 @@
 import {
+	first,
 	db,
 	eq,
 	RefundLedger as RefundLedgerTable,
 	RefundQuote as RefundQuoteTable,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type { RefundCalculationRepositoryPort } from "../../application/ports/RefundCalculationRepositoryPort"
 import type { RefundLedger } from "../../domain/refund-ledger"
@@ -72,7 +73,7 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 			.select()
 			.from(RefundQuoteTable)
 			.where(eq(RefundQuoteTable.idempotencyKey, quote.idempotencyKey))
-			.get()
+			.then(first)
 		if (existing) return { quote: mapQuote(existing), created: false }
 		const row = {
 			id: quote.id,
@@ -99,16 +100,13 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 			createdAt: new Date(),
 		}
 		try {
-			await db
-				.insert(RefundQuoteTable)
-				.values(row as any)
-				.run()
+			await db.insert(RefundQuoteTable).values(row as any)
 		} catch {
 			const existingAfterCollision = await db
 				.select()
 				.from(RefundQuoteTable)
 				.where(eq(RefundQuoteTable.idempotencyKey, quote.idempotencyKey))
-				.get()
+				.then(first)
 			if (existingAfterCollision) return { quote: mapQuote(existingAfterCollision), created: false }
 			throw new Error("REFUND_QUOTE_WRITE_FAILED")
 		}
@@ -118,18 +116,19 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 	async findQuoteById(id: string): Promise<RefundQuote | null> {
 		const key = String(id ?? "").trim()
 		if (!key) return null
-		const row = await db.select().from(RefundQuoteTable).where(eq(RefundQuoteTable.id, key)).get()
+		const row = await db
+			.select()
+			.from(RefundQuoteTable)
+			.where(eq(RefundQuoteTable.id, key))
+			.then(first)
 		return row ? mapQuote(row) : null
 	}
 
 	async findQuotesByBookingId(bookingId: string): Promise<RefundQuote[]> {
 		const key = String(bookingId ?? "").trim()
 		if (!key) return []
-		const rows = await db
-			.select()
-			.from(RefundQuoteTable)
-			.where(eq(RefundQuoteTable.bookingId, key))
-			.all()
+		const rows = await db.select().from(RefundQuoteTable).where(eq(RefundQuoteTable.bookingId, key))
+
 		return rows.map(mapQuote)
 	}
 
@@ -140,7 +139,7 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 			.select()
 			.from(RefundLedgerTable)
 			.where(eq(RefundLedgerTable.refundQuoteId, key))
-			.get()
+			.then(first)
 		return row ? mapLedger(row) : null
 	}
 
@@ -165,10 +164,7 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 			createdAt: entry.createdAt,
 		}
 		try {
-			await db
-				.insert(RefundLedgerTable)
-				.values(row as any)
-				.run()
+			await db.insert(RefundLedgerTable).values(row as any)
 		} catch {
 			const existingAfterCollision = await this.findLedgerByQuoteId(entry.refundQuoteId)
 			if (existingAfterCollision) return existingAfterCollision
@@ -184,7 +180,7 @@ export class RefundCalculationRepository implements RefundCalculationRepositoryP
 			.select()
 			.from(RefundLedgerTable)
 			.where(eq(RefundLedgerTable.bookingId, key))
-			.all()
+
 		return rows.map(mapLedger)
 	}
 }

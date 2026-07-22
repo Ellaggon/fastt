@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	Booking,
 	BookingPolicySnapshot,
@@ -6,7 +7,7 @@ import {
 	BookingTaxFee,
 	db,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type { RefundQuoteMoneyLine } from "@/modules/financial/public"
 import type { HoldPolicyItemSnapshot, HoldPolicySnapshot } from "@/modules/policies/public"
@@ -107,7 +108,7 @@ export async function loadRefundCancellationContext(params: {
 		})
 		.from(Booking)
 		.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, providerId)))
-		.get()
+		.then(first)
 	if (!booking) return null
 
 	const roomRows = await db
@@ -122,7 +123,7 @@ export async function loadRefundCancellationContext(params: {
 		})
 		.from(BookingRoomDetail)
 		.where(eq(BookingRoomDetail.bookingId, bookingId))
-		.all()
+
 	if (!roomRows.length) return null
 
 	const policyRows = await db
@@ -133,7 +134,6 @@ export async function loadRefundCancellationContext(params: {
 		})
 		.from(BookingPolicySnapshot)
 		.where(eq(BookingPolicySnapshot.bookingId, bookingId))
-		.all()
 
 	const taxRows = await db
 		.select({
@@ -141,7 +141,6 @@ export async function loadRefundCancellationContext(params: {
 		})
 		.from(BookingTaxFee)
 		.where(eq(BookingTaxFee.bookingId, bookingId))
-		.all()
 
 	const currency =
 		String(booking.currency ?? "USD")

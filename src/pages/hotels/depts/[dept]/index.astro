@@ -16,7 +16,7 @@ import {
 	ProductService,
 	Service,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 const deptId = Astro.params.dept || null
 if (!deptId) return Astro.redirect("/hotels")
@@ -65,7 +65,6 @@ try {
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(and(sql`lower(${Product.productType}) = 'hotel'`, eq(Destination.department, deptId)))
 		.groupBy(Product.id)
-		.all()
 } catch (e) {
 	console.error(e)
 }

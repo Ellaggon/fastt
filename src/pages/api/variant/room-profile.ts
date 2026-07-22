@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 import {
+	first,
 	AmenityRoom,
 	db,
 	eq,
@@ -9,7 +10,7 @@ import {
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	inventoryBootstrapper,
@@ -150,7 +151,7 @@ export const POST: APIRoute = async ({ request }) => {
 				.select({ id: Variant.id, externalCode: Variant.externalCode })
 				.from(Variant)
 				.where(eq(Variant.productId, parsed.productId))
-				.all()
+
 			const duplicateRoomCode = roomCodeMatches.find((row) => {
 				const rowId = String(row.id ?? "").trim()
 				const existingCode = String(row.externalCode ?? "")
@@ -217,7 +218,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.select({ variantId: VariantRoomProfile.variantId })
 			.from(VariantRoomProfile)
 			.where(eq(VariantRoomProfile.variantId, variantId))
-			.get()
+			.then(first)
 		const roomTypeId = parsed.roomTypeId || null
 		const hasBalcony =
 			parsed.hasBalcony === "true" ? true : parsed.hasBalcony === "false" ? false : null
@@ -283,7 +284,7 @@ export const POST: APIRoute = async ({ request }) => {
 				.select({ id: AmenityRoom.id })
 				.from(AmenityRoom)
 				.where(inArray(AmenityRoom.id, amenityIds))
-				.all()
+
 			const validAmenityIds = new Set(validAmenityRows.map((row) => String(row.id)))
 			for (const amenityId of amenityIds) {
 				if (!validAmenityIds.has(amenityId)) continue

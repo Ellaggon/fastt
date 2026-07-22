@@ -37,7 +37,16 @@ import {
 } from "@/modules/house-rules/presentation/houseRulePresentation"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
-import { and, asc, db, eq, Image, inArray, ProductStatus } from "astro:db"
+import {
+	first,
+	and,
+	asc,
+	db,
+	eq,
+	Image,
+	inArray,
+	ProductStatus,
+} from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -62,7 +71,7 @@ const statusRow = await db
 	.select({ state: ProductStatus.state })
 	.from(ProductStatus)
 	.where(eq(ProductStatus.productId, productId))
-	.get()
+	.then(first)
 const productStatus = String(statusRow?.state ?? "draft")
 	.trim()
 	.toLowerCase()
@@ -171,8 +180,7 @@ if (isHotel) {
 							inArray(Image.entityId, roomVariantIds)
 						)
 					)
-					.orderBy(asc(Image.order), asc(Image.id))
-					.all(),
+					.orderBy(asc(Image.order), asc(Image.id)),
 			])
 		: [[], [], []]
 	const imagesByVariant = new Map<string, any[]>()

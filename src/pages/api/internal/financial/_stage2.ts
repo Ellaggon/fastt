@@ -1,4 +1,4 @@
-import { and, Booking, db, eq } from "astro:db"
+import { first, and, Booking, db, eq } from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -37,7 +37,7 @@ export async function bookingBelongsToProvider(
 		.select({ id: Booking.id })
 		.from(Booking)
 		.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, providerId)))
-		.get()
+		.then(first)
 	return Boolean(row)
 }
 

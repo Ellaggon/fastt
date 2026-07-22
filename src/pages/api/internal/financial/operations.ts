@@ -13,7 +13,7 @@ import {
 	Product,
 	Provider,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -87,7 +87,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.where(and(...bookingPredicates))
 			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 			.limit(limit + 1)
-			.all()
+
 		const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
 		if (!pagedBookingIds.length) {
 			return new Response(
@@ -151,7 +151,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.providerId, providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
-			.all()
 
 		const bookingIds = [...new Set(rows.map((row) => String(row.bookingId)).filter(Boolean))]
 		const financialEvidenceRows: Array<{
@@ -175,7 +174,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					})
 					.from(BookingTaxFee)
 					.where(inArray(BookingTaxFee.bookingId, bookingIds))
-					.all()
 			} catch (error) {
 				console.warn("booking_tax_fee_lookup_degraded", {
 					providerId,

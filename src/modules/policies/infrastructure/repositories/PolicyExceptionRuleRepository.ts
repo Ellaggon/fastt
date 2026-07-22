@@ -1,5 +1,14 @@
 import { randomUUID } from "crypto"
-import { and, db, desc, eq, inArray, PolicyExceptionRule, sql } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	PolicyExceptionRule,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	isPolicyExceptionApproved,
@@ -83,7 +92,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 		const limit = Math.max(1, Math.min(500, Number(filter.limit ?? 250) || 250))
 		let query = db.select().from(PolicyExceptionRule).orderBy(desc(PolicyExceptionRule.createdAt))
 		if (conditions.length) query = query.where(and(...conditions)) as typeof query
-		const rows = await query.limit(limit).all()
+		const rows = await query.limit(limit)
 		return rows.map(toDomain)
 	}
 
@@ -119,7 +128,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 				)
 			)
 			.orderBy(PolicyExceptionRule.priority, desc(PolicyExceptionRule.createdAt))
-			.all()
+
 		return rows.map(toDomain).filter(isPolicyExceptionApproved)
 	}
 
@@ -159,7 +168,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			.select()
 			.from(PolicyExceptionRule)
 			.where(eq(PolicyExceptionRule.id, key))
-			.get()
+			.then(first)
 		return row ? toDomain(row) : null
 	}
 
@@ -179,7 +188,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			.update(PolicyExceptionRule)
 			.set(values as any)
 			.where(eq(PolicyExceptionRule.id, id))
-			.run()
+
 		return this.findById(id)
 	}
 
@@ -199,7 +208,7 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			.update(PolicyExceptionRule)
 			.set({ isActive: Boolean(params.isActive) })
 			.where(eq(PolicyExceptionRule.id, id))
-			.run()
+
 		return this.findById(id)
 	}
 }

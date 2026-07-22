@@ -11,7 +11,7 @@ import {
 	Product,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import {
 	getPolicyPresetDescription,
@@ -45,7 +45,6 @@ export const GET: APIRoute = async ({ request }) => {
 				.select({ id: Product.id, name: Product.name, productType: Product.productType })
 				.from(Product)
 				.where(inArray(Product.id, owned.productIds))
-				.all()
 		: []
 
 	const variants = owned.variantIds.length
@@ -59,7 +58,6 @@ export const GET: APIRoute = async ({ request }) => {
 				.from(Variant)
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(inArray(Variant.id, owned.variantIds))
-				.all()
 		: []
 
 	const ratePlans = owned.ratePlanIds.length
@@ -76,7 +74,6 @@ export const GET: APIRoute = async ({ request }) => {
 				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(inArray(RatePlan.id, owned.ratePlanIds))
-				.all()
 		: []
 
 	const policies = await db
@@ -95,18 +92,14 @@ export const GET: APIRoute = async ({ request }) => {
 		.from(Policy)
 		.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
 		.where(and(eq(PolicyGroup.ownerProviderId, providerId), eq(Policy.status, "active")))
-		.all()
+
 	const policyIds = policies.map((policy) => String(policy.id ?? "")).filter(Boolean)
 	const [rules, tiers] = await Promise.all([
 		policyIds.length
-			? db.select().from(PolicyRule).where(inArray(PolicyRule.policyId, policyIds)).all()
+			? db.select().from(PolicyRule).where(inArray(PolicyRule.policyId, policyIds))
 			: Promise.resolve([]),
 		policyIds.length
-			? db
-					.select()
-					.from(CancellationTier)
-					.where(inArray(CancellationTier.policyId, policyIds))
-					.all()
+			? db.select().from(CancellationTier).where(inArray(CancellationTier.policyId, policyIds))
 			: Promise.resolve([]),
 	])
 

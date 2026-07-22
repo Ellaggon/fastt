@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, Variant } from "astro:db"
+import { and, db, eq, Variant } from "@/shared/infrastructure/db/compat"
 import { z } from "zod"
 
 import { logger } from "@/lib/observability/logger"
@@ -53,13 +53,11 @@ export const POST: APIRoute = async ({ request }) => {
 				.select({ id: Variant.id })
 				.from(Variant)
 				.where(and(eq(Variant.productId, parsed.productId), eq(Variant.isActive, true)))
-				.all()
 		} else {
 			variantRows = await db
 				.select({ id: Variant.id })
 				.from(Variant)
 				.where(eq(Variant.isActive, true))
-				.all()
 		}
 
 		const variantIds = variantRows.map((row) => String(row.id)).filter(Boolean)

@@ -1,4 +1,10 @@
-import { and, desc, eq, FinancialReviewEvent as FinancialReviewEventTable, db } from "astro:db"
+import {
+	and,
+	desc,
+	eq,
+	FinancialReviewEvent as FinancialReviewEventTable,
+	db,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	FinancialReviewEventCreateInput,
@@ -26,10 +32,8 @@ function map(row: any): FinancialReviewEvent {
 export class FinancialReviewEventRepository implements FinancialReviewEventRepositoryPort {
 	async append(input: FinancialReviewEventCreateInput): Promise<FinancialReviewEvent> {
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: new Date() }
-		await db
-			.insert(FinancialReviewEventTable)
-			.values(row as any)
-			.run()
+		await db.insert(FinancialReviewEventTable).values(row as any)
+
 		return map(row)
 	}
 
@@ -62,7 +66,7 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 			.where(and(...filters))
 			.orderBy(desc(FinancialReviewEventTable.createdAt))
 			.limit(Math.min(Math.max(Number(params?.limit ?? 100), 1), 250))
-			.all()
+
 		return rows.map(map)
 	}
 }

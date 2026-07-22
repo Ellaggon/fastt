@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	db,
 	eq,
@@ -8,7 +9,7 @@ import {
 	ProviderVerification,
 	sql,
 	User,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type {
 	ProviderV2RepositoryPort,
 	ProviderVerificationStatus,
@@ -24,13 +25,13 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 			.select({ id: User.id })
 			.from(User)
 			.where(sql`lower(${User.email}) = ${normalizedEmail}`)
-			.get()
+			.then(first)
 		if (!user?.id) return null
 		const link = await db
 			.select({ providerId: ProviderUser.providerId })
 			.from(ProviderUser)
 			.where(eq(ProviderUser.userId, user.id))
-			.get()
+			.then(first)
 		return link?.providerId ?? null
 	}
 
@@ -47,14 +48,14 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 			.select({ id: User.id })
 			.from(User)
 			.where(sql`lower(${User.email}) = ${normalizedEmail}`)
-			.get()
+			.then(first)
 		if (!user?.id) return
 
 		const existingLink = await db
 			.select({ id: ProviderUser.id })
 			.from(ProviderUser)
 			.where(and(eq(ProviderUser.providerId, params.providerId), eq(ProviderUser.userId, user.id)))
-			.get()
+			.then(first)
 
 		if (!existingLink) {
 			await db.insert(ProviderUser).values({
@@ -142,7 +143,7 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 			.select({ providerId: ProviderProfile.providerId })
 			.from(ProviderProfile)
 			.where(eq(ProviderProfile.providerId, params.providerId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(ProviderProfile).values({

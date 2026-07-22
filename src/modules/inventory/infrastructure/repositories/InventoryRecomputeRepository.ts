@@ -8,7 +8,7 @@ import {
 	InventoryLock,
 	lt,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	DailyInventoryRow,
@@ -36,7 +36,6 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 					lt(DailyInventory.date, params.to)
 				)
 			)
-			.all()
 
 		return rows.map((row) => ({
 			date: String(row.date),
@@ -65,7 +64,6 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 					sql`${InventoryLock.holdId} is not null`
 				)
 			)
-			.all()
 
 		return rows.map((row) => ({
 			date: String(row.date),
@@ -90,6 +88,5 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 					computedAt: sql`excluded.computedAt`,
 				},
 			})
-			.run()
 	}
 }

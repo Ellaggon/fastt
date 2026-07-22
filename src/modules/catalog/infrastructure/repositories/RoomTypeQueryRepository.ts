@@ -1,4 +1,4 @@
-import { db, RoomType, asc } from "astro:db"
+import { db, RoomType, asc } from "@/shared/infrastructure/db/compat"
 import type {
 	RoomTypeQueryRepositoryPort,
 	RoomTypeRow,
@@ -14,7 +14,6 @@ export class RoomTypeQueryRepository implements RoomTypeQueryRepositoryPort {
 			})
 			.from(RoomType)
 			.orderBy(asc(RoomType.name))
-			.all()
 
 		return rows.map((r) => ({
 			id: r.id,

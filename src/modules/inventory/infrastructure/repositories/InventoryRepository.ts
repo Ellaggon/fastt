@@ -1,4 +1,4 @@
-import { and, db, EffectiveAvailability, eq, gte, lt } from "astro:db"
+import { and, db, EffectiveAvailability, eq, gte, lt } from "@/shared/infrastructure/db/compat"
 import { toISODate } from "@/shared/domain/date/date.utils"
 import type { InventoryRepositoryPort } from "../../application/ports/InventoryRepositoryPort"
 
@@ -19,7 +19,6 @@ export class InventoryRepository implements InventoryRepositoryPort {
 					lt(EffectiveAvailability.date, to)
 				)
 			)
-			.all()
 
 		return rows.map((row) => ({
 			date: String(row.date),

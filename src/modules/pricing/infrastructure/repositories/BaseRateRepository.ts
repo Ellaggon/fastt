@@ -1,4 +1,13 @@
-import { and, db, desc, eq, lte, RatePlanOccupancyPolicy, sql } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	gt,
+	lte,
+	RatePlanOccupancyPolicy,
+} from "@/shared/infrastructure/db/compat"
 import type {
 	RatePlanPricingBaselineRepositoryPort,
 	CanonicalPricingBaselineSnapshot,
@@ -22,11 +31,11 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 				and(
 					eq(RatePlanOccupancyPolicy.ratePlanId, normalizedRatePlanId),
 					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+					gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.get()
+			.then(first)
 		if (!policy) return null
 		return {
 			ratePlanId: normalizedRatePlanId,
@@ -59,12 +68,12 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.get()
+			.then(first)
 		if (existingPolicy?.id) {
 			await db
 				.update(RatePlanOccupancyPolicy)
 				.set({
-					baseAmount: normalizedBasePrice,
+					baseAmount: String(normalizedBasePrice),
 					baseCurrency: normalizedCurrency,
 					currency: normalizedCurrency,
 				})
@@ -81,10 +90,10 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 			childMode: "fixed",
 			childValue: 0,
 			currency: normalizedCurrency,
-			baseAmount: normalizedBasePrice,
+			baseAmount: String(normalizedBasePrice),
 			baseCurrency: normalizedCurrency,
 			effectiveFrom: now,
-			effectiveTo: new Date("2099-12-31T00:00:00.000Z"),
+			effectiveTo: new Date("2099-12-31T23:59:59.999Z"),
 			createdAt: now,
 		} as any)
 	}

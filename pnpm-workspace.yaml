@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+overrides:
+  path-to-regexp: 6.3.0
+  "@vercel/routing-utils>path-to-regexp": 6.3.0
+
+allowBuilds:
+  esbuild: true
+  sharp: true

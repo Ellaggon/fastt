@@ -1,4 +1,13 @@
-import { db, eq, inArray, and, Service, ProductService, ProductServiceAttribute } from "astro:db"
+import {
+	first,
+	db,
+	eq,
+	inArray,
+	and,
+	Service,
+	ProductService,
+	ProductServiceAttribute,
+} from "@/shared/infrastructure/db/compat"
 import type { ProductServiceRepositoryPort } from "../../application/ports/ProductServiceRepositoryPort"
 
 export class ProductServiceRepository implements ProductServiceRepositoryPort {
@@ -17,7 +26,6 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 				.select({ id: Service.id })
 				.from(Service)
 				.where(inArray(Service.id, requestedIds))
-				.all()
 
 			const validIds = new Set(validServices.map((s) => s.id))
 
@@ -25,7 +33,6 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 				.select({ serviceId: ProductService.serviceId })
 				.from(ProductService)
 				.where(eq(ProductService.productId, productId))
-				.all()
 
 			const existingIds = new Set(existing.map((s) => s.serviceId))
 
@@ -64,7 +71,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 					eq(ProductService.serviceId, params.serviceId)
 				)
 			)
-			.get()
+			.then(first)
 
 		if (existing) return existing.id
 
@@ -77,8 +84,9 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 				appliesTo: params.appliesTo ?? "both",
 			})
 			.returning()
-			.get()
+			.then(first)
 
+		if (!created) throw new Error("PRODUCT_SERVICE_CREATE_FAILED")
 		return created.id
 	}
 
@@ -95,7 +103,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 			await tx
 				.update(ProductService)
 				.set({
-					price: params.price,
+					price: params.price == null ? null : String(params.price),
 					priceUnit: params.priceUnit,
 					currency: params.currency,
 					appliesTo: params.appliesTo,
@@ -131,7 +139,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 						eq(ProductService.serviceId, params.serviceId)
 					)
 				)
-				.get()
+				.then(first)
 
 			if (!ps) return
 

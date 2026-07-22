@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { and, db, eq, ProviderUser } from "astro:db"
+import { first, and, db, eq, ProviderUser } from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -58,7 +58,7 @@ async function resolvePermissions(providerId: string, userId: string) {
 		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 		.from(ProviderUser)
 		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.get()
+		.then(first)
 	return resolveProviderPermissions({
 		role: link?.role,
 		permissionsJson: link?.permissionsJson,

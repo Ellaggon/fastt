@@ -14,5 +14,7 @@ export async function ensureUserForSession(
 
 	const userId = crypto.randomUUID()
 	await deps.repo.create({ id: userId, email, username: email })
-	return { userId, created: true }
+	const persisted = await deps.repo.findByEmail(email)
+	if (!persisted) return { userId, created: true }
+	return { userId: persisted.id, created: persisted.id === userId }
 }

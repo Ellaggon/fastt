@@ -1,4 +1,4 @@
-import { BookingTaxFee, db, eq } from "astro:db"
+import { BookingTaxFee, db, eq } from "@/shared/infrastructure/db/compat"
 import type {
 	BookingTaxFeeRepositoryPort,
 	BookingTaxFeeRow,
@@ -14,7 +14,7 @@ export class BookingTaxFeeRepository implements BookingTaxFeeRepositoryPort {
 					bookingId: row.bookingId,
 					name: row.name ?? null,
 					breakdownJson: row.breakdownJson,
-					totalAmount: row.totalAmount,
+					totalAmount: String(row.totalAmount),
 					createdAt: row.createdAt,
 				})
 			}
@@ -22,11 +22,8 @@ export class BookingTaxFeeRepository implements BookingTaxFeeRepositoryPort {
 	}
 
 	async findByBookingId(bookingId: string): Promise<BookingTaxFeeRow[]> {
-		const rows = await db
-			.select()
-			.from(BookingTaxFee)
-			.where(eq(BookingTaxFee.bookingId, bookingId))
-			.all()
+		const rows = await db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, bookingId))
+
 		return rows.map((row) => ({
 			id: row.id,
 			bookingId: row.bookingId,

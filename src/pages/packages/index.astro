@@ -11,7 +11,7 @@ import {
 	ProductContent,
 	ProductLocation,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 const packages = await db
 	.select({
@@ -42,7 +42,6 @@ const packages = await db
 	.groupBy(Product.id)
 	.orderBy(asc(Product.name))
 	.limit(60)
-	.all()
 
 const breadcrumbsItems = [
 	{ name: "Home", href: "/" },

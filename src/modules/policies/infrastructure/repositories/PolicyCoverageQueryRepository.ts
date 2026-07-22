@@ -11,7 +11,7 @@ import {
 	RatePlan,
 	sql,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 type PolicyCoverageRatePlanContext = {
 	ratePlanId: string
@@ -98,7 +98,6 @@ export class PolicyCoverageQueryRepository {
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(Product.providerId, providerId))
-			.all()
 
 		const contexts = ratePlans.map((row) => ({
 			ratePlanId: String(row.ratePlanId),
@@ -164,8 +163,7 @@ export class PolicyCoverageQueryRepository {
 					or(isNull(Policy.effectiveFrom), sql`${Policy.effectiveFrom} <= ${asOfDate}`),
 					or(isNull(Policy.effectiveTo), sql`${Policy.effectiveTo} >= ${asOfDate}`)
 				)
-			)
-			.all()) as AssignmentCoverageRow[]
+			)) as AssignmentCoverageRow[]
 
 		return contexts.map((context) => {
 			const coveredCategories = requiredCategories.filter((category) => {

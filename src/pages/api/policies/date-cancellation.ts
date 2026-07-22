@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { APIRoute } from "astro"
 import {
+	first,
 	db,
 	and,
 	eq,
@@ -11,7 +12,7 @@ import {
 	PolicyAssignment,
 	PolicyAuditLog,
 	PolicyGroup,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
@@ -84,7 +85,7 @@ export const POST: APIRoute = async ({ request }) => {
 					eq(PolicyGroup.ownerProviderId, providerId)
 				)
 			)
-			.get()
+			.then(first)
 		if (!policy) return json(404, { error: "La condición de cancelación no está disponible." })
 		policyGroupId = String(policy.groupId)
 	} else if (mode !== "base") {
@@ -122,7 +123,6 @@ export const POST: APIRoute = async ({ request }) => {
 						sql`${PolicyAssignment.effectiveTo} >= ${effectiveFrom}`
 					)
 				)
-				.all()
 
 			const plan = planPolicyDateAssignmentRangeChange({
 				existing: existing.map((assignment) => ({

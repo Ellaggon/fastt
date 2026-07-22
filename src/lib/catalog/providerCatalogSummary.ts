@@ -1,4 +1,13 @@
-import { and, db, eq, inArray, Product, ProductStatus, sql, Variant } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	Product,
+	ProductStatus,
+	sql,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	PRODUCT_VERTICAL_OPTIONS,
