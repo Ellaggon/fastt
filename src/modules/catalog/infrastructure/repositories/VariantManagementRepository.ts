@@ -1,4 +1,5 @@
 import {
+	first,
 	db,
 	Variant,
 	VariantCapacity,
@@ -26,7 +27,7 @@ import {
 	and,
 	count,
 	inArray,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
 import type {
@@ -91,7 +92,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				)
 			)
 			.where(eq(Variant.productId, productId))
-			.all()
 
 		return Promise.all(
 			rows.map(async (r) => {
@@ -128,7 +128,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ id: Product.id, productType: Product.productType, providerId: Product.providerId })
 			.from(Product)
 			.where(eq(Product.id, productId))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -146,7 +146,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			})
 			.from(Variant)
 			.where(eq(Variant.id, variantId))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -184,7 +184,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ variantId: VariantCapacity.variantId })
 			.from(VariantCapacity)
 			.where(eq(VariantCapacity.variantId, params.variantId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(VariantCapacity).values({
@@ -213,7 +213,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select()
 			.from(VariantCapacity)
 			.where(eq(VariantCapacity.variantId, variantId))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -222,7 +222,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ variantId: VariantRoomProfile.variantId })
 			.from(VariantRoomProfile)
 			.where(eq(VariantRoomProfile.variantId, params.variantId))
-			.get()
+			.then(first)
 		if (existing) {
 			await db
 				.update(VariantRoomProfile)
@@ -247,7 +247,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			})
 			.from(VariantRoomProfile)
 			.where(eq(VariantRoomProfile.variantId, variantId))
-			.get()
+			.then(first)
 		return row?.roomTypeId ? { variantId: row.variantId, roomTypeId: row.roomTypeId } : null
 	}
 
@@ -266,7 +266,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 					eq(VariantRoomProfile.roomTypeId, params.roomTypeId)
 				)
 			)
-			.all()
+
 		return rows.length > 0
 	}
 
@@ -275,7 +275,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ variantId: VariantReadiness.variantId })
 			.from(VariantReadiness)
 			.where(eq(VariantReadiness.variantId, params.variantId))
-			.get()
+			.then(first)
 
 		if (!existing) {
 			await db.insert(VariantReadiness).values({
@@ -306,7 +306,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			})
 			.from(VariantReadiness)
 			.where(eq(VariantReadiness.variantId, variantId))
-			.get()
+			.then(first)
 
 		if (!row) return null
 
@@ -334,39 +334,36 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 
 	async deleteVariantCascade(variantId: string) {
 		if (!variantId) return
-		const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).get()
+		const variant = await db.select().from(Variant).where(eq(Variant.id, variantId)).then(first)
 		if (!variant) return
 
 		const bookingRows = await db
 			.select({ id: BookingRoomDetail.id })
 			.from(BookingRoomDetail)
 			.where(eq(BookingRoomDetail.variantId, variantId))
-			.all()
+
 		const lockRows = await db
 			.select({ id: InventoryLock.id })
 			.from(InventoryLock)
 			.where(eq(InventoryLock.variantId, variantId))
-			.all()
+
 		const holdRows = await db
 			.select({ id: Hold.id })
 			.from(Hold)
 			.where(eq(Hold.variantId, variantId))
-			.all()
+
 		if (bookingRows.length || lockRows.length || holdRows.length) {
 			throw new Error("variant_has_transactions")
 		}
 
-		const ratePlans = await db
-			.select()
-			.from(RatePlan)
-			.where(eq(RatePlan.variantId, variantId))
-			.all()
+		const ratePlans = await db.select().from(RatePlan).where(eq(RatePlan.variantId, variantId))
+
 		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
 		const images = await db
 			.select()
 			.from(Image)
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-			.all()
+
 		const imageIds = images.map((image) => String(image.id))
 		const imageObjectKeys = [
 			...new Set(
@@ -439,7 +436,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ value: count() })
 			.from(DailyInventory)
 			.where(eq(DailyInventory.variantId, variantId))
-			.get()
+			.then(first)
 		return Number(row?.value ?? 0)
 	}
 
@@ -448,7 +445,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.select({ value: count() })
 			.from(Image)
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-			.get()
+			.then(first)
 		return Number(row?.value ?? 0)
 	}
 }

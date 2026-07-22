@@ -6,7 +6,15 @@ import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-pr
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
-import { db, eq, Hotel, Package, ProductStatus, Tour } from "astro:db"
+import {
+	first,
+	db,
+	eq,
+	Hotel,
+	Package,
+	ProductStatus,
+	Tour,
+} from "@/shared/infrastructure/db/compat"
 
 function toLowerTrim(value: string | null | undefined): string {
 	return String(value ?? "")
@@ -59,7 +67,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.select({ state: ProductStatus.state })
 			.from(ProductStatus)
 			.where(eq(ProductStatus.productId, productId))
-			.get(),
+			.then(first),
 	])
 	if (!aggregate) {
 		logEndpoint()
@@ -143,7 +151,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 			.from(Hotel)
 			.where(eq(Hotel.productId, productId))
-			.get()
+			.then(first)
 		subtypeDetails = {
 			stars: row?.stars ?? aggregate.subtype.stars ?? null,
 			phone: row?.phone ?? "",
@@ -163,7 +171,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 			.from(Tour)
 			.where(eq(Tour.productId, productId))
-			.get()
+			.then(first)
 		subtypeDetails = {
 			duration: row?.duration ?? aggregate.subtype.duration ?? "",
 			difficultyLevel: row?.difficultyLevel ?? aggregate.subtype.difficultyLevel ?? "",
@@ -184,7 +192,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 			.from(Package)
 			.where(eq(Package.productId, productId))
-			.get()
+			.then(first)
 		subtypeDetails = {
 			itinerary: row?.itineraryJson ?? aggregate.subtype.itinerary ?? null,
 			days: row?.days ?? aggregate.subtype.days ?? 0,

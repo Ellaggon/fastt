@@ -1,6 +1,6 @@
 import { parse as parseCookie } from "cookie"
 import { createHash } from "node:crypto"
-import { db, sql, User } from "astro:db"
+import { first, db, sql, User } from "@/shared/infrastructure/db/compat"
 import { LOCAL_QA_LOGOUT_COOKIE } from "./authCookies"
 import { fetchSupabaseUser } from "./supabaseClient"
 
@@ -75,7 +75,7 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 				.select({ id: User.id })
 				.from(User)
 				.where(sql`lower(${User.email}) = ${email}`)
-				.get()
+				.then(first)
 			if (existing?.id) return { id: existing.id, email }
 
 			await db.insert(User).values({ id: u.id, email }).onConflictDoNothing()
@@ -83,7 +83,7 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 				.select({ id: User.id })
 				.from(User)
 				.where(sql`lower(${User.email}) = ${email}`)
-				.get()
+				.then(first)
 			if (persisted?.id) return { id: persisted.id, email }
 		} catch {
 			// Keep auth non-blocking even if persistence sync fails.

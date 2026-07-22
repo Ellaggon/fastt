@@ -14,7 +14,7 @@ import {
 	ProductContent,
 	ProductLocation,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 type ProductResult = {
 	id: string
@@ -46,7 +46,6 @@ if (destinationId) {
 		.from(Destination)
 		.where(or(eq(Destination.id, destinationId), eq(Destination.slug, destinationId)))
 		.limit(1)
-		.all()
 
 	if (possible.length > 0) {
 		destination = possible[0]
@@ -97,7 +96,6 @@ try {
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.where(whereClause)
 		.limit(50)
-		.all()
 } catch (err) {
 	console.error("error querying hotels", err)
 }

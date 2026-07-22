@@ -1,5 +1,5 @@
 ---
-import { db, eq, Product } from "astro:db"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import Badge from "@/components/ui/Badge.astro"
@@ -54,7 +54,7 @@ async function loadProviderProducts(providerId: string): Promise<ProductOption[]
 		})
 		.from(Product)
 		.where(eq(Product.providerId, providerId))
-		.all()
+
 	return rows.map((row) => ({
 		id: String(row.id),
 		name: String(row.name),

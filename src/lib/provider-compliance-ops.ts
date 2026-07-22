@@ -1,4 +1,11 @@
-import { and, db, desc, eq, ProviderComplianceAssignment } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	ProviderComplianceAssignment,
+} from "@/shared/infrastructure/db/compat"
 
 /**
  * Ops Trust & Safety assignments + SLA for compliance queues.
@@ -89,7 +96,7 @@ export async function listOpenComplianceAssignments(params?: {
 		.select()
 		.from(ProviderComplianceAssignment)
 		.orderBy(desc(ProviderComplianceAssignment.slaDueAt), desc(ProviderComplianceAssignment.id))
-		.all()
+
 		.catch(() => [])
 
 	return rows
@@ -141,7 +148,7 @@ export async function upsertComplianceAssignment(params: {
 				eq(ProviderComplianceAssignment.status, "open")
 			)
 		)
-		.get()
+		.then(first)
 		.catch(() => null)
 
 	if (existing?.id) {
@@ -159,7 +166,7 @@ export async function upsertComplianceAssignment(params: {
 			.select()
 			.from(ProviderComplianceAssignment)
 			.where(eq(ProviderComplianceAssignment.id, existing.id))
-			.get()
+			.then(first)
 		return row ? mapRow(row) : null
 	}
 
@@ -182,7 +189,7 @@ export async function upsertComplianceAssignment(params: {
 		.select()
 		.from(ProviderComplianceAssignment)
 		.where(eq(ProviderComplianceAssignment.id, id))
-		.get()
+		.then(first)
 	return row ? mapRow(row) : null
 }
 
@@ -206,7 +213,7 @@ export async function completeComplianceAssignment(params: {
 				eq(ProviderComplianceAssignment.status, "open")
 			)
 		)
-		.all()
+
 		.catch(() => [])
 
 	for (const row of openRows) {

@@ -1,4 +1,4 @@
-import { db, Image, inArray, eq, and } from "astro:db"
+import { db, Image, inArray, eq, and } from "@/shared/infrastructure/db/compat"
 import type { ImageQueryRepositoryPort } from "../../application/ports/ImageQueryRepositoryPort"
 
 export class ImageQueryRepository implements ImageQueryRepositoryPort {
@@ -9,6 +9,5 @@ export class ImageQueryRepository implements ImageQueryRepositoryPort {
 			.select()
 			.from(Image)
 			.where(and(eq(Image.entityType, entityType), inArray(Image.entityId, entityIds)))
-			.all()
 	}
 }

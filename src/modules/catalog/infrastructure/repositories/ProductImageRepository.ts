@@ -1,4 +1,14 @@
-import { db, Image, ImageUpload, eq, asc, desc, and, inArray, or } from "astro:db"
+import {
+	db,
+	Image,
+	ImageUpload,
+	eq,
+	asc,
+	desc,
+	and,
+	inArray,
+	or,
+} from "@/shared/infrastructure/db/compat"
 import { ensureObjectKey } from "@/lib/images/objectKey"
 import type {
 	ProductImageRepositoryPort,
@@ -11,8 +21,7 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			.select()
 			.from(Image)
 			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order), asc(Image.id))
-			.all()) as any
+			.orderBy(asc(Image.order), asc(Image.id))) as any
 	}
 
 	async updateImage(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -59,8 +68,7 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			.select()
 			.from(Image)
 			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order), asc(Image.id))
-			.all()) as any
+			.orderBy(asc(Image.order), asc(Image.id))) as any
 	}
 
 	async listGalleryByProduct(productId: string): Promise<ProductImageRow[]> {
@@ -68,7 +76,6 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			.select()
 			.from(Image)
 			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(desc(Image.isPrimary), asc(Image.order))
-			.all()) as any
+			.orderBy(desc(Image.isPrimary), asc(Image.order))) as any
 	}
 }

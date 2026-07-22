@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, Image } from "astro:db"
+import { first, and, db, eq, Image } from "@/shared/infrastructure/db/compat"
 import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 
 import {
@@ -235,7 +235,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.select()
 			.from(Image)
 			.where(and(eq(Image.id, imageId), eq(Image.entityType, normalizedEntityType)))
-			.get()
+			.then(first)
 		if (!image) {
 			return new Response(JSON.stringify({ error: "internal_error" }), {
 				status: 500,

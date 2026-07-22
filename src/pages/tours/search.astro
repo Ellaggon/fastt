@@ -14,7 +14,7 @@ import {
 	sql,
 	Tour,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 type ProductResult = {
 	id: string
@@ -45,7 +45,6 @@ if (destinationId) {
 		.from(Destination)
 		.where(or(eq(Destination.id, destinationId), eq(Destination.slug, destinationId)))
 		.limit(1)
-		.all()
 
 	if (possible.length > 0) {
 		destination = possible[0]
@@ -82,7 +81,6 @@ try {
 		.where(whereClause)
 		.groupBy(Product.id)
 		.limit(50)
-		.all()
 
 	tours = await Promise.all(
 		rows.map(async (row) => {

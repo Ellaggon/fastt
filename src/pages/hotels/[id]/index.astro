@@ -25,6 +25,7 @@ import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/pol
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
 import type { ImageRow } from "@/types/products"
 import {
+	first,
 	and,
 	asc,
 	db,
@@ -35,7 +36,7 @@ import {
 	inArray,
 	Product,
 	ProductLocation,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 const url = Astro.url
 const productId = Astro.params.id
@@ -112,7 +113,6 @@ const variantImageRows =
 					)
 				)
 				.orderBy(asc(Image.order))
-				.all()
 		: []
 const variantImagesByVariantId = new Map<
 	string,
@@ -295,7 +295,7 @@ try {
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.where(eq(Product.id, productId))
-		.get()
+		.then(first)
 
 	if (!productResult) {
 		errorMessage = "Producto no encontrado."
@@ -305,7 +305,7 @@ try {
 			destination: productResult.Destination,
 			location: productResult.ProductLocation,
 		}
-		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
 	}
 } catch (e) {
 	console.error("Error al obtener detalles del producto:", e)

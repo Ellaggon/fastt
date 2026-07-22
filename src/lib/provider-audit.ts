@@ -1,4 +1,4 @@
-import { db, ProviderAuditLog } from "astro:db"
+import { db, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
 
 /**
  * Canonical provider audit writer for sensitive settings mutations.

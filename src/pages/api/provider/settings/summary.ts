@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro"
-import { db, desc, eq, ProviderAuditLog, ProviderInvitation, ProviderUser, User } from "astro:db"
+import {
+	db,
+	desc,
+	eq,
+	ProviderAuditLog,
+	ProviderInvitation,
+	ProviderUser,
+	User,
+} from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
@@ -140,7 +148,7 @@ export const GET: APIRoute = async ({ request }) => {
 		.where(eq(ProviderAuditLog.providerId, providerId))
 		.orderBy(desc(ProviderAuditLog.createdAt))
 		.limit(8)
-		.all()
+
 		.catch(() => [])
 	const teamUsers = await db
 		.select({
@@ -153,7 +161,7 @@ export const GET: APIRoute = async ({ request }) => {
 		.from(ProviderUser)
 		.leftJoin(User, eq(User.id, ProviderUser.userId))
 		.where(eq(ProviderUser.providerId, providerId))
-		.all()
+
 		.catch(() => [])
 	const invitations = await db
 		.select({
@@ -169,7 +177,7 @@ export const GET: APIRoute = async ({ request }) => {
 		.from(ProviderInvitation)
 		.where(eq(ProviderInvitation.providerId, providerId))
 		.orderBy(desc(ProviderInvitation.createdAt))
-		.all()
+
 		.catch(() => [])
 	const documents = await listProviderDocuments(providerId).catch(() => [])
 	const taxConfiguration = await getProviderTaxConfiguration(providerId).catch(() => null)

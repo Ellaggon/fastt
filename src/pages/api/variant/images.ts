@@ -1,6 +1,15 @@
 import type { APIRoute } from "astro"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
-import { and, asc, db, eq, Image, ImageUpload, inArray, or } from "astro:db"
+import {
+	and,
+	asc,
+	db,
+	eq,
+	Image,
+	ImageUpload,
+	inArray,
+	or,
+} from "@/shared/infrastructure/db/compat"
 
 import { productRepository, r2, variantManagementRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -82,7 +91,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 			.from(Image)
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-			.all()
+
 		const existingByUrl = new Map(existing.map((row) => [String(row.url), String(row.id)]))
 		const incomingSet = new Set(incomingUrls)
 
@@ -173,7 +182,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.from(Image)
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 			.orderBy(asc(Image.order), asc(Image.id))
-			.all()
+
 		await refreshProductPreparationSnapshotAfterMutation({
 			productId: variant.productId,
 			providerId,

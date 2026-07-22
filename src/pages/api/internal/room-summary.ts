@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro"
 import {
+	first,
 	and,
 	count,
 	DailyInventory,
@@ -16,7 +17,7 @@ import {
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { BED_TYPES } from "@/data/room/room-beds"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -144,7 +145,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 								eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 							)
 						)
-						.get()
+						.then(first)
 				)?.value ?? 0
 			)
 		: 0
@@ -154,7 +155,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				.select({ value: count() })
 				.from(DailyInventory)
 				.where(eq(DailyInventory.variantId, variantId))
-				.get()
+				.then(first)
 		)?.value ?? 0
 	)
 	const effectiveCoverageStart = defaultRatePlanId
@@ -170,7 +171,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				)
 				.orderBy(asc(EffectivePricingV2.date))
 				.limit(1)
-				.get()
+				.then(first)
 		: null
 	const effectiveCoverageEnd = defaultRatePlanId
 		? await db
@@ -185,7 +186,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				)
 				.orderBy(desc(EffectivePricingV2.date))
 				.limit(1)
-				.get()
+				.then(first)
 		: null
 	const coverageGaps = Math.max(readinessInventoryMinDays - effectivePricingDays, 0)
 	const variantImages = await db
@@ -199,7 +200,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.from(Image)
 		.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 		.orderBy(asc(Image.order), asc(Image.id))
-		.all()
+
 	const roomProfile = await db
 		.select({
 			variantId: VariantRoomProfile.variantId,
@@ -215,14 +216,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.from(VariantRoomProfile)
 		.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 		.where(eq(VariantRoomProfile.variantId, variantId))
-		.get()
+		.then(first)
 	const inventoryConfig = await db
 		.select({
 			defaultTotalUnits: VariantInventoryConfig.defaultTotalUnits,
 		})
 		.from(VariantInventoryConfig)
 		.where(eq(VariantInventoryConfig.variantId, variantId))
-		.get()
+		.then(first)
 	const defaultTotalUnits = Number(inventoryConfig?.defaultTotalUnits ?? 0)
 	const roomBeds = await db
 		.select({
@@ -233,7 +234,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.from(VariantRoomBed)
 		.where(eq(VariantRoomBed.variantId, variantId))
 		.orderBy(asc(VariantRoomBed.sortOrder))
-		.all()
+
 	const roomAmenities = await db
 		.select({
 			amenityId: VariantRoomAmenity.amenityId,
@@ -245,7 +246,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.leftJoin(AmenityRoom, eq(AmenityRoom.id, VariantRoomAmenity.amenityId))
 		.where(eq(VariantRoomAmenity.variantId, variantId))
 		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name))
-		.all()
+
 	const availableAmenities = roomAmenities.filter((amenity) => amenity.isAvailable !== false)
 	const amenityGroups = Array.from(
 		availableAmenities.reduce<Map<string, string[]>>((acc, amenity) => {

@@ -10,7 +10,7 @@ import {
 	validateDocumentFile,
 } from "@/lib/provider-documents"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
-import { and, db, eq, ProviderUser } from "astro:db"
+import { first, and, db, eq, ProviderUser } from "@/shared/infrastructure/db/compat"
 
 const submitSchema = z.object({
 	type: z.enum([
@@ -57,7 +57,7 @@ async function resolvePermissions(providerId: string, userId: string) {
 		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 		.from(ProviderUser)
 		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.get()
+		.then(first)
 	return resolveProviderPermissions({
 		role: link?.role,
 		permissionsJson: link?.permissionsJson,

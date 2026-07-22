@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	db,
 	eq,
@@ -8,7 +9,7 @@ import {
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import {
 	listCommercialPriceRulesByRatePlans,
@@ -75,7 +76,7 @@ async function getProviderRatePlanIds(providerId: string): Promise<string[]> {
 				eq(RatePlan.isActive, true)
 			)
 		)
-		.all()
+
 	return rows.map((row) => String(row.ratePlanId))
 }
 
@@ -85,7 +86,7 @@ async function getProviderVariantIds(providerId: string): Promise<string[]> {
 		.from(Variant)
 		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
-		.all()
+
 	return rows.map((row) => String(row.variantId))
 }
 
@@ -104,7 +105,6 @@ async function getPrimaryAccommodationLinks(providerId: string): Promise<{
 		.from(Product)
 		.leftJoin(Variant, eq(Variant.productId, Product.id))
 		.where(eq(Product.providerId, providerId))
-		.all()
 
 	const products = new Map<string, { id: string; roomCount: number }>()
 	for (const row of rows) {
@@ -152,7 +152,7 @@ async function getRatesSummary(
 		})
 		.from(RatePlanOccupancyPolicy)
 		.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
-		.all()
+
 	const pricedRatePlanIds = new Set(
 		baseRows.filter((row) => Number(row.baseAmount ?? 0) > 0).map((row) => String(row.ratePlanId))
 	)
@@ -181,7 +181,7 @@ async function getPricingCalendarSummary(ratePlanIds: string[]) {
 		})
 		.from(RatePlanOccupancyPolicy)
 		.where(inArray(RatePlanOccupancyPolicy.ratePlanId, ratePlanIds))
-		.all()
+
 	const pricedRatePlanIds = new Set(
 		baseRows.filter((row) => Number(row.baseAmount ?? 0) > 0).map((row) => String(row.ratePlanId))
 	)
@@ -202,7 +202,7 @@ async function getRestrictionsSummary(
 		.select({ productId: Product.id })
 		.from(Product)
 		.where(eq(Product.providerId, providerId))
-		.all()
+
 	const scopeIds = [
 		...ratePlanIds,
 		...variantIds,
@@ -254,7 +254,7 @@ async function getProviderUserRole(
 		.select({ role: ProviderUser.role })
 		.from(ProviderUser)
 		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.get()
+		.then(first)
 	return row?.role ? String(row.role) : null
 }
 
@@ -313,8 +313,7 @@ async function loadProviderSidebarData(
 			db
 				.select({ productId: Product.id, productType: Product.productType })
 				.from(Product)
-				.where(eq(Product.providerId, normalizedProviderId))
-				.all(),
+				.where(eq(Product.providerId, normalizedProviderId)),
 			getProviderPolicyReadiness(normalizedProviderId),
 			getPrimaryAccommodationLinks(normalizedProviderId),
 		])

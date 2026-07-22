@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro"
-import { and, asc, DailyInventory, Image, inArray, RatePlan, db } from "astro:db"
+import {
+	and,
+	asc,
+	DailyInventory,
+	Image,
+	inArray,
+	RatePlan,
+	db,
+} from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
@@ -74,8 +82,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						variantId: DailyInventory.variantId,
 					})
 					.from(DailyInventory)
-					.where(inArray(DailyInventory.variantId, variantIds))
-					.all(),
+					.where(inArray(DailyInventory.variantId, variantIds)),
 				db
 					.select({
 						id: Image.id,
@@ -91,8 +98,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 							inArray(Image.entityId, variantIds)
 						)
 					)
-					.orderBy(asc(Image.order), asc(Image.id))
-					.all(),
+					.orderBy(asc(Image.order), asc(Image.id)),
 				db
 					.select({
 						id: RatePlan.id,
@@ -103,8 +109,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					})
 					.from(RatePlan)
 					.where(inArray(RatePlan.variantId, variantIds))
-					.orderBy(asc(ratePlanName), asc(RatePlan.id))
-					.all(),
+					.orderBy(asc(ratePlanName), asc(RatePlan.id)),
 			])
 		: [[], [], []]
 

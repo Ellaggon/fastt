@@ -1,4 +1,4 @@
-import { db, eq, User } from "astro:db"
+import { first, db, eq, User } from "@/shared/infrastructure/db/compat"
 import type { UserRepositoryPort } from "../../application/ports/UserRepositoryPort"
 
 export class UserRepository implements UserRepositoryPort {
@@ -7,7 +7,7 @@ export class UserRepository implements UserRepositoryPort {
 			.select({ id: User.id, email: User.email })
 			.from(User)
 			.where(eq(User.email, email))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 
@@ -20,6 +20,6 @@ export class UserRepository implements UserRepositoryPort {
 				email: params.email,
 				username: params.username ?? null,
 			})
-			.onConflictDoNothing({ target: [User.email] })
+			.onConflictDoNothing()
 	}
 }

@@ -1,4 +1,12 @@
-import { and, db, desc, eq, ProviderDocument, ProviderUser } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	ProviderDocument,
+	ProviderUser,
+} from "@/shared/infrastructure/db/compat"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
@@ -217,7 +225,7 @@ async function getProviderRole(providerId: string, userId: string) {
 			.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 			.from(ProviderUser)
 			.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-			.get()) ?? null
+			.then(first)) ?? null
 	)
 }
 
@@ -253,7 +261,7 @@ export async function listProviderDocuments(providerId: string): Promise<Provide
 		.from(ProviderDocument)
 		.where(eq(ProviderDocument.providerId, providerId))
 		.orderBy(desc(ProviderDocument.createdAt), desc(ProviderDocument.id))
-		.all()
+
 		.catch(() => [])
 
 	return rows.map(mapRow)
@@ -278,7 +286,7 @@ export async function listPendingProviderDocumentsForAdmin(): Promise<ProviderDo
 		.from(ProviderDocument)
 		.where(eq(ProviderDocument.status, "pending"))
 		.orderBy(desc(ProviderDocument.createdAt), desc(ProviderDocument.id))
-		.all()
+
 		.catch(() => [])
 
 	return rows.map(mapRow)
@@ -372,7 +380,7 @@ export async function submitProviderDocument(params: {
 				eq(ProviderDocument.status, "pending")
 			)
 		)
-		.all()
+
 		.catch(() => [])
 
 	for (const row of activeSameType) {
@@ -476,7 +484,7 @@ export async function reviewProviderDocument(params: {
 				eq(ProviderDocument.providerId, params.providerId)
 			)
 		)
-		.get()
+		.then(first)
 
 	if (!existing?.id) {
 		const error = new Error("not_found")

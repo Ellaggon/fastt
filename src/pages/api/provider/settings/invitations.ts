@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, ProviderInvitation, ProviderUser, sql } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	eq,
+	ProviderInvitation,
+	ProviderUser,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -37,7 +45,7 @@ async function getProviderRole(providerId: string, userId: string) {
 		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 		.from(ProviderUser)
 		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.get()
+		.then(first)
 	return row ?? null
 }
 
@@ -78,7 +86,7 @@ export const POST: APIRoute = async ({ request }) => {
 				.where(
 					and(eq(ProviderInvitation.id, parsed.id), eq(ProviderInvitation.providerId, providerId))
 				)
-				.get()
+				.then(first)
 
 			if (!existing?.id) return json({ error: "not_found" }, 404)
 			if (existing.status !== "pending") return json({ error: "not_pending" }, 409)
@@ -128,7 +136,7 @@ export const POST: APIRoute = async ({ request }) => {
 					eq(ProviderInvitation.status, "pending")
 				)
 			)
-			.get()
+			.then(first)
 
 		if (pending?.id) return json({ error: "duplicate_pending_invitation" }, 409)
 

@@ -1,4 +1,13 @@
-import { and, db, Provider, ProviderUser, User, eq, sql } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	Provider,
+	ProviderUser,
+	User,
+	eq,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import type { ProviderRepositoryPort } from "../../application/ports/ProviderRepositoryPort"
 
 export class ProviderRepository implements ProviderRepositoryPort {
@@ -11,13 +20,13 @@ export class ProviderRepository implements ProviderRepositoryPort {
 				.select({ providerId: ProviderUser.providerId })
 				.from(ProviderUser)
 				.where(eq(ProviderUser.userId, userId))
-				.get()
+				.then(first)
 			if (!link?.providerId) return null
 			return await db
 				.select({ id: Provider.id })
 				.from(Provider)
 				.where(eq(Provider.id, link.providerId))
-				.get()
+				.then(first)
 		} catch {
 			return null
 		}
@@ -35,21 +44,21 @@ export class ProviderRepository implements ProviderRepositoryPort {
 				.select({ id: User.id })
 				.from(User)
 				.where(sql`lower(${User.email}) = ${normalizedEmail}`)
-				.get()
+				.then(first)
 			if (!linkedUser?.id) return null
 
 			const link = await db
 				.select({ providerId: ProviderUser.providerId })
 				.from(ProviderUser)
 				.where(eq(ProviderUser.userId, linkedUser.id))
-				.get()
+				.then(first)
 			if (!link?.providerId) return null
 
 			return await db
 				.select({ id: Provider.id })
 				.from(Provider)
 				.where(eq(Provider.id, link.providerId))
-				.get()
+				.then(first)
 		} catch {
 			return null
 		}
@@ -76,7 +85,7 @@ export class ProviderRepository implements ProviderRepositoryPort {
 				.select({ id: User.id })
 				.from(User)
 				.where(sql`lower(${User.email}) = ${normalizedEmail}`)
-				.get()
+				.then(first)
 			if (!user?.id) return
 
 			const existingLink = await tx
@@ -85,7 +94,7 @@ export class ProviderRepository implements ProviderRepositoryPort {
 				.where(
 					and(eq(ProviderUser.providerId, params.providerId), eq(ProviderUser.userId, user.id))
 				)
-				.get()
+				.then(first)
 			if (!existingLink) {
 				await tx.insert(ProviderUser).values({
 					id: crypto.randomUUID(),
@@ -112,7 +121,7 @@ export class ProviderRepository implements ProviderRepositoryPort {
 						eq(ProviderUser.userId, params.userId)
 					)
 				)
-				.get()
+				.then(first)
 			if (existingLink?.id) return true
 
 			await db.insert(ProviderUser).values({

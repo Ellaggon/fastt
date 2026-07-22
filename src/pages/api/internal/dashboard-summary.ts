@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, eq, inArray, Product, ProductStatus } from "astro:db"
+import { db, eq, inArray, Product, ProductStatus } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { listProductPreparationSnapshots } from "@/lib/playbook/summarize-product-preparation"

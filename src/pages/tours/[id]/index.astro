@@ -4,6 +4,7 @@ import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
 import type { ImageRow, ServiceRow } from "@/types/products"
 import {
+	first,
 	asc,
 	db,
 	Destination,
@@ -15,7 +16,7 @@ import {
 	ProductLocation,
 	ProductService,
 	Tour,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 const productId = Astro.params.id
 let product: any = null
@@ -33,7 +34,7 @@ try {
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.where(eq(Product.id, productId))
-		.get()
+		.then(first)
 
 	if (!productResult) return Astro.redirect("/tours")
 	product = {
@@ -46,7 +47,6 @@ try {
 		.select({ id: ProductService.serviceId })
 		.from(ProductService)
 		.where(eq(ProductService.productId, productId))
-		.all()
 
 	const catalogById = new Map(SERVICE_CATALOG.map((s) => [s.id, s]))
 
@@ -66,17 +66,16 @@ try {
 		.from(Image)
 		.where(eq(Image.entityId, productId))
 		.orderBy(asc(Image.order))
-		.all()
 
 	switch ((product.productType || "").toLowerCase()) {
 		case "hotel":
-			subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).get()
+			subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
 			break
 		case "package":
-			subtype = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+			subtype = await db.select().from(Package).where(eq(Package.productId, productId)).then(first)
 			break
 		case "tour":
-			subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+			subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 			break
 	}
 } catch (e) {

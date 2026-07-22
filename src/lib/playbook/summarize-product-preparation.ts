@@ -4,7 +4,15 @@ import {
 } from "@/lib/playbook/complete-to-publish"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { routes } from "@/lib/routes"
-import { and, db, eq, inArray, ProductPreparationSnapshot, ProductStatus } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	eq,
+	inArray,
+	ProductPreparationSnapshot,
+	ProductStatus,
+} from "@/shared/infrastructure/db/compat"
 
 export type ProductPreparationSummary = {
 	productId: string
@@ -256,7 +264,7 @@ export async function refreshProductPreparationSnapshotForProduct(params: {
 		.select({ state: ProductStatus.state })
 		.from(ProductStatus)
 		.where(eq(ProductStatus.productId, productId))
-		.get()
+		.then(first)
 
 	return refreshProductPreparationSnapshot({
 		productId,

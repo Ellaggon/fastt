@@ -7,7 +7,7 @@ import {
 	VariantInventoryConfig,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type { VariantRoomProfileRepositoryPort } from "../../application/ports/VariantRoomProfileRepositoryPort"
 
 export class VariantRoomProfileRepository implements VariantRoomProfileRepositoryPort {
@@ -32,8 +32,7 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 				.from(VariantRoomProfile)
 				.leftJoin(RoomType, eq(RoomType.id, VariantRoomProfile.roomTypeId))
 				.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, VariantRoomProfile.variantId))
-				.where(inArray(VariantRoomProfile.variantId, variantIds))
-				.all(),
+				.where(inArray(VariantRoomProfile.variantId, variantIds)),
 			db
 				.select({
 					variantId: VariantRoomBed.variantId,
@@ -43,16 +42,14 @@ export class VariantRoomProfileRepository implements VariantRoomProfileRepositor
 					sortOrder: VariantRoomBed.sortOrder,
 				})
 				.from(VariantRoomBed)
-				.where(inArray(VariantRoomBed.variantId, variantIds))
-				.all(),
+				.where(inArray(VariantRoomBed.variantId, variantIds)),
 			db
 				.select({
 					variantId: VariantInventoryConfig.variantId,
 					defaultTotalUnits: VariantInventoryConfig.defaultTotalUnits,
 				})
 				.from(VariantInventoryConfig)
-				.where(inArray(VariantInventoryConfig.variantId, variantIds))
-				.all(),
+				.where(inArray(VariantInventoryConfig.variantId, variantIds)),
 		])
 		const unitsByVariant = new Map(
 			inventoryConfigs.map((config) => [

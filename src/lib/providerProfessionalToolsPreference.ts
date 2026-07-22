@@ -1,4 +1,4 @@
-import { db, eq, ProviderProfile } from "astro:db"
+import { first, db, eq, ProviderProfile } from "@/shared/infrastructure/db/compat"
 
 const DEFAULT_PROVIDER_PROFILE_TIMEZONE = "UTC"
 const DEFAULT_PROVIDER_PROFILE_CURRENCY = "USD"
@@ -49,7 +49,7 @@ async function readProviderProfessionalToolsPreference(
 		})
 		.from(ProviderProfile)
 		.where(eq(ProviderProfile.providerId, providerId))
-		.get()
+		.then(first)
 	if (!row) return defaultPreference(providerId)
 	return {
 		providerId: String(row.providerId),
@@ -107,7 +107,7 @@ export async function setProviderProfessionalToolsPreference(params: {
 			.select({ providerId: ProviderProfile.providerId })
 			.from(ProviderProfile)
 			.where(eq(ProviderProfile.providerId, providerId))
-			.get()
+			.then(first)
 		if (!profile) {
 			await db.insert(ProviderProfile).values({
 				providerId,

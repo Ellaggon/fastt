@@ -1,4 +1,11 @@
-import { and, db, eq, ProviderTaxConfiguration, ProviderUser } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	eq,
+	ProviderTaxConfiguration,
+	ProviderUser,
+} from "@/shared/infrastructure/db/compat"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
@@ -167,7 +174,7 @@ async function getProviderRole(providerId: string, userId: string) {
 			.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
 			.from(ProviderUser)
 			.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-			.get()) ?? null
+			.then(first)) ?? null
 	)
 }
 
@@ -201,7 +208,7 @@ export async function getProviderTaxConfiguration(
 		})
 		.from(ProviderTaxConfiguration)
 		.where(eq(ProviderTaxConfiguration.providerId, providerId))
-		.get()
+		.then(first)
 		.catch(() => null)
 
 	return row ? mapRow(row) : null
@@ -222,7 +229,7 @@ export async function listProviderTaxConfigurationsForAdmin(): Promise<
 			updatedBy: ProviderTaxConfiguration.updatedBy,
 		})
 		.from(ProviderTaxConfiguration)
-		.all()
+
 		.catch(() => [])
 
 	return rows.map(mapRow)
@@ -394,7 +401,7 @@ export async function reviewProviderTaxConfiguration(params: {
 				.select({ metadataJson: ProviderTaxConfiguration.metadataJson })
 				.from(ProviderTaxConfiguration)
 				.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
-				.get()
+				.then(first)
 				.catch(() => null)
 		)?.metadataJson ?? {}
 

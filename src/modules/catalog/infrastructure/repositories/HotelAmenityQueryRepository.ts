@@ -1,4 +1,4 @@
-import { db, inArray, eq, AmenityRoom, VariantRoomAmenity } from "astro:db"
+import { db, inArray, eq, AmenityRoom, VariantRoomAmenity } from "@/shared/infrastructure/db/compat"
 import type {
 	HotelAmenityQueryRepositoryPort,
 	HotelAmenityRow,
@@ -20,6 +20,5 @@ export class HotelAmenityQueryRepository implements HotelAmenityQueryRepositoryP
 			.from(VariantRoomAmenity)
 			.leftJoin(AmenityRoom, eq(VariantRoomAmenity.amenityId, AmenityRoom.id))
 			.where(inArray(VariantRoomAmenity.variantId, variantIds))
-			.all()
 	}
 }

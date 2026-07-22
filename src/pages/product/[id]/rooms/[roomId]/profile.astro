@@ -11,8 +11,15 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import {
+	AmenityRoom,
+	asc,
+	db,
+	eq,
+	RoomType,
+	VariantRoomAmenity,
+} from "@/shared/infrastructure/db/compat"
 import { Hotel } from "@lucide/astro"
-import { AmenityRoom, asc, db, eq, RoomType, VariantRoomAmenity } from "astro:db"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -48,18 +55,15 @@ const [capacity, profiles, roomTypes, amenities, selectedAmenityRows] = await Pr
 	db
 		.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
 		.from(RoomType)
-		.orderBy(asc(RoomType.name))
-		.all(),
+		.orderBy(asc(RoomType.name)),
 	db
 		.select({ id: AmenityRoom.id, name: AmenityRoom.name, category: AmenityRoom.category })
 		.from(AmenityRoom)
-		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name))
-		.all(),
+		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name)),
 	db
 		.select({ amenityId: VariantRoomAmenity.amenityId })
 		.from(VariantRoomAmenity)
-		.where(eq(VariantRoomAmenity.variantId, variantId))
-		.all(),
+		.where(eq(VariantRoomAmenity.variantId, variantId)),
 ])
 
 const rawProfile = profiles[0] ?? null
