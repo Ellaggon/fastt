@@ -5,12 +5,13 @@ import {
 	CommercialRuleApplication,
 	db,
 	eq,
+	first,
 	Hold,
 	PolicyAssignment,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 async function safeCount(load: () => Promise<{ value: number } | undefined>) {
 	try {
@@ -36,21 +37,21 @@ export async function getRatePlanRemovalReadiness(params: {
 					.select({ value: countExpression })
 					.from(Booking)
 					.where(eq(Booking.ratePlanId, params.ratePlanId))
-					.get()
+					.then(first)
 			),
 			safeCount(() =>
 				db
 					.select({ value: countExpression })
 					.from(BookingRoomDetail)
 					.where(eq(BookingRoomDetail.ratePlanId, params.ratePlanId))
-					.get()
+					.then(first)
 			),
 			safeCount(() =>
 				db
 					.select({ value: countExpression })
 					.from(Hold)
 					.where(eq(Hold.ratePlanId, params.ratePlanId))
-					.get()
+					.then(first)
 			),
 			safeCount(() =>
 				db
@@ -62,7 +63,7 @@ export async function getRatePlanRemovalReadiness(params: {
 							eq(CommercialRuleApplication.scopeId, params.ratePlanId)
 						)
 					)
-					.get()
+					.then(first)
 			),
 			safeCount(() =>
 				db
@@ -74,14 +75,14 @@ export async function getRatePlanRemovalReadiness(params: {
 							eq(PolicyAssignment.scopeId, params.ratePlanId)
 						)
 					)
-					.get()
+					.then(first)
 			),
 			safeCount(() =>
 				db
 					.select({ value: countExpression })
 					.from(RatePlanOccupancyPolicy)
 					.where(eq(RatePlanOccupancyPolicy.ratePlanId, params.ratePlanId))
-					.get()
+					.then(first)
 			),
 		])
 
@@ -96,7 +97,7 @@ export async function getRatePlanRemovalReadiness(params: {
 					sql`${RatePlan.id} <> ${params.ratePlanId}`
 				)
 			)
-			.get()
+			.then(first)
 	)
 	const reservationCount = Math.max(bookingCount, bookingRoomCount)
 	const blockers: string[] = []

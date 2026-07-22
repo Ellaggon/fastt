@@ -13,7 +13,7 @@ import {
 import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { buildSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 import { routes } from "@/lib/routes"
-import { count, DailyInventory, db, eq } from "astro:db"
+import { count, DailyInventory, db, eq, first } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProvider(Astro.request).catch((error: unknown) => {
 	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
@@ -106,7 +106,7 @@ const guidedInventoryDays =
 						.select({ value: count() })
 						.from(DailyInventory)
 						.where(eq(DailyInventory.variantId, guidedVariantId))
-						.get()
+						.then(first)
 				)?.value ?? 0
 			)
 		: 0

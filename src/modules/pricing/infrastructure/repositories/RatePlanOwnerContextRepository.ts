@@ -1,4 +1,4 @@
-import { db, eq, Product, RatePlan, Variant } from "astro:db"
+import { first, db, eq, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import type {
 	RatePlanOwnerContext,
 	RatePlanOwnerContextRepositoryPort,
@@ -17,7 +17,7 @@ export class RatePlanOwnerContextRepository implements RatePlanOwnerContextRepos
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(RatePlan.id, ratePlanId))
-			.get()
+			.then(first)
 		if (!row) return null
 
 		return {

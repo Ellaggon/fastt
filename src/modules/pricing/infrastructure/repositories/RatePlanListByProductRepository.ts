@@ -1,4 +1,4 @@
-import { db, eq, inArray, RatePlan, Variant } from "astro:db"
+import { db, eq, inArray, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import {
 	resolveRatePlanDescriptionColumn,
 	resolveRatePlanNameColumn,
@@ -33,6 +33,5 @@ export class RatePlanListByProductRepository implements RatePlanListByProductRep
 			})
 			.from(RatePlan)
 			.where(inArray(RatePlan.variantId, variantIds))
-			.all()
 	}
 }

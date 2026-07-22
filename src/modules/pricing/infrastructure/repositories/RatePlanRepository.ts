@@ -1,4 +1,4 @@
-import { db, RatePlan, eq } from "astro:db"
+import { first, db, RatePlan, eq } from "@/shared/infrastructure/db/compat"
 import { resolveRatePlanBaseSelect } from "@/lib/rates/ratePlanSchemaCompat"
 import type { RatePlanRepositoryPort } from "../../application/ports/RatePlanRepositoryPort"
 
@@ -45,7 +45,7 @@ export class RatePlanRepository implements RatePlanRepositoryPort {
 			.select(ratePlanSelect)
 			.from(RatePlan)
 			.where(eq(RatePlan.id, ratePlanId))
-			.get()
+			.then(first)
 
 		if (!plan) return null
 

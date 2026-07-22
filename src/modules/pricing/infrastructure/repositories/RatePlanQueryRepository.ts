@@ -1,4 +1,4 @@
-import { asc, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { first, asc, db, eq, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import {
 	listCommercialPriceRulesByRatePlan,
 	listCommercialPriceRulesByRatePlans,
@@ -22,7 +22,6 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.from(RatePlan)
 			.where(eq(RatePlan.variantId, variantId))
 			.orderBy(asc(ratePlanName), asc(RatePlan.id))
-			.all()
 
 		if (!ratePlans.length) {
 			return []
@@ -82,7 +81,6 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(Product.providerId, providerId))
-			.all()
 
 		if (!rows.length) return []
 
@@ -155,7 +153,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.select(ratePlanSelect)
 			.from(RatePlan)
 			.where(eq(RatePlan.id, ratePlanId))
-			.get()
+			.then(first)
 
 		if (!ratePlan) {
 			return null
@@ -167,7 +165,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 			.select({ productId: Variant.productId })
 			.from(Variant)
 			.where(eq(Variant.id, ratePlan.variantId))
-			.get()
+			.then(first)
 
 		const restrictionScopeIds = [ratePlan.id, ratePlan.variantId, product?.productId]
 			.map((value) => String(value ?? "").trim())

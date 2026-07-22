@@ -1,5 +1,14 @@
 import type { APIRoute } from "astro"
-import { and, count, db, EffectiveAvailability, gte, inArray, lt, sql } from "astro:db"
+import {
+	and,
+	count,
+	db,
+	EffectiveAvailability,
+	gte,
+	inArray,
+	lt,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -65,7 +74,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 						)
 					)
 					.groupBy(EffectiveAvailability.variantId)
-					.all()
 			: Promise.resolve([]),
 	])
 	const pricingByRatePlan = new Map(pricingSummaries.map((row) => [row.ratePlanId, row]))

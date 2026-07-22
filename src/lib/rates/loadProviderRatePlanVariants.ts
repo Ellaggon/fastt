@@ -1,4 +1,4 @@
-import { asc, db, eq, Product, Variant } from "astro:db"
+import { asc, db, eq, Product, Variant } from "@/shared/infrastructure/db/compat"
 
 export type ProviderRatePlanVariantChoice = {
 	variantId: string
@@ -22,7 +22,6 @@ export async function loadProviderRatePlanVariants(
 		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(eq(Product.providerId, providerId))
 		.orderBy(asc(Product.name), asc(Variant.name))
-		.all()
 
 	return rows.map((row) => ({
 		variantId: String(row.variantId),

@@ -1,4 +1,4 @@
-import { and, db, eq, Product, RatePlan, Variant } from "astro:db"
+import { and, db, eq, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import { listCommercialPriceRulesByRatePlans } from "@/lib/commercial-rules/commercialRulesRepository"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
@@ -315,7 +315,6 @@ async function loadProviderRatePlans(providerId: string) {
 		.innerJoin(Variant, eq(RatePlan.variantId, Variant.id))
 		.innerJoin(Product, eq(Variant.productId, Product.id))
 		.where(and(eq(Product.providerId, providerId), eq(RatePlan.isActive, true)))
-		.all()
 }
 
 export async function loadPricingAutomationSurface(

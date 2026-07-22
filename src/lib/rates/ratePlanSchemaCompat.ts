@@ -1,4 +1,4 @@
-import { db, RatePlan, sql } from "astro:db"
+import { db, RatePlan, sql } from "@/shared/infrastructure/db/compat"
 import {
 	ratePlanBaseSelect,
 	ratePlanDescriptionColumn,
@@ -6,10 +6,19 @@ import {
 } from "@/lib/rates/ratePlanDbColumns"
 
 async function listRatePlanColumns(): Promise<Set<string>> {
-	const rows = await db
-		.select({ name: sql<string>`name` })
-		.from(sql`pragma_table_info('RatePlan')`)
-		.all()
+	try {
+		const rows = (await db.execute(sql`
+			select column_name as name
+			from information_schema.columns
+			where table_schema = current_schema()
+				and table_name = 'RatePlan'
+		`)) as Array<{ name: string }>
+		return new Set(rows.map((column) => String(column.name)))
+	} catch {
+		// Legacy Turso/libSQL compatibility for tests and old migration utilities.
+	}
+
+	const rows = await db.select({ name: sql<string>`name` }).from(sql`pragma_table_info('RatePlan')`)
 	return new Set(rows.map((column) => String(column.name)))
 }
 

@@ -7,13 +7,14 @@ import {
 	EffectivePricingV2,
 	EffectiveRestriction,
 	eq,
+	first,
 	gte,
 	inArray,
 	lt,
 	Product,
 	RatePlanOccupancyPolicy,
 	SearchUnitView,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
 import {
@@ -441,7 +442,7 @@ async function loadRestrictionSignalRows(input: {
 					)
 				)
 				.orderBy(asc(EffectiveRestriction.date))
-				.all()
+
 			return rows.map(toRestrictionSignalRow)
 		} catch (error) {
 			if (!isMissingEffectiveRestrictionColumn(error)) throw error
@@ -460,7 +461,7 @@ async function loadRestrictionSignalRows(input: {
 				)
 			)
 			.orderBy(asc(EffectiveRestriction.date))
-			.all()
+
 		return rows.map(toRestrictionSignalRow)
 	} catch (error) {
 		if (!isMissingEffectiveRestrictionColumn(error)) throw error
@@ -477,7 +478,7 @@ async function loadRestrictionSignalRows(input: {
 			)
 		)
 		.orderBy(asc(EffectiveRestriction.date))
-		.all()
+
 	return rows.map(toRestrictionSignalRow)
 }
 
@@ -508,7 +509,7 @@ async function loadSearchMaterializationRows(input: {
 		.from(SearchUnitView)
 		.where(and(...filters))
 		.orderBy(asc(SearchUnitView.date))
-		.all()
+
 	const byDate = new Map<string, { date: string; computedAt: Date | string | null }>()
 	for (const row of rows) {
 		const date = String(row.date)
@@ -533,7 +534,7 @@ async function resolveVocabulary(rows: RatePlanListItem[]) {
 		.select({ productType: Product.productType })
 		.from(Product)
 		.where(inArray(Product.id, productIds))
-		.all()
+
 	return resolveVerticalVocabulary(products.map((product) => product.productType))
 }
 
@@ -548,7 +549,7 @@ async function loadBaseline(
 		.from(RatePlanOccupancyPolicy)
 		.where(eq(RatePlanOccupancyPolicy.ratePlanId, ratePlanId))
 		.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-		.get()
+		.then(first)
 	return {
 		currency: String(policy?.currency ?? "USD"),
 		basePrice: policy?.basePrice == null ? null : Number(policy.basePrice),
@@ -603,7 +604,6 @@ export async function buildPricingCalendarSurface(input: {
 					)
 				)
 				.orderBy(asc(EffectivePricingV2.date))
-				.all()
 		: []
 	const restrictionRows = selectedRatePlan
 		? await loadRestrictionSignalRows({
@@ -632,7 +632,6 @@ export async function buildPricingCalendarSurface(input: {
 					)
 				)
 				.orderBy(asc(EffectiveAvailability.date))
-				.all()
 		: []
 	const searchRows = selectedRatePlan
 		? await loadSearchMaterializationRows({
@@ -803,7 +802,6 @@ export async function buildInventoryCalendarSurface(input: {
 					)
 				)
 				.orderBy(asc(EffectiveAvailability.date))
-				.all()
 		: []
 	const selectedVariantRatePlanIds = selectedVariant
 		? rows

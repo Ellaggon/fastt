@@ -1,4 +1,10 @@
-import { CommercialRule, CommercialRuleApplication, CommercialRuleSet, db, sql } from "astro:db"
+import {
+	CommercialRule,
+	CommercialRuleApplication,
+	CommercialRuleSet,
+	db,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import { randomUUID } from "node:crypto"
 
 export type CommercialRuleScope = "product" | "variant" | "rate_plan"
@@ -117,84 +123,7 @@ async function serializeCommercialPriceRuleWrite<T>(work: () => Promise<T>): Pro
 
 export async function ensureCommercialRuleTables() {
 	if (!ensureCommercialRuleTablesPromise) {
-		ensureCommercialRuleTablesPromise = (async () => {
-			await rawRun(sql`
-				CREATE TABLE IF NOT EXISTS CommercialRuleSet (
-					id TEXT PRIMARY KEY NOT NULL,
-					providerId TEXT NOT NULL,
-					name TEXT NOT NULL,
-					description TEXT,
-					color TEXT,
-					status TEXT NOT NULL DEFAULT 'active',
-					priority INTEGER NOT NULL DEFAULT 100,
-					dateFrom TEXT,
-					dateTo TEXT,
-					createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-					updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-					archivedAt INTEGER
-				)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRuleSet_provider_status_idx
-					ON CommercialRuleSet (providerId, status)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRuleSet_provider_dates_idx
-					ON CommercialRuleSet (providerId, dateFrom, dateTo)
-			`)
-			await rawRun(sql`
-				CREATE TABLE IF NOT EXISTS CommercialRule (
-					id TEXT PRIMARY KEY NOT NULL,
-					providerId TEXT NOT NULL,
-					ruleSetId TEXT NOT NULL,
-					category TEXT NOT NULL,
-					type TEXT NOT NULL,
-					name TEXT,
-					value REAL,
-					configJson TEXT,
-					priority INTEGER NOT NULL DEFAULT 100,
-					isActive INTEGER NOT NULL DEFAULT 1,
-					createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-					updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-				)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRule_provider_category_type_idx
-					ON CommercialRule (providerId, category, type)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRule_set_active_idx
-					ON CommercialRule (ruleSetId, isActive)
-			`)
-			await rawRun(sql`
-				CREATE TABLE IF NOT EXISTS CommercialRuleApplication (
-					id TEXT PRIMARY KEY NOT NULL,
-					providerId TEXT NOT NULL,
-					ruleSetId TEXT NOT NULL,
-					ruleId TEXT NOT NULL,
-					scope TEXT NOT NULL,
-					scopeId TEXT NOT NULL,
-					startDate TEXT,
-					endDate TEXT,
-					validDays TEXT,
-					channel TEXT,
-					isActive INTEGER NOT NULL DEFAULT 1,
-					createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-				)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRuleApplication_provider_scope_idx
-					ON CommercialRuleApplication (providerId, scope, scopeId, isActive)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRuleApplication_rule_scope_idx
-					ON CommercialRuleApplication (ruleId, scope, scopeId)
-			`)
-			await rawRun(sql`
-				CREATE INDEX IF NOT EXISTS CommercialRuleApplication_set_active_idx
-					ON CommercialRuleApplication (ruleSetId, isActive)
-			`)
-		})()
+		ensureCommercialRuleTablesPromise = Promise.resolve()
 	}
 	return ensureCommercialRuleTablesPromise
 }
@@ -277,25 +206,25 @@ function sellabilityRuleFromRaw(row: RawCommercialRuleRow): CommercialSellabilit
 function selectCommercialRulesSql(whereSql: unknown) {
 	return sql`
 		SELECT
-			r.id AS rule_id,
-			r.ruleSetId AS rule_ruleSetId,
-			r.providerId AS rule_providerId,
-			r.category AS rule_category,
-			r.type AS rule_type,
-			r.name AS rule_name,
-			r.value AS rule_value,
-			r.configJson AS rule_configJson,
-			r.priority AS rule_priority,
-			r.isActive AS rule_isActive,
-			r.createdAt AS rule_createdAt,
-			a.scope AS application_scope,
-			a.scopeId AS application_scopeId,
-			a.startDate AS application_startDate,
-			a.endDate AS application_endDate,
-			a.validDays AS application_validDays,
-			a.isActive AS application_isActive
-		FROM CommercialRule r
-		INNER JOIN CommercialRuleApplication a ON a.ruleId = r.id
+			r."id" AS rule_id,
+			r."ruleSetId" AS "rule_ruleSetId",
+			r."providerId" AS "rule_providerId",
+			r."category" AS rule_category,
+			r."type" AS rule_type,
+			r."name" AS rule_name,
+			r."value" AS rule_value,
+			r."configJson" AS "rule_configJson",
+			r."priority" AS rule_priority,
+			r."isActive" AS "rule_isActive",
+			r."createdAt" AS "rule_createdAt",
+			a."scope" AS application_scope,
+			a."scopeId" AS "application_scopeId",
+			a."startDate" AS "application_startDate",
+			a."endDate" AS "application_endDate",
+			a."validDays" AS "application_validDays",
+			a."isActive" AS "application_isActive"
+		FROM "CommercialRule" r
+		INNER JOIN "CommercialRuleApplication" a ON a."ruleId" = r."id"
 		WHERE ${whereSql}
 	`
 }
@@ -312,8 +241,8 @@ async function createRuleSet(params: {
 }): Promise<string> {
 	const id = randomUUID()
 	await run(sql`
-		INSERT INTO CommercialRuleSet (
-			id, providerId, name, description, color, status, priority, dateFrom, dateTo
+		INSERT INTO "CommercialRuleSet" (
+			"id", "providerId", "name", "description", "color", "status", "priority", "dateFrom", "dateTo"
 		) VALUES (
 			${id},
 			${params.providerId},
@@ -357,54 +286,47 @@ export async function createCommercialPriceRule(params: {
 	await ensureCommercialRuleTables()
 	await serializeCommercialPriceRuleWrite(() =>
 		db.transaction(async (tx) => {
-			await tx
-				.insert(CommercialRuleSet)
-				.values({
-					id: ruleSetId,
-					providerId: params.providerId,
-					name: params.name?.startsWith("ctx:")
-						? "Regla automática de precio"
-						: params.name || "Regla automática de precio",
-					status: isActive ? "active" : "paused",
-					priority: params.priority ?? 20,
-					dateFrom: startDate,
-					dateTo: endDate,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.run()
-			await tx
-				.insert(CommercialRule)
-				.values({
-					id: ruleId,
-					providerId: params.providerId,
-					ruleSetId,
-					category: "price",
-					type: params.type,
-					name: params.name ?? null,
-					value: params.value,
-					configJson: configPayload,
-					priority: params.priority ?? 20,
-					isActive,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.run()
-			await tx
-				.insert(CommercialRuleApplication)
-				.values({
-					id: randomUUID(),
-					providerId: params.providerId,
-					ruleSetId,
-					ruleId,
-					scope: "rate_plan",
-					scopeId: params.ratePlanId,
-					startDate,
-					endDate,
-					isActive,
-					createdAt: new Date(),
-				})
-				.run()
+			await tx.insert(CommercialRuleSet).values({
+				id: ruleSetId,
+				providerId: params.providerId,
+				name: params.name?.startsWith("ctx:")
+					? "Regla automática de precio"
+					: params.name || "Regla automática de precio",
+				status: isActive ? "active" : "paused",
+				priority: params.priority ?? 20,
+				dateFrom: startDate,
+				dateTo: endDate,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			})
+
+			await tx.insert(CommercialRule).values({
+				id: ruleId,
+				providerId: params.providerId,
+				ruleSetId,
+				category: "price",
+				type: params.type,
+				name: params.name ?? null,
+				value: params.value == null ? null : String(params.value),
+				configJson: configPayload,
+				priority: params.priority ?? 20,
+				isActive,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			})
+
+			await tx.insert(CommercialRuleApplication).values({
+				id: randomUUID(),
+				providerId: params.providerId,
+				ruleSetId,
+				ruleId,
+				scope: "rate_plan",
+				scopeId: params.ratePlanId,
+				startDate,
+				endDate,
+				isActive,
+				createdAt: new Date(),
+			})
 		})
 	)
 	return { ruleSetId, ruleId }
@@ -415,9 +337,9 @@ export async function listCommercialPriceRulesByRatePlan(
 ): Promise<CommercialPriceRule[]> {
 	const rows = await all<RawCommercialRuleRow>(
 		selectCommercialRulesSql(sql`
-			r.category = 'price'
-			AND a.scope = 'rate_plan'
-			AND a.scopeId = ${ratePlanId}
+			r."category" = 'price'
+			AND a."scope" = 'rate_plan'
+			AND a."scopeId" = ${ratePlanId}
 		`)
 	)
 	return rows.map(priceRuleFromRaw)
@@ -429,9 +351,9 @@ export async function listCommercialPriceRulesByRatePlans(
 	if (!ratePlanIds.length) return []
 	const rows = await all<RawCommercialRuleRow>(
 		selectCommercialRulesSql(sql`
-			r.category = 'price'
-			AND a.scope = 'rate_plan'
-			AND a.scopeId IN (${placeholders(ratePlanIds)})
+			r."category" = 'price'
+			AND a."scope" = 'rate_plan'
+			AND a."scopeId" IN (${placeholders(ratePlanIds)})
 		`)
 	)
 	return rows.map(priceRuleFromRaw)
@@ -443,10 +365,10 @@ export async function getCommercialPriceRule(params: {
 }): Promise<CommercialPriceRule | null> {
 	const row = await get<RawCommercialRuleRow>(
 		selectCommercialRulesSql(sql`
-			r.id = ${params.ruleId}
-			AND r.category = 'price'
-			AND a.scope = 'rate_plan'
-			${params.ratePlanId ? sql`AND a.scopeId = ${params.ratePlanId}` : sql``}
+			r."id" = ${params.ruleId}
+			AND r."category" = 'price'
+			AND a."scope" = 'rate_plan'
+			${params.ratePlanId ? sql`AND a."scopeId" = ${params.ratePlanId}` : sql``}
 		`)
 	)
 	return row ? priceRuleFromRaw(row) : null
@@ -466,13 +388,13 @@ export async function updateCommercialPriceRule(params: {
 }) {
 	const existing = await getCommercialPriceRule({ ruleId: params.ruleId })
 	await run(sql`
-		UPDATE CommercialRule
+		UPDATE "CommercialRule"
 		SET
-			type = ${params.type},
-			value = ${params.value},
-			priority = ${params.priority ?? 20},
-			name = ${params.name ?? null},
-			configJson = ${toJson({
+			"type" = ${params.type},
+			"value" = ${String(params.value)},
+			"priority" = ${params.priority ?? 20},
+			"name" = ${params.name ?? null},
+			"configJson" = ${toJson({
 				dateRangeJson: params.dateRangeJson ?? null,
 				dayOfWeekJson: params.dayOfWeekJson ?? [],
 				occupancyKey: params.occupancyKey ?? null,
@@ -480,48 +402,50 @@ export async function updateCommercialPriceRule(params: {
 					params.sourceRuleId === undefined
 						? (existing?.sourceRuleId ?? null)
 						: params.sourceRuleId,
-			})},
-			isActive = ${typeof params.isActive === "boolean" ? (params.isActive ? 1 : 0) : sql`isActive`},
-			updatedAt = ${Date.now()}
-		WHERE id = ${params.ruleId}
+			})}::jsonb,
+			"isActive" = ${typeof params.isActive === "boolean" ? params.isActive : sql`"isActive"`},
+			"updatedAt" = ${new Date()}
+		WHERE "id" = ${params.ruleId}
 	`)
 	if (params.dateRangeJson || typeof params.isActive === "boolean") {
 		await run(sql`
-			UPDATE CommercialRuleApplication
+			UPDATE "CommercialRuleApplication"
 			SET
-				startDate = ${
+				"startDate" = ${
 					params.dateRangeJson
 						? String(params.dateRangeJson.from ?? "").trim() || null
-						: sql`startDate`
+						: sql`"startDate"`
 				},
-				endDate = ${
-					params.dateRangeJson ? String(params.dateRangeJson.to ?? "").trim() || null : sql`endDate`
+				"endDate" = ${
+					params.dateRangeJson
+						? String(params.dateRangeJson.to ?? "").trim() || null
+						: sql`"endDate"`
 				},
-				isActive = ${typeof params.isActive === "boolean" ? (params.isActive ? 1 : 0) : sql`isActive`}
-			WHERE ruleId = ${params.ruleId}
+				"isActive" = ${typeof params.isActive === "boolean" ? params.isActive : sql`"isActive"`}
+			WHERE "ruleId" = ${params.ruleId}
 		`)
 	}
 	if (typeof params.isActive === "boolean") {
 		await run(sql`
-			UPDATE CommercialRuleSet
-			SET status = ${params.isActive ? "active" : "paused"}, updatedAt = ${Date.now()}
-			WHERE id = (SELECT ruleSetId FROM CommercialRule WHERE id = ${params.ruleId})
+			UPDATE "CommercialRuleSet"
+			SET "status" = ${params.isActive ? "active" : "paused"}, "updatedAt" = ${new Date()}
+			WHERE "id" = (SELECT "ruleSetId" FROM "CommercialRule" WHERE "id" = ${params.ruleId})
 		`)
 	}
 }
 
 export async function deleteCommercialRule(ruleId: string) {
 	const existing = await get<{ ruleSetId: string }>(sql`
-		SELECT ruleSetId FROM CommercialRule WHERE id = ${ruleId}
+		SELECT "ruleSetId" FROM "CommercialRule" WHERE "id" = ${ruleId}
 	`)
-	await run(sql`DELETE FROM CommercialRuleApplication WHERE ruleId = ${ruleId}`)
-	await run(sql`DELETE FROM CommercialRule WHERE id = ${ruleId}`)
+	await run(sql`DELETE FROM "CommercialRuleApplication" WHERE "ruleId" = ${ruleId}`)
+	await run(sql`DELETE FROM "CommercialRule" WHERE "id" = ${ruleId}`)
 	if (existing?.ruleSetId) {
 		const remaining = await get<{ id: string }>(sql`
-			SELECT id FROM CommercialRule WHERE ruleSetId = ${String(existing.ruleSetId)} LIMIT 1
+			SELECT "id" FROM "CommercialRule" WHERE "ruleSetId" = ${String(existing.ruleSetId)} LIMIT 1
 		`)
 		if (!remaining) {
-			await run(sql`DELETE FROM CommercialRuleSet WHERE id = ${String(existing.ruleSetId)}`)
+			await run(sql`DELETE FROM "CommercialRuleSet" WHERE "id" = ${String(existing.ruleSetId)}`)
 		}
 	}
 }
@@ -531,25 +455,25 @@ export async function deleteCommercialRulesForScope(params: {
 	scopeId: string
 }) {
 	const rows = await all<{ ruleId: string; ruleSetId: string }>(sql`
-		SELECT ruleId, ruleSetId
-		FROM CommercialRuleApplication
-		WHERE scope = ${params.scope} AND scopeId = ${params.scopeId}
+		SELECT "ruleId", "ruleSetId"
+		FROM "CommercialRuleApplication"
+		WHERE "scope" = ${params.scope} AND "scopeId" = ${params.scopeId}
 	`)
 	const ruleIds = [...new Set(rows.map((row) => String(row.ruleId)).filter(Boolean))]
 	const ruleSetIds = [...new Set(rows.map((row) => String(row.ruleSetId)).filter(Boolean))]
 	await run(sql`
-		DELETE FROM CommercialRuleApplication
-		WHERE scope = ${params.scope} AND scopeId = ${params.scopeId}
+		DELETE FROM "CommercialRuleApplication"
+		WHERE "scope" = ${params.scope} AND "scopeId" = ${params.scopeId}
 	`)
 	if (ruleIds.length) {
-		await run(sql`DELETE FROM CommercialRule WHERE id IN (${placeholders(ruleIds)})`)
+		await run(sql`DELETE FROM "CommercialRule" WHERE "id" IN (${placeholders(ruleIds)})`)
 	}
 	for (const ruleSetId of ruleSetIds) {
 		const remaining = await get<{ id: string }>(sql`
-			SELECT id FROM CommercialRule WHERE ruleSetId = ${ruleSetId} LIMIT 1
+			SELECT "id" FROM "CommercialRule" WHERE "ruleSetId" = ${ruleSetId} LIMIT 1
 		`)
 		if (!remaining) {
-			await run(sql`DELETE FROM CommercialRuleSet WHERE id = ${ruleSetId}`)
+			await run(sql`DELETE FROM "CommercialRuleSet" WHERE "id" = ${ruleSetId}`)
 		}
 	}
 }
@@ -584,27 +508,27 @@ export async function createCommercialSellabilityRule(params: {
 	}
 	const ruleId = randomUUID()
 	await run(sql`
-		INSERT INTO CommercialRule (
-			id, providerId, ruleSetId, category, type, value, configJson, priority, isActive
+		INSERT INTO "CommercialRule" (
+			"id", "providerId", "ruleSetId", "category", "type", "value", "configJson", "priority", "isActive"
 		) VALUES (
 			${ruleId},
 			${params.providerId},
 			${ruleSetId},
 			${categoryByType[params.type] ?? "sellability"},
 			${params.type},
-			${params.value ?? null},
+			${params.value == null ? null : String(params.value)},
 			${toJson({
 				startDate: params.startDate,
 				endDate: params.endDate,
 				validDays: params.validDays ?? [],
-			})},
+			})}::jsonb,
 			${params.priority ?? 100},
-			1
+			true
 		)
 	`)
 	await run(sql`
-		INSERT INTO CommercialRuleApplication (
-			id, providerId, ruleSetId, ruleId, scope, scopeId, startDate, endDate, validDays, isActive
+		INSERT INTO "CommercialRuleApplication" (
+			"id", "providerId", "ruleSetId", "ruleId", "scope", "scopeId", "startDate", "endDate", "validDays", "isActive"
 		) VALUES (
 			${randomUUID()},
 			${params.providerId},
@@ -614,8 +538,8 @@ export async function createCommercialSellabilityRule(params: {
 			${params.scopeId},
 			${params.startDate},
 			${params.endDate},
-			${params.validDays?.length ? toJson(params.validDays) : null},
-			1
+			${params.validDays?.length ? toJson(params.validDays) : null}::jsonb,
+			true
 		)
 	`)
 	return { ruleSetId, ruleId }
@@ -628,9 +552,9 @@ export async function listCommercialSellabilityRulesForScopes(params: {
 	if (!params.scopeIds.length) return []
 	const rows = await all<RawCommercialRuleRow>(
 		selectCommercialRulesSql(sql`
-			a.scopeId IN (${placeholders(params.scopeIds)})
-			AND r.category <> 'price'
-			${params.providerId ? sql`AND r.providerId = ${params.providerId}` : sql``}
+			a."scopeId" IN (${placeholders(params.scopeIds)})
+			AND r."category" <> 'price'
+			${params.providerId ? sql`AND r."providerId" = ${params.providerId}` : sql``}
 		`)
 	)
 	return rows.map(sellabilityRuleFromRaw)
@@ -644,10 +568,10 @@ export async function listActiveCommercialSellabilityRulesForContext(params: {
 	if (!params.scopeIds.length) return []
 	const rows = await all<RawCommercialRuleRow>(
 		selectCommercialRulesSql(sql`
-			a.scopeId IN (${placeholders(params.scopeIds)})
-			AND r.category <> 'price'
-			AND r.isActive = 1
-			AND a.isActive = 1
+			a."scopeId" IN (${placeholders(params.scopeIds)})
+			AND r."category" <> 'price'
+			AND r."isActive" = true
+			AND a."isActive" = true
 		`)
 	)
 	return rows.map(sellabilityRuleFromRaw)
@@ -655,31 +579,31 @@ export async function listActiveCommercialSellabilityRulesForContext(params: {
 
 export async function setCommercialRuleActive(ruleId: string, isActive: boolean) {
 	await run(sql`
-		UPDATE CommercialRule
-		SET isActive = ${isActive ? 1 : 0}, updatedAt = ${Date.now()}
-		WHERE id = ${ruleId}
+		UPDATE "CommercialRule"
+		SET "isActive" = ${isActive}, "updatedAt" = ${new Date()}
+		WHERE "id" = ${ruleId}
 	`)
 	await run(sql`
-		UPDATE CommercialRuleApplication
-		SET isActive = ${isActive ? 1 : 0}
-		WHERE ruleId = ${ruleId}
+		UPDATE "CommercialRuleApplication"
+		SET "isActive" = ${isActive}
+		WHERE "ruleId" = ${ruleId}
 	`)
 	await run(sql`
-		UPDATE CommercialRuleSet
-		SET status = ${isActive ? "active" : "paused"}, updatedAt = ${Date.now()}
-		WHERE id = (SELECT ruleSetId FROM CommercialRule WHERE id = ${ruleId})
+		UPDATE "CommercialRuleSet"
+		SET "status" = ${isActive ? "active" : "paused"}, "updatedAt" = ${new Date()}
+		WHERE "id" = (SELECT "ruleSetId" FROM "CommercialRule" WHERE "id" = ${ruleId})
 	`)
 }
 
 export async function listProviderRatePlanIdsWithCommercialRules(providerId: string) {
 	const rows = await all<{ scopeId: string }>(sql`
-		SELECT DISTINCT a.scopeId AS scopeId
-		FROM CommercialRuleApplication a
-		INNER JOIN RatePlan rp ON rp.id = a.scopeId
-		INNER JOIN Variant v ON v.id = rp.variantId
-		INNER JOIN Product p ON p.id = v.productId
-		WHERE p.providerId = ${providerId}
-			AND a.scope = 'rate_plan'
+		SELECT DISTINCT a."scopeId" AS "scopeId"
+		FROM "CommercialRuleApplication" a
+		INNER JOIN "RatePlan" rp ON rp."id" = a."scopeId"
+		INNER JOIN "Variant" v ON v."id" = rp."variantId"
+		INNER JOIN "Product" p ON p."id" = v."productId"
+		WHERE p."providerId" = ${providerId}
+			AND a."scope" = 'rate_plan'
 	`)
 	return rows.map((row) => String(row.scopeId))
 }

@@ -1,4 +1,4 @@
-import { RatePlan, sql } from "astro:db"
+import { RatePlan, sql } from "@/shared/infrastructure/db/compat"
 
 export const ratePlanNameColumn = sql<string>`"RatePlan"."name"`
 export const ratePlanDescriptionColumn = sql<string>`"RatePlan"."description"`

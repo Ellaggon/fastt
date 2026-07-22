@@ -1,4 +1,4 @@
-import { db, eq, inArray, Product, RatePlan, Variant } from "astro:db"
+import { db, eq, inArray, Product, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 
 import {
 	createCommercialSellabilityRule,
@@ -330,7 +330,6 @@ async function loadProviderTargets(providerId: string) {
 		})
 		.from(Product)
 		.where(eq(Product.providerId, providerId))
-		.all()
 
 	const productIds = products.map((product) => String(product.id))
 	if (!productIds.length) {
@@ -347,7 +346,6 @@ async function loadProviderTargets(providerId: string) {
 		.from(Variant)
 		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(inArray(Variant.productId, productIds))
-		.all()
 
 	const variantIds = variants.map((variant) => String(variant.id))
 	const ratePlanName = await resolveRatePlanNameColumn()
@@ -365,7 +363,6 @@ async function loadProviderTargets(providerId: string) {
 				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(inArray(RatePlan.variantId, variantIds))
-				.all()
 		: []
 
 	return {

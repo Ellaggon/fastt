@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	asc,
 	count,
@@ -6,12 +7,12 @@ import {
 	desc,
 	EffectivePricingV2,
 	eq,
+	gt,
 	inArray,
 	lte,
 	RatePlan,
 	RatePlanOccupancyPolicy,
-	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { listCommercialPriceRulesByRatePlan } from "@/lib/commercial-rules/commercialRulesRepository"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
@@ -38,7 +39,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 				)
 			)
 			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
+			.then(first)
 		if (!plan?.id) return null
 		return this.getRatePlanPricingSummary(String(plan.id))
 	}
@@ -58,11 +59,11 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 				and(
 					eq(RatePlanOccupancyPolicy.ratePlanId, normalizedRatePlanId),
 					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-					sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+					gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.get()
+			.then(first)
 		const fallbackEffective = policy
 			? null
 			: await db
@@ -79,7 +80,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					)
 					.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt))
 					.limit(1)
-					.get()
+					.then(first)
 		const baseSource = policy ?? fallbackEffective
 		if (!baseSource) return null
 
@@ -94,7 +95,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 							eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 						)
 					)
-					.get()
+					.then(first)
 			)?.value ?? 0
 		)
 
@@ -125,11 +126,10 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					and(
 						inArray(RatePlanOccupancyPolicy.ratePlanId, ids),
 						lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-						sql`${RatePlanOccupancyPolicy.effectiveTo} > ${targetDate}`
+						gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
 					)
 				)
-				.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-				.all(),
+				.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id)),
 			db
 				.select({
 					ratePlanId: EffectivePricingV2.ratePlanId,
@@ -144,8 +144,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 					)
 				)
-				.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt))
-				.all(),
+				.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt)),
 			db
 				.select({ ratePlanId: EffectivePricingV2.ratePlanId, value: count() })
 				.from(EffectivePricingV2)
@@ -155,8 +154,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 					)
 				)
-				.groupBy(EffectivePricingV2.ratePlanId)
-				.all(),
+				.groupBy(EffectivePricingV2.ratePlanId),
 		])
 
 		const policyByRatePlan = new Map<string, (typeof policies)[number]>()
@@ -202,7 +200,6 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			.from(RatePlan)
 			.where(eq(RatePlan.variantId, variantId))
 			.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive), asc(RatePlan.createdAt))
-			.all()
 
 		return Promise.all(
 			plans.map(async (plan) => {

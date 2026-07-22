@@ -1,5 +1,12 @@
 import type { APIRoute } from "astro"
-import { and, db, desc, eq, RatePlanOccupancyPolicy } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	RatePlanOccupancyPolicy,
+} from "@/shared/infrastructure/db/compat"
 import { ZodError } from "zod"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -96,7 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const normalizedCurrency = String(currency).trim().toUpperCase()
 		const normalizedBasePrice = Number(basePrice)
-		const nowDateOnly = new Date().toISOString().slice(0, 10)
+		const now = new Date()
 		const existingPolicy = await db
 			.select({ id: RatePlanOccupancyPolicy.id })
 			.from(RatePlanOccupancyPolicy)
@@ -108,12 +115,12 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 			)
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.get()
+			.then(first)
 		if (existingPolicy?.id) {
 			await db
 				.update(RatePlanOccupancyPolicy)
 				.set({
-					baseAmount: normalizedBasePrice,
+					baseAmount: String(normalizedBasePrice),
 					currency: normalizedCurrency,
 					baseCurrency: normalizedCurrency,
 				})
@@ -129,11 +136,11 @@ export const POST: APIRoute = async ({ request }) => {
 				childMode: "fixed",
 				childValue: 0,
 				currency: normalizedCurrency,
-				baseAmount: normalizedBasePrice,
+				baseAmount: String(normalizedBasePrice),
 				baseCurrency: normalizedCurrency,
-				effectiveFrom: nowDateOnly,
-				effectiveTo: "2099-12-31",
-				createdAt: new Date(),
+				effectiveFrom: now,
+				effectiveTo: new Date("2099-12-31T23:59:59.999Z"),
+				createdAt: now,
 			} as any)
 		}
 		await invalidateVariant(variantId, v.productId)
