@@ -250,7 +250,8 @@ export async function upsertProviderTaxConfiguration(params: {
 			.toUpperCase() || null
 	const registrationValidation = validateTaxpayerRegistrationNumber({
 		country: taxResidenceCountry,
-		registrationNumber: params.businessRegistrationNumber,
+		registrationNumber:
+			params.businessRegistrationNumber == null ? null : String(params.businessRegistrationNumber),
 		required: false,
 	})
 	if (!registrationValidation.ok) {
@@ -260,7 +261,7 @@ export async function upsertProviderTaxConfiguration(params: {
 			registrationValidation.message || "invalid_tax_registration"
 		throw error
 	}
-	const businessRegistrationNumber = registrationValidation.normalized
+	const businessRegistrationNumber: string | null = registrationValidation.normalized
 	const taxRegime = String(params.taxRegime ?? "").trim() || null
 	const status = deriveProviderTaxStatus({
 		taxResidenceCountry,
