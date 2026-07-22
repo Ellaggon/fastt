@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	desc,
 	eq,
@@ -7,7 +8,7 @@ import {
 	or,
 	RefundHandoffRecord as RefundHandoffTable,
 	db,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	RefundHandoffCreateInput,
@@ -44,7 +45,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 			.select()
 			.from(RefundHandoffTable)
 			.where(and(eq(RefundHandoffTable.id, id), eq(RefundHandoffTable.providerId, providerId)))
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -54,7 +55,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 			.from(RefundHandoffTable)
 			.where(eq(RefundHandoffTable.bookingId, bookingId))
 			.orderBy(desc(RefundHandoffTable.openedAt))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -89,7 +90,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 			.where(and(...filters))
 			.orderBy(desc(RefundHandoffTable.openedAt), desc(RefundHandoffTable.id))
 			.limit(Math.max(1, Math.min(Number(params?.limit || 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -109,10 +110,8 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 		if (existing) return { handoff: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
-		await db
-			.insert(RefundHandoffTable)
-			.values(row as any)
-			.run()
+		await db.insert(RefundHandoffTable).values(row as any)
+
 		return { handoff: map(row), created: true }
 	}
 
@@ -145,7 +144,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 					eq(RefundHandoffTable.providerId, params.providerId)
 				)
 			)
-			.run()
+
 		return this.findByIdForProvider(params.id, params.providerId)
 	}
 
@@ -173,7 +172,7 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 					eq(RefundHandoffTable.providerId, params.providerId)
 				)
 			)
-			.run()
+
 		return this.findByIdForProvider(params.id, params.providerId)
 	}
 }

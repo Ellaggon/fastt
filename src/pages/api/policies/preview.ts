@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro"
-import { db, and, CancellationTier, eq, Policy, PolicyGroup, PolicyRule } from "astro:db"
+import {
+	db,
+	and,
+	CancellationTier,
+	eq,
+	Policy,
+	PolicyGroup,
+	PolicyRule,
+} from "@/shared/infrastructure/db/compat"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import { buildPolicyCategoryPreview } from "@/lib/policies/buildPolicyCategoryPreview"
@@ -131,12 +139,12 @@ async function loadExistingPolicy(providerId: string, policyId: string) {
 		.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
 		.where(and(eq(Policy.id, policyId), eq(PolicyGroup.ownerProviderId, providerId)))
 		.limit(1)
-		.all()
+
 	const policy = rows[0] as any
 	if (!policy) return null
 	const [rules, tiers] = await Promise.all([
-		db.select().from(PolicyRule).where(eq(PolicyRule.policyId, policyId)).all(),
-		db.select().from(CancellationTier).where(eq(CancellationTier.policyId, policyId)).all(),
+		db.select().from(PolicyRule).where(eq(PolicyRule.policyId, policyId)),
+		db.select().from(CancellationTier).where(eq(CancellationTier.policyId, policyId)),
 	])
 	return {
 		category: String(policy.category),

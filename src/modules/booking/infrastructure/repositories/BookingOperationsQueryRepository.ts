@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	Booking,
 	BookingPolicySnapshot,
@@ -15,7 +16,7 @@ import {
 	sql,
 	User,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 export type BookingLifecycleState =
 	| "upcoming_arrival"
@@ -175,7 +176,11 @@ function readOccupancyDetail(
 }
 
 function paymentAmounts(
-	transactions: Array<{ type: string | null; status: string | null; amount: number | null }>,
+	transactions: Array<{
+		type: string | null
+		status: string | null
+		amount: string | number | null
+	}>,
 	totalAmount: number
 ) {
 	const recognized = transactions.filter((row) =>
@@ -217,7 +222,7 @@ export class BookingOperationsQueryRepository {
 			.select({ count: sql<number>`count(*)` })
 			.from(Booking)
 			.where(and(...predicates))
-			.get()
+			.then(first)
 		const total = Number(totalRow?.count ?? 0)
 		const bookingIdRows = await db
 			.select({ bookingId: Booking.id })
@@ -225,7 +230,7 @@ export class BookingOperationsQueryRepository {
 			.where(and(...predicates))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
 			.limit(limit + 1)
-			.all()
+
 		const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
 		if (!pagedBookingIds.length) {
 			return {
@@ -288,7 +293,6 @@ export class BookingOperationsQueryRepository {
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.providerId, filters.providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
-			.all()
 
 		const bookingIds = [...new Set(rows.map((row) => row.bookingId))]
 		const transactions = bookingIds.length
@@ -306,7 +310,6 @@ export class BookingOperationsQueryRepository {
 							inArray(PaymentTransaction.bookingId, bookingIds)
 						)
 					)
-					.all()
 			: []
 		const transactionsByBooking = new Map<string, typeof transactions>()
 		for (const row of transactions) {
@@ -449,7 +452,7 @@ export class BookingOperationsQueryRepository {
 			.from(Booking)
 			.leftJoin(User, eq(User.id, Booking.userId))
 			.where(and(eq(Booking.id, key.bookingId), eq(Booking.providerId, key.providerId)))
-			.get()
+			.then(first)
 		if (!booking) return null
 
 		const [roomRows, taxLines, policyRows, transactions] = await Promise.all([
@@ -478,14 +481,12 @@ export class BookingOperationsQueryRepository {
 				.from(BookingRoomDetail)
 				.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
 				.leftJoin(Product, eq(Product.id, Variant.productId))
-				.where(eq(BookingRoomDetail.bookingId, key.bookingId))
-				.all(),
-			db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, key.bookingId)).all(),
+				.where(eq(BookingRoomDetail.bookingId, key.bookingId)),
+			db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, key.bookingId)),
 			db
 				.select()
 				.from(BookingPolicySnapshot)
-				.where(eq(BookingPolicySnapshot.bookingId, key.bookingId))
-				.all(),
+				.where(eq(BookingPolicySnapshot.bookingId, key.bookingId)),
 			db
 				.select({
 					id: PaymentTransaction.id,
@@ -503,8 +504,7 @@ export class BookingOperationsQueryRepository {
 						eq(PaymentTransaction.providerId, key.providerId)
 					)
 				)
-				.orderBy(desc(PaymentTransaction.occurredAt))
-				.all(),
+				.orderBy(desc(PaymentTransaction.occurredAt)),
 		])
 		if (!roomRows.length) return null
 

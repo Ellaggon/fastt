@@ -1,4 +1,11 @@
-import { and, CommissionSnapshot as CommissionSnapshotTable, db, desc, eq, inArray } from "astro:db"
+import {
+	and,
+	CommissionSnapshot as CommissionSnapshotTable,
+	db,
+	desc,
+	eq,
+	inArray,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	CommissionSnapshotCreateInput,
@@ -37,7 +44,7 @@ export class CommissionSnapshotRepository implements CommissionSnapshotRepositor
 			.where(and(...filters))
 			.orderBy(desc(CommissionSnapshotTable.snapshotAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -54,10 +61,8 @@ export class CommissionSnapshotRepository implements CommissionSnapshotRepositor
 		)[0]
 		if (existing) return { snapshot: existing, created: false }
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: new Date() }
-		await db
-			.insert(CommissionSnapshotTable)
-			.values(row as any)
-			.run()
+		await db.insert(CommissionSnapshotTable).values(row as any)
+
 		return { snapshot: map(row), created: true }
 	}
 }

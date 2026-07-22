@@ -1,11 +1,20 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { and, db, EffectiveAvailability, EffectivePricingV2, eq, gte, lt, RatePlan } from "astro:db"
+import {
+	and,
+	db,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	eq,
+	gte,
+	lt,
+	RatePlan,
+} from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { productRepository, variantManagementRepository } from "@/container"
-import { buildOccupancyKey } from "@/modules/search/domain/occupancy-key"
+import { buildOccupancyKey } from "@/modules/search/public"
 
 // Inventory calendar is physical-only: commercial sellability belongs to Restrictions.
 const schema = z.object({
@@ -97,7 +106,7 @@ export const GET: APIRoute = async ({ request }) => {
 					eq(RatePlan.isActive, true)
 				)
 			)
-			.all()
+
 		const sortedDefaultPlan = defaultRatePlan.slice().sort((a, b) => {
 			const at = new Date(a.createdAt as unknown as Date).getTime()
 			const bt = new Date(b.createdAt as unknown as Date).getTime()
@@ -123,7 +132,6 @@ export const GET: APIRoute = async ({ request }) => {
 					lt(EffectiveAvailability.date, parsed.endDate)
 				)
 			)
-			.all()
 
 		const defaultOccupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		const pricingRows = sortedDefaultPlan
@@ -141,7 +149,6 @@ export const GET: APIRoute = async ({ request }) => {
 							lt(EffectivePricingV2.date, parsed.endDate)
 						)
 					)
-					.all()
 			: []
 		const hasPriceByDate = new Set(pricingRows.map((row) => String(row.date)))
 

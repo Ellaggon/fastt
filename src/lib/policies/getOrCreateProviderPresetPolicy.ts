@@ -1,4 +1,14 @@
-import { and, asc, db, desc, eq, Policy, PolicyGroup, PolicyRule, CancellationTier } from "astro:db"
+import {
+	and,
+	asc,
+	db,
+	desc,
+	eq,
+	Policy,
+	PolicyGroup,
+	PolicyRule,
+	CancellationTier,
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	clonePolicyPresetCancellationTiers,
@@ -62,7 +72,6 @@ export async function getOrCreateProviderPresetPolicy(params: {
 			)
 		)
 		.orderBy(desc(Policy.version), asc(Policy.id))
-		.all()
 
 	const expectedRules = clonePolicyPresetRules(preset)
 	const expectedTiers = (clonePolicyPresetCancellationTiers(preset) ?? []).sort(
@@ -74,8 +83,7 @@ export async function getOrCreateProviderPresetPolicy(params: {
 			db
 				.select({ key: PolicyRule.ruleKey, value: PolicyRule.ruleValue })
 				.from(PolicyRule)
-				.where(eq(PolicyRule.policyId, candidate.id))
-				.all(),
+				.where(eq(PolicyRule.policyId, candidate.id)),
 			db
 				.select({
 					daysBeforeArrival: CancellationTier.daysBeforeArrival,
@@ -84,8 +92,7 @@ export async function getOrCreateProviderPresetPolicy(params: {
 				})
 				.from(CancellationTier)
 				.where(eq(CancellationTier.policyId, candidate.id))
-				.orderBy(desc(CancellationTier.daysBeforeArrival))
-				.all(),
+				.orderBy(desc(CancellationTier.daysBeforeArrival)),
 		])
 		const rules = Object.fromEntries(
 			ruleRows.filter((row) => row.key != null).map((row) => [String(row.key), row.value])

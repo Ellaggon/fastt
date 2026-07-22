@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, asc, db, eq, Image, inArray } from "astro:db"
+import { and, asc, db, eq, Image, inArray } from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
 import { searchOffers } from "@/container"
@@ -76,8 +76,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 						eq(Image.entityId, parsed.productId)
 					)
 				)
-				.orderBy(asc(Image.order))
-				.all(),
+				.orderBy(asc(Image.order)),
 			variantIds.length > 0
 				? db
 						.select({
@@ -96,7 +95,6 @@ export const POST: APIRoute = async ({ request, params }) => {
 							)
 						)
 						.orderBy(asc(Image.order))
-						.all()
 				: Promise.resolve([] as any[]),
 		])
 

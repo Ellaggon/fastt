@@ -9,7 +9,7 @@ import {
 	InventoryLock,
 	lt,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
 import { productRepository, variantManagementRepository } from "@/container"
@@ -111,8 +111,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						gte(DailyInventory.date, parsed.from),
 						lt(DailyInventory.date, parsed.to)
 					)
-				)
-				.all(),
+				),
 			db
 				.select({
 					date: EffectiveAvailability.date,
@@ -129,8 +128,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						gte(EffectiveAvailability.date, parsed.from),
 						lt(EffectiveAvailability.date, parsed.to)
 					)
-				)
-				.all(),
+				),
 			db
 				.select({
 					date: InventoryLock.date,
@@ -146,8 +144,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						lt(InventoryLock.date, parsed.to),
 						sql`${InventoryLock.holdId} is not null`
 					)
-				)
-				.all(),
+				),
 		])
 
 		const now = new Date()

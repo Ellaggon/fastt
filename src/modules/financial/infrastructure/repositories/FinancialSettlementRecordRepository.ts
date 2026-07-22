@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	desc,
 	eq,
@@ -6,7 +7,7 @@ import {
 	db,
 	inArray,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	FinancialSettlementRecordCreateInput,
@@ -38,7 +39,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 			.from(FinancialSettlementRecordTable)
 			.where(eq(FinancialSettlementRecordTable.bookingId, key))
 			.orderBy(desc(FinancialSettlementRecordTable.settlementDate))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -59,7 +60,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 			.where(and(...filters))
 			.orderBy(desc(FinancialSettlementRecordTable.settlementDate))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -76,7 +77,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 					eq(FinancialSettlementRecordTable.settlementReference, params.settlementReference)
 				)
 			)
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -97,7 +98,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 			)
 			.orderBy(desc(FinancialSettlementRecordTable.settlementDate))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 100), 500)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -112,10 +113,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 		if (existing) return { settlement: existing, created: false }
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: new Date() }
 		try {
-			await db
-				.insert(FinancialSettlementRecordTable)
-				.values(row as any)
-				.run()
+			await db.insert(FinancialSettlementRecordTable).values(row as any)
 		} catch (error) {
 			const existingAfterCollision = await this.findExisting({
 				providerId: input.providerId,

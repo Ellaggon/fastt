@@ -3,9 +3,9 @@ import type { AdapterRegistryPort } from "./ports/AdapterRegistryPort"
 import type { ISearchContextLoader } from "./SearchPipeline"
 import type { SellableUnit } from "../domain/unit.types"
 
-export class SearchContextLoader<TUnit extends SellableUnit = SellableUnit>
-	implements ISearchContextLoader<TUnit>
-{
+export class SearchContextLoader<
+	TUnit extends SellableUnit = SellableUnit,
+> implements ISearchContextLoader<TUnit> {
 	constructor(private adapterRegistry: AdapterRegistryPort<TUnit>) {}
 
 	async load(ctx: SearchContext<TUnit>) {

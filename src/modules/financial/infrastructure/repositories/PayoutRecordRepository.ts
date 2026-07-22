@@ -1,4 +1,11 @@
-import { and, db, desc, eq, inArray, PayoutRecord as PayoutRecordTable } from "astro:db"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	PayoutRecord as PayoutRecordTable,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	PayoutRecordCreateInput,
@@ -39,7 +46,7 @@ export class PayoutRecordRepository implements PayoutRecordRepositoryPort {
 			.where(and(...filters))
 			.orderBy(desc(PayoutRecordTable.updatedAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -59,10 +66,8 @@ export class PayoutRecordRepository implements PayoutRecordRepositoryPort {
 		if (existing) return { record: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
-		await db
-			.insert(PayoutRecordTable)
-			.values(row as any)
-			.run()
+		await db.insert(PayoutRecordTable).values(row as any)
+
 		return { record: map(row), created: true }
 	}
 }

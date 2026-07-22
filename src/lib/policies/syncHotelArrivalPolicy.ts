@@ -1,4 +1,13 @@
-import { and, db, desc, eq, isNull, Policy, PolicyAssignment } from "astro:db"
+import {
+	first,
+	and,
+	db,
+	desc,
+	eq,
+	isNull,
+	Policy,
+	PolicyAssignment,
+} from "@/shared/infrastructure/db/compat"
 
 import type { HouseRule } from "@/modules/house-rules/public"
 import {
@@ -32,7 +41,7 @@ export async function syncHotelArrivalPolicy(params: {
 				eq(PolicyAssignment.isActive, true)
 			)
 		)
-		.get()
+		.then(first)
 	const checkIn = latestRule(params.rules, "CheckIn")
 	const checkout = latestRule(params.rules, "Checkout")
 	const checkInFrom = String(checkIn?.payloadJson?.checkInFrom ?? "").trim()
@@ -54,7 +63,7 @@ export async function syncHotelArrivalPolicy(params: {
 				.from(Policy)
 				.where(eq(Policy.groupId, String(assignment.policyGroupId)))
 				.orderBy(desc(Policy.version))
-				.get()
+				.then(first)
 		: null
 
 	const policyContent = {

@@ -1,4 +1,5 @@
 import {
+	first,
 	and,
 	desc,
 	eq,
@@ -6,7 +7,7 @@ import {
 	db,
 	inArray,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	FinancialReferenceCreateInput,
@@ -38,7 +39,7 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 			.from(FinancialReferenceTable)
 			.where(eq(FinancialReferenceTable.bookingId, bookingId))
 			.orderBy(desc(FinancialReferenceTable.recordedAt))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -58,7 +59,7 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 			.where(and(...filters))
 			.orderBy(desc(FinancialReferenceTable.recordedAt))
 			.limit(Math.max(1, Math.min(Number(params?.limit || 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -81,7 +82,7 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 			.select()
 			.from(FinancialReferenceTable)
 			.where(and(...filters))
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -102,10 +103,8 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 			id: input.id ?? crypto.randomUUID(),
 			createdAt: new Date(),
 		}
-		await db
-			.insert(FinancialReferenceTable)
-			.values(row as any)
-			.run()
+		await db.insert(FinancialReferenceTable).values(row as any)
+
 		return { reference: map(row), created: true }
 	}
 }

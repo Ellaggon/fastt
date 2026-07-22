@@ -9,7 +9,7 @@ import {
 	sql,
 	Policy,
 	PolicyAssignment,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { getPolicyPresetLabel } from "@/data/policy/policy-presets"
 
 export type CancellationDateAssignment = {
@@ -57,7 +57,6 @@ export async function loadCancellationDateAssignments(params: {
 				sql`${PolicyAssignment.effectiveTo} >= ${params.from}`
 			)
 		)
-		.all()
 
 	const bestPolicyByAssignment = new Map<string, (typeof rows)[number]>()
 	for (const row of rows) {

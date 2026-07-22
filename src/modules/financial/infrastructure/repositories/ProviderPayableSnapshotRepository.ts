@@ -5,7 +5,7 @@ import {
 	desc,
 	eq,
 	inArray,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	ProviderPayableSnapshotCreateInput,
@@ -47,7 +47,7 @@ export class ProviderPayableSnapshotRepository implements ProviderPayableSnapsho
 			.where(and(...filters))
 			.orderBy(desc(ProviderPayableSnapshotTable.snapshotAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 500), 1000)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -65,10 +65,8 @@ export class ProviderPayableSnapshotRepository implements ProviderPayableSnapsho
 		if (existing) return { snapshot: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
-		await db
-			.insert(ProviderPayableSnapshotTable)
-			.values(row as any)
-			.run()
+		await db.insert(ProviderPayableSnapshotTable).values(row as any)
+
 		return { snapshot: map(row), created: true }
 	}
 }

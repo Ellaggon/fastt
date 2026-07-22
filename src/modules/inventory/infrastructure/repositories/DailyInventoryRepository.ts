@@ -1,5 +1,5 @@
 import { toISODate } from "@/shared/domain/date/date.utils"
-import { db, DailyInventory, eq, and, gte, lt } from "astro:db"
+import { db, DailyInventory, eq, and, gte, lt } from "@/shared/infrastructure/db/compat"
 import type { DailyInventoryRepositoryPort } from "../../application/ports/DailyInventoryRepositoryPort"
 
 export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
@@ -17,7 +17,6 @@ export class DailyInventoryRepository implements DailyInventoryRepositoryPort {
 					lt(DailyInventory.date, end)
 				)
 			)
-			.all()
 
 		// Critical: never allow missing days to be interpreted as available.
 		// We synthesize missing dates as 0 inventory, so search/availability gates correctly.

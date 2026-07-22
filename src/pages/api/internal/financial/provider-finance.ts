@@ -12,7 +12,7 @@ import {
 	or,
 	Product,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	commissionSnapshotRepository,
@@ -86,7 +86,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.where(and(...bookingPredicates))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 		.limit(limit + 1)
-		.all()
+
 	const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
 	if (!pagedBookingIds.length) {
 		return json({
@@ -137,7 +137,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.leftJoin(Product, eq(Product.id, Variant.productId))
 		.where(and(eq(Booking.providerId, auth.providerId), inArray(Booking.id, pagedBookingIds)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
-		.all()
+
 	const bookingIds = [...new Set(bookingRows.map((row) => String(row.bookingId)).filter(Boolean))]
 
 	const taxRows = bookingIds.length
@@ -148,7 +148,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 				})
 				.from(BookingTaxFee)
 				.where(inArray(BookingTaxFee.bookingId, bookingIds))
-				.all()
 		: []
 
 	const [

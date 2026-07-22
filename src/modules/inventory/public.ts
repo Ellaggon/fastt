@@ -37,9 +37,8 @@ export async function recomputeEffectiveAvailabilityRange(
 	},
 	deps?: import("./application/use-cases/recompute-effective-availability-range").RecomputeDeps
 ) {
-	const { recomputeEffectiveAvailabilityRange } = await import(
-		"./application/use-cases/recompute-effective-availability-range"
-	)
+	const { recomputeEffectiveAvailabilityRange } =
+		await import("./application/use-cases/recompute-effective-availability-range")
 	const defaultDeps: import("./application/use-cases/recompute-effective-availability-range").RecomputeDeps =
 		deps ??
 		(await import("@/container").then((container) => ({
@@ -95,9 +94,8 @@ export async function applyInventoryMutation<T>(params: {
 	logContext?: Record<string, unknown>
 	recomputeDeps?: import("./application/use-cases/recompute-effective-availability-range").RecomputeDeps
 }) {
-	const { applyInventoryMutation } = await import(
-		"./application/use-cases/apply-inventory-mutation"
-	)
+	const { applyInventoryMutation } =
+		await import("./application/use-cases/apply-inventory-mutation")
 	const defaultDeps: import("./application/use-cases/recompute-effective-availability-range").RecomputeDeps =
 		params.recomputeDeps ??
 		(await import("@/container").then((container) => ({

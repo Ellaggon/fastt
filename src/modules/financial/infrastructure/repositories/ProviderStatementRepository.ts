@@ -1,4 +1,10 @@
-import { and, db, desc, eq, ProviderStatement as ProviderStatementTable } from "astro:db"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	ProviderStatement as ProviderStatementTable,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	ProviderStatementCreateInput,
@@ -42,7 +48,7 @@ export class ProviderStatementRepository implements ProviderStatementRepositoryP
 			.where(and(...filters))
 			.orderBy(desc(ProviderStatementTable.updatedAt))
 			.limit(Math.max(1, Math.min(Number(params.limit ?? 100), 500)))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -56,10 +62,8 @@ export class ProviderStatementRepository implements ProviderStatementRepositoryP
 		if (existing) return { statement: existing, created: false }
 		const now = new Date()
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }
-		await db
-			.insert(ProviderStatementTable)
-			.values(row as any)
-			.run()
+		await db.insert(ProviderStatementTable).values(row as any)
+
 		return { statement: map(row), created: true }
 	}
 }

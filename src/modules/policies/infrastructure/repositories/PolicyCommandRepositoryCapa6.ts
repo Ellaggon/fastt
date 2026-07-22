@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto"
 import {
+	first,
 	db,
 	eq,
 	Policy,
@@ -9,7 +10,7 @@ import {
 	PolicyAuditLog,
 	and,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type {
 	PolicyCommandRepositoryPortCapa6,
@@ -20,7 +21,7 @@ import type {
 
 export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPortCapa6 {
 	async getPolicyById(policyId: string) {
-		const row = await db.select().from(Policy).where(eq(Policy.id, policyId)).get()
+		const row = await db.select().from(Policy).where(eq(Policy.id, policyId)).then(first)
 		if (!row) return null
 
 		const grp = await this.getPolicyGroupById(row.groupId)
@@ -46,7 +47,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 	}
 
 	async getPolicyGroupById(groupId: string) {
-		const row = await db.select().from(PolicyGroup).where(eq(PolicyGroup.id, groupId)).get()
+		const row = await db.select().from(PolicyGroup).where(eq(PolicyGroup.id, groupId)).then(first)
 		if (!row) return null
 		return {
 			id: String(row.id),
@@ -62,7 +63,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			.select({ maxV: sql<number>`max(${Policy.version})` })
 			.from(Policy)
 			.where(eq(Policy.groupId, id))
-			.get()
+			.then(first)
 		const v = Number((row as any)?.maxV ?? 0)
 		return Number.isFinite(v) ? v : 0
 	}
@@ -150,7 +151,7 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 			})
 			.from(Policy)
 			.where(and(eq(Policy.groupId, id), eq(Policy.status, "active")))
-			.all()
+
 		return rows.map((row) => ({
 			id: String(row.id),
 			version: Number(row.version ?? 0),

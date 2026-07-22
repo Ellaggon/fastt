@@ -1,6 +1,16 @@
 import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
-import { and, Booking, db, eq, InventoryLock, Product, sql, Variant } from "astro:db"
+import {
+	first,
+	and,
+	Booking,
+	db,
+	eq,
+	InventoryLock,
+	Product,
+	sql,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
@@ -48,7 +58,7 @@ async function findLinkedBookingByHold(
 		.from(InventoryLock)
 		.leftJoin(Booking, eq(Booking.id, InventoryLock.bookingId))
 		.where(and(eq(InventoryLock.holdId, holdId), sql`${InventoryLock.bookingId} is not null`))
-		.get()
+		.then(first)
 
 	if (!linked?.bookingId) return null
 	return {
@@ -64,7 +74,7 @@ async function findProviderIdByHold(holdId: string): Promise<string | null> {
 		.leftJoin(Variant, eq(Variant.id, InventoryLock.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
 		.where(eq(InventoryLock.holdId, holdId))
-		.get()
+		.then(first)
 	return String(row?.providerId ?? "").trim() || null
 }
 
@@ -167,7 +177,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.select({ providerId: Product.providerId })
 			.from(Product)
 			.where(eq(Product.id, result.productId))
-			.get()
+			.then(first)
 		const providerId = String(product?.providerId ?? "").trim() || null
 
 		await invalidateVariant(result.variantId, result.productId)

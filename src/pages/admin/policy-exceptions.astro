@@ -12,7 +12,15 @@ import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { listPolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { POLICY_EXCEPTION_RULE_TYPES } from "@/modules/policies/public"
-import { asc, db, Product, Provider, RatePlan, Variant, eq } from "astro:db"
+import {
+	asc,
+	db,
+	Product,
+	Provider,
+	RatePlan,
+	Variant,
+	eq,
+} from "@/shared/infrastructure/db/compat"
 
 let isAdmin = false
 try {
@@ -80,7 +88,6 @@ const scopeRows = await (async () => {
 		.leftJoin(Variant, eq(Variant.productId, Product.id))
 		.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
 		.orderBy(asc(Product.name), asc(Variant.name), asc(ratePlanName))
-		.all()
 })()
 const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" })
 const categories = POLICY_CATEGORY_OPTIONS

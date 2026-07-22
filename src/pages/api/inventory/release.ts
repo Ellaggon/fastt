@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { db, eq, InventoryLock } from "astro:db"
+import { db, eq, InventoryLock } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 			.from(InventoryLock)
 			.where(eq(InventoryLock.holdId, parsed.holdId))
-			.all()
+
 		const rangesByVariantId = new Map<string, { from: string; lastDate: string }>()
 		for (const lock of existingLocks) {
 			const variantId = String(lock.variantId ?? "").trim()

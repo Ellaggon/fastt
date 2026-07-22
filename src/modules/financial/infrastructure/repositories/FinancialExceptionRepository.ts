@@ -1,4 +1,11 @@
-import { and, desc, eq, FinancialExceptionRecord as FinancialExceptionTable, db } from "astro:db"
+import {
+	first,
+	and,
+	desc,
+	eq,
+	FinancialExceptionRecord as FinancialExceptionTable,
+	db,
+} from "@/shared/infrastructure/db/compat"
 
 import type {
 	FinancialExceptionCreateInput,
@@ -57,7 +64,7 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 			.where(and(...filters))
 			.orderBy(desc(FinancialExceptionTable.openedAt))
 			.limit(Math.min(Math.max(Number(params?.limit ?? 100), 1), 250))
-		const rows = await query.all()
+		const rows = await query
 		return rows.map(map)
 	}
 
@@ -71,7 +78,7 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 			.where(
 				and(eq(FinancialExceptionTable.id, id), eq(FinancialExceptionTable.providerId, providerId))
 			)
-			.get()
+			.then(first)
 		return row ? map(row) : null
 	}
 
@@ -89,7 +96,7 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 				)
 			)
 			.orderBy(desc(FinancialExceptionTable.openedAt))
-			.all()
+
 		return rows.map(map)
 	}
 
@@ -101,10 +108,8 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 			createdAt: now,
 			updatedAt: now,
 		}
-		await db
-			.insert(FinancialExceptionTable)
-			.values(row as any)
-			.run()
+		await db.insert(FinancialExceptionTable).values(row as any)
+
 		return map(row)
 	}
 
@@ -129,7 +134,7 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 					eq(FinancialExceptionTable.providerId, params.providerId)
 				)
 			)
-			.run()
+
 		return this.findByIdForProvider(params.id, params.providerId)
 	}
 
@@ -156,7 +161,7 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 					eq(FinancialExceptionTable.providerId, params.providerId)
 				)
 			)
-			.run()
+
 		return this.findByIdForProvider(params.id, params.providerId)
 	}
 }

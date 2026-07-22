@@ -1,6 +1,14 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { and, db, EffectivePricingV2, eq, gte, lt, SearchUnitView } from "astro:db"
+import {
+	and,
+	db,
+	EffectivePricingV2,
+	eq,
+	gte,
+	lt,
+	SearchUnitView,
+} from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
@@ -146,7 +154,7 @@ async function resolveHoldabilityFromView(params: {
 		})
 		.from(SearchUnitView)
 		.where(and(...predicates))
-		.all()
+
 	let v2Rows: Array<{
 		variantId: string
 		ratePlanId: string
@@ -158,7 +166,7 @@ async function resolveHoldabilityFromView(params: {
 	}> = []
 	if (EffectivePricingV2 && (EffectivePricingV2 as any).variantId) {
 		try {
-			v2Rows = await db
+			const effectivePricingRows = await db
 				.select({
 					variantId: EffectivePricingV2.variantId,
 					ratePlanId: EffectivePricingV2.ratePlanId,
@@ -178,7 +186,15 @@ async function resolveHoldabilityFromView(params: {
 						lt(EffectivePricingV2.date, addDays(params.checkOut, 1))
 					)
 				)
-				.all()
+			v2Rows = effectivePricingRows.map((row) => ({
+				variantId: row.variantId,
+				ratePlanId: row.ratePlanId,
+				date: row.date,
+				finalBasePrice: Number(row.finalBasePrice ?? 0),
+				baseComponent: Number(row.baseComponent ?? 0),
+				occupancyAdjustment: Number(row.occupancyAdjustment ?? 0),
+				ruleAdjustment: Number(row.ruleAdjustment ?? 0),
+			}))
 		} catch {
 			v2Rows = []
 		}
@@ -471,9 +487,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					throw err
 				}
 
-				const requestedOccupancy =
-					Math.max(1, Number(parsed.occupancyDetail.adults ?? 0)) +
-					Math.max(0, Number(parsed.occupancyDetail.children ?? 0))
 				return createInventoryHold(
 					{
 						repo: inventoryHoldRepository,

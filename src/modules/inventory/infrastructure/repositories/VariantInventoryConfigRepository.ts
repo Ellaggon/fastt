@@ -1,4 +1,4 @@
-import { db, VariantInventoryConfig, eq } from "astro:db"
+import { first, db, VariantInventoryConfig, eq } from "@/shared/infrastructure/db/compat"
 import type { VariantInventoryConfigRepositoryPort } from "../../application/ports/VariantInventoryConfigRepositoryPort"
 
 export class VariantInventoryConfigRepository implements VariantInventoryConfigRepositoryPort {
@@ -7,7 +7,7 @@ export class VariantInventoryConfigRepository implements VariantInventoryConfigR
 			.select()
 			.from(VariantInventoryConfig)
 			.where(eq(VariantInventoryConfig.variantId, variantId))
-			.get()
+			.then(first)
 		return row ?? null
 	}
 

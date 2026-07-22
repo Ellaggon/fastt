@@ -10,7 +10,7 @@ import {
 	Product,
 	Provider,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	financialReviewEventRepository,
@@ -66,7 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, auth.providerId)))
 			.orderBy(desc(BookingRoomDetail.id))
-			.all()
+
 		if (!rows.length) return json({ error: "not_found" }, 404)
 
 		const [taxRows, paymentTransactions, settlementRecords, references] = await Promise.all([
@@ -77,8 +77,7 @@ export const POST: APIRoute = async ({ request }) => {
 					breakdownJson: BookingTaxFee.breakdownJson,
 				})
 				.from(BookingTaxFee)
-				.where(eq(BookingTaxFee.bookingId, bookingId))
-				.all(),
+				.where(eq(BookingTaxFee.bookingId, bookingId)),
 			paymentTransactionRepository.findByBookingId(bookingId),
 			financialSettlementRecordRepository.findByBookingId(bookingId),
 			financialReferenceRepository.findByBookingId(bookingId),

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { and, db, eq, gte, lt, SearchUnitView, Variant } from "astro:db"
+import { and, db, eq, gte, lt, SearchUnitView, Variant } from "@/shared/infrastructure/db/compat"
 
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
@@ -47,7 +47,6 @@ export const GET: APIRoute = async ({ url }) => {
 		.select({ id: Variant.id, productId: Variant.productId })
 		.from(Variant)
 		.where(eq(Variant.isActive, true))
-		.all()
 
 	const rows = await db
 		.select({
@@ -57,7 +56,6 @@ export const GET: APIRoute = async ({ url }) => {
 		})
 		.from(SearchUnitView)
 		.where(and(gte(SearchUnitView.date, from), lt(SearchUnitView.date, to)))
-		.all()
 
 	const rowSet = new Set(rows.map((row) => `${row.variantId}:${row.occupancyKey}:${row.date}`))
 	const expectedPerVariant = dates.length * occupancyKeys.length

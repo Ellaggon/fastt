@@ -1,4 +1,4 @@
-import { db, BookingPolicySnapshot, eq } from "astro:db"
+import { db, BookingPolicySnapshot, eq } from "@/shared/infrastructure/db/compat"
 import type {
 	BookingPolicySnapshotRepositoryPort,
 	BookingPolicySnapshotRow,

@@ -11,7 +11,7 @@ import {
 	Policy,
 	PolicyRule,
 	CancellationTier,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type {
 	CancellationTierRow,
 	PolicyAssignmentSnapshot,
@@ -68,7 +68,6 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 					)
 				)
 			)
-			.all()
 
 		return rows.map((r: any) => ({
 			id: String(r.id),
@@ -118,7 +117,6 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 					or(isNull(Policy.effectiveTo), sql`${Policy.effectiveTo} >= ${asOf}`)
 				)
 			)
-			.all()
 
 		// Deterministic best per group: highest version wins, tie by policy id.
 		rows.sort((a: any, b: any) => {
@@ -153,7 +151,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 	async listPolicyRulesByPolicyId(policyId: string): Promise<PolicyRuleRow[]> {
 		const id = String(policyId ?? "").trim()
 		if (!id) return []
-		const rows = await db.select().from(PolicyRule).where(eq(PolicyRule.policyId, id)).all()
+		const rows = await db.select().from(PolicyRule).where(eq(PolicyRule.policyId, id))
 		return rows.map((r: any) => ({
 			id: String(r.id),
 			policyId: String(r.policyId),
@@ -165,11 +163,8 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 	async listCancellationTiersByPolicyId(policyId: string): Promise<CancellationTierRow[]> {
 		const id = String(policyId ?? "").trim()
 		if (!id) return []
-		const rows = await db
-			.select()
-			.from(CancellationTier)
-			.where(eq(CancellationTier.policyId, id))
-			.all()
+		const rows = await db.select().from(CancellationTier).where(eq(CancellationTier.policyId, id))
+
 		// Deterministic ordering: closest-to-arrival first.
 		rows.sort((a: any, b: any) => {
 			if (Number(a.daysBeforeArrival) !== Number(b.daysBeforeArrival))

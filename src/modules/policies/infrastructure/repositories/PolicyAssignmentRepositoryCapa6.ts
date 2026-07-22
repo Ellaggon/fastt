@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto"
 import {
+	first,
 	db,
 	and,
 	eq,
@@ -9,7 +10,7 @@ import {
 	Product,
 	Variant,
 	RatePlan,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
 import type { PolicyAssignmentRepositoryPortCapa6 } from "../../application/ports/PolicyAssignmentRepositoryPortCapa6"
@@ -59,7 +60,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 						isNull(PolicyAssignment.effectiveTo)
 					)
 				)
-				.get()
+				.then(first)
 
 			if (current && String(current.policyGroupId) === params.policyGroupId) {
 				return { assignmentId: String(current.id), replaced: false }
@@ -133,7 +134,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				})
 				.from(PolicyAssignment)
 				.where(eq(PolicyAssignment.id, params.assignmentId))
-				.get()
+				.then(first)
 			if (!assignment) throw new Error("POLICY_ASSIGNMENT_NOT_FOUND")
 
 			const context = await this.resolveScopeContextWith(tx, {
@@ -194,7 +195,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				.select({ id: Product.id, providerId: Product.providerId })
 				.from(Product)
 				.where(eq(Product.id, scopeId))
-				.get()
+				.then(first)
 			return product?.providerId
 				? { providerId: String(product.providerId), productId: String(product.id) }
 				: null
@@ -210,7 +211,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				.from(Variant)
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(eq(Variant.id, scopeId))
-				.get()
+				.then(first)
 			if (!variant?.providerId) return null
 			return {
 				providerId: String(variant.providerId),
@@ -231,7 +232,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
 				.where(eq(RatePlan.id, scopeId))
-				.get()
+				.then(first)
 			if (!ratePlan?.providerId) return null
 			return {
 				providerId: String(ratePlan.providerId),
