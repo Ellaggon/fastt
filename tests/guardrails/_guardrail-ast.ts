@@ -24,6 +24,8 @@ export type ParsedSource = {
 	sourceFile: ts.SourceFile
 }
 
+const DB_TABLE_IMPORT_MODULES = new Set(["astro:db", "@/shared/infrastructure/db/compat"])
+
 function buildCallPath(node: ts.Expression): string | null {
 	if (ts.isIdentifier(node)) return node.text
 	if (ts.isPropertyAccessExpression(node)) {
@@ -87,6 +89,14 @@ export function collectImports(relativePath: string): ImportBinding[] {
 		}
 	})
 	return imports
+}
+
+export function collectDbTableImportMap(relativePath: string): Map<string, string> {
+	return new Map(
+		collectImports(relativePath)
+			.filter((entry) => DB_TABLE_IMPORT_MODULES.has(entry.module))
+			.map((entry) => [entry.local, entry.imported])
+	)
 }
 
 export function collectCalls(relativePath: string): CallBinding[] {
