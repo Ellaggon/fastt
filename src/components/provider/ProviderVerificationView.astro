@@ -3,6 +3,10 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+import {
+	evaluateRequiredKycDocumentsComplete,
+	requiredKycDocumentTypes,
+} from "@/lib/provider-documents"
 import { routes } from "@/lib/routes"
 
 type Props = {
@@ -32,12 +36,13 @@ const reviewedLabel = latestVerification?.createdAt
 
 const verifiedDocuments = documents.filter((doc) => doc.status === "verified")
 const pendingDocuments = documents.filter((doc) => doc.status === "pending")
-const documentsComplete = verifiedDocuments.length > 0 || isApproved
+const kyc = evaluateRequiredKycDocumentsComplete(documents)
+const documentsComplete = kyc.complete
 
 const checks = [
 	{
 		title: "Identidad comercial",
-		description: "Nombre comercial y razón social del proveedor.",
+		description: "Nombre comercial y razón social del proveedor (revisión global).",
 		complete: Boolean(isApproved),
 	},
 	{
@@ -46,13 +51,10 @@ const checks = [
 		complete: Boolean(isApproved),
 	},
 	{
-		title: "Documentos y respaldo",
-		description:
-			verifiedDocuments.length > 0
-				? `${verifiedDocuments.length} documento${verifiedDocuments.length === 1 ? "" : "s"} verificado${verifiedDocuments.length === 1 ? "" : "s"}.`
-				: pendingDocuments.length > 0
-					? `${pendingDocuments.length} documento${pendingDocuments.length === 1 ? "" : "s"} en revisión.`
-					: "Carga identidad, registro mercantil, fiscalidad u ownership.",
+		title: "Set KYC mínimo",
+		description: kyc.complete
+			? "Identidad, registro mercantil y documento fiscal verificados."
+			: `Faltan verificados: ${kyc.missingRequiredTypes.join(", ") || requiredKycDocumentTypes.join(", ")}.`,
 		complete: documentsComplete,
 		pending: !documentsComplete && pendingDocuments.length > 0,
 	},
@@ -124,8 +126,8 @@ const checks = [
 				<div>
 					<h3 class="text-xl font-semibold text-slate-950">Matriz de revisión</h3>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						La verificación avanza por dimensiones: identidad, revisión interna y documentos de
-						respaldo.
+						La verificación avanza por dimensiones independientes: la aprobación global no completa
+						documentos KYC (mismo criterio que la gobernanza canónica).
 					</p>
 				</div>
 				<div class="space-y-3">

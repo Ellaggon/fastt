@@ -1,17 +1,23 @@
 import { and, db, eq, ProviderTaxConfiguration, ProviderUser } from "astro:db"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
+import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
+import { validateTaxpayerRegistrationNumber } from "@/lib/provider-tax-identity-validation"
 
 /**
  * Provider fiscal identity (taxpayer / tax registration).
  *
- * Airbnb separates Account > Taxes > Taxpayers (who you are for reporting/withholding)
- * from listing occupancy taxes charged to guests.
- * Expedia separates Financials > Tax and Registration from property taxes/fees on bookings.
+ * Airbnb: host submits taxpayer forms; platform validates (e.g. IRS TIN matching).
+ * Host cannot self-certify "verified".
+ * Expedia: Tax & Registration data is submitted; compliance holds are platform-driven.
  *
  * Source of truth: ProviderTaxConfiguration
  * Commercial sales taxes/fees: TaxFeeDefinition + TaxFeeAssignment
+ *
+ * Status ownership:
+ * - Provider path may only produce not_configured | pending (derived from identity fields).
+ * - verified | requires_attention require internal admin review.
  */
 export type ProviderTaxConfigurationStatus =
 	| "not_configured"
@@ -43,6 +49,13 @@ export const providerTaxConfigurationStatuses: Array<{
 	{ value: "pending", label: "Pendiente de validación" },
 	{ value: "verified", label: "Verificado" },
 	{ value: "requires_attention", label: "Requiere atención" },
+]
+
+/** Statuses an internal admin may set when reviewing taxpayer identity. */
+export const providerTaxAdminReviewStatuses = [
+	{ value: "verified" as const, label: "Verificado" },
+	{ value: "requires_attention" as const, label: "Requiere atención" },
+	{ value: "pending" as const, label: "Volver a pendiente" },
 ]
 
 export const providerInvoicingModes: Array<{
@@ -99,6 +112,21 @@ function asInvoicingMode(value: unknown): ProviderInvoicingMode {
 	const raw = String(value ?? "platform_receipt").trim()
 	if (raw === "provider_invoice" || raw === "hybrid" || raw === "platform_receipt") return raw
 	return "platform_receipt"
+}
+
+/**
+ * Provider edits never self-certify. Identity present → pending review;
+ * empty identity → not_configured. Editing after verified forces revalidation.
+ */
+export function deriveProviderTaxStatus(params: {
+	taxResidenceCountry: string | null
+	businessRegistrationNumber: string | null
+	taxRegime: string | null
+}): ProviderTaxConfigurationStatus {
+	const hasIdentity = Boolean(
+		params.taxResidenceCountry || params.businessRegistrationNumber || params.taxRegime
+	)
+	return hasIdentity ? "pending" : "not_configured"
 }
 
 function mapRow(row: {
@@ -179,14 +207,40 @@ export async function getProviderTaxConfiguration(
 	return row ? mapRow(row) : null
 }
 
+export async function listProviderTaxConfigurationsForAdmin(): Promise<
+	ProviderTaxConfigurationRecord[]
+> {
+	const rows = await db
+		.select({
+			providerId: ProviderTaxConfiguration.providerId,
+			status: ProviderTaxConfiguration.status,
+			taxResidenceCountry: ProviderTaxConfiguration.taxResidenceCountry,
+			businessRegistrationNumber: ProviderTaxConfiguration.businessRegistrationNumber,
+			taxRegime: ProviderTaxConfiguration.taxRegime,
+			invoicingMode: ProviderTaxConfiguration.invoicingMode,
+			updatedAt: ProviderTaxConfiguration.updatedAt,
+			updatedBy: ProviderTaxConfiguration.updatedBy,
+		})
+		.from(ProviderTaxConfiguration)
+		.all()
+		.catch(() => [])
+
+	return rows.map(mapRow)
+}
+
+/**
+ * Provider-facing upsert. Ignores any client-supplied terminal status and derives
+ * not_configured | pending from identity fields (Airbnb-style: submit data, await validation).
+ */
 export async function upsertProviderTaxConfiguration(params: {
 	providerId: string
 	actorUserId: string
-	status?: unknown
 	taxResidenceCountry?: unknown
 	businessRegistrationNumber?: unknown
 	taxRegime?: unknown
 	invoicingMode?: unknown
+	/** @deprecated Ignored. Provider cannot set verified / requires_attention. */
+	status?: unknown
 }) {
 	await assertCanManageFiscality(params.providerId, params.actorUserId)
 
@@ -194,9 +248,26 @@ export async function upsertProviderTaxConfiguration(params: {
 		String(params.taxResidenceCountry ?? "")
 			.trim()
 			.toUpperCase() || null
-	const businessRegistrationNumber = String(params.businessRegistrationNumber ?? "").trim() || null
+	const registrationValidation = validateTaxpayerRegistrationNumber({
+		country: taxResidenceCountry,
+		registrationNumber:
+			params.businessRegistrationNumber == null ? null : String(params.businessRegistrationNumber),
+		required: false,
+	})
+	if (!registrationValidation.ok) {
+		const error = new Error(registrationValidation.code || "invalid_tax_registration")
+		;(error as Error & { status?: number; message?: string }).status = 400
+		;(error as Error & { message: string }).message =
+			registrationValidation.message || "invalid_tax_registration"
+		throw error
+	}
+	const businessRegistrationNumber: string | null = registrationValidation.normalized
 	const taxRegime = String(params.taxRegime ?? "").trim() || null
-	const status = asStatus(params.status)
+	const status = deriveProviderTaxStatus({
+		taxResidenceCountry,
+		businessRegistrationNumber,
+		taxRegime,
+	})
 	const invoicingMode = asInvoicingMode(params.invoicingMode)
 
 	if (taxResidenceCountry && !/^[A-Z]{2}$/.test(taxResidenceCountry)) {
@@ -260,6 +331,111 @@ export async function upsertProviderTaxConfiguration(params: {
 					invoicingMode: after.invoicingMode,
 				}
 			: null,
+		riskLevel: inferSettingsRiskLevel({ domain: "fiscal" }),
+	})
+
+	return after!
+}
+
+/**
+ * Internal-admin review of taxpayer identity. Caller must already have passed
+ * requireInternalAdmin — this function does not check provider-role permissions.
+ */
+export async function reviewProviderTaxConfiguration(params: {
+	providerId: string
+	actorUserId: string
+	status: unknown
+	reason?: unknown
+}) {
+	const nextStatus = asStatus(params.status)
+	if (
+		nextStatus !== "verified" &&
+		nextStatus !== "requires_attention" &&
+		nextStatus !== "pending"
+	) {
+		const error = new Error("invalid_review_status")
+		;(error as Error & { status?: number }).status = 400
+		throw error
+	}
+
+	const reason = String(params.reason ?? "").trim()
+	if (nextStatus === "requires_attention" && reason.length < 2) {
+		const error = new Error("reason_required")
+		;(error as Error & { status?: number }).status = 400
+		throw error
+	}
+
+	const before = await getProviderTaxConfiguration(params.providerId)
+	if (!before) {
+		const error = new Error("not_found")
+		;(error as Error & { status?: number }).status = 404
+		throw error
+	}
+
+	if (nextStatus === "verified") {
+		const tin = validateTaxpayerRegistrationNumber({
+			country: before.taxResidenceCountry,
+			registrationNumber: before.businessRegistrationNumber,
+			required: true,
+		})
+		if (!tin.ok) {
+			const error = new Error(tin.code || "invalid_tax_registration")
+			;(error as Error & { status?: number }).status = 400
+			;(error as Error & { message: string }).message =
+				tin.message || "No se puede verificar con un número fiscal inválido."
+			throw error
+		}
+	}
+
+	const now = new Date()
+	const existingMeta =
+		(
+			await db
+				.select({ metadataJson: ProviderTaxConfiguration.metadataJson })
+				.from(ProviderTaxConfiguration)
+				.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
+				.get()
+				.catch(() => null)
+		)?.metadataJson ?? {}
+
+	const metadataJson = {
+		...(typeof existingMeta === "object" && existingMeta && !Array.isArray(existingMeta)
+			? existingMeta
+			: {}),
+		lastReview: {
+			status: nextStatus,
+			reason: reason || null,
+			reviewedAt: now.toISOString(),
+			reviewedBy: params.actorUserId,
+		},
+	}
+
+	await db
+		.update(ProviderTaxConfiguration)
+		.set({
+			status: nextStatus,
+			metadataJson,
+			updatedAt: now,
+			updatedBy: params.actorUserId,
+		})
+		.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
+
+	const after = await getProviderTaxConfiguration(params.providerId)
+
+	await completeComplianceAssignment({
+		providerId: params.providerId,
+		domain: "fiscal",
+		entityId: params.providerId,
+	})
+
+	await writeProviderAuditLog({
+		providerId: params.providerId,
+		actorUserId: params.actorUserId,
+		action: "provider.tax_configuration.review",
+		entityType: "ProviderTaxConfiguration",
+		entityId: params.providerId,
+		beforeJson: { status: before.status },
+		afterJson: { status: nextStatus, reason: reason || null },
 		riskLevel: inferSettingsRiskLevel({ domain: "fiscal" }),
 	})
 

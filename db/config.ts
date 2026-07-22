@@ -170,11 +170,19 @@ const ProviderPaymentAccount = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
-		// Canonical payout/payment method record. Financial eligibility rolls up separately in
-		// ProviderFinancialProfile.
+		// Canonical payout/payment method record (Airbnb Payouts / Expedia Bank Details).
+		// Financial eligibility rolls up separately in ProviderFinancialProfile.
+		// Status ownership: provider submit → pending; verified/requires_attention → internal admin.
 		status: column.text({ default: "not_configured" }),
+		// Method label: bank_transfer | international_wire | other
 		provider: column.text(),
 		currency: column.text(),
+		accountHolderName: column.text({ optional: true }),
+		bankName: column.text({ optional: true }),
+		country: column.text({ optional: true }),
+		routingOrSwift: column.text({ optional: true }),
+		accountNumberLast4: column.text({ optional: true }),
+		// Masked display reference (e.g. ••••1234). Full identifier lives in metadataJson.
 		accountReference: column.text({ optional: true }),
 		payoutSchedule: column.text({ default: "manual" }),
 		metadataJson: column.json({ optional: true }),
@@ -182,7 +190,7 @@ const ProviderPaymentAccount = defineTable({
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "provider"] }],
+	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "provider"] }, { on: ["country"] }],
 })
 const ProviderIntegrationConnection = defineTable({
 	columns: {
@@ -236,6 +244,28 @@ const ProviderAuditLog = defineTable({
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["providerId", "createdAt"] }, { on: ["providerId", "entityType"] }],
+})
+/** Ops assignments + SLA for Trust & Safety queues (verification/fiscal/docs/payments). */
+const ProviderComplianceAssignment = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		domain: column.text(),
+		entityId: column.text(),
+		assigneeEmail: column.text({ optional: true }),
+		slaHours: column.number({ default: 48 }),
+		slaDueAt: column.date(),
+		status: column.text({ default: "open" }),
+		notes: column.text({ optional: true }),
+		createdBy: column.text({ optional: true, references: () => User.columns.id }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["providerId", "domain", "status"] },
+		{ on: ["slaDueAt"] },
+		{ on: ["providerId", "entityId"] },
+	],
 })
 const ProviderConfigurationState = defineTable({
 	columns: {
@@ -1332,6 +1362,7 @@ export default defineDb({
 		ProviderIntegrationConnection,
 		ProviderIntegrationSyncLog,
 		ProviderAuditLog,
+		ProviderComplianceAssignment,
 		ProviderConfigurationState,
 		ProviderVerification,
 		ProviderUser,

@@ -1,6 +1,12 @@
 import { and, db, desc, eq, ProviderDocument, ProviderUser } from "astro:db"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
+import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
+import {
+	assertAllowedProviderDocumentUrl,
+	isR2DocumentStorageConfigured,
+	uploadProviderDocumentObject,
+} from "@/lib/provider-document-storage"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 
 /**
@@ -43,6 +49,33 @@ export type ProviderDocumentRecord = {
 	reviewedBy: string | null
 	createdAt: Date | null
 	updatedAt: Date | null
+}
+
+export const requiredKycDocumentTypes = [
+	"government_id",
+	"business_registration",
+	"tax_document",
+] as const satisfies ReadonlyArray<ProviderDocumentType>
+
+export type RequiredKycDocumentType = (typeof requiredKycDocumentTypes)[number]
+
+export function evaluateRequiredKycDocumentsComplete(
+	documents: Array<{ type: string; status: string }>
+): {
+	complete: boolean
+	verifiedRequiredTypes: RequiredKycDocumentType[]
+	missingRequiredTypes: RequiredKycDocumentType[]
+} {
+	const verifiedTypes = new Set(
+		documents.filter((row) => row.status === "verified").map((row) => String(row.type))
+	)
+	const verifiedRequiredTypes = requiredKycDocumentTypes.filter((type) => verifiedTypes.has(type))
+	const missingRequiredTypes = requiredKycDocumentTypes.filter((type) => !verifiedTypes.has(type))
+	return {
+		complete: missingRequiredTypes.length === 0,
+		verifiedRequiredTypes,
+		missingRequiredTypes,
+	}
 }
 
 export const providerDocumentTypes: Array<{
@@ -226,6 +259,31 @@ export async function listProviderDocuments(providerId: string): Promise<Provide
 	return rows.map(mapRow)
 }
 
+/** Cross-provider pending queue for internal admin review console. */
+export async function listPendingProviderDocumentsForAdmin(): Promise<ProviderDocumentRecord[]> {
+	const rows = await db
+		.select({
+			id: ProviderDocument.id,
+			providerId: ProviderDocument.providerId,
+			type: ProviderDocument.type,
+			status: ProviderDocument.status,
+			fileUrl: ProviderDocument.fileUrl,
+			metadataJson: ProviderDocument.metadataJson,
+			reviewNotes: ProviderDocument.reviewNotes,
+			reviewedAt: ProviderDocument.reviewedAt,
+			reviewedBy: ProviderDocument.reviewedBy,
+			createdAt: ProviderDocument.createdAt,
+			updatedAt: ProviderDocument.updatedAt,
+		})
+		.from(ProviderDocument)
+		.where(eq(ProviderDocument.status, "pending"))
+		.orderBy(desc(ProviderDocument.createdAt), desc(ProviderDocument.id))
+		.all()
+		.catch(() => [])
+
+	return rows.map(mapRow)
+}
+
 export async function submitProviderDocument(params: {
 	providerId: string
 	actorUserId: string
@@ -235,6 +293,8 @@ export async function submitProviderDocument(params: {
 	mimeType?: unknown
 	sizeBytes?: unknown
 	submissionNotes?: unknown
+	/** When set with R2 configured, uploads bytes and stores an r2: ref. */
+	fileBytes?: Uint8Array | Buffer | null
 }) {
 	await assertCanManageDocuments(params.providerId, params.actorUserId)
 
@@ -254,8 +314,9 @@ export async function submitProviderDocument(params: {
 			: Number(params.sizeBytes)
 	const normalizedSize = Number.isFinite(sizeBytes) && sizeBytes > 0 ? Math.floor(sizeBytes) : null
 	const submissionNotes = String(params.submissionNotes ?? "").trim() || null
+	const hasBytes = Boolean(params.fileBytes && params.fileBytes.byteLength > 0)
 
-	if (!fileUrlRaw && !fileName) {
+	if (!fileUrlRaw && !fileName && !hasBytes) {
 		const error = new Error("document_file_required")
 		;(error as Error & { status?: number }).status = 400
 		throw error
@@ -275,7 +336,31 @@ export async function submitProviderDocument(params: {
 
 	const now = new Date()
 	const id = crypto.randomUUID()
-	const fileUrl = fileUrlRaw || `local://provider-documents/${params.providerId}/${id}/${fileName}`
+
+	let fileUrl = fileUrlRaw
+	if (hasBytes) {
+		if (!mimeType || !fileName) {
+			const error = new Error("document_file_meta_required")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (isR2DocumentStorageConfigured()) {
+			const uploaded = await uploadProviderDocumentObject({
+				providerId: params.providerId,
+				documentId: id,
+				fileName,
+				mimeType,
+				body: params.fileBytes!,
+			})
+			fileUrl = uploaded.fileUrl
+		} else {
+			fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
+		}
+	} else if (!fileUrl) {
+		fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
+	}
+
+	assertAllowedProviderDocumentUrl(fileUrl)
 
 	const activeSameType = await db
 		.select({ id: ProviderDocument.id, status: ProviderDocument.status })
@@ -303,6 +388,7 @@ export async function submitProviderDocument(params: {
 		sizeBytes: normalizedSize,
 		submissionNotes,
 		source: "provider.settings.documents",
+		storage: fileUrl.startsWith("r2:") ? "r2" : fileUrl.startsWith("local://") ? "local" : "url",
 	}
 
 	await db.insert(ProviderDocument).values({
@@ -343,6 +429,11 @@ export async function submitProviderDocument(params: {
 	return created.find((row) => row.id === id)!
 }
 
+/**
+ * Internal-admin document review. Caller must already have passed
+ * requireInternalAdmin — this does not use provider-role permissions
+ * (providers may submit, but never self-verify KYC docs).
+ */
 export async function reviewProviderDocument(params: {
 	providerId: string
 	actorUserId: string
@@ -350,8 +441,6 @@ export async function reviewProviderDocument(params: {
 	status: unknown
 	reviewNotes?: unknown
 }) {
-	await assertCanManageDocuments(params.providerId, params.actorUserId)
-
 	const nextStatus = asDocumentStatus(params.status)
 	if (nextStatus !== "verified" && nextStatus !== "rejected") {
 		const error = new Error("invalid_review_status")
@@ -430,6 +519,12 @@ export async function reviewProviderDocument(params: {
 			reviewNotes: reviewNotes || null,
 		},
 		riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+	})
+
+	await completeComplianceAssignment({
+		providerId: params.providerId,
+		domain: "documents",
+		entityId: existing.id,
 	})
 
 	const updated = await listProviderDocuments(params.providerId)

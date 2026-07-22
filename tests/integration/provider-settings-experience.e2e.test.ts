@@ -84,7 +84,7 @@ describe("e2e/provider settings mature experience", () => {
 			providerId,
 			status: "verified",
 			taxResidenceCountry: "BO",
-			businessRegistrationNumber: "NIT-EXP",
+			businessRegistrationNumber: "1020304050",
 			invoicingMode: "platform_receipt",
 			updatedAt: now,
 			updatedBy: ownerId,

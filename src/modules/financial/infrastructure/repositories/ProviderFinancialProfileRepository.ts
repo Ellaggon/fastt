@@ -5,6 +5,7 @@ import type {
 	ProviderFinancialProfileRepositoryPort,
 } from "../../application/ports/ProviderFinanceRepositoryPort"
 import type { ProviderFinancialProfile } from "../../domain/provider-financial-profile"
+import { assertHasVerifiedPaymentAccount } from "@/lib/provider-payment-accounts"
 
 function map(row: any): ProviderFinancialProfile {
 	return {
@@ -32,6 +33,11 @@ export class ProviderFinancialProfileRepository implements ProviderFinancialProf
 	}
 
 	async upsert(input: ProviderFinancialProfileCreateInput): Promise<ProviderFinancialProfile> {
+		// ready is a rollup of verified payout — never invent readiness without an account.
+		if (String(input.status) === "ready") {
+			await assertHasVerifiedPaymentAccount(input.providerId)
+		}
+
 		const existing = await this.findByProviderId(input.providerId)
 		const now = new Date()
 		if (existing) {

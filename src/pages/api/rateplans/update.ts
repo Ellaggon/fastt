@@ -5,6 +5,7 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
 
@@ -25,7 +26,7 @@ function json(status: number, payload: Record<string, unknown>) {
 
 export const PUT: APIRoute = async ({ request }) => {
 	try {
-		const { providerId } = await requireProvider(request)
+		const { providerId, user } = await requireProvider(request)
 		const body = updateRatePlanSchema.parse(await request.json())
 		const owner = await resolveRatePlanOwnerContext(body.id)
 		if (!owner || owner.providerId !== providerId)
@@ -35,6 +36,11 @@ export const PUT: APIRoute = async ({ request }) => {
 			isDefault?: boolean
 		} | null
 		if (body.isActive && !current?.isActive) {
+			await assertProviderCapability({
+				providerId,
+				currentUserId: user.id,
+				capability: "publish",
+			})
 			const publication = await validateRatePlanPublication({
 				ratePlanId: body.id,
 				variantId: owner.variantId,
@@ -76,6 +82,11 @@ export const PUT: APIRoute = async ({ request }) => {
 	} catch (error) {
 		if (error instanceof Response) return error
 		if (error instanceof ZodError) return json(400, { error: "Revisa los datos de la tarifa." })
+		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			return json(409, {
+				error: "No puede publicarse. El proveedor no cumple gobernanza de publicación.",
+			})
+		}
 		console.error("rateplans:update", error)
 		return json(500, { error: "No se pudo actualizar la tarifa." })
 	}

@@ -22,6 +22,7 @@
     "prepare": "husky",
     "test:search": "vitest tests/search tests/integration/search-v2.test.ts tests/integration/search-availability.test.ts",
     "test:search:synthetic": "vitest tests/search/search-synthetic-preprod-validation.test.ts",
+    "test:governance": "FASTT_ENFORCE_PROVIDER_GOVERNANCE=1 vitest run tests/integration/provider-governance.test.ts tests/integration/provider-payment-accounts.test.ts tests/integration/provider-admin-compliance.test.ts tests/integration/provider-phase2-maturity.test.ts",
     "test": "vitest"
   },
   "dependencies": {

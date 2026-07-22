@@ -13,6 +13,7 @@ import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { createRatePlanContract } from "@/lib/rates/createRatePlanContract"
 import { resolveCommercialIntentSpec } from "@/lib/rates/ratePlanCommercialIntent"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import {
 	createCommercialRatePlanSchema,
 	createRatePlan,
@@ -86,6 +87,24 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		if (body.publicationMode === "publish") {
+			try {
+				await assertProviderCapability({
+					providerId,
+					currentUserId: user.id,
+					capability: "publish",
+				})
+			} catch (error) {
+				await invalidateCreatedRatePlan()
+				const message =
+					error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")
+						? "La tarifa quedó en borrador. El proveedor no cumple gobernanza de publicación."
+						: "La tarifa quedó en borrador. No se pudo validar gobernanza de publicación."
+				return json(201, {
+					error: message,
+					ratePlanId: createdRatePlanId,
+					status: "draft",
+				})
+			}
 			const publication = await validateRatePlanPublication({
 				ratePlanId: createdRatePlanId,
 				variantId: body.variantId,

@@ -2,6 +2,8 @@ import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import { invalidateProvider } from "@/lib/cache/invalidation"
+import { writeProviderAuditLog } from "@/lib/provider-audit"
+import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { setProviderVerificationV2 } from "@/modules/catalog/public"
 
@@ -55,6 +57,8 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		const before = await getLatestProviderVerificationStatus(payload.providerId)
+
 		const result = await setProviderVerificationV2(
 			{ repo: providerV2Repository },
 			{
@@ -65,6 +69,29 @@ export const POST: APIRoute = async ({ request }) => {
 				metadataJson: null,
 			}
 		)
+
+		await writeProviderAuditLog({
+			providerId: payload.providerId,
+			actorUserId: user.id,
+			action: "provider.verification.review",
+			entityType: "ProviderVerification",
+			entityId: payload.providerId,
+			beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
+			afterJson: {
+				status: payload.status,
+				reason: payload.reason ?? null,
+				reviewedBy: user.email,
+			},
+			riskLevel: "high",
+		})
+
+		const { completeComplianceAssignment } = await import("@/lib/provider-compliance-ops")
+		await completeComplianceAssignment({
+			providerId: payload.providerId,
+			domain: "verification",
+			entityId: payload.providerId,
+		})
+
 		await invalidateProvider(payload.providerId)
 
 		return new Response(JSON.stringify(result), {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import {
 	db,
 	eq,
@@ -20,45 +20,50 @@ import {
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("integration/provider governance", () => {
-	it("blocks provider capabilities when mandatory configuration is incomplete", async () => {
-		const previousEnforce = process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
+	const previousEnforce = process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
+
+	beforeAll(() => {
+		// P1-5: capability suites always enforce governance (no Vitest skip bypass).
 		process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = "1"
-		try {
-			const providerId = "provider_governance_blocked"
-			const ownerEmail = "governance.blocked@example.com"
-			const ownerId = `user_${ownerEmail}`
+	})
 
-			await upsertProvider({
-				id: providerId,
-				legalName: "Gobernanza Pendiente S.R.L.",
-				displayName: "Gobernanza Pendiente",
-				ownerEmail,
-			})
+	afterAll(() => {
+		if (previousEnforce === undefined) delete process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
+		else process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = previousEnforce
+	})
 
-			const summary = await evaluateProviderGovernance(providerId, {
+	it("blocks provider capabilities when mandatory configuration is incomplete", async () => {
+		const providerId = "provider_governance_blocked"
+		const ownerEmail = "governance.blocked@example.com"
+		const ownerId = `user_${ownerEmail}`
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Gobernanza Pendiente S.R.L.",
+			displayName: "Gobernanza Pendiente",
+			ownerEmail,
+		})
+
+		const summary = await evaluateProviderGovernance(providerId, {
+			currentUserId: ownerId,
+			persist: true,
+		})
+
+		expect(summary.capabilities.publish).toBe(false)
+		expect(summary.capabilities.booking).toBe(false)
+		expect(summary.capabilities.payments).toBe(false)
+		expect(summary.permissions.canEditProfile).toBe(true)
+		expect(summary.blockers.map((blocker) => blocker.id)).toEqual(
+			expect.arrayContaining(["operations", "verification", "fiscality", "payments"])
+		)
+
+		await expect(
+			assertProviderCapability({
+				providerId,
 				currentUserId: ownerId,
-				persist: true,
+				capability: "publish",
 			})
-
-			expect(summary.capabilities.publish).toBe(false)
-			expect(summary.capabilities.booking).toBe(false)
-			expect(summary.capabilities.payments).toBe(false)
-			expect(summary.permissions.canEditProfile).toBe(true)
-			expect(summary.blockers.map((blocker) => blocker.id)).toEqual(
-				expect.arrayContaining(["operations", "verification", "fiscality", "payments"])
-			)
-
-			await expect(
-				assertProviderCapability({
-					providerId,
-					currentUserId: ownerId,
-					capability: "publish",
-				})
-			).rejects.toThrow("PROVIDER_CONFIGURATION_BLOCKED:publish")
-		} finally {
-			if (previousEnforce === undefined) delete process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE
-			else process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = previousEnforce
-		}
+		).rejects.toThrow("PROVIDER_CONFIGURATION_BLOCKED:publish")
 	})
 
 	it("unlocks capabilities and persists a configuration state when governance data is complete", async () => {
@@ -85,7 +90,7 @@ describe("integration/provider governance", () => {
 			providerId,
 			status: "verified",
 			taxResidenceCountry: "BO",
-			businessRegistrationNumber: "NIT-123456",
+			businessRegistrationNumber: "1234567890",
 			taxRegime: "general",
 			invoicingMode: "platform_receipt",
 			updatedAt: now,
@@ -99,14 +104,32 @@ describe("integration/provider governance", () => {
 			reviewedAt: now,
 			createdAt: now,
 		})
-		await db.insert(ProviderDocument).values({
-			id: "document_governance_ready",
-			providerId,
-			type: "business_registration",
-			status: "verified",
-			createdAt: now,
-			updatedAt: now,
-		})
+		await db.insert(ProviderDocument).values([
+			{
+				id: "document_governance_ready_gov",
+				providerId,
+				type: "government_id",
+				status: "verified",
+				createdAt: now,
+				updatedAt: now,
+			},
+			{
+				id: "document_governance_ready_biz",
+				providerId,
+				type: "business_registration",
+				status: "verified",
+				createdAt: now,
+				updatedAt: now,
+			},
+			{
+				id: "document_governance_ready_tax",
+				providerId,
+				type: "tax_document",
+				status: "verified",
+				createdAt: now,
+				updatedAt: now,
+			},
+		])
 		await db.insert(TaxFeeDefinition).values({
 			id: "tax_governance_ready",
 			providerId,
@@ -142,7 +165,7 @@ describe("integration/provider governance", () => {
 			mode: "production",
 			scopesJson: ["rates", "availability"],
 			lastSyncAt: now,
-			lastSyncStatus: "ok",
+			lastSyncStatus: "success",
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -160,8 +183,8 @@ describe("integration/provider governance", () => {
 			integrations: true,
 		})
 		expect(summary.counts).toMatchObject({
-			documents: 1,
-			verifiedDocuments: 1,
+			documents: 3,
+			verifiedDocuments: 3,
 			paymentAccounts: 1,
 			verifiedPaymentAccounts: 1,
 			integrations: 1,
@@ -218,5 +241,137 @@ describe("integration/provider governance", () => {
 			canManageIntegrations: false,
 			canInviteTeam: true,
 		})
+	})
+
+	it("does not treat verification approval or tax-fee shortcuts as documents/fiscal complete", async () => {
+		const providerId = "provider_governance_no_bypass"
+		const ownerEmail = "governance.nobypass@example.com"
+		const ownerId = `user_${ownerEmail}`
+		const now = new Date("2026-07-21T12:00:00.000Z")
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Sin Atajos S.R.L.",
+			displayName: "Sin Atajos",
+			ownerEmail,
+		})
+		await db.insert(ProviderProfile).values({
+			providerId,
+			timezone: "America/Santiago",
+			defaultCurrency: "USD",
+			supportEmail: "soporte@sinatajos.test",
+			governanceUpdatedAt: now,
+		})
+		await db.insert(ProviderVerification).values({
+			id: "verification_governance_no_bypass",
+			providerId,
+			status: "approved",
+			createdAt: now,
+		})
+		await db.insert(ProviderTaxConfiguration).values({
+			providerId,
+			status: "pending",
+			taxResidenceCountry: "CL",
+			businessRegistrationNumber: "76.111.222-8",
+			taxRegime: "general",
+			invoicingMode: "platform_receipt",
+			updatedAt: now,
+			updatedBy: ownerId,
+		})
+		await db.insert(TaxFeeDefinition).values({
+			id: "tax_governance_no_bypass",
+			providerId,
+			code: "IVA",
+			name: "IVA",
+			kind: "tax",
+			calculationType: "percentage",
+			value: 19,
+			currency: "USD",
+			inclusionType: "excluded",
+			appliesPer: "stay",
+			status: "active",
+			createdAt: now,
+			updatedAt: now,
+		})
+		await db.insert(ProviderDocument).values({
+			id: "document_governance_no_bypass_pending",
+			providerId,
+			type: "business_registration",
+			status: "pending",
+			createdAt: now,
+			updatedAt: now,
+		})
+		await db.insert(ProviderPaymentAccount).values({
+			id: "payment_governance_no_bypass",
+			providerId,
+			status: "verified",
+			provider: "bank_transfer",
+			currency: "USD",
+			accountReference: "••••9999",
+			payoutSchedule: "weekly",
+			verifiedAt: now,
+			createdAt: now,
+			updatedAt: now,
+		})
+
+		const summary = await evaluateProviderGovernance(providerId, {
+			currentUserId: ownerId,
+		})
+
+		const byId = Object.fromEntries(summary.readiness.map((item) => [item.id, item.complete]))
+		expect(byId.verification).toBe(true)
+		expect(byId.documents).toBe(false)
+		expect(byId.fiscality).toBe(false)
+		expect(byId.payments).toBe(true)
+		expect(summary.capabilities.publish).toBe(false)
+		expect(summary.capabilities.payments).toBe(false)
+		expect(summary.risks.map((risk) => risk.id)).toContain("fiscal_pending_verification")
+		expect(summary.risks.map((risk) => risk.id)).toContain("documents_pending_review")
+		expect(summary.risks.map((risk) => risk.id)).toContain("documents_kyc_set_incomplete")
+		// Active tax fees exist — should NOT complete fiscality, and missing-fees risk should be absent.
+		expect(summary.risks.map((risk) => risk.id)).not.toContain("tax_definitions_missing")
+	})
+
+	it("does not mark integrations ready until a successful smoke sync exists", async () => {
+		const providerId = "provider_governance_smoke"
+		const ownerEmail = "governance.smoke@example.com"
+		const ownerId = `user_${ownerEmail}`
+		const now = new Date("2026-07-21T13:00:00.000Z")
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Smoke Test S.R.L.",
+			displayName: "Smoke Test",
+			ownerEmail,
+		})
+		await db.insert(ProviderIntegrationConnection).values({
+			id: "integration_governance_smoke_pending",
+			providerId,
+			connectorKey: "webhooks_api",
+			status: "pending",
+			mode: "sandbox",
+			scopesJson: ["webhooks:deliver"],
+			credentialsRef: "vault://secret/webhooks",
+			createdAt: now,
+			updatedAt: now,
+		})
+
+		const beforeSmoke = await evaluateProviderGovernance(providerId, {
+			currentUserId: ownerId,
+		})
+		expect(beforeSmoke.readiness.find((item) => item.id === "integrations")?.complete).toBe(false)
+		expect(beforeSmoke.counts.connectedIntegrations).toBe(0)
+		expect(beforeSmoke.risks.map((risk) => risk.id)).toContain("integrations_smoke_pending")
+
+		await db
+			.update(ProviderIntegrationConnection)
+			.set({ status: "connected", lastSyncStatus: "success", lastSyncAt: now })
+			.where(eq(ProviderIntegrationConnection.id, "integration_governance_smoke_pending"))
+
+		const afterSmoke = await evaluateProviderGovernance(providerId, {
+			currentUserId: ownerId,
+		})
+		expect(afterSmoke.readiness.find((item) => item.id === "integrations")?.complete).toBe(true)
+		expect(afterSmoke.counts.connectedIntegrations).toBe(1)
 	})
 })

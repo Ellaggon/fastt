@@ -16,6 +16,7 @@ import {
 	TaxFeeDefinition,
 } from "astro:db"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
+import { evaluateRequiredKycDocumentsComplete } from "@/lib/provider-documents"
 
 export type ProviderCapability = "publish" | "booking" | "payments" | "integrations"
 
@@ -71,6 +72,7 @@ const settingsRoutes = {
 	profile: "/provider/settings/profile",
 	verification: "/provider/settings/verification",
 	taxFees: "/provider/settings/tax-fees",
+	payments: "/provider/settings/payments",
 	integrations: "/provider/settings/integrations",
 	team: "/provider/settings/team",
 }
@@ -205,6 +207,7 @@ export async function evaluateProviderGovernance(
 					id: ProviderIntegrationConnection.id,
 					status: ProviderIntegrationConnection.status,
 					mode: ProviderIntegrationConnection.mode,
+					lastSyncStatus: ProviderIntegrationConnection.lastSyncStatus,
 				})
 				.from(ProviderIntegrationConnection)
 				.where(eq(ProviderIntegrationConnection.providerId, id))
@@ -237,26 +240,36 @@ export async function evaluateProviderGovernance(
 	const profile = base.profile
 	const activeTaxDefinitions = taxDefinitions.filter((row) => row.status === "active")
 	const verifiedDocuments = documentRows.filter((row) => row.status === "verified")
+	const pendingDocuments = documentRows.filter((row) => row.status === "pending")
 	const verifiedPaymentAccounts = paymentAccounts.filter((row) => row.status === "verified")
-	const connectedIntegrations = integrationRows.filter((row) =>
-		["connected", "syncing"].includes(String(row.status))
+	// Airbnb/Expedia: a connector is "ready" only after a real connectivity/smoke test,
+	// not merely because credentials were saved.
+	const connectedIntegrations = integrationRows.filter((row) => {
+		if (String(row.status) !== "connected") return false
+		const sync = String(row.lastSyncStatus ?? "").toLowerCase()
+		return sync === "success" || sync === "ok"
+	})
+	const pendingSmokeIntegrations = integrationRows.filter((row) =>
+		["pending", "syncing"].includes(String(row.status))
 	)
 	const fiscalStatus = String(taxConfiguration?.status ?? "")
 	const taxResidenceCountry = taxConfiguration?.taxResidenceCountry ?? null
+	const hasTaxpayerIdentityDraft = Boolean(
+		taxResidenceCountry || taxConfiguration?.businessRegistrationNumber
+	)
 
 	const identityComplete = Boolean(provider.displayName?.trim() && provider.legalName?.trim())
 	const operationsComplete = Boolean(
 		profile?.timezone?.trim() && profile?.defaultCurrency?.trim() && profile?.supportEmail?.trim()
 	)
 	const verificationComplete = latestVerification?.status === "approved"
-	const documentsComplete = verifiedDocuments.length > 0 || verificationComplete
-	const fiscalComplete = Boolean(
-		fiscalStatus === "verified" || (activeTaxDefinitions.length > 0 && taxResidenceCountry)
-	)
-	const paymentsComplete = Boolean(
-		verifiedPaymentAccounts.length > 0 ||
-		["active", "ready"].includes(String(financialProfile?.status ?? ""))
-	)
+	// Minimum KYC set (gov ID + business registration + tax doc), all verified.
+	const kycDocuments = evaluateRequiredKycDocumentsComplete(documentRows)
+	const documentsComplete = kycDocuments.complete
+	// Taxpayer identity must be admin-verified. Active sales tax fees + country are NOT a substitute.
+	const fiscalComplete = fiscalStatus === "verified"
+	// FinancialProfile is a rollup after payout verify — never a self-serve readiness shortcut.
+	const paymentsComplete = verifiedPaymentAccounts.length > 0
 	const integrationsReady = connectedIntegrations.length > 0
 	const teamComplete = teamRows.some((row) => ["owner", "admin"].includes(String(row.role)))
 	const currentUserLink = opts.currentUserId
@@ -291,14 +304,14 @@ export async function evaluateProviderGovernance(
 		},
 		{
 			id: "documents",
-			label: "Documentos de respaldo disponibles",
+			label: "Documentos KYC mínimos verificados",
 			complete: documentsComplete,
 			href: settingsRoutes.verification,
 			capabilities: ["payments", "integrations"],
 		},
 		{
 			id: "fiscality",
-			label: "Fiscalidad configurada",
+			label: "Identidad fiscal verificada",
 			complete: fiscalComplete,
 			href: settingsRoutes.taxFees,
 			capabilities: ["publish", "booking", "payments"],
@@ -307,13 +320,12 @@ export async function evaluateProviderGovernance(
 			id: "payments",
 			label: "Cuenta de pago verificada",
 			complete: paymentsComplete,
-			// Payout methods are owned by ProviderPaymentAccount; dedicated settings UI is pending.
-			href: settingsRoutes.summary,
+			href: settingsRoutes.payments,
 			capabilities: ["payments"],
 		},
 		{
 			id: "integrations",
-			label: "Integraciones listas o declaradas",
+			label: "Integraciones con prueba de sync exitosa",
 			complete: integrationsReady,
 			href: settingsRoutes.integrations,
 			capabilities: ["integrations"],
@@ -346,20 +358,95 @@ export async function evaluateProviderGovernance(
 			: [
 					{
 						id: "integrations_not_ready",
-						label: "No hay integraciones listas para producción",
+						label: "No hay integraciones con smoke test exitoso",
 						severity: "low" as const,
 						href: settingsRoutes.integrations,
 						capabilities: ["integrations"] as ProviderCapability[],
 					},
 				]),
+		...(pendingSmokeIntegrations.length > 0
+			? [
+					{
+						id: "integrations_smoke_pending",
+						label: "Hay conectores configurados pendientes de prueba de sync",
+						severity: "medium" as const,
+						href: settingsRoutes.integrations,
+						capabilities: ["integrations"] as ProviderCapability[],
+					},
+				]
+			: []),
 		...(activeTaxDefinitions.length === 0
 			? [
 					{
 						id: "tax_definitions_missing",
-						label: "No hay definiciones fiscales activas",
+						label: "No hay impuestos/cargos de venta activos",
 						severity: "medium" as const,
 						href: settingsRoutes.taxFees,
 						capabilities: ["booking", "payments"] as ProviderCapability[],
+					},
+				]
+			: []),
+		// Former fiscalComplete shortcut: commercial tax tools ≠ verified taxpayer identity.
+		...(!fiscalComplete &&
+		activeTaxDefinitions.length > 0 &&
+		Boolean(taxResidenceCountry) &&
+		fiscalStatus !== "pending" &&
+		fiscalStatus !== "requires_attention"
+			? [
+					{
+						id: "taxpayer_unverified_with_tax_fees",
+						label:
+							"Hay impuestos de venta activos, pero la identidad fiscal aún no está verificada",
+						severity: "high" as const,
+						href: settingsRoutes.taxFees,
+						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
+					},
+				]
+			: []),
+		...(!fiscalComplete &&
+		hasTaxpayerIdentityDraft &&
+		(fiscalStatus === "pending" || fiscalStatus === "requires_attention")
+			? [
+					{
+						id: "fiscal_pending_verification",
+						label: "Identidad fiscal enviada y pendiente de validación interna",
+						severity: "high" as const,
+						href: settingsRoutes.taxFees,
+						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
+					},
+				]
+			: []),
+		...(!documentsComplete && pendingDocuments.length > 0
+			? [
+					{
+						id: "documents_pending_review",
+						label: "Hay documentos enviados pendientes de verificación interna",
+						severity: "medium" as const,
+						href: settingsRoutes.verification,
+						capabilities: ["payments", "integrations"] as ProviderCapability[],
+					},
+				]
+			: []),
+		...(!documentsComplete && kycDocuments.missingRequiredTypes.length > 0
+			? [
+					{
+						id: "documents_kyc_set_incomplete",
+						label: `Faltan documentos KYC verificados: ${kycDocuments.missingRequiredTypes.join(", ")}`,
+						severity: "high" as const,
+						href: settingsRoutes.verification,
+						capabilities: ["payments", "integrations"] as ProviderCapability[],
+					},
+				]
+			: []),
+		// FinancialProfile ready without a verified payout method is a rollup inconsistency.
+		...(!paymentsComplete && ["active", "ready"].includes(String(financialProfile?.status ?? ""))
+			? [
+					{
+						id: "financial_profile_without_verified_payout",
+						label: "Perfil financiero marcado listo sin cuenta de payout verificada",
+						severity: "high" as const,
+						href: settingsRoutes.payments,
+						capabilities: ["payments"] as ProviderCapability[],
 					},
 				]
 			: []),

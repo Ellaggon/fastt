@@ -5,18 +5,12 @@ import Card from "@/components/ui/Card.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
-import { db, desc, Provider, ProviderVerification } from "astro:db"
-
-type VerificationState = "pending" | "approved" | "rejected"
-type ProviderRow = {
-	id: string
-	displayName: string
-	legalName: string
-	providerStatus: string
-	verificationStatus: VerificationState
-	verificationReason: string | null
-	verificationUpdatedAt: Date | null
-}
+import {
+	adminComplianceRejectTemplates,
+	loadProviderComplianceConsole,
+	loadProviderComplianceDetail,
+	parseProviderComplianceQueueFilter,
+} from "@/lib/provider-admin-compliance"
 
 let isAdmin = false
 try {
@@ -26,69 +20,65 @@ try {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
 	isAdmin = false
 }
-const filter =
-	String(Astro.url.searchParams.get("filter") ?? "all") === "pending" ? "pending" : "all"
 
-let rows: ProviderRow[] = []
+const filter = parseProviderComplianceQueueFilter(Astro.url.searchParams.get("filter"))
+const focusedProviderId = String(Astro.url.searchParams.get("providerId") ?? "").trim()
 
-if (isAdmin) {
-	const providers = await db
-		.select({
-			id: Provider.id,
-			displayName: Provider.displayName,
-			legalName: Provider.legalName,
-			status: Provider.status,
-		})
-		.from(Provider)
-		.orderBy(desc(Provider.createdAt), desc(Provider.id))
+const consolePayload = isAdmin
+	? await loadProviderComplianceConsole({ filter, auditLimit: filter === "audit" ? 80 : 25 })
+	: null
+const focusedDetail =
+	isAdmin && focusedProviderId ? await loadProviderComplianceDetail(focusedProviderId) : null
 
-	const verificationRows = await db
-		.select({
-			id: ProviderVerification.id,
-			providerId: ProviderVerification.providerId,
-			status: ProviderVerification.status,
-			reason: ProviderVerification.reason,
-			createdAt: ProviderVerification.createdAt,
-		})
-		.from(ProviderVerification)
-		.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-
-	const latestVerificationByProvider = new Map<string, (typeof verificationRows)[number]>()
-	for (const row of verificationRows) {
-		if (!latestVerificationByProvider.has(row.providerId)) {
-			latestVerificationByProvider.set(row.providerId, row)
-		}
-	}
-
-	rows = providers
-		.map((provider) => {
-			const latest = latestVerificationByProvider.get(provider.id)
-			const verificationStatus = (latest?.status ?? "pending") as VerificationState
-			return {
-				id: provider.id,
-				displayName: provider.displayName ?? "Sin nombre",
-				legalName: provider.legalName ?? "Sin razón social",
-				providerStatus: provider.status ?? "draft",
-				verificationStatus,
-				verificationReason: latest?.reason ?? null,
-				verificationUpdatedAt: latest?.createdAt ?? null,
-			}
-		})
-		.filter((row) => (filter === "pending" ? row.verificationStatus === "pending" : true))
+const counts = consolePayload?.counts ?? {
+	verification: 0,
+	fiscal: 0,
+	documents: 0,
+	payments: 0,
+	total: 0,
 }
+const sections = consolePayload?.sections ?? {
+	verification: false,
+	fiscal: false,
+	documents: false,
+	payments: false,
+	audit: false,
+}
+const rows = consolePayload?.verification ?? []
+const taxRows = consolePayload?.fiscal ?? []
+const documentRows = consolePayload?.documents ?? []
+const paymentRows = consolePayload?.payments ?? []
+const auditRows = consolePayload?.audit ?? []
 
 const fmt = new Intl.DateTimeFormat("es-CL", {
 	dateStyle: "short",
 	timeStyle: "short",
 })
+
+function queueHref(next: string) {
+	return `/admin/providers?filter=${next}`
+}
+
+const queueButtons = [
+	{ id: "all", label: "Pendientes (todo)", count: counts.total },
+	{ id: "verification", label: "Verificación", count: counts.verification },
+	{ id: "fiscal", label: "Fiscal", count: counts.fiscal },
+	{ id: "documents", label: "Documentos", count: counts.documents },
+	{ id: "payments", label: "Pagos", count: counts.payments },
+	{ id: "audit", label: "Auditoría", count: null as number | null },
+] as const
 ---
 
-<InternalAdminLayout title="Admin · Verificación de proveedores">
+<InternalAdminLayout title="Admin · Cumplimiento de proveedores">
 	<section class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-6 px-6">
 			<header class="space-y-2">
-				<h1 class="text-2xl font-semibold text-white">Verificación de proveedores</h1>
-				<p class="text-sm text-slate-300">Aprobación y rechazo de proveedores (flujo interno).</p>
+				<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
+				<p class="text-sm text-slate-300">
+					Consola unificada de revisión (Airbnb Trust &amp; Safety / Expedia partner ops):
+					verificación global, fiscal, documentos KYC y cuentas de payout. El proveedor envía; solo
+					el equipo interno valida. Toda decisión queda en auditoría.
+				</p>
 			</header>
 
 			{
@@ -101,92 +91,451 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 					</Card>
 				) : (
 					<>
+						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+							<a
+								href={queueHref("all")}
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "all"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Cola total</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.total}</p>
+							</a>
+							<a
+								href={queueHref("verification")}
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "verification"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Verificación</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.verification}</p>
+							</a>
+							<a
+								href={queueHref("fiscal")}
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "fiscal"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Fiscal</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.fiscal}</p>
+							</a>
+							<a
+								href={queueHref("documents")}
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "documents"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Documentos</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.documents}</p>
+							</a>
+							<a
+								href={queueHref("payments")}
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "payments"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Pagos</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.payments}</p>
+							</a>
+						</div>
+
 						<Card class="bg-slate-100">
-							<div class="flex items-center justify-between gap-4">
+							<div class="flex flex-wrap items-center justify-between gap-4">
 								<div class="space-y-1">
-									<p class="text-sm font-medium text-slate-700">Filtro</p>
-									<p class="text-sm text-slate-600">Seleccione qué proveedores visualizar.</p>
+									<p class="text-sm font-medium text-slate-700">Cola de revisión</p>
+									<p class="text-sm text-slate-600">
+										Una superficie, cuatro dominios + auditoría. Filtra por tipo de decisión.
+									</p>
 								</div>
-								<div class="flex gap-2">
-									<Button
-										href="/admin/providers?filter=all"
-										variant={filter === "all" ? "primary" : "secondary"}
-									>
-										Todos
-									</Button>
-									<Button
-										href="/admin/providers?filter=pending"
-										variant={filter === "pending" ? "primary" : "secondary"}
-									>
-										Solo pendientes
-									</Button>
+								<div class="flex flex-wrap gap-2">
+									{queueButtons.map((button) => (
+										<Button
+											href={queueHref(button.id)}
+											variant={filter === button.id ? "primary" : "secondary"}
+										>
+											{button.label}
+											{typeof button.count === "number" ? ` (${button.count})` : ""}
+										</Button>
+									))}
 								</div>
 							</div>
 						</Card>
 
-						<Card class="bg-slate-100">
-							<div
-								id="admin-verification-feedback"
-								class="fastt-notice mb-4 hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
-							/>
+						<div
+							id="admin-compliance-feedback"
+							class="fastt-notice hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
+						/>
 
-							<div class="overflow-x-auto">
-								<table class="min-w-full divide-y divide-slate-200">
-									<thead>
-										<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-											<th class="px-3 py-2">Proveedor</th>
-											<th class="px-3 py-2">Estado verificación</th>
-											<th class="px-3 py-2">Actualizado</th>
-											<th class="px-3 py-2">Acciones</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-slate-200">
-										{rows.map((row) => (
-											<tr data-provider-row={row.id}>
-												<td class="px-3 py-3 align-top">
-													<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
-													<p class="text-sm text-slate-700">{row.legalName}</p>
-													<p class="text-xs text-slate-500">ID: {row.id}</p>
-												</td>
-												<td class="px-3 py-3 align-top">
-													{row.verificationStatus === "approved" ? (
-														<Badge variant="success">Aprobado</Badge>
-													) : row.verificationStatus === "rejected" ? (
-														<div class="space-y-2">
-															<Badge variant="error">Rechazado</Badge>
-															<p class="text-xs text-slate-700">
-																{row.verificationReason || "Sin motivo informado"}
-															</p>
-														</div>
-													) : (
-														<Badge variant="warning">Pendiente</Badge>
-													)}
-												</td>
-												<td class="px-3 py-3 align-top text-sm text-slate-700">
-													{row.verificationUpdatedAt
-														? fmt.format(new Date(row.verificationUpdatedAt))
-														: "Sin registros"}
-												</td>
-												<td class="px-3 py-3 align-top">
-													<div class="flex min-w-[340px] flex-col gap-2">
-														{row.verificationStatus !== "approved" && (
-															<Button
-																variant="primary"
-																data-approve-provider={row.id}
-																className="w-fit"
-															>
-																Aprobar
-															</Button>
+						{focusedDetail ? (
+							<Card class="bg-slate-100">
+								<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+									<div class="space-y-1">
+										<p class="text-lg font-semibold text-slate-900">
+											360° · {focusedDetail.provider.displayName}
+										</p>
+										<p class="text-sm text-slate-600">
+											{focusedDetail.provider.legalName} · {focusedDetail.provider.id}
+										</p>
+									</div>
+									<Button href={queueHref(filter)} variant="secondary">
+										Cerrar panel
+									</Button>
+								</div>
+								<div class="mb-4 grid gap-2 md:grid-cols-4">
+									{focusedDetail.checklist.map((item) => (
+										<Card variant="soft" class="space-y-1">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												{item.label}
+											</p>
+											<Badge
+												variant={item.complete ? "success" : item.pending ? "warning" : "neutral"}
+											>
+												{item.complete ? "OK" : item.pending ? "Pendiente" : "Revisar"}
+											</Badge>
+										</Card>
+									))}
+								</div>
+								<div class="mb-4 grid gap-3 md:grid-cols-3">
+									<p class="text-sm text-slate-700">
+										Fiscal en cola: {focusedDetail.pending.fiscal}
+									</p>
+									<p class="text-sm text-slate-700">
+										Documentos en cola: {focusedDetail.pending.documents}
+									</p>
+									<p class="text-sm text-slate-700">
+										Pagos en cola: {focusedDetail.pending.payments}
+									</p>
+								</div>
+								{focusedDetail.audit.length ? (
+									<div class="overflow-x-auto">
+										<p class="mb-2 text-sm font-semibold text-slate-900">Auditoría reciente</p>
+										<table class="min-w-full divide-y divide-slate-200 text-sm">
+											<thead>
+												<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+													<th class="px-2 py-1">Cuándo</th>
+													<th class="px-2 py-1">Acción</th>
+													<th class="px-2 py-1">Actor</th>
+												</tr>
+											</thead>
+											<tbody class="divide-y divide-slate-200">
+												{focusedDetail.audit.slice(0, 8).map((row) => (
+													<tr>
+														<td class="px-2 py-2 text-slate-700">
+															{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
+														</td>
+														<td class="px-2 py-2 text-slate-900">{row.actionLabel}</td>
+														<td class="px-2 py-2 text-slate-600">
+															{row.actorEmail || row.actorUserId || "—"}
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								) : (
+									<p class="text-sm text-slate-600">Sin eventos de auditoría recientes.</p>
+								)}
+								<p class="mt-4 text-xs text-slate-500">
+									Plantillas de rechazo disponibles en los formularios de cada cola (selección
+									rápida).
+								</p>
+							</Card>
+						) : null}
+						{sections.verification && (
+							<Card class="bg-slate-100">
+								<div class="mb-4 space-y-1">
+									<p class="text-lg font-semibold text-slate-900">Verificación de cumplimiento</p>
+									<p class="text-sm text-slate-600">
+										Aprobar o rechazar al proveedor en bloque (decisión append-only en
+										ProviderVerification).
+									</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="min-w-full divide-y divide-slate-200">
+										<thead>
+											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+												<th class="px-3 py-2">Proveedor</th>
+												<th class="px-3 py-2">Estado</th>
+												<th class="px-3 py-2">Actualizado</th>
+												<th class="px-3 py-2">Acciones</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-slate-200">
+											{rows.map((row) => (
+												<tr data-provider-row={row.providerId}>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
+														<p class="text-sm text-slate-700">{row.legalName}</p>
+														<p class="text-xs text-slate-500">ID: {row.providerId}</p>
+														<a
+															href={`/admin/providers?filter=${filter}&providerId=${encodeURIComponent(row.providerId)}`}
+															class="mt-2 inline-block text-xs font-medium text-slate-900 underline"
+														>
+															Abrir 360°
+														</a>
+													</td>
+													<td class="px-3 py-3 align-top">
+														{row.verificationStatus === "approved" ? (
+															<Badge variant="success">Aprobado</Badge>
+														) : row.verificationStatus === "rejected" ? (
+															<div class="space-y-2">
+																<Badge variant="error">Rechazado</Badge>
+																<p class="text-xs text-slate-700">
+																	{row.verificationReason || "Sin motivo informado"}
+																</p>
+															</div>
+														) : (
+															<Badge variant="warning">Pendiente</Badge>
 														)}
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{row.verificationUpdatedAt
+															? fmt.format(new Date(row.verificationUpdatedAt))
+															: "Sin registros"}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<div class="flex min-w-[340px] flex-col gap-2">
+															{row.verificationStatus !== "approved" && (
+																<Button
+																	variant="primary"
+																	data-approve-provider={row.providerId}
+																	className="w-fit"
+																>
+																	Aprobar
+																</Button>
+															)}
+															{row.verificationStatus === "pending" && (
+																<form
+																	class="flex flex-col gap-2"
+																	data-reject-form
+																	data-provider-id={row.providerId}
+																>
+																	<select
+																		class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																		data-reject-template
+																		data-domain="verification"
+																	>
+																		<option value="">Plantilla de motivo…</option>
+																		{adminComplianceRejectTemplates
+																			.filter((item) => item.domain === "verification")
+																			.map((item) => (
+																				<option value={item.body}>{item.label}</option>
+																			))}
+																	</select>
+																	<Textarea
+																		name="reason"
+																		rows="2"
+																		required
+																		minlength="2"
+																		className="w-full"
+																		placeholder="Motivo del rechazo"
+																	/>
+																	<Button type="submit" variant="danger" className="w-fit">
+																		Rechazar
+																	</Button>
+																</form>
+															)}
+														</div>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+									{rows.length === 0 && (
+										<p class="px-3 py-6 text-sm text-slate-600">
+											No hay proveedores pendientes de verificación.
+										</p>
+									)}
+								</div>
+							</Card>
+						)}
 
-														{row.verificationStatus === "pending" && (
+						{sections.fiscal && (
+							<Card class="bg-slate-100">
+								<div class="mb-4 space-y-1">
+									<p class="text-lg font-semibold text-slate-900">Identidad fiscal</p>
+									<p class="text-sm text-slate-600">
+										Validar taxpayer info enviada por el proveedor (no puede auto-marcarse
+										verificado).
+									</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="min-w-full divide-y divide-slate-200">
+										<thead>
+											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+												<th class="px-3 py-2">Proveedor</th>
+												<th class="px-3 py-2">Datos</th>
+												<th class="px-3 py-2">Estado</th>
+												<th class="px-3 py-2">Acciones</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-slate-200">
+											{taxRows.map((row) => (
+												<tr>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
+														<p class="text-xs text-slate-500">ID: {row.providerId}</p>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														<p>País: {row.taxResidenceCountry || "—"}</p>
+														<p>Registro: {row.businessRegistrationNumber || "—"}</p>
+														<p>Régimen: {row.taxRegime || "—"}</p>
+														{row.updatedAt ? (
+															<p class="text-xs text-slate-500">
+																{fmt.format(new Date(row.updatedAt))}
+															</p>
+														) : null}
+													</td>
+													<td class="px-3 py-3 align-top">
+														{row.status === "verified" ? (
+															<Badge variant="success">{row.statusLabel}</Badge>
+														) : row.status === "requires_attention" ? (
+															<Badge variant="error">{row.statusLabel}</Badge>
+														) : (
+															<Badge variant="warning">{row.statusLabel}</Badge>
+														)}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<div class="flex min-w-[320px] flex-col gap-2">
+															{row.status !== "verified" && (
+																<Button
+																	variant="primary"
+																	className="w-fit"
+																	data-verify-tax={row.providerId}
+																>
+																	Marcar verificado
+																</Button>
+															)}
 															<form
 																class="flex flex-col gap-2"
-																data-reject-form
-																data-provider-id={row.id}
+																data-tax-attention-form
+																data-provider-id={row.providerId}
 															>
+																<select
+																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																	data-reject-template
+																	data-domain="fiscal"
+																>
+																	<option value="">Plantilla de motivo…</option>
+																	{adminComplianceRejectTemplates
+																		.filter((item) => item.domain === "fiscal")
+																		.map((item) => (
+																			<option value={item.body}>{item.label}</option>
+																		))}
+																</select>
 																<Textarea
 																	name="reason"
+																	rows="2"
+																	required
+																	minlength="2"
+																	className="w-full"
+																	placeholder="Motivo (requiere atención)"
+																/>
+																<Button type="submit" variant="danger" className="w-fit">
+																	Requiere atención
+																</Button>
+															</form>
+														</div>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+									{taxRows.length === 0 && (
+										<p class="px-3 py-6 text-sm text-slate-600">
+											No hay perfiles fiscales pendientes de revisión.
+										</p>
+									)}
+								</div>
+							</Card>
+						)}
+
+						{sections.documents && (
+							<Card class="bg-slate-100">
+								<div class="mb-4 space-y-1">
+									<p class="text-lg font-semibold text-slate-900">Documentos KYC</p>
+									<p class="text-sm text-slate-600">
+										Verificar o rechazar respaldos enviados por el proveedor.
+									</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="min-w-full divide-y divide-slate-200">
+										<thead>
+											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+												<th class="px-3 py-2">Proveedor</th>
+												<th class="px-3 py-2">Documento</th>
+												<th class="px-3 py-2">Enviado</th>
+												<th class="px-3 py-2">Acciones</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-slate-200">
+											{documentRows.map((doc) => (
+												<tr>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-semibold text-slate-900">{doc.displayName}</p>
+														<p class="text-xs text-slate-500">ID: {doc.providerId}</p>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														<p class="font-medium text-slate-900">{doc.typeLabel}</p>
+														<p>{doc.fileName || "Sin nombre"}</p>
+														{doc.submissionNotes ? (
+															<p class="text-xs text-slate-500">Nota: {doc.submissionNotes}</p>
+														) : null}
+														{doc.fileUrl ? (
+															<Button
+																type="button"
+																variant="ghost"
+																className="h-auto px-0 text-xs font-medium text-slate-900 underline"
+																data-preview-document={doc.id}
+																data-provider-id={doc.providerId}
+															>
+																Abrir archivo (seguro)
+															</Button>
+														) : null}
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{doc.createdAt ? fmt.format(new Date(doc.createdAt)) : "—"}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<div class="flex min-w-[320px] flex-col gap-2">
+															<Button
+																variant="primary"
+																className="w-fit"
+																data-verify-document={doc.id}
+																data-provider-id={doc.providerId}
+															>
+																Verificar
+															</Button>
+															<form
+																class="flex flex-col gap-2"
+																data-reject-document-form
+																data-document-id={doc.id}
+																data-provider-id={doc.providerId}
+															>
+																<select
+																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																	data-reject-template
+																	data-domain="documents"
+																>
+																	<option value="">Plantilla de motivo…</option>
+																	{adminComplianceRejectTemplates
+																		.filter((item) => item.domain === "documents")
+																		.map((item) => (
+																			<option value={item.body}>{item.label}</option>
+																		))}
+																</select>
+																<Textarea
+																	name="reviewNotes"
 																	rows="2"
 																	required
 																	minlength="2"
@@ -197,20 +546,256 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 																	Rechazar
 																</Button>
 															</form>
-														)}
-													</div>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-								{rows.length === 0 && (
-									<p class="px-3 py-6 text-sm text-slate-600">
-										No hay proveedores para este filtro.
+														</div>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+									{documentRows.length === 0 && (
+										<p class="px-3 py-6 text-sm text-slate-600">
+											No hay documentos pendientes de revisión.
+										</p>
+									)}
+								</div>
+							</Card>
+						)}
+
+						{sections.payments && (
+							<Card class="bg-slate-100">
+								<div class="mb-4 space-y-1">
+									<p class="text-lg font-semibold text-slate-900">Cuentas de payout</p>
+									<p class="text-sm text-slate-600">
+										Validar ownership bancario (micro-depósito) o override admin. Al verificar se
+										actualiza ProviderFinancialProfile.
 									</p>
-								)}
-							</div>
-						</Card>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="min-w-full divide-y divide-slate-200">
+										<thead>
+											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+												<th class="px-3 py-2">Proveedor</th>
+												<th class="px-3 py-2">Cuenta</th>
+												<th class="px-3 py-2">Enviado</th>
+												<th class="px-3 py-2">Acciones</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-slate-200">
+											{paymentRows.map((account) => (
+												<tr>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-semibold text-slate-900">
+															{account.displayName}
+														</p>
+														<p class="text-xs text-slate-500">ID: {account.providerId}</p>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														<p class="font-medium text-slate-900">
+															{account.bankName || "Banco"} · {account.methodLabel}
+														</p>
+														<p>
+															{account.accountHolderName || "Sin titular"} ·{" "}
+															{account.country || "—"} · {account.currency}
+														</p>
+														<p class="font-mono text-xs">
+															{account.accountIdentifier || account.accountReference || "—"}
+														</p>
+														{account.routingOrSwift ? (
+															<p class="text-xs text-slate-500">
+																SWIFT/routing: {account.routingOrSwift}
+															</p>
+														) : null}
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{account.createdAt ? fmt.format(new Date(account.createdAt)) : "—"}
+														{account.assignment ? (
+															<p
+																class:list={[
+																	"mt-1 text-xs",
+																	account.assignment.slaState === "overdue"
+																		? "text-red-700"
+																		: account.assignment.slaState === "due_soon"
+																			? "text-amber-700"
+																			: "text-slate-500",
+																]}
+															>
+																SLA: {account.assignment.assigneeEmail || "sin assignee"} ·{" "}
+																{account.assignment.slaState}
+															</p>
+														) : null}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<div class="flex min-w-[320px] flex-col gap-2">
+															<Button
+																variant="secondary"
+																className="w-fit"
+																data-micro-deposit={account.id}
+																data-provider-id={account.providerId}
+															>
+																Iniciar micro-depósito
+															</Button>
+															<Button
+																variant="primary"
+																className="w-fit"
+																data-verify-payment={account.id}
+																data-provider-id={account.providerId}
+															>
+																Verificar (override)
+															</Button>
+															<form
+																class="flex flex-col gap-2"
+																data-assign-ops
+																data-domain="payments"
+																data-entity-id={account.id}
+																data-provider-id={account.providerId}
+															>
+																<input
+																	name="assigneeEmail"
+																	type="email"
+																	placeholder="assignee@fastt.test"
+																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																/>
+																<input
+																	name="slaHours"
+																	type="number"
+																	min="1"
+																	max="168"
+																	value="48"
+																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																/>
+																<Button type="submit" variant="secondary" className="w-fit">
+																	Asignar SLA
+																</Button>
+															</form>
+															<form
+																class="flex flex-col gap-2"
+																data-payment-attention-form
+																data-account-id={account.id}
+																data-provider-id={account.providerId}
+															>
+																<select
+																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																	data-reject-template
+																	data-domain="payments"
+																>
+																	<option value="">Plantilla de motivo…</option>
+																	{adminComplianceRejectTemplates
+																		.filter((item) => item.domain === "payments")
+																		.map((item) => (
+																			<option value={item.body}>{item.label}</option>
+																		))}
+																</select>
+																<Textarea
+																	name="reason"
+																	rows="2"
+																	required
+																	minlength="2"
+																	className="w-full"
+																	placeholder="Motivo (requiere atención)"
+																/>
+																<Button type="submit" variant="danger" className="w-fit">
+																	Requiere atención
+																</Button>
+															</form>
+														</div>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+									{paymentRows.length === 0 && (
+										<p class="px-3 py-6 text-sm text-slate-600">
+											No hay cuentas de payout pendientes de revisión.
+										</p>
+									)}
+								</div>
+							</Card>
+						)}
+
+						{sections.audit && (
+							<Card class="bg-slate-100">
+								<div class="mb-4 space-y-1">
+									<p class="text-lg font-semibold text-slate-900">Auditoría de cumplimiento</p>
+									<p class="text-sm text-slate-600">
+										Trail reciente de envíos y revisiones (ProviderAuditLog) en verificación,
+										fiscal, documentos y pagos.
+									</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="min-w-full divide-y divide-slate-200">
+										<thead>
+											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+												<th class="px-3 py-2">Cuándo</th>
+												<th class="px-3 py-2">Proveedor</th>
+												<th class="px-3 py-2">Acción</th>
+												<th class="px-3 py-2">Actor</th>
+												<th class="px-3 py-2">Detalle</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-slate-200">
+											{auditRows.map((row) => (
+												<tr>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
+													</td>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-semibold text-slate-900">
+															{row.providerDisplayName}
+														</p>
+														<p class="text-xs text-slate-500">{row.providerId}</p>
+													</td>
+													<td class="px-3 py-3 align-top">
+														<p class="text-sm font-medium text-slate-900">{row.actionLabel}</p>
+														<div class="mt-1 flex flex-wrap gap-1">
+															<Badge
+																variant={
+																	row.domain === "payments" || row.domain === "fiscal"
+																		? "warning"
+																		: "neutral"
+																}
+															>
+																{row.domain}
+															</Badge>
+															<Badge
+																variant={
+																	row.riskLevel === "high"
+																		? "error"
+																		: row.riskLevel === "medium"
+																			? "warning"
+																			: "neutral"
+																}
+															>
+																{row.riskLevel}
+															</Badge>
+														</div>
+													</td>
+													<td class="px-3 py-3 align-top text-sm text-slate-700">
+														{row.actorEmail || row.actorUserId || "—"}
+													</td>
+													<td class="px-3 py-3 align-top text-xs text-slate-600">
+														<pre class="max-w-xs overflow-x-auto font-mono whitespace-pre-wrap">
+															{JSON.stringify(
+																{
+																	before: row.beforeJson,
+																	after: row.afterJson,
+																},
+																null,
+																0
+															)}
+														</pre>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+									{auditRows.length === 0 && (
+										<p class="px-3 py-6 text-sm text-slate-600">
+											Aún no hay eventos de auditoría de cumplimiento.
+										</p>
+									)}
+								</div>
+							</Card>
+						)}
 					</>
 				)
 			}
@@ -219,7 +804,7 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 </InternalAdminLayout>
 
 <script is:inline>
-	const feedback = document.getElementById("admin-verification-feedback")
+	const feedback = document.getElementById("admin-compliance-feedback")
 
 	function showFeedback(kind, message) {
 		if (!feedback) return
@@ -245,35 +830,59 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 		feedback.textContent = message
 	}
 
-	async function sendVerification(payload) {
-		const res = await fetch("/api/admin/providers/verification", {
+	document.querySelectorAll("[data-reject-template]").forEach((select) => {
+		select.addEventListener("change", () => {
+			const form = select.closest("form")
+			if (!form) return
+			const textarea = form.querySelector("textarea")
+			if (!textarea || !select.value) return
+			textarea.value = select.value
+		})
+	})
+
+	document.querySelectorAll("[data-preview-document]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const documentId = button.getAttribute("data-preview-document")
+			const providerId = button.getAttribute("data-provider-id")
+			if (!documentId || !providerId) return
+			button.setAttribute("disabled", "true")
+			try {
+				const res = await fetch(
+					`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}`
+				)
+				const body = await res.json().catch(() => ({}))
+				if (!res.ok || !body.url) {
+					showFeedback("warning", body.error || "No se pudo abrir el archivo")
+					return
+				}
+				window.open(body.url, "_blank", "noopener,noreferrer")
+			} finally {
+				button.removeAttribute("disabled")
+			}
+		})
+	})
+
+	async function postJson(url, payload) {
+		const res = await fetch(url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(payload),
 		})
-
 		if (res.status === 200) {
 			showFeedback("success", "Estado actualizado. Recargando...")
 			window.location.reload()
 			return
 		}
-
 		if (res.status === 403) {
 			showFeedback("error", "Not authorized")
 			return
 		}
-
-		if (res.status === 400) {
-			let msg = "Validation error"
-			try {
-				const body = await res.json()
-				msg = body?.error || msg
-			} catch {}
-			showFeedback("warning", msg)
-			return
-		}
-
-		showFeedback("error", "Ocurrió un error inesperado.")
+		let msg = "Error"
+		try {
+			const body = await res.json()
+			msg = body?.error || msg
+		} catch {}
+		showFeedback(res.status === 400 ? "warning" : "error", msg)
 	}
 
 	document.querySelectorAll("[data-approve-provider]").forEach((button) => {
@@ -281,7 +890,7 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 			const providerId = button.getAttribute("data-approve-provider")
 			if (!providerId) return
 			button.setAttribute("disabled", "true")
-			await sendVerification({ providerId, status: "approved" })
+			await postJson("/api/admin/providers/verification", { providerId, status: "approved" })
 			button.removeAttribute("disabled")
 		})
 	})
@@ -293,15 +902,167 @@ const fmt = new Intl.DateTimeFormat("es-CL", {
 			const reasonInput = form.querySelector("textarea[name='reason']")
 			const submitButton = form.querySelector("button[type='submit']")
 			if (!providerId || !reasonInput) return
-
 			const reason = reasonInput.value.trim()
 			if (reason.length < 2) {
 				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
 				return
 			}
-
 			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await sendVerification({ providerId, status: "rejected", reason })
+			await postJson("/api/admin/providers/verification", {
+				providerId,
+				status: "rejected",
+				reason,
+			})
+			if (submitButton) submitButton.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-verify-tax]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const providerId = button.getAttribute("data-verify-tax")
+			if (!providerId) return
+			button.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/tax-configuration", {
+				providerId,
+				status: "verified",
+			})
+			button.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-tax-attention-form]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const providerId = form.getAttribute("data-provider-id")
+			const reasonInput = form.querySelector("textarea[name='reason']")
+			const submitButton = form.querySelector("button[type='submit']")
+			if (!providerId || !reasonInput) return
+			const reason = reasonInput.value.trim()
+			if (reason.length < 2) {
+				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+				return
+			}
+			if (submitButton) submitButton.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/tax-configuration", {
+				providerId,
+				status: "requires_attention",
+				reason,
+			})
+			if (submitButton) submitButton.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-verify-document]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const documentId = button.getAttribute("data-verify-document")
+			const providerId = button.getAttribute("data-provider-id")
+			if (!documentId || !providerId) return
+			button.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/documents", {
+				providerId,
+				documentId,
+				status: "verified",
+			})
+			button.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-reject-document-form]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const documentId = form.getAttribute("data-document-id")
+			const providerId = form.getAttribute("data-provider-id")
+			const notesInput = form.querySelector("textarea[name='reviewNotes']")
+			const submitButton = form.querySelector("button[type='submit']")
+			if (!documentId || !providerId || !notesInput) return
+			const reviewNotes = notesInput.value.trim()
+			if (reviewNotes.length < 2) {
+				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+				return
+			}
+			if (submitButton) submitButton.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/documents", {
+				providerId,
+				documentId,
+				status: "rejected",
+				reviewNotes,
+			})
+			if (submitButton) submitButton.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-verify-payment]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const accountId = button.getAttribute("data-verify-payment")
+			const providerId = button.getAttribute("data-provider-id")
+			if (!accountId || !providerId) return
+			button.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/payment-accounts", {
+				providerId,
+				accountId,
+				status: "verified",
+			})
+			button.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-micro-deposit]").forEach((button) => {
+		button.addEventListener("click", async () => {
+			const accountId = button.getAttribute("data-micro-deposit")
+			const providerId = button.getAttribute("data-provider-id")
+			if (!accountId || !providerId) return
+			button.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/payment-accounts", {
+				providerId,
+				accountId,
+				action: "initiate_micro_deposit",
+			})
+			button.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-assign-ops]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const providerId = form.getAttribute("data-provider-id")
+			const domain = form.getAttribute("data-domain")
+			const entityId = form.getAttribute("data-entity-id")
+			const emailInput = form.querySelector("input[name='assigneeEmail']")
+			const slaInput = form.querySelector("input[name='slaHours']")
+			const submitButton = form.querySelector("button[type='submit']")
+			if (!providerId || !domain || !entityId) return
+			if (submitButton) submitButton.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/compliance-assignments", {
+				providerId,
+				domain,
+				entityId,
+				assigneeEmail: emailInput instanceof HTMLInputElement ? emailInput.value : "",
+				slaHours: slaInput instanceof HTMLInputElement ? Number(slaInput.value) : 48,
+			})
+			if (submitButton) submitButton.removeAttribute("disabled")
+		})
+	})
+
+	document.querySelectorAll("[data-payment-attention-form]").forEach((form) => {
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const accountId = form.getAttribute("data-account-id")
+			const providerId = form.getAttribute("data-provider-id")
+			const reasonInput = form.querySelector("textarea[name='reason']")
+			const submitButton = form.querySelector("button[type='submit']")
+			if (!accountId || !providerId || !reasonInput) return
+			const reason = reasonInput.value.trim()
+			if (reason.length < 2) {
+				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+				return
+			}
+			if (submitButton) submitButton.setAttribute("disabled", "true")
+			await postJson("/api/admin/providers/payment-accounts", {
+				providerId,
+				accountId,
+				status: "requires_attention",
+				reason,
+			})
 			if (submitButton) submitButton.removeAttribute("disabled")
 		})
 	})

@@ -2,9 +2,14 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
+import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
+/**
+ * Legacy dashboard summary. Progress MUST match evaluateProviderGovernance (8 checks),
+ * not the old 3-step identity/ops/verification shortcut.
+ */
 export const GET: APIRoute = async ({ request }) => {
 	const startedAt = performance.now()
 	const endpointName = "provider-summary"
@@ -45,6 +50,11 @@ export const GET: APIRoute = async ({ request }) => {
 		})
 	}
 
+	const governance = await evaluateProviderGovernance(providerId, {
+		currentUserId: user.id,
+		persist: true,
+	})
+
 	const provider = aggregate.provider
 	const profile = aggregate.profile
 	const latestVerification = aggregate.latestVerification
@@ -54,17 +64,17 @@ export const GET: APIRoute = async ({ request }) => {
 		.trim()
 		.toLowerCase()
 
-	const isMissingLegalName = !provider.legalName?.trim()
-	const isMissingTimezone = !profile?.timezone?.trim()
-	const isMissingCurrency = !profile?.defaultCurrency?.trim()
-	const isMissingContactOrSupport = !profile?.supportEmail?.trim()
-	const requiredMissingCount = [
-		isMissingLegalName,
-		isMissingTimezone,
-		isMissingCurrency,
-		isMissingContactOrSupport,
-	].filter(Boolean).length
+	const readinessById = Object.fromEntries(
+		governance.readiness.map((item) => [item.id, item.complete])
+	)
+	const identityComplete = Boolean(readinessById.identity)
+	const operationalComplete = Boolean(readinessById.operations)
+	const verificationComplete = Boolean(readinessById.verification)
+	const documentsComplete = Boolean(readinessById.documents)
+	const fiscalComplete = Boolean(readinessById.fiscality)
+	const paymentsComplete = Boolean(readinessById.payments)
 
+	const requiredMissingCount = governance.blockers.length
 	const derivedState =
 		status === "active"
 			? "active"
@@ -74,23 +84,16 @@ export const GET: APIRoute = async ({ request }) => {
 					? "setup_incomplete"
 					: "ready"
 
-	const identityComplete = Boolean(provider.displayName?.trim() && provider.legalName?.trim())
-	const operationalComplete = Boolean(
-		profile?.timezone?.trim() && profile?.defaultCurrency?.trim() && profile?.supportEmail?.trim()
-	)
-	const verificationComplete = latestVerification?.status === "approved"
-	const completedSteps = [identityComplete, operationalComplete, verificationComplete].filter(
-		Boolean
-	).length
-	const totalSteps = 3
-	const remainingSteps = totalSteps - completedSteps
-	const progressPercent = Math.round((completedSteps / totalSteps) * 100)
+	const completedSteps = governance.progress.completed
+	const totalSteps = governance.progress.total
+	const remainingSteps = Math.max(0, totalSteps - completedSteps)
+	const progressPercent = governance.progress.progressPercent
 	const progressMessage =
 		derivedState === "active"
 			? "Su cuenta de proveedor está activa."
 			: remainingSteps > 0
-				? `${remainingSteps} paso${remainingSteps === 1 ? "" : "s"} obligatorio${remainingSteps === 1 ? "" : "s"} pendiente${remainingSteps === 1 ? "" : "s"}.`
-				: "Todos los pasos obligatorios están completos."
+				? `${remainingSteps} paso${remainingSteps === 1 ? "" : "s"} de gobernanza pendiente${remainingSteps === 1 ? "" : "s"}.`
+				: "Todos los checks de gobernanza están completos."
 
 	const stateLabel =
 		derivedState === "active"
@@ -109,22 +112,13 @@ export const GET: APIRoute = async ({ request }) => {
 					? "warning"
 					: "neutral"
 
-	const primaryCtaAction = !identityComplete
-		? routes.providerSettingsProfile()
-		: !operationalComplete
-			? routes.providerSettingsProfile()
-			: !verificationComplete
-				? routes.providerSettingsVerification()
-				: routes.dashboard()
-
-	const primaryCtaLabel =
-		primaryCtaAction === routes.dashboard()
-			? "Ir al panel"
-			: !identityComplete
-				? "Completar identidad"
-				: !operationalComplete
-					? "Completar perfil"
-					: "Ver detalles"
+	const primaryBlocker = governance.blockers[0]
+	const primaryCtaAction = primaryBlocker?.href ?? routes.dashboard()
+	const primaryCtaLabel = primaryBlocker
+		? `Resolver: ${primaryBlocker.label}`
+		: derivedState === "active"
+			? "Cuenta activa"
+			: "Ir al panel"
 
 	const users = ownerUser ? [{ id: ownerUser.id, email: ownerUser.email, role: "owner" }] : []
 
@@ -148,11 +142,19 @@ export const GET: APIRoute = async ({ request }) => {
 			},
 			ownerEmail: ownerUser?.email || "Sin vincular",
 			users,
+			// Legacy 3-key shape kept for older clients; values now come from governance.
 			checks: {
 				identityComplete,
 				operationalComplete,
 				verificationComplete,
+				documentsComplete,
+				fiscalComplete,
+				paymentsComplete,
 			},
+			capabilities: governance.capabilities,
+			readiness: governance.readiness,
+			blockers: governance.blockers,
+			risks: governance.risks,
 			progress: {
 				completedSteps,
 				totalSteps,
