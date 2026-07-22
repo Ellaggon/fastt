@@ -17,11 +17,18 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
+    "db:pg:generate-initial": "tsx scripts/db/generate-postgres-initial-migration.ts",
+    "db:migrate:turso:export": "tsx scripts/db/turso-to-supabase/export-turso.ts",
+    "db:migrate:turso:transform": "tsx scripts/db/turso-to-supabase/transform-for-postgres.ts",
+    "db:migrate:supabase:apply-schema": "tsx scripts/db/turso-to-supabase/apply-supabase-schema.ts",
+    "db:migrate:supabase:load": "tsx scripts/db/turso-to-supabase/load-supabase.ts",
+    "db:migrate:supabase:validate": "tsx scripts/db/turso-to-supabase/validate-supabase-load.ts",
     "check:ui": "node scripts/check-ui-raw-objects.mjs --all",
     "check:ui:staged": "node scripts/check-ui-raw-objects.mjs --staged",
     "prepare": "husky",
     "test:search": "vitest tests/search tests/integration/search-v2.test.ts tests/integration/search-availability.test.ts",
     "test:search:synthetic": "vitest tests/search/search-synthetic-preprod-validation.test.ts",
+    "test:postgres": "vitest run tests/postgres",
     "test:governance": "FASTT_ENFORCE_PROVIDER_GOVERNANCE=1 vitest run tests/integration/provider-governance.test.ts tests/integration/provider-payment-accounts.test.ts tests/integration/provider-admin-compliance.test.ts tests/integration/provider-phase2-maturity.test.ts",
     "test": "vitest"
   },
@@ -34,8 +41,10 @@
     "@astrojs/vercel": "^10.0.5",
     "@aws-sdk/client-s3": "^3.1037.0",
     "@aws-sdk/s3-request-presigner": "^3.1037.0",
+    "drizzle-orm": "0.42.0",
     "@libsql/client": "^0.15.10",
     "@lucide/astro": "^1.11.0",
+    "postgres": "^3.4.5",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
     "cookie": "^1.1.1",
@@ -73,11 +82,5 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "path-to-regexp": "6.3.0",
-      "@vercel/routing-utils>path-to-regexp": "6.3.0"
-    }
   }
 }
