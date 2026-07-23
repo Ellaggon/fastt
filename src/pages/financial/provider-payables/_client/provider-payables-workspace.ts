@@ -111,6 +111,22 @@ function formatMoney(amount: number | null, currency: string): string {
 	}
 }
 
+function formatCompactAmount(amount: unknown, currency: unknown): string {
+	const value = numeric(amount)
+	if (value == null) return "0"
+	const code = String(currency || "USD")
+	try {
+		return new Intl.NumberFormat("es", {
+			style: "currency",
+			currency: code,
+			notation: "compact",
+			maximumFractionDigits: 1,
+		}).format(value)
+	} catch {
+		return `${value.toFixed(2)} ${code}`.trim()
+	}
+}
+
 function numeric(value: unknown): number | null {
 	if (value == null || value === "") return null
 	const parsed = Number(value)
@@ -354,6 +370,38 @@ function renderLoadMore(): void {
 	}
 }
 
+function renderProviderFinancialSummary(payload: any): void {
+	const summary = document.getElementById("providerPayablesSummary")
+	const summaryHint = document.getElementById("providerPayablesSummaryHint")
+	if (!summary || !payload?.summary) return
+	const data = payload.summary
+	const collections = data.collections || {}
+	const refunds = data.refunds || {}
+	const exceptions = data.exceptions || {}
+	const settlements = data.settlements || {}
+	const currency =
+		collections.currency || refunds.currency || settlements.currency || data.currency || "USD"
+	summary.textContent = [
+		`${Number(collections.count || 0)} cobros · ${formatCompactAmount(collections.amount, currency)}`,
+		`${Number(refunds.count || 0)} refunds · ${formatCompactAmount(refunds.amount, currency)}`,
+		`${Number(exceptions.open || 0)} excepciones abiertas`,
+		`${Number(settlements.count || 0)} settlements`,
+	].join(" · ")
+	if (summaryHint) {
+		const computedAt = payload?.freshness?.computedAt
+			? new Date(String(payload.freshness.computedAt))
+			: null
+		const freshness =
+			computedAt && !Number.isNaN(computedAt.getTime())
+				? `Actualizado ${computedAt.toLocaleTimeString("es", {
+						hour: "2-digit",
+						minute: "2-digit",
+					})}.`
+				: "Resumen materializado."
+		summaryHint.textContent = `${freshness} El detalle se carga bajo demanda por segmento.`
+	}
+}
+
 function detailRow(label: string, value: unknown): string {
 	return `<div class="fastt-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${escapeHtml(label)}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(value || "Por revisar")}</p></div>`
 }
@@ -413,6 +461,11 @@ function closeDrawer(): void {
 
 async function loadProviderPayables(): Promise<void> {
 	try {
+		const cachedSummary = getCachedFinancialJson(financialEndpointUrls.providerSummary)
+		if (cachedSummary) renderProviderFinancialSummary(cachedSummary)
+		void fetchFinancialJson(financialEndpointUrls.providerSummary)
+			.then(renderProviderFinancialSummary)
+			.catch(() => {})
 		const cached = getCachedFinancialJson(financialEndpointUrls.providerFinance)
 		const cachedOperations = getCachedFinancialJson(financialEndpointUrls.operations)
 		if (cached) {
