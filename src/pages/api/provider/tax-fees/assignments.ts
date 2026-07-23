@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProduct, invalidateProvider, invalidatePricing } from "@/lib/cache/invalidation"
 import {
 	assignTaxFeeUseCase,
 	listTaxFeeAssignmentsByScopeUseCase,
@@ -20,6 +21,43 @@ const assignSchema = z.object({
 	scopeId: z.string().min(1),
 	channel: z.string().optional().nullable(),
 })
+
+async function invalidateTaxFeeAssignmentCaches(params: {
+	providerId: string
+	scope: "product" | "variant" | "rate_plan" | "provider"
+	scopeId: string
+}) {
+	if (params.scope === "provider") {
+		await invalidateProvider(params.providerId)
+		return
+	}
+	if (params.scope === "product") {
+		await Promise.all([invalidateProduct(params.scopeId), invalidateProvider(params.providerId)])
+		return
+	}
+	if (params.scope === "variant") {
+		const variant = await variantManagementRepository.getVariantById(params.scopeId)
+		await Promise.all([
+			variant ? invalidateProduct(variant.productId) : Promise.resolve(),
+			invalidatePricing({
+				variantId: params.scopeId,
+				productId: variant?.productId ?? null,
+				providerId: params.providerId,
+			}),
+		])
+		return
+	}
+	const ratePlan = await ratePlanRepository.get(params.scopeId)
+	const variant = ratePlan
+		? await variantManagementRepository.getVariantById(ratePlan.variantId)
+		: null
+	await invalidatePricing({
+		ratePlanId: params.scopeId,
+		variantId: ratePlan?.variantId ?? null,
+		productId: variant?.productId ?? null,
+		providerId: params.providerId,
+	})
+}
 
 async function ensureScopeOwned(params: { providerId: string; scope: string; scopeId: string }) {
 	if (params.scope === "provider") {
@@ -166,6 +204,11 @@ export const POST: APIRoute = async ({ request }) => {
 			scopeId: parsed.scopeId,
 		})
 		const warnings = buildTaxFeeWarnings(assignments.map((a) => a.definition))
+		await invalidateTaxFeeAssignmentCaches({
+			providerId,
+			scope: parsed.scope,
+			scopeId: parsed.scopeId,
+		})
 
 		return new Response(JSON.stringify({ id: result.id, warnings }), {
 			status: 201,

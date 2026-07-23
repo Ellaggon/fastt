@@ -4,10 +4,12 @@ import {
 	replacePolicyAssignmentCapa6UseCase,
 } from "@/container/policies-write.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { invalidatePolicyConditions, invalidateProduct } from "@/lib/cache/invalidation"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
 import {
 	ensurePolicyOwnedByProvider,
 	ensurePolicyScopeOwnedByProvider,
+	resolveProductIdForPolicyScope,
 } from "@/lib/policies/policyOwnership"
 import type { PolicyCategory } from "@/modules/policies/public"
 
@@ -120,6 +122,9 @@ export const POST: APIRoute = async ({ request }) => {
 		channel,
 		actorUserId,
 	})
+	const productId = await resolveProductIdForPolicyScope({ scope, scopeId })
+	await invalidatePolicyConditions({ scope, scopeId, productId })
+	if (productId) await invalidateProduct(productId)
 
 	return json(200, {
 		success: true,

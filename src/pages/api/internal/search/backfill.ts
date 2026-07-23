@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro"
 import { and, db, eq, Variant } from "@/shared/infrastructure/db/compat"
+import { randomUUID } from "node:crypto"
 import { z } from "zod"
 
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
+import { recordSearchMaterializationLog } from "@/lib/search/searchMaterializationLog"
 import { materializeSearchUnitRange, purgeStaleSearchUnitRows } from "@/modules/search/public"
 
 const schema = z.object({
@@ -34,6 +36,8 @@ function addDays(from: Date, days: number): Date {
 
 export const POST: APIRoute = async ({ request }) => {
 	const startedAt = Date.now()
+	const startedAtDate = new Date(startedAt)
+	const runId = `search_mat_${startedAtDate.toISOString()}_${randomUUID()}`
 	try {
 		const payload = await request.json().catch(() => ({}))
 		const parsed = schema.parse(payload)
@@ -44,6 +48,23 @@ export const POST: APIRoute = async ({ request }) => {
 			: addDays(fromDate, parsed.horizonDays)
 		const from = toISODateOnly(fromDate)
 		const to = toISODateOnly(toDate)
+
+		await recordSearchMaterializationLog({
+			runId,
+			trigger: "api_internal_search_backfill",
+			status: "running",
+			variantId: parsed.variantId ?? null,
+			productId: parsed.productId ?? null,
+			fromDate: from,
+			toDate: to,
+			horizonDays: parsed.horizonDays,
+			currency: parsed.currency,
+			startedAt: startedAtDate,
+			metadataJson: {
+				purgeStaleBefore: parsed.purgeStaleBefore,
+				maxAgeMinutes: parsed.maxAgeMinutes,
+			},
+		})
 
 		let variantRows: Array<{ id: string }> = []
 		if (parsed.variantId) {
@@ -80,8 +101,30 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const durationMs = Date.now() - startedAt
+		await recordSearchMaterializationLog({
+			runId,
+			trigger: "api_internal_search_backfill",
+			status: "completed",
+			variantId: parsed.variantId ?? null,
+			productId: parsed.productId ?? null,
+			fromDate: from,
+			toDate: to,
+			horizonDays: parsed.horizonDays,
+			currency: parsed.currency,
+			variantsScanned: variantIds.length,
+			rowsMaterialized: rows,
+			purgedRows: purged,
+			durationMs,
+			startedAt: startedAtDate,
+			finishedAt: new Date(),
+			metadataJson: {
+				purgeStaleBefore: parsed.purgeStaleBefore,
+				maxAgeMinutes: parsed.maxAgeMinutes,
+			},
+		})
 		incrementCounter("search_view_backfill_total")
 		logger.info("search.view.backfill.completed", {
+			runId,
 			variantCount: variantIds.length,
 			rows,
 			from,
@@ -93,6 +136,7 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response(
 			JSON.stringify({
 				ok: true,
+				runId,
 				variantCount: variantIds.length,
 				rows,
 				from,
@@ -103,7 +147,18 @@ export const POST: APIRoute = async ({ request }) => {
 			{ status: 200, headers: { "Content-Type": "application/json" } }
 		)
 	} catch (error) {
+		const durationMs = Date.now() - startedAt
+		await recordSearchMaterializationLog({
+			runId,
+			trigger: "api_internal_search_backfill",
+			status: "failed",
+			durationMs,
+			errorMessage: error instanceof Error ? error.message : String(error),
+			startedAt: startedAtDate,
+			finishedAt: new Date(),
+		}).catch(() => {})
 		logger.error("search.view.backfill.failed", {
+			runId,
 			message: error instanceof Error ? error.message : String(error),
 		})
 		return new Response(

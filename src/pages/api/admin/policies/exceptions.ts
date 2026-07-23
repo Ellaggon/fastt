@@ -6,6 +6,7 @@ import {
 	createPolicyExceptionRuleUseCase,
 	listPolicyExceptionRulesUseCase,
 } from "@/container/policy-exceptions.container"
+import { invalidateAllPolicyConditions, invalidatePolicyConditions } from "@/lib/cache/invalidation"
 import { POLICY_EXCEPTION_RULE_TYPES } from "@/modules/policies/public"
 
 const scopes = ["global", "product", "variant", "rate_plan"] as const
@@ -190,5 +191,12 @@ export const POST: APIRoute = async ({ request }) => {
 	const parsed = createSchema.safeParse(await readBody(request))
 	if (!parsed.success) return json({ error: "validation_error", issues: parsed.error.issues }, 400)
 	const created = await createPolicyExceptionRuleUseCase(parsed.data, auth.user.email)
+	const scope = String(created.scope ?? "")
+	const scopeId = String(created.scopeId ?? "")
+	if (scope && scope !== "global" && scopeId) {
+		await invalidatePolicyConditions({ scope, scopeId })
+	} else {
+		await invalidateAllPolicyConditions("policy_exception_created")
+	}
 	return json({ item: created }, 201)
 }

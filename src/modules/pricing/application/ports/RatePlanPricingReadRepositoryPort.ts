@@ -4,6 +4,14 @@ export type RatePlanPricingSummary = {
 	basePrice: number
 	effectivePricingDays: number
 	coverageOccupancyKey: string
+	conditionsSummary?: {
+		conditionsComplete: boolean
+		totalCategories: number
+		coveredCategories: number
+		missingCategories: string[]
+		policyCoverageUpdatedAt: Date | string | null
+		summary: string
+	}
 }
 
 export type RatePlanPricingModifierSummary = {
