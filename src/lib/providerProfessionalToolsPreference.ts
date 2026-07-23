@@ -1,4 +1,6 @@
-import { first, db, eq, ProviderProfile } from "@/shared/infrastructure/db/compat"
+import { first, db, eq, ProviderProfile, ProviderUser } from "@/shared/infrastructure/db/compat"
+import { invalidateAuthContextForUser } from "@/lib/auth/authCache"
+import { invalidateProvider } from "@/lib/cache/invalidation"
 
 const DEFAULT_PROVIDER_PROFILE_TIMEZONE = "UTC"
 const DEFAULT_PROVIDER_PROFILE_CURRENCY = "USD"
@@ -57,6 +59,30 @@ async function readProviderProfessionalToolsPreference(
 		updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
 		updatedBy: row.updatedBy ? String(row.updatedBy) : null,
 	}
+}
+
+async function invalidateProfessionalToolsPreferenceCaches(params: {
+	providerId: string
+	actorUserId?: string | null
+}): Promise<void> {
+	const userIds = new Set<string>()
+	if (params.actorUserId) userIds.add(params.actorUserId)
+	try {
+		const linkedUsers = await db
+			.select({ userId: ProviderUser.userId })
+			.from(ProviderUser)
+			.where(eq(ProviderUser.providerId, params.providerId))
+		for (const linkedUser of linkedUsers) {
+			const userId = String(linkedUser.userId ?? "").trim()
+			if (userId) userIds.add(userId)
+		}
+	} catch {
+		// Best effort: the actor cache is enough to keep the saving request coherent.
+	}
+	await Promise.all([
+		invalidateProvider(params.providerId),
+		...[...userIds].map((userId) => invalidateAuthContextForUser(userId)),
+	])
 }
 
 export async function getProviderProfessionalToolsPreference(
@@ -137,5 +163,9 @@ export async function setProviderProfessionalToolsPreference(params: {
 		throw error
 	}
 
+	void invalidateProfessionalToolsPreferenceCaches({
+		providerId,
+		actorUserId: params.actorUserId,
+	}).catch(() => {})
 	return getProviderProfessionalToolsPreference(providerId)
 }

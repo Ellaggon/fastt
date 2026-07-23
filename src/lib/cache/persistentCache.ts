@@ -12,6 +12,7 @@ type RedisDriver = {
 
 const memory = new Map<string, MemoryEntry>()
 let redisDriverPromise: Promise<RedisDriver | null> | null = null
+const SCAN_COUNT = 200
 
 function sweepMemory(now = Date.now()): void {
 	for (const [key, entry] of memory.entries()) {
@@ -20,6 +21,7 @@ function sweepMemory(now = Date.now()): void {
 }
 
 async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDriver | null> {
+	if (!redisUrl.startsWith("redis://") && !redisUrl.startsWith("rediss://")) return null
 	try {
 		const dynamicImport = new Function("specifier", "return import(specifier)") as (
 			specifier: string
@@ -39,7 +41,32 @@ async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDr
 				await client.del(key)
 			},
 			async delByPrefix(prefix: string) {
-				const keys = await client.keys(`${prefix}*`)
+				const keys: string[] = []
+				if (typeof client.scanIterator === "function") {
+					for await (const key of client.scanIterator({
+						MATCH: `${prefix}*`,
+						COUNT: SCAN_COUNT,
+					})) {
+						keys.push(String(key))
+						if (keys.length >= SCAN_COUNT) {
+							await client.del(keys.splice(0))
+						}
+					}
+				} else {
+					let cursor = "0"
+					do {
+						const result = await client.scan(cursor, {
+							MATCH: `${prefix}*`,
+							COUNT: SCAN_COUNT,
+						})
+						cursor = String(result.cursor ?? result[0] ?? "0")
+						const batch = (result.keys ?? result[1] ?? []) as string[]
+						keys.push(...batch)
+						if (keys.length >= SCAN_COUNT) {
+							await client.del(keys.splice(0))
+						}
+					} while (cursor !== "0")
+				}
 				if (keys.length > 0) await client.del(keys)
 			},
 		}
@@ -50,10 +77,11 @@ async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDr
 
 async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<RedisDriver | null> {
 	const token = process.env.REDIS_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+	const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim() || redisUrl
 	if (!token) return null
-	if (!redisUrl.startsWith("http://") && !redisUrl.startsWith("https://")) return null
+	if (!restUrl.startsWith("http://") && !restUrl.startsWith("https://")) return null
 
-	const endpoint = redisUrl.replace(/\/+$/, "")
+	const endpoint = restUrl.replace(/\/+$/, "")
 
 	async function command(args: string[]): Promise<any> {
 		const response = await fetch(endpoint, {
@@ -81,9 +109,20 @@ async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<Redis
 			await command(["DEL", key])
 		},
 		async delByPrefix(prefix: string) {
-			const keys = (await command(["KEYS", `${prefix}*`])) as string[] | null
-			if (!keys || keys.length === 0) return
-			await Promise.all(keys.map((key) => command(["DEL", key])))
+			let cursor = "0"
+			do {
+				const result = (await command([
+					"SCAN",
+					cursor,
+					"MATCH",
+					`${prefix}*`,
+					"COUNT",
+					String(SCAN_COUNT),
+				])) as [string, string[]] | null
+				cursor = String(result?.[0] ?? "0")
+				const keys = result?.[1] ?? []
+				if (keys.length > 0) await command(["DEL", ...keys])
+			} while (cursor !== "0")
 		},
 	}
 }

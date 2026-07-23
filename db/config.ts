@@ -190,7 +190,11 @@ const ProviderPaymentAccount = defineTable({
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "provider"] }, { on: ["country"] }],
+	indexes: [
+		{ on: ["providerId", "status"] },
+		{ on: ["providerId", "provider"] },
+		{ on: ["country"] },
+	],
 })
 const ProviderIntegrationConnection = defineTable({
 	columns: {
@@ -207,17 +211,17 @@ const ProviderIntegrationConnection = defineTable({
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
 	},
-	indexes: [
-		{ on: ["providerId", "connectorKey"], unique: true },
-		{ on: ["providerId", "status"] },
-	],
+	indexes: [{ on: ["providerId", "connectorKey"], unique: true }, { on: ["providerId", "status"] }],
 })
 const ProviderIntegrationSyncLog = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
 		connectorKey: column.text(),
-		connectionId: column.text({ optional: true, references: () => ProviderIntegrationConnection.columns.id }),
+		connectionId: column.text({
+			optional: true,
+			references: () => ProviderIntegrationConnection.columns.id,
+		}),
 		eventType: column.text(),
 		status: column.text(),
 		mode: column.text({ default: "sandbox" }),
@@ -225,10 +229,7 @@ const ProviderIntegrationSyncLog = defineTable({
 		metadataJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 	},
-	indexes: [
-		{ on: ["providerId", "connectorKey", "createdAt"] },
-		{ on: ["providerId", "status"] },
-	],
+	indexes: [{ on: ["providerId", "connectorKey", "createdAt"] }, { on: ["providerId", "status"] }],
 })
 const ProviderAuditLog = defineTable({
 	columns: {
@@ -275,6 +276,8 @@ const ProviderConfigurationState = defineTable({
 		canCollectPayments: column.boolean({ default: false }),
 		canUseIntegrations: column.boolean({ default: false }),
 		readinessPercent: column.number({ default: 0 }),
+		readinessJson: column.json({ optional: true }),
+		countsJson: column.json({ optional: true }),
 		blockersJson: column.json({ optional: true }),
 		risksJson: column.json({ optional: true }),
 		updatedAt: column.date({ default: NOW }),
@@ -331,6 +334,27 @@ const Product = defineTable({
 		destinationId: column.text({ references: () => Destination.columns.id }),
 	},
 	indexes: [{ on: ["providerId", "productType"] }, { on: ["providerId"] }],
+})
+
+const ProductOperationalSurface = defineTable({
+	columns: {
+		productId: column.text({ primaryKey: true, references: () => Product.columns.id }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		productName: column.text(),
+		productType: column.text(),
+		status: column.text({ default: "draft" }),
+		readinessJson: column.json({ optional: true }),
+		subtypeSummary: column.text({ optional: true }),
+		imagePreviewJson: column.json({ optional: true }),
+		coverImageJson: column.json({ optional: true }),
+		variantCount: column.number({ default: 0 }),
+		activeVariantCount: column.number({ default: 0 }),
+		defaultRatePlanIdsJson: column.json({ optional: true }),
+		policyCoverageStateJson: column.json({ optional: true }),
+		conditionsHref: column.text({ optional: true }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["providerId", "updatedAt"] }, { on: ["providerId", "status"] }],
 })
 
 // House Rules (CAPA 6.5): UI-driven property information. Not part of booking contract.
@@ -739,6 +763,37 @@ const SearchUnitView = defineTable({
 	],
 })
 
+const SearchMaterializationLog = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		runId: column.text(),
+		trigger: column.text(),
+		status: column.text(),
+		variantId: column.text({ optional: true }),
+		productId: column.text({ optional: true }),
+		fromDate: column.date({ optional: true }),
+		toDate: column.date({ optional: true }),
+		horizonDays: column.number({ optional: true }),
+		currency: column.text({ optional: true }),
+		variantsScanned: column.number({ default: 0 }),
+		rowsMaterialized: column.number({ default: 0 }),
+		purgedRows: column.number({ default: 0 }),
+		durationMs: column.number({ optional: true }),
+		errorMessage: column.text({ optional: true }),
+		metadataJson: column.json({ optional: true }),
+		startedAt: column.date({ default: NOW }),
+		finishedAt: column.date({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["runId"], unique: true },
+		{ on: ["status", "createdAt"] },
+		{ on: ["startedAt"] },
+		{ on: ["variantId", "startedAt"] },
+		{ on: ["productId", "startedAt"] },
+	],
+})
+
 // 6. Pricing / Restrictions
 
 const RatePlan = defineTable({
@@ -754,6 +809,30 @@ const RatePlan = defineTable({
 		createdAt: column.date({ default: NOW }),
 	},
 	indexes: [{ on: ["variantId", "isActive"] }, { on: ["variantId", "isDefault", "isActive"] }],
+})
+const RatePlanConditionState = defineTable({
+	columns: {
+		id: column.text({ primaryKey: true }),
+		ratePlanId: column.text({ references: () => RatePlan.columns.id }),
+		providerId: column.text({ references: () => Provider.columns.id }),
+		productId: column.text({ references: () => Product.columns.id }),
+		variantId: column.text({ references: () => Variant.columns.id }),
+		channel: column.text({ default: "web" }),
+		totalCategories: column.number({ default: 0 }),
+		coveredCategories: column.number({ default: 0 }),
+		missingCategoriesJson: column.json(),
+		conditionsComplete: column.boolean({ default: false }),
+		summary: column.text(),
+		policyCoverageUpdatedAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [
+		{ on: ["ratePlanId", "channel"], unique: true },
+		{ on: ["providerId", "updatedAt"] },
+		{ on: ["productId"] },
+		{ on: ["variantId"] },
+		{ on: ["conditionsComplete"] },
+	],
 })
 const RatePlanOccupancyPolicy = defineTable({
 	columns: {
@@ -1284,6 +1363,22 @@ const ProviderFinancialProfile = defineTable({
 	},
 	indexes: [{ on: ["status"] }, { on: ["taxProfileStatus"] }],
 })
+const FinancialProviderSummary = defineTable({
+	columns: {
+		providerId: column.text({ primaryKey: true }),
+		summaryJson: column.json(),
+		collectionsJson: column.json(),
+		refundsJson: column.json(),
+		exceptionsJson: column.json(),
+		settlementsJson: column.json(),
+		computedAt: column.date({ default: NOW }),
+		invalidatedAt: column.date({ optional: true }),
+		invalidationReason: column.text({ optional: true }),
+		createdAt: column.date({ default: NOW }),
+		updatedAt: column.date({ default: NOW }),
+	},
+	indexes: [{ on: ["computedAt"] }, { on: ["invalidatedAt"] }],
+})
 const CommissionSnapshot = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -1378,6 +1473,7 @@ export default defineDb({
 		// 2 core entities
 		User,
 		Product,
+		ProductOperationalSurface,
 		HouseRule,
 		ProductStatus,
 		ProductPreparationSnapshot,
@@ -1413,9 +1509,11 @@ export default defineDb({
 		DailyInventory,
 		EffectiveAvailability,
 		SearchUnitView,
+		SearchMaterializationLog,
 
 		// 6 pricing
 		RatePlan,
+		RatePlanConditionState,
 		RatePlanOccupancyPolicy,
 		CommercialRuleSet,
 		CommercialRule,
@@ -1444,6 +1542,7 @@ export default defineDb({
 		FinancialSettlementRecord,
 		ReconciliationMatch,
 		ProviderFinancialProfile,
+		FinancialProviderSummary,
 		CommissionSnapshot,
 		ProviderPayableSnapshot,
 		PayoutRecord,

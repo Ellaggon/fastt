@@ -2,6 +2,8 @@ import type { APIRoute } from "astro"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { readThrough } from "@/lib/cache/readThrough"
 import { bookingOperationsQueryRepository } from "@/modules/booking/public"
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -31,15 +33,24 @@ export const GET: APIRoute = async ({ request, url }) => {
 			})
 		}
 
-		const result = await bookingOperationsQueryRepository.listByProvider({
-			providerId,
-			status: String(url.searchParams.get("status") ?? "all")
-				.trim()
-				.toLowerCase(),
-			from: String(url.searchParams.get("from") ?? "").trim() || undefined,
-			to: String(url.searchParams.get("to") ?? "").trim() || undefined,
-			limit: Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100)),
-		})
+		const status = String(url.searchParams.get("status") ?? "all")
+			.trim()
+			.toLowerCase()
+		const from = String(url.searchParams.get("from") ?? "").trim()
+		const to = String(url.searchParams.get("to") ?? "").trim()
+		const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
+		const result = await readThrough(
+			cacheKeys.providerBookingsSummary(providerId, status, from || "any", to || "any", limit),
+			cacheTtls.providerBookingsSummary,
+			() =>
+				bookingOperationsQueryRepository.listByProvider({
+					providerId,
+					status,
+					from: from || undefined,
+					to: to || undefined,
+					limit,
+				})
+		)
 		logEndpoint()
 		const durationMs = Number((performance.now() - startedAt).toFixed(1))
 		return new Response(JSON.stringify(result), {

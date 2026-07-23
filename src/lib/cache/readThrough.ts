@@ -1,4 +1,5 @@
 import * as persistentCache from "./persistentCache"
+import { recordCacheEvent } from "@/lib/observability/requestContext"
 
 let cacheRequests = 0
 let cacheHits = 0
@@ -16,6 +17,11 @@ export async function readThrough<TValue>(
 		if (cached !== null) {
 			hit = true
 			cacheHits += 1
+			recordCacheEvent({
+				key,
+				state: "hit",
+				durationMs: Number((performance.now() - startedAt).toFixed(1)),
+			})
 			console.debug("cache", {
 				key,
 				hit,
@@ -42,6 +48,11 @@ export async function readThrough<TValue>(
 		durationMs: Number((performance.now() - startedAt).toFixed(1)),
 		hitRatio: Number(((cacheHits / cacheRequests) * 100).toFixed(1)),
 		requests: cacheRequests,
+	})
+	recordCacheEvent({
+		key,
+		state: "miss",
+		durationMs: Number((performance.now() - startedAt).toFixed(1)),
 	})
 
 	return value

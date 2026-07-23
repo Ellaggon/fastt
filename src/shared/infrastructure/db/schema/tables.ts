@@ -328,6 +328,8 @@ export const ProviderConfigurationState = pgTable(
 		canCollectPayments: boolDefault("canCollectPayments", false),
 		canUseIntegrations: boolDefault("canUseIntegrations", false),
 		readinessPercent: intDefault("readinessPercent", 0),
+		readinessJson: jsonb("readinessJson"),
+		countsJson: jsonb("countsJson"),
 		blockersJson: jsonb("blockersJson"),
 		risksJson: jsonb("risksJson"),
 		updatedAt: now("updatedAt"),
@@ -353,6 +355,11 @@ export const ProviderVerification = pgTable(
 	},
 	(table) => [
 		index("ProviderVerification_providerId_status_idx").on(table.providerId, table.status),
+		index("ProviderVerification_providerId_created_idx").on(
+			table.providerId,
+			table.createdAt,
+			table.id
+		),
 	]
 )
 
@@ -388,6 +395,11 @@ export const ProviderInvitation = pgTable(
 	(table) => [
 		index("ProviderInvitation_providerId_status_idx").on(table.providerId, table.status),
 		index("ProviderInvitation_providerId_email_idx").on(table.providerId, table.email),
+		index("ProviderInvitation_providerId_created_idx").on(
+			table.providerId,
+			table.createdAt,
+			table.id
+		),
 	]
 )
 
@@ -405,6 +417,33 @@ export const Product = pgTable(
 	(table) => [
 		index("Product_providerId_productType_idx").on(table.providerId, table.productType),
 		index("Product_providerId_idx").on(table.providerId),
+	]
+)
+
+export const ProductOperationalSurface = pgTable(
+	"ProductOperationalSurface",
+	{
+		productId: text("productId")
+			.primaryKey()
+			.references(() => Product.id),
+		providerId: txt("providerId").references(() => Provider.id),
+		productName: txt("productName"),
+		productType: txt("productType"),
+		status: text("status").default("draft").notNull(),
+		readinessJson: jsonb("readinessJson"),
+		subtypeSummary: txtOpt("subtypeSummary"),
+		imagePreviewJson: jsonb("imagePreviewJson"),
+		coverImageJson: jsonb("coverImageJson"),
+		variantCount: intDefault("variantCount", 0),
+		activeVariantCount: intDefault("activeVariantCount", 0),
+		defaultRatePlanIdsJson: jsonb("defaultRatePlanIdsJson"),
+		policyCoverageStateJson: jsonb("policyCoverageStateJson"),
+		conditionsHref: txtOpt("conditionsHref"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProductOperationalSurface_provider_updated_idx").on(table.providerId, table.updatedAt),
+		index("ProductOperationalSurface_provider_status_idx").on(table.providerId, table.status),
 	]
 )
 
@@ -806,6 +845,35 @@ export const PolicyAuditLog = pgTable(
 	]
 )
 
+export const RatePlanConditionState = pgTable(
+	"RatePlanConditionState",
+	{
+		id: pk(),
+		ratePlanId: txt("ratePlanId").references(() => RatePlan.id),
+		providerId: txt("providerId").references(() => Provider.id),
+		productId: txt("productId").references(() => Product.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		channel: text("channel").default("web").notNull(),
+		totalCategories: intDefault("totalCategories", 0),
+		coveredCategories: intDefault("coveredCategories", 0),
+		missingCategoriesJson: jsonb("missingCategoriesJson").notNull(),
+		conditionsComplete: boolDefault("conditionsComplete", false),
+		summary: txt("summary"),
+		policyCoverageUpdatedAt: now("policyCoverageUpdatedAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("RatePlanConditionState_ratePlan_channel_unique").on(
+			table.ratePlanId,
+			table.channel
+		),
+		index("RatePlanConditionState_provider_updated_idx").on(table.providerId, table.updatedAt),
+		index("RatePlanConditionState_product_idx").on(table.productId),
+		index("RatePlanConditionState_variant_idx").on(table.variantId),
+		index("RatePlanConditionState_complete_idx").on(table.conditionsComplete),
+	]
+)
+
 export const VariantInventoryConfig = pgTable("VariantInventoryConfig", {
 	variantId: text("variantId")
 		.primaryKey()
@@ -889,6 +957,38 @@ export const SearchUnitView = pgTable(
 	]
 )
 
+export const SearchMaterializationLog = pgTable(
+	"SearchMaterializationLog",
+	{
+		id: pk(),
+		runId: txt("runId"),
+		trigger: txt("trigger"),
+		status: txt("status"),
+		variantId: txtOpt("variantId"),
+		productId: txtOpt("productId"),
+		fromDate: dayOpt("fromDate"),
+		toDate: dayOpt("toDate"),
+		horizonDays: intOpt("horizonDays"),
+		currency: txtOpt("currency"),
+		variantsScanned: intDefault("variantsScanned", 0),
+		rowsMaterialized: intDefault("rowsMaterialized", 0),
+		purgedRows: intDefault("purgedRows", 0),
+		durationMs: intOpt("durationMs"),
+		errorMessage: txtOpt("errorMessage"),
+		metadataJson: jsonb("metadataJson"),
+		startedAt: now("startedAt"),
+		finishedAt: ts("finishedAt"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("SearchMaterializationLog_run_unique").on(table.runId),
+		index("SearchMaterializationLog_status_created_idx").on(table.status, table.createdAt),
+		index("SearchMaterializationLog_started_idx").on(table.startedAt),
+		index("SearchMaterializationLog_variant_started_idx").on(table.variantId, table.startedAt),
+		index("SearchMaterializationLog_product_started_idx").on(table.productId, table.startedAt),
+	]
+)
+
 export const RatePlan = pgTable(
 	"RatePlan",
 	{
@@ -932,6 +1032,12 @@ export const RatePlanOccupancyPolicy = pgTable(
 		index("RatePlanOccupancyPolicy_ratePlan_effective_idx").on(
 			table.ratePlanId,
 			table.effectiveFrom,
+			table.effectiveTo
+		),
+		index("RatePlanOccupancyPolicy_ratePlan_current_idx").on(
+			table.ratePlanId,
+			table.effectiveFrom,
+			table.id,
 			table.effectiveTo
 		),
 	]
@@ -1069,6 +1175,12 @@ export const EffectivePricingV2 = pgTable(
 			table.occupancyKey
 		),
 		index("EffectivePricingV2_ratePlan_date_idx").on(table.ratePlanId, table.date),
+		index("EffectivePricingV2_ratePlan_occupancy_date_idx").on(
+			table.ratePlanId,
+			table.occupancyKey,
+			table.date,
+			table.computedAt
+		),
 		index("EffectivePricingV2_variant_date_occupancy_idx").on(
 			table.variantId,
 			table.date,
@@ -1077,35 +1189,68 @@ export const EffectivePricingV2 = pgTable(
 	]
 )
 
-export const TaxFeeDefinition = pgTable("TaxFeeDefinition", {
-	id: pk(),
-	providerId: txtOpt("providerId").references(() => Provider.id),
-	code: txt("code"),
-	name: txt("name"),
-	kind: txt("kind"),
-	calculationType: txt("calculationType"),
-	value: amount("value"),
-	currency: txtOpt("currency"),
-	inclusionType: txt("inclusionType"),
-	appliesPer: txt("appliesPer"),
-	priority: intDefault("priority", 0),
-	jurisdictionJson: jsonb("jurisdictionJson"),
-	effectiveFrom: ts("effectiveFrom"),
-	effectiveTo: ts("effectiveTo"),
-	status: text("status").default("active").notNull(),
-	createdAt: now("createdAt"),
-	updatedAt: now("updatedAt"),
-})
+export const TaxFeeDefinition = pgTable(
+	"TaxFeeDefinition",
+	{
+		id: pk(),
+		providerId: txtOpt("providerId").references(() => Provider.id),
+		code: txt("code"),
+		name: txt("name"),
+		kind: txt("kind"),
+		calculationType: txt("calculationType"),
+		value: amount("value"),
+		currency: txtOpt("currency"),
+		inclusionType: txt("inclusionType"),
+		appliesPer: txt("appliesPer"),
+		priority: intDefault("priority", 0),
+		jurisdictionJson: jsonb("jurisdictionJson"),
+		effectiveFrom: ts("effectiveFrom"),
+		effectiveTo: ts("effectiveTo"),
+		status: text("status").default("active").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("TaxFeeDefinition_provider_status_priority_idx").on(
+			table.providerId,
+			table.status,
+			table.priority
+		),
+		index("TaxFeeDefinition_provider_code_status_idx").on(
+			table.providerId,
+			table.code,
+			table.status
+		),
+	]
+)
 
-export const TaxFeeAssignment = pgTable("TaxFeeAssignment", {
-	id: pk(),
-	taxFeeDefinitionId: txt("taxFeeDefinitionId").references(() => TaxFeeDefinition.id),
-	scope: txt("scope"),
-	scopeId: txtOpt("scopeId"),
-	channel: txtOpt("channel"),
-	status: text("status").default("active").notNull(),
-	createdAt: now("createdAt"),
-})
+export const TaxFeeAssignment = pgTable(
+	"TaxFeeAssignment",
+	{
+		id: pk(),
+		taxFeeDefinitionId: txt("taxFeeDefinitionId").references(() => TaxFeeDefinition.id),
+		scope: txt("scope"),
+		scopeId: txtOpt("scopeId"),
+		channel: txtOpt("channel"),
+		status: text("status").default("active").notNull(),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("TaxFeeAssignment_scope_active_channel_idx").on(
+			table.scope,
+			table.scopeId,
+			table.status,
+			table.channel
+		),
+		index("TaxFeeAssignment_definition_scope_active_idx").on(
+			table.taxFeeDefinitionId,
+			table.scope,
+			table.scopeId,
+			table.status,
+			table.channel
+		),
+	]
+)
 
 export const Booking = pgTable(
 	"Booking",
@@ -1544,6 +1689,29 @@ export const ProviderFinancialProfile = pgTable(
 	(table) => [
 		index("ProviderFinancialProfile_status_idx").on(table.status),
 		index("ProviderFinancialProfile_taxProfileStatus_idx").on(table.taxProfileStatus),
+	]
+)
+
+export const FinancialProviderSummary = pgTable(
+	"FinancialProviderSummary",
+	{
+		providerId: text("providerId")
+			.primaryKey()
+			.references(() => Provider.id),
+		summaryJson: jsonb("summaryJson").notNull(),
+		collectionsJson: jsonb("collectionsJson").notNull(),
+		refundsJson: jsonb("refundsJson").notNull(),
+		exceptionsJson: jsonb("exceptionsJson").notNull(),
+		settlementsJson: jsonb("settlementsJson").notNull(),
+		computedAt: now("computedAt"),
+		invalidatedAt: ts("invalidatedAt"),
+		invalidationReason: txtOpt("invalidationReason"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("FinancialProviderSummary_computedAt_idx").on(table.computedAt),
+		index("FinancialProviderSummary_invalidatedAt_idx").on(table.invalidatedAt),
 	]
 )
 
