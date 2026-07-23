@@ -10,6 +10,7 @@ import {
 	sql,
 	User,
 } from "@/shared/infrastructure/db/compat"
+import { invalidateAuthContextForUser } from "@/lib/auth/authCache"
 import type {
 	ProviderV2RepositoryPort,
 	ProviderVerificationStatus,
@@ -64,6 +65,7 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 				userId: user.id,
 				role: params.role,
 			})
+			void invalidateAuthContextForUser(user.id).catch(() => {})
 		}
 	}
 

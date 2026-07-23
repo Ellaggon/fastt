@@ -2,6 +2,7 @@ import { parse as parseCookie } from "cookie"
 import { createHash } from "node:crypto"
 import { first, db, sql, User } from "@/shared/infrastructure/db/compat"
 import { LOCAL_QA_LOGOUT_COOKIE } from "./authCookies"
+import { getCachedAuthUser, setCachedAuthUser } from "./authCache"
 import { fetchSupabaseUser } from "./supabaseClient"
 
 export type AuthUser = { id: string; email: string }
@@ -61,10 +62,14 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 	if (localQaUser) return localQaUser
 
 	const token = readBearerToken(request) || readCookieToken(request)
+	const sessionId = token ? hashToken(token) : null
 
 	// Supabase configured: validate token against Supabase.
 	if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
 		if (!token) return null
+		const cachedUser = await getCachedAuthUser(sessionId)
+		if (cachedUser) return cachedUser
+
 		const u = await fetchSupabaseUser(token)
 		if (!u?.id || !u.email) return null
 		const email = String(u.email).trim().toLowerCase()
@@ -76,7 +81,11 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 				.from(User)
 				.where(sql`lower(${User.email}) = ${email}`)
 				.then(first)
-			if (existing?.id) return { id: existing.id, email }
+			if (existing?.id) {
+				const user = { id: existing.id, email }
+				void setCachedAuthUser(sessionId, user).catch(() => {})
+				return user
+			}
 
 			await db.insert(User).values({ id: u.id, email }).onConflictDoNothing()
 			const persisted = await db
@@ -84,11 +93,17 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 				.from(User)
 				.where(sql`lower(${User.email}) = ${email}`)
 				.then(first)
-			if (persisted?.id) return { id: persisted.id, email }
+			if (persisted?.id) {
+				const user = { id: persisted.id, email }
+				void setCachedAuthUser(sessionId, user).catch(() => {})
+				return user
+			}
 		} catch {
 			// Keep auth non-blocking even if persistence sync fails.
 		}
-		return { id: u.id, email }
+		const user = { id: u.id, email }
+		void setCachedAuthUser(sessionId, user).catch(() => {})
+		return user
 	}
 
 	return null

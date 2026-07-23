@@ -48,6 +48,96 @@ const { title } = Astro.props
 		</script>
 		<script is:inline>
 			;(function () {
+				const endpoint = "/api/internal/observability/rum"
+				let lcpMs = null
+				let inpMs = null
+				let routeStartedAt = null
+				let routeFrom = location.pathname
+
+				function number(value) {
+					return Number.isFinite(value) ? Math.round(value * 10) / 10 : null
+				}
+
+				function post(payload) {
+					const body = JSON.stringify({
+						...payload,
+						pathname: location.pathname,
+						visibilityState: document.visibilityState,
+					})
+					if (navigator.sendBeacon) {
+						navigator.sendBeacon(endpoint, new Blob([body], { type: "application/json" }))
+						return
+					}
+					fetch(endpoint, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body,
+						keepalive: true,
+					}).catch(function () {})
+				}
+
+				try {
+					const nav = performance.getEntriesByType("navigation")[0]
+					if (nav) {
+						post({
+							event: "navigation",
+							ttfbMs: number(nav.responseStart),
+							navigationType: nav.type,
+						})
+					}
+				} catch {}
+
+				try {
+					new PerformanceObserver(function (list) {
+						const entries = list.getEntries()
+						const latest = entries[entries.length - 1]
+						if (latest) lcpMs = number(latest.startTime)
+					}).observe({ type: "largest-contentful-paint", buffered: true })
+				} catch {}
+
+				try {
+					new PerformanceObserver(function (list) {
+						for (const entry of list.getEntries()) {
+							const duration = number(entry.duration)
+							if (duration !== null) inpMs = Math.max(inpMs || 0, duration)
+						}
+					}).observe({ type: "event", buffered: true, durationThreshold: 40 })
+				} catch {}
+
+				document.addEventListener("astro:before-preparation", function () {
+					routeStartedAt = performance.now()
+					routeFrom = location.pathname
+				})
+				document.addEventListener("astro:page-load", function () {
+					if (routeStartedAt === null) return
+					post({
+						event: "route-transition",
+						referrerPathname: routeFrom,
+						routeTransitionMs: number(performance.now() - routeStartedAt),
+					})
+					routeStartedAt = null
+				})
+
+				function flushVitals() {
+					if (lcpMs === null && inpMs === null) return
+					post({
+						event: "web-vitals",
+						lcpMs,
+						inpMs,
+					})
+					lcpMs = null
+					inpMs = null
+				}
+
+				document.addEventListener("visibilitychange", function () {
+					if (document.visibilityState === "hidden") flushVitals()
+				})
+				window.addEventListener("pagehide", flushVitals)
+				window.setTimeout(flushVitals, 8000)
+			})()
+		</script>
+		<script is:inline>
+			;(function () {
 				// Supabase email confirmation can redirect to Site URL with tokens in the hash.
 				// Forward them to /auth/callback so the server can persist them into httpOnly cookies.
 				const h = window.location.hash || ""

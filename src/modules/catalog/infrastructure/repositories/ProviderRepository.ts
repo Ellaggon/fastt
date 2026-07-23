@@ -8,6 +8,7 @@ import {
 	eq,
 	sql,
 } from "@/shared/infrastructure/db/compat"
+import { invalidateAuthContextForUser } from "@/lib/auth/authCache"
 import type { ProviderRepositoryPort } from "../../application/ports/ProviderRepositoryPort"
 
 export class ProviderRepository implements ProviderRepositoryPort {
@@ -102,6 +103,7 @@ export class ProviderRepository implements ProviderRepositoryPort {
 					userId: user.id,
 					role: "owner",
 				})
+				void invalidateAuthContextForUser(user.id).catch(() => {})
 			}
 		})
 	}
@@ -130,6 +132,7 @@ export class ProviderRepository implements ProviderRepositoryPort {
 				userId: params.userId,
 				role: "owner",
 			})
+			void invalidateAuthContextForUser(params.userId).catch(() => {})
 			return true
 		} catch {
 			return false
