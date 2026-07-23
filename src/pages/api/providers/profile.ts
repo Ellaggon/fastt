@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { first, db, eq, ProviderProfile } from "@/shared/infrastructure/db/compat"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { invalidateProvider } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
@@ -80,6 +80,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			}
 		)
 		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_profile_updated")
 
 		await writeProviderAuditLog({
 			providerId,

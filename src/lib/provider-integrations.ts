@@ -7,7 +7,11 @@ import {
 	ProviderIntegrationConnection,
 	ProviderIntegrationSyncLog,
 } from "@/shared/infrastructure/db/compat"
-import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import {
+	evaluateProviderGovernance,
+	readProviderGovernanceFromConfigurationState,
+} from "@/lib/provider-governance"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 
 export type ProviderConnectorKey =
@@ -251,10 +255,14 @@ export async function listProviderIntegrations(params: {
 	providerId: string
 	currentUserId?: string | null
 }): Promise<ProviderIntegrationCard[]> {
-	const governance = await evaluateProviderGovernance(params.providerId, {
-		currentUserId: params.currentUserId,
-		persist: true,
-	})
+	const governance =
+		(await readProviderGovernanceFromConfigurationState(params.providerId, {
+			currentUserId: params.currentUserId,
+		})) ??
+		(await evaluateProviderGovernance(params.providerId, {
+			currentUserId: params.currentUserId,
+			persist: true,
+		}))
 	const connections = await db
 		.select()
 		.from(ProviderIntegrationConnection)
@@ -383,6 +391,7 @@ export async function connectProviderIntegration(params: {
 				changedKeys: ["status", "mode", "credentialsRef", "scopes"],
 			}),
 		})
+		await invalidateProviderGovernance(params.providerId, "provider_integration_updated")
 		return existing.id
 	}
 
@@ -416,6 +425,7 @@ export async function connectProviderIntegration(params: {
 			changedKeys: ["status", "mode", "credentialsRef", "scopes"],
 		}),
 	})
+	await invalidateProviderGovernance(params.providerId, "provider_integration_connected")
 	return id
 }
 
@@ -472,6 +482,7 @@ export async function revokeProviderIntegration(params: {
 		afterJson: after,
 		riskLevel: "high",
 	})
+	await invalidateProviderGovernance(params.providerId, "provider_integration_revoked")
 	return existing.id
 }
 
@@ -542,6 +553,7 @@ export async function syncProviderIntegration(params: {
 		}),
 		riskLevel: "medium",
 	})
+	await invalidateProviderGovernance(params.providerId, "provider_integration_sync_tested")
 	return { status, message, smoke }
 }
 

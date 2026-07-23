@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
-import { invalidateProvider } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	initiatePaymentAccountMicroDeposit,
 	reviewProviderPaymentAccount,
@@ -62,6 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
 				accountId: payload.accountId,
 			})
 			await invalidateProvider(payload.providerId)
+			await invalidateProviderGovernance(payload.providerId, "admin_payment_micro_deposit_started")
 			return new Response(JSON.stringify({ ok: true, ...result }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
@@ -77,6 +78,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		await invalidateProvider(payload.providerId)
+		await invalidateProviderGovernance(payload.providerId, "admin_payment_account_reviewed")
 
 		return new Response(JSON.stringify({ ok: true, account }), {
 			status: 200,

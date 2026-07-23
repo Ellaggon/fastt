@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
-import { invalidateProvider } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { reviewProviderDocument } from "@/lib/provider-documents"
 
 async function readPayload(request: Request): Promise<{
@@ -58,6 +58,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		await invalidateProvider(payload.providerId)
+		await invalidateProviderGovernance(payload.providerId, "admin_provider_document_reviewed")
 
 		return new Response(JSON.stringify({ ok: true, document }), {
 			status: 200,
