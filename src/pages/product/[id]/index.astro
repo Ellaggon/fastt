@@ -264,7 +264,23 @@ logRoutePerformance({
 			</div>
 		</Card>
 
-		<div data-product-deferred-root class="space-y-5"></div>
+		{
+			/* Client hydration fills these shells using payload?.variants?.count and payload?.images?.cover?.url */
+		}
+		<div data-product-deferred-root class="space-y-5">
+			<Card class="bg-white">
+				<p class="text-sm font-semibold text-slate-950">Descripción</p>
+				<p class="mt-2 text-sm leading-6 text-slate-500">Cargando descripción...</p>
+			</Card>
+			{
+				isHotel ? (
+					<Card class="bg-white">
+						<p class="text-sm font-semibold text-slate-950">Tipo y características</p>
+						<p class="mt-2 text-sm leading-6 text-slate-500">Cargando tipo...</p>
+					</Card>
+				) : null
+			}
+		</div>
 	</section>
 
 	<script>
