@@ -114,10 +114,12 @@ BEGIN
 		'ProviderComplianceAssignment',
 		'ProviderConfigurationState',
 		'ProviderInvitation',
+		'ProductOperationalSurface',
 		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'VariantReadiness',
 		'DailyInventory',
+		'RatePlanConditionState',
 		'CommercialRuleSet',
 		'CommercialRule',
 		'TaxFeeDefinition',
@@ -126,6 +128,7 @@ BEGIN
 		'PaymentTransaction',
 		'ReconciliationMatch',
 		'ProviderFinancialProfile',
+		'FinancialProviderSummary',
 		'ProviderPayableSnapshot',
 		'PayoutRecord',
 		'ProviderStatement'
@@ -255,6 +258,30 @@ CREATE INDEX IF NOT EXISTS "PolicyAssignment_active_resolution_range_idx"
 CREATE INDEX IF NOT EXISTS "SearchUnitView_available_search_idx"
 	ON "SearchUnitView" ("productId", "date", "occupancyKey", "pricePerNight")
 	WHERE "isAvailable" = true;
+
+CREATE INDEX IF NOT EXISTS "ProviderVerification_providerId_created_idx"
+	ON "ProviderVerification" ("providerId", "createdAt", "id");
+
+CREATE INDEX IF NOT EXISTS "ProviderInvitation_providerId_created_idx"
+	ON "ProviderInvitation" ("providerId", "createdAt", "id");
+
+CREATE INDEX IF NOT EXISTS "RatePlanOccupancyPolicy_ratePlan_current_idx"
+	ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "id", "effectiveTo");
+
+CREATE INDEX IF NOT EXISTS "EffectivePricingV2_ratePlan_occupancy_date_idx"
+	ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_status_priority_idx"
+	ON "TaxFeeDefinition" ("providerId", "status", "priority");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_code_status_idx"
+	ON "TaxFeeDefinition" ("providerId", "code", "status");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_scope_active_channel_idx"
+	ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_definition_scope_active_idx"
+	ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_category_match_insert" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_category_match_insert"

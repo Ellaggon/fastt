@@ -138,6 +138,8 @@ CREATE TABLE "ProviderConfigurationState" (
 	"canCollectPayments" boolean NOT NULL DEFAULT false,
 	"canUseIntegrations" boolean NOT NULL DEFAULT false,
 	"readinessPercent" integer NOT NULL DEFAULT 0,
+	"readinessJson" jsonb,
+	"countsJson" jsonb,
 	"blockersJson" jsonb,
 	"risksJson" jsonb,
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
@@ -193,6 +195,20 @@ CREATE TABLE "ProviderFinancialProfile" (
 	"currency" text NOT NULL,
 	"taxProfileStatus" text NOT NULL,
 	"status" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "FinancialProviderSummary" (
+	"providerId" text PRIMARY KEY,
+	"summaryJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
+	"collectionsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
+	"refundsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
+	"exceptionsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
+	"settlementsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
+	"computedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"invalidatedAt" timestamp with time zone,
+	"invalidationReason" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -307,6 +323,24 @@ CREATE TABLE "ProductStatus" (
 	"productId" text PRIMARY KEY,
 	"state" text NOT NULL DEFAULT 'draft',
 	"validationErrorsJson" jsonb
+);
+
+CREATE TABLE "ProductOperationalSurface" (
+	"productId" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"productName" text NOT NULL,
+	"productType" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'draft',
+	"readinessJson" jsonb,
+	"subtypeSummary" text,
+	"imagePreviewJson" jsonb,
+	"coverImageJson" jsonb,
+	"variantCount" integer NOT NULL DEFAULT 0,
+	"activeVariantCount" integer NOT NULL DEFAULT 0,
+	"defaultRatePlanIdsJson" jsonb,
+	"policyCoverageStateJson" jsonb,
+	"conditionsHref" text,
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductPreparationSnapshot" (
@@ -610,6 +644,28 @@ CREATE TABLE "SearchUnitView" (
 	"sourceVersion" text NOT NULL
 );
 
+CREATE TABLE "SearchMaterializationLog" (
+	"id" text PRIMARY KEY,
+	"runId" text NOT NULL,
+	"trigger" text NOT NULL,
+	"status" text NOT NULL,
+	"variantId" text,
+	"productId" text,
+	"fromDate" date,
+	"toDate" date,
+	"horizonDays" integer,
+	"currency" text,
+	"variantsScanned" integer NOT NULL DEFAULT 0,
+	"rowsMaterialized" integer NOT NULL DEFAULT 0,
+	"purgedRows" integer NOT NULL DEFAULT 0,
+	"durationMs" integer,
+	"errorMessage" text,
+	"metadataJson" jsonb,
+	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"finishedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "RatePlan" (
 	"id" text PRIMARY KEY,
 	"variantId" text NOT NULL,
@@ -618,6 +674,22 @@ CREATE TABLE "RatePlan" (
 	"isDefault" boolean NOT NULL DEFAULT false,
 	"isActive" boolean NOT NULL DEFAULT true,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "RatePlanConditionState" (
+	"id" text PRIMARY KEY,
+	"ratePlanId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"productId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"channel" text NOT NULL DEFAULT 'web',
+	"totalCategories" integer NOT NULL DEFAULT 0,
+	"coveredCategories" integer NOT NULL DEFAULT 0,
+	"missingCategoriesJson" jsonb NOT NULL,
+	"conditionsComplete" boolean NOT NULL DEFAULT false,
+	"summary" text NOT NULL,
+	"policyCoverageUpdatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "RatePlanOccupancyPolicy" (
@@ -1138,6 +1210,13 @@ ALTER TABLE "ProviderFinancialProfile"
 	REFERENCES "Provider" ("id")
 ;
 
+ALTER TABLE "FinancialProviderSummary"
+	ADD CONSTRAINT "FinancialProviderSummary_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
 ALTER TABLE "ImageUpload"
 	ADD CONSTRAINT "ImageUpload_imageId_fk"
 	FOREIGN KEY ("imageId")
@@ -1166,6 +1245,18 @@ ALTER TABLE "ProductStatus"
 	ADD CONSTRAINT "ProductStatus_productId_fk"
 	FOREIGN KEY ("productId")
 	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "ProductOperationalSurface"
+	ADD CONSTRAINT "ProductOperationalSurface_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "ProductOperationalSurface"
+	ADD CONSTRAINT "ProductOperationalSurface_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
 ;
 
 ALTER TABLE "ProductPreparationSnapshot"
@@ -1408,6 +1499,30 @@ ALTER TABLE "RatePlan"
 	REFERENCES "Variant" ("id")
 ;
 
+ALTER TABLE "RatePlanConditionState"
+	ADD CONSTRAINT "RatePlanConditionState_ratePlanId_fk"
+	FOREIGN KEY ("ratePlanId")
+	REFERENCES "RatePlan" ("id")
+;
+
+ALTER TABLE "RatePlanConditionState"
+	ADD CONSTRAINT "RatePlanConditionState_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "RatePlanConditionState"
+	ADD CONSTRAINT "RatePlanConditionState_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "RatePlanConditionState"
+	ADD CONSTRAINT "RatePlanConditionState_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
 ALTER TABLE "RatePlanOccupancyPolicy"
 	ADD CONSTRAINT "RatePlanOccupancyPolicy_ratePlanId_fk"
 	FOREIGN KEY ("ratePlanId")
@@ -1600,11 +1715,15 @@ CREATE INDEX "ProviderConfigurationState_canCollectPayments_idx" ON "ProviderCon
 
 CREATE INDEX "ProviderVerification_providerId_status_idx" ON "ProviderVerification" ("providerId", "status");
 
+CREATE INDEX "ProviderVerification_providerId_created_idx" ON "ProviderVerification" ("providerId", "createdAt", "id");
+
 CREATE UNIQUE INDEX "ProviderUser_providerId_userId_unique" ON "ProviderUser" ("providerId", "userId");
 
 CREATE INDEX "ProviderInvitation_providerId_status_idx" ON "ProviderInvitation" ("providerId", "status");
 
 CREATE INDEX "ProviderInvitation_providerId_email_idx" ON "ProviderInvitation" ("providerId", "email");
+
+CREATE INDEX "ProviderInvitation_providerId_created_idx" ON "ProviderInvitation" ("providerId", "createdAt", "id");
 
 CREATE UNIQUE INDEX "User_email_unique" ON "User" ("email");
 
@@ -1613,6 +1732,10 @@ CREATE UNIQUE INDEX "User_username_unique" ON "User" ("username");
 CREATE INDEX "ProviderFinancialProfile_status_idx" ON "ProviderFinancialProfile" ("status");
 
 CREATE INDEX "ProviderFinancialProfile_taxProfileStatus_idx" ON "ProviderFinancialProfile" ("taxProfileStatus");
+
+CREATE INDEX "FinancialProviderSummary_computedAt_idx" ON "FinancialProviderSummary" ("computedAt");
+
+CREATE INDEX "FinancialProviderSummary_invalidatedAt_idx" ON "FinancialProviderSummary" ("invalidatedAt");
 
 CREATE INDEX "ProviderPayableSnapshot_booking_provider_idx" ON "ProviderPayableSnapshot" ("bookingId", "providerId");
 
@@ -1637,6 +1760,10 @@ CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "p
 CREATE INDEX "Product_providerId_idx" ON "Product" ("providerId");
 
 CREATE INDEX "HouseRule_productId_type_idx" ON "HouseRule" ("productId", "type");
+
+CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperationalSurface" ("providerId", "updatedAt");
+
+CREATE INDEX "ProductOperationalSurface_provider_status_idx" ON "ProductOperationalSurface" ("providerId", "status");
 
 CREATE INDEX "ProductPreparationSnapshot_provider_updated_idx" ON "ProductPreparationSnapshot" ("providerId", "updatedAt");
 
@@ -1714,11 +1841,33 @@ CREATE INDEX "SearchUnitView_variant_date_idx" ON "SearchUnitView" ("variantId",
 
 CREATE INDEX "SearchUnitView_blocker_price_idx" ON "SearchUnitView" ("primaryBlocker", "pricePerNight");
 
+CREATE UNIQUE INDEX "SearchMaterializationLog_run_unique" ON "SearchMaterializationLog" ("runId");
+
+CREATE INDEX "SearchMaterializationLog_status_created_idx" ON "SearchMaterializationLog" ("status", "createdAt");
+
+CREATE INDEX "SearchMaterializationLog_started_idx" ON "SearchMaterializationLog" ("startedAt");
+
+CREATE INDEX "SearchMaterializationLog_variant_started_idx" ON "SearchMaterializationLog" ("variantId", "startedAt");
+
+CREATE INDEX "SearchMaterializationLog_product_started_idx" ON "SearchMaterializationLog" ("productId", "startedAt");
+
 CREATE INDEX "RatePlan_variantId_isActive_idx" ON "RatePlan" ("variantId", "isActive");
 
 CREATE INDEX "RatePlan_variantId_isDefault_isActive_idx" ON "RatePlan" ("variantId", "isDefault", "isActive");
 
+CREATE UNIQUE INDEX "RatePlanConditionState_ratePlan_channel_unique" ON "RatePlanConditionState" ("ratePlanId", "channel");
+
+CREATE INDEX "RatePlanConditionState_provider_updated_idx" ON "RatePlanConditionState" ("providerId", "updatedAt");
+
+CREATE INDEX "RatePlanConditionState_product_idx" ON "RatePlanConditionState" ("productId");
+
+CREATE INDEX "RatePlanConditionState_variant_idx" ON "RatePlanConditionState" ("variantId");
+
+CREATE INDEX "RatePlanConditionState_complete_idx" ON "RatePlanConditionState" ("conditionsComplete");
+
 CREATE INDEX "RatePlanOccupancyPolicy_ratePlan_effective_idx" ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "effectiveTo");
+
+CREATE INDEX "RatePlanOccupancyPolicy_ratePlan_current_idx" ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "id", "effectiveTo");
 
 CREATE INDEX "CommercialRuleSet_provider_status_idx" ON "CommercialRuleSet" ("providerId", "status");
 
@@ -1744,7 +1893,17 @@ CREATE UNIQUE INDEX "EffectivePricingV2_variant_rate_date_occupancy_unique" ON "
 
 CREATE INDEX "EffectivePricingV2_ratePlan_date_idx" ON "EffectivePricingV2" ("ratePlanId", "date");
 
+CREATE INDEX "EffectivePricingV2_ratePlan_occupancy_date_idx" ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+
 CREATE INDEX "EffectivePricingV2_variant_date_occupancy_idx" ON "EffectivePricingV2" ("variantId", "date", "occupancyKey");
+
+CREATE INDEX "TaxFeeDefinition_provider_status_priority_idx" ON "TaxFeeDefinition" ("providerId", "status", "priority");
+
+CREATE INDEX "TaxFeeDefinition_provider_code_status_idx" ON "TaxFeeDefinition" ("providerId", "code", "status");
+
+CREATE INDEX "TaxFeeAssignment_scope_active_channel_idx" ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
+
+CREATE INDEX "TaxFeeAssignment_definition_scope_active_idx" ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
 
 CREATE INDEX "BookingTaxFee_bookingId_idx" ON "BookingTaxFee" ("bookingId");
 
@@ -1974,10 +2133,12 @@ BEGIN
 		'ProviderComplianceAssignment',
 		'ProviderConfigurationState',
 		'ProviderInvitation',
+		'ProductOperationalSurface',
 		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'VariantReadiness',
 		'DailyInventory',
+		'RatePlanConditionState',
 		'CommercialRuleSet',
 		'CommercialRule',
 		'TaxFeeDefinition',
@@ -2171,4 +2332,3 @@ EXECUTE FUNCTION fastt_assert_positive_booking_range();
 
 
 COMMIT;
-
