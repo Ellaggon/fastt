@@ -88,6 +88,7 @@ export type ProductVariantsAggregate = {
 		name: string
 		kind: string | null
 		status: string | null
+		defaultRatePlanId: string | null
 		pricing: { hasBaseRate: boolean; hasDefaultRatePlan: boolean }
 		capacity: {
 			minOccupancy: number

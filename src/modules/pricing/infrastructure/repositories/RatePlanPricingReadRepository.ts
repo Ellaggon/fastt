@@ -13,7 +13,13 @@ import {
 	RatePlan,
 	RatePlanOccupancyPolicy,
 } from "@/shared/infrastructure/db/compat"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { readThrough } from "@/lib/cache/readThrough"
 import { listCommercialPriceRulesByRatePlan } from "@/lib/commercial-rules/commercialRulesRepository"
+import {
+	fallbackRatePlanConditionsSummary,
+	readRatePlanConditionSummaries,
+} from "@/lib/policies/ratePlanConditionState"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import type {
@@ -47,23 +53,33 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 	async getRatePlanPricingSummary(ratePlanId: string) {
 		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
 		if (!normalizedRatePlanId) return null
+		return readThrough(
+			cacheKeys.ratePlanPricingSummary(normalizedRatePlanId),
+			cacheTtls.pricingSummary,
+			() => this.getRatePlanPricingSummaryUncached(normalizedRatePlanId)
+		)
+	}
 
+	private async getRatePlanPricingSummaryUncached(normalizedRatePlanId: string) {
 		const targetDate = new Date()
-		const policy = await db
-			.select({
-				currency: RatePlanOccupancyPolicy.baseCurrency,
-				basePrice: RatePlanOccupancyPolicy.baseAmount,
-			})
-			.from(RatePlanOccupancyPolicy)
-			.where(
-				and(
-					eq(RatePlanOccupancyPolicy.ratePlanId, normalizedRatePlanId),
-					lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
-					gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
+		const [policy, conditionSummaries] = await Promise.all([
+			db
+				.select({
+					currency: RatePlanOccupancyPolicy.baseCurrency,
+					basePrice: RatePlanOccupancyPolicy.baseAmount,
+				})
+				.from(RatePlanOccupancyPolicy)
+				.where(
+					and(
+						eq(RatePlanOccupancyPolicy.ratePlanId, normalizedRatePlanId),
+						lte(RatePlanOccupancyPolicy.effectiveFrom, targetDate),
+						gt(RatePlanOccupancyPolicy.effectiveTo, targetDate)
+					)
 				)
-			)
-			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
-			.then(first)
+				.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
+				.then(first),
+			readRatePlanConditionSummaries([normalizedRatePlanId]),
+		])
 		const fallbackEffective = policy
 			? null
 			: await db
@@ -105,14 +121,22 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			basePrice: Number(baseSource.basePrice ?? 0),
 			effectivePricingDays,
 			coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
+			conditionsSummary:
+				conditionSummaries.get(normalizedRatePlanId) ?? fallbackRatePlanConditionsSummary(),
 		}
 	}
 
 	async listRatePlanPricingSummaries(ratePlanIds: string[]) {
 		const ids = [...new Set(ratePlanIds.map((id) => String(id).trim()).filter(Boolean))]
 		if (!ids.length) return []
+		return readThrough(cacheKeys.ratePlanPricingSummaries(ids), cacheTtls.pricingSummary, () =>
+			this.listRatePlanPricingSummariesUncached(ids)
+		)
+	}
+
+	private async listRatePlanPricingSummariesUncached(ids: string[]) {
 		const targetDate = new Date()
-		const [policies, effectiveRows, coverageRows] = await Promise.all([
+		const [policies, effectiveRows, coverageRows, conditionSummaries] = await Promise.all([
 			db
 				.select({
 					ratePlanId: RatePlanOccupancyPolicy.ratePlanId,
@@ -155,6 +179,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					)
 				)
 				.groupBy(EffectivePricingV2.ratePlanId),
+			readRatePlanConditionSummaries(ids),
 		])
 
 		const policyByRatePlan = new Map<string, (typeof policies)[number]>()
@@ -181,6 +206,8 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					basePrice: Number(source.basePrice ?? 0),
 					effectivePricingDays: coverageByRatePlan.get(ratePlanId) ?? 0,
 					coverageOccupancyKey: CANONICAL_OCCUPANCY_KEY,
+					conditionsSummary:
+						conditionSummaries.get(ratePlanId) ?? fallbackRatePlanConditionsSummary(),
 				},
 			]
 		})

@@ -8,6 +8,7 @@ import {
 	rollbackPolicyExceptionRuleUseCase,
 	setPolicyExceptionRuleActiveUseCase,
 } from "@/container/policy-exceptions.container"
+import { invalidateAllPolicyConditions, invalidatePolicyConditions } from "@/lib/cache/invalidation"
 
 const patchSchema = z
 	.object({
@@ -90,6 +91,13 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 								actorUserId: auth.user.email,
 							})
 		if (!item) return json({ error: "not_found" }, 404)
+		const scope = String(item.scope ?? "")
+		const scopeId = String(item.scopeId ?? "")
+		if (scope && scope !== "global" && scopeId) {
+			await invalidatePolicyConditions({ scope, scopeId })
+		} else {
+			await invalidateAllPolicyConditions("policy_exception_updated")
+		}
 		return json({ item })
 	} catch (error) {
 		if (error instanceof Error && error.message === "POLICY_EXCEPTION_APPROVAL_REQUIRED") {

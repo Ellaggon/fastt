@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
 import { ratePlanCommandRepository } from "@/container"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidatePricing, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { assertProviderCapability } from "@/lib/provider-governance"
@@ -77,6 +77,12 @@ export const PUT: APIRoute = async ({ request }) => {
 
 		invalidateAggregateCache({ variantId: owner.variantId })
 		await invalidateVariant(owner.variantId, owner.productId)
+		await invalidatePricing({
+			ratePlanId: body.id,
+			variantId: owner.variantId,
+			productId: owner.productId,
+			providerId,
+		})
 		await invalidateProvider(providerId)
 		return json(200, { success: true })
 	} catch (error) {

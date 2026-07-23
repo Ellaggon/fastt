@@ -1,8 +1,7 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 
-import { listMarketplaceHotelsByDestination } from "@/modules/catalog/public"
-import { searchOffers } from "@/container"
+import { getPublicSearchSurface, type PublicSearchResult } from "@/lib/search/publicSearchSurface"
 
 const schema = z.object({
 	destinationId: z.string().trim().min(1),
@@ -15,35 +14,15 @@ const schema = z.object({
 })
 
 function parseISODate(s: string): Date | null {
-	const d = new Date(s)
+	const d = new Date(`${s}T00:00:00.000Z`)
 	return Number.isNaN(d.getTime()) ? null : d
 }
 
-export type SearchV2Result = {
-	productId: string
-	name: string
-	destinationId: string
-	heroImage?: string
-	fromPrice: number
-	basePrice: number
-	totalPrice: number
-	currency: string
-	available: boolean
-	availableVariants: number
-	taxes: {
-		hasIncluded: boolean
-		hasExcluded: boolean
-	}
-}
+export type SearchV2Result = PublicSearchResult
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const url = new URL(request.url)
-		const featureContext = {
-			request,
-			query: url.searchParams,
-		}
-
 		const parsed = schema.parse({
 			destinationId: url.searchParams.get("destinationId") ?? "",
 			checkIn: url.searchParams.get("checkIn") ?? url.searchParams.get("checkin") ?? "",
@@ -66,78 +45,23 @@ export const GET: APIRoute = async ({ request }) => {
 			)
 		}
 
-		// Candidate products by destination (catalog-level).
-		const candidates = await listMarketplaceHotelsByDestination({
+		const surface = await getPublicSearchSurface({
 			destinationId: parsed.destinationId,
-			limit: 50,
+			checkIn: parsed.checkIn,
+			checkOut: parsed.checkOut,
+			rooms: parsed.rooms,
+			adults: parsed.adults,
+			children: parsed.children,
+			currency: parsed.currency,
 		})
 
-		const results: SearchV2Result[] = []
-
-		for (const c of candidates) {
-			const offers = await searchOffers({
-				productId: c.productId,
-				checkIn,
-				checkOut,
-				rooms: parsed.rooms,
-				adults: parsed.adults,
-				children: parsed.children,
-				currency: parsed.currency?.toUpperCase(),
-				featureContext,
-			})
-
-			if (!offers.length) continue
-
-			// Sellable pricing is carried by rate plans; legacy variant basePrice may be absent.
-			const validOffers = offers.filter((o) => (o.ratePlans?.length ?? 0) > 0)
-
-			if (!validOffers.length) continue
-
-			// Compute "fromPrice" across all variants + rate plans (stay total).
-			let fromPrice = Infinity
-			let basePrice = 0
-			let totalPrice = 0
-			let hasIncluded = false
-			let hasExcluded = false
-			for (const o of validOffers) {
-				for (const rp of o.ratePlans) {
-					const total = Number(rp.totalPrice ?? 0)
-					if (total > 0 && total < fromPrice) {
-						fromPrice = total
-						basePrice = Number(rp.finalPrice ?? 0)
-						totalPrice = total
-						hasIncluded =
-							(rp.taxesAndFees?.taxes?.included?.length ?? 0) > 0 ||
-							(rp.taxesAndFees?.fees?.included?.length ?? 0) > 0
-						hasExcluded =
-							(rp.taxesAndFees?.taxes?.excluded?.length ?? 0) > 0 ||
-							(rp.taxesAndFees?.fees?.excluded?.length ?? 0) > 0
-					}
-				}
-			}
-
-			if (!Number.isFinite(fromPrice) || fromPrice <= 0) continue
-
-			results.push({
-				productId: c.productId,
-				name: c.name,
-				destinationId: c.destinationId,
-				heroImage: c.heroImageUrl ?? undefined,
-				fromPrice,
-				basePrice,
-				totalPrice,
-				currency: "USD",
-				available: true,
-				availableVariants: validOffers.length,
-				taxes: { hasIncluded, hasExcluded },
-			})
-		}
-
-		results.sort((a, b) => a.fromPrice - b.fromPrice)
-
-		return new Response(JSON.stringify({ results }), {
+		return new Response(JSON.stringify({ results: surface.results, meta: surface.meta }), {
 			status: 200,
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				"Cache-Control": "public, s-maxage=15, stale-while-revalidate=60",
+				"X-Fastt-Cache": surface.meta.cacheState,
+			},
 		})
 	} catch (e) {
 		if (e instanceof ZodError) {

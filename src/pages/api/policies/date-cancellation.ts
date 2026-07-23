@@ -14,6 +14,7 @@ import {
 	PolicyGroup,
 } from "@/shared/infrastructure/db/compat"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { invalidatePolicyConditions } from "@/lib/cache/invalidation"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
 import {
@@ -215,6 +216,12 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 	})
+
+	await Promise.all(
+		ratePlanIds.map((ratePlanId) =>
+			invalidatePolicyConditions({ scope: "rate_plan", scopeId: ratePlanId })
+		)
+	)
 
 	return json(200, {
 		success: true,

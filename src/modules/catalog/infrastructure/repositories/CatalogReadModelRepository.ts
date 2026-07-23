@@ -278,13 +278,15 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
 
 		if (!rows.length) return null
-		const hasBaseRateByDefaultPlan = new Map<string, boolean>()
-		for (const row of rows) {
-			const defaultRatePlanId = String(row.defaultRatePlanId ?? "").trim()
-			if (!defaultRatePlanId || hasBaseRateByDefaultPlan.has(defaultRatePlanId)) continue
-			const summary = await this.pricingReadRepository.getRatePlanPricingSummary(defaultRatePlanId)
-			hasBaseRateByDefaultPlan.set(defaultRatePlanId, summary != null)
-		}
+		const defaultRatePlanIds = [
+			...new Set(rows.map((row) => String(row.defaultRatePlanId ?? "").trim()).filter(Boolean)),
+		]
+		const pricingSummaries = defaultRatePlanIds.length
+			? await this.pricingReadRepository.listRatePlanPricingSummaries(defaultRatePlanIds)
+			: []
+		const hasBaseRateByDefaultPlan = new Map(
+			pricingSummaries.map((summary) => [String(summary.ratePlanId), true])
+		)
 
 		const first = rows[0]
 		const variants = rows
@@ -294,6 +296,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				name: row.variantName as string,
 				kind: row.variantKind ?? null,
 				status: row.variantStatus ?? null,
+				defaultRatePlanId: row.defaultRatePlanId ? String(row.defaultRatePlanId) : null,
 				pricing: {
 					hasBaseRate: Boolean(
 						hasBaseRateByDefaultPlan.get(String(row.defaultRatePlanId ?? "").trim())
