@@ -6,6 +6,7 @@ import type {
 	PaymentTransactionStatus,
 	PaymentTransactionType,
 } from "@/modules/financial/public"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
 
 import { bookingBelongsToProvider, json, readJson, requireFinancialProvider } from "./_stage2"
 
@@ -85,6 +86,12 @@ export const POST: APIRoute = async ({ request }) => {
 		occurredAt,
 		source,
 	})
+	if (result.created) {
+		void invalidateFinancialProviderSummary({
+			providerId: auth.providerId,
+			reason: "payment_transaction_recorded",
+		})
+	}
 	return json(
 		{
 			...result,

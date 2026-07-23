@@ -4,7 +4,8 @@ import {
 	financialReviewEventRepository,
 	refundHandoffRepository,
 } from "@/container/financial.container"
-import { acknowledgeRefundHandoff } from "@/modules/financial/application/use-cases/acknowledge-refund-handoff"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
+import { acknowledgeRefundHandoff } from "@/modules/financial/public"
 
 import { json, requireFinancialProvider } from "../../_stage2"
 
@@ -22,5 +23,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 	)
 	if (!result) return json({ error: "not_found" }, 404)
+	void invalidateFinancialProviderSummary({
+		providerId: auth.providerId,
+		reason: "refund_handoff_acknowledged",
+	})
 	return json(result)
 }

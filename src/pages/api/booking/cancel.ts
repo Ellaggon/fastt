@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { refundCalculationRepository } from "@/container/financial.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { invalidateBooking, invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
 import { loadRefundCancellationContext } from "@/lib/financial/refundCancellationContext"
 import {
 	buildPolicyFinancialPreviewFromSnapshot,
@@ -159,6 +160,11 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 			} as any)
 			.where(eq(Booking.id, context.booking.id))
+		await invalidateBooking(context.booking.id, auth.providerId)
+		void invalidateFinancialProviderSummary({
+			providerId: auth.providerId,
+			reason: "refund_ledger_recorded",
+		})
 
 		return json({
 			bookingId: context.booking.id,
