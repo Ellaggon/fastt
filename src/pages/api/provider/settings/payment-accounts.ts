@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { first, and, db, eq, ProviderUser } from "@/shared/infrastructure/db/compat"
 
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	createProviderPaymentAccount,
 	confirmPaymentAccountMicroDeposit,
@@ -12,7 +11,6 @@ import {
 	providerPayoutMethods,
 	providerPayoutSchedules,
 } from "@/lib/provider-payment-accounts"
-import { resolveProviderPermissions } from "@/lib/provider-permissions"
 
 const createSchema = z.object({
 	method: z.enum(["bank_transfer", "international_wire", "other"]).default("bank_transfer"),
@@ -53,28 +51,13 @@ function redirectToPayments(request: Request, result: string) {
 	)
 }
 
-async function resolvePermissions(providerId: string, userId: string) {
-	const link = await db
-		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
-		.from(ProviderUser)
-		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.then(first)
-	return resolveProviderPermissions({
-		role: link?.role,
-		permissionsJson: link?.permissionsJson,
-	})
-}
-
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.id) return json({ error: "unauthorized" }, 401)
-
-		const providerId = await getProviderIdFromRequest(request, user)
-		if (!providerId) return json({ error: "provider_not_found" }, 404)
+		const { provider } = await requireProviderSessionSurface(request)
+		const providerId = provider.providerId
 
 		const accounts = await listProviderPaymentAccounts(providerId)
-		const permissions = await resolvePermissions(providerId, user.id)
+		const permissions = provider.permissions
 
 		return json({
 			accounts,
@@ -91,17 +74,15 @@ export const GET: APIRoute = async ({ request }) => {
 			},
 		})
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		return json({ error: String(err?.message || "Unknown error") }, 400)
 	}
 }
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.id) return json({ error: "unauthorized" }, 401)
-
-		const providerId = await getProviderIdFromRequest(request, user)
-		if (!providerId) return json({ error: "provider_not_found" }, 404)
+		const { user, provider } = await requireProviderSessionSurface(request)
+		const providerId = provider.providerId
 
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "create")
@@ -126,6 +107,8 @@ export const POST: APIRoute = async ({ request }) => {
 				amount1Cents: form.get("amount1Cents"),
 				amount2Cents: form.get("amount2Cents"),
 			})
+			await invalidateProvider(providerId)
+			await invalidateProviderGovernance(providerId, "provider_payment_micro_deposit_confirmed")
 			return shouldReturnHtmlRedirect(request)
 				? redirectToPayments(request, "micro_deposit_confirmed")
 				: json({ ok: true, account })
@@ -156,11 +139,14 @@ export const POST: APIRoute = async ({ request }) => {
 			payoutSchedule: parsed.payoutSchedule,
 			submissionNotes: parsed.submissionNotes,
 		})
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_payment_account_created")
 
 		return shouldReturnHtmlRedirect(request)
 			? redirectToPayments(request, "submitted")
 			: json({ ok: true, account }, 201)
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		const status = typeof err?.status === "number" ? err.status : 400

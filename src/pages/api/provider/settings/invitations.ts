@@ -1,19 +1,10 @@
 import type { APIRoute } from "astro"
-import {
-	first,
-	and,
-	db,
-	eq,
-	ProviderInvitation,
-	ProviderUser,
-	sql,
-} from "@/shared/infrastructure/db/compat"
+import { first, and, db, eq, ProviderInvitation, sql } from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
-import { resolveProviderPermissions } from "@/lib/provider-permissions"
 
 const inviteSchema = z.object({
 	email: z
@@ -40,32 +31,15 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return accept.includes("text/html")
 }
 
-async function getProviderRole(providerId: string, userId: string) {
-	const row = await db
-		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
-		.from(ProviderUser)
-		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.then(first)
-	return row ?? null
-}
-
 function redirectToTeam(request: Request, result: string) {
 	return Response.redirect(new URL(`/provider/settings/team?result=${result}`, request.url), 303)
 }
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.id) return json({ error: "unauthorized" }, 401)
-
-		const providerId = await getProviderIdFromRequest(request, user)
-		if (!providerId) return json({ error: "provider_not_found" }, 404)
-
-		const link = await getProviderRole(providerId, user.id)
-		const permissions = resolveProviderPermissions({
-			role: link?.role,
-			permissionsJson: link?.permissionsJson,
-		})
+		const { user, provider } = await requireProviderSessionSurface(request)
+		const providerId = provider.providerId
+		const permissions = provider.permissions
 		if (!permissions.canInviteTeam) return json({ error: "forbidden" }, 403)
 
 		const form = await request.formData()
@@ -116,6 +90,8 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 				riskLevel: teamRisk,
 			})
+			await invalidateProvider(providerId)
+			await invalidateProviderGovernance(providerId, "provider_invitation_canceled")
 
 			return shouldReturnHtmlRedirect(request)
 				? redirectToTeam(request, "canceled")
@@ -173,11 +149,14 @@ export const POST: APIRoute = async ({ request }) => {
 			},
 			riskLevel: teamRisk,
 		})
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_invitation_created")
 
 		return shouldReturnHtmlRedirect(request)
 			? redirectToTeam(request, "invited")
 			: json({ id, status: "pending", expiresAt }, 201)
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		return json({ error: String(err?.message || "Unknown error") }, 400)

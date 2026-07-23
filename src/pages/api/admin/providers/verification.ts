@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
-import { invalidateProvider } from "@/lib/cache/invalidation"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { ValidationError } from "@/lib/validation/ValidationError"
@@ -93,6 +93,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		await invalidateProvider(payload.providerId)
+		await invalidateProviderGovernance(payload.providerId, "admin_provider_verification_reviewed")
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

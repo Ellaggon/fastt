@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	createTaxFeeDefinitionUseCase,
 	listTaxFeeDefinitionsByProviderUseCase,
@@ -134,6 +135,8 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		const warnings = buildTaxFeeWarnings([buildWarningDefinition(providerId, parsed, result.id)])
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_created")
 
 		return new Response(JSON.stringify({ id: result.id, warnings }), {
 			status: 201,
@@ -207,6 +210,8 @@ export const PUT: APIRoute = async ({ request }) => {
 		})
 
 		const warnings = buildTaxFeeWarnings([buildWarningDefinition(providerId, parsed, result.id)])
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_updated")
 
 		return new Response(JSON.stringify({ id: result.id, warnings }), {
 			status: 200,

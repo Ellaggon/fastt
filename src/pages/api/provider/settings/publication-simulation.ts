@@ -1,7 +1,10 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import {
+	evaluateProviderGovernance,
+	readProviderGovernanceFromConfigurationState,
+} from "@/lib/provider-governance"
 import { listTaxFeeDefinitionsByProviderUseCase } from "@/container/taxes-fees.container"
 import { buildTaxFeeWarnings } from "@/modules/taxes-fees/public"
 
@@ -19,10 +22,12 @@ export const GET: APIRoute = async ({ request }) => {
 	const providerId = await getProviderIdFromRequest(request, user)
 	if (!providerId) return json({ error: "Provider not found" }, 404)
 
-	const governance = await evaluateProviderGovernance(providerId, {
-		currentUserId: user.id,
-		persist: true,
-	})
+	const governance =
+		(await readProviderGovernanceFromConfigurationState(providerId, { currentUserId: user.id })) ??
+		(await evaluateProviderGovernance(providerId, {
+			currentUserId: user.id,
+			persist: true,
+		}))
 	const taxFeeResult = await listTaxFeeDefinitionsByProviderUseCase({ providerId }).catch(() => ({
 		definitions: [],
 	}))
