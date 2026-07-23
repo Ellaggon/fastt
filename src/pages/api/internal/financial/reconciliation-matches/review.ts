@@ -19,6 +19,7 @@ import {
 	paymentTransactionRepository,
 	reconciliationMatchRepository,
 } from "@/container/financial.container"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
 import { buildFinancialReconciliationMatch } from "@/modules/financial/public"
 
 import { bookingBelongsToProvider, json, readJson, requireFinancialProvider } from "../_stage2"
@@ -174,6 +175,10 @@ export const POST: APIRoute = async ({ request }) => {
 					differenceAmount: match.differenceAmount,
 				},
 			},
+		})
+		void invalidateFinancialProviderSummary({
+			providerId: auth.providerId,
+			reason: "reconciliation_review_event",
 		})
 		return json({ item: reviewed, reviewOnly: true })
 	} catch (error) {

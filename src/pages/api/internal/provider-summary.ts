@@ -2,7 +2,10 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
-import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import {
+	evaluateProviderGovernance,
+	readProviderGovernanceFromConfigurationState,
+} from "@/lib/provider-governance"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
@@ -50,10 +53,12 @@ export const GET: APIRoute = async ({ request }) => {
 		})
 	}
 
-	const governance = await evaluateProviderGovernance(providerId, {
-		currentUserId: user.id,
-		persist: true,
-	})
+	const governance =
+		(await readProviderGovernanceFromConfigurationState(providerId, { currentUserId: user.id })) ??
+		(await evaluateProviderGovernance(providerId, {
+			currentUserId: user.id,
+			persist: true,
+		}))
 
 	const provider = aggregate.provider
 	const profile = aggregate.profile

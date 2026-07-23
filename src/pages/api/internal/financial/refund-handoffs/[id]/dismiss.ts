@@ -4,7 +4,8 @@ import {
 	financialReviewEventRepository,
 	refundHandoffRepository,
 } from "@/container/financial.container"
-import { dismissRefundHandoff } from "@/modules/financial/application/use-cases/dismiss-refund-handoff"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
+import { dismissRefundHandoff } from "@/modules/financial/public"
 
 import { json, readJson, requireFinancialProvider } from "../../_stage2"
 
@@ -27,5 +28,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 	)
 	if (!result) return json({ error: "not_found" }, 404)
+	void invalidateFinancialProviderSummary({
+		providerId: auth.providerId,
+		reason: "refund_handoff_dismissed",
+	})
 	return json(result)
 }

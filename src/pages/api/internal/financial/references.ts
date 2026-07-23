@@ -5,7 +5,8 @@ import {
 	financialReferenceRepository,
 	financialReviewEventRepository,
 } from "@/container/financial.container"
-import { recordFinancialReference } from "@/modules/financial/application/use-cases/record-financial-reference"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
+import { recordFinancialReference } from "@/modules/financial/public"
 import type {
 	FinancialReferenceBasis,
 	FinancialReferenceSource,
@@ -106,5 +107,11 @@ export const POST: APIRoute = async ({ request }) => {
 			note: String(body.note ?? "").trim() || null,
 		}
 	)
+	if (result.created) {
+		void invalidateFinancialProviderSummary({
+			providerId: auth.providerId,
+			reason: "financial_reference_recorded",
+		})
+	}
 	return json(result, result.created ? 201 : 200)
 }

@@ -1,8 +1,11 @@
 import type { APIRoute } from "astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
+import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
+import { routes } from "@/lib/routes"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
@@ -24,56 +27,81 @@ function toLowerTrim(value: string | null | undefined): string {
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
 	const endpointName = "product-summary"
-	const logEndpoint = () => {
-		const durationMs = Number((performance.now() - startedAt).toFixed(1))
-		console.debug("endpoint", { name: endpointName, durationMs })
-		if (durationMs > 1000) {
-			console.warn("slow endpoint", { name: endpointName, durationMs })
-		}
-	}
-
-	const user = await getUserFromRequest(request)
-	if (!user?.email) {
-		logEndpoint()
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
+	let userIdForLog: string | null = null
+	let providerIdForLog: string | null = null
+	let productIdForLog: string | null = null
+	const jsonHeaders = () => timing.headers({ "Content-Type": "application/json" })
+	const logEndpoint = (status: number) => {
+		logRoutePerformance({
+			name: endpointName,
+			request,
+			url,
+			status,
+			startedAt,
+			timing,
+			userId: userIdForLog,
+			providerId: providerIdForLog,
+			productId: productIdForLog,
 		})
 	}
 
-	const providerId = await getProviderIdFromRequest(request, user)
+	const providerSession = await timing.time("authProvider", () =>
+		getProviderSessionSurfaceFromRequest(request)
+	)
+	userIdForLog = providerSession?.userId ?? null
+	providerIdForLog = providerSession?.providerId ?? null
+	if (!providerSession?.userId) {
+		timing.addTotal("productSummary")
+		logEndpoint(401)
+		return new Response(JSON.stringify({ error: "Unauthorized" }), {
+			status: 401,
+			headers: jsonHeaders(),
+		})
+	}
+
+	const providerId = providerSession.providerId
 	if (!providerId) {
-		logEndpoint()
+		timing.addTotal("productSummary")
+		logEndpoint(404)
 		return new Response(JSON.stringify({ error: "Provider not found" }), {
 			status: 404,
-			headers: { "Content-Type": "application/json" },
+			headers: jsonHeaders(),
 		})
 	}
 
 	const productId = String(url.searchParams.get("productId") ?? "").trim()
+	productIdForLog = productId
 	if (!productId) {
-		logEndpoint()
+		timing.addTotal("productSummary")
+		logEndpoint(400)
 		return new Response(JSON.stringify({ error: "productId is required" }), {
 			status: 400,
-			headers: { "Content-Type": "application/json" },
+			headers: jsonHeaders(),
 		})
 	}
 
-	const [aggregate, variantsAggregate, statusRow] = await Promise.all([
-		getProductFullAggregate(productId, providerId),
-		getProductVariantsAggregate(productId, providerId),
-		db
-			.select({ state: ProductStatus.state })
-			.from(ProductStatus)
-			.where(eq(ProductStatus.productId, productId))
-			.then(first),
+	const [aggregate, variantsAggregate, statusRow, operationalSurface] = await Promise.all([
+		timing.time("productAggregate", () => getProductFullAggregate(productId, providerId)),
+		timing.time("variantsAggregate", () => getProductVariantsAggregate(productId, providerId)),
+		timing.time("productStatus", () =>
+			db
+				.select({ state: ProductStatus.state })
+				.from(ProductStatus)
+				.where(eq(ProductStatus.productId, productId))
+				.then(first)
+		),
+		timing.time("productOperationalSurface", () =>
+			getProductOperationalSurface({ productId, providerId, request, url })
+		),
 	])
 	if (!aggregate) {
-		logEndpoint()
+		timing.addTotal("productSummary")
+		logEndpoint(404)
 		return new Response(JSON.stringify({ error: "Not found" }), {
 			status: 404,
-			headers: { "Content-Type": "application/json" },
+			headers: jsonHeaders(),
 		})
 	}
 
@@ -102,7 +130,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		.filter(Boolean)
 		.slice(0, 3)
 	const guestExpectationsSnapshot = isHotel
-		? await buildGuestStayExpectationsSnapshot(productId)
+		? await timing.time("houseRules", () => buildGuestStayExpectationsSnapshot(productId))
 		: null
 	const houseRules = guestExpectationsSnapshot?.rules ?? []
 	const houseRuleTypes = new Set(houseRules.map((rule: any) => String(rule.type ?? "")))
@@ -142,16 +170,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 					: "Subtipo no configurado"
 	let subtypeDetails: Record<string, unknown> = {}
 	if (aggregate.subtype?.kind === "hotel") {
-		const row = await db
-			.select({
-				stars: Hotel.stars,
-				phone: Hotel.phone,
-				email: Hotel.email,
-				website: Hotel.website,
-			})
-			.from(Hotel)
-			.where(eq(Hotel.productId, productId))
-			.then(first)
+		const row = await timing.time("productSubtype", () =>
+			db
+				.select({
+					stars: Hotel.stars,
+					phone: Hotel.phone,
+					email: Hotel.email,
+					website: Hotel.website,
+				})
+				.from(Hotel)
+				.where(eq(Hotel.productId, productId))
+				.then(first)
+		)
 		subtypeDetails = {
 			stars: row?.stars ?? aggregate.subtype.stars ?? null,
 			phone: row?.phone ?? "",
@@ -160,18 +190,20 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 	}
 	if (aggregate.subtype?.kind === "tour") {
-		const row = await db
-			.select({
-				duration: Tour.duration,
-				difficultyLevel: Tour.difficultyLevel,
-				meetingPointJson: Tour.meetingPointJson,
-				itineraryJson: Tour.itineraryJson,
-				safetyJson: Tour.safetyJson,
-				guideJson: Tour.guideJson,
-			})
-			.from(Tour)
-			.where(eq(Tour.productId, productId))
-			.then(first)
+		const row = await timing.time("productSubtype", () =>
+			db
+				.select({
+					duration: Tour.duration,
+					difficultyLevel: Tour.difficultyLevel,
+					meetingPointJson: Tour.meetingPointJson,
+					itineraryJson: Tour.itineraryJson,
+					safetyJson: Tour.safetyJson,
+					guideJson: Tour.guideJson,
+				})
+				.from(Tour)
+				.where(eq(Tour.productId, productId))
+				.then(first)
+		)
 		subtypeDetails = {
 			duration: row?.duration ?? aggregate.subtype.duration ?? "",
 			difficultyLevel: row?.difficultyLevel ?? aggregate.subtype.difficultyLevel ?? "",
@@ -182,17 +214,19 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 	}
 	if (aggregate.subtype?.kind === "package") {
-		const row = await db
-			.select({
-				days: Package.days,
-				nights: Package.nights,
-				itineraryJson: Package.itineraryJson,
-				includesJson: Package.includesJson,
-				excludesJson: Package.excludesJson,
-			})
-			.from(Package)
-			.where(eq(Package.productId, productId))
-			.then(first)
+		const row = await timing.time("productSubtype", () =>
+			db
+				.select({
+					days: Package.days,
+					nights: Package.nights,
+					itineraryJson: Package.itineraryJson,
+					includesJson: Package.includesJson,
+					excludesJson: Package.excludesJson,
+				})
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.then(first)
+		)
 		subtypeDetails = {
 			itinerary: row?.itineraryJson ?? aggregate.subtype.itinerary ?? null,
 			days: row?.days ?? aggregate.subtype.days ?? 0,
@@ -202,18 +236,23 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 	}
 
-	const productStatus = String(statusRow?.state ?? "draft")
+	const productStatus = String(operationalSurface?.status ?? statusRow?.state ?? "draft")
 		.trim()
 		.toLowerCase()
-	const preparation = await summarizeProductPreparation({
-		productId,
-		providerId,
-		status: productStatus,
-		request,
-		url,
-	})
+	const preparation =
+		operationalSurface?.readiness ??
+		(await timing.time("productPreparation", () =>
+			summarizeProductPreparation({
+				productId,
+				providerId,
+				status: productStatus,
+				request,
+				url,
+			})
+		))
 
-	logEndpoint()
+	timing.addTotal("productSummary")
+	logEndpoint(200)
 	return new Response(
 		JSON.stringify({
 			productId: aggregate.id,
@@ -263,6 +302,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 				totalEssentials: essentialHouseRuleTypes.length,
 				missingEssentials: essentialHouseRuleTypes.filter((type) => !houseRuleTypes.has(type)),
 			},
+			conditions: {
+				href: operationalSurface?.conditionsHref ?? routes.rates(),
+				coverage: operationalSurface?.policyCoverageState ?? null,
+			},
 			content: {
 				descriptionPreview,
 				highlightsCount,
@@ -296,7 +339,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}),
 		{
 			status: 200,
-			headers: { "Content-Type": "application/json" },
+			headers: jsonHeaders(),
 		}
 	)
 }

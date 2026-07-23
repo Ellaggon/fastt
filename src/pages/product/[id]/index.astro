@@ -1,44 +1,35 @@
 ---
-import Badge from "@/components/ui/Badge.astro"
+import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import ProgressBar from "@/components/ui/ProgressBar.astro"
-import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import {
-	buildCompleteToPublishEntryHref,
-	buildCompleteToPublishResumeHref,
-} from "@/lib/playbook/complete-to-publish"
-import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
-import { resolveReservationConditionsHref } from "@/lib/product-preview/resolveReservationConditionsHref"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
+import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
-import { getProductVariantsAggregate } from "@/modules/catalog/public"
-import {
-	ArrowRight,
-	BedDouble,
-	CalendarDays,
-	CircleCheck,
-	CircleDollarSign,
-	MapPin,
-	ScrollText,
-	ShieldCheck,
-} from "@lucide/astro"
-import { first, db, eq, ProductStatus } from "@/shared/infrastructure/db/compat"
+import { CalendarDays, CircleCheck } from "@lucide/astro"
 
-const user = await getUserFromRequest(Astro.request)
-if (!user) return Astro.redirect("/SignInPage")
+const startedAt = performance.now()
+const timing = createServerTimingRecorder()
 
-const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+const providerSession = await timing.time("authProvider", () =>
+	getProviderSessionSurfaceFromRequest(Astro.request)
+)
+if (!providerSession) return Astro.redirect("/SignInPage")
+const user = { id: providerSession.userId }
+const providerId = providerSession.providerId
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
 
-const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+const owned = await timing.time("productAggregate", () =>
+	productRepository.ensureProductOwnedByProvider(productId, providerId)
+)
 if (!owned) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(owned.productType)
@@ -55,41 +46,50 @@ const detailTitle =
 			: vertical.vertical === "package"
 				? "Ficha del paquete"
 				: `Ficha de ${vertical.labels.singular}`
-const locationLabel = isTour ? "Punto de encuentro" : "Ubicación"
 
-const statusRow = await db
-	.select({ state: ProductStatus.state })
-	.from(ProductStatus)
-	.where(eq(ProductStatus.productId, productId))
-	.then(first)
-
-const status = String(statusRow?.state || "draft")
+const operationalSurface = await timing.time("productOperationalSurface", () =>
+	getProductOperationalSurface({
+		productId,
+		providerId,
+		request: Astro.request,
+		url: Astro.url,
+	})
+)
+const status = String(operationalSurface?.status || "draft")
 	.trim()
 	.toLowerCase()
 
+const readiness = operationalSurface?.readiness ?? null
 const publishState =
-	status !== "published"
-		? await loadCompleteToPublishState({
-				productId,
-				providerId,
-				request: Astro.request,
-				url: Astro.url,
-			})
+	status !== "published" && readiness
+		? {
+				readyToPublish: readiness.readyToPublish,
+				readinessPercent: readiness.readinessPercent,
+				completedChecks: Math.round((readiness.readinessPercent / 100) * 6),
+				totalChecks: 6,
+			}
 		: null
-const completePreparationHref = publishState
-	? buildCompleteToPublishResumeHref(productId, publishState.checks)
-	: buildCompleteToPublishEntryHref(productId)
-const preparationBlockerCount =
-	publishState?.blockers.filter((check) => check.sectionKey !== "preview").length ?? 0
+const completePreparationHref =
+	readiness?.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
+const preparationBlockerCount = readiness?.blockerCount ?? 0
 const hasIncompletePreparation = status !== "published" && preparationBlockerCount > 0
-const conditionVariantIds = isHotel
-	? ((await getProductVariantsAggregate(productId, providerId))?.variants ?? [])
-			.map((variant: any) => String(variant.id ?? "").trim())
-			.filter(Boolean)
-	: []
 const conditionsHref = isHotel
-	? await resolveReservationConditionsHref({ productId, variantIds: conditionVariantIds })
+	? (operationalSurface?.conditionsHref ?? routes.rates())
 	: routes.rates()
+
+timing.addTotal("productPage")
+timing.setHeader(Astro.response.headers)
+logRoutePerformance({
+	name: "product-page",
+	request: Astro.request,
+	url: Astro.url,
+	status: 200,
+	startedAt,
+	timing,
+	userId: user.id,
+	providerId,
+	productId,
+})
 ---
 
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`}>
@@ -207,710 +207,83 @@ const conditionsHref = isHotel
 			) : null
 		}
 
-		<div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-			<div class="space-y-5">
-				<div class="grid gap-4 lg:grid-cols-2">
-					<Card class="overflow-hidden bg-white p-0 lg:col-span-2">
-						<div class="grid gap-0 md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-							<div
-								id="productHeroMedia"
-								class="flex min-h-[260px] items-center justify-center bg-slate-100 text-sm font-semibold text-slate-500"
-							>
-								Fotos de {vertical.labels.singular}
-							</div>
-							<div class="flex flex-col justify-between gap-5 p-5 md:p-6">
-								<div class="space-y-3">
-									<div class="flex items-start justify-between gap-4">
-										<div class="space-y-1">
-											<p class="text-sm font-semibold text-slate-950">Fotos principales</p>
-											<p id="summaryImagesCount" class="text-sm text-slate-600">
-												Cargando fotos...
-											</p>
-										</div>
-										<Badge id="blockBadge-images" variant="warning" class="whitespace-nowrap">
-											Cargando...
-										</Badge>
-									</div>
-									<p class="text-sm leading-6 text-slate-500">
-										La imagen principal define la primera impresión del huésped y acompaña la
-										previsualización pública.
-									</p>
-									<div id="summaryImageGrid" class="grid min-h-[74px] grid-cols-3 gap-2">
-										<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
-										<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
-										<div class="h-16 w-full animate-pulse rounded-md bg-slate-200"></div>
-									</div>
-								</div>
-								<div class="flex justify-end">
-									<Button
-										href={`/product/${encodeURIComponent(productId)}/images`}
-										data-astro-prefetch
-										variant="secondary"
-									>
-										Gestionar fotos
-									</Button>
-								</div>
-							</div>
-						</div>
-					</Card>
+		<div
+			data-product-summary-config
+			data-product-id={productId}
+			data-is-hotel={String(isHotel)}
+			data-is-tour={String(isTour)}
+			data-is-package={String(isPackage)}
+			data-singular-label={vertical.labels.singular}
+			data-workspace-singular-label={vertical.labels.workspaceSingular}
+			data-preview-href={routes.productPreview(productId)}
+			data-rooms-href={routes.productRoomsForProduct(productId)}
+			data-rates-href={routes.rates()}
+			data-conditions-href={conditionsHref}
+			data-calendar-href={routes.calendar()}
+			data-house-rules-href={`${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`}
+			hidden
+		>
+		</div>
 
-					<Card class="bg-white">
-						<div class="flex h-full flex-col justify-between gap-4">
-							<div class="space-y-3">
-								<div class="flex items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="text-sm font-semibold text-slate-950">Descripción</p>
-										<p id="summaryDescription" class="text-sm leading-6 text-slate-600">
-											Cargando descripción...
-										</p>
-									</div>
-									<Badge id="blockBadge-content" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-								</div>
-								<p id="summaryHighlights" class="text-sm text-slate-500">Destacados: —</p>
-							</div>
-							<div class="flex justify-end">
-								<Button
-									href={`/product/${encodeURIComponent(productId)}/content`}
-									data-astro-prefetch
-									variant="secondary"
-								>
-									Editar descripción
-								</Button>
-							</div>
-						</div>
-					</Card>
-
-					<Card class="bg-white">
-						<div class="flex h-full flex-col justify-between gap-4">
-							<div class="space-y-3">
-								<div class="flex items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="flex items-center gap-2 text-sm font-semibold text-slate-950">
-											<MapPin class="h-4 w-4 text-slate-500" aria-hidden="true" />
-											{locationLabel}
-										</p>
-										<p id="summaryAddress" class="text-sm leading-6 text-slate-600">
-											Cargando dirección...
-										</p>
-									</div>
-									<Badge id="blockBadge-location" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-								</div>
-							</div>
-							<div class="flex justify-end">
-								<Button
-									href={`/product/${encodeURIComponent(productId)}/location`}
-									data-astro-prefetch
-									variant="secondary"
-								>
-									Editar {isTour ? "punto de encuentro" : "ubicación"}
-								</Button>
-							</div>
-						</div>
-					</Card>
-
-					{
-						isTour ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="flex items-start justify-between gap-4">
-											<div class="space-y-1">
-												<p class="text-sm font-semibold text-slate-950">Itinerario</p>
-												<p id="summaryItinerary" class="text-sm leading-6 text-slate-600">
-													Cargando itinerario...
-												</p>
-											</div>
-											<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
-												Cargando...
-											</Badge>
-										</div>
-										<p class="text-sm text-slate-500">
-											Explica la secuencia de la experiencia y lo que el viajero hará durante el
-											tour.
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar itinerario
-										</Button>
-									</div>
-								</div>
-							</Card>
-						) : null
-					}
-
-					{
-						isTour ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="space-y-1">
-											<p class="text-sm font-semibold text-slate-950">Duración y guía</p>
-											<p id="summaryTourDetails" class="text-sm leading-6 text-slate-600">
-												Cargando duración y guía...
-											</p>
-										</div>
-										<p class="text-sm text-slate-500">
-											Define duración, dificultad, idiomas de guía e inclusiones básicas del tour.
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar guía
-										</Button>
-									</div>
-								</div>
-							</Card>
-						) : null
-					}
-
-					{
-						isPackage ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="flex items-start justify-between gap-4">
-											<div class="space-y-1">
-												<p class="text-sm font-semibold text-slate-950">Itinerario</p>
-												<p id="summaryItinerary" class="text-sm leading-6 text-slate-600">
-													Cargando itinerario...
-												</p>
-											</div>
-											<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
-												Cargando...
-											</Badge>
-										</div>
-										<p class="text-sm text-slate-500">
-											Presenta el recorrido principal del paquete y sus momentos clave.
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar itinerario
-										</Button>
-									</div>
-								</div>
-							</Card>
-						) : null
-					}
-
-					{
-						isPackage ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="space-y-1">
-											<p class="text-sm font-semibold text-slate-950">Días y noches</p>
-											<p id="summaryPackageDuration" class="text-sm leading-6 text-slate-600">
-												Cargando duración del paquete...
-											</p>
-										</div>
-										<p class="text-sm text-slate-500">
-											Indica duración total para que el viajero entienda el compromiso de viaje.
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar duración
-										</Button>
-									</div>
-								</div>
-							</Card>
-						) : null
-					}
-
-					{
-						isPackage ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="space-y-1">
-											<p class="text-sm font-semibold text-slate-950">Inclusiones</p>
-											<p id="summaryInclusions" class="text-sm leading-6 text-slate-600">
-												Cargando inclusiones...
-											</p>
-										</div>
-										<p class="text-sm text-slate-500">
-											Define claramente qué incluye y qué no incluye el paquete antes de reservar.
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar inclusiones
-										</Button>
-									</div>
-								</div>
-							</Card>
-						) : null
-					}
-
+		<Card class="bg-white">
+			<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<p class="text-sm font-semibold text-slate-950">Acciones principales</p>
+					<p class="mt-1 text-sm leading-6 text-slate-500">
+						El detalle de ficha se carga después del shell inicial.
+					</p>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<Button href={routes.productPreview(productId)} data-astro-prefetch>Vista previa</Button>
 					{
 						isHotel ? (
-							<Card class="bg-white">
-								<div class="flex h-full flex-col justify-between gap-4">
-									<div class="space-y-3">
-										<div class="flex items-start justify-between gap-4">
-											<div class="space-y-1">
-												<p class="text-sm font-semibold text-slate-950">Tipo y características</p>
-												<p id="summaryProductType" class="text-sm leading-6 text-slate-600">
-													Cargando tipo...
-												</p>
-											</div>
-											<Badge id="blockBadge-subtype" variant="warning" class="whitespace-nowrap">
-												Cargando...
-											</Badge>
-										</div>
-										<p id="summarySubtype" class="text-sm text-slate-500">
-											Características: —
-										</p>
-									</div>
-									<div class="flex justify-end">
-										<Button
-											href={`/product/${encodeURIComponent(productId)}/subtype`}
-											data-astro-prefetch
-											variant="secondary"
-										>
-											Editar características
-										</Button>
-									</div>
-								</div>
-							</Card>
+							<Button
+								href={routes.productRoomsForProduct(productId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Habitaciones
+							</Button>
+						) : null
+					}
+					{
+						isHotel ? (
+							<Button href={routes.rates()} data-astro-prefetch variant="secondary">
+								Tarifas
+							</Button>
+						) : null
+					}
+					{
+						isHotel ? (
+							<Button href={routes.calendar()} data-astro-prefetch variant="secondary">
+								Calendario
+							</Button>
 						) : null
 					}
 				</div>
 			</div>
+		</Card>
 
-			<aside class="space-y-4" aria-label="Operación del alojamiento">
-				<Card class="bg-white">
-					<div class="space-y-4">
-						<div class="space-y-1">
-							<p class="text-sm font-semibold text-slate-950">Acciones principales</p>
-							<p class="text-sm leading-6 text-slate-500">
-								Abre la herramienta correcta sin repetir información de la ficha.
-							</p>
-						</div>
-						<div class="grid gap-2">
-							<Button href={routes.productPreview(productId)} data-astro-prefetch>
-								Vista previa
-								<ArrowRight class="h-4 w-4" aria-hidden="true" />
-							</Button>
-							{
-								isHotel ? (
-									<Button
-										href={routes.productRoomsForProduct(productId)}
-										data-astro-prefetch
-										variant="secondary"
-									>
-										<BedDouble class="h-4 w-4" aria-hidden="true" />
-										Abrir habitaciones
-									</Button>
-								) : null
-							}
-							{
-								isHotel ? (
-									<Button href={routes.rates()} data-astro-prefetch variant="secondary">
-										<CircleDollarSign class="h-4 w-4" aria-hidden="true" />
-										Abrir tarifas
-									</Button>
-								) : null
-							}
-							{
-								isHotel ? (
-									<Button href={conditionsHref} data-astro-prefetch variant="secondary">
-										<ScrollText class="h-4 w-4" aria-hidden="true" />
-										Abrir condiciones
-									</Button>
-								) : null
-							}
-							{
-								isHotel ? (
-									<Button href={routes.calendar()} data-astro-prefetch variant="secondary">
-										<CalendarDays class="h-4 w-4" aria-hidden="true" />
-										Abrir calendario
-									</Button>
-								) : null
-							}
-						</div>
-					</div>
-				</Card>
-
-				{
-					isHotel ? (
-						<Card class="bg-white">
-							<div class="space-y-4">
-								<div class="flex items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="flex items-center gap-2 text-sm font-semibold text-slate-950">
-											<BedDouble class="h-4 w-4 text-slate-500" aria-hidden="true" />
-											Habitaciones
-										</p>
-										<p id="summaryRooms" class="text-sm leading-6 text-slate-600">
-											Cargando habitaciones...
-										</p>
-									</div>
-									<Badge id="blockBadge-variants" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-								</div>
-								<p class="text-sm leading-6 text-slate-500">
-									Define capacidad, fotos propias y habitaciones vendibles desde su workspace.
-								</p>
-								<div class="flex justify-end">
-									<Button
-										href={routes.productRoomsForProduct(productId)}
-										data-astro-prefetch
-										variant="secondary"
-									>
-										Gestionar habitaciones
-									</Button>
-								</div>
-							</div>
-						</Card>
-					) : null
-				}
-
-				{
-					isHotel ? (
-						<Card class="bg-white">
-							<div class="space-y-4">
-								<div class="flex items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="flex items-center gap-2 text-sm font-semibold text-slate-950">
-											<ScrollText class="h-4 w-4 text-slate-500" aria-hidden="true" />
-											Condiciones de reserva
-										</p>
-										<p class="text-sm leading-6 text-slate-600">
-											Cancelación, pagos, no presentación y horarios que el huésped acepta antes de
-											reservar.
-										</p>
-									</div>
-									<Badge variant="info" class="whitespace-nowrap">
-										Operativo
-									</Badge>
-								</div>
-								<p class="text-sm leading-6 text-slate-500">
-									Revisa estas condiciones cuando cambies tarifas o disponibilidad. Si ya existe una
-									tarifa, se abrirá directamente su edición.
-								</p>
-								<div class="flex justify-end">
-									<Button href={conditionsHref} data-astro-prefetch variant="secondary">
-										Gestionar condiciones
-									</Button>
-								</div>
-							</div>
-						</Card>
-					) : null
-				}
-
-				{
-					isHotel ? (
-						<Card class="bg-white">
-							<div class="space-y-4">
-								<div class="flex items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="flex items-center gap-2 text-sm font-semibold text-slate-950">
-											<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
-											Reglas para huéspedes
-										</p>
-										<p id="summaryHouseRules" class="text-sm leading-6 text-slate-600">
-											Cargando reglas...
-										</p>
-									</div>
-									<Badge id="blockBadge-houseRules" variant="warning" class="whitespace-nowrap">
-										Cargando...
-									</Badge>
-								</div>
-								<p class="text-sm leading-6 text-slate-500">
-									Estas reglas pertenecen a este alojamiento y aparecen en la revisión antes de
-									reservar.
-								</p>
-								<div class="flex justify-end">
-									<Button
-										href={`${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`}
-										data-astro-prefetch
-										variant="secondary"
-									>
-										Editar reglas
-									</Button>
-								</div>
-							</div>
-						</Card>
-					) : null
-				}
-			</aside>
+		{
+			/* Client hydration fills these shells using payload?.variants?.count and payload?.images?.cover?.url */
+		}
+		<div data-product-deferred-root class="space-y-5">
+			<Card class="bg-white">
+				<p class="text-sm font-semibold text-slate-950">Descripción</p>
+				<p class="mt-2 text-sm leading-6 text-slate-500">Cargando descripción...</p>
+			</Card>
+			{
+				isHotel ? (
+					<Card class="bg-white">
+						<p class="text-sm font-semibold text-slate-950">Tipo y características</p>
+						<p class="mt-2 text-sm leading-6 text-slate-500">Cargando tipo...</p>
+					</Card>
+				) : null
+			}
 		</div>
 	</section>
 
-	<script
-		is:inline
-		data-astro-rerun
-		define:vars={{ productId, isHotel, isTour, isPackage, verticalLabels: vertical.labels }}
-	>
-		;(function () {
-			const shellStart = performance.now()
-			const logShellVisible = () => {
-				console.debug("shell visible", {
-					page: "product-surface",
-					durationMs: Number((performance.now() - shellStart).toFixed(1)),
-				})
-			}
-			if (document.readyState === "complete" || document.readyState === "interactive") {
-				logShellVisible()
-			} else {
-				document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
-			}
-
-			const setBadgeState = (key, complete) => {
-				const badge = document.getElementById(`blockBadge-${key}`)
-				if (!badge) return
-				badge.textContent = complete ? "Completo" : "Pendiente"
-				badge.classList.remove(
-					"border-amber-200",
-					"bg-amber-50",
-					"text-amber-900",
-					"border-emerald-200",
-					"bg-emerald-50",
-					"text-emerald-800"
-				)
-				if (complete) {
-					badge.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-800")
-				} else {
-					badge.classList.add("border-amber-200", "bg-amber-50", "text-amber-900")
-				}
-			}
-
-			const setText = (id, value) => {
-				const element = document.getElementById(id)
-				if (element) element.textContent = value
-			}
-
-			if (!productId) return
-
-			const hydrationStart = performance.now()
-			fetch(`/api/internal/product-summary?productId=${encodeURIComponent(productId)}`, {
-				headers: { accept: "application/json" },
-				cache: "no-store",
-			})
-				.then(async (response) => {
-					if (!response.ok) throw new Error(`summary_${response.status}`)
-					return await response.json()
-				})
-				.then((payload) => {
-					const missingStepsText = document.getElementById("productMissingStepsText")
-					const progressBar = document.getElementById("productProgressBar")
-					const progressText = document.getElementById("productProgressText")
-					const headerMeta = document.getElementById("productHeaderMeta")
-					const headerSummary = document.getElementById("productHeaderSummary")
-
-					const preparation = payload?.preparation ?? null
-					const missing = Number(preparation?.blockerCount ?? payload?.progress?.missingSteps ?? 0)
-					const percent = Number(
-						preparation?.readinessPercent ?? payload?.progress?.progressPercent ?? 0
-					)
-					const completed = Number(payload?.progress?.completedSteps ?? 0)
-					const total = Number(payload?.progress?.totalSteps ?? 0)
-					const address = String(payload?.location?.address || "Ubicación pendiente")
-					const productType = String(payload?.vertical?.label || verticalLabels.workspaceSingular)
-					const subtypeSummary = String(payload?.subtype?.summary || "Características pendientes")
-					const subtypeDetails = payload?.subtype?.details || {}
-					const highlightsCount = Number(payload?.content?.highlightsCount ?? 0)
-					const hasVariants = Boolean(payload?.checks?.hasVariants)
-					const hasHouseRules = Boolean(payload?.checks?.hasHouseRules)
-
-					if (missingStepsText) {
-						if (preparation?.readyToPublish) {
-							missingStepsText.textContent =
-								"Todo listo. Revisa la vista previa y confirma la publicación."
-						} else if (preparation?.blockerCount > 0) {
-							const preview = Array.isArray(preparation.blockerPreview)
-								? preparation.blockerPreview.map((label) => label.toLowerCase()).join(", ")
-								: ""
-							missingStepsText.textContent = `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"} del playbook${preview ? `: ${preview}` : ""}.`
-						} else {
-							missingStepsText.textContent =
-								missing === 0
-									? "La ficha está lista para revisión final."
-									: `Faltan ${missing} puntos para completar la ficha.`
-						}
-					}
-					if (progressBar) {
-						const progressValue = progressBar.querySelector(".fastt-progress-value")
-						if (progressValue instanceof HTMLElement) {
-							progressValue.style.width = `${Math.max(0, Math.min(100, percent))}%`
-						}
-					}
-					if (progressText) {
-						progressText.textContent = preparation
-							? `${percent}% de preparación completada`
-							: `${completed} de ${total} puntos internos listos.`
-					}
-					if (headerMeta) headerMeta.textContent = address
-					if (headerSummary) {
-						headerSummary.textContent =
-							"Administra la ficha pública, habitaciones y reglas de este alojamiento. Las tarifas y el calendario se gestionan desde Venta."
-					}
-
-					setBadgeState("content", Boolean(payload?.checks?.hasContent))
-					setBadgeState("location", Boolean(payload?.checks?.hasLocation))
-					setBadgeState("images", Boolean(payload?.checks?.hasImages))
-					setBadgeState("subtype", Boolean(payload?.checks?.hasSubtype))
-					if (isHotel) {
-						setBadgeState("variants", hasVariants)
-						setBadgeState("houseRules", hasHouseRules)
-					}
-
-					const summaryDescription = document.getElementById("summaryDescription")
-					const summaryHighlights = document.getElementById("summaryHighlights")
-					const summaryAddress = document.getElementById("summaryAddress")
-					const summaryImagesCount = document.getElementById("summaryImagesCount")
-					const summaryProductType = document.getElementById("summaryProductType")
-					const summarySubtype = document.getElementById("summarySubtype")
-					const summaryImageGrid = document.getElementById("summaryImageGrid")
-					const productHeroMedia = document.getElementById("productHeroMedia")
-
-					if (summaryDescription)
-						summaryDescription.textContent = String(payload?.content?.descriptionPreview ?? "")
-					if (summaryHighlights)
-						summaryHighlights.textContent = `Destacados: ${Number(payload?.content?.highlightsCount ?? 0)}`
-					if (summaryAddress) summaryAddress.textContent = address
-					if (summaryImagesCount)
-						summaryImagesCount.textContent = `${Number(payload?.images?.count ?? 0)} fotos cargadas`
-					if (summaryProductType) summaryProductType.textContent = productType
-					if (summarySubtype) summarySubtype.textContent = subtypeSummary
-					if (isTour) {
-						const guideLanguages = Array.isArray(subtypeDetails.guideLanguages)
-							? subtypeDetails.guideLanguages.filter(Boolean).join(", ")
-							: ""
-						const duration = String(subtypeDetails.duration || "").trim()
-						const difficulty = String(subtypeDetails.difficultyLevel || "").trim()
-						const includes = String(subtypeDetails.includes || "").trim()
-						setText(
-							"summaryItinerary",
-							highlightsCount > 0
-								? `Itinerario resumido en ${highlightsCount} destacados de contenido.`
-								: "Agrega destacados para explicar la secuencia de la experiencia."
-						)
-						setText(
-							"summaryTourDetails",
-							[
-								duration ? `Duración: ${duration}` : "Duración pendiente",
-								difficulty ? `Dificultad: ${difficulty}` : "",
-								guideLanguages ? `Guía: ${guideLanguages}` : "Idiomas de guía pendientes",
-								includes ? "Incluye configurado" : "",
-							]
-								.filter(Boolean)
-								.join(" · ")
-						)
-					}
-					if (isPackage) {
-						const itinerary = String(subtypeDetails.itinerary || "").trim()
-						const days = Number(subtypeDetails.days ?? 0)
-						const nights = Number(subtypeDetails.nights ?? 0)
-						const packageIncludes = String(subtypeDetails.includes || "").trim()
-						const packageExcludes = String(subtypeDetails.excludes || "").trim()
-						setText(
-							"summaryItinerary",
-							itinerary ? itinerary.slice(0, 160) : "Agrega el recorrido principal del paquete."
-						)
-						setText(
-							"summaryPackageDuration",
-							days > 0 || nights > 0 ? `${days} días / ${nights} noches` : "Duración pendiente."
-						)
-						setText(
-							"summaryInclusions",
-							[
-								packageIncludes ? "Incluye configurado" : "Incluye pendiente",
-								packageExcludes ? "No incluye configurado" : "No incluye opcional",
-							].join(" · ")
-						)
-					}
-					if (isHotel) {
-						setText(
-							"summaryRooms",
-							hasVariants
-								? `${Number(payload?.variants?.count ?? 0)} habitaciones configuradas${
-										Array.isArray(payload?.variants?.names) && payload.variants.names.length > 0
-											? `: ${payload.variants.names.join(", ")}`
-											: "."
-									}`
-								: "Agrega habitaciones para que este alojamiento pueda venderse correctamente."
-						)
-						setText(
-							"summaryHouseRules",
-							hasHouseRules
-								? "Reglas principales listas para este alojamiento."
-								: "Agrega las reglas principales para que el huésped sepa qué esperar."
-						)
-					}
-
-					if (summaryImageGrid) {
-						summaryImageGrid.innerHTML = ""
-						const previews = Array.isArray(payload?.images?.previews) ? payload.images.previews : []
-						if (previews.length === 0) {
-							const empty = document.createElement("p")
-							empty.className = "col-span-3 text-sm text-slate-500"
-							empty.textContent = "Sin imágenes cargadas."
-							summaryImageGrid.appendChild(empty)
-						} else {
-							for (const item of previews) {
-								const img = document.createElement("img")
-								img.src = String(item.url)
-								img.alt = "Vista previa"
-								img.className = "h-16 w-full rounded-md border border-slate-200 object-cover"
-								summaryImageGrid.appendChild(img)
-							}
-						}
-					}
-
-					if (productHeroMedia) {
-						const coverImage = payload?.images?.cover?.url ? String(payload.images.cover.url) : ""
-						if (coverImage) {
-							productHeroMedia.textContent = ""
-							const heroImage = document.createElement("img")
-							heroImage.src = coverImage
-							heroImage.alt = `Foto principal de ${verticalLabels.singular}`
-							heroImage.className = "h-full min-h-[220px] w-full object-cover"
-							productHeroMedia.appendChild(heroImage)
-						}
-					}
-
-					console.debug("data hydrated", {
-						page: "product-surface",
-						durationMs: Number((performance.now() - hydrationStart).toFixed(1)),
-					})
-				})
-				.catch(() => {
-					const progressText = document.getElementById("productProgressText")
-					if (progressText)
-						progressText.textContent = "No se pudo cargar el progreso en este momento."
-					const keys = ["content", "location", "images", "subtype"]
-					if (isHotel) keys.push("variants", "houseRules")
-					keys.forEach((key) => setBadgeState(key, false))
-				})
-		})()
+	<script>
+		import "@/pages/product/_client/product-summary-hydration"
 	</script>
 </WorkspaceLayout>

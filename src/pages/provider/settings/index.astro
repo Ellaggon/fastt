@@ -4,63 +4,79 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
-import { getProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { routes } from "@/lib/routes"
+import { getProviderFullAggregate } from "@/modules/catalog/public"
 
-const auth = await requireProvider(Astro.request).catch((e: any) => {
-	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
-	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
-	throw e
-})
-if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+const startedAt = performance.now()
+const timing = createServerTimingRecorder()
 
-const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
-	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
-})
-const summary = summaryRes.ok ? await summaryRes.json() : null
-const readiness = Array.isArray(summary?.readiness) ? summary.readiness : []
-const blockingMatrix = Array.isArray(summary?.blockingMatrix) ? summary.blockingMatrix : []
-const blockers = Array.isArray(summary?.blockers) ? summary.blockers : []
-const risks = Array.isArray(summary?.risks) ? summary.risks : []
-const auditEvents = Array.isArray(summary?.auditEvents) ? summary.auditEvents : []
-const capabilities = summary?.capabilities ?? {}
-const counts = summary?.counts ?? {}
-const simulation = summary?.publicationSimulation ?? null
-const progressPercent = Number(summary?.progress?.progressPercent ?? 0)
-const progressLabel = String(summary?.progress?.message ?? "No se pudo calcular el estado.")
-const providerName = String(summary?.provider?.displayName ?? "Proveedor")
+const providerSession = await timing.time("authProvider", () =>
+	getProviderSessionSurfaceFromRequest(Astro.request)
+)
+if (!providerSession) return Astro.redirect("/SignInPage")
+const user = { id: providerSession.userId, email: "" }
+const providerId = providerSession.providerId
 
-let professionalToolsEnabled = false
-let professionalToolsUpdatedAt: Date | null = null
-try {
-	const preferences = await getProviderProfessionalToolsPreference(auth.providerId)
-	professionalToolsEnabled = preferences.professionalToolsEnabled
-	professionalToolsUpdatedAt = preferences.updatedAt
-} catch {
-	professionalToolsEnabled = false
-	professionalToolsUpdatedAt = null
+const aggregate = await timing.time("providerAggregate", () =>
+	getProviderFullAggregate(providerId, user.id)
+)
+const providerBase = aggregate?.provider ?? null
+const blockers: any[] = []
+const risks: any[] = []
+const capabilities = {
+	publish: false,
+	booking: false,
+	payments: false,
+	integrations: false,
 }
+const counts = {
+	documents: 0,
+	verifiedDocuments: 0,
+	paymentAccounts: 0,
+	verifiedPaymentAccounts: 0,
+	integrations: 0,
+	connectedIntegrations: 0,
+	auditEvents: 0,
+	teamMembers: 0,
+}
+const progressPercent = 0
+const progressLabel = "Cargando estado operativo..."
+const providerName = String(providerBase?.displayName || providerBase?.legalName || "Proveedor")
+
+const professionalToolsEnabled = providerSession.professionalToolsEnabled
+const professionalToolsUpdatedAt: Date | null = null
 
 const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
 const professionalToolsSaved = professionalToolsParam === "saved"
 const professionalToolsError = professionalToolsParam === "error"
-const professionalToolsUpdatedLabel = professionalToolsUpdatedAt
-	? professionalToolsUpdatedAt.toLocaleDateString("es-BO", {
-			day: "2-digit",
-			month: "short",
-			year: "numeric",
-		})
-	: "Sin cambios aún"
-
-function formatDate(value: string | Date | null | undefined) {
-	if (!value) return "Sin fecha"
-	return new Intl.DateTimeFormat("es", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	}).format(new Date(value))
+function formatProfessionalToolsUpdatedLabel(value: Date | null) {
+	return value
+		? value.toLocaleDateString("es-BO", {
+				day: "2-digit",
+				month: "short",
+				year: "numeric",
+			})
+		: "Sin cambios aún"
 }
+const professionalToolsUpdatedLabel = formatProfessionalToolsUpdatedLabel(
+	professionalToolsUpdatedAt
+)
+
+timing.addTotal("providerSettingsPage")
+timing.setHeader(Astro.response.headers)
+logRoutePerformance({
+	name: "provider-settings-page",
+	request: Astro.request,
+	url: Astro.url,
+	status: 200,
+	startedAt,
+	timing,
+	userId: user.id,
+	providerId,
+})
 ---
 
 <ProviderSettingsLayout
@@ -69,8 +85,8 @@ function formatDate(value: string | Date | null | undefined) {
 	description="Centro de control para identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={summary?.actions?.primaryCtaAction ?? routes.providerSettingsProfile()}>
-			{summary?.actions?.primaryCtaLabel ?? "Continuar configuración"}
+		<Button href={routes.providerSettingsProfile()} data-settings-primary-cta>
+			Continuar configuración
 		</Button>
 	</div>
 
@@ -95,9 +111,11 @@ function formatDate(value: string | Date | null | undefined) {
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<p class="text-sm text-slate-400">Proveedor</p>
-						<h2 class="mt-1 text-2xl font-semibold text-white">{providerName}</h2>
+						<h2 class="mt-1 text-2xl font-semibold text-white" data-settings-provider-name>
+							{providerName}
+						</h2>
 					</div>
-					<Badge variant={blockers.length ? "warning" : "success"}>
+					<Badge variant={blockers.length ? "warning" : "neutral"} data-settings-base-badge>
 						{blockers.length ? "Con bloqueos" : "Base lista"}
 					</Badge>
 				</div>
@@ -105,24 +123,31 @@ function formatDate(value: string | Date | null | undefined) {
 					<div
 						class="h-full bg-white"
 						style={`width: ${Math.max(0, Math.min(100, progressPercent))}%`}
+						data-settings-progress-bar
 					>
 					</div>
 				</div>
-				<p class="text-sm leading-6 text-slate-300">{progressLabel}</p>
+				<p class="text-sm leading-6 text-slate-300" data-settings-progress-label>
+					{progressLabel}
+				</p>
 			</div>
 		</Card>
 
 		<div class="grid gap-4 md:grid-cols-2">
 			<Card>
 				<p class="text-sm font-semibold text-slate-950">Bloqueos</p>
-				<p class="mt-2 text-3xl font-semibold text-slate-950">{blockers.length}</p>
+				<p class="mt-2 text-3xl font-semibold text-slate-950" data-settings-blockers-count>
+					{blockers.length}
+				</p>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
 					Elementos que impiden considerar completa la configuración base.
 				</p>
 			</Card>
 			<Card>
 				<p class="text-sm font-semibold text-slate-950">Riesgos</p>
-				<p class="mt-2 text-3xl font-semibold text-slate-950">{risks.length}</p>
+				<p class="mt-2 text-3xl font-semibold text-slate-950" data-settings-risks-count>
+					{risks.length}
+				</p>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
 					Alertas que no bloquean todo, pero conviene revisar antes de escalar.
 				</p>
@@ -133,238 +158,52 @@ function formatDate(value: string | Date | null | undefined) {
 	<section class="grid gap-4 md:grid-cols-4">
 		<Card>
 			<p class="text-sm font-semibold text-slate-950">Publicación</p>
-			<Badge class="mt-3" variant={capabilities.publish ? "success" : "warning"}>
+			<Badge
+				class="mt-3"
+				variant={capabilities.publish ? "success" : "neutral"}
+				data-capability="publish"
+			>
 				{capabilities.publish ? "Habilitada" : "Bloqueada"}
 			</Badge>
 		</Card>
 		<Card>
 			<p class="text-sm font-semibold text-slate-950">Reservas</p>
-			<Badge class="mt-3" variant={capabilities.booking ? "success" : "warning"}>
+			<Badge
+				class="mt-3"
+				variant={capabilities.booking ? "success" : "neutral"}
+				data-capability="booking"
+			>
 				{capabilities.booking ? "Habilitadas" : "Bloqueadas"}
 			</Badge>
 		</Card>
 		<Card>
 			<p class="text-sm font-semibold text-slate-950">Cobros</p>
-			<Badge class="mt-3" variant={capabilities.payments ? "success" : "warning"}>
+			<Badge
+				class="mt-3"
+				variant={capabilities.payments ? "success" : "neutral"}
+				data-capability="payments"
+			>
 				{capabilities.payments ? "Habilitados" : "Bloqueados"}
 			</Badge>
 		</Card>
 		<Card>
 			<p class="text-sm font-semibold text-slate-950">Integraciones</p>
-			<Badge class="mt-3" variant={capabilities.integrations ? "success" : "neutral"}>
+			<Badge
+				class="mt-3"
+				variant={capabilities.integrations ? "success" : "neutral"}
+				data-capability="integrations"
+			>
 				{capabilities.integrations ? "Listas" : "Sin activar"}
 			</Badge>
 		</Card>
 	</section>
 
-	{
-		blockers.length > 0 && (
-			<Notice variant="warning" title="Qué bloquea qué">
-				Este resumen muestra exactamente qué capacidad queda bloqueada y por qué. Resuelve los
-				bloqueos de publicación y cobros antes de abrir venta en producción.
-			</Notice>
-		)
-	}
-
-	<section class="grid gap-4 xl:grid-cols-4">
-		{
-			blockingMatrix.map((item: any) => (
-				<Card class={item.enabled ? "border-emerald-200" : "border-amber-200"}>
-					<div class="flex h-full flex-col gap-4">
-						<div class="flex items-start justify-between gap-3">
-							<h2 class="text-lg font-semibold text-slate-950">{item.label}</h2>
-							<Badge variant={item.enabled ? "success" : "warning"}>
-								{item.enabled ? "Activa" : "Bloqueada"}
-							</Badge>
-						</div>
-						<p class="text-sm leading-6 text-slate-600">{item.message}</p>
-						<div class="grid gap-2">
-							{item.blockers.length ? (
-								item.blockers.map((blocker: any) => (
-									<a href={blocker.href} class="block">
-										<Card
-											variant="soft"
-											class="p-3 text-sm font-semibold text-slate-800 transition hover:bg-white"
-										>
-											{blocker.label}
-										</Card>
-									</a>
-								))
-							) : (
-								<p class="rounded-[var(--fastt-radius-control)] bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-									Sin bloqueos directos
-								</p>
-							)}
-						</div>
-					</div>
-				</Card>
-			))
-		}
-	</section>
-
-	<section class="grid gap-4 xl:grid-cols-2">
-		<Card>
-			<div class="space-y-4">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Readiness</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Estado consolidado de cada área de configuración.
-					</p>
-				</div>
-				<div class="space-y-3">
-					{
-						readiness.map((item: any) => (
-							<a href={item.href} class="block">
-								<Card
-									variant="soft"
-									class="flex items-center justify-between gap-4 transition hover:border-slate-300 hover:bg-white"
-								>
-									<div>
-										<p class="text-sm font-semibold text-slate-950">{item.label}</p>
-										<p class="mt-1 text-sm text-slate-600">
-											{item.complete ? "Listo para operar" : "Requiere configuración"}
-										</p>
-									</div>
-									<Badge variant={item.complete ? "success" : "warning"}>
-										{item.complete ? "Completo" : "Pendiente"}
-									</Badge>
-								</Card>
-							</a>
-						))
-					}
-				</div>
-			</div>
-		</Card>
-
-		<Card>
-			<div class="space-y-4">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Riesgos y permisos</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Señales de configuración que necesitan gobernanza antes de activar automatizaciones.
-					</p>
-				</div>
-				<div class="space-y-3">
-					{
-						risks.length ? (
-							risks.map((risk: any) => (
-								<a href={risk.href} class="block">
-									<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
-										<div class="flex items-start justify-between gap-4">
-											<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
-											<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
-												{risk.severity === "medium" ? "Medio" : "Bajo"}
-											</Badge>
-										</div>
-									</Card>
-								</a>
-							))
-						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								No hay riesgos activos en el resumen actual.
-							</Card>
-						)
-					}
-				</div>
-			</div>
-		</Card>
-	</section>
-
-	<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-		<Card>
-			<div class="space-y-4">
-				<div class="flex flex-wrap items-start justify-between gap-4">
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Simulación antes de publicar</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">
-							Estimación fiscal y de pagos con la configuración actual del proveedor.
-						</p>
-					</div>
-					<Badge variant={simulation?.canPublishSafely ? "success" : "warning"}>
-						{simulation?.canPublishSafely ? "Lista" : "Revisar"}
-					</Badge>
-				</div>
-				<div class="grid gap-3 sm:grid-cols-3">
-					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Base</p>
-						<p class="mt-2 text-xl font-semibold text-slate-950">
-							{simulation?.currency ?? "USD"}
-							{Number(simulation?.baseAmount ?? 0).toFixed(2)}
-						</p>
-					</div>
-					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-							Impuestos
-						</p>
-						<p class="mt-2 text-xl font-semibold text-slate-950">
-							{simulation?.currency ?? "USD"}
-							{Number(simulation?.estimatedTax ?? 0).toFixed(2)}
-						</p>
-					</div>
-					<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-						<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-							Pago proveedor
-						</p>
-						<p class="mt-2 text-xl font-semibold text-slate-950">
-							{simulation?.currency ?? "USD"}
-							{Number(simulation?.estimatedPayout ?? 0).toFixed(2)}
-						</p>
-					</div>
-				</div>
-				<p class="text-sm leading-6 text-slate-600">{simulation?.message}</p>
-			</div>
-		</Card>
-
-		<Card>
-			<div class="space-y-4">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Auditoría reciente</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Cambios sensibles registrados en perfil, fiscalidad, pagos e integraciones.
-					</p>
-				</div>
-				<div class="space-y-3">
-					{
-						auditEvents.length ? (
-							auditEvents.map((event: any) => (
-								<Card variant="soft">
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-950">{event.action}</p>
-											<p class="mt-1 text-sm text-slate-600">
-												{event.entityType} · {event.actorEmail ?? "Sistema"}
-											</p>
-										</div>
-										<Badge
-											variant={
-												event.riskLevel === "high"
-													? "error"
-													: event.riskLevel === "medium"
-														? "warning"
-														: "neutral"
-											}
-										>
-											{event.riskLevel}
-										</Badge>
-									</div>
-									<p class="mt-2 text-xs text-slate-500">{formatDate(event.createdAt)}</p>
-								</Card>
-							))
-						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								Aún no hay eventos de auditoría visibles.
-							</Card>
-						)
-					}
-				</div>
-			</div>
-		</Card>
-	</section>
+	<div data-settings-deferred-root class="space-y-4"></div>
 
 	<section class="grid gap-4 md:grid-cols-4">
 		<Card variant="soft" class="bg-white">
 			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950">
+			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="documents">
 				{Number(counts.verifiedDocuments ?? 0)} / {Number(counts.documents ?? 0)}
 			</p>
 		</Card>
@@ -372,19 +211,19 @@ function formatDate(value: string | Date | null | undefined) {
 			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
 				Cuentas de pago
 			</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950">
+			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="paymentAccounts">
 				{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
 			</p>
 		</Card>
 		<Card variant="soft" class="bg-white">
 			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectores</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950">
+			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="integrations">
 				{Number(counts.connectedIntegrations ?? 0)} / {Number(counts.integrations ?? 0)}
 			</p>
 		</Card>
 		<Card variant="soft" class="bg-white">
 			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Auditoría</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950">
+			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="auditEvents">
 				{Number(counts.auditEvents ?? 0)}
 			</p>
 		</Card>
@@ -472,4 +311,8 @@ function formatDate(value: string | Date | null | undefined) {
 			</form>
 		</Card>
 	</section>
+
+	<script>
+		import "@/pages/provider/settings/_client/settings-summary-hydration.js"
+	</script>
 </ProviderSettingsLayout>

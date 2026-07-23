@@ -13,12 +13,8 @@ import {
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ratePlanPricingReadRepository } from "@/container"
-import {
-	derivePolicySummaryFromResolvedPolicies,
-	REQUIRED_POLICY_CATEGORIES,
-	resolveEffectivePolicies,
-	resolvePolicyDateRange,
-} from "@/modules/policies/public"
+import { REQUIRED_POLICY_CATEGORIES, resolvePolicyDateRange } from "@/modules/policies/public"
+import { fallbackRatePlanConditionsSummary } from "@/lib/policies/ratePlanConditionState"
 import { listRatePlansByProvider } from "@/modules/pricing/public"
 
 function countNights(checkIn: string, checkOut: string): number {
@@ -48,7 +44,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const rows = await listRatePlansByProvider(providerId)
 	const requestUrl = url ?? new URL(request.url || "http://localhost:4321/api/rates/plans")
 	const { checkIn, checkOut } = resolvePolicyDateRange(requestUrl)
-	const channel = String(requestUrl.searchParams.get("channel") ?? "").trim() || "web"
 	const requiredCategories = [...REQUIRED_POLICY_CATEGORIES]
 	const expectedInventoryDays = countNights(checkIn, checkOut)
 	const ratePlanIds = rows.map((row: any) => String(row?.ratePlanId ?? "")).filter(Boolean)
@@ -79,87 +74,45 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const pricingByRatePlan = new Map(pricingSummaries.map((row) => [row.ratePlanId, row]))
 	const inventoryByVariant = new Map(inventorySummaries.map((row) => [String(row.variantId), row]))
 
-	const rowsWithPolicySummary = await Promise.all(
-		rows.map(async (row: any) => {
-			const ratePlanId = String(row?.ratePlanId ?? "")
-			const productId = String(row?.productId ?? "")
-			const variantId = String(row?.variantId ?? "")
-			const pricingSummary = pricingByRatePlan.get(ratePlanId) ?? null
-			const inventorySummary = inventoryByVariant.get(variantId) ?? null
-			const inventoryCoverageDays = Number(inventorySummary?.coverageDays ?? 0)
-			const inventoryAvailableDays = Number(inventorySummary?.availableDays ?? 0)
-			const inventoryTotalUnits = Number(inventorySummary?.totalUnits ?? 0)
-			const pricingReadiness = {
-				hasBasePrice: Boolean(pricingSummary),
-				basePrice: pricingSummary?.basePrice ?? null,
-				currency: pricingSummary?.currency ?? null,
-				effectivePricingDays: Number(pricingSummary?.effectivePricingDays ?? 0),
-			}
-			const inventoryReadiness = {
-				isReady:
-					inventoryCoverageDays >= expectedInventoryDays &&
-					inventoryAvailableDays >= expectedInventoryDays &&
-					inventoryTotalUnits > 0,
-				coverageDays: inventoryCoverageDays,
-				availableDays: inventoryAvailableDays,
-				expectedDays: expectedInventoryDays,
-			}
-			if (!ratePlanId || !productId) {
-				return {
-					...row,
-					pricingReadiness,
-					inventoryReadiness,
-					policyCoverage: {
-						totalCategories: requiredCategories.length,
-						coveredCategories: 0,
-						missingCategories: requiredCategories,
-						isComplete: false,
-					},
-					policySummary: "Sin condiciones configuradas",
-				}
-			}
-
-			try {
-				const resolved = await resolveEffectivePolicies({
-					productId,
-					variantId: variantId || undefined,
-					ratePlanId,
-					checkIn,
-					checkOut,
-					channel,
-					requiredCategories,
-					onMissingCategory: "return_null",
-				})
-				const missingCategories = resolved.missingCategories
-				const coveredCategories = Math.max(requiredCategories.length - missingCategories.length, 0)
-				return {
-					...row,
-					pricingReadiness,
-					inventoryReadiness,
-					policyCoverage: {
-						totalCategories: requiredCategories.length,
-						coveredCategories,
-						missingCategories,
-						isComplete: missingCategories.length === 0,
-					},
-					policySummary: derivePolicySummaryFromResolvedPolicies(resolved),
-				}
-			} catch {
-				return {
-					...row,
-					pricingReadiness,
-					inventoryReadiness,
-					policyCoverage: {
-						totalCategories: requiredCategories.length,
-						coveredCategories: 0,
-						missingCategories: requiredCategories,
-						isComplete: false,
-					},
-					policySummary: "Sin condiciones configuradas",
-				}
-			}
-		})
-	)
+	const rowsWithPolicySummary = rows.map((row: any) => {
+		const ratePlanId = String(row?.ratePlanId ?? "")
+		const variantId = String(row?.variantId ?? "")
+		const pricingSummary = pricingByRatePlan.get(ratePlanId) ?? null
+		const conditionsSummary =
+			pricingSummary?.conditionsSummary ?? fallbackRatePlanConditionsSummary()
+		const inventorySummary = inventoryByVariant.get(variantId) ?? null
+		const inventoryCoverageDays = Number(inventorySummary?.coverageDays ?? 0)
+		const inventoryAvailableDays = Number(inventorySummary?.availableDays ?? 0)
+		const inventoryTotalUnits = Number(inventorySummary?.totalUnits ?? 0)
+		const pricingReadiness = {
+			hasBasePrice: Boolean(pricingSummary),
+			basePrice: pricingSummary?.basePrice ?? null,
+			currency: pricingSummary?.currency ?? null,
+			effectivePricingDays: Number(pricingSummary?.effectivePricingDays ?? 0),
+		}
+		const inventoryReadiness = {
+			isReady:
+				inventoryCoverageDays >= expectedInventoryDays &&
+				inventoryAvailableDays >= expectedInventoryDays &&
+				inventoryTotalUnits > 0,
+			coverageDays: inventoryCoverageDays,
+			availableDays: inventoryAvailableDays,
+			expectedDays: expectedInventoryDays,
+		}
+		return {
+			...row,
+			pricingReadiness,
+			inventoryReadiness,
+			policyCoverage: {
+				totalCategories: conditionsSummary.totalCategories || requiredCategories.length,
+				coveredCategories: conditionsSummary.coveredCategories,
+				missingCategories: conditionsSummary.missingCategories,
+				isComplete: conditionsSummary.conditionsComplete,
+				policyCoverageUpdatedAt: conditionsSummary.policyCoverageUpdatedAt,
+			},
+			policySummary: conditionsSummary.summary,
+		}
+	})
 
 	return new Response(JSON.stringify({ ratePlans: rowsWithPolicySummary }), {
 		status: 200,

@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import { ratePlanCommandRepository } from "@/container"
-import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidatePricing, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { clearAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
@@ -50,6 +50,12 @@ export const DELETE: APIRoute = async ({ request, url }) => {
 			clearAggregateCache()
 			if (ownerContext) {
 				await invalidateVariant(ownerContext.variantId, ownerContext.productId)
+				await invalidatePricing({
+					ratePlanId: id,
+					variantId: ownerContext.variantId,
+					productId: ownerContext.productId,
+					providerId,
+				})
 				await invalidateProvider(providerId)
 			}
 			return new Response(JSON.stringify({ success: true }), { status: 200 })

@@ -169,6 +169,19 @@ export async function applyInventoryMutation<T>(params: {
 
 	for (const instruction of instructions) {
 		try {
+			const { invalidateInventoryAvailabilitySurface } = await import("@/lib/cache/invalidation")
+			await invalidateInventoryAvailabilitySurface({ variantId: instruction.variantId })
+		} catch (error) {
+			logger.warn("inventory.apply_mutation.availability_cache_invalidation_failed", {
+				...params.logContext,
+				variantId: instruction.variantId,
+				message: error instanceof Error ? error.message : String(error),
+			})
+		}
+	}
+
+	for (const instruction of instructions) {
+		try {
 			const { materializeSearchUnitRange } = await import("@/modules/search/public")
 			await materializeSearchUnitRange({
 				variantId: instruction.variantId,
@@ -182,6 +195,18 @@ export async function applyInventoryMutation<T>(params: {
 				variantId: instruction.variantId,
 				from: instruction.from,
 				to: instruction.to,
+				message: error instanceof Error ? error.message : String(error),
+			})
+		}
+	}
+	for (const instruction of instructions) {
+		try {
+			const { invalidateInventoryAvailabilitySurface } = await import("@/lib/cache/invalidation")
+			await invalidateInventoryAvailabilitySurface({ variantId: instruction.variantId })
+		} catch (error) {
+			logger.warn("inventory.apply_mutation.post_materialization_cache_invalidation_failed", {
+				...params.logContext,
+				variantId: instruction.variantId,
 				message: error instanceof Error ? error.message : String(error),
 			})
 		}

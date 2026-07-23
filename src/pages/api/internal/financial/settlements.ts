@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { financialSettlementRecordRepository } from "@/container/financial.container"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
 import type { FinancialSettlementRecordSource } from "@/modules/financial/public"
 
 import { bookingBelongsToProvider, json, readJson, requireFinancialProvider } from "./_stage2"
@@ -57,5 +58,11 @@ export const POST: APIRoute = async ({ request }) => {
 		source,
 		matchedAt: null,
 	})
+	if (result.created) {
+		void invalidateFinancialProviderSummary({
+			providerId: auth.providerId,
+			reason: "settlement_recorded",
+		})
+	}
 	return json(result, result.created ? 201 : 200)
 }

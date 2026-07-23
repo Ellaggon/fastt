@@ -8,7 +8,7 @@ import {
 	variantRepository,
 } from "@/container"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
+import { invalidatePricing, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { createRatePlanContract } from "@/lib/rates/createRatePlanContract"
 import { resolveCommercialIntentSpec } from "@/lib/rates/ratePlanCommercialIntent"
@@ -83,6 +83,14 @@ export const POST: APIRoute = async ({ request }) => {
 				variantId: body.variantId,
 			})
 			await invalidateVariant(body.variantId, variant.productId)
+			if (createdRatePlanId) {
+				await invalidatePricing({
+					ratePlanId: createdRatePlanId,
+					variantId: body.variantId,
+					productId: variant.productId,
+					providerId,
+				})
+			}
 			await invalidateProvider(providerId)
 		}
 

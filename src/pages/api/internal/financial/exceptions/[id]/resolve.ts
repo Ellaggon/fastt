@@ -4,7 +4,8 @@ import {
 	financialExceptionRepository,
 	financialReviewEventRepository,
 } from "@/container/financial.container"
-import { resolveFinancialException } from "@/modules/financial/application/use-cases/resolve-financial-exception"
+import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
+import { resolveFinancialException } from "@/modules/financial/public"
 
 import { json, readJson, requireFinancialProvider } from "../../_stage2"
 
@@ -21,5 +22,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 		{ providerId: auth.providerId, exceptionId: id, actorId, resolutionNote }
 	)
 	if (!result) return json({ error: "not_found" }, 404)
+	void invalidateFinancialProviderSummary({
+		providerId: auth.providerId,
+		reason: "financial_exception_resolved",
+	})
 	return json(result)
 }

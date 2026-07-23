@@ -1,5 +1,6 @@
 import {
 	first,
+	and,
 	db,
 	desc,
 	eq,
@@ -78,6 +79,21 @@ const settingsRoutes = {
 	team: "/provider/settings/team",
 }
 
+const PROVIDER_CONFIGURATION_STATE_MAX_AGE_MS = Number(
+	process.env.FASTT_PROVIDER_CONFIGURATION_STATE_MAX_AGE_MS ?? 5 * 60 * 1000
+)
+
+const emptyCounts: ProviderGovernanceSummary["counts"] = {
+	documents: 0,
+	verifiedDocuments: 0,
+	paymentAccounts: 0,
+	verifiedPaymentAccounts: 0,
+	integrations: 0,
+	connectedIntegrations: 0,
+	auditEvents: 0,
+	teamMembers: 0,
+}
+
 function isMissingGovernanceStorage(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error)
 	return (
@@ -104,6 +120,151 @@ function issueFromCheck(check: ProviderGovernanceCheck): ProviderGovernanceIssue
 		severity: high ? "high" : "medium",
 		href: check.href,
 		capabilities: check.capabilities,
+	}
+}
+
+function isFreshConfigurationState(value: unknown): boolean {
+	const time = value ? new Date(value as any).getTime() : 0
+	return Number.isFinite(time) && Date.now() - time <= PROVIDER_CONFIGURATION_STATE_MAX_AGE_MS
+}
+
+function normalizeReadiness(value: unknown): ProviderGovernanceCheck[] | null {
+	if (!Array.isArray(value)) return null
+	const rows = value.filter((item) => item && typeof item === "object") as Array<
+		Partial<ProviderGovernanceCheck>
+	>
+	if (!rows.length) return null
+	return rows.map((item) => ({
+		id: String(item.id ?? ""),
+		label: String(item.label ?? ""),
+		complete: Boolean(item.complete),
+		href: String(item.href ?? settingsRoutes.summary),
+		capabilities: Array.isArray(item.capabilities)
+			? (item.capabilities.filter((capability) =>
+					["publish", "booking", "payments", "integrations"].includes(String(capability))
+				) as ProviderCapability[])
+			: [],
+	}))
+}
+
+function normalizeIssues(value: unknown): ProviderGovernanceIssue[] {
+	if (!Array.isArray(value)) return []
+	return value
+		.filter((item) => item && typeof item === "object")
+		.map((item) => {
+			const raw = item as Partial<ProviderGovernanceIssue>
+			return {
+				id: String(raw.id ?? ""),
+				label: String(raw.label ?? ""),
+				severity: ["low", "medium", "high"].includes(String(raw.severity))
+					? (String(raw.severity) as ProviderGovernanceIssue["severity"])
+					: "medium",
+				href: String(raw.href ?? settingsRoutes.summary),
+				capabilities: Array.isArray(raw.capabilities)
+					? (raw.capabilities.filter((capability) =>
+							["publish", "booking", "payments", "integrations"].includes(String(capability))
+						) as ProviderCapability[])
+					: [],
+			}
+		})
+}
+
+function normalizeCounts(value: unknown): ProviderGovernanceSummary["counts"] {
+	if (!value || typeof value !== "object") return { ...emptyCounts }
+	const raw = value as Partial<ProviderGovernanceSummary["counts"]>
+	return {
+		documents: Number(raw.documents ?? 0),
+		verifiedDocuments: Number(raw.verifiedDocuments ?? 0),
+		paymentAccounts: Number(raw.paymentAccounts ?? 0),
+		verifiedPaymentAccounts: Number(raw.verifiedPaymentAccounts ?? 0),
+		integrations: Number(raw.integrations ?? 0),
+		connectedIntegrations: Number(raw.connectedIntegrations ?? 0),
+		auditEvents: Number(raw.auditEvents ?? 0),
+		teamMembers: Number(raw.teamMembers ?? 0),
+	}
+}
+
+async function readCurrentUserPermissions(params: {
+	providerId: string
+	currentUserId?: string | null
+}) {
+	if (!params.currentUserId) return resolveProviderPermissions({})
+	const userRow = await safe(null, () =>
+		db
+			.select({
+				role: ProviderUser.role,
+				permissionsJson: ProviderUser.permissionsJson,
+			})
+			.from(ProviderUser)
+			.where(
+				and(
+					eq(ProviderUser.providerId, params.providerId),
+					eq(ProviderUser.userId, params.currentUserId ?? "")
+				)
+			)
+			.then(first)
+	)
+	return resolveProviderPermissions({
+		role: userRow?.role,
+		permissionsJson: userRow?.permissionsJson,
+	})
+}
+
+export async function readProviderGovernanceFromConfigurationState(
+	providerId: string,
+	opts: { currentUserId?: string | null; allowStale?: boolean } = {}
+): Promise<ProviderGovernanceSummary | null> {
+	const id = String(providerId ?? "").trim()
+	if (!id) return null
+	const row = await safe(null, () =>
+		db
+			.select({
+				providerId: ProviderConfigurationState.providerId,
+				canPublish: ProviderConfigurationState.canPublish,
+				canAcceptBookings: ProviderConfigurationState.canAcceptBookings,
+				canCollectPayments: ProviderConfigurationState.canCollectPayments,
+				canUseIntegrations: ProviderConfigurationState.canUseIntegrations,
+				readinessPercent: ProviderConfigurationState.readinessPercent,
+				readinessJson: ProviderConfigurationState.readinessJson,
+				countsJson: ProviderConfigurationState.countsJson,
+				blockersJson: ProviderConfigurationState.blockersJson,
+				risksJson: ProviderConfigurationState.risksJson,
+				updatedAt: ProviderConfigurationState.updatedAt,
+			})
+			.from(ProviderConfigurationState)
+			.where(eq(ProviderConfigurationState.providerId, id))
+			.then(first)
+	)
+	if (!row) return null
+	if (!opts.allowStale && !isFreshConfigurationState(row.updatedAt)) return null
+	const readiness = normalizeReadiness(row.readinessJson)
+	if (!readiness) return null
+	const blockers = normalizeIssues(row.blockersJson)
+	const risks = normalizeIssues(row.risksJson)
+	const counts = normalizeCounts(row.countsJson)
+	const completed = readiness.filter((item) => item.complete).length
+	const total = readiness.length
+	return {
+		providerId: id,
+		capabilities: {
+			publish: Boolean(row.canPublish),
+			booking: Boolean(row.canAcceptBookings),
+			payments: Boolean(row.canCollectPayments),
+			integrations: Boolean(row.canUseIntegrations),
+		},
+		readiness,
+		blockers,
+		risks,
+		permissions: await readCurrentUserPermissions({
+			providerId: id,
+			currentUserId: opts.currentUserId,
+		}),
+		counts,
+		progress: {
+			completed,
+			total,
+			progressPercent: Number(row.readinessPercent ?? Math.round((completed / total) * 100)),
+		},
 	}
 }
 
@@ -483,6 +644,8 @@ export async function evaluateProviderGovernance(
 				canCollectPayments: summary.capabilities.payments,
 				canUseIntegrations: summary.capabilities.integrations,
 				readinessPercent: summary.progress.progressPercent,
+				readinessJson: summary.readiness,
+				countsJson: summary.counts,
 				blockersJson: summary.blockers,
 				risksJson: summary.risks,
 				updatedAt: new Date(),
@@ -498,6 +661,8 @@ export async function evaluateProviderGovernance(
 						canCollectPayments: values.canCollectPayments,
 						canUseIntegrations: values.canUseIntegrations,
 						readinessPercent: values.readinessPercent,
+						readinessJson: values.readinessJson,
+						countsJson: values.countsJson,
 						blockersJson: values.blockersJson,
 						risksJson: values.risksJson,
 						updatedAt: values.updatedAt,
@@ -507,6 +672,16 @@ export async function evaluateProviderGovernance(
 	}
 
 	return summary
+}
+
+export async function refreshProviderConfigurationState(params: {
+	providerId: string
+	currentUserId?: string | null
+}): Promise<ProviderGovernanceSummary> {
+	return evaluateProviderGovernance(params.providerId, {
+		currentUserId: params.currentUserId,
+		persist: true,
+	})
 }
 
 export async function assertProviderCapability(params: {

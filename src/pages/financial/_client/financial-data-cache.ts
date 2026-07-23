@@ -25,6 +25,7 @@ export const financialEndpointUrls = {
 	references: "/api/internal/financial/references?limit=100",
 	refundHandoffs: "/api/internal/financial/refund-handoffs?status=all&limit=100",
 	reconciliationQueue: "/api/internal/financial/reconciliation-queue?limit=50",
+	providerSummary: "/api/internal/financial/provider-summary",
 	providerFinance: "/api/internal/financial/provider-finance?limit=25",
 } as const
 
@@ -96,7 +97,10 @@ export const financialRouteEndpointMap: Record<string, string[]> = {
 	],
 	"/financial/collections": [financialEndpointUrls.reconciliationQueue],
 	"/financial/settlements": [financialEndpointUrls.reconciliationQueue],
-	"/financial/provider-payables": [financialEndpointUrls.providerFinance],
+	"/financial/provider-payables": [
+		financialEndpointUrls.providerSummary,
+		financialEndpointUrls.providerFinance,
+	],
 	"/financial/refunds": [financialEndpointUrls.refundHandoffs],
 	"/financial/exceptions": [financialEndpointUrls.operations, financialEndpointUrls.exceptions],
 }

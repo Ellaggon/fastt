@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	getProviderTaxConfiguration,
 	providerInvoicingModes,
@@ -10,8 +10,6 @@ import {
 	providerTaxRegimes,
 	upsertProviderTaxConfiguration,
 } from "@/lib/provider-tax-configuration"
-import { resolveProviderPermissions } from "@/lib/provider-permissions"
-import { first, and, db, eq, ProviderUser } from "@/shared/infrastructure/db/compat"
 
 const upsertSchema = z.object({
 	taxResidenceCountry: z
@@ -45,28 +43,13 @@ function redirectToTaxFees(request: Request, result: string) {
 	)
 }
 
-async function resolvePermissions(providerId: string, userId: string) {
-	const link = await db
-		.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
-		.from(ProviderUser)
-		.where(and(eq(ProviderUser.providerId, providerId), eq(ProviderUser.userId, userId)))
-		.then(first)
-	return resolveProviderPermissions({
-		role: link?.role,
-		permissionsJson: link?.permissionsJson,
-	})
-}
-
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.id) return json({ error: "unauthorized" }, 401)
-
-		const providerId = await getProviderIdFromRequest(request, user)
-		if (!providerId) return json({ error: "provider_not_found" }, 404)
+		const { provider } = await requireProviderSessionSurface(request)
+		const providerId = provider.providerId
 
 		const taxConfiguration = await getProviderTaxConfiguration(providerId)
-		const permissions = await resolvePermissions(providerId, user.id)
+		const permissions = provider.permissions
 
 		return json({
 			taxConfiguration,
@@ -78,17 +61,15 @@ export const GET: APIRoute = async ({ request }) => {
 			},
 		})
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		return json({ error: String(err?.message || "Unknown error") }, 400)
 	}
 }
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const user = await getUserFromRequest(request)
-		if (!user?.id) return json({ error: "unauthorized" }, 401)
-
-		const providerId = await getProviderIdFromRequest(request, user)
-		if (!providerId) return json({ error: "provider_not_found" }, 404)
+		const { user, provider } = await requireProviderSessionSurface(request)
+		const providerId = provider.providerId
 
 		const form = await request.formData()
 		const parsed = upsertSchema.parse({
@@ -107,11 +88,14 @@ export const POST: APIRoute = async ({ request }) => {
 			taxRegime: parsed.taxRegime,
 			invoicingMode: parsed.invoicingMode,
 		})
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_tax_configuration_updated")
 
 		return shouldReturnHtmlRedirect(request)
 			? redirectToTaxFees(request, "tax_profile_saved")
 			: json({ ok: true, taxConfiguration })
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		const status = typeof err?.status === "number" ? err.status : 400

@@ -68,6 +68,34 @@ export async function ensurePolicyScopeOwnedByProvider(params: {
 	return false
 }
 
+export async function resolveProductIdForPolicyScope(params: {
+	scope: string
+	scopeId: string
+}): Promise<string | null> {
+	const scope = String(params.scope ?? "").trim()
+	const scopeId = String(params.scopeId ?? "").trim()
+	if (!scope || !scopeId) return null
+	if (scope === "product") return scopeId
+	if (scope === "variant") {
+		const row = await db
+			.select({ productId: Variant.productId })
+			.from(Variant)
+			.where(eq(Variant.id, scopeId))
+			.then(first)
+		return row?.productId ? String(row.productId) : null
+	}
+	if (scope === "rate_plan") {
+		const row = await db
+			.select({ productId: Variant.productId })
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.where(eq(RatePlan.id, scopeId))
+			.then(first)
+		return row?.productId ? String(row.productId) : null
+	}
+	return null
+}
+
 export async function getOwnedPolicyGroupIds(
 	providerId: string,
 	opts: { activeOnly?: boolean } = {}
