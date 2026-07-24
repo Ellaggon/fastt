@@ -9,7 +9,7 @@ import {
 	type ProviderComplianceSlaMirror,
 } from "@/lib/provider-compliance-ops"
 
-export type ProviderReviewWaitDomain = "fiscal" | "document" | "verification"
+export type ProviderReviewWaitDomain = "fiscal" | "document" | "verification" | "payment"
 
 export type ProviderReviewWaitState = {
 	label: string
@@ -30,6 +30,9 @@ const domainCopy: Record<ProviderReviewWaitDomain, { body: string }> = {
 	},
 	verification: {
 		body: "La cuenta está en revisión de cumplimiento. El resultado aparecerá en esta página.",
+	},
+	payment: {
+		body: "Tu cuenta de payout fue enviada. Fastt está esperando/revisando los depósitos de prueba antes de habilitar liquidaciones.",
 	},
 }
 
