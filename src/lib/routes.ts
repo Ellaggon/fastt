@@ -12,6 +12,7 @@ export const routes = {
 	providerSettingsPayments: () => "/provider/settings/payments",
 	providerSettingsIntegrations: () => "/provider/settings/integrations",
 	providerSettingsTeam: () => "/provider/settings/team",
+	providerInvitationAccept: () => "/provider/invitations/accept",
 	verification: () => "/provider/settings/verification",
 	providerHouseRules: () => "/provider/house-rules",
 	taxFees: () => "/provider/settings/tax-fees",

@@ -8,6 +8,7 @@ import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { parseInvitationMailStatus } from "@/lib/email/invitationMailStatus"
 import {
 	buildInviteLifecycleProgress,
 	formatProviderRoleLabel,
@@ -34,8 +35,11 @@ const invitations = Array.isArray(summary?.invitations) ? summary.invitations : 
 const permissions = summary?.permissions ?? {}
 const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePermissions : []
 const result = Astro.url.searchParams.get("result")
+const mailStatus = parseInvitationMailStatus(Astro.url.searchParams.get("mail"))
 const error = Astro.url.searchParams.get("error")
-const pendingInvitations = invitations.filter((invitation: any) => invitation.status === "pending")
+const pendingInvitations = invitations.filter(
+	(invitation: any) => invitation.status === "pending" || invitation.status === "expired"
+)
 const permissionLabels = [
 	["canEditProfile", "Perfil"],
 	["canManageFiscality", "Fiscalidad"],
@@ -45,26 +49,80 @@ const permissionLabels = [
 	["canInviteTeam", "Equipo"],
 ]
 
-const resultMessages: Record<string, { title: string; body: string }> = {
-	invited: {
-		title: "Invitación creada",
-		body: "Quedó pendiente de aceptación. La persona debe unirse con ese correo antes de que expire (14 días). Mientras tanto verás el estado en Invitaciones pendientes.",
-	},
-	canceled: {
-		title: "Invitación cancelada",
-		body: "La invitación ya no se puede aceptar. Puedes crear una nueva si hace falta.",
-	},
-	resent: {
-		title: "Invitación reenviada",
-		body: "Extendimos el plazo de aceptación 14 días más desde ahora.",
-	},
+type InviteNotice = { title: string; body: string; variant: "success" | "info" | "warning" }
+
+function resolveInviteResultNotice(
+	resultKey: string | null,
+	mail: ReturnType<typeof parseInvitationMailStatus>
+): InviteNotice | null {
+	if (!resultKey) return null
+	if (resultKey === "canceled") {
+		return {
+			variant: "success",
+			title: "Invitación cancelada",
+			body: "La invitación ya no se puede aceptar. Puedes crear una nueva si hace falta.",
+		}
+	}
+	if (resultKey === "joined") {
+		return {
+			variant: "success",
+			title: "Te uniste al equipo",
+			body: "La invitación quedó aceptada. Ya puedes operar con el rol asignado.",
+		}
+	}
+	if (resultKey === "invited") {
+		if (mail === "sent") {
+			return {
+				variant: "success",
+				title: "Invitación enviada por correo",
+				body: "Enviamos el correo con el enlace de aceptación. Si no llega, usa el enlace de abajo como respaldo (mismo correo). Caduca en 14 días.",
+			}
+		}
+		if (mail === "failed") {
+			return {
+				variant: "warning",
+				title: "Invitación creada — correo no enviado",
+				body: "La invitación quedó pendiente, pero no pudimos enviar el correo. Comparte el enlace de abajo con la persona (mismo correo). Caduca en 14 días.",
+			}
+		}
+		return {
+			variant: "info",
+			title: "Invitación creada",
+			body: "La invitación quedó registrada. En este entorno el correo no sale a la bandeja (modo log / sin ESP). Comparte el enlace de abajo. Caduca en 14 días.",
+		}
+	}
+	if (resultKey === "resent") {
+		if (mail === "sent") {
+			return {
+				variant: "success",
+				title: "Invitación reenviada por correo",
+				body: "Reenviamos el correo, extendimos el plazo 14 días y renovamos el enlace. El de abajo queda como respaldo.",
+			}
+		}
+		if (mail === "failed") {
+			return {
+				variant: "warning",
+				title: "Invitación renovada — correo no enviado",
+				body: "Extendimos el plazo y renovamos el enlace, pero no pudimos reenviar el correo. Comparte el enlace de abajo.",
+			}
+		}
+		return {
+			variant: "info",
+			title: "Invitación renovada",
+			body: "Extendimos el plazo 14 días y renovamos el enlace. El correo no salió a la bandeja (modo log / sin ESP): comparte el enlace de abajo.",
+		}
+	}
+	return null
 }
+
+const resultNotice = resolveInviteResultNotice(result, mailStatus)
 
 const errorMessages: Record<string, string> = {
 	duplicate_pending_invitation: "Ya hay una invitación pendiente para ese correo.",
 	forbidden: "Tu rol no permite gestionar invitaciones.",
 	not_found: "No encontramos esa invitación.",
 	not_pending: "Esa invitación ya no está pendiente.",
+	not_resendable: "Esa invitación no se puede reenviar.",
 	validation_error: "Revisa el correo y el rol e inténtalo de nuevo.",
 }
 
@@ -79,9 +137,13 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 	description="Invita personas, elige un rol comprensible y controla qué pueden cambiar en la configuración del proveedor."
 >
 	{
-		result && resultMessages[result] ? (
-			<Notice variant="success" title={resultMessages[result].title}>
-				{resultMessages[result].body}
+		resultNotice ? (
+			<Notice
+				variant={resultNotice.variant}
+				title={resultNotice.title}
+				data-invite-mail-status={mailStatus ?? "unknown"}
+			>
+				{resultNotice.body}
 			</Notice>
 		) : null
 	}
@@ -159,7 +221,8 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 						<div>
 							<h2 class="text-xl font-semibold text-slate-950">Invitar persona</h2>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Paso 1 del ciclo: crea la invitación. Caduca en 14 días si no se acepta.
+								Paso 1–2: creamos la invitación. Si el envío de correo está configurado, mandamos el
+								enlace; si no, compártelo desde la lista (mismo correo). Caduca en 14 días.
 							</p>
 						</div>
 						<label class="grid gap-2 text-sm font-medium text-slate-700">
@@ -199,7 +262,8 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 				<div>
 					<h2 class="text-xl font-semibold text-slate-950">Invitaciones pendientes</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Esperando aceptación (paso 3). Si expiran, crea una nueva invitación.
+						Comparte el enlace de abajo (o reenvía cuando el correo esté activo). Si el envío falla
+						o está en modo log, el enlace es el canal fiable.
 					</p>
 				</div>
 				<Badge variant={pendingInvitations.length ? "warning" : "success"}>
@@ -247,6 +311,33 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 											</div>
 										)}
 									</div>
+									{invitation.acceptPath ? (
+										<div class="space-y-2" data-invite-accept-link>
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												Enlace de aceptación (respaldo)
+											</p>
+											<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+												<Input
+													class="fastt-field font-mono text-xs"
+													type="text"
+													readonly
+													value={new URL(invitation.acceptPath, Astro.url).toString()}
+													data-invite-accept-url
+												/>
+												<a
+													class="shrink-0 text-sm font-medium text-slate-700 underline underline-offset-2"
+													href={invitation.acceptPath}
+													data-invite-accept-open
+												>
+													Abrir enlace
+												</a>
+											</div>
+											<p class="text-xs leading-5 text-slate-500">
+												Comparte este enlace si el correo no llegó o no está configurado. La persona
+												debe iniciar sesión con {invitation.email} y aceptar.
+											</p>
+										</div>
+									) : null}
 									<ProviderInviteLifecycleStepper progress={progress} compact />
 								</Card>
 							)
@@ -254,7 +345,10 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 					) : (
 						<Card variant="soft" class="space-y-2 text-sm text-slate-600">
 							<p class="font-semibold text-slate-950">Sin invitaciones en curso</p>
-							<p>Cuando invites a alguien, aparecerá aquí hasta que acepte o cancele / expire.</p>
+							<p>
+								Cuando invites a alguien, aquí queda el enlace de aceptación. El correo solo llega
+								si el envío está configurado (Resend u otro ESP).
+							</p>
 						</Card>
 					)
 				}

@@ -315,13 +315,18 @@ const ProviderInvitation = defineTable({
 		email: column.text(),
 		role: column.text(), // admin | staff
 		status: column.text({ default: "pending" }), // pending | accepted | canceled | expired
+		token: column.text({ optional: true }), // opaque accept token (unique when present)
 		invitedBy: column.text({ references: () => User.columns.id }),
 		acceptedAt: column.date({ optional: true }),
 		expiresAt: column.date(),
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
 	},
-	indexes: [{ on: ["providerId", "status"] }, { on: ["providerId", "email"] }],
+	indexes: [
+		{ on: ["providerId", "status"] },
+		{ on: ["providerId", "email"] },
+		{ on: ["token"], unique: true },
+	],
 })
 const Product = defineTable({
 	columns: {

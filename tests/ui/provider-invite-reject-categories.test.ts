@@ -20,11 +20,12 @@ describe("S3-3 invite live stepper + host reject categories", () => {
 			status: "pending",
 			expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
 		})
-		expect(pending.currentStepId).toBe("email")
+		expect(pending.currentStepId).toBe("accept")
 		expect(pending.canResend).toBe(true)
 		expect(pending.isExpired).toBe(false)
-		expect(pending.steps.find((step) => step.id === "email")?.state).toBe("current")
+		expect(pending.steps.find((step) => step.id === "accept")?.state).toBe("current")
 		expect(pending.steps.find((step) => step.id === "invite")?.state).toBe("complete")
+		expect(pending.steps.find((step) => step.id === "email")?.state).toBe("complete")
 
 		const expired = buildInviteLifecycleProgress({
 			status: "pending",
@@ -32,7 +33,7 @@ describe("S3-3 invite live stepper + host reject categories", () => {
 		})
 		expect(expired.isExpired).toBe(true)
 		expect(expired.phaseLabel).toBe("Expirada")
-		expect(expired.steps.find((step) => step.id === "email")?.state).toBe("blocked")
+		expect(expired.steps.find((step) => step.id === "accept")?.state).toBe("blocked")
 		expect(expired.canResend).toBe(true)
 
 		const accepted = buildInviteLifecycleProgress({

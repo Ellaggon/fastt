@@ -41,12 +41,13 @@ export const providerInviteLifecycleSteps = [
 	{
 		id: "email",
 		label: "Correo",
-		description: "La persona recibe (o usará) la invitación pendiente.",
+		description:
+			"Si el correo está configurado, Fastt lo envía; también puedes compartir el enlace.",
 	},
 	{
 		id: "accept",
 		label: "Aceptar",
-		description: "Al unirse, el rol queda activo en el proveedor.",
+		description: "Entra con ese correo y acepta la invitación.",
 	},
 	{
 		id: "access",
@@ -87,11 +88,14 @@ export function buildInviteLifecycleProgress(params: {
 }): ProviderInviteLifecycleProgress {
 	const status = String(params.status ?? "pending")
 	const isAccepted = status === "accepted"
-	const isTerminal = status === "canceled" || status === "expired"
+	const isCanceled = status === "canceled"
 	const expiresAt = params.expiresAt ? new Date(params.expiresAt) : null
-	const isExpired = !isAccepted && expiresAt !== null && expiresAt.getTime() < Date.now()
+	const isExpired =
+		!isAccepted &&
+		(status === "expired" || (expiresAt !== null && expiresAt.getTime() < Date.now()))
 
-	const activeStepId: ProviderInviteLifecycleStepId = isAccepted ? "access" : "email"
+	// Pending invite with shareable link: invite+email done, waiting on accept.
+	const activeStepId: ProviderInviteLifecycleStepId = isAccepted ? "access" : "accept"
 	const activeIndex = inviteLifecycleStepOrder.indexOf(activeStepId)
 
 	const steps: ProviderInviteLifecycleStep[] = providerInviteLifecycleSteps.map((step) => {
@@ -99,7 +103,7 @@ export function buildInviteLifecycleProgress(params: {
 		const index = inviteLifecycleStepOrder.indexOf(step.id)
 		let state: ProviderInviteLifecycleStepState
 		if (index < activeIndex) state = "complete"
-		else if (index === activeIndex) state = isExpired ? "blocked" : "current"
+		else if (index === activeIndex) state = isExpired || isCanceled ? "blocked" : "current"
 		else state = "upcoming"
 		return { ...step, state }
 	})
@@ -108,15 +112,15 @@ export function buildInviteLifecycleProgress(params: {
 		? "Aceptada"
 		: isExpired
 			? "Expirada"
-			: isTerminal
+			: isCanceled
 				? "Cancelada"
 				: "Pendiente"
 
 	return {
 		steps,
-		currentStepId: isTerminal ? null : activeStepId,
+		currentStepId: isCanceled || isExpired ? null : activeStepId,
 		isExpired,
-		canResend: !isAccepted && !isTerminal,
+		canResend: !isAccepted && !isCanceled,
 		phaseLabel,
 	}
 }

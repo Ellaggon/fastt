@@ -1,0 +1,173 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderInvitationByToken } from "@/lib/provider-invitations"
+import { routes } from "@/lib/routes"
+
+const token = String(Astro.url.searchParams.get("token") ?? "").trim()
+const error = String(Astro.url.searchParams.get("error") ?? "").trim()
+const result = String(Astro.url.searchParams.get("result") ?? "").trim()
+
+const user = await getUserFromRequest(Astro.request)
+const invitation = token ? await getProviderInvitationByToken(token).catch(() => null) : null
+
+const signInHref = token
+	? `/SignInPage?returnTo=${encodeURIComponent(`${routes.providerInvitationAccept()}?token=${encodeURIComponent(token)}`)}`
+	: "/SignInPage"
+
+const errorMessages: Record<string, string> = {
+	invitation_not_found: "No encontramos esa invitación. Pide un enlace nuevo al propietario.",
+	invitation_expired: "La invitación expiró. Pide al propietario que la reenvíe.",
+	invitation_not_pending: "Esa invitación ya no se puede aceptar.",
+	email_mismatch:
+		"Debes iniciar sesión con el mismo correo de la invitación para unirte al equipo.",
+	validation_error: "El enlace de invitación no es válido.",
+	unauthorized: "Inicia sesión para aceptar la invitación.",
+	accept_failed: "No se pudo aceptar la invitación. Intenta de nuevo.",
+}
+
+const emailMatches =
+	Boolean(user?.email) &&
+	Boolean(invitation?.email) &&
+	String(user?.email).toLowerCase() === String(invitation?.email).toLowerCase()
+---
+
+<Layout title="Aceptar invitación">
+	<main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
+		<section class="space-y-6">
+			<header class="space-y-2">
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Equipo del proveedor
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-950">Aceptar invitación</h1>
+				<p class="text-sm leading-6 text-slate-600">
+					Únete al proveedor con el rol asignado. Debes usar el mismo correo de la invitación.
+				</p>
+			</header>
+
+			{
+				result === "accepted" ? (
+					<Notice variant="success" title="Ya formas parte del equipo">
+						<p>La invitación quedó aceptada.</p>
+						<p class="mt-3">
+							<Button href={routes.providerSettingsTeam()} size="sm">
+								Ir a Equipo
+							</Button>
+						</p>
+					</Notice>
+				) : null
+			}
+
+			{
+				error ? (
+					<Notice variant="warning" title="No se pudo completar">
+						{errorMessages[error] || errorMessages.accept_failed}
+					</Notice>
+				) : null
+			}
+
+			{
+				!token ? (
+					<Notice variant="error" title="Enlace incompleto">
+						Falta el token de invitación. Abre el enlace completo que te compartieron.
+					</Notice>
+				) : !invitation ? (
+					<Notice variant="error" title="Invitación no encontrada">
+						{errorMessages.invitation_not_found}
+					</Notice>
+				) : (
+					<Card class="space-y-5">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<p class="text-sm text-slate-500">Proveedor</p>
+								<p class="mt-1 text-xl font-semibold text-slate-950">
+									{invitation.providerDisplayName}
+								</p>
+							</div>
+							<Badge
+								variant={
+									invitation.canAccept ? "warning" : invitation.isExpired ? "error" : "neutral"
+								}
+							>
+								{invitation.canAccept
+									? "Pendiente"
+									: invitation.isExpired
+										? "Expirada"
+										: invitation.status === "accepted"
+											? "Aceptada"
+											: invitation.status}
+							</Badge>
+						</div>
+
+						<div class="grid gap-3 sm:grid-cols-2">
+							<div>
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Correo</p>
+								<p class="mt-1 text-sm text-slate-900">{invitation.email}</p>
+							</div>
+							<div>
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Rol</p>
+								<p class="mt-1 text-sm text-slate-900">{invitation.roleLabel}</p>
+							</div>
+							<div>
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Expira</p>
+								<p class="mt-1 text-sm text-slate-900">
+									{invitation.expiresAt
+										? invitation.expiresAt.toLocaleString("es-BO", {
+												day: "2-digit",
+												month: "short",
+												year: "numeric",
+											})
+										: "—"}
+								</p>
+							</div>
+						</div>
+
+						{!user ? (
+							<div class="space-y-3 border-t border-slate-200 pt-4">
+								<p class="text-sm leading-6 text-slate-600">
+									Inicia sesión con <strong>{invitation.email}</strong> para aceptar.
+								</p>
+								<Button href={signInHref}>Iniciar sesión y continuar</Button>
+							</div>
+						) : !emailMatches ? (
+							<Notice variant="warning" title="Correo distinto">
+								Estás autenticado como <strong>{user.email}</strong>, pero la invitación es para{" "}
+								<strong>{invitation.email}</strong>. Cierra sesión e ingresa con el correo invitado.
+							</Notice>
+						) : invitation.canAccept ? (
+							<form
+								method="post"
+								action="/api/provider/invitations/accept"
+								class="border-t border-slate-200 pt-4"
+								data-invite-accept-form
+							>
+								<input type="hidden" name="token" value={invitation.token} />
+								<Button type="submit" data-invite-accept-submit>
+									Aceptar y unirme al equipo
+								</Button>
+							</form>
+						) : invitation.isExpired ? (
+							<Notice variant="warning" title="Invitación expirada">
+								{errorMessages.invitation_expired}
+							</Notice>
+						) : invitation.status === "accepted" ? (
+							<div class="border-t border-slate-200 pt-4">
+								<Button href={routes.providerSettingsTeam()} variant="secondary">
+									Ir a Equipo
+								</Button>
+							</div>
+						) : (
+							<Notice variant="warning" title="No disponible">
+								{errorMessages.invitation_not_pending}
+							</Notice>
+						)}
+					</Card>
+				)
+			}
+		</section>
+	</main>
+</Layout>

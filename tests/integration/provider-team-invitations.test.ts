@@ -1,4 +1,17 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+// Production invite paths import Postgres compat; Vitest seeds via astro:db.
+vi.mock("@/shared/infrastructure/db/compat", async () => {
+	const astro = await import("astro:db")
+	const drizzle = await import("drizzle-orm")
+	return {
+		...drizzle,
+		...astro,
+		first: <T,>(rows: readonly T[]) => rows[0],
+		sql: drizzle.sql,
+	}
+})
+
 import { db, eq, ProviderInvitation, ProviderUser, User } from "astro:db"
 import { POST as invitationsPost } from "@/pages/api/provider/settings/invitations"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
@@ -12,7 +25,21 @@ function withSupabaseAuthStub<T>(
 ) {
 	const prevUrl = process.env.SUPABASE_URL
 	const prevAnon = process.env.SUPABASE_ANON_KEY
+	const prevLocalQa = {
+		LOCAL_QA_AUTH_ENABLED: process.env.LOCAL_QA_AUTH_ENABLED,
+		LOCAL_QA_AUTH_USER_ID: process.env.LOCAL_QA_AUTH_USER_ID,
+		LOCAL_QA_AUTH_EMAIL: process.env.LOCAL_QA_AUTH_EMAIL,
+		LOCAL_QA_PROVIDER_ID: process.env.LOCAL_QA_PROVIDER_ID,
+		LOCAL_QA_PROVIDER_ROLE: process.env.LOCAL_QA_PROVIDER_ROLE,
+	}
 	const prevFetch = globalThis.fetch
+
+	// astro.config loads .env; LOCAL_QA short-circuits cookie/Supabase stubs
+	delete process.env.LOCAL_QA_AUTH_ENABLED
+	delete process.env.LOCAL_QA_AUTH_USER_ID
+	delete process.env.LOCAL_QA_AUTH_EMAIL
+	delete process.env.LOCAL_QA_PROVIDER_ID
+	delete process.env.LOCAL_QA_PROVIDER_ROLE
 
 	process.env.SUPABASE_URL = "https://supabase.test"
 	process.env.SUPABASE_ANON_KEY = "sb_publishable_test"
@@ -43,6 +70,10 @@ function withSupabaseAuthStub<T>(
 		else process.env.SUPABASE_URL = prevUrl
 		if (prevAnon === undefined) delete process.env.SUPABASE_ANON_KEY
 		else process.env.SUPABASE_ANON_KEY = prevAnon
+		for (const [key, value] of Object.entries(prevLocalQa)) {
+			if (value === undefined) delete process.env[key]
+			else process.env[key] = value
+		}
 	})
 }
 
@@ -78,6 +109,9 @@ describe("provider team invitations", () => {
 			expect(createRes.status).toBe(201)
 			const created = await createRes.json()
 			expect(created.status).toBe("pending")
+			expect(created.acceptPath).toMatch(/^\/provider\/invitations\/accept\?token=/)
+			expect(created.emailSent).toBe(true)
+			expect(created.mailStatus).toBe("logged")
 
 			const summaryRes = await settingsSummaryGet({
 				request: makeAuthedRequest("/api/provider/settings/summary", token),
@@ -91,6 +125,7 @@ describe("provider team invitations", () => {
 						email: "nueva.persona@example.com",
 						role: "admin",
 						status: "pending",
+						acceptPath: created.acceptPath,
 					}),
 				])
 			)
