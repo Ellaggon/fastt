@@ -236,10 +236,12 @@ export const complianceSlaStateLabels: Record<
 
 /** Admin queue summary (includes assignee — internal only). */
 export function formatAdminComplianceSlaSummary(
-	assignment: Pick<
-		ProviderComplianceAssignmentRecord,
-		"assigneeEmail" | "slaDueAt" | "slaState" | "slaHours"
-	> | null
+	assignment: {
+		assigneeEmail: string | null
+		slaHours: number
+		slaDueAt: Date | string | null
+		slaState: ProviderComplianceAssignmentRecord["slaState"]
+	} | null
 ): string | null {
 	if (!assignment) return null
 	const due = assignment.slaDueAt
