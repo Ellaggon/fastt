@@ -88,7 +88,7 @@ logRoutePerformance({
 <ProviderSettingsLayout
 	title="Configuración del proveedor"
 	heading="Resumen de configuración"
-	description="Centro de control para identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
+	description="Estado de tu cuenta: identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
 		<Button href={primaryCtaHref} data-settings-primary-cta>
@@ -226,7 +226,7 @@ logRoutePerformance({
 		<Card>
 			<div class="space-y-4">
 				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Readiness</h2>
+					<h2 class="text-xl font-semibold text-slate-950">Estado de tu cuenta</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
 						Estado consolidado de cada área de configuración.
 					</p>
@@ -254,7 +254,7 @@ logRoutePerformance({
 							))
 						) : (
 							<Card variant="soft" class="text-sm text-slate-600">
-								No hay readiness disponible.
+								Aún no hay estado de tu cuenta disponible.
 							</Card>
 						)
 					}

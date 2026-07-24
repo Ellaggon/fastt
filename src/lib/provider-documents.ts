@@ -16,6 +16,7 @@ import {
 	uploadProviderDocumentObject,
 } from "@/lib/provider-document-storage"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
+import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 
 /**
  * Provider compliance documents.
@@ -134,6 +135,7 @@ export type ProviderKycSlot = {
 	documentId: string | null
 	fileName: string | null
 	reviewNotes: string | null
+	rejectCategoryLabel: string | null
 	uploadHref: string
 }
 
@@ -182,6 +184,10 @@ export function buildRequiredKycSlots(params: {
 						? "rejected"
 						: "missing"
 		const uploadHref = `${base}?type=${encodeURIComponent(type)}#kyc-upload`
+		const rejectCategoryLabel =
+			state === "rejected"
+				? resolveProviderRejectCategory(document?.reviewNotes, "documents").label
+				: null
 		return {
 			type,
 			label: meta?.label ?? type,
@@ -191,6 +197,7 @@ export function buildRequiredKycSlots(params: {
 			documentId: document?.id ?? null,
 			fileName: document?.fileName ?? null,
 			reviewNotes: state === "rejected" ? String(document?.reviewNotes ?? "").trim() || null : null,
+			rejectCategoryLabel,
 			uploadHref,
 		}
 	})

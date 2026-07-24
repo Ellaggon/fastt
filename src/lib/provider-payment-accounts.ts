@@ -693,7 +693,7 @@ async function syncProviderFinancialProfile(params: {
 /**
  * Internal-admin review. Caller must already have passed requireInternalAdmin.
  * On verified: rolls up ProviderFinancialProfile readiness.
- * Admin override remains available alongside the micro-deposit ownership path.
+ * Manual verification remains available alongside the micro-deposit ownership path.
  */
 export async function reviewProviderPaymentAccount(params: {
 	providerId: string
@@ -754,7 +754,7 @@ export async function reviewProviderPaymentAccount(params: {
 					reason: reason || null,
 					reviewedAt: now.toISOString(),
 					reviewedBy: params.actorUserId,
-					path: "admin_override",
+					path: "manual_verify",
 				},
 			},
 			updatedAt: now,
@@ -788,7 +788,7 @@ export async function reviewProviderPaymentAccount(params: {
 		entityType: "ProviderPaymentAccount",
 		entityId: existing.id,
 		beforeJson: { status: before.status },
-		afterJson: { status: nextStatus, reason: reason || null, path: "admin_override" },
+		afterJson: { status: nextStatus, reason: reason || null, path: "manual_verify" },
 		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
 	})
 
