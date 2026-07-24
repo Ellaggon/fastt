@@ -113,6 +113,7 @@ export const POST: APIRoute = async ({ request }) => {
 				accountId: String(form.get("accountId") ?? form.get("id") ?? "").trim(),
 				amount1Cents: form.get("amount1Cents"),
 				amount2Cents: form.get("amount2Cents"),
+				descriptorCode: form.get("descriptorCode"),
 			})
 			await invalidateProvider(providerId)
 			await invalidateProviderGovernance(providerId, "provider_payment_micro_deposit_confirmed")
@@ -160,7 +161,9 @@ export const POST: APIRoute = async ({ request }) => {
 		const status = typeof err?.status === "number" ? err.status : 400
 		if (
 			shouldReturnHtmlRedirect(request) &&
-			(message.startsWith("micro_deposit_") || message === "invalid_micro_deposit_amounts")
+			(message.startsWith("micro_deposit_") ||
+				message === "invalid_micro_deposit_amounts" ||
+				message === "pending_account_in_progress")
 		) {
 			return redirectToPaymentsError(request, message)
 		}

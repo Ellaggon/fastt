@@ -102,8 +102,13 @@ describe("S1-2 payout verification timeline", () => {
 
 		expect(card).toContain("buildPayoutVerificationTimeline")
 		expect(card).toContain("ProviderPayoutVerificationTimeline")
-		expect(card).toContain("enviada → esperando")
+		expect(card).toContain("envía → espera depósitos")
 		expect(card).toContain("Confirmar montos")
+		expect(card).toContain("data-payments-one-account")
+		expect(card).toContain("data-micro-deposit-education")
+		expect(card).toContain("data-payments-create-form")
+		expect(card).toContain("hasInFlightAccount")
+		expect(card).not.toContain("Cuentas de payout")
 
 		expect(timeline).toContain("Verificación de titularidad")
 		expect(timeline).toContain("data-payout-timeline")

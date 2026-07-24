@@ -6,7 +6,9 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import { getPayoutRailStatus, type PayoutRailStatus } from "@/lib/payout-rail"
 import type { ProviderPaymentAccountRecord } from "@/lib/provider-payment-accounts"
 import {
 	buildPayoutVerificationTimeline,
@@ -25,6 +27,7 @@ type Props = {
 			slaState: "ok" | "due_soon" | "overdue" | "done"
 		}
 	>
+	payoutRail?: PayoutRailStatus | null
 }
 
 const {
@@ -32,10 +35,17 @@ const {
 	canManagePayments = false,
 	defaultCurrency = "USD",
 	paymentAssignments = {},
+	payoutRail = null,
 } = Astro.props as Props
 
+const rail = payoutRail ?? getPayoutRailStatus()
 const pending = accounts.filter((row) => row.status === "pending")
 const verified = accounts.filter((row) => row.status === "verified")
+const needsAttention = accounts.filter((row) => row.status === "requires_attention")
+/** One account at a time while verification is in flight. */
+const hasInFlightAccount = pending.length > 0
+const canShowCreateForm = canManagePayments && !hasInFlightAccount
+const createFormDefaultOpen = accounts.length === 0 || needsAttention.length > 0
 
 function badgeVariantForPhase(phaseLabel: string) {
 	if (phaseLabel === "Lista") return "success" as const
@@ -47,7 +57,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 }
 ---
 
-<section class="space-y-6">
+<section class="space-y-6" data-payments-guided>
 	<Card>
 		<div class="space-y-5">
 			<div class="flex flex-wrap items-start justify-between gap-3">
@@ -55,10 +65,10 @@ function badgeVariantForPhase(phaseLabel: string) {
 					<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
 						Métodos de cobro
 					</p>
-					<h2 class="mt-2 text-xl font-semibold text-slate-950">Cuentas de payout</h2>
+					<h2 class="mt-2 text-xl font-semibold text-slate-950">Cuentas de liquidación</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Agrega la cuenta donde quieres recibir liquidaciones. El proceso es: enviada → esperando
-						depósitos → confirmar montos → lista.
+						Una cuenta a la vez: envía → espera depósitos → confirma montos → lista. Completa la
+						verificación en curso antes de agregar otra.
 					</p>
 				</div>
 				<div class="flex flex-wrap gap-2">
@@ -68,8 +78,36 @@ function badgeVariantForPhase(phaseLabel: string) {
 					<Badge variant={pending.length ? "warning" : "neutral"}>
 						{pending.length} en proceso
 					</Badge>
+					<Badge variant="neutral" data-payout-rail-mode={rail.mode}>
+						{rail.hostLabel}
+					</Badge>
 				</div>
 			</div>
+
+			{
+				rail.mode !== "simulated" || rail.preferredProvider === "stripe_connect" ? (
+					<Notice variant="info" title="Rail de payout" data-payout-rail-status>
+						{rail.mode === "scaffold"
+							? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba (aún no hay ACH bancario real)."
+							: rail.mode === "not_configured"
+								? "Se pidió Stripe Connect pero falta configurar la clave — seguimos en verificación de prueba (simulado)."
+								: "Verificación de titularidad en modo de prueba. Los montos no salen del banco hasta cablear ACH/Connect live."}
+					</Notice>
+				) : (
+					<p class="text-xs leading-5 text-slate-500" data-payout-rail-status>
+						Modo actual: verificación de prueba (simulado). No implica transferencia ACH real.
+					</p>
+				)
+			}
+
+			{
+				hasInFlightAccount ? (
+					<Notice variant="info" title="Una cuenta primero" data-payments-one-account>
+						Ya hay una cuenta en verificación. Termina ese flujo (o espera a que falle) antes de
+						enviar otra. Así evitas reemplazos accidentales y confusión con los depósitos de prueba.
+					</Notice>
+				) : null
+			}
 
 			<div class="space-y-3">
 				{
@@ -77,7 +115,12 @@ function badgeVariantForPhase(phaseLabel: string) {
 						accounts.map((account) => {
 							const timeline = buildPayoutVerificationTimeline(account)
 							return (
-								<Card variant="soft" class="space-y-3">
+								<Card
+									variant="soft"
+									class="space-y-3"
+									data-payment-account={account.id}
+									data-payment-account-status={account.status}
+								>
 									<div class="flex flex-wrap items-start justify-between gap-3">
 										<div>
 											<p class="text-sm font-semibold text-slate-950">
@@ -110,26 +153,68 @@ function badgeVariantForPhase(phaseLabel: string) {
 									)}
 
 									{account.status === "pending" && !timeline.showConfirmForm ? (
-										<ProviderReviewWaitNotice
-											domain="payment"
-											assignment={paymentAssignments[account.id] ?? null}
-											class="border-t border-slate-200 pt-3"
-										/>
+										<>
+											<Notice
+												variant="info"
+												title="Cómo leer el extracto"
+												class="border-t border-slate-200 pt-3"
+												data-micro-deposit-education="awaiting"
+											>
+												<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
+													<li>Revisa movimientos recientes en la app o extracto del banco.</li>
+													<li>
+														Busca dos créditos pequeños (a menudo menos de $1), a veces con concepto
+														de verificación o Fastt.
+													</li>
+													<li>
+														Cuando aparezcan, vuelve aquí: el paso “Confirmar montos” se activará.
+													</li>
+												</ul>
+											</Notice>
+											<ProviderReviewWaitNotice
+												domain="payment"
+												assignment={paymentAssignments[account.id] ?? null}
+												class="border-t border-slate-200 pt-3"
+											/>
+										</>
 									) : null}
 
 									{timeline.showConfirmForm ? (
 										<div class="space-y-3 border-t border-slate-200 pt-3">
+											<Notice
+												variant="info"
+												title="Cómo confirmar los micro-depósitos"
+												data-micro-deposit-education="confirm"
+											>
+												<ol class="list-decimal space-y-1 pl-5 text-sm leading-6">
+													<li>Abre el extracto o la app del banco de esta cuenta.</li>
+													<li>
+														Localiza los dos créditos pequeños de verificación (no los confundas con
+														comisiones).
+													</li>
+													<li>
+														Anota cada monto en <strong>centavos</strong> (ejemplo: $0.32 →{" "}
+														<code>32</code>; rango 1–99).
+													</li>
+													<li>
+														Ingresa ambos abajo. Tienes hasta 3 intentos; un error no cancela los
+														depósitos.
+													</li>
+												</ol>
+											</Notice>
 											{canManagePayments ? (
 												<form
 													method="post"
 													action="/api/provider/settings/payment-accounts"
 													class="grid gap-3 sm:grid-cols-3"
+													data-micro-deposit-confirm-form
 												>
 													<input type="hidden" name="action" value="confirm_micro_deposit" />
 													<input type="hidden" name="accountId" value={account.id} />
 													<FormField
 														label="Monto 1 (centavos)"
 														htmlFor={`amount1-${account.id}`}
+														description="Solo el número, sin punto decimal."
 														required
 													>
 														<Input
@@ -139,11 +224,13 @@ function badgeVariantForPhase(phaseLabel: string) {
 															min="1"
 															max="99"
 															required
+															placeholder="32"
 														/>
 													</FormField>
 													<FormField
 														label="Monto 2 (centavos)"
 														htmlFor={`amount2-${account.id}`}
+														description="El segundo crédito del extracto."
 														required
 													>
 														<Input
@@ -153,6 +240,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 															min="1"
 															max="99"
 															required
+															placeholder="17"
 														/>
 													</FormField>
 													<div class="flex items-end">
@@ -171,7 +259,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 						})
 					) : (
 						<Card variant="soft" class="text-sm text-slate-600">
-							Aún no hay cuentas de payout. Agrega una cuenta bancaria para habilitar liquidaciones.
+							Aún no hay cuentas. Agrega una cuenta bancaria para habilitar liquidaciones.
 						</Card>
 					)
 				}
@@ -179,119 +267,129 @@ function badgeVariantForPhase(phaseLabel: string) {
 		</div>
 	</Card>
 
-	<Card>
-		{
-			canManagePayments ? (
-				<form method="post" action="/api/provider/settings/payment-accounts" class="space-y-4">
-					<div>
+	{
+		canShowCreateForm ? (
+			<Card data-payments-create-card>
+				<details open={createFormDefaultOpen} data-payments-create-form>
+					<summary class="cursor-pointer list-none">
 						<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
 							Agregar cuenta
 						</p>
-						<h3 class="mt-2 text-lg font-semibold text-slate-950">Nueva cuenta bancaria</h3>
+						<h3 class="mt-2 text-lg font-semibold text-slate-950">
+							{accounts.length === 0 ? "Primera cuenta bancaria" : "Nueva cuenta bancaria"}
+						</h3>
 						<p class="mt-1 text-sm text-slate-600">
-							Al guardar, la cuenta queda en <strong>Enviada</strong>. Después Fastt inicia los
-							depósitos de prueba para que confirmes titularidad.
+							{needsAttention.length
+								? "La cuenta anterior requiere atención. Envía una nueva con datos corregidos (reemplaza la anterior)."
+								: "Al guardar, la cuenta queda en Enviada. Después Fastt inicia los depósitos de prueba para confirmar titularidad."}
 						</p>
-					</div>
-
-					<div class="grid gap-4 md:grid-cols-2">
-						<FormField label="Titular de la cuenta" htmlFor="accountHolderName" required>
-							<Input
-								id="accountHolderName"
-								name="accountHolderName"
+					</summary>
+					<form
+						method="post"
+						action="/api/provider/settings/payment-accounts"
+						class="mt-4 space-y-4 border-t border-slate-200 pt-4"
+					>
+						<div class="grid gap-4 md:grid-cols-2">
+							<FormField label="Titular de la cuenta" htmlFor="accountHolderName" required>
+								<Input
+									id="accountHolderName"
+									name="accountHolderName"
+									required
+									placeholder="Hotel Sol S.R.L."
+								/>
+							</FormField>
+							<FormField label="Nombre del banco" htmlFor="bankName" required>
+								<Input id="bankName" name="bankName" required placeholder="Banco Nacional" />
+							</FormField>
+							<FormField
+								label="País de la cuenta"
+								htmlFor="country"
+								description="Código de país (2 letras)."
 								required
-								placeholder="Hotel Sol S.R.L."
+							>
+								<Select id="country" name="country" required>
+									<option value="">Selecciona</option>
+									<option value="BO">Bolivia (BO)</option>
+									<option value="CL">Chile (CL)</option>
+									<option value="US">Estados Unidos (US)</option>
+									<option value="ES">España (ES)</option>
+									<option value="PE">Perú (PE)</option>
+									<option value="AR">Argentina (AR)</option>
+								</Select>
+							</FormField>
+							<FormField label="Moneda" htmlFor="currency" required>
+								<Select id="currency" name="currency" required>
+									<option value="USD" selected={defaultCurrency === "USD"}>
+										USD
+									</option>
+									<option value="EUR" selected={defaultCurrency === "EUR"}>
+										EUR
+									</option>
+									<option value="CLP" selected={defaultCurrency === "CLP"}>
+										CLP
+									</option>
+									<option value="BOB" selected={defaultCurrency === "BOB"}>
+										BOB
+									</option>
+								</Select>
+							</FormField>
+							<FormField label="Tipo de método" htmlFor="method" required>
+								<Select id="method" name="method" required>
+									{providerPayoutMethods.map((item) => (
+										<option value={item.value}>{item.label}</option>
+									))}
+								</Select>
+							</FormField>
+							<FormField label="Calendario de liquidación" htmlFor="payoutSchedule" required>
+								<Select id="payoutSchedule" name="payoutSchedule" required>
+									{providerPayoutSchedules.map((item) => (
+										<option value={item.value}>{item.label}</option>
+									))}
+								</Select>
+							</FormField>
+							<FormField
+								label="Número de cuenta / IBAN"
+								htmlFor="accountIdentifier"
+								description="Se guarda para revisión; en tu vista solo verás los últimos 4 dígitos."
+								required
+							>
+								<Input
+									id="accountIdentifier"
+									name="accountIdentifier"
+									required
+									autocomplete="off"
+									placeholder="ES9121000418450200051332 / 1234567890"
+								/>
+							</FormField>
+							<FormField
+								label="Routing / SWIFT-BIC"
+								htmlFor="routingOrSwift"
+								description="Obligatorio para transferencias internacionales."
+							>
+								<Input id="routingOrSwift" name="routingOrSwift" placeholder="BSCHESMMXXX" />
+							</FormField>
+						</div>
+
+						<FormField label="Notas de envío (opcional)" htmlFor="submissionNotes">
+							<Input
+								id="submissionNotes"
+								name="submissionNotes"
+								placeholder="Cuenta principal de liquidaciones"
 							/>
 						</FormField>
-						<FormField label="Nombre del banco" htmlFor="bankName" required>
-							<Input id="bankName" name="bankName" required placeholder="Banco Nacional" />
-						</FormField>
-						<FormField
-							label="País de la cuenta"
-							htmlFor="country"
-							description="Código de país (2 letras)."
-							required
-						>
-							<Select id="country" name="country" required>
-								<option value="">Selecciona</option>
-								<option value="BO">Bolivia (BO)</option>
-								<option value="CL">Chile (CL)</option>
-								<option value="US">Estados Unidos (US)</option>
-								<option value="ES">España (ES)</option>
-								<option value="PE">Perú (PE)</option>
-								<option value="AR">Argentina (AR)</option>
-							</Select>
-						</FormField>
-						<FormField label="Moneda" htmlFor="currency" required>
-							<Select id="currency" name="currency" required>
-								<option value="USD" selected={defaultCurrency === "USD"}>
-									USD
-								</option>
-								<option value="EUR" selected={defaultCurrency === "EUR"}>
-									EUR
-								</option>
-								<option value="CLP" selected={defaultCurrency === "CLP"}>
-									CLP
-								</option>
-								<option value="BOB" selected={defaultCurrency === "BOB"}>
-									BOB
-								</option>
-							</Select>
-						</FormField>
-						<FormField label="Tipo de método" htmlFor="method" required>
-							<Select id="method" name="method" required>
-								{providerPayoutMethods.map((item) => (
-									<option value={item.value}>{item.label}</option>
-								))}
-							</Select>
-						</FormField>
-						<FormField label="Calendario de payout" htmlFor="payoutSchedule" required>
-							<Select id="payoutSchedule" name="payoutSchedule" required>
-								{providerPayoutSchedules.map((item) => (
-									<option value={item.value}>{item.label}</option>
-								))}
-							</Select>
-						</FormField>
-						<FormField
-							label="Número de cuenta / IBAN"
-							htmlFor="accountIdentifier"
-							description="Se guarda para revisión; en tu vista solo verás los últimos 4 dígitos."
-							required
-						>
-							<Input
-								id="accountIdentifier"
-								name="accountIdentifier"
-								required
-								autocomplete="off"
-								placeholder="ES9121000418450200051332 / 1234567890"
-							/>
-						</FormField>
-						<FormField
-							label="Routing / SWIFT-BIC"
-							htmlFor="routingOrSwift"
-							description="Obligatorio para transferencias internacionales."
-						>
-							<Input id="routingOrSwift" name="routingOrSwift" placeholder="BSCHESMMXXX" />
-						</FormField>
-					</div>
 
-					<FormField label="Notas de envío (opcional)" htmlFor="submissionNotes">
-						<Input
-							id="submissionNotes"
-							name="submissionNotes"
-							placeholder="Cuenta principal de liquidaciones"
-						/>
-					</FormField>
-
-					<div class="flex justify-end">
-						<Button type="submit">Enviar cuenta</Button>
-					</div>
-				</form>
-			) : (
+						<div class="flex justify-end">
+							<Button type="submit">Enviar cuenta</Button>
+						</div>
+					</form>
+				</details>
+			</Card>
+		) : canManagePayments ? null : (
+			<Card>
 				<p class="text-sm text-slate-600">
-					Tu rol actual no puede gestionar cuentas de payout del proveedor.
+					Tu rol actual no puede gestionar cuentas de liquidación del proveedor.
 				</p>
-			)
-		}
-	</Card>
+			</Card>
+		)
+	}
 </section>
