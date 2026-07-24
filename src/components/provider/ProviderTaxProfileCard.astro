@@ -1,19 +1,29 @@
 ---
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import { PROVIDER_REVIEW_WAIT_LABEL } from "@/lib/provider-review-wait-state"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
 import { providerInvoicingModes, providerTaxRegimes } from "@/lib/provider-tax-configuration"
 
 type Props = {
 	taxConfiguration?: ProviderTaxConfigurationRecord | null
 	canManageFiscality?: boolean
+	reviewAssignment?: {
+		slaDueAt: Date | string | null
+		slaState: "ok" | "due_soon" | "overdue" | "done"
+	} | null
 }
 
-const { taxConfiguration = null, canManageFiscality = false } = Astro.props as Props
+const {
+	taxConfiguration = null,
+	canManageFiscality = false,
+	reviewAssignment = null,
+} = Astro.props as Props
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
 const regime = taxConfiguration?.taxRegime ?? ""
@@ -29,9 +39,8 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				</p>
 				<h2 class="mt-2 text-xl font-semibold text-slate-950">Perfil fiscal del proveedor</h2>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Quién eres fiscalmente para reporting, payouts y retenciones. Equivale al taxpayer info de
-					Airbnb y al Tax and Registration de Expedia — no define qué impuestos cobras en una
-					reserva. El estado de validación lo confirma el equipo Fastt; tú solo envías los datos.
+					Datos fiscales del proveedor para liquidaciones y retenciones. No definen qué impuestos
+					cobras en una reserva al huésped. Tú envías los datos; Fastt confirma la validación.
 				</p>
 			</div>
 			<Badge
@@ -49,10 +58,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 
 		{
 			status === "pending" ? (
-				<Card variant="soft" class="text-sm leading-6 text-slate-600">
-					Datos enviados. Están pendientes de validación por el equipo interno de Fastt (mismo
-					patrón que la verificación de cumplimiento).
-				</Card>
+				<ProviderReviewWaitNotice domain="fiscal" assignment={reviewAssignment} />
 			) : null
 		}
 		{
@@ -71,7 +77,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						<FormField
 							label="País de residencia fiscal"
 							htmlFor="taxResidenceCountry"
-							description="ISO-2. Usado para cumplimiento y elegibilidad de payouts."
+							description="País donde tributa el proveedor (código de 2 letras)."
 						>
 							<Select id="taxResidenceCountry" name="taxResidenceCountry">
 								<option value="">Sin definir</option>
@@ -124,7 +130,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 					<FormField
 						label="Modo de facturación"
 						htmlFor="invoicingMode"
-						description="Define quién emite el comprobante al huésped; no cambia el motor de impuestos de venta."
+						description="Define quién emite el comprobante al huésped; no cambia los impuestos de venta."
 					>
 						<Select id="invoicingMode" name="invoicingMode" required>
 							{providerInvoicingModes.map((item) => (
@@ -145,8 +151,8 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</ul>
 						<p class="mt-3">
 							Al guardar con datos de identidad, el estado pasa a{" "}
-							<span class="font-medium text-slate-800">Pendiente de validación</span>. No puedes
-							marcar Verificado tú mismo.
+							<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
+							puedes marcar Verificado tú mismo.
 						</p>
 					</Card>
 

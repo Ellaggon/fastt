@@ -223,3 +223,79 @@ export async function completeComplianceAssignment(params: {
 			.where(eq(ProviderComplianceAssignment.id, row.id))
 	}
 }
+
+export const complianceSlaStateLabels: Record<
+	ProviderComplianceAssignmentRecord["slaState"],
+	string
+> = {
+	ok: "a tiempo",
+	due_soon: "por vencer",
+	overdue: "vencido",
+	done: "cerrado",
+}
+
+/** Admin queue summary (includes assignee — internal only). */
+export function formatAdminComplianceSlaSummary(
+	assignment: Pick<
+		ProviderComplianceAssignmentRecord,
+		"assigneeEmail" | "slaDueAt" | "slaState" | "slaHours"
+	> | null
+): string | null {
+	if (!assignment) return null
+	const due = assignment.slaDueAt
+		? new Date(assignment.slaDueAt).toLocaleString("es-BO", {
+				day: "2-digit",
+				month: "short",
+				hour: "2-digit",
+				minute: "2-digit",
+			})
+		: "sin fecha"
+	const assignee = assignment.assigneeEmail || "sin responsable"
+	const state = complianceSlaStateLabels[assignment.slaState] ?? assignment.slaState
+	return `SLA ${assignment.slaHours}h · ${assignee} · vence ${due} · ${state}`
+}
+
+export type ProviderComplianceSlaMirror = {
+	dueLabel: string | null
+	state: ProviderComplianceAssignmentRecord["slaState"] | null
+	footnote: string
+	hasPublishedSla: boolean
+}
+
+/**
+ * Provider-facing SLA mirror. Never exposes assignee email (ops-only).
+ * Without an open assignment → honest “sin plazo fijo”.
+ */
+export function buildProviderComplianceSlaMirror(
+	assignment: Pick<ProviderComplianceAssignmentRecord, "slaDueAt" | "slaState"> | null | undefined
+): ProviderComplianceSlaMirror {
+	if (!assignment?.slaDueAt) {
+		return {
+			dueLabel: null,
+			state: null,
+			footnote: "Sin plazo fijo publicado: te avisamos en esta página cuando termine la revisión.",
+			hasPublishedSla: false,
+		}
+	}
+	const dueLabel = new Date(assignment.slaDueAt).toLocaleString("es-BO", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	})
+	if (assignment.slaState === "overdue") {
+		return {
+			dueLabel,
+			state: assignment.slaState,
+			footnote: `La revisión está demorada respecto al objetivo interno (${dueLabel}). Seguimos trabajando; el resultado aparecerá aquí.`,
+			hasPublishedSla: true,
+		}
+	}
+	return {
+		dueLabel,
+		state: assignment.slaState,
+		footnote: `Objetivo de respuesta: antes del ${dueLabel}. Te avisamos aquí cuando termine la revisión.`,
+		hasPublishedSla: true,
+	}
+}

@@ -74,6 +74,8 @@ const settingsRoutes = {
 	profile: "/provider/settings/profile",
 	verification: "/provider/settings/verification",
 	taxFees: "/provider/settings/tax-fees",
+	taxFeesIdentity: "/provider/settings/tax-fees/identity",
+	taxFeesSales: "/provider/settings/tax-fees/sales",
 	payments: "/provider/settings/payments",
 	integrations: "/provider/settings/integrations",
 	team: "/provider/settings/team",
@@ -470,7 +472,7 @@ export async function evaluateProviderGovernance(
 			id: "fiscality",
 			label: "Identidad fiscal verificada",
 			complete: fiscalComplete,
-			href: settingsRoutes.taxFees,
+			href: settingsRoutes.taxFeesIdentity,
 			capabilities: ["publish", "booking", "payments"],
 		},
 		{
@@ -538,7 +540,7 @@ export async function evaluateProviderGovernance(
 						id: "tax_definitions_missing",
 						label: "No hay impuestos/cargos de venta activos",
 						severity: "medium" as const,
-						href: settingsRoutes.taxFees,
+						href: settingsRoutes.taxFeesSales,
 						capabilities: ["booking", "payments"] as ProviderCapability[],
 					},
 				]
@@ -555,7 +557,7 @@ export async function evaluateProviderGovernance(
 						label:
 							"Hay impuestos de venta activos, pero la identidad fiscal aún no está verificada",
 						severity: "high" as const,
-						href: settingsRoutes.taxFees,
+						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
 					},
 				]
@@ -568,7 +570,7 @@ export async function evaluateProviderGovernance(
 						id: "fiscal_pending_verification",
 						label: "Identidad fiscal enviada y pendiente de validación interna",
 						severity: "high" as const,
-						href: settingsRoutes.taxFees,
+						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
 					},
 				]

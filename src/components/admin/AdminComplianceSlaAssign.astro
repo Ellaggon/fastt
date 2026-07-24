@@ -1,0 +1,61 @@
+---
+import Button from "@/components/ui/Button.astro"
+import { formatAdminComplianceSlaSummary } from "@/lib/provider-compliance-ops"
+
+type Props = {
+	providerId: string
+	domain: "verification" | "fiscal" | "documents" | "payments"
+	entityId: string
+	assignment?: {
+		assigneeEmail: string | null
+		slaHours: number
+		slaDueAt: Date | string | null
+		slaState: "ok" | "due_soon" | "overdue" | "done"
+	} | null
+}
+
+const { providerId, domain, entityId, assignment = null } = Astro.props as Props
+const summary = formatAdminComplianceSlaSummary(assignment)
+const slaTone =
+	assignment?.slaState === "overdue"
+		? "text-red-700"
+		: assignment?.slaState === "due_soon"
+			? "text-amber-700"
+			: "text-slate-500"
+---
+
+<div class="space-y-2">
+	{
+		summary ? (
+			<p class:list={["text-xs", slaTone]} data-sla-summary>
+				{summary}
+			</p>
+		) : (
+			<p class="text-xs text-slate-500">Sin SLA asignado</p>
+		)
+	}
+	<form
+		class="flex flex-col gap-2"
+		data-assign-ops
+		data-domain={domain}
+		data-entity-id={entityId}
+		data-provider-id={providerId}
+	>
+		<input
+			name="assigneeEmail"
+			type="email"
+			placeholder="responsable@fastt.test"
+			value={assignment?.assigneeEmail ?? ""}
+			class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+		/>
+		<input
+			name="slaHours"
+			type="number"
+			min="1"
+			max="168"
+			value={String(assignment?.slaHours ?? 48)}
+			class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+		/>
+		<Button type="submit" variant="secondary" className="w-fit">Asignar SLA</Button>
+	</form>
+</div>

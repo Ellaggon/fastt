@@ -1,11 +1,12 @@
 ---
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import type { ProviderDocumentRecord } from "@/lib/provider-documents"
 import {
 	evaluateRequiredKycDocumentsComplete,
-	requiredKycDocumentTypes,
+	providerDocumentTypes,
 } from "@/lib/provider-documents"
 import { routes } from "@/lib/routes"
 
@@ -17,11 +18,21 @@ type Props = {
 	} | null
 	documents?: ProviderDocumentRecord[]
 	showHeader?: boolean
+	reviewAssignment?: {
+		slaDueAt: Date | string | null
+		slaState: "ok" | "due_soon" | "overdue" | "done"
+	} | null
 }
 
-const { latestVerification, documents = [], showHeader = true } = Astro.props as Props
+const {
+	latestVerification,
+	documents = [],
+	showHeader = true,
+	reviewAssignment = null,
+} = Astro.props as Props
 const status = String(latestVerification?.status ?? "pending")
 const isApproved = status === "approved"
+const isPending = !isApproved && status !== "rejected"
 const statusLabel =
 	status === "approved" ? "Aprobado" : status === "rejected" ? "Requiere cambios" : "Pendiente"
 const reviewedLabel = latestVerification?.createdAt
@@ -51,10 +62,14 @@ const checks = [
 		complete: Boolean(isApproved),
 	},
 	{
-		title: "Set KYC mínimo",
+		title: "Documentos mínimos",
 		description: kyc.complete
 			? "Identidad, registro mercantil y documento fiscal verificados."
-			: `Faltan verificados: ${kyc.missingRequiredTypes.join(", ") || requiredKycDocumentTypes.join(", ")}.`,
+			: `Faltan: ${
+					kyc.missingRequiredTypes
+						.map((type) => providerDocumentTypes.find((item) => item.value === type)?.label ?? type)
+						.join(", ") || "identidad, registro mercantil y documento fiscal"
+				}.`,
 		complete: documentsComplete,
 		pending: !documentsComplete && pendingDocuments.length > 0,
 	},
@@ -115,6 +130,12 @@ const checks = [
 					</p>
 				</Card>
 
+				{
+					isPending ? (
+						<ProviderReviewWaitNotice domain="verification" assignment={reviewAssignment} />
+					) : null
+				}
+
 				<div class="flex justify-end">
 					<Button href={routes.providerSettings()} variant="secondary">Volver al resumen</Button>
 				</div>
@@ -126,8 +147,8 @@ const checks = [
 				<div>
 					<h3 class="text-xl font-semibold text-slate-950">Matriz de revisión</h3>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						La verificación avanza por dimensiones independientes: la aprobación global no completa
-						documentos KYC (mismo criterio que la gobernanza canónica).
+						La verificación avanza por dimensiones independientes: la aprobación de la cuenta no
+						completa sola el checklist de documentos.
 					</p>
 				</div>
 				<div class="space-y-3">

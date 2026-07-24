@@ -1,6 +1,5 @@
 ---
-import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
-import TaxFeePage from "@/components/tax-fees/TaxFeePage"
+import ProviderFiscalDomainTabs from "@/components/provider/ProviderFiscalDomainTabs.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -18,6 +17,15 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
+const create = Astro.url.searchParams.get("create")
+if (create === "1") {
+	return Astro.redirect(`${routes.providerSettingsTaxSales()}?create=1`)
+}
+const result = Astro.url.searchParams.get("result")
+if (result === "tax_profile_saved") {
+	return Astro.redirect(`${routes.providerSettingsTaxIdentity()}?result=${result}`)
+}
+
 const cookie = Astro.request.headers.get("cookie") ?? ""
 const [defsRes, summaryRes] = await Promise.all([
 	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
@@ -30,9 +38,6 @@ const [defsRes, summaryRes] = await Promise.all([
 const defsBody = defsRes.ok ? await defsRes.json() : null
 const summary = summaryRes.ok ? await summaryRes.json() : null
 const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
-const initialWarnings = Array.isArray(defsBody?.warnings) ? defsBody.warnings : []
-const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : "idle"
-const result = Astro.url.searchParams.get("result")
 const taxConfiguration = await getProviderTaxConfiguration(auth.providerId).catch(() => null)
 const permissions = summary?.permissions ?? {}
 const canManageFiscality = Boolean(permissions.canManageFiscality)
@@ -44,26 +49,20 @@ const activeCount = initialDefinitions.filter((item: any) => item.status === "ac
 	title="Fiscalidad"
 	eyebrow="Configuración del proveedor · Fiscalidad"
 	heading="Fiscalidad"
-	description="Dos dominios separados: identidad fiscal del proveedor (quién eres) e impuestos/cargos de venta (qué cobras al huésped)."
+	description="Elige el dominio: tu registro fiscal (quién eres) o los impuestos que cobras al huésped (qué suma al precio)."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
 		<Button href={routes.providerSettingsVerification()} variant="secondary">Documentos</Button>
 		<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
 	</div>
 
-	{
-		result === "tax_profile_saved" ? (
-			<Notice variant="success" title="Perfil fiscal guardado">
-				La identidad fiscal quedó en ProviderTaxConfiguration y alimenta gobernanza de payouts.
-			</Notice>
-		) : null
-	}
+	<ProviderFiscalDomainTabs active="hub" />
 
-	<Notice variant="info" title="Separación Airbnb / Expedia">
+	<Notice variant="info" title="Dos cosas distintas">
 		<p class="leading-6">
-			<strong>Perfil fiscal</strong> = taxpayer / tax registration (reporting, retenciones, elegibilidad
-			de cobros). <strong>Impuestos y cargos de venta</strong> = occupancy taxes y fees del checkout (desglose
-			de precio). No mezclar ambos.
+			<strong>Tu registro fiscal</strong> identifica al proveedor para impuestos y liquidaciones.
+			<strong> Impuestos al huésped</strong> se aplican al precio que ve en la reserva. Configúralos en
+			pantallas separadas.
 		</p>
 	</Notice>
 
@@ -76,7 +75,7 @@ const activeCount = initialDefinitions.filter((item: any) => item.status === "ac
 		</Card>
 		<Card variant="soft" class="space-y-1">
 			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-				Definiciones de venta
+				Impuestos al huésped
 			</p>
 			<p class="text-lg font-semibold text-slate-950">
 				{definitionCount} total · {activeCount} activas
@@ -93,41 +92,48 @@ const activeCount = initialDefinitions.filter((item: any) => item.status === "ac
 		</Card>
 	</div>
 
-	<ProviderTaxProfileCard
-		taxConfiguration={taxConfiguration}
-		canManageFiscality={canManageFiscality}
-	/>
-
-	<section class="space-y-4">
-		<div class="flex flex-wrap items-end justify-between gap-3">
+	<div class="grid gap-4 lg:grid-cols-2">
+		<Card class="space-y-4">
 			<div>
-				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-					Bloque 2 · Aplicación comercial
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Dominio 1</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-950">Tu registro fiscal</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					País, NIT/registro y régimen. Fastt lo revisa; no puedes marcar Verificado tú mismo.
 				</p>
-				<h2 class="mt-2 text-xl font-semibold text-slate-100">
-					Impuestos y cargos aplicables a ventas
-				</h2>
-				<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-					Reglas que se aplican al precio de la reserva (TaxFeeDefinition + TaxFeeAssignment).
-					Alimentan tarifas, búsqueda, checkout y snapshots financieros — no sustituyen el perfil
+			</div>
+			<div class="flex flex-wrap items-center gap-3">
+				<Badge
+					variant={taxConfiguration?.status === "verified"
+						? "success"
+						: taxConfiguration?.status === "pending"
+							? "warning"
+							: taxConfiguration?.status === "requires_attention"
+								? "error"
+								: "neutral"}
+				>
+					{taxConfiguration?.statusLabel ?? "No configurado"}
+				</Badge>
+				<Button href={routes.providerSettingsTaxIdentity()}>Abrir registro fiscal</Button>
+			</div>
+		</Card>
+
+		<Card class="space-y-4">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Dominio 2</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-950">Impuestos al huésped</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Definiciones y cargos que se suman al precio de la reserva. No sustituyen tu registro
 					fiscal.
 				</p>
 			</div>
-			<Button href={`${routes.providerSettingsTaxFees()}?create=1`} variant="secondary">
-				Nueva definición
-			</Button>
-		</div>
-
-		<Notice variant="info" title="Flujo recomendado">
-			Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
-			ventas.
-		</Notice>
-
-		<TaxFeePage
-			client:load
-			initialDefinitions={initialDefinitions}
-			initialWarnings={initialWarnings}
-			initialMode={initialMode}
-		/>
-	</section>
+			<div class="flex flex-wrap items-center gap-3">
+				<Badge variant={activeCount ? "success" : "neutral"}>
+					{activeCount} activa{activeCount === 1 ? "" : "s"}
+				</Badge>
+				<Button href={routes.providerSettingsTaxSales()} variant="secondary">
+					Abrir impuestos al huésped
+				</Button>
+			</div>
+		</Card>
+	</div>
 </ProviderSettingsLayout>

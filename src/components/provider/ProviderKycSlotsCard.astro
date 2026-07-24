@@ -1,0 +1,116 @@
+---
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import type { ProviderKycSlot } from "@/lib/provider-documents"
+
+type Props = {
+	slots?: ProviderKycSlot[]
+	canManageDocuments?: boolean
+	documentAssignments?: Record<
+		string,
+		{
+			slaDueAt: Date | string | null
+			slaState: "ok" | "due_soon" | "overdue" | "done"
+		}
+	>
+}
+
+const { slots = [], canManageDocuments = false, documentAssignments = {} } = Astro.props as Props
+
+const missingCount = slots.filter((slot) => slot.state === "missing").length
+const rejectedCount = slots.filter((slot) => slot.state === "rejected").length
+const completeCount = slots.filter((slot) => slot.state === "verified").length
+
+function badgeVariant(state: ProviderKycSlot["state"]) {
+	if (state === "verified") return "success" as const
+	if (state === "rejected") return "error" as const
+	if (state === "pending") return "warning" as const
+	return "neutral" as const
+}
+---
+
+<Card>
+	<div class="space-y-4">
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Documentos mínimos
+				</p>
+				<h2 class="mt-2 text-xl font-semibold text-slate-950">Checklist KYC</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Para completar cumplimiento necesitas estos tres documentos verificados. Si alguno fue
+					rechazado, verás el motivo y puedes reenviar uno nuevo.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Badge variant={completeCount === slots.length && slots.length ? "success" : "neutral"}>
+					{completeCount}/{slots.length} listos
+				</Badge>
+				{
+					missingCount ? (
+						<Badge variant="warning">
+							{missingCount} faltante{missingCount === 1 ? "" : "s"}
+						</Badge>
+					) : null
+				}
+				{
+					rejectedCount ? (
+						<Badge variant="error">
+							{rejectedCount} rechazado{rejectedCount === 1 ? "" : "s"}
+						</Badge>
+					) : null
+				}
+			</div>
+		</div>
+
+		<div class="grid gap-3">
+			{
+				slots.map((slot) => (
+					<Card variant="soft" class="space-y-3">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-semibold text-slate-950">{slot.label}</p>
+								<p class="mt-1 text-sm leading-6 text-slate-600">{slot.description}</p>
+								{slot.fileName ? (
+									<p class="mt-2 text-xs text-slate-500">Archivo: {slot.fileName}</p>
+								) : null}
+							</div>
+							<Badge variant={badgeVariant(slot.state)}>{slot.stateLabel}</Badge>
+						</div>
+
+						{slot.state === "rejected" ? (
+							<Notice variant="error" title="Motivo del rechazo">
+								{slot.reviewNotes ||
+									"El equipo Fastt rechazó este documento. Corrige y envía una nueva versión."}
+							</Notice>
+						) : null}
+
+						{slot.state === "pending" ? (
+							<ProviderReviewWaitNotice
+								domain="document"
+								assignment={slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null}
+							/>
+						) : null}
+
+						{slot.state === "missing" || slot.state === "rejected" ? (
+							canManageDocuments ? (
+								<div class="border-t border-slate-200 pt-3">
+									<Button href={slot.uploadHref} size="sm" variant="secondary">
+										{slot.state === "rejected" ? "Reenviar documento" : "Subir documento"}
+									</Button>
+								</div>
+							) : (
+								<p class="border-t border-slate-200 pt-3 text-sm text-slate-600">
+									Tu rol no puede subir documentos. Pide a un administrador del proveedor.
+								</p>
+							)
+						) : null}
+					</Card>
+				))
+			}
+		</div>
+	</div>
+</Card>

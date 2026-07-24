@@ -1,4 +1,6 @@
 ---
+import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -8,7 +10,13 @@ import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { listProviderDocuments, providerDocumentTypes } from "@/lib/provider-documents"
+import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import {
+	buildRequiredKycSlots,
+	listProviderDocuments,
+	providerDocumentTypes,
+	requiredKycDocumentTypes,
+} from "@/lib/provider-documents"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
@@ -28,25 +36,59 @@ const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.u
 })
 const summary = summaryRes.ok ? await summaryRes.json() : null
 const permissions = summary?.permissions ?? {}
+const canManageDocuments = Boolean(permissions.canManageDocuments)
 const documents =
 	typeof auth === "string" ? [] : await listProviderDocuments(auth.providerId).catch(() => [])
+const openAssignments =
+	typeof auth === "string"
+		? []
+		: await listOpenComplianceAssignments({ providerId: auth.providerId }).catch(() => [])
+const verificationAssignment =
+	typeof auth === "string"
+		? null
+		: (openAssignments.find(
+				(row) => row.domain === "verification" && row.entityId === auth.providerId
+			) ?? null)
+const documentAssignmentById = new Map(
+	openAssignments
+		.filter((row) => row.domain === "documents")
+		.map((row) => [row.entityId, row] as const)
+)
 const result = Astro.url.searchParams.get("result")
+const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
+const defaultUploadType = providerDocumentTypes.some((item) => item.value === requestedType)
+	? requestedType
+	: requiredKycDocumentTypes[0]
+
+const kycSlots = buildRequiredKycSlots({
+	documents,
+	uploadBasePath: routes.providerSettingsVerification(),
+})
+const optionalDocuments = documents.filter(
+	(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
+)
 const pendingCount = documents.filter((doc) => doc.status === "pending").length
 const verifiedCount = documents.filter((doc) => doc.status === "verified").length
 const rejectedCount = documents.filter((doc) => doc.status === "rejected").length
 
-const resultMessages: Record<string, { title: string; body: string }> = {
+const resultMessages: Record<
+	string,
+	{ title: string; body: string; variant: "success" | "warning" }
+> = {
 	submitted: {
 		title: "Documento enviado",
-		body: "El documento quedó pendiente de revisión y alimenta el readiness de cumplimiento.",
+		body: "Quedó en revisión. El resultado aparecerá en esta página cuando el equipo Fastt termine.",
+		variant: "success",
 	},
 	verified: {
 		title: "Documento verificado",
-		body: "El documento quedó marcado como verificado y desbloquea gobernanza de pagos/integraciones.",
+		body: "Este respaldo ya cuenta para el checklist de cumplimiento.",
+		variant: "success",
 	},
 	rejected: {
 		title: "Documento rechazado",
-		body: "Se registró el rechazo con notas de revisión para que el proveedor pueda reenviar.",
+		body: "Revisa el motivo en el checklist y envía una versión corregida.",
+		variant: "warning",
 	},
 }
 ---
@@ -54,11 +96,11 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 <ProviderSettingsLayout
 	title="Verificación y documentos"
 	heading="Verificación"
-	description="Cumplimiento operativo: estado de verificación y documentos de respaldo (identidad, empresa, fiscalidad y propiedad)."
+	description="Estado de aprobación del proveedor y documentos de respaldo para operar con confianza."
 >
 	{
 		result && resultMessages[result] ? (
-			<Notice variant="success" title={resultMessages[result].title}>
+			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
 				{resultMessages[result].body}
 			</Notice>
 		) : null
@@ -68,6 +110,13 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 		latestVerification={aggregate?.latestVerification}
 		documents={documents}
 		showHeader={false}
+		reviewAssignment={verificationAssignment}
+	/>
+
+	<ProviderKycSlotsCard
+		slots={kycSlots}
+		canManageDocuments={canManageDocuments}
+		documentAssignments={Object.fromEntries(documentAssignmentById)}
 	/>
 
 	<div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
@@ -75,10 +124,9 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 			<div class="space-y-4">
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Documentos de cumplimiento</h2>
+						<h2 class="text-xl font-semibold text-slate-950">Otros documentos</h2>
 						<p class="mt-2 text-sm leading-6 text-slate-600">
-							Flujo alineado con KYC de Airbnb y onboarding de Expedia: carga, tipo, estado y notas
-							de revisión.
+							Respaldo adicional (propiedad, licencias, domicilio). El checklist mínimo está arriba.
 						</p>
 					</div>
 					<div class="flex flex-wrap gap-2">
@@ -96,8 +144,8 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 
 				<div class="space-y-3">
 					{
-						documents.length ? (
-							documents.map((doc) => (
+						optionalDocuments.length ? (
+							optionalDocuments.map((doc) => (
 								<Card variant="soft" class="space-y-3">
 									<div class="flex flex-wrap items-start justify-between gap-3">
 										<div>
@@ -111,7 +159,11 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 													Nota de envío: {doc.submissionNotes}
 												</p>
 											) : null}
-											{doc.reviewNotes ? (
+											{doc.status === "rejected" && doc.reviewNotes ? (
+												<Notice variant="error" title="Motivo del rechazo" class="mt-3">
+													{doc.reviewNotes}
+												</Notice>
+											) : doc.reviewNotes ? (
 												<p class="mt-2 text-sm leading-6 text-slate-600">
 													Nota de revisión: {doc.reviewNotes}
 												</p>
@@ -133,18 +185,17 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 									</div>
 
 									{doc.status === "pending" ? (
-										<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
-											En revisión por el equipo interno de Fastt. No puedes verificar ni rechazar
-											documentos desde esta cuenta (mismo patrón que Airbnb/Expedia: tú envías, la
-											plataforma valida).
-										</p>
+										<ProviderReviewWaitNotice
+											domain="document"
+											assignment={documentAssignmentById.get(doc.id) ?? null}
+											class="mt-3"
+										/>
 									) : null}
 								</Card>
 							))
 						) : (
 							<Card variant="soft" class="text-sm text-slate-600">
-								Aún no hay documentos cargados. Sube al menos un respaldo para completar la
-								dimensión de documentos en gobernanza.
+								No hay documentos opcionales cargados todavía.
 							</Card>
 						)
 					}
@@ -152,9 +203,9 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 			</div>
 		</Card>
 
-		<Card>
+		<Card id="kyc-upload">
 			{
-				permissions.canManageDocuments ? (
+				canManageDocuments ? (
 					<form
 						class="space-y-4"
 						method="post"
@@ -165,16 +216,20 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 						<div>
 							<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Adjunta PDF o imagen (máx. 12&nbsp;MB). Con R2 configurado el archivo se sube al
-								storage privado (`r2:…`); no uses `local://` en producción. Set KYC mínimo:
-								identidad, registro mercantil y documento fiscal.
+								Adjunta PDF o imagen (máx. 12&nbsp;MB). El archivo queda disponible solo para
+								revisión interna.
 							</p>
 						</div>
 						<label class="grid gap-2 text-sm font-medium text-slate-700">
 							Tipo
 							<Select name="type" required>
 								{providerDocumentTypes.map((item) => (
-									<option value={item.value}>{item.label}</option>
+									<option value={item.value} selected={item.value === defaultUploadType}>
+										{item.label}
+										{(requiredKycDocumentTypes as readonly string[]).includes(item.value)
+											? " (mínimo)"
+											: ""}
+									</option>
 								))}
 							</Select>
 						</label>
@@ -188,29 +243,16 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 							/>
 						</label>
 						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							URL de referencia (opcional)
-							<Input type="url" name="fileUrl" placeholder="https://storage.example.com/doc.pdf" />
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
 							Notas de envío (opcional)
-							<Input name="submissionNotes" placeholder="Versión vigente 2026 / NIT actualizado" />
+							<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
 						</label>
-						<Card variant="soft" class="text-sm leading-6 text-slate-600">
-							<ul class="list-disc space-y-1 pl-4">
-								{providerDocumentTypes.map((item) => (
-									<li>
-										<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
-									</li>
-								))}
-							</ul>
-						</Card>
 						<Button type="submit">Enviar a revisión</Button>
 					</form>
 				) : (
 					<div class="space-y-3">
 						<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
 						<p class="text-sm leading-6 text-slate-600">
-							Tu rol actual no puede cargar ni revisar documentos de cumplimiento.
+							Tu rol actual no puede cargar documentos de cumplimiento.
 						</p>
 					</div>
 				)
