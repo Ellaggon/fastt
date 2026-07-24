@@ -101,7 +101,9 @@ const ACTION_LABELS: Record<string, string> = {
 export function parseProviderComplianceQueueFilter(
 	raw: string | null | undefined
 ): ProviderComplianceQueueFilter {
-	const value = String(raw ?? "all").trim()
+	const value = String(raw ?? "").trim()
+	// S4-5: ops land on the SLA urgency queue by default.
+	if (!value) return "overdue"
 	// Legacy alias from early admin UI.
 	if (value === "pending") return "verification"
 	if (

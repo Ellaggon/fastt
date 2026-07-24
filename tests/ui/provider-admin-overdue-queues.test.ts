@@ -20,6 +20,8 @@ describe("S3-4 admin overdue queues + manual verify copy", () => {
 		expect(parseProviderComplianceQueueFilter("all")).toBe("all")
 		expect(parseProviderComplianceQueueFilter("pending")).toBe("verification")
 		expect(parseProviderComplianceQueueFilter("nope")).toBe("all")
+		expect(parseProviderComplianceQueueFilter(null)).toBe("overdue")
+		expect(parseProviderComplianceQueueFilter("")).toBe("overdue")
 	})
 
 	it("wires SLA overdue/due_soon queues and never shows override copy in admin payments", () => {
@@ -34,8 +36,9 @@ describe("S3-4 admin overdue queues + manual verify copy", () => {
 		expect(lib).toContain("sortBySlaUrgency")
 		expect(lib).toContain('slaState === "overdue"')
 
-		expect(admin).toContain('data-sla-queue="overdue"')
-		expect(admin).toContain('data-sla-queue="due_soon"')
+		expect(admin).toContain("data-sla-queue={button.sla")
+		expect(admin).toContain('sla: "overdue"')
+		expect(admin).toContain('sla: "due_soon"')
 		expect(admin).toContain('data-sla-alert="overdue"')
 		expect(admin).toContain("Ver cola vencida")
 		expect(admin).toContain('id: "overdue"')
