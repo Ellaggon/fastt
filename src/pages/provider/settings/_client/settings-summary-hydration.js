@@ -33,31 +33,7 @@ function ensureDeferredShell() {
 	if (!root || root.dataset.ready === "true") return
 	root.dataset.ready = "true"
 	root.innerHTML = `
-		<div data-settings-blockers-notice class="hidden rounded-[var(--fastt-radius-card)] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-			<p class="font-semibold">Qué bloquea qué</p>
-			<p class="mt-1">Este resumen muestra exactamente qué capacidad queda bloqueada y por qué.</p>
-		</div>
 		<section class="grid gap-4 xl:grid-cols-4" data-settings-blocking-matrix></section>
-		<section class="grid gap-4 xl:grid-cols-2">
-			<div class="${panel}">
-				<div class="space-y-4">
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Readiness</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">Estado consolidado de cada área de configuración.</p>
-					</div>
-					<div class="space-y-3" data-settings-readiness></div>
-				</div>
-			</div>
-			<div class="${panel}">
-				<div class="space-y-4">
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Riesgos y permisos</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">Señales que necesitan gobernanza antes de activar automatizaciones.</p>
-					</div>
-					<div class="space-y-3" data-settings-risks></div>
-				</div>
-			</div>
-		</section>
 		<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
 			<div class="${panel}" data-settings-simulation>
 				<div class="space-y-4">
@@ -242,9 +218,10 @@ function hydrateSummary(summary) {
 		blockers.length ? "warning" : "success",
 		blockers.length ? "Con bloqueos" : "Base lista"
 	)
-	document
-		.querySelector("[data-settings-blockers-notice]")
-		?.classList.toggle("hidden", blockers.length === 0)
+	const blockersNotice = document.querySelector("[data-settings-blockers-notice]")
+	if (blockersNotice) {
+		blockersNotice.classList.toggle("hidden", blockers.length === 0)
+	}
 
 	const cta = document.querySelector("[data-settings-primary-cta]")
 	if (cta && summary.actions?.primaryCtaAction) {
@@ -313,12 +290,32 @@ async function loadSettingsSummary() {
 		document.querySelectorAll("[data-settings-placeholder]").forEach((node) => {
 			node.textContent = "No se pudo cargar esta sección. Intenta refrescar."
 		})
-		setText("[data-settings-progress-label]", "No se pudo cargar el estado operativo.")
+		const progress = document.querySelector("[data-settings-progress-label]")
+		if (progress && /cargar|Cargando/i.test(progress.textContent || "")) {
+			progress.textContent = "No se pudo actualizar el estado operativo."
+		}
 	}
 }
 
+function readBootstrapSummary() {
+	const node = document.getElementById("settings-summary-bootstrap")
+	if (!node) return null
+	const raw = node.textContent?.trim()
+	if (!raw || raw === "null") return null
+	try {
+		return JSON.parse(raw)
+	} catch {
+		return null
+	}
+}
+
+const bootstrapSummary = readBootstrapSummary()
+if (bootstrapSummary) {
+	hydrateSummary(bootstrapSummary)
+}
+
 if ("requestIdleCallback" in window) {
-	window.requestIdleCallback(loadSettingsSummary, { timeout: 800 })
+	window.requestIdleCallback(loadSettingsSummary, { timeout: 1500 })
 } else {
-	window.setTimeout(loadSettingsSummary, 120)
+	window.setTimeout(loadSettingsSummary, 250)
 }

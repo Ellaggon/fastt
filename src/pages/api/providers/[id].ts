@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { routes } from "@/lib/routes"
 import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 
@@ -10,9 +11,8 @@ function shouldReturnHtmlRedirect(request: Request): boolean {
 	return accept.includes("text/html")
 }
 
-function redirectToProvider(request: Request, params: Record<string, string>): Response {
-	const url = new URL("/provider", request.url)
-	url.searchParams.set("step", "register")
+function redirectToProfileSettings(request: Request, params: Record<string, string>): Response {
+	const url = new URL(routes.providerSettingsProfile(), request.url)
 	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
 	return Response.redirect(url, 303)
 }
@@ -25,7 +25,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		const providerId = await getProviderIdFromRequest(request)
 		if (!providerId) {
 			if (shouldReturnHtmlRedirect(request)) {
-				return redirectToProvider(request, { error: "provider_not_found" })
+				return redirectToProfileSettings(request, { error: "provider_not_found" })
 			}
 			return new Response(JSON.stringify({ error: "Provider not found" }), {
 				status: 404,
@@ -50,8 +50,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		await invalidateProviderGovernance(providerId, "provider_identity_updated")
 
 		if (shouldReturnHtmlRedirect(request)) {
-			const url = new URL("/provider?success=saved", request.url)
-			return Response.redirect(url, 303)
+			return redirectToProfileSettings(request, { success: "identity_saved" })
 		}
 
 		return new Response(JSON.stringify(result), {
@@ -61,7 +60,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 	} catch (error) {
 		if (error instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
-				return redirectToProvider(request, { error: "validation_error" })
+				return redirectToProfileSettings(request, { error: "validation_error" })
 			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: error.errors }), {
 				status: 400,
@@ -70,7 +69,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		}
 
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectToProvider(request, { error: "save_failed" })
+			return redirectToProfileSettings(request, { error: "save_failed" })
 		}
 		const message = error instanceof Error ? error.message : "Unknown error"
 		return new Response(JSON.stringify({ error: message }), {
@@ -81,7 +80,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 }
 
 export const GET: APIRoute = async ({ request }) => {
-	return redirectToProvider(request, { error: "invalid_method" })
+	return redirectToProfileSettings(request, { error: "invalid_method" })
 }
 export const PATCH: APIRoute = handleProviderUpdate
 export const POST: APIRoute = handleProviderUpdate

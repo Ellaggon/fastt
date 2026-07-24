@@ -7,10 +7,17 @@ import { providerV2Repository } from "@/container"
 import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
+import { routes } from "@/lib/routes"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
 	return accept.includes("text/html")
+}
+
+function redirectToProfileSettings(request: Request, params: Record<string, string>): Response {
+	const url = new URL(routes.providerSettingsProfile(), request.url)
+	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+	return Response.redirect(url, 303)
 }
 
 function profileSnapshot(
@@ -34,6 +41,9 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	try {
 		const user = await getUserFromRequest(request)
 		if (!user?.email || !user?.id) {
+			if (shouldReturnHtmlRedirect(request)) {
+				return redirectToProfileSettings(request, { error: "session_expired" })
+			}
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {
 				status: 401,
 				headers: { "Content-Type": "application/json" },
@@ -41,6 +51,9 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		}
 		const providerId = await getProviderIdFromRequest(request)
 		if (!providerId) {
+			if (shouldReturnHtmlRedirect(request)) {
+				return redirectToProfileSettings(request, { error: "provider_not_found" })
+			}
 			return new Response(JSON.stringify({ error: "Provider not found" }), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
@@ -102,8 +115,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		})
 
 		if (shouldReturnHtmlRedirect(request)) {
-			const url = new URL("/provider/settings/profile?success=saved", request.url)
-			return Response.redirect(url, 303)
+			return redirectToProfileSettings(request, { success: "ops_saved" })
 		}
 
 		return new Response(JSON.stringify(result), {
@@ -112,12 +124,20 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		})
 	} catch (e) {
 		if (e instanceof ValidationError) {
+			if (shouldReturnHtmlRedirect(request)) {
+				return redirectToProfileSettings(request, { error: "validation_error" })
+			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
+		if (shouldReturnHtmlRedirect(request)) {
+			return redirectToProfileSettings(request, {
+				error: msg.includes("Provider not found") ? "provider_not_found" : "save_failed",
+			})
+		}
 		const status = msg.includes("Provider not found") ? 404 : 500
 		return new Response(JSON.stringify({ error: msg }), {
 			status,
