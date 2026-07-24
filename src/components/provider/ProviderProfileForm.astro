@@ -6,130 +6,105 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { routes } from "@/lib/routes"
 
-const { isProviderAvailable, profile } = Astro.props
+const { isProviderAvailable = true, profile } = Astro.props
 ---
 
-<section class="space-y-4">
-	<header class="space-y-1">
-		<p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-			Configuración del proveedor
-		</p>
-		<h2 class="text-lg font-semibold text-slate-100">Perfil operativo</h2>
-		<p class="text-sm text-slate-300">
-			Configura los valores que usan reservas, calendario, comunicaciones y precios por defecto.
-		</p>
-	</header>
-	<Card>
-		{
-			!isProviderAvailable && (
-				<div class="space-y-4">
-					<p class="text-sm text-slate-600">
-						Complete primero la identidad para habilitar el perfil operativo.
-					</p>
-					<Button href={routes.providerSettingsProfile()}>Ir a identidad</Button>
-				</div>
-			)
-		}
-		{
-			isProviderAvailable && (
-				<form method="POST" action="/api/providers/profile" class="max-w-3xl space-y-6">
-					<div class="space-y-4">
-						<div class="space-y-1">
-							<h3 class="text-xl font-semibold text-slate-900">Operación</h3>
-							<p class="text-sm text-slate-600">
-								Estos campos habilitan una operación consistente entre zonas horarias, moneda y
-								soporte. La identidad fiscal, payouts e integraciones viven en sus propias
-								secciones.
-							</p>
-						</div>
-						<FormField label="Zona horaria" htmlFor="timezone" required>
-							<Select id="timezone" name="timezone" required>
-								<option
-									value="America/Santiago"
-									selected={(profile?.timezone ?? "America/Santiago") === "America/Santiago"}
-								>
-									America/Santiago
-								</option>
-								<option
-									value="America/New_York"
-									selected={profile?.timezone === "America/New_York"}
-								>
-									America/New_York
-								</option>
-								<option value="Europe/Madrid" selected={profile?.timezone === "Europe/Madrid"}>
-									Europe/Madrid
-								</option>
-							</Select>
-						</FormField>
-						<FormField label="Moneda por defecto" htmlFor="defaultCurrency" required>
-							<Select id="defaultCurrency" name="defaultCurrency" required>
-								<option value="USD" selected={(profile?.defaultCurrency ?? "USD") === "USD"}>
-									USD
-								</option>
-								<option value="EUR" selected={profile?.defaultCurrency === "EUR"}>
-									EUR
-								</option>
-								<option value="CLP" selected={profile?.defaultCurrency === "CLP"}>
-									CLP
-								</option>
-							</Select>
-						</FormField>
-						<FormField
-							label="Correo de soporte"
-							htmlFor="supportEmail"
-							description="Opcional si ya existe un correo de contacto configurado."
+{
+	isProviderAvailable ? (
+		<form method="POST" action="/api/providers/profile" class="space-y-6" data-profile-ops-form>
+			<p class="text-sm leading-6 text-slate-600">
+				Estos campos alinean reservas, calendario y comunicaciones. La identidad fiscal, payouts e
+				integraciones viven en sus propias secciones.
+			</p>
+			<FormField label="Zona horaria" htmlFor="timezone" required>
+				<Select id="timezone" name="timezone" required>
+					<option
+						value="America/Santiago"
+						selected={(profile?.timezone ?? "America/Santiago") === "America/Santiago"}
+					>
+						America/Santiago
+					</option>
+					<option value="America/New_York" selected={profile?.timezone === "America/New_York"}>
+						America/New_York
+					</option>
+					<option value="Europe/Madrid" selected={profile?.timezone === "Europe/Madrid"}>
+						Europe/Madrid
+					</option>
+				</Select>
+			</FormField>
+			<FormField label="Moneda por defecto" htmlFor="defaultCurrency" required>
+				<Select id="defaultCurrency" name="defaultCurrency" required>
+					<option value="USD" selected={(profile?.defaultCurrency ?? "USD") === "USD"}>
+						USD
+					</option>
+					<option value="EUR" selected={profile?.defaultCurrency === "EUR"}>
+						EUR
+					</option>
+					<option value="CLP" selected={profile?.defaultCurrency === "CLP"}>
+						CLP
+					</option>
+				</Select>
+			</FormField>
+			<FormField
+				label="Correo de soporte"
+				htmlFor="supportEmail"
+				description="Opcional si ya existe un correo de contacto configurado."
+			>
+				<Input
+					id="supportEmail"
+					type="email"
+					name="supportEmail"
+					value={profile?.supportEmail ?? ""}
+				/>
+			</FormField>
+			<FormField label="Teléfono de soporte" htmlFor="supportPhone">
+				<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
+			</FormField>
+			<Card variant="soft" class="text-sm leading-6 text-slate-600">
+				<p class="font-medium text-slate-800">Dominios relacionados</p>
+				<ul class="mt-2 list-disc space-y-1 pl-4">
+					<li>
+						<a
+							href={routes.providerSettingsTaxFees()}
+							class="font-medium text-slate-900 underline underline-offset-2"
 						>
-							<Input
-								id="supportEmail"
-								type="email"
-								name="supportEmail"
-								value={profile?.supportEmail ?? ""}
-							/>
-						</FormField>
-						<FormField label="Teléfono de soporte" htmlFor="supportPhone">
-							<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
-						</FormField>
-						<Card variant="soft" class="text-sm leading-6 text-slate-600">
-							<p class="font-medium text-slate-800">Dominios relacionados</p>
-							<ul class="mt-2 list-disc space-y-1 pl-4">
-								<li>
-									<a
-										href={routes.providerSettingsTaxFees()}
-										class="font-medium text-slate-900 underline underline-offset-2"
-									>
-										Fiscalidad
-									</a>{" "}
-									→ perfil fiscal + impuestos/cargos de venta
-								</li>
-								<li>
-									<a
-										href={routes.providerSettingsIntegrations()}
-										class="font-medium text-slate-900 underline underline-offset-2"
-									>
-										Integraciones
-									</a>{" "}
-									→ conectores y prueba de conexión
-								</li>
-								<li>
-									<a
-										href={routes.providerSettingsVerification()}
-										class="font-medium text-slate-900 underline underline-offset-2"
-									>
-										Verificación
-									</a>{" "}
-									→ documentos mínimos de cumplimiento
-								</li>
-							</ul>
-						</Card>
-					</div>
-					<div class="flex items-center justify-end gap-3">
-						<Button href={routes.providerSettings()} variant="secondary">
-							Volver
-						</Button>
-						<Button type="submit">Guardar perfil</Button>
-					</div>
-				</form>
-			)
-		}
-	</Card>
-</section>
+							Fiscalidad
+						</a>{" "}
+						→ perfil fiscal + impuestos/cargos de venta
+					</li>
+					<li>
+						<a
+							href={routes.providerSettingsIntegrations()}
+							class="font-medium text-slate-900 underline underline-offset-2"
+						>
+							Integraciones
+						</a>{" "}
+						→ conectores y prueba de conexión
+					</li>
+					<li>
+						<a
+							href={routes.providerSettingsVerification()}
+							class="font-medium text-slate-900 underline underline-offset-2"
+						>
+							Verificación
+						</a>{" "}
+						→ documentos mínimos de cumplimiento
+					</li>
+				</ul>
+			</Card>
+			<div class="flex items-center justify-end gap-3">
+				<Button href={routes.providerSettings()} variant="secondary">
+					Volver
+				</Button>
+				<Button type="submit">Guardar perfil</Button>
+			</div>
+		</form>
+	) : (
+		<div class="space-y-4" data-profile-ops-unavailable>
+			<p class="text-sm text-slate-600">
+				Completa primero la identidad comercial para habilitar el perfil operativo.
+			</p>
+			<Button href={routes.providerSettingsProfile()}>Ir a identidad</Button>
+		</div>
+	)
+}

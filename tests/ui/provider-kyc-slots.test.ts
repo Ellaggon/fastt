@@ -88,7 +88,8 @@ describe("S1-1 KYC slots + reject reason", () => {
 			stateLabel: "Rechazado",
 			reviewNotes: "NIT ilegible, reenviar escaneo nítido",
 			rejectCategoryLabel: null,
-			uploadHref: "/provider/settings/verification?type=tax_document#kyc-upload",
+			consequence: expect.stringContaining("liquidar cobros"),
+			uploadHref: "/provider/settings/verification?type=tax_document#kyc-slot-tax_document",
 		})
 	})
 
@@ -100,25 +101,33 @@ describe("S1-1 KYC slots + reject reason", () => {
 		expect(page).toContain("buildRequiredKycSlots")
 		expect(page).toContain("ProviderKycSlotsCard")
 		expect(page).toContain('searchParams.get("type")')
-		expect(page).toContain('id="kyc-upload"')
+		expect(page).toContain("focusType={requestedType}")
+		expect(page).toContain("data-verification-optionals")
 		expect(page).toContain("Motivo del rechazo")
 
 		expect(card).toContain("Documentos mínimos")
 		expect(card).toContain("Motivo del rechazo")
 		expect(card).toContain("Reenviar documento")
 		expect(card).toContain("slot.stateLabel")
-		expect(card).toContain("slot.uploadHref")
+		expect(card).toContain("data-kyc-inline-upload-form")
+		expect(card).toContain("data-kyc-slot-consequence")
 		expect(card).toContain("rejectCategoryLabel")
 		expect(card).toContain('slot.state === "rejected"')
+		expect(card).toContain("href={slot.uploadHref}")
+		expect(card).toContain("data-kyc-slot-defer")
+		expect(card).toContain("Hacer después")
 
 		const lib = read("src/lib/provider-documents.ts")
 		expect(lib).toContain('missing: "Falta enviar"')
 		expect(lib).toContain('pending: "En revisión"')
 		expect(lib).toContain("buildRequiredKycSlots")
+		expect(lib).toContain("kycSlotConsequences")
 
 		expect(view).not.toContain("gobernanza canónica")
 		expect(view).not.toContain("Set KYC mínimo")
 		expect(view).toContain("Documentos mínimos")
+		expect(view).toContain("data-verification-consequence")
+		expect(view).toContain("data-verification-matrix")
 		expect(view).not.toMatch(/Faltan verificados: \$\{kyc\.missingRequiredTypes\.join/)
 	})
 })

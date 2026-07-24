@@ -60,9 +60,21 @@ const primaryCtaHref = String(
 )
 const primaryCtaLabel = String(
 	summary?.actions?.primaryCtaLabel ||
-		(blockers[0]?.label ? `Resolver ${blockers[0].label}` : "Continuar configuración")
+		(blockers[0]?.label ? `Continuar: ${blockers[0].label}` : "Continuar configuración")
 )
+const secondaryCtaHref = String(summary?.actions?.secondaryCtaAction || "#estado-cuenta")
+const secondaryCtaLabel = String(
+	summary?.actions?.secondaryCtaLabel ||
+		(blockers.length ? "Ver todas las áreas" : "Revisar estado de áreas")
+)
+const hasBlockers = blockers.length > 0
+const nextStepLabel = blockers[0]?.label ? String(blockers[0].label) : "Configuración base lista"
+const nextStepBody = blockers[0]
+	? "Un solo paso a la vez: resuelve esto para desbloquear publicación, reservas o cobros."
+	: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo."
 const readiness = summary?.readiness ?? []
+const incompleteAreas = readiness.filter((item: { complete?: boolean }) => !item.complete)
+const completeAreas = readiness.filter((item: { complete?: boolean }) => item.complete)
 
 const professionalToolsEnabled = providerSession.professionalToolsEnabled
 const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
@@ -70,6 +82,13 @@ const professionalToolsSaved = professionalToolsParam === "saved"
 const professionalToolsError = professionalToolsParam === "error"
 
 const summaryBootstrap = summary ? JSON.stringify(summary).replace(/</g, "\\u003c") : "null"
+
+const capabilityRows = [
+	{ key: "publish", label: "Publicación", on: "Habilitada", off: "Bloqueada" },
+	{ key: "booking", label: "Reservas", on: "Habilitadas", off: "Bloqueadas" },
+	{ key: "payments", label: "Cobros", on: "Habilitados", off: "Bloqueados" },
+	{ key: "integrations", label: "Integraciones", on: "Listas", off: "Sin activar" },
+] as const
 
 timing.addTotal("providerSettingsPage")
 timing.setHeader(Astro.response.headers)
@@ -88,14 +107,8 @@ logRoutePerformance({
 <ProviderSettingsLayout
 	title="Configuración del proveedor"
 	heading="Resumen de configuración"
-	description="Estado de tu cuenta: identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
+	description="Un próximo paso claro cuando hay bloqueos; el resto queda plegado."
 >
-	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={primaryCtaHref} data-settings-primary-cta>
-			{primaryCtaLabel}
-		</Button>
-	</div>
-
 	{
 		professionalToolsSaved ? (
 			<Notice variant="success" title="Herramientas profesionales actualizadas">
@@ -111,9 +124,13 @@ logRoutePerformance({
 		) : null
 	}
 
-	<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+	<section
+		class="space-y-4"
+		data-settings-coach
+		data-settings-hub-density={hasBlockers ? "blocker" : "clear"}
+	>
 		<Card class="border-slate-800 bg-slate-950 text-white">
-			<div class="space-y-5">
+			<div class="space-y-6">
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<p class="text-sm text-slate-400">Proveedor</p>
@@ -121,10 +138,11 @@ logRoutePerformance({
 							{providerName}
 						</h2>
 					</div>
-					<Badge variant={blockers.length ? "warning" : "success"} data-settings-base-badge>
-						{blockers.length ? "Con bloqueos" : "Base lista"}
+					<Badge variant={hasBlockers ? "warning" : "success"} data-settings-base-badge>
+						{hasBlockers ? "Con bloqueos" : "Base lista"}
 					</Badge>
 				</div>
+
 				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
 					<div
 						class="h-full bg-white"
@@ -136,105 +154,132 @@ logRoutePerformance({
 				<p class="text-sm leading-6 text-slate-300" data-settings-progress-label>
 					{progressLabel}
 				</p>
-			</div>
-		</Card>
 
-		<div class="grid gap-4 md:grid-cols-2">
-			<Card>
-				<p class="text-sm font-semibold text-slate-950">Bloqueos</p>
-				<p class="mt-2 text-3xl font-semibold text-slate-950" data-settings-blockers-count>
-					{blockers.length}
-				</p>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Elementos que impiden considerar completa la configuración base.
-				</p>
-			</Card>
-			<Card>
-				<p class="text-sm font-semibold text-slate-950">Riesgos</p>
-				<p class="mt-2 text-3xl font-semibold text-slate-950" data-settings-risks-count>
-					{risks.length}
-				</p>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Alertas que no bloquean todo, pero conviene revisar antes de escalar.
-				</p>
-			</Card>
-		</div>
-	</section>
-
-	<section class="grid gap-4 md:grid-cols-4">
-		<Card>
-			<p class="text-sm font-semibold text-slate-950">Publicación</p>
-			<Badge
-				class="mt-3"
-				variant={capabilities.publish ? "success" : "warning"}
-				data-capability="publish"
-			>
-				{capabilities.publish ? "Habilitada" : "Bloqueada"}
-			</Badge>
-		</Card>
-		<Card>
-			<p class="text-sm font-semibold text-slate-950">Reservas</p>
-			<Badge
-				class="mt-3"
-				variant={capabilities.booking ? "success" : "warning"}
-				data-capability="booking"
-			>
-				{capabilities.booking ? "Habilitadas" : "Bloqueadas"}
-			</Badge>
-		</Card>
-		<Card>
-			<p class="text-sm font-semibold text-slate-950">Cobros</p>
-			<Badge
-				class="mt-3"
-				variant={capabilities.payments ? "success" : "warning"}
-				data-capability="payments"
-			>
-				{capabilities.payments ? "Habilitados" : "Bloqueados"}
-			</Badge>
-		</Card>
-		<Card>
-			<p class="text-sm font-semibold text-slate-950">Integraciones</p>
-			<Badge
-				class="mt-3"
-				variant={capabilities.integrations ? "success" : "neutral"}
-				data-capability="integrations"
-			>
-				{capabilities.integrations ? "Listas" : "Sin activar"}
-			</Badge>
-		</Card>
-	</section>
-
-	{
-		blockers.length > 0 ? (
-			<div data-settings-blockers-notice>
-				<Notice variant="warning" title="Próximo paso">
-					<p class="mb-2">
-						Resuelve primero: <strong>{blockers[0]?.label}</strong>
+				<div
+					class="fastt-notice rounded-2xl border border-white/10 bg-white/5 p-5"
+					data-settings-blockers-notice
+					data-settings-next-step
+					data-funnel-blocker-id={blockers[0]?.id || undefined}
+					data-funnel-domain={blockers[0]?.id || undefined}
+					data-funnel-surface="hub_coach"
+				>
+					<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
+						Próximo paso
 					</p>
-					<a
-						href={blockers[0]?.href || primaryCtaHref}
-						class="font-semibold text-amber-950 underline"
-					>
-						{primaryCtaLabel}
-					</a>
-				</Notice>
-			</div>
-		) : null
-	}
+					<p class="mt-2 text-xl font-semibold text-white" data-settings-next-step-label>
+						{nextStepLabel}
+					</p>
+					<p class="mt-2 text-sm leading-6 text-slate-300" data-settings-next-step-body>
+						{nextStepBody}
+					</p>
+					<div class="mt-5 flex flex-wrap gap-3">
+						<Button
+							href={primaryCtaHref}
+							data-settings-primary-cta
+							data-funnel-cta="primary"
+							data-funnel-domain={blockers[0]?.id || undefined}
+							data-funnel-blocker-id={blockers[0]?.id || undefined}
+							data-funnel-surface="hub_coach"
+						>
+							{primaryCtaLabel}
+						</Button>
+						<a
+							href={secondaryCtaHref}
+							class="fastt-notice inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+							data-settings-secondary-cta
+							data-funnel-cta="secondary"
+							data-funnel-domain={blockers[0]?.id || undefined}
+							data-funnel-surface="hub_coach"
+						>
+							{secondaryCtaLabel}
+						</a>
+					</div>
+				</div>
 
-	<section class="grid gap-4 xl:grid-cols-2">
+				{
+					hasBlockers ? (
+						<details
+							class="fastt-notice rounded-2xl border border-white/10 bg-white/5 p-4"
+							data-settings-details-capabilities
+						>
+							<summary class="cursor-pointer text-sm font-semibold text-white">
+								Capacidades y conteo de bloqueos
+							</summary>
+							<div class="mt-4 flex flex-wrap gap-2" data-settings-capabilities-strip>
+								{capabilityRows.map((row) => {
+									const enabled = Boolean(capabilities[row.key])
+									return (
+										<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+											<span class="text-xs font-medium text-slate-300">{row.label}</span>
+											<Badge
+												variant={
+													enabled ? "success" : row.key === "integrations" ? "neutral" : "warning"
+												}
+												data-capability={row.key}
+											>
+												{enabled ? row.on : row.off}
+											</Badge>
+										</div>
+									)
+								})}
+							</div>
+							<p class="mt-4 text-xs text-slate-500">
+								<span data-settings-blockers-count>{blockers.length}</span> bloqueo
+								{blockers.length === 1 ? "" : "s"} ·{" "}
+								<span data-settings-risks-count>{risks.length}</span> riesgo
+								{risks.length === 1 ? "" : "s"} a revisar
+							</p>
+						</details>
+					) : (
+						<>
+							<div class="flex flex-wrap gap-2" data-settings-capabilities-strip>
+								{capabilityRows.map((row) => {
+									const enabled = Boolean(capabilities[row.key])
+									return (
+										<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+											<span class="text-xs font-medium text-slate-300">{row.label}</span>
+											<Badge
+												variant={
+													enabled ? "success" : row.key === "integrations" ? "neutral" : "warning"
+												}
+												data-capability={row.key}
+											>
+												{enabled ? row.on : row.off}
+											</Badge>
+										</div>
+									)
+								})}
+							</div>
+							<p class="text-xs text-slate-500">
+								<span data-settings-blockers-count>{blockers.length}</span> bloqueo
+								{blockers.length === 1 ? "" : "s"} ·{" "}
+								<span data-settings-risks-count>{risks.length}</span> riesgo
+								{risks.length === 1 ? "" : "s"} a revisar
+							</p>
+						</>
+					)
+				}
+			</div>
+		</Card>
+	</section>
+
+	<section id="estado-cuenta" class="scroll-mt-24 space-y-4" data-settings-estado-min>
 		<Card>
 			<div class="space-y-4">
 				<div>
 					<h2 class="text-xl font-semibold text-slate-950">Estado de tu cuenta</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Estado consolidado de cada área de configuración.
+						{
+							hasBlockers
+								? "Áreas pendientes primero. El detalle de capacidades está plegado arriba."
+								: "Primero lo pendiente; lo completo queda al final."
+						}
 					</p>
 				</div>
 				<div class="space-y-3" data-settings-readiness>
 					{
 						readiness.length ? (
-							readiness.map((item) => (
+							[...incompleteAreas, ...completeAreas].map((item) => (
 								<a href={item.href || "#"} class="block">
 									<Card
 										variant="soft"
@@ -261,79 +306,112 @@ logRoutePerformance({
 				</div>
 			</div>
 		</Card>
-		<Card>
-			<div class="space-y-4">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Riesgos y permisos</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Señales que conviene revisar antes de activar automatizaciones.
-					</p>
-				</div>
-				<div class="space-y-3" data-settings-risks>
-					{
-						risks.length ? (
-							risks.map((risk) => (
-								<a href={risk.href || "#"} class="block">
-									<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
-										<div class="flex items-start justify-between gap-4">
-											<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
-											<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
-												{risk.severity === "medium" ? "Medio" : "Bajo"}
-											</Badge>
-										</div>
-									</Card>
-								</a>
-							))
-						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								No hay riesgos activos en el resumen actual.
+	</section>
+
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		data-settings-details-risks
+	>
+		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
+			Riesgos y señales ({risks.length})
+		</summary>
+		<p class="mt-2 text-sm leading-6 text-slate-600">
+			No bloquean todo, pero conviene revisarlas antes de escalar.
+		</p>
+		<div class="mt-4 space-y-3" data-settings-risks>
+			{
+				risks.length ? (
+					risks.map((risk) => (
+						<a href={risk.href || "#"} class="block">
+							<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
+								<div class="flex items-start justify-between gap-4">
+									<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
+									<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
+										{risk.severity === "medium"
+											? "Medio"
+											: risk.severity === "high"
+												? "Alto"
+												: "Bajo"}
+									</Badge>
+								</div>
 							</Card>
-						)
-					}
-				</div>
-			</div>
-		</Card>
-	</section>
+						</a>
+					))
+				) : (
+					<Card variant="soft" class="text-sm text-slate-600">
+						No hay riesgos activos en el resumen actual.
+					</Card>
+				)
+			}
+		</div>
+	</details>
 
-	<div data-settings-deferred-root class="space-y-4"></div>
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		data-settings-details-counts
+	>
+		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
+			Números de apoyo
+		</summary>
+		<p class="mt-2 text-sm leading-6 text-slate-600">
+			Conteos útiles para soporte; no son el trabajo principal de esta pantalla.
+		</p>
+		<section class="mt-4 grid gap-4 md:grid-cols-4">
+			<Card variant="soft" class="bg-white">
+				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
+				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="documents">
+					{Number(counts.verifiedDocuments ?? 0)} / {Number(counts.documents ?? 0)}
+				</p>
+			</Card>
+			<Card variant="soft" class="bg-white">
+				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+					Cuentas de pago
+				</p>
+				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="paymentAccounts">
+					{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
+				</p>
+			</Card>
+			<Card variant="soft" class="bg-white">
+				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectores</p>
+				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="integrations">
+					{Number(counts.connectedIntegrations ?? 0)} / {Number(counts.integrations ?? 0)}
+				</p>
+			</Card>
+			<Card variant="soft" class="bg-white">
+				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Auditoría</p>
+				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="auditEvents">
+					{Number(counts.auditEvents ?? 0)}
+				</p>
+			</Card>
+		</section>
+	</details>
 
-	<section class="grid gap-4 md:grid-cols-4">
-		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="documents">
-				{Number(counts.verifiedDocuments ?? 0)} / {Number(counts.documents ?? 0)}
-			</p>
-		</Card>
-		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-				Cuentas de pago
-			</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="paymentAccounts">
-				{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
-			</p>
-		</Card>
-		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectores</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="integrations">
-				{Number(counts.connectedIntegrations ?? 0)} / {Number(counts.integrations ?? 0)}
-			</p>
-		</Card>
-		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Auditoría</p>
-			<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="auditEvents">
-				{Number(counts.auditEvents ?? 0)}
-			</p>
-		</Card>
-	</section>
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		open={false}
+		data-settings-details-ops
+	>
+		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
+			Detalle operativo (capacidades, simulación, auditoría)
+		</summary>
+		<p class="mt-2 text-sm leading-6 text-slate-600">
+			Matriz de bloqueos por capacidad, simulación fiscal/pagos y eventos recientes.
+		</p>
+		<div data-settings-deferred-root class="mt-4 space-y-4"></div>
+	</details>
 
-	<section class="space-y-4">
-		<header class="space-y-1">
-			<h2 class="text-lg font-semibold text-slate-950">Preferencias del espacio de trabajo</h2>
-			<p class="text-sm text-slate-600">
-				Preferencias que cambian cómo se organiza el sidebar y las herramientas visibles.
-			</p>
-		</header>
-		<Card>
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		open={!hasBlockers}
+		data-settings-details-prefs
+	>
+		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
+			Preferencias del espacio de trabajo
+		</summary>
+		<p class="mt-2 text-sm leading-6 text-slate-600">
+			Preferencias que cambian cómo se organiza el sidebar y las herramientas visibles.
+		</p>
+		<Card class="mt-4">
 			<form method="post" action="/api/provider/preferences/professional-tools" class="space-y-5">
 				<input type="hidden" name="returnTo" value={routes.providerSettings()} />
 				<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -404,7 +482,7 @@ logRoutePerformance({
 				</div>
 			</form>
 		</Card>
-	</section>
+	</details>
 
 	<script type="application/json" id="settings-summary-bootstrap" set:html={summaryBootstrap} />
 

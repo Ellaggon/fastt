@@ -130,6 +130,8 @@ export type ProviderKycSlot = {
 	type: RequiredKycDocumentType
 	label: string
 	description: string
+	consequence: string
+	captureExample: string
 	state: ProviderKycSlotState
 	stateLabel: string
 	documentId: string | null
@@ -144,6 +146,52 @@ const kycSlotStateLabels: Record<ProviderKycSlotState, string> = {
 	pending: "En revisión",
 	verified: "Verificado",
 	rejected: "Rechazado",
+}
+
+const kycSlotConsequences: Record<RequiredKycDocumentType, string> = {
+	government_id:
+		"Sin este documento no se completa el cumplimiento mínimo: la cuenta no puede publicarse con confianza.",
+	business_registration:
+		"Sin el registro mercantil no se puede completar la verificación comercial del proveedor.",
+	tax_document:
+		"Sin el documento fiscal no puedes liquidar cobros ni completar el perfil de liquidaciones.",
+}
+
+/** Shared photo/file tips shown in the capture coach. */
+export const kycCaptureSharedTips = [
+	"Luz pareja; evita sombra o reflejo en el papel.",
+	"Que se vean los cuatro bordes; sin recortes.",
+	"Texto legible (nombres, fechas, NIT/número).",
+	"PDF o foto nítida; máximo 12 MB.",
+] as const
+
+export const kycCaptureExampleByType: Record<RequiredKycDocumentType, string> = {
+	government_id:
+		"Ejemplo: foto frontal de la cédula con los cuatro bordes visibles (ambos lados si aplica).",
+	business_registration:
+		"Ejemplo: página del registro donde se lea la razón social y el número de registro.",
+	tax_document: "Ejemplo: certificado o constancia con el NIT/TIN completo y legible.",
+}
+
+/**
+ * Exactly one required slot owns the upload form (hard one-doc).
+ * Priority: ?type= (if uploadable) → first rejected → first missing → none.
+ */
+export function resolveKycUploadFocusType(params: {
+	slots: Array<{ type: string; state: string }>
+	focusType?: string | null
+}): string | null {
+	const requested = String(params.focusType ?? "").trim()
+	const uploadable = (state: string) => state === "missing" || state === "rejected"
+	if (requested) {
+		const match = params.slots.find((slot) => slot.type === requested)
+		if (match && uploadable(match.state)) return match.type
+	}
+	return (
+		params.slots.find((slot) => slot.state === "rejected")?.type ??
+		params.slots.find((slot) => slot.state === "missing")?.type ??
+		null
+	)
 }
 
 function pickLatestDocumentForType(
@@ -183,7 +231,7 @@ export function buildRequiredKycSlots(params: {
 					: document?.status === "rejected"
 						? "rejected"
 						: "missing"
-		const uploadHref = `${base}?type=${encodeURIComponent(type)}#kyc-upload`
+		const uploadHref = `${base}?type=${encodeURIComponent(type)}#kyc-slot-${type}`
 		const rejectCategoryLabel =
 			state === "rejected"
 				? resolveProviderRejectCategory(document?.reviewNotes, "documents").label
@@ -192,6 +240,8 @@ export function buildRequiredKycSlots(params: {
 			type,
 			label: meta?.label ?? type,
 			description: meta?.description ?? "",
+			consequence: kycSlotConsequences[type],
+			captureExample: kycCaptureExampleByType[type],
 			state,
 			stateLabel: kycSlotStateLabels[state],
 			documentId: document?.id ?? null,

@@ -125,8 +125,11 @@ function renderBlockingMatrix(items) {
 function renderReadiness(items) {
 	const container = document.querySelector("[data-settings-readiness]")
 	if (!container) return
-	container.innerHTML = items.length
-		? items
+	const ordered = [...items].sort(
+		(a, b) => Number(Boolean(a.complete)) - Number(Boolean(b.complete))
+	)
+	container.innerHTML = ordered.length
+		? ordered
 				.map(
 					(item) => `
 						<a href="${escapeHtml(item.href || "#")}" class="block">
@@ -142,7 +145,7 @@ function renderReadiness(items) {
 						</a>`
 				)
 				.join("")
-		: `<div class="${cardSoft} text-sm text-slate-600">No hay readiness disponible.</div>`
+		: `<div class="${cardSoft} text-sm text-slate-600">Aún no hay estado de tu cuenta disponible.</div>`
 }
 
 function renderRisks(items) {
@@ -150,19 +153,21 @@ function renderRisks(items) {
 	if (!container) return
 	container.innerHTML = items.length
 		? items
-				.map(
-					(risk) => `
+				.map((risk) => {
+					const severity =
+						risk.severity === "high" ? "Alto" : risk.severity === "medium" ? "Medio" : "Bajo"
+					const variant =
+						risk.severity === "high" ? "error" : risk.severity === "medium" ? "warning" : "neutral"
+					return `
 						<a href="${escapeHtml(risk.href || "#")}" class="block">
 							<div class="${cardSoft} transition hover:border-slate-300 hover:bg-white">
 								<div class="flex items-start justify-between gap-4">
 									<p class="text-sm font-semibold text-slate-950">${escapeHtml(risk.label)}</p>
-									<span class="${badgeBase} ${risk.severity === "medium" ? badgeClasses.warning : badgeClasses.neutral}">
-										${risk.severity === "medium" ? "Medio" : "Bajo"}
-									</span>
+									<span class="${badgeBase} ${badgeClasses[variant]}">${severity}</span>
 								</div>
 							</div>
 						</a>`
-				)
+				})
 				.join("")
 		: `<div class="${cardSoft} text-sm text-slate-600">No hay riesgos activos en el resumen actual.</div>`
 }
@@ -218,16 +223,59 @@ function hydrateSummary(summary) {
 		blockers.length ? "warning" : "success",
 		blockers.length ? "Con bloqueos" : "Base lista"
 	)
-	const blockersNotice = document.querySelector("[data-settings-blockers-notice]")
-	if (blockersNotice) {
-		blockersNotice.classList.toggle("hidden", blockers.length === 0)
-	}
+
+	const nextStepLabel = blockers[0]?.label || "Configuración base lista"
+	const nextStepBody = blockers[0]
+		? "Un solo paso a la vez: resuelve esto para desbloquear publicación, reservas o cobros."
+		: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo."
+	setText("[data-settings-next-step-label]", nextStepLabel)
+	setText("[data-settings-next-step-body]", nextStepBody)
 
 	const cta = document.querySelector("[data-settings-primary-cta]")
 	if (cta && summary.actions?.primaryCtaAction) {
 		cta.setAttribute("href", summary.actions.primaryCtaAction)
 		cta.textContent = summary.actions.primaryCtaLabel || "Continuar configuración"
 	}
+	const secondary = document.querySelector("[data-settings-secondary-cta]")
+	if (secondary) {
+		if (summary.actions?.secondaryCtaAction) {
+			secondary.setAttribute("href", summary.actions.secondaryCtaAction)
+		}
+		if (summary.actions?.secondaryCtaLabel) {
+			secondary.textContent = summary.actions.secondaryCtaLabel
+		}
+	}
+
+	const nextStep = document.querySelector("[data-settings-next-step]")
+	const primaryBlockerId = blockers[0]?.id || ""
+	if (nextStep) {
+		if (primaryBlockerId) {
+			nextStep.setAttribute("data-funnel-blocker-id", primaryBlockerId)
+			nextStep.setAttribute("data-funnel-domain", primaryBlockerId)
+			nextStep.setAttribute("data-funnel-surface", "hub_coach")
+			nextStep.removeAttribute("data-funnel-emitted")
+		} else {
+			nextStep.removeAttribute("data-funnel-blocker-id")
+			nextStep.removeAttribute("data-funnel-domain")
+		}
+	}
+	if (cta instanceof HTMLElement) {
+		cta.setAttribute("data-funnel-cta", "primary")
+		cta.setAttribute("data-funnel-surface", "hub_coach")
+		if (primaryBlockerId) {
+			cta.setAttribute("data-funnel-domain", primaryBlockerId)
+			cta.setAttribute("data-funnel-blocker-id", primaryBlockerId)
+		}
+	}
+	if (secondary instanceof HTMLElement) {
+		secondary.setAttribute("data-funnel-cta", "secondary")
+		secondary.setAttribute("data-funnel-surface", "hub_coach")
+		if (primaryBlockerId) {
+			secondary.setAttribute("data-funnel-domain", primaryBlockerId)
+		}
+	}
+
+	document.dispatchEvent(new CustomEvent("settings-summary-hydrated"))
 
 	const capabilityLabels = {
 		publish: ["Habilitada", "Bloqueada"],
