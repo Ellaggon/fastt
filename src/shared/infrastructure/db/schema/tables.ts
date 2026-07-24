@@ -386,6 +386,7 @@ export const ProviderInvitation = pgTable(
 		email: txt("email"),
 		role: txt("role"),
 		status: text("status").default("pending").notNull(),
+		token: txtOpt("token"),
 		invitedBy: txt("invitedBy").references(() => User.id),
 		acceptedAt: ts("acceptedAt"),
 		expiresAt: tsReq("expiresAt"),
@@ -395,6 +396,7 @@ export const ProviderInvitation = pgTable(
 	(table) => [
 		index("ProviderInvitation_providerId_status_idx").on(table.providerId, table.status),
 		index("ProviderInvitation_providerId_email_idx").on(table.providerId, table.email),
+		uniqueIndex("ProviderInvitation_token_unique").on(table.token),
 		index("ProviderInvitation_providerId_created_idx").on(
 			table.providerId,
 			table.createdAt,

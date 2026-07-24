@@ -3,6 +3,7 @@ import {
 	and,
 	db,
 	eq,
+	Provider,
 	ProviderTaxConfiguration,
 	ProviderUser,
 } from "@/shared/infrastructure/db/compat"
@@ -11,6 +12,12 @@ import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-au
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { validateTaxpayerRegistrationNumber } from "@/lib/provider-tax-identity-validation"
+import {
+	checkTinBureauMatch,
+	tinBureauMatchLabel,
+	tinBureauMatchTone,
+	type TinBureauMatchStatus,
+} from "@/lib/tin-bureau"
 
 /**
  * Provider fiscal identity (taxpayer / tax registration).
@@ -34,6 +41,19 @@ export type ProviderTaxConfigurationStatus =
 
 export type ProviderInvoicingMode = "platform_receipt" | "provider_invoice" | "hybrid"
 
+export type ProviderTaxBureauSnapshot = {
+	provider: string
+	mode: string
+	matchStatus: TinBureauMatchStatus | string
+	matchLabel: string
+	matchTone: "success" | "warning" | "error" | "info" | "neutral"
+	externalRef: string | null
+	message: string
+	hostNarrative: string
+	adminNarrative: string
+	checkedAt: string | null
+}
+
 export type ProviderTaxConfigurationRecord = {
 	providerId: string
 	status: ProviderTaxConfigurationStatus
@@ -46,6 +66,7 @@ export type ProviderTaxConfigurationRecord = {
 	updatedAt: Date | null
 	updatedBy: string | null
 	isConfigured: boolean
+	tinBureau: ProviderTaxBureauSnapshot | null
 }
 
 export const providerTaxConfigurationStatuses: Array<{
@@ -136,6 +157,26 @@ export function deriveProviderTaxStatus(params: {
 	return hasIdentity ? "pending" : "not_configured"
 }
 
+function readTinBureauSnapshot(metadataJson: unknown): ProviderTaxBureauSnapshot | null {
+	if (!metadataJson || typeof metadataJson !== "object" || Array.isArray(metadataJson)) return null
+	const raw = (metadataJson as Record<string, unknown>).tinBureau
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+	const row = raw as Record<string, unknown>
+	const matchStatus = String(row.matchStatus ?? "not_checked")
+	return {
+		provider: String(row.provider ?? "format_only"),
+		mode: String(row.mode ?? "format_only"),
+		matchStatus,
+		matchLabel: tinBureauMatchLabel(matchStatus),
+		matchTone: tinBureauMatchTone(matchStatus),
+		externalRef: row.externalRef == null ? null : String(row.externalRef),
+		message: String(row.message ?? ""),
+		hostNarrative: String(row.hostNarrative ?? row.message ?? ""),
+		adminNarrative: String(row.adminNarrative ?? row.message ?? ""),
+		checkedAt: row.checkedAt == null ? null : String(row.checkedAt),
+	}
+}
+
 function mapRow(row: {
 	providerId: string
 	status: string
@@ -145,6 +186,7 @@ function mapRow(row: {
 	invoicingMode: string
 	updatedAt: Date | null
 	updatedBy: string | null
+	metadataJson?: unknown
 }): ProviderTaxConfigurationRecord {
 	const status = asStatus(row.status)
 	const invoicingMode = asInvoicingMode(row.invoicingMode)
@@ -165,6 +207,7 @@ function mapRow(row: {
 			row.businessRegistrationNumber ||
 			row.taxRegime
 		),
+		tinBureau: readTinBureauSnapshot(row.metadataJson),
 	}
 }
 
@@ -205,6 +248,7 @@ export async function getProviderTaxConfiguration(
 			invoicingMode: ProviderTaxConfiguration.invoicingMode,
 			updatedAt: ProviderTaxConfiguration.updatedAt,
 			updatedBy: ProviderTaxConfiguration.updatedBy,
+			metadataJson: ProviderTaxConfiguration.metadataJson,
 		})
 		.from(ProviderTaxConfiguration)
 		.where(eq(ProviderTaxConfiguration.providerId, providerId))
@@ -227,6 +271,7 @@ export async function listProviderTaxConfigurationsForAdmin(): Promise<
 			invoicingMode: ProviderTaxConfiguration.invoicingMode,
 			updatedAt: ProviderTaxConfiguration.updatedAt,
 			updatedBy: ProviderTaxConfiguration.updatedBy,
+			metadataJson: ProviderTaxConfiguration.metadataJson,
 		})
 		.from(ProviderTaxConfiguration)
 
@@ -285,6 +330,45 @@ export async function upsertProviderTaxConfiguration(params: {
 
 	const before = await getProviderTaxConfiguration(params.providerId)
 	const now = new Date()
+
+	const existingMeta = await db
+		.select({ metadataJson: ProviderTaxConfiguration.metadataJson })
+		.from(ProviderTaxConfiguration)
+		.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
+		.then(first)
+		.catch(() => null)
+	const prevMeta =
+		existingMeta?.metadataJson &&
+		typeof existingMeta.metadataJson === "object" &&
+		!Array.isArray(existingMeta.metadataJson)
+			? (existingMeta.metadataJson as Record<string, unknown>)
+			: {}
+
+	const bureau =
+		businessRegistrationNumber != null
+			? await (async () => {
+					const providerRow = await db
+						.select({
+							legalName: Provider.legalName,
+							displayName: Provider.displayName,
+						})
+						.from(Provider)
+						.where(eq(Provider.id, params.providerId))
+						.then(first)
+						.catch(() => null)
+					const legalName =
+						String(providerRow?.legalName ?? "").trim() ||
+						String(providerRow?.displayName ?? "").trim() ||
+						null
+					return checkTinBureauMatch({
+						providerId: params.providerId,
+						country: taxResidenceCountry,
+						taxpayerId: businessRegistrationNumber,
+						legalName,
+					})
+				})()
+			: null
+
 	const values = {
 		providerId: params.providerId,
 		status,
@@ -292,6 +376,21 @@ export async function upsertProviderTaxConfiguration(params: {
 		businessRegistrationNumber: businessRegistrationNumber ?? undefined,
 		taxRegime: taxRegime ?? undefined,
 		invoicingMode,
+		metadataJson: {
+			...prevMeta,
+			tinBureau: bureau
+				? {
+						provider: bureau.provider,
+						mode: bureau.mode,
+						matchStatus: bureau.matchStatus,
+						externalRef: bureau.externalRef,
+						message: bureau.message,
+						hostNarrative: bureau.hostNarrative,
+						adminNarrative: bureau.adminNarrative,
+						checkedAt: now.toISOString(),
+					}
+				: (prevMeta.tinBureau ?? null),
+		},
 		updatedAt: now,
 		updatedBy: params.actorUserId,
 	}
@@ -307,6 +406,7 @@ export async function upsertProviderTaxConfiguration(params: {
 				businessRegistrationNumber: values.businessRegistrationNumber,
 				taxRegime: values.taxRegime,
 				invoicingMode: values.invoicingMode,
+				metadataJson: values.metadataJson,
 				updatedAt: values.updatedAt,
 				updatedBy: values.updatedBy,
 			},
@@ -336,6 +436,9 @@ export async function upsertProviderTaxConfiguration(params: {
 					businessRegistrationNumber: after.businessRegistrationNumber,
 					taxRegime: after.taxRegime,
 					invoicingMode: after.invoicingMode,
+					tinBureauMatch: bureau?.matchStatus ?? null,
+					tinBureauMode: bureau?.mode ?? null,
+					tinBureauNarrative: bureau?.adminNarrative ?? null,
 				}
 			: null,
 		riskLevel: inferSettingsRiskLevel({ domain: "fiscal" }),

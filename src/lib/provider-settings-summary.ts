@@ -10,6 +10,10 @@ import {
 import { listProviderDocuments } from "@/lib/provider-documents"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import {
+	buildProviderInvitationAcceptPath,
+	ensureProviderInvitationToken,
+} from "@/lib/provider-invitations"
+import {
 	buildProviderRolePermissionMatrix,
 	formatProviderRoleLabel,
 	resolveProviderPermissions,
@@ -212,6 +216,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 					email: ProviderInvitation.email,
 					role: ProviderInvitation.role,
 					status: ProviderInvitation.status,
+					token: ProviderInvitation.token,
 					invitedBy: ProviderInvitation.invitedBy,
 					acceptedAt: ProviderInvitation.acceptedAt,
 					expiresAt: ProviderInvitation.expiresAt,
@@ -288,9 +293,11 @@ async function buildProviderSettingsSummaryUncached(params: {
 		},
 		actions: {
 			primaryCtaLabel: governance.blockers[0]?.label
-				? `Resolver ${governance.blockers[0].label}`
+				? `Continuar: ${governance.blockers[0].label}`
 				: "Ir al panel",
 			primaryCtaAction: governance.blockers[0]?.href ?? routes.dashboard(),
+			secondaryCtaLabel: governance.blockers[0] ? "Ver todas las áreas" : "Revisar estado de áreas",
+			secondaryCtaAction: "#estado-cuenta",
 		},
 		users: teamUsers.length
 			? teamUsers.map((user) => ({
@@ -317,27 +324,36 @@ async function buildProviderSettingsSummaryUncached(params: {
 						},
 					]
 				: [],
-		invitations: invitations.map((invitation) => ({
-			id: invitation.id,
-			email: invitation.email,
-			role: invitation.role,
-			roleLabel: formatProviderRoleLabel(invitation.role),
-			status: invitation.status,
-			statusLabel:
-				invitation.status === "pending"
-					? "Pendiente de aceptación"
-					: invitation.status === "accepted"
-						? "Aceptada"
-						: invitation.status === "canceled"
-							? "Cancelada"
-							: invitation.status === "expired"
-								? "Expirada"
-								: String(invitation.status),
-			invitedBy: invitation.invitedBy,
-			acceptedAt: invitation.acceptedAt,
-			expiresAt: invitation.expiresAt,
-			createdAt: invitation.createdAt,
-		})),
+		invitations: await Promise.all(
+			invitations.map(async (invitation) => {
+				const token =
+					invitation.status === "pending" && !invitation.token
+						? await ensureProviderInvitationToken(invitation.id).catch(() => null)
+						: invitation.token
+				return {
+					id: invitation.id,
+					email: invitation.email,
+					role: invitation.role,
+					roleLabel: formatProviderRoleLabel(invitation.role),
+					status: invitation.status,
+					statusLabel:
+						invitation.status === "pending"
+							? "Pendiente de aceptación"
+							: invitation.status === "accepted"
+								? "Aceptada"
+								: invitation.status === "canceled"
+									? "Cancelada"
+									: invitation.status === "expired"
+										? "Expirada"
+										: String(invitation.status),
+					invitedBy: invitation.invitedBy,
+					acceptedAt: invitation.acceptedAt,
+					expiresAt: invitation.expiresAt,
+					createdAt: invitation.createdAt,
+					acceptPath: token ? buildProviderInvitationAcceptPath(token) : null,
+				}
+			})
+		),
 		documents,
 		taxConfiguration,
 	}

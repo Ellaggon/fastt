@@ -7,7 +7,7 @@ export type ConnectorSmokeResult = {
 	ok: boolean
 	message: string
 	latencyMs: number
-	probe: "https" | "vault" | "test_harness" | "none"
+	probe: "https" | "vault" | "oauth2" | "test_harness" | "none"
 }
 
 const DEFAULT_TIMEOUT_MS = 5000
@@ -23,6 +23,10 @@ function isHttpsUrl(value: string): boolean {
 
 function isVaultRef(value: string): boolean {
 	return /^vault:\/\/[A-Za-z0-9._/-]+$/.test(value)
+}
+
+function isOAuth2Ref(value: string): boolean {
+	return /^oauth2:\/\/[A-Za-z0-9._-]+$/.test(value)
 }
 
 async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmokeResult> {
@@ -70,6 +74,7 @@ async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmok
  * Run a real smoke probe against connector credentials.
  * - https://… → live GET with timeout
  * - vault://… → structural validation (secret material stays in vault)
+ * - oauth2://… → OAuth-grade connection marker (token stays off credentialsRef)
  * - test://smoke-ok → harness success (Vitest / local demos only)
  */
 export async function runConnectorSmokeTest(params: {
@@ -120,9 +125,19 @@ export async function runConnectorSmokeTest(params: {
 		}
 	}
 
+	if (isOAuth2Ref(credentialsRef)) {
+		return {
+			ok: true,
+			message: `Referencia OAuth válida para ${params.connectorKey} (${params.mode ?? "sandbox"}).`,
+			latencyMs: 0,
+			probe: "oauth2",
+		}
+	}
+
 	return {
 		ok: false,
-		message: "credentialsRef debe ser https://… (probe real) o vault://… (referencia de secreto).",
+		message:
+			"credentialsRef debe ser https://… (probe real), vault://… o oauth2://… (OAuth-grade).",
 		latencyMs: 0,
 		probe: "none",
 	}

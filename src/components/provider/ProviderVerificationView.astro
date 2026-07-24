@@ -3,6 +3,7 @@ import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNo
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
 import type { ProviderDocumentRecord } from "@/lib/provider-documents"
 import {
 	evaluateRequiredKycDocumentsComplete,
@@ -56,6 +57,13 @@ const pendingDocuments = documents.filter((doc) => doc.status === "pending")
 const kyc = evaluateRequiredKycDocumentsComplete(documents)
 const documentsComplete = kyc.complete
 
+const accountConsequence = isApproved
+	? "La cuenta aprobada habilita publicar y operar con los controles actuales."
+	: "Sin la aprobación de la cuenta no puedes publicar ni aceptar reservas con confianza."
+const documentsConsequence = documentsComplete
+	? "Documentos mínimos listos para cobros y conectores sensibles."
+	: "Sin los documentos mínimos verificados no puedes liquidar cobros ni activar conectores sensibles."
+
 const checks = [
 	{
 		title: "Identidad comercial",
@@ -82,7 +90,7 @@ const checks = [
 ]
 ---
 
-<section class="space-y-4">
+<section class="space-y-4" data-verification-status>
 	{
 		showHeader && (
 			<header class="space-y-1">
@@ -96,75 +104,86 @@ const checks = [
 			</header>
 		)
 	}
-	<div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-		<Card>
-			<div class="space-y-6">
-				<div class="flex flex-wrap items-start justify-between gap-4">
-					<div class="space-y-2">
-						<p class="text-sm font-medium text-slate-500">Estado actual</p>
-						<h3 class="text-2xl font-semibold text-slate-950">{statusLabel}</h3>
-						<p class="text-sm leading-6 text-slate-600">
-							{
-								isApproved
-									? "La cuenta está aprobada para operar con los controles actuales."
-									: "La cuenta todavía necesita revisión antes de considerarse completamente confiable."
-							}
-						</p>
-					</div>
-					<Badge variant={isApproved ? "success" : status === "rejected" ? "error" : "warning"}>
-						{statusLabel}
-					</Badge>
-				</div>
 
-				<div class="grid gap-4 md:grid-cols-2">
-					<Card variant="soft">
-						<p class="text-sm font-medium text-slate-700">Última actualización</p>
-						<p class="mt-1 text-sm text-slate-950">{reviewedLabel}</p>
-					</Card>
-					<Card variant="soft">
-						<p class="text-sm font-medium text-slate-700">Documentos</p>
-						<p class="mt-1 text-sm text-slate-950">
-							{verifiedDocuments.length} verificados · {pendingDocuments.length} pendientes
-						</p>
-					</Card>
+	<Card>
+		<div class="space-y-6">
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="space-y-2">
+					<p class="text-sm font-medium text-slate-500">Estado actual</p>
+					<h3 class="text-2xl font-semibold text-slate-950">{statusLabel}</h3>
+					<p class="text-sm leading-6 text-slate-600">
+						{
+							isApproved
+								? "La cuenta está aprobada para operar con los controles actuales."
+								: "La cuenta todavía necesita revisión antes de considerarse completamente confiable."
+						}
+					</p>
 				</div>
+				<Badge variant={isApproved ? "success" : status === "rejected" ? "error" : "warning"}>
+					{statusLabel}
+				</Badge>
+			</div>
 
-				<Card variant="plain">
-					<p class="text-sm font-medium text-slate-700">Motivo o nota de revisión</p>
-					{
-						rejectCategory?.matched ? (
-							<Badge variant="error" class="mt-2" data-reject-category>
-								{rejectCategory.label}
-							</Badge>
-						) : null
-					}
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						{latestVerification?.reason || "No hay observaciones registradas por revisión interna."}
+			{
+				!isApproved || !documentsComplete ? (
+					<Notice variant="warning" title="Qué se bloquea" data-verification-consequence>
+						<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
+							{!isApproved ? <li>{accountConsequence}</li> : null}
+							{!documentsComplete ? <li>{documentsConsequence}</li> : null}
+						</ul>
+					</Notice>
+				) : (
+					<Notice variant="success" title="Listo para operar" data-verification-consequence>
+						{accountConsequence} {documentsConsequence}
+					</Notice>
+				)
+			}
+
+			<div class="grid gap-4 md:grid-cols-2">
+				<Card variant="soft">
+					<p class="text-sm font-medium text-slate-700">Última actualización</p>
+					<p class="mt-1 text-sm text-slate-950">{reviewedLabel}</p>
+				</Card>
+				<Card variant="soft">
+					<p class="text-sm font-medium text-slate-700">Documentos</p>
+					<p class="mt-1 text-sm text-slate-950">
+						{verifiedDocuments.length} verificados · {pendingDocuments.length} pendientes
 					</p>
 				</Card>
+			</div>
 
+			<Card variant="plain">
+				<p class="text-sm font-medium text-slate-700">Motivo o nota de revisión</p>
 				{
-					isPending ? (
-						<ProviderReviewWaitNotice domain="verification" assignment={reviewAssignment} />
+					rejectCategory?.matched ? (
+						<Badge variant="error" class="mt-2" data-reject-category>
+							{rejectCategory.label}
+						</Badge>
 					) : null
 				}
+				<p class="mt-1 text-sm leading-6 text-slate-600">
+					{latestVerification?.reason || "No hay observaciones registradas por revisión interna."}
+				</p>
+			</Card>
 
-				<div class="flex justify-end">
-					<Button href={routes.providerSettings()} variant="secondary">Volver al resumen</Button>
-				</div>
-			</div>
-		</Card>
+			{
+				isPending ? (
+					<ProviderReviewWaitNotice domain="verification" assignment={reviewAssignment} />
+				) : null
+			}
 
-		<Card>
-			<div class="space-y-5">
-				<div>
-					<h3 class="text-xl font-semibold text-slate-950">Matriz de revisión</h3>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						La verificación avanza por dimensiones independientes: la aprobación de la cuenta no
-						completa sola el checklist de documentos.
-					</p>
-				</div>
-				<div class="space-y-3">
+			<details
+				class="fastt-notice rounded-xl border border-slate-200 bg-slate-50 p-4"
+				data-verification-matrix
+			>
+				<summary class="cursor-pointer text-sm font-semibold text-slate-950">
+					Matriz de revisión (detalle)
+				</summary>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					La verificación avanza por dimensiones independientes: la aprobación de la cuenta no
+					completa sola el checklist de documentos.
+				</p>
+				<div class="mt-4 space-y-3">
 					{
 						checks.map((check) => (
 							<Card variant="soft" class="flex items-start justify-between gap-4">
@@ -179,7 +198,11 @@ const checks = [
 						))
 					}
 				</div>
+			</details>
+
+			<div class="flex justify-end">
+				<Button href={routes.providerSettings()} variant="secondary">Volver al resumen</Button>
 			</div>
-		</Card>
-	</div>
+		</div>
+	</Card>
 </section>

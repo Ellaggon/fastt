@@ -12,11 +12,20 @@ import {
 	loadProviderComplianceDetail,
 	parseProviderComplianceQueueFilter,
 } from "@/lib/provider-admin-compliance"
+import { getPayoutRailStatus } from "@/lib/payout-rail"
+import {
+	getSettingsFunnelQueryStatus,
+	summarizeProviderSettingsFunnel,
+} from "@/lib/provider-settings-funnel"
 
 let isAdmin = false
+let adminEmail = ""
 try {
-	await requireInternalAdmin(Astro.request)
+	const { user } = await requireInternalAdmin(Astro.request)
 	isAdmin = true
+	adminEmail = String(user.email ?? "")
+		.trim()
+		.toLowerCase()
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
 	isAdmin = false
@@ -30,6 +39,14 @@ const consolePayload = isAdmin
 	: null
 const focusedDetail =
 	isAdmin && focusedProviderId ? await loadProviderComplianceDetail(focusedProviderId) : null
+
+const payoutRail = getPayoutRailStatus()
+const funnelStatus = getSettingsFunnelQueryStatus()
+const funnelSummary = isAdmin
+	? await summarizeProviderSettingsFunnel({
+			providerId: focusedProviderId || null,
+		}).catch(() => null)
+	: null
 
 const counts = consolePayload?.counts ?? {
 	verification: 0,
@@ -52,8 +69,24 @@ const taxRows = consolePayload?.fiscal ?? []
 const documentRows = consolePayload?.documents ?? []
 const paymentRows = consolePayload?.payments ?? []
 const auditRows = consolePayload?.audit ?? []
+const assigneeShortcuts = Array.from(
+	new Set(
+		(consolePayload?.assignments ?? [])
+			.map((row) =>
+				String(row.assigneeEmail ?? "")
+					.trim()
+					.toLowerCase()
+			)
+			.filter(Boolean)
+	)
+).slice(0, 5)
 const isSlaFilter = filter === "overdue" || filter === "due_soon"
 const slaTotal = rows.length + taxRows.length + documentRows.length + paymentRows.length
+const caseTemplates = focusedDetail?.rejectTemplates ?? adminComplianceRejectTemplates
+
+function templatesFor(domain: "verification" | "fiscal" | "documents" | "payments") {
+	return caseTemplates.filter((item) => item.domain === domain)
+}
 
 const fmt = new Intl.DateTimeFormat("es-CL", {
 	dateStyle: "short",
@@ -64,16 +97,25 @@ function queueHref(next: string) {
 	return `/admin/providers?filter=${next}`
 }
 
+function caseHref(providerId: string) {
+	return `/admin/providers?filter=${encodeURIComponent(filter)}&providerId=${encodeURIComponent(providerId)}`
+}
+
+const caseCloseHref = queueHref(filter)
+
 const queueButtons = [
-	{ id: "all", label: "Pendientes (todo)", count: counts.total },
-	{ id: "verification", label: "Verificación", count: counts.verification },
-	{ id: "fiscal", label: "Fiscal", count: counts.fiscal },
-	{ id: "documents", label: "Documentos", count: counts.documents },
-	{ id: "payments", label: "Pagos", count: counts.payments },
-	{ id: "overdue", label: "Vencidas", count: counts.overdue },
-	{ id: "due_soon", label: "Por vencer", count: counts.dueSoon },
-	{ id: "audit", label: "Auditoría", count: null as number | null },
+	{ id: "overdue", label: "Vencidas", count: counts.overdue, sla: "overdue" as const },
+	{ id: "due_soon", label: "Por vencer", count: counts.dueSoon, sla: "due_soon" as const },
+	{ id: "all", label: "Pendientes", count: counts.total, sla: null },
+	{ id: "verification", label: "Verificación", count: counts.verification, sla: null },
+	{ id: "fiscal", label: "Fiscal", count: counts.fiscal, sla: null },
+	{ id: "documents", label: "Documentos", count: counts.documents, sla: null },
+	{ id: "payments", label: "Pagos", count: counts.payments, sla: null },
+	{ id: "audit", label: "Auditoría", count: null as number | null, sla: null },
 ] as const
+
+const activeQueueLabel =
+	queueButtons.find((button) => button.id === filter)?.label ?? "Cola de revisión"
 ---
 
 <InternalAdminLayout title="Admin · Cumplimiento de proveedores">
@@ -82,9 +124,8 @@ const queueButtons = [
 			<header class="space-y-2">
 				<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
 				<p class="text-sm text-slate-300">
-					Consola unificada de revisión: verificación global, fiscal, documentos de cumplimiento y
-					cuentas de payout. El proveedor envía; solo el equipo interno valida. Toda decisión queda
-					en auditoría.
+					Workbench ops: una cola activa (default SLA vencidas), abre un caso en el panel lateral.
+					El proveedor envía; solo el equipo interno valida. Toda decisión queda en auditoría.
 				</p>
 			</header>
 
@@ -98,791 +139,1131 @@ const queueButtons = [
 					</Card>
 				) : (
 					<>
-						{counts.overdue > 0 ? (
-							<div
-								data-sla-alert="overdue"
-								class="fastt-notice rounded-[var(--fastt-radius-card)] border border-red-400/60 bg-red-950/40 px-4 py-3 text-sm text-red-100"
-								role="alert"
-							>
-								<p class="font-semibold text-white">
-									{counts.overdue} asignación{counts.overdue === 1 ? "" : "es"} vencida
-									{counts.overdue === 1 ? "" : "s"} de SLA
-								</p>
-								<p class="mt-1 text-red-200">
-									Hay dominios de cumplimiento sin resolver más allá del objetivo interno.
-								</p>
-								<a href={queueHref("overdue")} class="mt-2 inline-block font-semibold underline">
-									Ver cola vencida
-								</a>
-							</div>
-						) : null}
-						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
-							<a
-								href={queueHref("all")}
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "all"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Cola total</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.total}</p>
-							</a>
-							<a
-								href={queueHref("verification")}
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "verification"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Verificación</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.verification}</p>
-							</a>
-							<a
-								href={queueHref("fiscal")}
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "fiscal"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Fiscal</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.fiscal}</p>
-							</a>
-							<a
-								href={queueHref("documents")}
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "documents"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Documentos</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.documents}</p>
-							</a>
-							<a
-								href={queueHref("payments")}
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "payments"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Pagos</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.payments}</p>
-							</a>
-							<a
-								href={queueHref("overdue")}
-								data-sla-queue="overdue"
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "overdue"
-										? "border-red-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-red-300 uppercase">Vencidas (SLA)</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.overdue}</p>
-							</a>
-							<a
-								href={queueHref("due_soon")}
-								data-sla-queue="due_soon"
-								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
-									filter === "due_soon"
-										? "border-amber-400/60 bg-slate-800"
-										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
-								}`}
-							>
-								<p class="text-xs tracking-[0.14em] text-amber-300 uppercase">Por vencer (SLA)</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{counts.dueSoon}</p>
-							</a>
-						</div>
-
-						<Card class="bg-slate-100">
-							<div class="flex flex-wrap items-center justify-between gap-4">
-								<div class="space-y-1">
-									<p class="text-sm font-medium text-slate-700">Cola de revisión</p>
-									<p class="text-sm text-slate-600">
-										Una superficie, cuatro dominios + auditoría. Filtra por tipo de decisión.
+						<div
+							class="space-y-6"
+							data-admin-workbench
+							data-drawer-open={focusedDetail ? "true" : "false"}
+						>
+							{counts.overdue > 0 && filter !== "overdue" ? (
+								<div
+									data-sla-alert="overdue"
+									class="fastt-notice rounded-[var(--fastt-radius-card)] border border-red-400/60 bg-red-950/40 px-4 py-3 text-sm text-red-100"
+									role="alert"
+								>
+									<p class="font-semibold text-white">
+										{counts.overdue} asignación{counts.overdue === 1 ? "" : "es"} vencida
+										{counts.overdue === 1 ? "" : "s"} de SLA
 									</p>
+									<p class="mt-1 text-red-200">
+										Hay dominios de cumplimiento sin resolver más allá del objetivo interno.
+									</p>
+									<a href={queueHref("overdue")} class="mt-2 inline-block font-semibold underline">
+										Ver cola vencida
+									</a>
 								</div>
-								<div class="flex flex-wrap gap-2">
+							) : null}
+
+							<nav
+								class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-700 bg-slate-900/80 p-3"
+								aria-label="Colas de cumplimiento"
+								data-admin-queue-nav
+							>
+								<div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+									<div>
+										<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
+											Workbench ops
+										</p>
+										<p class="mt-1 text-sm text-slate-300">
+											Cola activa: <strong class="text-white">{activeQueueLabel}</strong>
+											{filter === "overdue" ? " (default SLA)" : ""}. Una cola a la vez; abre un
+											caso para el panel lateral.
+										</p>
+									</div>
+									{focusedDetail ? (
+										<p
+											class="text-xs text-amber-200"
+											data-case-drawer-hint
+											data-row-reject-deferred
+										>
+											Caso abierto · {focusedDetail.provider.displayName} · rechazo solo en el
+											drawer
+										</p>
+									) : null}
+								</div>
+								<div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
 									{queueButtons.map((button) => (
-										<Button
+										<a
 											href={queueHref(button.id)}
-											variant={filter === button.id ? "primary" : "secondary"}
+											data-sla-queue={button.sla || undefined}
+											data-queue-tab={button.id}
+											aria-current={filter === button.id ? "page" : undefined}
+											class={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+												filter === button.id
+													? button.sla === "overdue"
+														? "border-red-400/70 bg-red-950/50 text-white"
+														: button.sla === "due_soon"
+															? "border-amber-400/70 bg-amber-950/40 text-white"
+															: "border-amber-400/60 bg-slate-800 text-white"
+													: "border-slate-600 bg-slate-950/60 text-slate-200 hover:border-slate-400"
+											}`}
 										>
 											{button.label}
 											{typeof button.count === "number" ? ` (${button.count})` : ""}
-										</Button>
+										</a>
 									))}
 								</div>
-							</div>
-						</Card>
+							</nav>
 
-						<div
-							id="admin-compliance-feedback"
-							class="fastt-notice hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
-						/>
+							<div
+								id="admin-compliance-feedback"
+								class="fastt-notice hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
+							/>
 
-						{isSlaFilter && slaTotal === 0 ? (
-							<Card class="bg-slate-100">
-								<p class="text-sm text-slate-700" data-sla-empty>
-									No hay asignaciones {filter === "overdue" ? "vencidas" : "por vencer"} en este
-									momento.
-								</p>
-							</Card>
-						) : null}
-
-						{focusedDetail ? (
-							<Card class="bg-slate-100">
-								<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+							<Card
+								class="bg-slate-100"
+								data-admin-settings-funnel
+								data-funnel-sink={funnelStatus.sink}
+								data-funnel-queryable={funnelStatus.queryable ? "true" : "false"}
+							>
+								<div class="flex flex-wrap items-start justify-between gap-3">
 									<div class="space-y-1">
-										<p class="text-lg font-semibold text-slate-900">
-											360° · {focusedDetail.provider.displayName}
-										</p>
-										<p class="text-sm text-slate-600">
-											{focusedDetail.provider.legalName} · {focusedDetail.provider.id}
-										</p>
+										<p class="text-sm font-semibold text-slate-900">Settings funnel</p>
+										<p class="text-xs leading-5 text-slate-600">{funnelStatus.hostLabel}</p>
+										<p class="text-xs leading-5 text-slate-500">{funnelStatus.adminHint}</p>
 									</div>
-									<Button href={queueHref(filter)} variant="secondary">
-										Cerrar panel
-									</Button>
+									{funnelSummary ? (
+										<div
+											class="flex flex-wrap gap-3 text-xs text-slate-700"
+											data-admin-funnel-summary
+										>
+											<span>Blockers: {funnelSummary.blockerShown}</span>
+											<span>CTAs: {funnelSummary.ctaClicked}</span>
+											<span>Completes: {funnelSummary.domainComplete}</span>
+											{funnelSummary.ctaRatePercent != null ? (
+												<span>CTA rate: {funnelSummary.ctaRatePercent}%</span>
+											) : null}
+										</div>
+									) : null}
 								</div>
-								<div class="mb-4 grid gap-2 md:grid-cols-4">
-									{focusedDetail.checklist.map((item) => (
-										<Card variant="soft" class="space-y-1">
-											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-												{item.label}
-											</p>
-											<Badge
-												variant={item.complete ? "success" : item.pending ? "warning" : "neutral"}
-											>
-												{item.complete ? "OK" : item.pending ? "Pendiente" : "Revisar"}
-											</Badge>
-										</Card>
-									))}
-								</div>
-								<div class="mb-4 grid gap-3 md:grid-cols-3">
-									<p class="text-sm text-slate-700">
-										Fiscal en cola: {focusedDetail.pending.fiscal}
-									</p>
-									<p class="text-sm text-slate-700">
-										Documentos en cola: {focusedDetail.pending.documents}
-									</p>
-									<p class="text-sm text-slate-700">
-										Pagos en cola: {focusedDetail.pending.payments}
-									</p>
-								</div>
-								{focusedDetail.audit.length ? (
-									<div class="overflow-x-auto">
-										<p class="mb-2 text-sm font-semibold text-slate-900">Auditoría reciente</p>
-										<table class="min-w-full divide-y divide-slate-200 text-sm">
-											<thead>
-												<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-													<th class="px-2 py-1">Cuándo</th>
-													<th class="px-2 py-1">Acción</th>
-													<th class="px-2 py-1">Actor</th>
-												</tr>
-											</thead>
-											<tbody class="divide-y divide-slate-200">
-												{focusedDetail.audit.slice(0, 8).map((row) => (
-													<tr>
-														<td class="px-2 py-2 text-slate-700">
-															{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
-														</td>
-														<td class="px-2 py-2 text-slate-900">{row.actionLabel}</td>
-														<td class="px-2 py-2 text-slate-600">
-															{row.actorEmail || row.actorUserId || "—"}
-														</td>
-													</tr>
-												))}
-											</tbody>
-										</table>
-									</div>
-								) : (
-									<p class="text-sm text-slate-600">Sin eventos de auditoría recientes.</p>
-								)}
-								<p class="mt-4 text-xs text-slate-500">
-									Plantillas de rechazo disponibles en los formularios de cada cola (selección
-									rápida).
+								<p class="mt-2 text-xs text-slate-500">
+									API:{" "}
+									<code class="rounded bg-slate-200 px-1">
+										GET /api/admin/providers/settings-funnel
+									</code>
+									{focusedProviderId ? `?providerId=${focusedProviderId}` : ""}
 								</p>
 							</Card>
-						) : null}
-						{sections.verification && (
-							<Card class="bg-slate-100">
-								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Verificación de cumplimiento</p>
-									<p class="text-sm text-slate-600">
-										Aprobar o rechazar al proveedor en bloque (decisión append-only en
-										ProviderVerification).
-									</p>
-								</div>
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-slate-200">
-										<thead>
-											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-												<th class="px-3 py-2">Proveedor</th>
-												<th class="px-3 py-2">Estado</th>
-												<th class="px-3 py-2">Actualizado</th>
-												<th class="px-3 py-2">Acciones</th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-slate-200">
-											{rows.map((row) => (
-												<tr data-provider-row={row.providerId}>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
-														<p class="text-sm text-slate-700">{row.legalName}</p>
-														<p class="text-xs text-slate-500">ID: {row.providerId}</p>
-														<a
-															href={`/admin/providers?filter=${filter}&providerId=${encodeURIComponent(row.providerId)}`}
-															class="mt-2 inline-block text-xs font-medium text-slate-900 underline"
-														>
-															Abrir 360°
-														</a>
-													</td>
-													<td class="px-3 py-3 align-top">
-														{row.verificationStatus === "approved" ? (
-															<Badge variant="success">Aprobado</Badge>
-														) : row.verificationStatus === "rejected" ? (
-															<div class="space-y-2">
-																<Badge variant="error">Rechazado</Badge>
-																<p class="text-xs text-slate-700">
-																	{row.verificationReason || "Sin motivo informado"}
-																</p>
-															</div>
-														) : (
-															<Badge variant="warning">Pendiente</Badge>
-														)}
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														{row.verificationUpdatedAt
-															? fmt.format(new Date(row.verificationUpdatedAt))
-															: "Sin registros"}
-														{row.assignment ? (
-															<p
-																class:list={[
-																	"mt-1 text-xs",
-																	row.assignment.slaState === "overdue"
-																		? "text-red-700"
-																		: row.assignment.slaState === "due_soon"
-																			? "text-amber-700"
-																			: "text-slate-500",
-																]}
-															>
-																{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
-																{row.assignment.slaState}
-															</p>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top">
-														<div class="flex min-w-[340px] flex-col gap-2">
-															{row.verificationStatus !== "approved" && (
-																<Button
-																	variant="primary"
-																	data-approve-provider={row.providerId}
-																	className="w-fit"
-																>
-																	Aprobar
-																</Button>
-															)}
-															{row.verificationStatus === "pending" && (
-																<form
-																	class="flex flex-col gap-2"
-																	data-reject-form
-																	data-provider-id={row.providerId}
-																>
-																	<select
-																		class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																		data-reject-template
-																		data-domain="verification"
+
+							<div
+								class:list={[
+									"grid gap-6",
+									focusedDetail ? "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]" : null,
+								]}
+								data-admin-workbench-grid
+							>
+								<div
+									class:list={["min-w-0 space-y-6", focusedDetail ? "max-lg:hidden" : null]}
+									data-admin-queue-panel
+								>
+									{isSlaFilter && slaTotal === 0 ? (
+										<Card class="bg-slate-100">
+											<p class="text-sm text-slate-700" data-sla-empty>
+												No hay asignaciones {filter === "overdue" ? "vencidas" : "por vencer"} en
+												este momento.
+											</p>
+											<div class="mt-3 flex flex-wrap gap-2">
+												<Button href={queueHref("due_soon")} variant="secondary" size="sm">
+													Ver por vencer
+												</Button>
+												<Button href={queueHref("all")} variant="secondary" size="sm">
+													Ver pendientes
+												</Button>
+											</div>
+										</Card>
+									) : null}
+									{sections.verification && (
+										<Card class="bg-slate-100">
+											<div class="mb-4 space-y-1">
+												<p class="text-lg font-semibold text-slate-900">
+													Verificación de cumplimiento
+												</p>
+												<p class="text-sm text-slate-600">
+													Aprobar o rechazar al proveedor en bloque (decisión append-only en
+													ProviderVerification).
+												</p>
+											</div>
+											<div class="overflow-x-auto">
+												<table class="min-w-full divide-y divide-slate-200">
+													<thead>
+														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+															<th class="px-3 py-2">Proveedor</th>
+															<th class="px-3 py-2">Estado</th>
+															<th class="px-3 py-2">Actualizado</th>
+															<th class="px-3 py-2">Acciones</th>
+														</tr>
+													</thead>
+													<tbody class="divide-y divide-slate-200">
+														{rows.map((row) => (
+															<tr data-provider-row={row.providerId}>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-semibold text-slate-900">
+																		{row.displayName}
+																	</p>
+																	<p class="text-sm text-slate-700">{row.legalName}</p>
+																	<p class="text-xs text-slate-500">ID: {row.providerId}</p>
+																	<a
+																		href={caseHref(row.providerId)}
+																		class="mt-2 inline-block text-xs font-medium text-slate-900 underline"
+																		data-case-open
 																	>
-																		<option value="">Plantilla de motivo…</option>
-																		{adminComplianceRejectTemplates
-																			.filter((item) => item.domain === "verification")
-																			.map((item) => (
-																				<option value={item.body}>{item.label}</option>
-																			))}
-																	</select>
-																	<Textarea
-																		name="reason"
-																		rows="2"
-																		required
-																		minlength="2"
-																		className="w-full"
-																		placeholder="Motivo del rechazo"
-																	/>
-																	<Button type="submit" variant="danger" className="w-fit">
-																		Rechazar
-																	</Button>
-																</form>
-															)}
-															<AdminComplianceSlaAssign
-																providerId={row.providerId}
-																domain="verification"
-																entityId={row.providerId}
-																assignment={row.assignment}
-															/>
-														</div>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-									{rows.length === 0 && (
-										<p class="px-3 py-6 text-sm text-slate-600">
-											No hay proveedores pendientes de verificación.
-										</p>
+																		Abrir caso
+																	</a>
+																</td>
+																<td class="px-3 py-3 align-top">
+																	{row.verificationStatus === "approved" ? (
+																		<Badge variant="success">Aprobado</Badge>
+																	) : row.verificationStatus === "rejected" ? (
+																		<div class="space-y-2">
+																			<Badge variant="error">Rechazado</Badge>
+																			<p class="text-xs text-slate-700">
+																				{row.verificationReason || "Sin motivo informado"}
+																			</p>
+																		</div>
+																	) : (
+																		<Badge variant="warning">Pendiente</Badge>
+																	)}
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	{row.verificationUpdatedAt
+																		? fmt.format(new Date(row.verificationUpdatedAt))
+																		: "Sin registros"}
+																	{row.assignment ? (
+																		<p
+																			class:list={[
+																				"mt-1 text-xs",
+																				row.assignment.slaState === "overdue"
+																					? "text-red-700"
+																					: row.assignment.slaState === "due_soon"
+																						? "text-amber-700"
+																						: "text-slate-500",
+																			]}
+																		>
+																			{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																			{row.assignment.slaState}
+																		</p>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<div class="flex min-w-[340px] flex-col gap-2">
+																		{row.verificationStatus !== "approved" && (
+																			<Button
+																				variant="primary"
+																				data-approve-provider={row.providerId}
+																				className="w-fit"
+																			>
+																				Aprobar
+																			</Button>
+																		)}
+																		{row.verificationStatus === "pending" && !focusedDetail && (
+																			<form
+																				class="flex flex-col gap-2"
+																				data-reject-form
+																				data-row-reject
+																				data-provider-id={row.providerId}
+																			>
+																				<select
+																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																					data-reject-template
+																					data-domain="verification"
+																				>
+																					<option value="">Plantilla de motivo…</option>
+																					{adminComplianceRejectTemplates
+																						.filter((item) => item.domain === "verification")
+																						.map((item) => (
+																							<option value={item.body}>{item.label}</option>
+																						))}
+																				</select>
+																				<Textarea
+																					name="reason"
+																					rows="2"
+																					required
+																					minlength="2"
+																					className="w-full"
+																					placeholder="Motivo del rechazo"
+																				/>
+																				<Button type="submit" variant="danger" className="w-fit">
+																					Rechazar
+																				</Button>
+																			</form>
+																		)}
+																		<AdminComplianceSlaAssign
+																			providerId={row.providerId}
+																			domain="verification"
+																			entityId={row.providerId}
+																			assignment={row.assignment}
+																			currentAdminEmail={adminEmail}
+																			assigneeShortcuts={assigneeShortcuts}
+																		/>
+																	</div>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+												{rows.length === 0 && (
+													<p class="px-3 py-6 text-sm text-slate-600">
+														No hay proveedores pendientes de verificación.
+													</p>
+												)}
+											</div>
+										</Card>
+									)}
+
+									{sections.fiscal && (
+										<Card class="bg-slate-100">
+											<div class="mb-4 space-y-1">
+												<p class="text-lg font-semibold text-slate-900">Identidad fiscal</p>
+												<p class="text-sm text-slate-600">
+													Validar taxpayer info enviada por el proveedor (no puede auto-marcarse
+													verificado).
+												</p>
+											</div>
+											<div class="overflow-x-auto">
+												<table class="min-w-full divide-y divide-slate-200">
+													<thead>
+														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+															<th class="px-3 py-2">Proveedor</th>
+															<th class="px-3 py-2">Datos</th>
+															<th class="px-3 py-2">Estado</th>
+															<th class="px-3 py-2">Acciones</th>
+														</tr>
+													</thead>
+													<tbody class="divide-y divide-slate-200">
+														{taxRows.map((row) => (
+															<tr>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-semibold text-slate-900">
+																		{row.displayName}
+																	</p>
+																	<p class="text-xs text-slate-500">ID: {row.providerId}</p>
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	<p>País: {row.taxResidenceCountry || "—"}</p>
+																	<p>Registro: {row.businessRegistrationNumber || "—"}</p>
+																	<p>Régimen: {row.taxRegime || "—"}</p>
+																	{row.tinBureau ? (
+																		<div
+																			class="mt-2 space-y-1"
+																			data-admin-tin-bureau={row.tinBureau.matchStatus}
+																		>
+																			<p class="text-xs font-semibold text-slate-800">
+																				Bureau: {row.tinBureau.matchLabel}
+																				{row.tinBureau.mode ? ` · ${row.tinBureau.mode}` : ""}
+																			</p>
+																			<p class="text-xs leading-5 text-slate-600">
+																				{row.tinBureau.adminNarrative || row.tinBureau.message}
+																			</p>
+																		</div>
+																	) : null}
+																	{row.updatedAt ? (
+																		<p class="text-xs text-slate-500">
+																			{fmt.format(new Date(row.updatedAt))}
+																		</p>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	{row.status === "verified" ? (
+																		<Badge variant="success">{row.statusLabel}</Badge>
+																	) : row.status === "requires_attention" ? (
+																		<Badge variant="error">{row.statusLabel}</Badge>
+																	) : (
+																		<Badge variant="warning">{row.statusLabel}</Badge>
+																	)}
+																	{row.assignment ? (
+																		<p
+																			class:list={[
+																				"mt-1 text-xs",
+																				row.assignment.slaState === "overdue"
+																					? "text-red-700"
+																					: row.assignment.slaState === "due_soon"
+																						? "text-amber-700"
+																						: "text-slate-500",
+																			]}
+																		>
+																			{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																			{row.assignment.slaState}
+																		</p>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<div class="flex min-w-[320px] flex-col gap-2">
+																		{row.status !== "verified" && (
+																			<Button
+																				variant="primary"
+																				className="w-fit"
+																				data-verify-tax={row.providerId}
+																			>
+																				Marcar verificado
+																			</Button>
+																		)}
+																		{!focusedDetail && (
+																			<form
+																				class="flex flex-col gap-2"
+																				data-tax-attention-form
+																				data-row-reject
+																				data-provider-id={row.providerId}
+																			>
+																				<select
+																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																					data-reject-template
+																					data-domain="fiscal"
+																				>
+																					<option value="">Plantilla de motivo…</option>
+																					{adminComplianceRejectTemplates
+																						.filter((item) => item.domain === "fiscal")
+																						.map((item) => (
+																							<option value={item.body}>{item.label}</option>
+																						))}
+																				</select>
+																				<Textarea
+																					name="reason"
+																					rows="2"
+																					required
+																					minlength="2"
+																					className="w-full"
+																					placeholder="Motivo (requiere atención)"
+																				/>
+																				<Button type="submit" variant="danger" className="w-fit">
+																					Requiere atención
+																				</Button>
+																			</form>
+																		)}
+																		<AdminComplianceSlaAssign
+																			providerId={row.providerId}
+																			domain="fiscal"
+																			entityId={row.providerId}
+																			assignment={row.assignment}
+																			currentAdminEmail={adminEmail}
+																			assigneeShortcuts={assigneeShortcuts}
+																		/>
+																	</div>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+												{taxRows.length === 0 && (
+													<p class="px-3 py-6 text-sm text-slate-600">
+														No hay perfiles fiscales pendientes de revisión.
+													</p>
+												)}
+											</div>
+										</Card>
+									)}
+
+									{sections.documents && (
+										<Card class="bg-slate-100">
+											<div class="mb-4 space-y-1">
+												<p class="text-lg font-semibold text-slate-900">
+													Documentos de cumplimiento
+												</p>
+												<p class="text-sm text-slate-600">
+													Verificar o rechazar respaldos enviados por el proveedor.
+												</p>
+											</div>
+											<div class="overflow-x-auto">
+												<table class="min-w-full divide-y divide-slate-200">
+													<thead>
+														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+															<th class="px-3 py-2">Proveedor</th>
+															<th class="px-3 py-2">Documento</th>
+															<th class="px-3 py-2">Enviado</th>
+															<th class="px-3 py-2">Acciones</th>
+														</tr>
+													</thead>
+													<tbody class="divide-y divide-slate-200">
+														{documentRows.map((doc) => (
+															<tr>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-semibold text-slate-900">
+																		{doc.displayName}
+																	</p>
+																	<p class="text-xs text-slate-500">ID: {doc.providerId}</p>
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	<p class="font-medium text-slate-900">{doc.typeLabel}</p>
+																	<p>{doc.fileName || "Sin nombre"}</p>
+																	{doc.submissionNotes ? (
+																		<p class="text-xs text-slate-500">
+																			Nota: {doc.submissionNotes}
+																		</p>
+																	) : null}
+																	{doc.fileUrl ? (
+																		<Button
+																			type="button"
+																			variant="ghost"
+																			className="h-auto px-0 text-xs font-medium text-slate-900 underline"
+																			data-preview-document={doc.id}
+																			data-provider-id={doc.providerId}
+																		>
+																			Abrir archivo (seguro)
+																		</Button>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	{doc.createdAt ? fmt.format(new Date(doc.createdAt)) : "—"}
+																	{doc.assignment ? (
+																		<p
+																			class:list={[
+																				"mt-1 text-xs",
+																				doc.assignment.slaState === "overdue"
+																					? "text-red-700"
+																					: doc.assignment.slaState === "due_soon"
+																						? "text-amber-700"
+																						: "text-slate-500",
+																			]}
+																		>
+																			{doc.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																			{doc.assignment.slaState}
+																		</p>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<div class="flex min-w-[320px] flex-col gap-2">
+																		<Button
+																			variant="primary"
+																			className="w-fit"
+																			data-verify-document={doc.id}
+																			data-provider-id={doc.providerId}
+																		>
+																			Verificar
+																		</Button>
+																		{!focusedDetail && (
+																			<form
+																				class="flex flex-col gap-2"
+																				data-reject-document-form
+																				data-row-reject
+																				data-document-id={doc.id}
+																				data-provider-id={doc.providerId}
+																			>
+																				<select
+																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																					data-reject-template
+																					data-domain="documents"
+																				>
+																					<option value="">Plantilla de motivo…</option>
+																					{adminComplianceRejectTemplates
+																						.filter((item) => item.domain === "documents")
+																						.map((item) => (
+																							<option value={item.body}>{item.label}</option>
+																						))}
+																				</select>
+																				<Textarea
+																					name="reviewNotes"
+																					rows="2"
+																					required
+																					minlength="2"
+																					className="w-full"
+																					placeholder="Motivo del rechazo"
+																				/>
+																				<Button type="submit" variant="danger" className="w-fit">
+																					Rechazar
+																				</Button>
+																			</form>
+																		)}
+																		<AdminComplianceSlaAssign
+																			providerId={doc.providerId}
+																			domain="documents"
+																			entityId={doc.id}
+																			assignment={doc.assignment}
+																			currentAdminEmail={adminEmail}
+																			assigneeShortcuts={assigneeShortcuts}
+																		/>
+																	</div>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+												{documentRows.length === 0 && (
+													<p class="px-3 py-6 text-sm text-slate-600">
+														No hay documentos pendientes de revisión.
+													</p>
+												)}
+											</div>
+										</Card>
+									)}
+
+									{sections.payments && (
+										<Card class="bg-slate-100">
+											<div class="mb-4 space-y-1">
+												<p class="text-lg font-semibold text-slate-900">Cuentas de payout</p>
+												<p class="text-sm text-slate-600">
+													Validar titularidad bancaria (micro-depósito) o verificar manualmente. Al
+													verificar, la cuenta queda lista para liquidaciones del proveedor.
+												</p>
+												<p
+													class="text-xs leading-5 text-slate-500"
+													data-admin-payout-rail
+													data-payout-rail-mode={payoutRail.mode}
+												>
+													Rail: {payoutRail.adminHint}
+												</p>
+											</div>
+											<div class="overflow-x-auto">
+												<table class="min-w-full divide-y divide-slate-200">
+													<thead>
+														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+															<th class="px-3 py-2">Proveedor</th>
+															<th class="px-3 py-2">Cuenta</th>
+															<th class="px-3 py-2">Enviado</th>
+															<th class="px-3 py-2">Acciones</th>
+														</tr>
+													</thead>
+													<tbody class="divide-y divide-slate-200">
+														{paymentRows.map((account) => (
+															<tr>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-semibold text-slate-900">
+																		{account.displayName}
+																	</p>
+																	<p class="text-xs text-slate-500">ID: {account.providerId}</p>
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	<p class="font-medium text-slate-900">
+																		{account.bankName || "Banco"} · {account.methodLabel}
+																	</p>
+																	<p>
+																		{account.accountHolderName || "Sin titular"} ·{" "}
+																		{account.country || "—"} · {account.currency}
+																	</p>
+																	<p class="font-mono text-xs">
+																		{account.accountIdentifier || account.accountReference || "—"}
+																	</p>
+																	{account.routingOrSwift ? (
+																		<p class="text-xs text-slate-500">
+																			SWIFT/routing: {account.routingOrSwift}
+																		</p>
+																	) : null}
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	{account.createdAt
+																		? fmt.format(new Date(account.createdAt))
+																		: "—"}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<div class="flex min-w-[320px] flex-col gap-2">
+																		<Button
+																			variant="secondary"
+																			className="w-fit"
+																			data-micro-deposit={account.id}
+																			data-provider-id={account.providerId}
+																		>
+																			Iniciar micro-depósito
+																		</Button>
+																		<Button
+																			variant="primary"
+																			className="w-fit"
+																			data-verify-payment={account.id}
+																			data-provider-id={account.providerId}
+																		>
+																			Verificar manualmente
+																		</Button>
+																		<AdminComplianceSlaAssign
+																			providerId={account.providerId}
+																			domain="payments"
+																			entityId={account.id}
+																			assignment={account.assignment}
+																			currentAdminEmail={adminEmail}
+																			assigneeShortcuts={assigneeShortcuts}
+																		/>
+																		{!focusedDetail && (
+																			<form
+																				class="flex flex-col gap-2"
+																				data-payment-attention-form
+																				data-row-reject
+																				data-account-id={account.id}
+																				data-provider-id={account.providerId}
+																			>
+																				<select
+																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																					data-reject-template
+																					data-domain="payments"
+																				>
+																					<option value="">Plantilla de motivo…</option>
+																					{adminComplianceRejectTemplates
+																						.filter((item) => item.domain === "payments")
+																						.map((item) => (
+																							<option value={item.body}>{item.label}</option>
+																						))}
+																				</select>
+																				<Textarea
+																					name="reason"
+																					rows="2"
+																					required
+																					minlength="2"
+																					className="w-full"
+																					placeholder="Motivo (requiere atención)"
+																				/>
+																				<Button type="submit" variant="danger" className="w-fit">
+																					Requiere atención
+																				</Button>
+																			</form>
+																		)}
+																	</div>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+												{paymentRows.length === 0 && (
+													<p class="px-3 py-6 text-sm text-slate-600">
+														No hay cuentas de payout pendientes de revisión.
+													</p>
+												)}
+											</div>
+										</Card>
+									)}
+
+									{sections.audit && (
+										<Card class="bg-slate-100">
+											<div class="mb-4 space-y-1">
+												<p class="text-lg font-semibold text-slate-900">
+													Auditoría de cumplimiento
+												</p>
+												<p class="text-sm text-slate-600">
+													Trail reciente de envíos y revisiones (ProviderAuditLog) en verificación,
+													fiscal, documentos y pagos.
+												</p>
+											</div>
+											<div class="overflow-x-auto">
+												<table class="min-w-full divide-y divide-slate-200">
+													<thead>
+														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+															<th class="px-3 py-2">Cuándo</th>
+															<th class="px-3 py-2">Proveedor</th>
+															<th class="px-3 py-2">Acción</th>
+															<th class="px-3 py-2">Actor</th>
+															<th class="px-3 py-2">Detalle</th>
+														</tr>
+													</thead>
+													<tbody class="divide-y divide-slate-200">
+														{auditRows.map((row) => (
+															<tr>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-semibold text-slate-900">
+																		{row.providerDisplayName}
+																	</p>
+																	<p class="text-xs text-slate-500">{row.providerId}</p>
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<p class="text-sm font-medium text-slate-900">
+																		{row.actionLabel}
+																	</p>
+																	<div class="mt-1 flex flex-wrap gap-1">
+																		<Badge
+																			variant={
+																				row.domain === "payments" || row.domain === "fiscal"
+																					? "warning"
+																					: "neutral"
+																			}
+																		>
+																			{row.domain}
+																		</Badge>
+																		<Badge
+																			variant={
+																				row.riskLevel === "high"
+																					? "error"
+																					: row.riskLevel === "medium"
+																						? "warning"
+																						: "neutral"
+																			}
+																		>
+																			{row.riskLevel}
+																		</Badge>
+																	</div>
+																</td>
+																<td class="px-3 py-3 align-top text-sm text-slate-700">
+																	{row.actorEmail || row.actorUserId || "—"}
+																</td>
+																<td class="px-3 py-3 align-top text-xs text-slate-600">
+																	<pre class="max-w-xs overflow-x-auto font-mono whitespace-pre-wrap">
+																		{JSON.stringify(
+																			{
+																				before: row.beforeJson,
+																				after: row.afterJson,
+																			},
+																			null,
+																			0
+																		)}
+																	</pre>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+												{auditRows.length === 0 && (
+													<p class="px-3 py-6 text-sm text-slate-600">
+														Aún no hay eventos de auditoría de cumplimiento.
+													</p>
+												)}
+											</div>
+										</Card>
 									)}
 								</div>
-							</Card>
-						)}
 
-						{sections.fiscal && (
-							<Card class="bg-slate-100">
-								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Identidad fiscal</p>
-									<p class="text-sm text-slate-600">
-										Validar taxpayer info enviada por el proveedor (no puede auto-marcarse
-										verificado).
-									</p>
-								</div>
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-slate-200">
-										<thead>
-											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-												<th class="px-3 py-2">Proveedor</th>
-												<th class="px-3 py-2">Datos</th>
-												<th class="px-3 py-2">Estado</th>
-												<th class="px-3 py-2">Acciones</th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-slate-200">
-											{taxRows.map((row) => (
-												<tr>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-semibold text-slate-900">{row.displayName}</p>
-														<p class="text-xs text-slate-500">ID: {row.providerId}</p>
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														<p>País: {row.taxResidenceCountry || "—"}</p>
-														<p>Registro: {row.businessRegistrationNumber || "—"}</p>
-														<p>Régimen: {row.taxRegime || "—"}</p>
-														{row.updatedAt ? (
-															<p class="text-xs text-slate-500">
-																{fmt.format(new Date(row.updatedAt))}
-															</p>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top">
-														{row.status === "verified" ? (
-															<Badge variant="success">{row.statusLabel}</Badge>
-														) : row.status === "requires_attention" ? (
-															<Badge variant="error">{row.statusLabel}</Badge>
-														) : (
-															<Badge variant="warning">{row.statusLabel}</Badge>
-														)}
-														{row.assignment ? (
-															<p
-																class:list={[
-																	"mt-1 text-xs",
-																	row.assignment.slaState === "overdue"
-																		? "text-red-700"
-																		: row.assignment.slaState === "due_soon"
-																			? "text-amber-700"
-																			: "text-slate-500",
-																]}
-															>
-																{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
-																{row.assignment.slaState}
-															</p>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top">
-														<div class="flex min-w-[320px] flex-col gap-2">
-															{row.status !== "verified" && (
-																<Button
-																	variant="primary"
-																	className="w-fit"
-																	data-verify-tax={row.providerId}
+								{focusedDetail ? (
+									<>
+										<a
+											href={caseCloseHref}
+											class="fastt-modal-backdrop fixed inset-0 z-30 bg-slate-950/60 lg:hidden"
+											data-case-drawer-backdrop
+											aria-label="Cerrar caso"
+										/>
+										<aside
+											class="fixed inset-x-0 top-14 bottom-0 z-40 overflow-y-auto border-t border-slate-200 bg-slate-100 p-4 shadow-2xl lg:sticky lg:inset-auto lg:top-4 lg:z-auto lg:max-h-[calc(100vh-5rem)] lg:border lg:border-slate-200 lg:shadow-none"
+											data-case-drawer
+											role="dialog"
+											aria-modal="true"
+											aria-labelledby="case-drawer-title"
+											tabindex="-1"
+										>
+											<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+												<div class="space-y-1">
+													<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+														Caso
+													</p>
+													<p id="case-drawer-title" class="text-lg font-semibold text-slate-900">
+														{focusedDetail.provider.displayName}
+													</p>
+													<p class="text-sm text-slate-600">
+														{focusedDetail.provider.legalName} · {focusedDetail.provider.id}
+													</p>
+												</div>
+												<Button
+													href={caseCloseHref}
+													variant="secondary"
+													size="sm"
+													data-case-drawer-close
+												>
+													Cerrar
+												</Button>
+											</div>
+											<div class="mb-4 grid gap-2 sm:grid-cols-2">
+												{focusedDetail.checklist.map((item) => (
+													<Card variant="soft" class="space-y-1">
+														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+															{item.label}
+														</p>
+														<Badge
+															variant={
+																item.complete ? "success" : item.pending ? "warning" : "neutral"
+															}
+														>
+															{item.complete ? "OK" : item.pending ? "Pendiente" : "Revisar"}
+														</Badge>
+													</Card>
+												))}
+											</div>
+											<div class="mb-4 space-y-1 text-sm text-slate-700">
+												<p>Fiscal en cola: {focusedDetail.pending.fiscal}</p>
+												<p>Documentos en cola: {focusedDetail.pending.documents}</p>
+												<p>Pagos en cola: {focusedDetail.pending.payments}</p>
+											</div>
+
+											<section
+												class="mb-4 space-y-3"
+												data-case-templates
+												aria-labelledby="case-templates-heading"
+											>
+												<div>
+													<p
+														id="case-templates-heading"
+														class="text-sm font-semibold text-slate-900"
+													>
+														Plantillas y acciones del caso
+													</p>
+													<p class="mt-1 text-xs leading-5 text-slate-500">
+														Atajos de motivo y asignación sin salir del panel. Escape cierra el
+														caso.
+													</p>
+												</div>
+
+												{focusedDetail.verification?.verificationStatus === "pending" ? (
+													<Card variant="soft" class="space-y-3" data-case-domain="verification">
+														<p class="text-sm font-semibold text-slate-900">Verificación</p>
+														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
+															{templatesFor("verification").map((item) => (
+																<button
+																	type="button"
+																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+																	data-case-template
+																	data-domain="verification"
+																	data-template-body={item.body}
 																>
-																	Marcar verificado
-																</Button>
-															)}
-															<form
-																class="flex flex-col gap-2"
-																data-tax-attention-form
-																data-provider-id={row.providerId}
+																	{item.label}
+																</button>
+															))}
+														</div>
+														<form
+															class="flex flex-col gap-2"
+															data-reject-form
+															data-provider-id={focusedDetail.provider.id}
+														>
+															<select
+																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																data-reject-template
+																data-domain="verification"
 															>
-																<select
-																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																	data-reject-template
+																<option value="">Plantilla de motivo…</option>
+																{templatesFor("verification").map((item) => (
+																	<option value={item.body}>{item.label}</option>
+																))}
+															</select>
+															<Textarea
+																name="reason"
+																rows="2"
+																required
+																minlength="2"
+																className="w-full"
+																placeholder="Motivo del rechazo"
+																data-case-reason
+															/>
+															<Button type="submit" variant="danger" className="w-fit">
+																Rechazar
+															</Button>
+														</form>
+														<AdminComplianceSlaAssign
+															providerId={focusedDetail.provider.id}
+															domain="verification"
+															entityId={focusedDetail.provider.id}
+															assignment={focusedDetail.verification.assignment}
+															currentAdminEmail={adminEmail}
+															assigneeShortcuts={assigneeShortcuts}
+														/>
+													</Card>
+												) : null}
+
+												{focusedDetail.fiscal.slice(0, 2).map((row) => (
+													<Card variant="soft" class="space-y-3" data-case-domain="fiscal">
+														<p class="text-sm font-semibold text-slate-900">Fiscal</p>
+														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
+															{templatesFor("fiscal").map((item) => (
+																<button
+																	type="button"
+																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+																	data-case-template
 																	data-domain="fiscal"
+																	data-template-body={item.body}
 																>
-																	<option value="">Plantilla de motivo…</option>
-																	{adminComplianceRejectTemplates
-																		.filter((item) => item.domain === "fiscal")
-																		.map((item) => (
-																			<option value={item.body}>{item.label}</option>
-																		))}
-																</select>
-																<Textarea
-																	name="reason"
-																	rows="2"
-																	required
-																	minlength="2"
-																	className="w-full"
-																	placeholder="Motivo (requiere atención)"
-																/>
-																<Button type="submit" variant="danger" className="w-fit">
-																	Requiere atención
-																</Button>
-															</form>
-															<AdminComplianceSlaAssign
-																providerId={row.providerId}
-																domain="fiscal"
-																entityId={row.providerId}
-																assignment={row.assignment}
-															/>
+																	{item.label}
+																</button>
+															))}
 														</div>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-									{taxRows.length === 0 && (
-										<p class="px-3 py-6 text-sm text-slate-600">
-											No hay perfiles fiscales pendientes de revisión.
-										</p>
-									)}
-								</div>
-							</Card>
-						)}
+														<form
+															class="flex flex-col gap-2"
+															data-tax-attention-form
+															data-provider-id={row.providerId}
+														>
+															<select
+																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																data-reject-template
+																data-domain="fiscal"
+															>
+																<option value="">Plantilla de motivo…</option>
+																{templatesFor("fiscal").map((item) => (
+																	<option value={item.body}>{item.label}</option>
+																))}
+															</select>
+															<Textarea
+																name="reason"
+																rows="2"
+																required
+																minlength="2"
+																className="w-full"
+																placeholder="Motivo (requiere atención)"
+																data-case-reason
+															/>
+															<Button type="submit" variant="danger" className="w-fit">
+																Requiere atención
+															</Button>
+														</form>
+														<AdminComplianceSlaAssign
+															providerId={row.providerId}
+															domain="fiscal"
+															entityId={row.providerId}
+															assignment={row.assignment}
+															currentAdminEmail={adminEmail}
+															assigneeShortcuts={assigneeShortcuts}
+														/>
+													</Card>
+												))}
 
-						{sections.documents && (
-							<Card class="bg-slate-100">
-								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Documentos de cumplimiento</p>
-									<p class="text-sm text-slate-600">
-										Verificar o rechazar respaldos enviados por el proveedor.
-									</p>
-								</div>
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-slate-200">
-										<thead>
-											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-												<th class="px-3 py-2">Proveedor</th>
-												<th class="px-3 py-2">Documento</th>
-												<th class="px-3 py-2">Enviado</th>
-												<th class="px-3 py-2">Acciones</th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-slate-200">
-											{documentRows.map((doc) => (
-												<tr>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-semibold text-slate-900">{doc.displayName}</p>
-														<p class="text-xs text-slate-500">ID: {doc.providerId}</p>
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														<p class="font-medium text-slate-900">{doc.typeLabel}</p>
-														<p>{doc.fileName || "Sin nombre"}</p>
-														{doc.submissionNotes ? (
-															<p class="text-xs text-slate-500">Nota: {doc.submissionNotes}</p>
-														) : null}
-														{doc.fileUrl ? (
-															<Button
-																type="button"
-																variant="ghost"
-																className="h-auto px-0 text-xs font-medium text-slate-900 underline"
-																data-preview-document={doc.id}
-																data-provider-id={doc.providerId}
-															>
-																Abrir archivo (seguro)
-															</Button>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														{doc.createdAt ? fmt.format(new Date(doc.createdAt)) : "—"}
-														{doc.assignment ? (
-															<p
-																class:list={[
-																	"mt-1 text-xs",
-																	doc.assignment.slaState === "overdue"
-																		? "text-red-700"
-																		: doc.assignment.slaState === "due_soon"
-																			? "text-amber-700"
-																			: "text-slate-500",
-																]}
-															>
-																{doc.assignment.assigneeEmail || "sin responsable"} ·{" "}
-																{doc.assignment.slaState}
-															</p>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top">
-														<div class="flex min-w-[320px] flex-col gap-2">
-															<Button
-																variant="primary"
-																className="w-fit"
-																data-verify-document={doc.id}
-																data-provider-id={doc.providerId}
-															>
-																Verificar
-															</Button>
-															<form
-																class="flex flex-col gap-2"
-																data-reject-document-form
-																data-document-id={doc.id}
-																data-provider-id={doc.providerId}
-															>
-																<select
-																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																	data-reject-template
+												{focusedDetail.documents.slice(0, 2).map((doc) => (
+													<Card variant="soft" class="space-y-3" data-case-domain="documents">
+														<p class="text-sm font-semibold text-slate-900">
+															Documento · {doc.typeLabel}
+														</p>
+														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
+															{templatesFor("documents").map((item) => (
+																<button
+																	type="button"
+																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+																	data-case-template
 																	data-domain="documents"
+																	data-template-body={item.body}
 																>
-																	<option value="">Plantilla de motivo…</option>
-																	{adminComplianceRejectTemplates
-																		.filter((item) => item.domain === "documents")
-																		.map((item) => (
-																			<option value={item.body}>{item.label}</option>
-																		))}
-																</select>
-																<Textarea
-																	name="reviewNotes"
-																	rows="2"
-																	required
-																	minlength="2"
-																	className="w-full"
-																	placeholder="Motivo del rechazo"
-																/>
-																<Button type="submit" variant="danger" className="w-fit">
-																	Rechazar
-																</Button>
-															</form>
-															<AdminComplianceSlaAssign
-																providerId={doc.providerId}
-																domain="documents"
-																entityId={doc.id}
-																assignment={doc.assignment}
-															/>
+																	{item.label}
+																</button>
+															))}
 														</div>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-									{documentRows.length === 0 && (
-										<p class="px-3 py-6 text-sm text-slate-600">
-											No hay documentos pendientes de revisión.
-										</p>
-									)}
-								</div>
-							</Card>
-						)}
-
-						{sections.payments && (
-							<Card class="bg-slate-100">
-								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Cuentas de payout</p>
-									<p class="text-sm text-slate-600">
-										Validar titularidad bancaria (micro-depósito) o verificar manualmente. Al
-										verificar, la cuenta queda lista para liquidaciones del proveedor.
-									</p>
-								</div>
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-slate-200">
-										<thead>
-											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-												<th class="px-3 py-2">Proveedor</th>
-												<th class="px-3 py-2">Cuenta</th>
-												<th class="px-3 py-2">Enviado</th>
-												<th class="px-3 py-2">Acciones</th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-slate-200">
-											{paymentRows.map((account) => (
-												<tr>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-semibold text-slate-900">
-															{account.displayName}
-														</p>
-														<p class="text-xs text-slate-500">ID: {account.providerId}</p>
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														<p class="font-medium text-slate-900">
-															{account.bankName || "Banco"} · {account.methodLabel}
-														</p>
-														<p>
-															{account.accountHolderName || "Sin titular"} ·{" "}
-															{account.country || "—"} · {account.currency}
-														</p>
-														<p class="font-mono text-xs">
-															{account.accountIdentifier || account.accountReference || "—"}
-														</p>
-														{account.routingOrSwift ? (
-															<p class="text-xs text-slate-500">
-																SWIFT/routing: {account.routingOrSwift}
-															</p>
-														) : null}
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														{account.createdAt ? fmt.format(new Date(account.createdAt)) : "—"}
-													</td>
-													<td class="px-3 py-3 align-top">
-														<div class="flex min-w-[320px] flex-col gap-2">
-															<Button
-																variant="secondary"
-																className="w-fit"
-																data-micro-deposit={account.id}
-																data-provider-id={account.providerId}
+														<form
+															class="flex flex-col gap-2"
+															data-reject-document-form
+															data-document-id={doc.id}
+															data-provider-id={doc.providerId}
+														>
+															<select
+																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																data-reject-template
+																data-domain="documents"
 															>
-																Iniciar micro-depósito
-															</Button>
-															<Button
-																variant="primary"
-																className="w-fit"
-																data-verify-payment={account.id}
-																data-provider-id={account.providerId}
-															>
-																Verificar manualmente
-															</Button>
-															<AdminComplianceSlaAssign
-																providerId={account.providerId}
-																domain="payments"
-																entityId={account.id}
-																assignment={account.assignment}
+																<option value="">Plantilla de motivo…</option>
+																{templatesFor("documents").map((item) => (
+																	<option value={item.body}>{item.label}</option>
+																))}
+															</select>
+															<Textarea
+																name="reviewNotes"
+																rows="2"
+																required
+																minlength="2"
+																className="w-full"
+																placeholder="Motivo del rechazo"
+																data-case-reason
 															/>
-															<form
-																class="flex flex-col gap-2"
-																data-payment-attention-form
-																data-account-id={account.id}
-																data-provider-id={account.providerId}
-															>
-																<select
-																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																	data-reject-template
+															<Button type="submit" variant="danger" className="w-fit">
+																Rechazar documento
+															</Button>
+														</form>
+														<AdminComplianceSlaAssign
+															providerId={doc.providerId}
+															domain="documents"
+															entityId={doc.id}
+															assignment={doc.assignment}
+															currentAdminEmail={adminEmail}
+															assigneeShortcuts={assigneeShortcuts}
+														/>
+													</Card>
+												))}
+
+												{focusedDetail.payments.slice(0, 2).map((account) => (
+													<Card variant="soft" class="space-y-3" data-case-domain="payments">
+														<p class="text-sm font-semibold text-slate-900">
+															Payout · {account.accountReference || account.id}
+														</p>
+														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
+															{templatesFor("payments").map((item) => (
+																<button
+																	type="button"
+																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+																	data-case-template
 																	data-domain="payments"
+																	data-template-body={item.body}
 																>
-																	<option value="">Plantilla de motivo…</option>
-																	{adminComplianceRejectTemplates
-																		.filter((item) => item.domain === "payments")
-																		.map((item) => (
-																			<option value={item.body}>{item.label}</option>
-																		))}
-																</select>
-																<Textarea
-																	name="reason"
-																	rows="2"
-																	required
-																	minlength="2"
-																	className="w-full"
-																	placeholder="Motivo (requiere atención)"
-																/>
-																<Button type="submit" variant="danger" className="w-fit">
-																	Requiere atención
-																</Button>
-															</form>
+																	{item.label}
+																</button>
+															))}
 														</div>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-									{paymentRows.length === 0 && (
-										<p class="px-3 py-6 text-sm text-slate-600">
-											No hay cuentas de payout pendientes de revisión.
-										</p>
-									)}
-								</div>
-							</Card>
-						)}
+														<form
+															class="flex flex-col gap-2"
+															data-payment-attention-form
+															data-account-id={account.id}
+															data-provider-id={account.providerId}
+														>
+															<select
+																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																data-reject-template
+																data-domain="payments"
+															>
+																<option value="">Plantilla de motivo…</option>
+																{templatesFor("payments").map((item) => (
+																	<option value={item.body}>{item.label}</option>
+																))}
+															</select>
+															<Textarea
+																name="reason"
+																rows="2"
+																required
+																minlength="2"
+																className="w-full"
+																placeholder="Motivo (requiere atención)"
+																data-case-reason
+															/>
+															<Button type="submit" variant="danger" className="w-fit">
+																Requiere atención
+															</Button>
+														</form>
+														<AdminComplianceSlaAssign
+															providerId={account.providerId}
+															domain="payments"
+															entityId={account.id}
+															assignment={account.assignment}
+															currentAdminEmail={adminEmail}
+															assigneeShortcuts={assigneeShortcuts}
+														/>
+													</Card>
+												))}
 
-						{sections.audit && (
-							<Card class="bg-slate-100">
-								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Auditoría de cumplimiento</p>
-									<p class="text-sm text-slate-600">
-										Trail reciente de envíos y revisiones (ProviderAuditLog) en verificación,
-										fiscal, documentos y pagos.
-									</p>
-								</div>
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-slate-200">
-										<thead>
-											<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-												<th class="px-3 py-2">Cuándo</th>
-												<th class="px-3 py-2">Proveedor</th>
-												<th class="px-3 py-2">Acción</th>
-												<th class="px-3 py-2">Actor</th>
-												<th class="px-3 py-2">Detalle</th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-slate-200">
-											{auditRows.map((row) => (
-												<tr>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
-													</td>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-semibold text-slate-900">
-															{row.providerDisplayName}
-														</p>
-														<p class="text-xs text-slate-500">{row.providerId}</p>
-													</td>
-													<td class="px-3 py-3 align-top">
-														<p class="text-sm font-medium text-slate-900">{row.actionLabel}</p>
-														<div class="mt-1 flex flex-wrap gap-1">
-															<Badge
-																variant={
-																	row.domain === "payments" || row.domain === "fiscal"
-																		? "warning"
-																		: "neutral"
-																}
-															>
-																{row.domain}
-															</Badge>
-															<Badge
-																variant={
-																	row.riskLevel === "high"
-																		? "error"
-																		: row.riskLevel === "medium"
-																			? "warning"
-																			: "neutral"
-																}
-															>
-																{row.riskLevel}
-															</Badge>
-														</div>
-													</td>
-													<td class="px-3 py-3 align-top text-sm text-slate-700">
-														{row.actorEmail || row.actorUserId || "—"}
-													</td>
-													<td class="px-3 py-3 align-top text-xs text-slate-600">
-														<pre class="max-w-xs overflow-x-auto font-mono whitespace-pre-wrap">
-															{JSON.stringify(
-																{
-																	before: row.beforeJson,
-																	after: row.afterJson,
-																},
-																null,
-																0
-															)}
-														</pre>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-									{auditRows.length === 0 && (
-										<p class="px-3 py-6 text-sm text-slate-600">
-											Aún no hay eventos de auditoría de cumplimiento.
-										</p>
-									)}
-								</div>
-							</Card>
-						)}
+												{!focusedDetail.pending.verification &&
+												focusedDetail.pending.fiscal === 0 &&
+												focusedDetail.pending.documents === 0 &&
+												focusedDetail.pending.payments === 0 ? (
+													<p class="text-sm text-slate-600" data-case-templates-empty>
+														Sin acciones pendientes en este caso.
+													</p>
+												) : null}
+											</section>
+
+											{focusedDetail.audit.length ? (
+												<div class="overflow-x-auto">
+													<p class="mb-2 text-sm font-semibold text-slate-900">
+														Auditoría reciente
+													</p>
+													<table class="min-w-full divide-y divide-slate-200 text-sm">
+														<thead>
+															<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+																<th class="px-2 py-1">Cuándo</th>
+																<th class="px-2 py-1">Acción</th>
+																<th class="px-2 py-1">Actor</th>
+															</tr>
+														</thead>
+														<tbody class="divide-y divide-slate-200">
+															{focusedDetail.audit.slice(0, 8).map((row) => (
+																<tr>
+																	<td class="px-2 py-2 text-slate-700">
+																		{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
+																	</td>
+																	<td class="px-2 py-2 text-slate-900">{row.actionLabel}</td>
+																	<td class="px-2 py-2 text-slate-600">
+																		{row.actorEmail || row.actorUserId || "—"}
+																	</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											) : (
+												<p class="text-sm text-slate-600">Sin eventos de auditoría recientes.</p>
+											)}
+										</aside>
+									</>
+								) : null}
+							</div>
+						</div>
 					</>
 				)
 			}
@@ -1099,12 +1480,39 @@ const queueButtons = [
 			const providerId = button.getAttribute("data-provider-id")
 			if (!accountId || !providerId) return
 			button.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/payment-accounts", {
-				providerId,
-				accountId,
-				action: "initiate_micro_deposit",
-			})
-			button.removeAttribute("disabled")
+			try {
+				const res = await fetch("/api/admin/providers/payment-accounts", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						providerId,
+						accountId,
+						action: "initiate_micro_deposit",
+					}),
+				})
+				const body = await res.json().catch(() => ({}))
+				if (res.status === 200) {
+					const cents = Array.isArray(body.depositAmountsCents) ? body.depositAmountsCents : null
+					const railMode = body.rail?.mode || "simulated"
+					let msg = "Micro-depósito iniciado."
+					if (cents && cents.length === 2) {
+						msg += ` Montos de prueba (solo ops): ${cents[0]}¢ y ${cents[1]}¢.`
+					}
+					if (railMode !== "live") {
+						msg += " Rail simulado — no salió ACH bancario real."
+					}
+					showFeedback("success", msg + " Recargando...")
+					window.setTimeout(() => window.location.reload(), 1400)
+					return
+				}
+				if (res.status === 403) {
+					showFeedback("error", "Not authorized")
+					return
+				}
+				showFeedback(res.status === 400 ? "warning" : "error", body.error || "Error")
+			} finally {
+				button.removeAttribute("disabled")
+			}
 		})
 	})
 
@@ -1119,16 +1527,109 @@ const queueButtons = [
 			const submitButton = form.querySelector("button[type='submit']")
 			if (!providerId || !domain || !entityId) return
 			if (submitButton) submitButton.setAttribute("disabled", "true")
+			const assigneeEmail = emailInput instanceof HTMLInputElement ? emailInput.value : ""
 			await postJson("/api/admin/providers/compliance-assignments", {
 				providerId,
 				domain,
 				entityId,
-				assigneeEmail: emailInput instanceof HTMLInputElement ? emailInput.value : "",
+				assigneeEmail,
 				slaHours: slaInput instanceof HTMLInputElement ? Number(slaInput.value) : 48,
 			})
+			const normalized = String(assigneeEmail || "")
+				.trim()
+				.toLowerCase()
+			if (normalized) {
+				try {
+					const key = "fastt.admin.assigneeShortcuts"
+					const prev = JSON.parse(localStorage.getItem(key) || "[]")
+					const next = [normalized, ...(Array.isArray(prev) ? prev : [])]
+						.filter((value, index, all) => value && all.indexOf(value) === index)
+						.slice(0, 5)
+					localStorage.setItem(key, JSON.stringify(next))
+				} catch {}
+			}
 			if (submitButton) submitButton.removeAttribute("disabled")
 		})
 	})
+
+	document.querySelectorAll("[data-assignee-shortcut]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const email = button.getAttribute("data-assignee-shortcut")
+			const root = button.closest("[data-assignee-shortcuts-root]")
+			const input = root?.querySelector("[data-assignee-email-input]")
+			if (!email || !(input instanceof HTMLInputElement)) return
+			input.value = email
+			input.focus()
+		})
+	})
+
+	document.querySelectorAll("[data-case-template]").forEach((button) => {
+		button.addEventListener("click", () => {
+			const body = button.getAttribute("data-template-body")
+			const card = button.closest("[data-case-domain]")
+			const textarea = card?.querySelector("[data-case-reason]")
+			const select = card?.querySelector("[data-reject-template]")
+			if (!body || !(textarea instanceof HTMLTextAreaElement)) return
+			textarea.value = body
+			if (select instanceof HTMLSelectElement) {
+				select.value = body
+			}
+			textarea.focus()
+		})
+	})
+	;(function setupCaseDrawerA11y() {
+		const drawer = document.querySelector("[data-case-drawer]")
+		if (!(drawer instanceof HTMLElement)) return
+		const closeHref =
+			document.querySelector("[data-case-drawer-close]")?.getAttribute("href") || "/admin/providers"
+		const focusableSelector =
+			'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+
+		function getFocusable() {
+			return Array.from(drawer.querySelectorAll(focusableSelector)).filter(
+				(el) => el instanceof HTMLElement && !el.hasAttribute("disabled")
+			)
+		}
+
+		const closeControl = drawer.querySelector("[data-case-drawer-close]")
+		if (closeControl instanceof HTMLElement) {
+			closeControl.focus()
+		} else {
+			drawer.focus()
+		}
+
+		const isMobile = window.matchMedia("(max-width: 1023px)").matches
+		if (isMobile) {
+			document.body.style.overflow = "hidden"
+		}
+
+		function onKeyDown(event) {
+			if (event.key === "Escape") {
+				event.preventDefault()
+				window.location.href = closeHref
+				return
+			}
+			if (event.key !== "Tab") return
+			const focusable = getFocusable()
+			if (focusable.length === 0) return
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			const active = document.activeElement
+			if (event.shiftKey && active === first) {
+				event.preventDefault()
+				last.focus()
+			} else if (!event.shiftKey && active === last) {
+				event.preventDefault()
+				first.focus()
+			}
+		}
+
+		document.addEventListener("keydown", onKeyDown)
+		window.addEventListener("pagehide", () => {
+			document.body.style.overflow = ""
+			document.removeEventListener("keydown", onKeyDown)
+		})
+	})()
 
 	document.querySelectorAll("[data-payment-attention-form]").forEach((form) => {
 		form.addEventListener("submit", async (event) => {

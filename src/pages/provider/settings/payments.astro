@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getPayoutRailStatus } from "@/lib/payout-rail"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import { routes } from "@/lib/routes"
@@ -22,6 +23,7 @@ const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.u
 const summary = summaryRes.ok ? await summaryRes.json() : null
 const permissions = summary?.permissions ?? {}
 const accounts = await listProviderPaymentAccounts(auth.providerId).catch(() => [])
+const payoutRail = getPayoutRailStatus()
 const openAssignments = await listOpenComplianceAssignments({ providerId: auth.providerId }).catch(
 	() => []
 )
@@ -36,12 +38,12 @@ const resultMessages: Record<string, { title: string; body: string; variant: "su
 	{
 		submitted: {
 			title: "Cuenta enviada",
-			body: "Paso 1 listo. Ahora espera los depósitos de prueba; el timeline en la cuenta te guía hasta que quede lista.",
+			body: "Paso 1 listo. Revisa el extracto en 1–2 días hábiles: verás dos depósitos pequeños. El timeline de la cuenta te guía hasta confirmar montos.",
 			variant: "success",
 		},
 		micro_deposit_confirmed: {
 			title: "Cuenta lista",
-			body: "Confirmaste los montos. La cuenta quedó verificada para liquidaciones.",
+			body: "Confirmaste los montos del extracto. La cuenta quedó verificada para liquidaciones.",
 			variant: "success",
 		},
 	}
@@ -58,7 +60,7 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 	{
 		micro_deposit_mismatch: {
 			title: "Montos incorrectos",
-			body: "Los montos no coinciden. Revisa tu extracto e inténtalo de nuevo (máximo 3 intentos).",
+			body: "Los montos no coinciden con el extracto. Revisa los dos créditos pequeños e inténtalo de nuevo (máximo 3 intentos). Ejemplo: $0.32 → 32 centavos.",
 			variant: "warning",
 		},
 		micro_deposit_failed: {
@@ -81,6 +83,11 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 			body: "Ingresa dos montos enteros entre 1 y 99 centavos.",
 			variant: "warning",
 		},
+		pending_account_in_progress: {
+			title: "Ya hay una cuenta en curso",
+			body: "Termina la verificación de la cuenta pendiente antes de enviar otra. Una cuenta primero evita depósitos mezclados.",
+			variant: "warning",
+		},
 	}
 ---
 
@@ -88,7 +95,7 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 	title="Pagos"
 	eyebrow="Configuración del proveedor · Pagos"
 	heading="Pagos y liquidaciones"
-	description="Cuentas bancarias para recibir pagos. Separado de tu registro fiscal y de los impuestos que cobras al huésped."
+	description="Una cuenta a la vez. Confirma los micro-depósitos del extracto para habilitar liquidaciones."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
 		<Button href={routes.providerSettingsTaxFees()} variant="secondary">Fiscalidad</Button>
@@ -100,8 +107,17 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
 				<p>{resultMessages[result].body}</p>
 				{postSaveCtaByResult[result] ? (
-					<p class="mt-3" data-post-save-cta>
-						<a class="font-semibold underline" href={postSaveCtaByResult[result].href}>
+					<p
+						class="mt-3"
+						data-post-save-cta
+						data-funnel-domain="payments"
+						data-funnel-surface="payments"
+					>
+						<a
+							class="font-semibold underline"
+							href={postSaveCtaByResult[result].href}
+							data-funnel-cta="post_save"
+						>
 							{postSaveCtaByResult[result].label}
 						</a>
 					</p>
@@ -122,5 +138,6 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 		canManagePayments={Boolean(permissions.canManagePayments)}
 		defaultCurrency={defaultCurrency}
 		paymentAssignments={paymentAssignments}
+		payoutRail={payoutRail}
 	/>
 </ProviderSettingsLayout>

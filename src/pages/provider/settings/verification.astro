@@ -56,9 +56,12 @@ const documentAssignmentById = new Map(
 )
 const result = Astro.url.searchParams.get("result")
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
-const defaultUploadType = providerDocumentTypes.some((item) => item.value === requestedType)
+const optionalDocumentTypes = providerDocumentTypes.filter(
+	(item) => !(requiredKycDocumentTypes as readonly string[]).includes(item.value)
+)
+const defaultOptionalUploadType = optionalDocumentTypes.some((item) => item.value === requestedType)
 	? requestedType
-	: requiredKycDocumentTypes[0]
+	: optionalDocumentTypes[0]?.value
 
 const kycSlots = buildRequiredKycSlots({
 	documents,
@@ -96,17 +99,30 @@ const resultMessages: Record<
 <ProviderSettingsLayout
 	title="Verificación y documentos"
 	heading="Verificación"
-	description="Estado de aprobación del proveedor y documentos de respaldo para operar con confianza."
+	description="Un próximo documento a la vez. Sin lo mínimo verificado no puedes cobrar ni publicar con confianza."
 >
 	{
 		result && resultMessages[result] ? (
 			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
 				<p>{resultMessages[result].body}</p>
-				<div class="mt-3 flex flex-wrap gap-3" data-post-save-cta>
-					<a class="font-semibold underline" href={routes.providerSettingsTaxFees()}>
+				<div
+					class="mt-3 flex flex-wrap gap-3"
+					data-post-save-cta
+					data-funnel-domain="verification"
+					data-funnel-surface="verification"
+				>
+					<a
+						class="font-semibold underline"
+						href={routes.providerSettingsTaxFees()}
+						data-funnel-cta="post_save"
+					>
 						Continuar a registro fiscal
 					</a>
-					<a class="font-semibold underline" href={routes.providerSettingsPayments()}>
+					<a
+						class="font-semibold underline"
+						href={routes.providerSettingsPayments()}
+						data-funnel-cta="post_save"
+					>
 						Continuar a pagos
 					</a>
 				</div>
@@ -125,146 +141,137 @@ const resultMessages: Record<
 		slots={kycSlots}
 		canManageDocuments={canManageDocuments}
 		documentAssignments={Object.fromEntries(documentAssignmentById)}
+		focusType={requestedType}
 	/>
 
-	<div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-		<Card>
-			<div class="space-y-4">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Otros documentos</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">
-							Respaldo adicional (propiedad, licencias, domicilio). El checklist mínimo está arriba.
-						</p>
-					</div>
-					<div class="flex flex-wrap gap-2">
-						<Badge variant={pendingCount ? "warning" : "neutral"}>
-							{pendingCount} pendiente{pendingCount === 1 ? "" : "s"}
-						</Badge>
-						<Badge variant={verifiedCount ? "success" : "neutral"}>
-							{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
-						</Badge>
-						<Badge variant={rejectedCount ? "error" : "neutral"}>
-							{rejectedCount} rechazado{rejectedCount === 1 ? "" : "s"}
-						</Badge>
-					</div>
-				</div>
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		data-verification-optionals
+		open={optionalDocuments.length > 0 &&
+			Boolean(requestedType) &&
+			!(requiredKycDocumentTypes as readonly string[]).includes(requestedType)}
+	>
+		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
+			Documentos opcionales ({optionalDocuments.length})
+		</summary>
+		<p class="mt-2 text-sm leading-6 text-slate-600">
+			Respaldo adicional (propiedad, licencias, domicilio). No desbloquean el checklist mínimo.
+		</p>
 
-				<div class="space-y-3">
-					{
-						optionalDocuments.length ? (
-							optionalDocuments.map((doc) => (
-								<Card variant="soft" class="space-y-3">
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-950">{doc.typeLabel}</p>
-											<p class="mt-1 text-sm text-slate-600">
-												{doc.fileName || "Sin nombre de archivo"}
-												{doc.mimeType ? ` · ${doc.mimeType}` : ""}
-											</p>
-											{doc.submissionNotes ? (
-												<p class="mt-2 text-sm leading-6 text-slate-600">
-													Nota de envío: {doc.submissionNotes}
-												</p>
-											) : null}
-											{doc.status === "rejected" && doc.reviewNotes ? (
-												<Notice variant="error" title="Motivo del rechazo" class="mt-3">
-													{doc.reviewNotes}
-												</Notice>
-											) : doc.reviewNotes ? (
-												<p class="mt-2 text-sm leading-6 text-slate-600">
-													Nota de revisión: {doc.reviewNotes}
-												</p>
-											) : null}
-										</div>
-										<Badge
-											variant={
-												doc.tone === "success"
-													? "success"
-													: doc.tone === "error"
-														? "error"
-														: doc.tone === "warning"
-															? "warning"
-															: "neutral"
-											}
-										>
-											{doc.statusLabel}
-										</Badge>
-									</div>
+		<div class="mt-4 flex flex-wrap gap-2">
+			<Badge variant={pendingCount ? "warning" : "neutral"}>
+				{pendingCount} pendiente{pendingCount === 1 ? "" : "s"}
+			</Badge>
+			<Badge variant={verifiedCount ? "success" : "neutral"}>
+				{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
+			</Badge>
+			<Badge variant={rejectedCount ? "error" : "neutral"}>
+				{rejectedCount} rechazado{rejectedCount === 1 ? "" : "s"}
+			</Badge>
+		</div>
 
-									{doc.status === "pending" ? (
-										<ProviderReviewWaitNotice
-											domain="document"
-											assignment={documentAssignmentById.get(doc.id) ?? null}
-											class="mt-3"
-										/>
-									) : null}
-								</Card>
-							))
-						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								No hay documentos opcionales cargados todavía.
-							</Card>
-						)
-					}
-				</div>
-			</div>
-		</Card>
-
-		<Card id="kyc-upload">
+		<div class="mt-4 space-y-3">
 			{
-				canManageDocuments ? (
-					<form
-						class="space-y-4"
-						method="post"
-						action="/api/provider/settings/documents"
-						enctype="multipart/form-data"
-					>
-						<input type="hidden" name="action" value="submit" />
-						<div>
-							<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
-							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Adjunta PDF o imagen (máx. 12&nbsp;MB). El archivo queda disponible solo para
-								revisión interna.
-							</p>
-						</div>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Tipo
-							<Select name="type" required>
-								{providerDocumentTypes.map((item) => (
-									<option value={item.value} selected={item.value === defaultUploadType}>
-										{item.label}
-										{(requiredKycDocumentTypes as readonly string[]).includes(item.value)
-											? " (mínimo)"
-											: ""}
-									</option>
-								))}
-							</Select>
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Archivo
-							<input
-								type="file"
-								name="file"
-								accept=".pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-								class="fastt-field block w-full text-sm text-slate-700 file:mr-3 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-							/>
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Notas de envío (opcional)
-							<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
-						</label>
-						<Button type="submit">Enviar a revisión</Button>
-					</form>
+				optionalDocuments.length ? (
+					optionalDocuments.map((doc) => (
+						<Card variant="soft" class="space-y-3">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div>
+									<p class="text-sm font-semibold text-slate-950">{doc.typeLabel}</p>
+									<p class="mt-1 text-sm text-slate-600">
+										{doc.fileName || "Sin nombre de archivo"}
+										{doc.mimeType ? ` · ${doc.mimeType}` : ""}
+									</p>
+									{doc.submissionNotes ? (
+										<p class="mt-2 text-sm leading-6 text-slate-600">
+											Nota de envío: {doc.submissionNotes}
+										</p>
+									) : null}
+									{doc.status === "rejected" && doc.reviewNotes ? (
+										<Notice variant="error" title="Motivo del rechazo" class="mt-3">
+											{doc.reviewNotes}
+										</Notice>
+									) : doc.reviewNotes ? (
+										<p class="mt-2 text-sm leading-6 text-slate-600">
+											Nota de revisión: {doc.reviewNotes}
+										</p>
+									) : null}
+								</div>
+								<Badge
+									variant={
+										doc.tone === "success"
+											? "success"
+											: doc.tone === "error"
+												? "error"
+												: doc.tone === "warning"
+													? "warning"
+													: "neutral"
+									}
+								>
+									{doc.statusLabel}
+								</Badge>
+							</div>
+
+							{doc.status === "pending" ? (
+								<ProviderReviewWaitNotice
+									domain="document"
+									assignment={documentAssignmentById.get(doc.id) ?? null}
+									class="mt-3"
+								/>
+							) : null}
+						</Card>
+					))
 				) : (
-					<div class="space-y-3">
-						<h2 class="text-xl font-semibold text-slate-950">Subir documento</h2>
-						<p class="text-sm leading-6 text-slate-600">
-							Tu rol actual no puede cargar documentos de cumplimiento.
-						</p>
-					</div>
+					<Card variant="soft" class="text-sm text-slate-600">
+						No hay documentos opcionales cargados todavía.
+					</Card>
 				)
 			}
-		</Card>
-	</div>
+		</div>
+
+		{
+			canManageDocuments && optionalDocumentTypes.length ? (
+				<form
+					class="mt-5 space-y-4 border-t border-slate-200 pt-4"
+					method="post"
+					action="/api/provider/settings/documents"
+					enctype="multipart/form-data"
+					id="kyc-upload"
+					data-optional-upload-form
+				>
+					<input type="hidden" name="action" value="submit" />
+					<div>
+						<h3 class="text-base font-semibold text-slate-950">Subir documento opcional</h3>
+						<p class="mt-1 text-sm leading-6 text-slate-600">
+							Adjunta PDF o imagen (máx. 12&nbsp;MB). Los mínimos se suben arriba, en cada slot.
+						</p>
+					</div>
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						Tipo
+						<Select name="type" required>
+							{optionalDocumentTypes.map((item) => (
+								<option value={item.value} selected={item.value === defaultOptionalUploadType}>
+									{item.label}
+								</option>
+							))}
+						</Select>
+					</label>
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						Archivo
+						<input
+							type="file"
+							name="file"
+							accept=".pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+							class="fastt-field block w-full text-sm text-slate-700 file:mr-3 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+						/>
+					</label>
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						Notas de envío (opcional)
+						<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
+					</label>
+					<Button type="submit">Enviar a revisión</Button>
+				</form>
+			) : null
+		}
+	</details>
 </ProviderSettingsLayout>

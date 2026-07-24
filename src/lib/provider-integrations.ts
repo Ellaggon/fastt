@@ -40,6 +40,12 @@ export type ProviderConnectorCatalogItem = {
 	requirements: string[]
 	defaultScopes: string[]
 	availableScopes: Array<{ key: string; label: string }>
+	/** Short host-facing setup help shown in Pro mode. */
+	docsLite: {
+		title: string
+		steps: string[]
+		tip?: string
+	}
 }
 
 export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
@@ -77,6 +83,16 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 			{ key: "payments:refund", label: "Gestionar reembolsos" },
 			{ key: "reconciliation:write", label: "Enviar conciliación" },
 		],
+		docsLite: {
+			title: "Cómo conectar la pasarela",
+			steps: [
+				"Crea o abre tu cuenta en el proveedor de pagos (sandbox primero).",
+				"Copia el enlace https de webhook/API o la referencia que te entreguen.",
+				"Pégala arriba, guarda y pulsa Probar conexión.",
+				"Cuando la prueba sea OK, cambia a Producción solo si el resto de la cuenta está lista.",
+			],
+			tip: "Sin cuenta de liquidación verificada, la pasarela puede guardar la conexión pero no operar cobros reales.",
+		},
 	},
 	{
 		key: "channel_manager",
@@ -91,6 +107,15 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 			{ key: "rates:sync", label: "Sincronizar tarifas" },
 			{ key: "restrictions:sync", label: "Sincronizar restricciones" },
 		],
+		docsLite: {
+			title: "Cómo conectar el channel manager",
+			steps: [
+				"En el channel manager, crea el establecimiento y anota el ID o URL de sync.",
+				"Pega la referencia https aquí y elige los permisos de disponibilidad/tarifas/restricciones.",
+				"Guarda y prueba la conexión antes de publicar en canales externos.",
+			],
+			tip: "Si la prueba falla, revisa que tarifas y calendario tengan datos base en Fastt.",
+		},
 	},
 	{
 		key: "external_calendars",
@@ -104,6 +129,14 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 			{ key: "calendar:import", label: "Importar bloqueos" },
 			{ key: "calendar:export", label: "Exportar disponibilidad" },
 		],
+		docsLite: {
+			title: "Cómo conectar calendarios",
+			steps: [
+				"Obtén el feed iCal/URL de importación o exportación del calendario externo.",
+				"Pega la referencia, elige importar y/o exportar, guarda y prueba.",
+			],
+			tip: "Importar y exportar a la vez puede crear bucles: empieza solo con importación.",
+		},
 	},
 	{
 		key: "webhooks_api",
@@ -118,6 +151,15 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 			{ key: "bookings:read", label: "Leer reservas" },
 			{ key: "inventory:read", label: "Leer inventario" },
 		],
+		docsLite: {
+			title: "Cómo conectar webhooks / API",
+			steps: [
+				"En tu sistema, crea un endpoint https que reciba eventos.",
+				"Pega la URL aquí, marca solo los permisos que necesitas y guarda.",
+				"Prueba la conexión y revisa la actividad reciente para confirmar entregas.",
+			],
+			tip: "Menos permisos = menos riesgo. Activa bookings/inventory solo si tu integración los usa.",
+		},
 	},
 	{
 		key: "accounting_export",
@@ -132,8 +174,30 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 			{ key: "taxes:export", label: "Exportar impuestos" },
 			{ key: "adjustments:export", label: "Exportar ajustes" },
 		],
+		docsLite: {
+			title: "Cómo conectar exportación contable",
+			steps: [
+				"Configura primero el registro fiscal y al menos una cuenta de liquidación.",
+				"Pega la referencia del conector contable (URL o ID de integración).",
+				"Elige qué exportar (liquidaciones / impuestos / ajustes), guarda y prueba.",
+			],
+			tip: "Sin identidad fiscal verificada, la exportación de impuestos puede quedar incompleta.",
+		},
 	},
 ]
+
+export function listProviderConnectorCatalog(): ProviderConnectorCatalogItem[] {
+	return connectorCatalog.map((item) => ({
+		...item,
+		availableScopes: item.availableScopes.map((scope) => ({ ...scope })),
+		requirements: [...item.requirements],
+		defaultScopes: [...item.defaultScopes],
+		docsLite: {
+			...item.docsLite,
+			steps: [...item.docsLite.steps],
+		},
+	}))
+}
 
 /** Simple-mode starters: payments + distribution (Airbnb/Expedia-shaped minimum). */
 export const recommendedProviderConnectorKeys = [
@@ -255,10 +319,6 @@ async function insertAudit(params: {
 				changedKeys: ["status", "mode", "credentialsRef"],
 			}),
 	})
-}
-
-export function listProviderConnectorCatalog(): ProviderConnectorCatalogItem[] {
-	return connectorCatalog
 }
 
 export async function listProviderIntegrations(params: {

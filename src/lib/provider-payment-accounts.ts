@@ -1,4 +1,4 @@
-import { createHmac, randomInt } from "node:crypto"
+import { createHmac } from "node:crypto"
 import {
 	first,
 	and,
@@ -13,6 +13,7 @@ import {
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
+import { initiatePayoutRailMicroDeposit, confirmStripeConnectMicroDeposit } from "@/lib/payout-rail"
 import {
 	buildPaymentAccountMetadata,
 	readAccountIdentifierFromMetadata,
@@ -331,12 +332,12 @@ export function buildPayoutVerificationTimeline(
 		phaseLabel = "Confirmar montos"
 		helperText =
 			attemptsUsed > 0
-				? `Los montos no coincidieron. Te quedan ${attemptsRemaining} intento${attemptsRemaining === 1 ? "" : "s"}.`
-				: "Revisa tu extracto bancario e ingresa los dos montos en centavos (entre 1 y 99)."
+				? `Los montos no coincidieron. Te quedan ${attemptsRemaining} intento${attemptsRemaining === 1 ? "" : "s"}. Busca en el extracto dos créditos pequeños (a menudo < $1) y anótalos en centavos.`
+				: "Abre tu extracto o app del banco, busca dos créditos pequeños recientes (verificación / Fastt) e ingresa ambos montos en centavos (ej. $0.32 → 32)."
 	} else if (account.status === "pending") {
 		phaseLabel = "Esperando depósitos"
 		helperText =
-			"Cuenta enviada. Cuando Fastt inicie la verificación, verás aquí el paso para confirmar los montos."
+			"Cuenta enviada. En 1–2 días hábiles deberían aparecer dos depósitos de prueba en el extracto. No confirmes hasta verlos."
 	} else if (account.status === "superseded") {
 		phaseLabel = "Reemplazada"
 		helperText = "Esta cuenta fue reemplazada por un envío más reciente."
@@ -561,10 +562,26 @@ export async function createProviderPaymentAccount(params: {
 				eq(ProviderPaymentAccount.status, "pending")
 			)
 		)
-
 		.catch(() => [])
 
-	for (const row of pendingSameProvider) {
+	if (pendingSameProvider.length > 0) {
+		const error = new Error("pending_account_in_progress")
+		;(error as Error & { status?: number }).status = 409
+		throw error
+	}
+
+	const attentionAccounts = await db
+		.select({ id: ProviderPaymentAccount.id })
+		.from(ProviderPaymentAccount)
+		.where(
+			and(
+				eq(ProviderPaymentAccount.providerId, params.providerId),
+				eq(ProviderPaymentAccount.status, "requires_attention")
+			)
+		)
+		.catch(() => [])
+
+	for (const row of attentionAccounts) {
 		await db
 			.update(ProviderPaymentAccount)
 			.set({ status: "superseded", updatedAt: now })
@@ -601,8 +618,8 @@ export async function createProviderPaymentAccount(params: {
 		action: "provider.payment_account.create",
 		entityType: "ProviderPaymentAccount",
 		entityId: id,
-		beforeJson: pendingSameProvider.length
-			? { supersededIds: pendingSameProvider.map((row) => row.id) }
+		beforeJson: attentionAccounts.length
+			? { supersededIds: attentionAccounts.map((row) => row.id) }
 			: null,
 		afterJson: {
 			id,
@@ -798,6 +815,7 @@ export async function reviewProviderPaymentAccount(params: {
 /**
  * Start micro-deposit ownership challenge (Airbnb-style). Amounts are hashed in
  * metadata; plaintext pair is returned only to the initiating admin (ops / harness).
+ * Amounts come from the payout rail adapter (simulated by default; Connect scaffolded).
  */
 export async function initiatePaymentAccountMicroDeposit(params: {
 	providerId: string
@@ -826,28 +844,69 @@ export async function initiatePaymentAccountMicroDeposit(params: {
 		throw error
 	}
 
-	const amount1 = randomInt(1, 99)
-	let amount2 = randomInt(1, 99)
-	if (amount2 === amount1) amount2 = amount1 === 99 ? 98 : amount1 + 1
+	const mapped = mapRow(existing, { includeSecret: false })
+	const accountIdentifier = readAccountIdentifierFromMetadata(existing.metadataJson)
+	const railResult = await initiatePayoutRailMicroDeposit({
+		accountId: existing.id,
+		providerId: params.providerId,
+		actorUserId: params.actorUserId,
+		currency: mapped.currency,
+		accountNumberLast4: mapped.accountNumberLast4,
+		country: mapped.country,
+		accountIdentifier,
+		routingOrSwift: existing.routingOrSwift,
+		accountHolderName: existing.accountHolderName,
+	})
+
+	const liveRail = railResult.ok && railResult.mode === "live" && Boolean(railResult.externalRef)
+	const alreadyVerified = Boolean(railResult.alreadyVerified)
+	if (!railResult.ok || (!liveRail && !railResult.depositAmountsCents && !alreadyVerified)) {
+		const error = new Error(railResult.error || "payout_rail_initiate_failed")
+		;(error as Error & { status?: number }).status = 503
+		throw error
+	}
+
+	const amount1 = railResult.depositAmountsCents?.[0] ?? null
+	const amount2 = railResult.depositAmountsCents?.[1] ?? null
 	const now = new Date()
 	const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 	const meta = readMetadata(existing.metadataJson)
+	const microStatus = alreadyVerified ? "confirmed" : "initiated"
+	const verifyVia = liveRail || alreadyVerified ? "stripe" : "hash"
 
 	await db
 		.update(ProviderPaymentAccount)
 		.set({
+			status: alreadyVerified ? "verified" : existing.status,
+			verifiedAt: alreadyVerified ? now : existing.verifiedAt,
 			metadataJson: {
 				...meta,
+				payoutRail: {
+					provider: railResult.provider,
+					mode: railResult.mode,
+					externalRef: railResult.externalRef,
+					fallbackFrom: railResult.fallbackFrom ?? null,
+					verificationMethod: railResult.verificationMethod ?? null,
+					clientSecretPresent: Boolean(railResult.clientSecret),
+					// Transient FC secret for host UI / ops; prefer short-lived use then clear.
+					...(railResult.clientSecret ? { clientSecret: railResult.clientSecret } : {}),
+					initiatedAt: now.toISOString(),
+				},
 				microDeposit: {
-					status: "initiated",
-					amountHashes: [
-						hashMicroDepositAmount(existing.id, amount1),
-						hashMicroDepositAmount(existing.id, amount2),
-					],
+					status: microStatus,
+					verifyVia,
+					amountHashes:
+						amount1 != null && amount2 != null
+							? [
+									hashMicroDepositAmount(existing.id, amount1),
+									hashMicroDepositAmount(existing.id, amount2),
+								]
+							: [],
 					initiatedAt: now.toISOString(),
 					expiresAt: expiresAt.toISOString(),
 					attempts: 0,
 					initiatedBy: params.actorUserId,
+					...(alreadyVerified ? { confirmedAt: now.toISOString() } : {}),
 				},
 			},
 			updatedAt: now,
@@ -861,7 +920,16 @@ export async function initiatePaymentAccountMicroDeposit(params: {
 		entityType: "ProviderPaymentAccount",
 		entityId: existing.id,
 		beforeJson: { microDeposit: readMicroDepositChallenge(meta) },
-		afterJson: { status: "initiated", expiresAt: expiresAt.toISOString() },
+		afterJson: {
+			status: microStatus,
+			expiresAt: expiresAt.toISOString(),
+			railProvider: railResult.provider,
+			railMode: railResult.mode,
+			railFallbackFrom: railResult.fallbackFrom ?? null,
+			verificationMethod: railResult.verificationMethod ?? null,
+			alreadyVerified,
+			verifyVia,
+		},
 		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
 	})
 
@@ -879,11 +947,24 @@ export async function initiatePaymentAccountMicroDeposit(params: {
 			...after,
 			microDeposit: {
 				...after.microDeposit,
-				amountsCents: [amount1, amount2] as [number, number],
+				...(amount1 != null && amount2 != null
+					? { amountsCents: [amount1, amount2] as [number, number] }
+					: {}),
 			},
 		},
-		/** Simulated deposit amounts (cents). In production these would be sent by the bank rail. */
-		depositAmountsCents: [amount1, amount2] as [number, number],
+		/** Deposit amounts (cents). Simulated rail returns plaintext for ops/harness; live ACH does not. */
+		depositAmountsCents:
+			amount1 != null && amount2 != null ? ([amount1, amount2] as [number, number]) : null,
+		rail: {
+			provider: railResult.provider,
+			mode: railResult.mode,
+			externalRef: railResult.externalRef,
+			fallbackFrom: railResult.fallbackFrom ?? null,
+			message: railResult.message ?? null,
+			verificationMethod: railResult.verificationMethod ?? null,
+			alreadyVerified,
+			clientSecret: railResult.clientSecret ?? null,
+		},
 	}
 }
 
@@ -896,18 +977,26 @@ export async function confirmPaymentAccountMicroDeposit(params: {
 	accountId: string
 	amount1Cents: unknown
 	amount2Cents: unknown
+	/** Stripe SM**** descriptor code (SetupIntent verify_microdeposits alternative). */
+	descriptorCode?: unknown
 }) {
 	await assertCanManagePayments(params.providerId, params.actorUserId)
+
+	const descriptorCode = String(params.descriptorCode ?? "")
+		.trim()
+		.toUpperCase()
+	const useDescriptor = Boolean(descriptorCode && /^SM[A-Z0-9]{4}$/.test(descriptorCode))
 
 	const amount1 = Number(params.amount1Cents)
 	const amount2 = Number(params.amount2Cents)
 	if (
-		!Number.isInteger(amount1) ||
-		!Number.isInteger(amount2) ||
-		amount1 < 1 ||
-		amount1 > 99 ||
-		amount2 < 1 ||
-		amount2 > 99
+		!useDescriptor &&
+		(!Number.isInteger(amount1) ||
+			!Number.isInteger(amount2) ||
+			amount1 < 1 ||
+			amount1 > 99 ||
+			amount2 < 1 ||
+			amount2 > 99)
 	) {
 		const error = new Error("invalid_micro_deposit_amounts")
 		;(error as Error & { status?: number }).status = 400
@@ -960,17 +1049,45 @@ export async function confirmPaymentAccountMicroDeposit(params: {
 	const hashes = Array.isArray(challengeObj.amountHashes)
 		? challengeObj.amountHashes.map((value) => String(value))
 		: []
-	const submitted = [
-		hashMicroDepositAmount(existing.id, amount1),
-		hashMicroDepositAmount(existing.id, amount2),
-	].sort()
-	const expected = [...hashes].sort()
+	const verifyVia = String(challengeObj.verifyVia ?? "hash")
+	const payoutRail =
+		meta.payoutRail && typeof meta.payoutRail === "object" && !Array.isArray(meta.payoutRail)
+			? (meta.payoutRail as Record<string, unknown>)
+			: null
 	const attempts = (Number(challengeObj.attempts) || 0) + 1
-	const matched =
-		submitted.length === 2 &&
-		expected.length === 2 &&
-		submitted[0] === expected[0] &&
-		submitted[1] === expected[1]
+	let matched = false
+
+	if (verifyVia === "stripe") {
+		const externalRef = String(payoutRail?.externalRef ?? "").trim()
+		const stripeResult = await confirmStripeConnectMicroDeposit({
+			externalRef,
+			amount1Cents: Number.isInteger(amount1) ? amount1 : 0,
+			amount2Cents: Number.isInteger(amount2) ? amount2 : 0,
+			descriptorCode: useDescriptor ? descriptorCode : null,
+		})
+		matched = stripeResult.ok
+		if (!matched && stripeResult.error === "invalid_external_ref") {
+			const error = new Error("micro_deposit_not_initiated")
+			;(error as Error & { status?: number }).status = 409
+			throw error
+		}
+		if (!matched && stripeResult.error === "financial_connections_pending_ui") {
+			const error = new Error("financial_connections_pending_ui")
+			;(error as Error & { status?: number }).status = 409
+			throw error
+		}
+	} else {
+		const submitted = [
+			hashMicroDepositAmount(existing.id, amount1),
+			hashMicroDepositAmount(existing.id, amount2),
+		].sort()
+		const expected = [...hashes].sort()
+		matched =
+			submitted.length === 2 &&
+			expected.length === 2 &&
+			submitted[0] === expected[0] &&
+			submitted[1] === expected[1]
+	}
 
 	const now = new Date()
 	if (!matched) {

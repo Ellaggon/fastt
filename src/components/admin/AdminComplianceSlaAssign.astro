@@ -12,9 +12,20 @@ type Props = {
 		slaDueAt: Date | string | null
 		slaState: "ok" | "due_soon" | "overdue" | "done"
 	} | null
+	/** Current admin email for "Yo" shortcut. */
+	currentAdminEmail?: string | null
+	/** Recent / open-queue assignee emails for quick fill. */
+	assigneeShortcuts?: string[]
 }
 
-const { providerId, domain, entityId, assignment = null } = Astro.props as Props
+const {
+	providerId,
+	domain,
+	entityId,
+	assignment = null,
+	currentAdminEmail = null,
+	assigneeShortcuts = [],
+} = Astro.props as Props
 const summary = formatAdminComplianceSlaSummary(assignment)
 const slaTone =
 	assignment?.slaState === "overdue"
@@ -22,9 +33,25 @@ const slaTone =
 		: assignment?.slaState === "due_soon"
 			? "text-amber-700"
 			: "text-slate-500"
+
+const me = String(currentAdminEmail ?? "")
+	.trim()
+	.toLowerCase()
+const shortcutEmails = Array.from(
+	new Set(
+		[
+			me,
+			...assigneeShortcuts.map((email) =>
+				String(email ?? "")
+					.trim()
+					.toLowerCase()
+			),
+		].filter(Boolean)
+	)
+).slice(0, 5)
 ---
 
-<div class="space-y-2">
+<div class="space-y-2" data-assignee-shortcuts-root>
 	{
 		summary ? (
 			<p class:list={["text-xs", slaTone]} data-sla-summary>
@@ -33,6 +60,22 @@ const slaTone =
 		) : (
 			<p class="text-xs text-slate-500">Sin SLA asignado</p>
 		)
+	}
+	{
+		shortcutEmails.length ? (
+			<div class="flex flex-wrap gap-1.5" data-assignee-shortcuts>
+				{shortcutEmails.map((email) => (
+					<button
+						type="button"
+						class="fastt-button rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+						data-assignee-shortcut={email}
+						data-assignee-me={me && email === me ? "true" : undefined}
+					>
+						{me && email === me ? "Yo" : email}
+					</button>
+				))}
+			</div>
+		) : null
 	}
 	<form
 		class="flex flex-col gap-2"
@@ -47,6 +90,7 @@ const slaTone =
 			placeholder="responsable@fastt.test"
 			value={assignment?.assigneeEmail ?? ""}
 			class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+			data-assignee-email-input
 		/>
 		<input
 			name="slaHours"

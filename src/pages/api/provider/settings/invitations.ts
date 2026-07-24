@@ -1,10 +1,37 @@
 import type { APIRoute } from "astro"
-import { first, and, db, eq, ProviderInvitation, sql } from "@/shared/infrastructure/db/compat"
+import {
+	first,
+	and,
+	db,
+	eq,
+	Provider,
+	ProviderInvitation,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { classifyInvitationMailStatus } from "@/lib/email/invitationMailStatus"
+import { sendProviderInvitationEmail } from "@/lib/email/providerInvitationEmail"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
+import {
+	buildProviderInvitationAcceptPath,
+	createProviderInvitationToken,
+} from "@/lib/provider-invitations"
+
+async function resolveProviderDisplayName(providerId: string) {
+	const row = await db
+		.select({
+			displayName: Provider.displayName,
+			legalName: Provider.legalName,
+		})
+		.from(Provider)
+		.where(eq(Provider.id, providerId))
+		.then(first)
+		.catch(() => null)
+	return String(row?.displayName || row?.legalName || "Proveedor Fastt").trim()
+}
 
 const inviteSchema = z.object({
 	email: z
@@ -31,8 +58,11 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return accept.includes("text/html")
 }
 
-function redirectToTeam(request: Request, result: string) {
-	return Response.redirect(new URL(`/provider/settings/team?result=${result}`, request.url), 303)
+function redirectToTeam(request: Request, result: string, opts?: { mail?: string | null }) {
+	const url = new URL(`/provider/settings/team?result=${encodeURIComponent(result)}`, request.url)
+	const mail = String(opts?.mail ?? "").trim()
+	if (mail) url.searchParams.set("mail", mail)
+	return Response.redirect(url, 303)
 }
 
 function redirectToTeamError(request: Request, error: string) {
@@ -126,6 +156,7 @@ export const POST: APIRoute = async ({ request }) => {
 					role: ProviderInvitation.role,
 					status: ProviderInvitation.status,
 					expiresAt: ProviderInvitation.expiresAt,
+					token: ProviderInvitation.token,
 				})
 				.from(ProviderInvitation)
 				.where(
@@ -138,20 +169,34 @@ export const POST: APIRoute = async ({ request }) => {
 					? redirectToTeamError(request, "not_found")
 					: json({ error: "not_found" }, 404)
 			}
-			if (existing.status !== "pending") {
+			if (existing.status !== "pending" && existing.status !== "expired") {
 				return shouldReturnHtmlRedirect(request)
-					? redirectToTeamError(request, "not_pending")
-					: json({ error: "not_pending" }, 409)
+					? redirectToTeamError(request, "not_resendable")
+					: json({ error: "not_resendable" }, 409)
 			}
 
 			const now = new Date()
 			const expiresAt = new Date(now)
 			expiresAt.setDate(expiresAt.getDate() + 14)
+			const token = createProviderInvitationToken()
 
 			await db
 				.update(ProviderInvitation)
-				.set({ status: "pending", expiresAt, updatedAt: now })
+				.set({ status: "pending", expiresAt, token, updatedAt: now })
 				.where(eq(ProviderInvitation.id, parsed.id))
+
+			const providerDisplayName = await resolveProviderDisplayName(providerId)
+			const emailResult = await sendProviderInvitationEmail({
+				to: existing.email,
+				providerDisplayName,
+				role: existing.role,
+				token,
+				requestUrl: request.url,
+				expiresAt,
+				kind: "resend",
+			})
+			const acceptPath = emailResult.acceptPath || buildProviderInvitationAcceptPath(token)
+			const mailStatus = classifyInvitationMailStatus(emailResult)
 
 			await writeProviderAuditLog({
 				providerId,
@@ -170,6 +215,10 @@ export const POST: APIRoute = async ({ request }) => {
 					role: existing.role,
 					status: "pending",
 					expiresAt,
+					tokenRotated: true,
+					emailSent: emailResult.ok,
+					emailProvider: emailResult.provider,
+					mailStatus,
 				},
 				riskLevel: teamRisk,
 			})
@@ -177,8 +226,15 @@ export const POST: APIRoute = async ({ request }) => {
 			await invalidateProviderGovernance(providerId, "provider_invitation_resent")
 
 			return shouldReturnHtmlRedirect(request)
-				? redirectToTeam(request, "resent")
-				: json({ ok: true, expiresAt })
+				? redirectToTeam(request, "resent", { mail: mailStatus })
+				: json({
+						ok: true,
+						expiresAt,
+						acceptPath,
+						emailSent: emailResult.ok,
+						emailProvider: emailResult.provider,
+						mailStatus,
+					})
 		}
 
 		const parsed = inviteSchema.parse({
@@ -207,6 +263,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const expiresAt = new Date(now)
 		expiresAt.setDate(expiresAt.getDate() + 14)
 		const id = crypto.randomUUID()
+		const token = createProviderInvitationToken()
 
 		await db.insert(ProviderInvitation).values({
 			id,
@@ -214,11 +271,25 @@ export const POST: APIRoute = async ({ request }) => {
 			email: parsed.email,
 			role: parsed.role,
 			status: "pending",
+			token,
 			invitedBy: user.id,
 			expiresAt,
 			createdAt: now,
 			updatedAt: now,
 		})
+
+		const providerDisplayName = await resolveProviderDisplayName(providerId)
+		const emailResult = await sendProviderInvitationEmail({
+			to: parsed.email,
+			providerDisplayName,
+			role: parsed.role,
+			token,
+			requestUrl: request.url,
+			expiresAt,
+			kind: "create",
+		})
+		const acceptPath = emailResult.acceptPath || buildProviderInvitationAcceptPath(token)
+		const mailStatus = classifyInvitationMailStatus(emailResult)
 
 		await writeProviderAuditLog({
 			providerId,
@@ -233,6 +304,10 @@ export const POST: APIRoute = async ({ request }) => {
 				status: "pending",
 				expiresAt,
 				invitedBy: user.id,
+				hasToken: true,
+				emailSent: emailResult.ok,
+				emailProvider: emailResult.provider,
+				mailStatus,
 			},
 			riskLevel: teamRisk,
 		})
@@ -240,8 +315,19 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProviderGovernance(providerId, "provider_invitation_created")
 
 		return shouldReturnHtmlRedirect(request)
-			? redirectToTeam(request, "invited")
-			: json({ id, status: "pending", expiresAt }, 201)
+			? redirectToTeam(request, "invited", { mail: mailStatus })
+			: json(
+					{
+						id,
+						status: "pending",
+						expiresAt,
+						acceptPath,
+						emailSent: emailResult.ok,
+						emailProvider: emailResult.provider,
+						mailStatus,
+					},
+					201
+				)
 	} catch (err: any) {
 		if (err instanceof Response) return err
 		if (err instanceof ZodError) {
