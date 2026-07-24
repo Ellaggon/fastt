@@ -55,12 +55,15 @@ export const POST: APIRoute = async ({ request }) => {
 	emitProviderSettingsFunnelEvent({
 		event,
 		providerId: surface.providerId,
-		domain: body.domain,
-		blockerId: body.blockerId,
-		ctaKind: body.ctaKind,
-		ctaTarget: body.ctaTarget,
-		surface: body.surface,
-		progressPercent: body.progressPercent as number | null | undefined,
+		domain: typeof body.domain === "string" ? body.domain : null,
+		blockerId: typeof body.blockerId === "string" ? body.blockerId : null,
+		ctaKind: typeof body.ctaKind === "string" ? body.ctaKind : null,
+		ctaTarget: typeof body.ctaTarget === "string" ? body.ctaTarget : null,
+		surface: typeof body.surface === "string" ? body.surface : null,
+		progressPercent:
+			typeof body.progressPercent === "number" && Number.isFinite(body.progressPercent)
+				? body.progressPercent
+				: null,
 		actorUserId: user.id,
 	})
 

@@ -60,6 +60,8 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 		})
 		expect(initiated.depositAmountsCents).toHaveLength(2)
 		expect(initiated.account.microDeposit.status).toBe("initiated")
+		const depositAmounts = initiated.depositAmountsCents
+		if (!depositAmounts) throw new Error("expected depositAmountsCents from simulated rail")
 
 		await expect(
 			confirmPaymentAccountMicroDeposit({
@@ -75,8 +77,8 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 			providerId,
 			actorUserId: ownerId,
 			accountId: account.id,
-			amount1Cents: initiated.depositAmountsCents[0],
-			amount2Cents: initiated.depositAmountsCents[1],
+			amount1Cents: depositAmounts[0],
+			amount2Cents: depositAmounts[1],
 		})
 		expect(confirmed.status).toBe("verified")
 		expect(confirmed.microDeposit.status).toBe("confirmed")

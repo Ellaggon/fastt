@@ -130,7 +130,10 @@ describe("S6-2 Resend staging/prod readiness", () => {
 
 			let captured: { from?: string; to?: string[] } | null = null
 			globalThis.fetch = (async (_input: any, init?: any) => {
-				captured = JSON.parse(String(init?.body ?? "{}"))
+				captured = JSON.parse(String(init?.body ?? "{}")) as {
+					from?: string
+					to?: string[]
+				}
 				return new Response(JSON.stringify({ id: "re_ok" }), {
 					status: 200,
 					headers: { "Content-Type": "application/json" },
@@ -144,8 +147,9 @@ describe("S6-2 Resend staging/prod readiness", () => {
 				html: "<p>Hello</p>",
 			})
 			expect(result).toEqual({ ok: true, provider: "resend", id: "re_ok" })
-			expect(captured?.from).toBe("Fastt <noreply@fastt.test>")
-			expect(captured?.to).toEqual(["persona@example.com"])
+			expect(captured).not.toBeNull()
+			expect(captured!.from).toBe("Fastt <noreply@fastt.test>")
+			expect(captured!.to).toEqual(["persona@example.com"])
 		} finally {
 			globalThis.fetch = prevFetch
 			for (const [key, value] of Object.entries(prev)) {
