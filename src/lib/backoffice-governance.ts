@@ -798,6 +798,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Authentication entry point.",
 	},
 	{
+		pattern: "/provider/invitations/accept",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Provider Setup",
+		rationale:
+			"Accept team invitation via emailed/shareable token; uses base Layout and sign-in returnTo before joining the provider workspace.",
+	},
+	{
 		pattern: "/auth/callback",
 		status: "public",
 		context: "public-marketplace",
