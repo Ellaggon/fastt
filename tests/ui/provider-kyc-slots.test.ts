@@ -87,6 +87,7 @@ describe("S1-1 KYC slots + reject reason", () => {
 			state: "rejected",
 			stateLabel: "Rechazado",
 			reviewNotes: "NIT ilegible, reenviar escaneo nítido",
+			rejectCategoryLabel: null,
 			uploadHref: "/provider/settings/verification?type=tax_document#kyc-upload",
 		})
 	})
@@ -102,11 +103,12 @@ describe("S1-1 KYC slots + reject reason", () => {
 		expect(page).toContain('id="kyc-upload"')
 		expect(page).toContain("Motivo del rechazo")
 
-		expect(card).toContain("Checklist KYC")
+		expect(card).toContain("Documentos mínimos")
 		expect(card).toContain("Motivo del rechazo")
 		expect(card).toContain("Reenviar documento")
 		expect(card).toContain("slot.stateLabel")
 		expect(card).toContain("slot.uploadHref")
+		expect(card).toContain("rejectCategoryLabel")
 		expect(card).toContain('slot.state === "rejected"')
 
 		const lib = read("src/lib/provider-documents.ts")
