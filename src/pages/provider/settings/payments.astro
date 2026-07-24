@@ -22,14 +22,58 @@ const summary = summaryRes.ok ? await summaryRes.json() : null
 const permissions = summary?.permissions ?? {}
 const accounts = await listProviderPaymentAccounts(auth.providerId).catch(() => [])
 const result = String(Astro.url.searchParams.get("result") ?? "").trim()
+const error = String(Astro.url.searchParams.get("error") ?? "").trim()
 const defaultCurrency = String(summary?.profile?.defaultCurrency ?? "USD")
+
+const resultMessages: Record<string, { title: string; body: string; variant: "success" | "info" }> =
+	{
+		submitted: {
+			title: "Cuenta enviada",
+			body: "Paso 1 listo. Ahora espera los depósitos de prueba; el timeline en la cuenta te guía hasta que quede lista.",
+			variant: "success",
+		},
+		micro_deposit_confirmed: {
+			title: "Cuenta lista",
+			body: "Confirmaste los montos. La cuenta quedó verificada para liquidaciones.",
+			variant: "success",
+		},
+	}
+
+const errorMessages: Record<string, { title: string; body: string; variant: "warning" | "error" }> =
+	{
+		micro_deposit_mismatch: {
+			title: "Montos incorrectos",
+			body: "Los montos no coinciden. Revisa tu extracto e inténtalo de nuevo (máximo 3 intentos).",
+			variant: "warning",
+		},
+		micro_deposit_failed: {
+			title: "Intentos agotados",
+			body: "Se agotaron los intentos de confirmación. Envía una cuenta nueva o contacta a soporte Fastt.",
+			variant: "error",
+		},
+		micro_deposit_expired: {
+			title: "Depósitos vencidos",
+			body: "El plazo para confirmar los montos venció. El equipo Fastt puede reiniciar la verificación.",
+			variant: "warning",
+		},
+		micro_deposit_not_initiated: {
+			title: "Aún no hay depósitos",
+			body: "La verificación de titularidad todavía no está lista para confirmar. Espera el paso “Esperando depósitos”.",
+			variant: "warning",
+		},
+		invalid_micro_deposit_amounts: {
+			title: "Montos inválidos",
+			body: "Ingresa dos montos enteros entre 1 y 99 centavos.",
+			variant: "warning",
+		},
+	}
 ---
 
 <ProviderSettingsLayout
 	title="Pagos"
 	eyebrow="Configuración del proveedor · Pagos"
 	heading="Pagos y liquidaciones"
-	description="Métodos de cobro del proveedor (payouts). Separado de la identidad fiscal y de los impuestos de venta al huésped."
+	description="Cuentas bancarias para recibir pagos. Separado de tu registro fiscal y de los impuestos que cobras al huésped."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
 		<Button href={routes.providerSettingsTaxFees()} variant="secondary">Fiscalidad</Button>
@@ -37,13 +81,16 @@ const defaultCurrency = String(summary?.profile?.defaultCurrency ?? "USD")
 	</div>
 
 	{
-		result === "submitted" ? (
-			<Notice variant="success" title="Cuenta enviada">
-				La cuenta quedó pendiente de validación por el equipo interno de Fastt.
+		result && resultMessages[result] ? (
+			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
+				{resultMessages[result].body}
 			</Notice>
-		) : result === "micro_deposit_confirmed" ? (
-			<Notice variant="success" title="Cuenta verificada">
-				Confirmaste el micro-depósito. La cuenta quedó verificada para liquidaciones.
+		) : null
+	}
+	{
+		error && errorMessages[error] ? (
+			<Notice variant={errorMessages[error].variant} title={errorMessages[error].title}>
+				{errorMessages[error].body}
 			</Notice>
 		) : null
 	}

@@ -51,6 +51,13 @@ function redirectToPayments(request: Request, result: string) {
 	)
 }
 
+function redirectToPaymentsError(request: Request, error: string) {
+	return Response.redirect(
+		new URL(`/provider/settings/payments?error=${encodeURIComponent(error)}`, request.url),
+		303
+	)
+}
+
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const { provider } = await requireProviderSessionSurface(request)
@@ -149,7 +156,14 @@ export const POST: APIRoute = async ({ request }) => {
 		if (err instanceof Response) return err
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
+		const message = String(err?.message || "Unknown error")
 		const status = typeof err?.status === "number" ? err.status : 400
-		return json({ error: String(err?.message || "Unknown error") }, status)
+		if (
+			shouldReturnHtmlRedirect(request) &&
+			(message.startsWith("micro_deposit_") || message === "invalid_micro_deposit_amounts")
+		) {
+			return redirectToPaymentsError(request, message)
+		}
+		return json({ error: message }, status)
 	}
 }
