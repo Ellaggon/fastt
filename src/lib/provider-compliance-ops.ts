@@ -267,7 +267,13 @@ export type ProviderComplianceSlaMirror = {
  * Without an open assignment → honest “sin plazo fijo”.
  */
 export function buildProviderComplianceSlaMirror(
-	assignment: Pick<ProviderComplianceAssignmentRecord, "slaDueAt" | "slaState"> | null | undefined
+	assignment:
+		| {
+				slaDueAt: Date | string | null
+				slaState: ProviderComplianceAssignmentRecord["slaState"]
+		  }
+		| null
+		| undefined
 ): ProviderComplianceSlaMirror {
 	if (!assignment?.slaDueAt) {
 		return {
