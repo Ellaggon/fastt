@@ -37,6 +37,8 @@ const counts = consolePayload?.counts ?? {
 	documents: 0,
 	payments: 0,
 	total: 0,
+	overdue: 0,
+	dueSoon: 0,
 }
 const sections = consolePayload?.sections ?? {
 	verification: false,
@@ -50,6 +52,8 @@ const taxRows = consolePayload?.fiscal ?? []
 const documentRows = consolePayload?.documents ?? []
 const paymentRows = consolePayload?.payments ?? []
 const auditRows = consolePayload?.audit ?? []
+const isSlaFilter = filter === "overdue" || filter === "due_soon"
+const slaTotal = rows.length + taxRows.length + documentRows.length + paymentRows.length
 
 const fmt = new Intl.DateTimeFormat("es-CL", {
 	dateStyle: "short",
@@ -66,6 +70,8 @@ const queueButtons = [
 	{ id: "fiscal", label: "Fiscal", count: counts.fiscal },
 	{ id: "documents", label: "Documentos", count: counts.documents },
 	{ id: "payments", label: "Pagos", count: counts.payments },
+	{ id: "overdue", label: "Vencidas", count: counts.overdue },
+	{ id: "due_soon", label: "Por vencer", count: counts.dueSoon },
 	{ id: "audit", label: "Auditoría", count: null as number | null },
 ] as const
 ---
@@ -76,9 +82,9 @@ const queueButtons = [
 			<header class="space-y-2">
 				<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
 				<p class="text-sm text-slate-300">
-					Consola unificada de revisión (Airbnb Trust &amp; Safety / Expedia partner ops):
-					verificación global, fiscal, documentos KYC y cuentas de payout. El proveedor envía; solo
-					el equipo interno valida. Toda decisión queda en auditoría.
+					Consola unificada de revisión: verificación global, fiscal, documentos de cumplimiento y
+					cuentas de payout. El proveedor envía; solo el equipo interno valida. Toda decisión queda
+					en auditoría.
 				</p>
 			</header>
 
@@ -92,7 +98,25 @@ const queueButtons = [
 					</Card>
 				) : (
 					<>
-						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+						{counts.overdue > 0 ? (
+							<div
+								data-sla-alert="overdue"
+								class="fastt-notice rounded-[var(--fastt-radius-card)] border border-red-400/60 bg-red-950/40 px-4 py-3 text-sm text-red-100"
+								role="alert"
+							>
+								<p class="font-semibold text-white">
+									{counts.overdue} asignación{counts.overdue === 1 ? "" : "es"} vencida
+									{counts.overdue === 1 ? "" : "s"} de SLA
+								</p>
+								<p class="mt-1 text-red-200">
+									Hay dominios de cumplimiento sin resolver más allá del objetivo interno.
+								</p>
+								<a href={queueHref("overdue")} class="mt-2 inline-block font-semibold underline">
+									Ver cola vencida
+								</a>
+							</div>
+						) : null}
+						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
 							<a
 								href={queueHref("all")}
 								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
@@ -148,6 +172,30 @@ const queueButtons = [
 								<p class="text-xs tracking-[0.14em] text-slate-400 uppercase">Pagos</p>
 								<p class="mt-1 text-2xl font-semibold text-white">{counts.payments}</p>
 							</a>
+							<a
+								href={queueHref("overdue")}
+								data-sla-queue="overdue"
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "overdue"
+										? "border-red-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-red-300 uppercase">Vencidas (SLA)</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.overdue}</p>
+							</a>
+							<a
+								href={queueHref("due_soon")}
+								data-sla-queue="due_soon"
+								class={`rounded-[var(--fastt-radius-card)] border px-4 py-3 transition ${
+									filter === "due_soon"
+										? "border-amber-400/60 bg-slate-800"
+										: "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+								}`}
+							>
+								<p class="text-xs tracking-[0.14em] text-amber-300 uppercase">Por vencer (SLA)</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{counts.dueSoon}</p>
+							</a>
 						</div>
 
 						<Card class="bg-slate-100">
@@ -176,6 +224,15 @@ const queueButtons = [
 							id="admin-compliance-feedback"
 							class="fastt-notice hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
 						/>
+
+						{isSlaFilter && slaTotal === 0 ? (
+							<Card class="bg-slate-100">
+								<p class="text-sm text-slate-700" data-sla-empty>
+									No hay asignaciones {filter === "overdue" ? "vencidas" : "por vencer"} en este
+									momento.
+								</p>
+							</Card>
+						) : null}
 
 						{focusedDetail ? (
 							<Card class="bg-slate-100">
@@ -506,7 +563,7 @@ const queueButtons = [
 						{sections.documents && (
 							<Card class="bg-slate-100">
 								<div class="mb-4 space-y-1">
-									<p class="text-lg font-semibold text-slate-900">Documentos KYC</p>
+									<p class="text-lg font-semibold text-slate-900">Documentos de cumplimiento</p>
 									<p class="text-sm text-slate-600">
 										Verificar o rechazar respaldos enviados por el proveedor.
 									</p>
@@ -630,8 +687,8 @@ const queueButtons = [
 								<div class="mb-4 space-y-1">
 									<p class="text-lg font-semibold text-slate-900">Cuentas de payout</p>
 									<p class="text-sm text-slate-600">
-										Validar ownership bancario (micro-depósito) o override admin. Al verificar se
-										actualiza ProviderFinancialProfile.
+										Validar titularidad bancaria (micro-depósito) o verificar manualmente. Al
+										verificar, la cuenta queda lista para liquidaciones del proveedor.
 									</p>
 								</div>
 								<div class="overflow-x-auto">
@@ -689,7 +746,7 @@ const queueButtons = [
 																data-verify-payment={account.id}
 																data-provider-id={account.providerId}
 															>
-																Verificar (override)
+																Verificar manualmente
 															</Button>
 															<AdminComplianceSlaAssign
 																providerId={account.providerId}

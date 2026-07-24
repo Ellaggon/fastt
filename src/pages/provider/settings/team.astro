@@ -1,4 +1,5 @@
 ---
+import ProviderInviteLifecycleStepper from "@/components/provider/ProviderInviteLifecycleStepper.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -8,6 +9,7 @@ import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import {
+	buildInviteLifecycleProgress,
 	formatProviderRoleLabel,
 	providerInviteLifecycleSteps,
 	providerRoleDescriptions,
@@ -51,6 +53,10 @@ const resultMessages: Record<string, { title: string; body: string }> = {
 	canceled: {
 		title: "Invitación cancelada",
 		body: "La invitación ya no se puede aceptar. Puedes crear una nueva si hace falta.",
+	},
+	resent: {
+		title: "Invitación reenviada",
+		body: "Extendimos el plazo de aceptación 14 días más desde ahora.",
 	},
 }
 
@@ -203,30 +209,48 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 			<div class="space-y-3">
 				{
 					pendingInvitations.length ? (
-						pendingInvitations.map((invitation: any) => (
-							<Card
-								variant="soft"
-								class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-							>
-								<div>
-									<p class="text-sm font-semibold text-slate-950">{invitation.email}</p>
-									<p class="mt-1 text-sm text-slate-600">
-										{invitation.statusLabel || "Pendiente de aceptación"} · Rol:{" "}
-										{roleLabelFor(invitation)} · Expira:{" "}
-										{new Date(invitation.expiresAt).toLocaleDateString("es-BO")}
-									</p>
-								</div>
-								{permissions.canInviteTeam && (
-									<form method="post" action="/api/provider/settings/invitations">
-										<input type="hidden" name="action" value="cancel" />
-										<input type="hidden" name="id" value={invitation.id} />
-										<Button type="submit" variant="secondary" size="sm">
-											Cancelar invitación
-										</Button>
-									</form>
-								)}
-							</Card>
-						))
+						pendingInvitations.map((invitation: any) => {
+							const progress = buildInviteLifecycleProgress({
+								status: invitation.status,
+								expiresAt: invitation.expiresAt,
+								acceptedAt: invitation.acceptedAt,
+							})
+							return (
+								<Card variant="soft" class="space-y-4">
+									<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+										<div>
+											<p class="text-sm font-semibold text-slate-950">{invitation.email}</p>
+											<p class="mt-1 text-sm text-slate-600">
+												{invitation.statusLabel || "Pendiente de aceptación"} ·{" "}
+												{progress.phaseLabel} · Rol: {roleLabelFor(invitation)} · Expira:{" "}
+												{new Date(invitation.expiresAt).toLocaleDateString("es-BO")}
+											</p>
+										</div>
+										{permissions.canInviteTeam && (
+											<div class="flex flex-wrap gap-2">
+												{progress.canResend && (
+													<form method="post" action="/api/provider/settings/invitations">
+														<input type="hidden" name="action" value="resend" />
+														<input type="hidden" name="id" value={invitation.id} />
+														<Button type="submit" variant="secondary" size="sm" data-invite-resend>
+															Reenviar invitación
+														</Button>
+													</form>
+												)}
+												<form method="post" action="/api/provider/settings/invitations">
+													<input type="hidden" name="action" value="cancel" />
+													<input type="hidden" name="id" value={invitation.id} />
+													<Button type="submit" variant="secondary" size="sm">
+														Cancelar invitación
+													</Button>
+												</form>
+											</div>
+										)}
+									</div>
+									<ProviderInviteLifecycleStepper progress={progress} compact />
+								</Card>
+							)
+						})
 					) : (
 						<Card variant="soft" class="space-y-2 text-sm text-slate-600">
 							<p class="font-semibold text-slate-950">Sin invitaciones en curso</p>
@@ -253,13 +277,13 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 	</Card>
 
 	<Card>
-		<div class="space-y-4">
-			<div>
-				<h2 class="text-xl font-semibold text-slate-950">Qué puede cada rol</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Resumen por rol humano. No cambia la matriz técnica de permisos.
-				</p>
-			</div>
+		<details class="space-y-4">
+			<summary class="cursor-pointer text-xl font-semibold text-slate-950">
+				Qué puede cada rol
+			</summary>
+			<p class="text-sm leading-6 text-slate-600">
+				Resumen por rol humano. No cambia la matriz técnica de permisos.
+			</p>
 			<div class="overflow-x-auto">
 				<table class="min-w-full text-left text-sm">
 					<thead
@@ -321,6 +345,6 @@ function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
 					</tbody>
 				</table>
 			</div>
-		</div>
+		</details>
 	</Card>
 </ProviderSettingsLayout>

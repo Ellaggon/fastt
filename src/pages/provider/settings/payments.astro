@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import { routes } from "@/lib/routes"
 
@@ -21,6 +22,12 @@ const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.u
 const summary = summaryRes.ok ? await summaryRes.json() : null
 const permissions = summary?.permissions ?? {}
 const accounts = await listProviderPaymentAccounts(auth.providerId).catch(() => [])
+const openAssignments = await listOpenComplianceAssignments({ providerId: auth.providerId }).catch(
+	() => []
+)
+const paymentAssignments = Object.fromEntries(
+	openAssignments.filter((row) => row.domain === "payments").map((row) => [row.entityId, row])
+)
 const result = String(Astro.url.searchParams.get("result") ?? "").trim()
 const error = String(Astro.url.searchParams.get("error") ?? "").trim()
 const defaultCurrency = String(summary?.profile?.defaultCurrency ?? "USD")
@@ -38,6 +45,14 @@ const resultMessages: Record<string, { title: string; body: string; variant: "su
 			variant: "success",
 		},
 	}
+
+const postSaveCtaByResult: Record<string, { href: string; label: string }> = {
+	submitted: { href: routes.providerSettings(), label: "Ir al resumen" },
+	micro_deposit_confirmed: {
+		href: routes.providerSettingsIntegrations(),
+		label: "Continuar a integraciones",
+	},
+}
 
 const errorMessages: Record<string, { title: string; body: string; variant: "warning" | "error" }> =
 	{
@@ -83,7 +98,14 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 	{
 		result && resultMessages[result] ? (
 			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
-				{resultMessages[result].body}
+				<p>{resultMessages[result].body}</p>
+				{postSaveCtaByResult[result] ? (
+					<p class="mt-3" data-post-save-cta>
+						<a class="font-semibold underline" href={postSaveCtaByResult[result].href}>
+							{postSaveCtaByResult[result].label}
+						</a>
+					</p>
+				) : null}
 			</Notice>
 		) : null
 	}
@@ -99,5 +121,6 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 		accounts={accounts}
 		canManagePayments={Boolean(permissions.canManagePayments)}
 		defaultCurrency={defaultCurrency}
+		paymentAssignments={paymentAssignments}
 	/>
 </ProviderSettingsLayout>

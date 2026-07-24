@@ -101,7 +101,15 @@ const resultMessages: Record<
 	{
 		result && resultMessages[result] ? (
 			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
-				{resultMessages[result].body}
+				<p>{resultMessages[result].body}</p>
+				<div class="mt-3 flex flex-wrap gap-3" data-post-save-cta>
+					<a class="font-semibold underline" href={routes.providerSettingsTaxFees()}>
+						Continuar a registro fiscal
+					</a>
+					<a class="font-semibold underline" href={routes.providerSettingsPayments()}>
+						Continuar a pagos
+					</a>
+				</div>
 			</Notice>
 		) : null
 	}

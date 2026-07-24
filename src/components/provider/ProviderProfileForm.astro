@@ -38,8 +38,8 @@ const { isProviderAvailable, profile } = Astro.props
 							<h3 class="text-xl font-semibold text-slate-900">Operación</h3>
 							<p class="text-sm text-slate-600">
 								Estos campos habilitan una operación consistente entre zonas horarias, moneda y
-								soporte. La identidad fiscal, payouts e integraciones viven en sus dominios
-								canónicos.
+								soporte. La identidad fiscal, payouts e integraciones viven en sus propias
+								secciones.
 							</p>
 						</div>
 						<FormField label="Zona horaria" htmlFor="timezone" required>
@@ -108,7 +108,7 @@ const { isProviderAvailable, profile } = Astro.props
 									>
 										Integraciones
 									</a>{" "}
-									→ conectores y readiness derivado
+									→ conectores y prueba de conexión
 								</li>
 								<li>
 									<a
@@ -117,7 +117,7 @@ const { isProviderAvailable, profile } = Astro.props
 									>
 										Verificación
 									</a>{" "}
-									→ documentos KYC / business
+									→ documentos mínimos de cumplimiento
 								</li>
 							</ul>
 						</Card>

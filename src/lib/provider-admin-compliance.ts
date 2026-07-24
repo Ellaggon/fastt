@@ -12,7 +12,10 @@ import {
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
 import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payment-accounts"
+import { adminComplianceRejectTemplates } from "@/lib/provider-reject-categories"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
+
+export { adminComplianceRejectTemplates } from "@/lib/provider-reject-categories"
 
 /**
  * Unified internal compliance console (Airbnb Trust & Safety / Expedia partner ops).
@@ -36,6 +39,8 @@ export type ProviderComplianceQueueFilter =
 	| "documents"
 	| "payments"
 	| "audit"
+	| "overdue"
+	| "due_soon"
 
 export type ProviderComplianceQueueCounts = {
 	verification: number
@@ -43,6 +48,8 @@ export type ProviderComplianceQueueCounts = {
 	documents: number
 	payments: number
 	total: number
+	overdue: number
+	dueSoon: number
 }
 
 export type ProviderComplianceVerificationRow = {
@@ -103,11 +110,32 @@ export function parseProviderComplianceQueueFilter(
 		value === "fiscal" ||
 		value === "documents" ||
 		value === "payments" ||
-		value === "audit"
+		value === "audit" ||
+		value === "overdue" ||
+		value === "due_soon"
 	) {
 		return value
 	}
 	return "all"
+}
+
+/** Most urgent first: overdue, then due_soon, then ok, then done/unassigned — soonest due date first. */
+export function sortBySlaUrgency<
+	T extends { assignment: { slaState: string; slaDueAt: Date | string | null } | null },
+>(rows: T[]): T[] {
+	const rank = (state: string | undefined) => {
+		if (state === "overdue") return 0
+		if (state === "due_soon") return 1
+		if (state === "ok") return 2
+		return 3
+	}
+	return [...rows].sort((a, b) => {
+		const byRank = rank(a.assignment?.slaState) - rank(b.assignment?.slaState)
+		if (byRank !== 0) return byRank
+		const aTime = a.assignment?.slaDueAt ? new Date(a.assignment.slaDueAt).getTime() : Infinity
+		const bTime = b.assignment?.slaDueAt ? new Date(b.assignment.slaDueAt).getTime() : Infinity
+		return aTime - bTime
+	})
 }
 
 function domainForAction(action: string): ProviderComplianceAuditRow["domain"] {
@@ -253,10 +281,13 @@ export async function loadProviderComplianceConsole(params?: {
 	auditLimit?: number
 }) {
 	const filter = params?.filter ?? "all"
-	const showVerification = filter === "all" || filter === "verification"
-	const showFiscal = filter === "all" || filter === "fiscal"
-	const showDocuments = filter === "all" || filter === "documents"
-	const showPayments = filter === "all" || filter === "payments"
+	const isSlaFilter = filter === "overdue" || filter === "due_soon"
+	const slaStateFilter: "overdue" | "due_soon" | null =
+		filter === "overdue" ? "overdue" : filter === "due_soon" ? "due_soon" : null
+	const showVerification = filter === "all" || filter === "verification" || isSlaFilter
+	const showFiscal = filter === "all" || filter === "fiscal" || isSlaFilter
+	const showDocuments = filter === "all" || filter === "documents" || isSlaFilter
+	const showPayments = filter === "all" || filter === "payments" || isSlaFilter
 	const showAudit = filter === "all" || filter === "audit"
 
 	const [verificationQueue, taxConfigs, documents, payments, audit, assignments] =
@@ -288,52 +319,69 @@ export async function loadProviderComplianceConsole(params?: {
 		assignments.map((row) => [`${row.domain}:${row.providerId}:${row.entityId}`, row])
 	)
 
+	const verificationRowsAll = verificationQueue.map((row) => ({
+		...row,
+		assignment: assignmentByKey.get(`verification:${row.providerId}:${row.providerId}`) ?? null,
+	}))
+	const fiscalRowsAll = fiscalQueue.map((row) => ({
+		...row,
+		displayName: providerNameById.get(row.providerId) ?? row.providerId,
+		assignment: assignmentByKey.get(`fiscal:${row.providerId}:${row.providerId}`) ?? null,
+	}))
+	const documentRowsAll = documents.map((doc) => ({
+		...doc,
+		displayName: providerNameById.get(doc.providerId) ?? doc.providerId,
+		assignment: assignmentByKey.get(`documents:${doc.providerId}:${doc.id}`) ?? null,
+	}))
+	const paymentRowsAll = payments.map((account) => ({
+		...account,
+		displayName: providerNameById.get(account.providerId) ?? account.providerId,
+		assignment: assignmentByKey.get(`payments:${account.providerId}:${account.id}`) ?? null,
+	}))
+
+	const allRows = [...verificationRowsAll, ...fiscalRowsAll, ...documentRowsAll, ...paymentRowsAll]
+	const overdueCount = allRows.filter((row) => row.assignment?.slaState === "overdue").length
+	const dueSoonCount = allRows.filter((row) => row.assignment?.slaState === "due_soon").length
+
 	const counts: ProviderComplianceQueueCounts = {
 		verification: verificationQueue.length,
 		fiscal: fiscalQueue.length,
 		documents: documents.length,
 		payments: payments.length,
 		total: verificationQueue.length + fiscalQueue.length + documents.length + payments.length,
+		overdue: overdueCount,
+		dueSoon: dueSoonCount,
 	}
+
+	function applySlaFilter<
+		T extends { assignment: { slaState: string; slaDueAt: Date | string | null } | null },
+	>(rows: T[]): T[] {
+		if (!isSlaFilter) return rows
+		const filtered = slaStateFilter
+			? rows.filter((row) => row.assignment?.slaState === slaStateFilter)
+			: rows
+		return sortBySlaUrgency(filtered)
+	}
+
+	const verificationRows = showVerification ? applySlaFilter(verificationRowsAll) : []
+	const fiscalRows = showFiscal ? applySlaFilter(fiscalRowsAll) : []
+	const documentRows = showDocuments ? applySlaFilter(documentRowsAll) : []
+	const paymentRows = showPayments ? applySlaFilter(paymentRowsAll) : []
 
 	return {
 		filter,
 		counts,
 		assignments,
-		verification: showVerification
-			? verificationQueue.map((row) => ({
-					...row,
-					assignment:
-						assignmentByKey.get(`verification:${row.providerId}:${row.providerId}`) ?? null,
-				}))
-			: [],
-		fiscal: showFiscal
-			? fiscalQueue.map((row) => ({
-					...row,
-					displayName: providerNameById.get(row.providerId) ?? row.providerId,
-					assignment: assignmentByKey.get(`fiscal:${row.providerId}:${row.providerId}`) ?? null,
-				}))
-			: [],
-		documents: showDocuments
-			? documents.map((doc) => ({
-					...doc,
-					displayName: providerNameById.get(doc.providerId) ?? doc.providerId,
-					assignment: assignmentByKey.get(`documents:${doc.providerId}:${doc.id}`) ?? null,
-				}))
-			: [],
-		payments: showPayments
-			? payments.map((account) => ({
-					...account,
-					displayName: providerNameById.get(account.providerId) ?? account.providerId,
-					assignment: assignmentByKey.get(`payments:${account.providerId}:${account.id}`) ?? null,
-				}))
-			: [],
+		verification: verificationRows,
+		fiscal: fiscalRows,
+		documents: documentRows,
+		payments: paymentRows,
 		audit: showAudit ? audit : [],
 		sections: {
-			verification: showVerification,
-			fiscal: showFiscal,
-			documents: showDocuments,
-			payments: showPayments,
+			verification: isSlaFilter ? verificationRows.length > 0 : showVerification,
+			fiscal: isSlaFilter ? fiscalRows.length > 0 : showFiscal,
+			documents: isSlaFilter ? documentRows.length > 0 : showDocuments,
+			payments: isSlaFilter ? paymentRows.length > 0 : showPayments,
 			audit: showAudit,
 		},
 	}
@@ -361,45 +409,6 @@ export async function getLatestProviderVerificationStatus(providerId: string): P
 	}
 	return { status, reason: row.reason ?? null }
 }
-
-export const adminComplianceRejectTemplates = [
-	{
-		id: "doc_illegible",
-		domain: "documents" as const,
-		label: "Documento ilegible / incompleto",
-		body: "El archivo no permite validar la identidad o el registro. Sube una copia nítida y completa.",
-	},
-	{
-		id: "doc_mismatch",
-		domain: "documents" as const,
-		label: "Datos no coinciden con el perfil",
-		body: "El documento no coincide con la razón social o identidad declarada en el perfil del proveedor.",
-	},
-	{
-		id: "tax_incomplete",
-		domain: "fiscal" as const,
-		label: "Identidad fiscal incompleta",
-		body: "Faltan país de residencia fiscal y/o número de registro válidos para completar la validación.",
-	},
-	{
-		id: "tax_mismatch",
-		domain: "fiscal" as const,
-		label: "Registro fiscal no verificable",
-		body: "No pudimos validar el número de registro fiscal con los datos enviados. Corrige e intenta de nuevo.",
-	},
-	{
-		id: "payout_invalid",
-		domain: "payments" as const,
-		label: "Datos bancarios inválidos",
-		body: "La cuenta o el SWIFT/IBAN no es válido o no coincide con el titular. Envía una cuenta corregida.",
-	},
-	{
-		id: "verification_policy",
-		domain: "verification" as const,
-		label: "No cumple política de cumplimiento",
-		body: "La cuenta no cumple los requisitos de cumplimiento de Fastt en este momento. Revisa la documentación pendiente.",
-	},
-] as const
 
 export async function loadProviderComplianceDetail(providerId: string) {
 	const id = String(providerId ?? "").trim()
@@ -460,7 +469,7 @@ export async function loadProviderComplianceDetail(providerId: string) {
 			},
 			{
 				id: "documents",
-				label: "Documentos KYC",
+				label: "Documentos de cumplimiento",
 				complete: documents.length === 0,
 				pending: documents.length > 0,
 			},

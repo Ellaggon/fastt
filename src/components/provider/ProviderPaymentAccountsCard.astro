@@ -1,5 +1,6 @@
 ---
 import ProviderPayoutVerificationTimeline from "@/components/provider/ProviderPayoutVerificationTimeline.astro"
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -17,9 +18,21 @@ type Props = {
 	accounts?: ProviderPaymentAccountRecord[]
 	canManagePayments?: boolean
 	defaultCurrency?: string
+	paymentAssignments?: Record<
+		string,
+		{
+			slaDueAt: Date | string | null
+			slaState: "ok" | "due_soon" | "overdue" | "done"
+		}
+	>
 }
 
-const { accounts = [], canManagePayments = false, defaultCurrency = "USD" } = Astro.props as Props
+const {
+	accounts = [],
+	canManagePayments = false,
+	defaultCurrency = "USD",
+	paymentAssignments = {},
+} = Astro.props as Props
 
 const pending = accounts.filter((row) => row.status === "pending")
 const verified = accounts.filter((row) => row.status === "verified")
@@ -95,6 +108,14 @@ function badgeVariantForPhase(phaseLabel: string) {
 											Esta cuenta fue reemplazada por un envío más reciente.
 										</p>
 									)}
+
+									{account.status === "pending" && !timeline.showConfirmForm ? (
+										<ProviderReviewWaitNotice
+											domain="payment"
+											assignment={paymentAssignments[account.id] ?? null}
+											class="border-t border-slate-200 pt-3"
+										/>
+									) : null}
 
 									{timeline.showConfirmForm ? (
 										<div class="space-y-3 border-t border-slate-200 pt-3">

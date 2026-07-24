@@ -55,6 +55,72 @@ export const providerInviteLifecycleSteps = [
 	},
 ] as const
 
+export type ProviderInviteLifecycleStepId = (typeof providerInviteLifecycleSteps)[number]["id"]
+
+export type ProviderInviteLifecycleStepState = "complete" | "current" | "upcoming" | "blocked"
+
+export type ProviderInviteLifecycleStep = {
+	id: ProviderInviteLifecycleStepId
+	label: string
+	description: string
+	state: ProviderInviteLifecycleStepState
+}
+
+export type ProviderInviteLifecycleProgress = {
+	steps: ProviderInviteLifecycleStep[]
+	currentStepId: ProviderInviteLifecycleStepId | null
+	isExpired: boolean
+	canResend: boolean
+	phaseLabel: string
+}
+
+const inviteLifecycleStepOrder = providerInviteLifecycleSteps.map((step) => step.id)
+
+/**
+ * Live progress for a single invitation, driven by real status/expiresAt/acceptedAt
+ * (never a static illustrative stepper).
+ */
+export function buildInviteLifecycleProgress(params: {
+	status: unknown
+	expiresAt?: Date | string | null
+	acceptedAt?: Date | string | null
+}): ProviderInviteLifecycleProgress {
+	const status = String(params.status ?? "pending")
+	const isAccepted = status === "accepted"
+	const isTerminal = status === "canceled" || status === "expired"
+	const expiresAt = params.expiresAt ? new Date(params.expiresAt) : null
+	const isExpired = !isAccepted && expiresAt !== null && expiresAt.getTime() < Date.now()
+
+	const activeStepId: ProviderInviteLifecycleStepId = isAccepted ? "access" : "email"
+	const activeIndex = inviteLifecycleStepOrder.indexOf(activeStepId)
+
+	const steps: ProviderInviteLifecycleStep[] = providerInviteLifecycleSteps.map((step) => {
+		if (isAccepted) return { ...step, state: "complete" as const }
+		const index = inviteLifecycleStepOrder.indexOf(step.id)
+		let state: ProviderInviteLifecycleStepState
+		if (index < activeIndex) state = "complete"
+		else if (index === activeIndex) state = isExpired ? "blocked" : "current"
+		else state = "upcoming"
+		return { ...step, state }
+	})
+
+	const phaseLabel = isAccepted
+		? "Aceptada"
+		: isExpired
+			? "Expirada"
+			: isTerminal
+				? "Cancelada"
+				: "Pendiente"
+
+	return {
+		steps,
+		currentStepId: isTerminal ? null : activeStepId,
+		isExpired,
+		canResend: !isAccepted && !isTerminal,
+		phaseLabel,
+	}
+}
+
 const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 	owner: {
 		canEditProfile: true,
