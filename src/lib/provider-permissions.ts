@@ -89,7 +89,7 @@ export function buildInviteLifecycleProgress(params: {
 	const isAccepted = status === "accepted"
 	const isTerminal = status === "canceled" || status === "expired"
 	const expiresAt = params.expiresAt ? new Date(params.expiresAt) : null
-	const isExpired = !isAccepted && Boolean(expiresAt) && expiresAt.getTime() < Date.now()
+	const isExpired = !isAccepted && expiresAt !== null && expiresAt.getTime() < Date.now()
 
 	const activeStepId: ProviderInviteLifecycleStepId = isAccepted ? "access" : "email"
 	const activeIndex = inviteLifecycleStepOrder.indexOf(activeStepId)
