@@ -7,6 +7,12 @@ import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	formatProviderRoleLabel,
+	providerInviteLifecycleSteps,
+	providerRoleDescriptions,
+	providerRoleLabels,
+} from "@/lib/provider-permissions"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -26,6 +32,7 @@ const invitations = Array.isArray(summary?.invitations) ? summary.invitations : 
 const permissions = summary?.permissions ?? {}
 const rolePermissions = Array.isArray(summary?.rolePermissions) ? summary.rolePermissions : []
 const result = Astro.url.searchParams.get("result")
+const error = Astro.url.searchParams.get("error")
 const pendingInvitations = invitations.filter((invitation: any) => invitation.status === "pending")
 const permissionLabels = [
 	["canEditProfile", "Perfil"],
@@ -35,35 +42,73 @@ const permissionLabels = [
 	["canManageDocuments", "Documentos"],
 	["canInviteTeam", "Equipo"],
 ]
+
+const resultMessages: Record<string, { title: string; body: string }> = {
+	invited: {
+		title: "Invitación creada",
+		body: "Quedó pendiente de aceptación. La persona debe unirse con ese correo antes de que expire (14 días). Mientras tanto verás el estado en Invitaciones pendientes.",
+	},
+	canceled: {
+		title: "Invitación cancelada",
+		body: "La invitación ya no se puede aceptar. Puedes crear una nueva si hace falta.",
+	},
+}
+
+const errorMessages: Record<string, string> = {
+	duplicate_pending_invitation: "Ya hay una invitación pendiente para ese correo.",
+	forbidden: "Tu rol no permite gestionar invitaciones.",
+	not_found: "No encontramos esa invitación.",
+	not_pending: "Esa invitación ya no está pendiente.",
+	validation_error: "Revisa el correo y el rol e inténtalo de nuevo.",
+}
+
+function roleLabelFor(userOrInvite: { role?: string; roleLabel?: string }) {
+	return userOrInvite.roleLabel || formatProviderRoleLabel(userOrInvite.role)
+}
 ---
 
 <ProviderSettingsLayout
 	title="Equipo y permisos"
 	heading="Equipo"
-	description="Base de gobierno para usuarios, roles y cambios sensibles dentro de la configuración del proveedor."
+	description="Invita personas, elige un rol comprensible y controla qué pueden cambiar en la configuración del proveedor."
 >
 	{
-		result === "invited" && (
-			<Notice variant="success" title="Invitación registrada">
-				La invitación quedó pendiente en el panel del equipo.
+		result && resultMessages[result] ? (
+			<Notice variant="success" title={resultMessages[result].title}>
+				{resultMessages[result].body}
 			</Notice>
-		)
+		) : null
 	}
 	{
-		result === "canceled" && (
-			<Notice variant="success" title="Invitación cancelada">
-				La invitación pendiente fue marcada como cancelada.
+		error ? (
+			<Notice variant="warning" title="No se pudo completar la acción">
+				{errorMessages[error] || "Revisa los datos e inténtalo de nuevo."}
 			</Notice>
-		)
+		) : null
 	}
+
+	<Notice variant="info" title="Ciclo de la invitación">
+		<div class="grid gap-3 sm:grid-cols-4">
+			{
+				providerInviteLifecycleSteps.map((step, index) => (
+					<div>
+						<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+							{index + 1}. {step.label}
+						</p>
+						<p class="mt-1 text-sm leading-6 text-slate-700">{step.description}</p>
+					</div>
+				))
+			}
+		</div>
+	</Notice>
 
 	<div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
 		<Card>
 			<div class="space-y-4">
 				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Usuarios actuales</h2>
+					<h2 class="text-xl font-semibold text-slate-950">Miembros activos</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Personas con relación directa al proveedor según el resumen consolidado.
+						Personas que ya tienen acceso al proveedor.
 					</p>
 				</div>
 				<div class="space-y-3">
@@ -73,7 +118,7 @@ const permissionLabels = [
 								<Card variant="soft" class="flex items-center justify-between gap-4">
 									<div>
 										<p class="text-sm font-semibold text-slate-950">{user.email}</p>
-										<p class="mt-1 text-sm text-slate-600">Rol: {user.role}</p>
+										<p class="mt-1 text-sm text-slate-600">Rol: {roleLabelFor(user)}</p>
 										{user.permissions && (
 											<div class="mt-3 flex flex-wrap gap-2">
 												{permissionLabels.map(([key, label]) => (
@@ -88,8 +133,12 @@ const permissionLabels = [
 								</Card>
 							))
 						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								No hay usuarios asociados en el resumen actual.
+							<Card variant="soft" class="space-y-2 text-sm text-slate-600">
+								<p class="font-semibold text-slate-950">Invita a tu equipo</p>
+								<p>
+									Todavía no hay miembros listados. Usa el formulario de la derecha para sumar a la
+									primera persona.
+								</p>
 							</Card>
 						)
 					}
@@ -104,7 +153,7 @@ const permissionLabels = [
 						<div>
 							<h2 class="text-xl font-semibold text-slate-950">Invitar persona</h2>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Registra una invitación pendiente para sumar a alguien al proveedor.
+								Paso 1 del ciclo: crea la invitación. Caduca en 14 días si no se acepta.
 							</p>
 						</div>
 						<label class="grid gap-2 text-sm font-medium text-slate-700">
@@ -114,17 +163,23 @@ const permissionLabels = [
 						<label class="grid gap-2 text-sm font-medium text-slate-700">
 							Rol
 							<Select name="role" required>
-								<option value="admin">Administrador</option>
-								<option value="staff">Operación</option>
+								<option value="admin">{providerRoleLabels.admin}</option>
+								<option value="staff">{providerRoleLabels.staff}</option>
 							</Select>
 						</label>
-						<Button type="submit">Crear invitación</Button>
+						<p class="text-xs leading-5 text-slate-500">
+							<strong>{providerRoleLabels.admin}:</strong> {providerRoleDescriptions.admin}
+							<br />
+							<strong>{providerRoleLabels.staff}:</strong> {providerRoleDescriptions.staff}
+						</p>
+						<Button type="submit">Enviar invitación</Button>
 					</form>
 				) : (
 					<div class="space-y-4">
 						<h2 class="text-xl font-semibold text-slate-950">Invitaciones</h2>
 						<p class="text-sm leading-6 text-slate-600">
-							Tu rol actual no permite invitar ni cancelar miembros del equipo.
+							Tu rol actual no permite invitar ni cancelar miembros del equipo. Pide ayuda al
+							propietario.
 						</p>
 					</div>
 				)
@@ -138,7 +193,7 @@ const permissionLabels = [
 				<div>
 					<h2 class="text-xl font-semibold text-slate-950">Invitaciones pendientes</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Personas invitadas que todavía no tienen relación activa con el proveedor.
+						Esperando aceptación (paso 3). Si expiran, crea una nueva invitación.
 					</p>
 				</div>
 				<Badge variant={pendingInvitations.length ? "warning" : "success"}>
@@ -156,7 +211,8 @@ const permissionLabels = [
 								<div>
 									<p class="text-sm font-semibold text-slate-950">{invitation.email}</p>
 									<p class="mt-1 text-sm text-slate-600">
-										Rol: {invitation.role} · Expira:{" "}
+										{invitation.statusLabel || "Pendiente de aceptación"} · Rol:{" "}
+										{roleLabelFor(invitation)} · Expira:{" "}
 										{new Date(invitation.expiresAt).toLocaleDateString("es-BO")}
 									</p>
 								</div>
@@ -165,15 +221,16 @@ const permissionLabels = [
 										<input type="hidden" name="action" value="cancel" />
 										<input type="hidden" name="id" value={invitation.id} />
 										<Button type="submit" variant="secondary" size="sm">
-											Cancelar
+											Cancelar invitación
 										</Button>
 									</form>
 								)}
 							</Card>
 						))
 					) : (
-						<Card variant="soft" class="text-sm text-slate-600">
-							No hay invitaciones pendientes.
+						<Card variant="soft" class="space-y-2 text-sm text-slate-600">
+							<p class="font-semibold text-slate-950">Sin invitaciones en curso</p>
+							<p>Cuando invites a alguien, aparecerá aquí hasta que acepte o cancele / expire.</p>
 						</Card>
 					)
 				}
@@ -183,7 +240,7 @@ const permissionLabels = [
 
 	<Card>
 		<div class="space-y-4">
-			<h2 class="text-xl font-semibold text-slate-950">Permisos efectivos</h2>
+			<h2 class="text-xl font-semibold text-slate-950">Tus permisos</h2>
 			<div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
 				<p>Editar perfil: {permissions.canEditProfile ? "habilitado" : "restringido"}</p>
 				<p>Fiscalidad: {permissions.canManageFiscality ? "habilitado" : "restringido"}</p>
@@ -198,15 +255,15 @@ const permissionLabels = [
 	<Card>
 		<div class="space-y-4">
 			<div>
-				<h2 class="text-xl font-semibold text-slate-950">Matriz por rol</h2>
+				<h2 class="text-xl font-semibold text-slate-950">Qué puede cada rol</h2>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Qué puede cambiar cada tipo de usuario en áreas sensibles de configuración.
+					Resumen por rol humano. No cambia la matriz técnica de permisos.
 				</p>
 			</div>
 			<div class="overflow-x-auto">
 				<table class="min-w-full text-left text-sm">
 					<thead
-						class="border-b border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500"
+						class="border-b border-slate-200 text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase"
 					>
 						<tr>
 							<th class="py-3 pr-4">Rol</th>
@@ -222,7 +279,12 @@ const permissionLabels = [
 						{
 							rolePermissions.map((role: any) => (
 								<tr>
-									<td class="py-3 pr-4 font-semibold text-slate-950">{role.label}</td>
+									<td class="py-3 pr-4">
+										<p class="font-semibold text-slate-950">{role.label}</p>
+										{role.description ? (
+											<p class="mt-1 text-xs leading-5 text-slate-500">{role.description}</p>
+										) : null}
+									</td>
 									<td class="py-3 pr-4">
 										<Badge variant={role.canEditProfile ? "success" : "neutral"}>
 											{role.canEditProfile ? "Sí" : "No"}

@@ -1,0 +1,72 @@
+---
+import ProviderFiscalDomainTabs from "@/components/provider/ProviderFiscalDomainTabs.astro"
+import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const result = Astro.url.searchParams.get("result")
+const taxConfiguration = await getProviderTaxConfiguration(auth.providerId).catch(() => null)
+const permissions = summary?.permissions ?? {}
+const canManageFiscality = Boolean(permissions.canManageFiscality)
+const openAssignments = await listOpenComplianceAssignments({ providerId: auth.providerId }).catch(
+	() => []
+)
+const fiscalAssignment =
+	openAssignments.find((row) => row.domain === "fiscal" && row.entityId === auth.providerId) ?? null
+---
+
+<ProviderSettingsLayout
+	title="Tu registro fiscal"
+	eyebrow="Configuración del proveedor · Fiscalidad"
+	heading="Tu registro fiscal"
+	description="Identidad fiscal del proveedor para liquidaciones y retenciones. Separado de los impuestos que cobras al huésped."
+>
+	<div slot="actions" class="flex flex-wrap gap-3">
+		<Button href={routes.providerSettingsTaxSales()} variant="secondary">
+			Impuestos al huésped
+		</Button>
+		<Button href={routes.providerSettingsTaxFees()} variant="secondary">Resumen fiscal</Button>
+	</div>
+
+	<ProviderFiscalDomainTabs active="identity" />
+
+	{
+		result === "tax_profile_saved" ? (
+			<Notice variant="success" title="Perfil fiscal enviado">
+				Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en esta página
+				cuando el equipo Fastt termine.
+			</Notice>
+		) : null
+	}
+
+	<Notice variant="info" title="Solo identidad del proveedor">
+		Aquí configuras quién eres fiscalmente. Los impuestos y cargos de la reserva están en{" "}
+		<a class="font-semibold underline" href={routes.providerSettingsTaxSales()}>
+			Impuestos al huésped
+		</a>
+		.
+	</Notice>
+
+	<ProviderTaxProfileCard
+		taxConfiguration={taxConfiguration}
+		canManageFiscality={canManageFiscality}
+		reviewAssignment={fiscalAssignment}
+	/>
+</ProviderSettingsLayout>

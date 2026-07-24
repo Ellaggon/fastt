@@ -1,0 +1,77 @@
+---
+import type { PayoutVerificationTimeline } from "@/lib/provider-payment-accounts"
+
+type Props = {
+	timeline: PayoutVerificationTimeline
+}
+
+const { timeline } = Astro.props as Props
+
+function stepTone(state: PayoutVerificationTimeline["steps"][number]["state"]) {
+	if (state === "complete") return "border-emerald-500 bg-emerald-500 text-white"
+	if (state === "current") return "border-amber-500 bg-amber-500 text-white"
+	if (state === "blocked") return "border-red-500 bg-red-500 text-white"
+	return "border-slate-300 bg-white text-slate-400"
+}
+
+function labelTone(state: PayoutVerificationTimeline["steps"][number]["state"]) {
+	if (state === "complete") return "text-emerald-800"
+	if (state === "current") return "text-amber-900"
+	if (state === "blocked") return "text-red-800"
+	return "text-slate-500"
+}
+
+const expiresLabel = timeline.expiresAt
+	? new Date(timeline.expiresAt).toLocaleString("es-BO", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+		})
+	: null
+---
+
+<div class="space-y-3" data-payout-timeline={timeline.currentStepId ?? "ready"}>
+	<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+		Verificación de titularidad
+	</p>
+	<ol class="grid gap-2 sm:grid-cols-4">
+		{
+			timeline.steps.map((step, index) => (
+				<li class="relative flex gap-3 sm:flex-col sm:gap-2">
+					<div class="flex items-center gap-2 sm:w-full">
+						<span
+							class={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${stepTone(step.state)}`}
+							aria-current={step.state === "current" ? "step" : undefined}
+						>
+							{step.state === "complete" ? "✓" : index + 1}
+						</span>
+						{index < timeline.steps.length - 1 ? (
+							<span
+								class={`hidden h-px flex-1 sm:block ${
+									step.state === "complete" ? "bg-emerald-300" : "bg-slate-200"
+								}`}
+								aria-hidden="true"
+							/>
+						) : null}
+					</div>
+					<div class="min-w-0 pb-1 sm:pb-0">
+						<p class={`text-sm font-semibold ${labelTone(step.state)}`}>{step.label}</p>
+						<p class="mt-0.5 text-xs leading-5 text-slate-500">{step.description}</p>
+					</div>
+				</li>
+			))
+		}
+	</ol>
+	{
+		timeline.helperText ? (
+			<p class="text-sm leading-6 text-slate-600">{timeline.helperText}</p>
+		) : null
+	}
+	{
+		timeline.showConfirmForm && expiresLabel ? (
+			<p class="text-xs text-slate-500">Confirma antes del {expiresLabel}.</p>
+		) : null
+	}
+</div>

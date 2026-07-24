@@ -1,0 +1,64 @@
+---
+import ProviderFiscalDomainTabs from "@/components/provider/ProviderFiscalDomainTabs.astro"
+import TaxFeePage from "@/components/tax-fees/TaxFeePage"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const cookie = Astro.request.headers.get("cookie") ?? ""
+const defsRes = await fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
+	headers: { cookie },
+})
+const defsBody = defsRes.ok ? await defsRes.json() : null
+const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
+const initialWarnings = Array.isArray(defsBody?.warnings) ? defsBody.warnings : []
+const initialMode = Astro.url.searchParams.get("create") === "1" ? "creating" : "idle"
+---
+
+<ProviderSettingsLayout
+	title="Impuestos al huésped"
+	eyebrow="Configuración del proveedor · Fiscalidad"
+	heading="Impuestos al huésped"
+	description="Reglas que se suman al precio de la reserva. No sustituyen tu registro fiscal como proveedor."
+>
+	<div slot="actions" class="flex flex-wrap gap-3">
+		<Button href={routes.providerSettingsTaxIdentity()} variant="secondary">
+			Tu registro fiscal
+		</Button>
+		<Button href={`${routes.providerSettingsTaxSales()}?create=1`} variant="secondary">
+			Nueva definición
+		</Button>
+	</div>
+
+	<ProviderFiscalDomainTabs active="sales" />
+
+	<Notice variant="info" title="Solo precios de reserva">
+		Aquí defines impuestos y cargos comerciales. Tu NIT/registro y residencia fiscal están en{" "}
+		<a class="font-semibold underline" href={routes.providerSettingsTaxIdentity()}>
+			Tu registro fiscal
+		</a>
+		.
+	</Notice>
+
+	<Notice variant="info" title="Flujo recomendado">
+		Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
+		ventas.
+	</Notice>
+
+	<TaxFeePage
+		client:load
+		initialDefinitions={initialDefinitions}
+		initialWarnings={initialWarnings}
+		initialMode={initialMode}
+	/>
+</ProviderSettingsLayout>

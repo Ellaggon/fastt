@@ -53,7 +53,7 @@ export const providerTaxConfigurationStatuses: Array<{
 	label: string
 }> = [
 	{ value: "not_configured", label: "No configurado" },
-	{ value: "pending", label: "Pendiente de validación" },
+	{ value: "pending", label: "En revisión" },
 	{ value: "verified", label: "Verificado" },
 	{ value: "requires_attention", label: "Requiere atención" },
 ]

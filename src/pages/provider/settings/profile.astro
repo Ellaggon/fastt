@@ -1,10 +1,12 @@
 ---
 import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
 import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
+import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -15,6 +17,50 @@ const aggregate = providerId ? await getProviderFullAggregate(providerId, user.i
 const provider = aggregate?.provider ?? null
 const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
+
+const success = String(Astro.url.searchParams.get("success") ?? "").trim()
+const error = String(Astro.url.searchParams.get("error") ?? "").trim()
+
+const successNotice =
+	success === "identity_saved"
+		? {
+				title: "Identidad comercial guardada",
+				body: "Nombre comercial y razón social actualizados. Continúa con el perfil operativo o la verificación.",
+			}
+		: success === "ops_saved" || success === "saved"
+			? {
+					title: "Perfil operativo guardado",
+					body: "Zona horaria, moneda y contacto de soporte quedan listos para la operación del proveedor.",
+				}
+			: null
+
+const errorNotice =
+	error === "validation_error"
+		? {
+				title: "Revisa los datos del formulario",
+				body: "Hay campos incompletos o inválidos. Corrige e intenta de nuevo.",
+			}
+		: error === "session_expired"
+			? {
+					title: "Sesión expirada",
+					body: "Vuelve a iniciar sesión para guardar cambios.",
+				}
+			: error === "provider_not_found"
+				? {
+						title: "Proveedor no encontrado",
+						body: "Crea primero la identidad comercial para habilitar el perfil operativo.",
+					}
+				: error === "save_failed" || error === "invalid_method"
+					? {
+							title: "No se pudo guardar",
+							body: "Hubo un problema al guardar. Intenta de nuevo en unos momentos.",
+						}
+					: error
+						? {
+								title: "No se pudo completar la acción",
+								body: "Revisa los datos e intenta de nuevo.",
+							}
+						: null
 ---
 
 <ProviderSettingsLayout
@@ -22,12 +68,37 @@ const hasProvider = Boolean(provider?.id)
 	heading="Perfil del proveedor"
 	description="Administra identidad comercial y datos operativos. Fiscalidad, pagos e integraciones viven en sus pantallas canónicas."
 >
+	<div slot="actions" class="flex flex-wrap gap-3">
+		{
+			hasProvider ? (
+				<Button href={routes.providerSettingsVerification()} variant="secondary">
+					Ir a verificación
+				</Button>
+			) : null
+		}
+		<Button href={routes.providerSettings()} variant="secondary">Resumen</Button>
+	</div>
+
 	{
-		!hasProvider && (
+		successNotice ? (
+			<Notice variant="success" title={successNotice.title}>
+				{successNotice.body}
+			</Notice>
+		) : null
+	}
+	{
+		errorNotice ? (
+			<Notice variant="error" title={errorNotice.title}>
+				{errorNotice.body}
+			</Notice>
+		) : null
+	}
+	{
+		!hasProvider && !errorNotice ? (
 			<Notice variant="warning" title="Primero crea la identidad comercial">
 				El perfil operativo se habilita cuando exista un proveedor asociado a tu cuenta.
 			</Notice>
-		)
+		) : null
 	}
 
 	<div class="grid gap-6 xl:grid-cols-2">

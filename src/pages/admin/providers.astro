@@ -1,4 +1,5 @@
 ---
+import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssign.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -302,6 +303,21 @@ const queueButtons = [
 														{row.verificationUpdatedAt
 															? fmt.format(new Date(row.verificationUpdatedAt))
 															: "Sin registros"}
+														{row.assignment ? (
+															<p
+																class:list={[
+																	"mt-1 text-xs",
+																	row.assignment.slaState === "overdue"
+																		? "text-red-700"
+																		: row.assignment.slaState === "due_soon"
+																			? "text-amber-700"
+																			: "text-slate-500",
+																]}
+															>
+																{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																{row.assignment.slaState}
+															</p>
+														) : null}
 													</td>
 													<td class="px-3 py-3 align-top">
 														<div class="flex min-w-[340px] flex-col gap-2">
@@ -345,6 +361,12 @@ const queueButtons = [
 																	</Button>
 																</form>
 															)}
+															<AdminComplianceSlaAssign
+																providerId={row.providerId}
+																domain="verification"
+																entityId={row.providerId}
+																assignment={row.assignment}
+															/>
 														</div>
 													</td>
 												</tr>
@@ -404,6 +426,21 @@ const queueButtons = [
 														) : (
 															<Badge variant="warning">{row.statusLabel}</Badge>
 														)}
+														{row.assignment ? (
+															<p
+																class:list={[
+																	"mt-1 text-xs",
+																	row.assignment.slaState === "overdue"
+																		? "text-red-700"
+																		: row.assignment.slaState === "due_soon"
+																			? "text-amber-700"
+																			: "text-slate-500",
+																]}
+															>
+																{row.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																{row.assignment.slaState}
+															</p>
+														) : null}
 													</td>
 													<td class="px-3 py-3 align-top">
 														<div class="flex min-w-[320px] flex-col gap-2">
@@ -445,6 +482,12 @@ const queueButtons = [
 																	Requiere atención
 																</Button>
 															</form>
+															<AdminComplianceSlaAssign
+																providerId={row.providerId}
+																domain="fiscal"
+																entityId={row.providerId}
+																assignment={row.assignment}
+															/>
 														</div>
 													</td>
 												</tr>
@@ -505,6 +548,21 @@ const queueButtons = [
 													</td>
 													<td class="px-3 py-3 align-top text-sm text-slate-700">
 														{doc.createdAt ? fmt.format(new Date(doc.createdAt)) : "—"}
+														{doc.assignment ? (
+															<p
+																class:list={[
+																	"mt-1 text-xs",
+																	doc.assignment.slaState === "overdue"
+																		? "text-red-700"
+																		: doc.assignment.slaState === "due_soon"
+																			? "text-amber-700"
+																			: "text-slate-500",
+																]}
+															>
+																{doc.assignment.assigneeEmail || "sin responsable"} ·{" "}
+																{doc.assignment.slaState}
+															</p>
+														) : null}
 													</td>
 													<td class="px-3 py-3 align-top">
 														<div class="flex min-w-[320px] flex-col gap-2">
@@ -546,6 +604,12 @@ const queueButtons = [
 																	Rechazar
 																</Button>
 															</form>
+															<AdminComplianceSlaAssign
+																providerId={doc.providerId}
+																domain="documents"
+																entityId={doc.id}
+																assignment={doc.assignment}
+															/>
 														</div>
 													</td>
 												</tr>
@@ -608,21 +672,6 @@ const queueButtons = [
 													</td>
 													<td class="px-3 py-3 align-top text-sm text-slate-700">
 														{account.createdAt ? fmt.format(new Date(account.createdAt)) : "—"}
-														{account.assignment ? (
-															<p
-																class:list={[
-																	"mt-1 text-xs",
-																	account.assignment.slaState === "overdue"
-																		? "text-red-700"
-																		: account.assignment.slaState === "due_soon"
-																			? "text-amber-700"
-																			: "text-slate-500",
-																]}
-															>
-																SLA: {account.assignment.assigneeEmail || "sin assignee"} ·{" "}
-																{account.assignment.slaState}
-															</p>
-														) : null}
 													</td>
 													<td class="px-3 py-3 align-top">
 														<div class="flex min-w-[320px] flex-col gap-2">
@@ -642,31 +691,12 @@ const queueButtons = [
 															>
 																Verificar (override)
 															</Button>
-															<form
-																class="flex flex-col gap-2"
-																data-assign-ops
-																data-domain="payments"
-																data-entity-id={account.id}
-																data-provider-id={account.providerId}
-															>
-																<input
-																	name="assigneeEmail"
-																	type="email"
-																	placeholder="assignee@fastt.test"
-																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																/>
-																<input
-																	name="slaHours"
-																	type="number"
-																	min="1"
-																	max="168"
-																	value="48"
-																	class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																/>
-																<Button type="submit" variant="secondary" className="w-fit">
-																	Asignar SLA
-																</Button>
-															</form>
+															<AdminComplianceSlaAssign
+																providerId={account.providerId}
+																domain="payments"
+																entityId={account.id}
+																assignment={account.assignment}
+															/>
 															<form
 																class="flex flex-col gap-2"
 																data-payment-attention-form

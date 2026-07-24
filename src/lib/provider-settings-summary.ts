@@ -11,6 +11,7 @@ import { listProviderDocuments } from "@/lib/provider-documents"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import {
 	buildProviderRolePermissionMatrix,
+	formatProviderRoleLabel,
 	resolveProviderPermissions,
 } from "@/lib/provider-permissions"
 import { routes } from "@/lib/routes"
@@ -243,7 +244,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 						id: "tax_fee_warnings",
 						label: "Hay advertencias en impuestos o cargos",
 						severity: "medium",
-						href: routes.providerSettingsTaxFees(),
+						href: routes.providerSettingsTaxSales(),
 					},
 				]
 			: []),
@@ -296,6 +297,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 					id: user.id,
 					email: user.email,
 					role: user.role,
+					roleLabel: formatProviderRoleLabel(user.role),
 					permissions: resolveProviderPermissions({
 						role: user.role,
 						permissionsJson: user.permissionsJson,
@@ -309,6 +311,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 							id: ownerUser.id,
 							email: ownerUser.email,
 							role: "owner",
+							roleLabel: formatProviderRoleLabel("owner"),
 							permissions: resolveProviderPermissions({ role: "owner" }),
 							permissionsJson: null,
 						},
@@ -318,7 +321,18 @@ async function buildProviderSettingsSummaryUncached(params: {
 			id: invitation.id,
 			email: invitation.email,
 			role: invitation.role,
+			roleLabel: formatProviderRoleLabel(invitation.role),
 			status: invitation.status,
+			statusLabel:
+				invitation.status === "pending"
+					? "Pendiente de aceptación"
+					: invitation.status === "accepted"
+						? "Aceptada"
+						: invitation.status === "canceled"
+							? "Cancelada"
+							: invitation.status === "expired"
+								? "Expirada"
+								: String(invitation.status),
 			invitedBy: invitation.invitedBy,
 			acceptedAt: invitation.acceptedAt,
 			expiresAt: invitation.expiresAt,

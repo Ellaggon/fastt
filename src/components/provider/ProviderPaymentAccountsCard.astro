@@ -1,4 +1,5 @@
 ---
+import ProviderPayoutVerificationTimeline from "@/components/provider/ProviderPayoutVerificationTimeline.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -6,7 +7,11 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import type { ProviderPaymentAccountRecord } from "@/lib/provider-payment-accounts"
-import { providerPayoutMethods, providerPayoutSchedules } from "@/lib/provider-payment-accounts"
+import {
+	buildPayoutVerificationTimeline,
+	providerPayoutMethods,
+	providerPayoutSchedules,
+} from "@/lib/provider-payment-accounts"
 
 type Props = {
 	accounts?: ProviderPaymentAccountRecord[]
@@ -18,6 +23,15 @@ const { accounts = [], canManagePayments = false, defaultCurrency = "USD" } = As
 
 const pending = accounts.filter((row) => row.status === "pending")
 const verified = accounts.filter((row) => row.status === "verified")
+
+function badgeVariantForPhase(phaseLabel: string) {
+	if (phaseLabel === "Lista") return "success" as const
+	if (phaseLabel === "Requiere atención") return "error" as const
+	if (phaseLabel === "Confirmar montos" || phaseLabel === "Esperando depósitos") {
+		return "warning" as const
+	}
+	return "neutral" as const
+}
 ---
 
 <section class="space-y-6">
@@ -30,17 +44,16 @@ const verified = accounts.filter((row) => row.status === "verified")
 					</p>
 					<h2 class="mt-2 text-xl font-semibold text-slate-950">Cuentas de payout</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Equivale a Airbnb Payments → Payouts y a Expedia Financials → Bank Details. Envías los
-						datos bancarios; el equipo Fastt valida la cuenta. No puedes marcarla como verificada tú
-						mismo.
+						Agrega la cuenta donde quieres recibir liquidaciones. El proceso es: enviada → esperando
+						depósitos → confirmar montos → lista.
 					</p>
 				</div>
 				<div class="flex flex-wrap gap-2">
 					<Badge variant={verified.length ? "success" : "neutral"}>
-						{verified.length} verificada{verified.length === 1 ? "" : "s"}
+						{verified.length} lista{verified.length === 1 ? "" : "s"}
 					</Badge>
 					<Badge variant={pending.length ? "warning" : "neutral"}>
-						{pending.length} pendiente{pending.length === 1 ? "" : "s"}
+						{pending.length} en proceso
 					</Badge>
 				</div>
 			</div>
@@ -48,98 +61,93 @@ const verified = accounts.filter((row) => row.status === "verified")
 			<div class="space-y-3">
 				{
 					accounts.length ? (
-						accounts.map((account) => (
-							<Card variant="soft" class="space-y-2">
-								<div class="flex flex-wrap items-start justify-between gap-3">
-									<div>
-										<p class="text-sm font-semibold text-slate-950">
-											{account.bankName || "Banco"} · {account.accountReference || "••••"}
-										</p>
-										<p class="mt-1 text-sm text-slate-600">
-											{account.accountHolderName || "Sin titular"} · {account.country || "—"} ·{" "}
-											{account.currency} · {account.methodLabel}
-										</p>
-										<p class="mt-1 text-xs text-slate-500">
-											Calendario: {account.payoutScheduleLabel}
-											{account.routingOrSwift ? ` · SWIFT/routing: ${account.routingOrSwift}` : ""}
-										</p>
+						accounts.map((account) => {
+							const timeline = buildPayoutVerificationTimeline(account)
+							return (
+								<Card variant="soft" class="space-y-3">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div>
+											<p class="text-sm font-semibold text-slate-950">
+												{account.bankName || "Banco"} · {account.accountReference || "••••"}
+											</p>
+											<p class="mt-1 text-sm text-slate-600">
+												{account.accountHolderName || "Sin titular"} · {account.country || "—"} ·{" "}
+												{account.currency} · {account.methodLabel}
+											</p>
+											<p class="mt-1 text-xs text-slate-500">
+												Calendario: {account.payoutScheduleLabel}
+												{account.routingOrSwift
+													? ` · SWIFT/routing: ${account.routingOrSwift}`
+													: ""}
+											</p>
+										</div>
+										<Badge variant={badgeVariantForPhase(timeline.phaseLabel)}>
+											{timeline.phaseLabel}
+										</Badge>
 									</div>
-									<Badge
-										variant={
-											account.status === "verified"
-												? "success"
-												: account.status === "requires_attention"
-													? "error"
-													: account.status === "pending"
-														? "warning"
-														: "neutral"
-										}
-									>
-										{account.statusLabel}
-									</Badge>
-								</div>
-								{account.status === "pending" && account.microDeposit.status === "initiated" ? (
-									<div class="space-y-3 border-t border-slate-200 pt-3">
-										<p class="text-sm leading-6 text-slate-600">
-											Recibiste (o recibirás) dos micro-depósitos de prueba. Confirma los montos en
-											centavos para verificar la titularidad de la cuenta.
+
+									{account.status !== "superseded" ? (
+										<div class="border-t border-slate-200 pt-3">
+											<ProviderPayoutVerificationTimeline timeline={timeline} />
+										</div>
+									) : (
+										<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
+											Esta cuenta fue reemplazada por un envío más reciente.
 										</p>
-										{canManagePayments ? (
-											<form
-												method="post"
-												action="/api/provider/settings/payment-accounts"
-												class="grid gap-3 sm:grid-cols-3"
-											>
-												<input type="hidden" name="action" value="confirm_micro_deposit" />
-												<input type="hidden" name="accountId" value={account.id} />
-												<FormField
-													label="Monto 1 (centavos)"
-													htmlFor={`amount1-${account.id}`}
-													required
+									)}
+
+									{timeline.showConfirmForm ? (
+										<div class="space-y-3 border-t border-slate-200 pt-3">
+											{canManagePayments ? (
+												<form
+													method="post"
+													action="/api/provider/settings/payment-accounts"
+													class="grid gap-3 sm:grid-cols-3"
 												>
-													<Input
-														id={`amount1-${account.id}`}
-														name="amount1Cents"
-														type="number"
-														min="1"
-														max="99"
+													<input type="hidden" name="action" value="confirm_micro_deposit" />
+													<input type="hidden" name="accountId" value={account.id} />
+													<FormField
+														label="Monto 1 (centavos)"
+														htmlFor={`amount1-${account.id}`}
 														required
-													/>
-												</FormField>
-												<FormField
-													label="Monto 2 (centavos)"
-													htmlFor={`amount2-${account.id}`}
-													required
-												>
-													<Input
-														id={`amount2-${account.id}`}
-														name="amount2Cents"
-														type="number"
-														min="1"
-														max="99"
+													>
+														<Input
+															id={`amount1-${account.id}`}
+															name="amount1Cents"
+															type="number"
+															min="1"
+															max="99"
+															required
+														/>
+													</FormField>
+													<FormField
+														label="Monto 2 (centavos)"
+														htmlFor={`amount2-${account.id}`}
 														required
-													/>
-												</FormField>
-												<div class="flex items-end">
-													<Button type="submit">Confirmar micro-depósito</Button>
-												</div>
-											</form>
-										) : null}
-									</div>
-								) : null}
-								{account.status === "pending" && account.microDeposit.status !== "initiated" ? (
-									<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
-										En revisión. Ops puede iniciar un micro-depósito de titularidad o verificar por
-										override interno (Airbnb/Expedia-style).
-									</p>
-								) : null}
-								{account.status === "requires_attention" ? (
-									<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
-										Esta cuenta requiere corrección. Envía una nueva con datos actualizados.
-									</p>
-								) : null}
-							</Card>
-						))
+													>
+														<Input
+															id={`amount2-${account.id}`}
+															name="amount2Cents"
+															type="number"
+															min="1"
+															max="99"
+															required
+														/>
+													</FormField>
+													<div class="flex items-end">
+														<Button type="submit">Confirmar montos</Button>
+													</div>
+												</form>
+											) : (
+												<p class="text-sm text-slate-600">
+													Tu rol no puede confirmar montos. Pide a un administrador del proveedor.
+												</p>
+											)}
+										</div>
+									) : null}
+								</Card>
+							)
+						})
 					) : (
 						<Card variant="soft" class="text-sm text-slate-600">
 							Aún no hay cuentas de payout. Agrega una cuenta bancaria para habilitar liquidaciones.
@@ -160,8 +168,8 @@ const verified = accounts.filter((row) => row.status === "verified")
 						</p>
 						<h3 class="mt-2 text-lg font-semibold text-slate-950">Nueva cuenta bancaria</h3>
 						<p class="mt-1 text-sm text-slate-600">
-							Al guardar, el estado será Pendiente de validación. Una nueva cuenta pendiente
-							reemplaza otras pendientes del mismo proveedor.
+							Al guardar, la cuenta queda en <strong>Enviada</strong>. Después Fastt inicia los
+							depósitos de prueba para que confirmes titularidad.
 						</p>
 					</div>
 
@@ -180,7 +188,7 @@ const verified = accounts.filter((row) => row.status === "verified")
 						<FormField
 							label="País de la cuenta"
 							htmlFor="country"
-							description="ISO-2. Debe coincidir con la jurisdicción del payout."
+							description="Código de país (2 letras)."
 							required
 						>
 							<Select id="country" name="country" required>
@@ -226,7 +234,7 @@ const verified = accounts.filter((row) => row.status === "verified")
 						<FormField
 							label="Número de cuenta / IBAN"
 							htmlFor="accountIdentifier"
-							description="Se almacena para revisión interna; en tu vista solo verás los últimos 4 dígitos."
+							description="Se guarda para revisión; en tu vista solo verás los últimos 4 dígitos."
 							required
 						>
 							<Input
@@ -255,7 +263,7 @@ const verified = accounts.filter((row) => row.status === "verified")
 					</FormField>
 
 					<div class="flex justify-end">
-						<Button type="submit">Enviar cuenta a validación</Button>
+						<Button type="submit">Enviar cuenta</Button>
 					</div>
 				</form>
 			) : (

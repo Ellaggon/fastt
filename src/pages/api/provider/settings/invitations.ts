@@ -35,12 +35,23 @@ function redirectToTeam(request: Request, result: string) {
 	return Response.redirect(new URL(`/provider/settings/team?result=${result}`, request.url), 303)
 }
 
+function redirectToTeamError(request: Request, error: string) {
+	return Response.redirect(
+		new URL(`/provider/settings/team?error=${encodeURIComponent(error)}`, request.url),
+		303
+	)
+}
+
 export const POST: APIRoute = async ({ request }) => {
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
 		const permissions = provider.permissions
-		if (!permissions.canInviteTeam) return json({ error: "forbidden" }, 403)
+		if (!permissions.canInviteTeam) {
+			return shouldReturnHtmlRedirect(request)
+				? redirectToTeamError(request, "forbidden")
+				: json({ error: "forbidden" }, 403)
+		}
 
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "create")
@@ -62,8 +73,16 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 				.then(first)
 
-			if (!existing?.id) return json({ error: "not_found" }, 404)
-			if (existing.status !== "pending") return json({ error: "not_pending" }, 409)
+			if (!existing?.id) {
+				return shouldReturnHtmlRedirect(request)
+					? redirectToTeamError(request, "not_found")
+					: json({ error: "not_found" }, 404)
+			}
+			if (existing.status !== "pending") {
+				return shouldReturnHtmlRedirect(request)
+					? redirectToTeamError(request, "not_pending")
+					: json({ error: "not_pending" }, 409)
+			}
 
 			await db
 				.update(ProviderInvitation)
@@ -114,7 +133,11 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 			.then(first)
 
-		if (pending?.id) return json({ error: "duplicate_pending_invitation" }, 409)
+		if (pending?.id) {
+			return shouldReturnHtmlRedirect(request)
+				? redirectToTeamError(request, "duplicate_pending_invitation")
+				: json({ error: "duplicate_pending_invitation" }, 409)
+		}
 
 		const now = new Date()
 		const expiresAt = new Date(now)
@@ -157,8 +180,11 @@ export const POST: APIRoute = async ({ request }) => {
 			: json({ id, status: "pending", expiresAt }, 201)
 	} catch (err: any) {
 		if (err instanceof Response) return err
-		if (err instanceof ZodError)
-			return json({ error: "validation_error", details: err.issues }, 400)
+		if (err instanceof ZodError) {
+			return shouldReturnHtmlRedirect(request)
+				? redirectToTeamError(request, "validation_error")
+				: json({ error: "validation_error", details: err.issues }, 400)
+		}
 		return json({ error: String(err?.message || "Unknown error") }, 400)
 	}
 }

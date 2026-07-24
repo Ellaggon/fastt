@@ -36,9 +36,9 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return accept.includes("text/html")
 }
 
-function redirectToTaxFees(request: Request, result: string) {
+function redirectToTaxIdentity(request: Request, result: string) {
 	return Response.redirect(
-		new URL(`/provider/settings/tax-fees?result=${result}`, request.url),
+		new URL(`/provider/settings/tax-fees/identity?result=${result}`, request.url),
 		303
 	)
 }
@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProviderGovernance(providerId, "provider_tax_configuration_updated")
 
 		return shouldReturnHtmlRedirect(request)
-			? redirectToTaxFees(request, "tax_profile_saved")
+			? redirectToTaxIdentity(request, "tax_profile_saved")
 			: json({ ok: true, taxConfiguration })
 	} catch (err: any) {
 		if (err instanceof Response) return err

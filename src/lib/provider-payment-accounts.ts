@@ -56,6 +56,30 @@ export type ProviderMicroDepositChallenge = {
 	amountsCents?: [number, number]
 }
 
+export const PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS = 3
+
+export type PayoutTimelineStepId = "submitted" | "awaiting_deposits" | "confirm" | "ready"
+
+export type PayoutTimelineStepState = "complete" | "current" | "upcoming" | "blocked"
+
+export type PayoutTimelineStep = {
+	id: PayoutTimelineStepId
+	label: string
+	description: string
+	state: PayoutTimelineStepState
+}
+
+export type PayoutVerificationTimeline = {
+	steps: PayoutTimelineStep[]
+	currentStepId: PayoutTimelineStepId | null
+	phaseLabel: string
+	helperText: string | null
+	showConfirmForm: boolean
+	attemptsUsed: number
+	attemptsRemaining: number | null
+	expiresAt: string | null
+}
+
 export type ProviderPaymentAccountRecord = {
 	id: string
 	providerId: string
@@ -207,6 +231,129 @@ function readMicroDepositChallenge(
 		initiatedAt: typeof challenge.initiatedAt === "string" ? challenge.initiatedAt : null,
 		expiresAt: typeof challenge.expiresAt === "string" ? challenge.expiresAt : null,
 		attempts: Number(challenge.attempts) || 0,
+	}
+}
+
+/**
+ * Host-facing payout verification machine:
+ * Enviada → Esperando depósitos → Confirmar montos → Lista
+ */
+export function buildPayoutVerificationTimeline(
+	account: Pick<ProviderPaymentAccountRecord, "status" | "microDeposit" | "verifiedAt">
+): PayoutVerificationTimeline {
+	const challenge = account.microDeposit
+	const attemptsUsed = Math.max(0, Number(challenge.attempts) || 0)
+	const isReady =
+		account.status === "verified" || challenge.status === "confirmed" || Boolean(account.verifiedAt)
+	const isBlocked = account.status === "requires_attention" || challenge.status === "failed"
+	const depositsStarted =
+		challenge.status === "initiated" ||
+		challenge.status === "confirmed" ||
+		challenge.status === "failed" ||
+		isReady
+	const canConfirm = account.status === "pending" && challenge.status === "initiated"
+
+	let currentStepId: PayoutTimelineStepId | null = null
+	if (isReady) {
+		currentStepId = null
+	} else if (isBlocked) {
+		currentStepId = depositsStarted && challenge.status !== "none" ? "confirm" : "awaiting_deposits"
+	} else if (canConfirm) {
+		currentStepId = "confirm"
+	} else if (account.status === "pending" || account.status === "not_configured") {
+		currentStepId = depositsStarted ? "confirm" : "awaiting_deposits"
+	}
+
+	const stepState = (id: PayoutTimelineStepId): PayoutTimelineStepState => {
+		if (isReady) return "complete"
+		if (id === "submitted") return "complete"
+		if (id === "awaiting_deposits") {
+			if (depositsStarted || canConfirm) return "complete"
+			if (isBlocked) return "blocked"
+			return currentStepId === "awaiting_deposits" ? "current" : "upcoming"
+		}
+		if (id === "confirm") {
+			if (isReady) return "complete"
+			if (isBlocked && depositsStarted) return "blocked"
+			if (canConfirm || currentStepId === "confirm") return isBlocked ? "blocked" : "current"
+			return "upcoming"
+		}
+		// ready
+		if (isReady) return "complete"
+		if (isBlocked) return "blocked"
+		return "upcoming"
+	}
+
+	const attemptsRemaining = canConfirm
+		? Math.max(0, PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS - attemptsUsed)
+		: null
+
+	const steps: PayoutTimelineStep[] = [
+		{
+			id: "submitted",
+			label: "Enviada",
+			description: "Datos de la cuenta recibidos.",
+			state: stepState("submitted"),
+		},
+		{
+			id: "awaiting_deposits",
+			label: "Esperando depósitos",
+			description: "Fastt envía dos montos pequeños de prueba a tu banco.",
+			state: stepState("awaiting_deposits"),
+		},
+		{
+			id: "confirm",
+			label: "Confirmar montos",
+			description: "Ingresas los dos montos en centavos para probar titularidad.",
+			state: stepState("confirm"),
+		},
+		{
+			id: "ready",
+			label: "Lista",
+			description: "Cuenta lista para liquidaciones.",
+			state: stepState("ready"),
+		},
+	]
+
+	let phaseLabel = "Enviada"
+	let helperText: string | null = null
+
+	if (isReady) {
+		phaseLabel = "Lista"
+		helperText = "Esta cuenta ya está verificada para recibir liquidaciones."
+	} else if (isBlocked) {
+		phaseLabel = "Requiere atención"
+		helperText =
+			attemptsUsed >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
+				? "Se agotaron los intentos de confirmación. Envía una cuenta nueva o contacta a soporte Fastt."
+				: "Esta cuenta necesita corrección. Envía una nueva con datos actualizados."
+	} else if (canConfirm) {
+		phaseLabel = "Confirmar montos"
+		helperText =
+			attemptsUsed > 0
+				? `Los montos no coincidieron. Te quedan ${attemptsRemaining} intento${attemptsRemaining === 1 ? "" : "s"}.`
+				: "Revisa tu extracto bancario e ingresa los dos montos en centavos (entre 1 y 99)."
+	} else if (account.status === "pending") {
+		phaseLabel = "Esperando depósitos"
+		helperText =
+			"Cuenta enviada. Cuando Fastt inicie la verificación, verás aquí el paso para confirmar los montos."
+	} else if (account.status === "superseded") {
+		phaseLabel = "Reemplazada"
+		helperText = "Esta cuenta fue reemplazada por un envío más reciente."
+	} else {
+		phaseLabel = "Sin configurar"
+		helperText = "Agrega una cuenta bancaria para empezar."
+	}
+
+	return {
+		steps,
+		currentStepId,
+		phaseLabel,
+		helperText,
+		showConfirmForm: canConfirm,
+		attemptsUsed,
+		attemptsRemaining,
+		expiresAt: challenge.expiresAt,
 	}
 }
 
@@ -827,7 +974,7 @@ export async function confirmPaymentAccountMicroDeposit(params: {
 
 	const now = new Date()
 	if (!matched) {
-		const failed = attempts >= 3
+		const failed = attempts >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
 		await db
 			.update(ProviderPaymentAccount)
 			.set({

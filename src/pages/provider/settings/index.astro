@@ -7,8 +7,8 @@ import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { buildProviderSettingsSummary } from "@/lib/provider-settings-summary"
 import { routes } from "@/lib/routes"
-import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -17,22 +17,26 @@ const providerSession = await timing.time("authProvider", () =>
 	getProviderSessionSurfaceFromRequest(Astro.request)
 )
 if (!providerSession) return Astro.redirect("/SignInPage")
-const user = { id: providerSession.userId, email: "" }
+const userId = providerSession.userId
 const providerId = providerSession.providerId
 
-const aggregate = await timing.time("providerAggregate", () =>
-	getProviderFullAggregate(providerId, user.id)
+const summary = await timing.time("settingsSummary", () =>
+	buildProviderSettingsSummary({
+		providerId,
+		userId,
+		timing,
+	})
 )
-const providerBase = aggregate?.provider ?? null
-const blockers: any[] = []
-const risks: any[] = []
-const capabilities = {
+
+const blockers = summary?.blockers ?? []
+const risks = summary?.risks ?? []
+const capabilities = summary?.capabilities ?? {
 	publish: false,
 	booking: false,
 	payments: false,
 	integrations: false,
 }
-const counts = {
+const counts = summary?.counts ?? {
 	documents: 0,
 	verifiedDocuments: 0,
 	paymentAccounts: 0,
@@ -42,28 +46,30 @@ const counts = {
 	auditEvents: 0,
 	teamMembers: 0,
 }
-const progressPercent = 0
-const progressLabel = "Cargando estado operativo..."
-const providerName = String(providerBase?.displayName || providerBase?.legalName || "Proveedor")
+const progressPercent = Number(summary?.progress?.progressPercent ?? 0)
+const progressLabel =
+	summary?.progress?.message ??
+	(blockers.length
+		? `${blockers.length} bloqueo${blockers.length === 1 ? "" : "s"} pendiente${blockers.length === 1 ? "" : "s"}.`
+		: "Configuración base lista.")
+const providerName = String(
+	summary?.provider?.displayName || summary?.provider?.legalName || "Proveedor"
+)
+const primaryCtaHref = String(
+	summary?.actions?.primaryCtaAction || routes.providerSettingsProfile()
+)
+const primaryCtaLabel = String(
+	summary?.actions?.primaryCtaLabel ||
+		(blockers[0]?.label ? `Resolver ${blockers[0].label}` : "Continuar configuración")
+)
+const readiness = summary?.readiness ?? []
 
 const professionalToolsEnabled = providerSession.professionalToolsEnabled
-const professionalToolsUpdatedAt: Date | null = null
-
 const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
 const professionalToolsSaved = professionalToolsParam === "saved"
 const professionalToolsError = professionalToolsParam === "error"
-function formatProfessionalToolsUpdatedLabel(value: Date | null) {
-	return value
-		? value.toLocaleDateString("es-BO", {
-				day: "2-digit",
-				month: "short",
-				year: "numeric",
-			})
-		: "Sin cambios aún"
-}
-const professionalToolsUpdatedLabel = formatProfessionalToolsUpdatedLabel(
-	professionalToolsUpdatedAt
-)
+
+const summaryBootstrap = summary ? JSON.stringify(summary).replace(/</g, "\\u003c") : "null"
 
 timing.addTotal("providerSettingsPage")
 timing.setHeader(Astro.response.headers)
@@ -74,7 +80,7 @@ logRoutePerformance({
 	status: 200,
 	startedAt,
 	timing,
-	userId: user.id,
+	userId,
 	providerId,
 })
 ---
@@ -85,8 +91,8 @@ logRoutePerformance({
 	description="Centro de control para identidad, cumplimiento, fiscalidad, integraciones, equipo y permisos."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={routes.providerSettingsProfile()} data-settings-primary-cta>
-			Continuar configuración
+		<Button href={primaryCtaHref} data-settings-primary-cta>
+			{primaryCtaLabel}
 		</Button>
 	</div>
 
@@ -115,7 +121,7 @@ logRoutePerformance({
 							{providerName}
 						</h2>
 					</div>
-					<Badge variant={blockers.length ? "warning" : "neutral"} data-settings-base-badge>
+					<Badge variant={blockers.length ? "warning" : "success"} data-settings-base-badge>
 						{blockers.length ? "Con bloqueos" : "Base lista"}
 					</Badge>
 				</div>
@@ -160,7 +166,7 @@ logRoutePerformance({
 			<p class="text-sm font-semibold text-slate-950">Publicación</p>
 			<Badge
 				class="mt-3"
-				variant={capabilities.publish ? "success" : "neutral"}
+				variant={capabilities.publish ? "success" : "warning"}
 				data-capability="publish"
 			>
 				{capabilities.publish ? "Habilitada" : "Bloqueada"}
@@ -170,7 +176,7 @@ logRoutePerformance({
 			<p class="text-sm font-semibold text-slate-950">Reservas</p>
 			<Badge
 				class="mt-3"
-				variant={capabilities.booking ? "success" : "neutral"}
+				variant={capabilities.booking ? "success" : "warning"}
 				data-capability="booking"
 			>
 				{capabilities.booking ? "Habilitadas" : "Bloqueadas"}
@@ -180,7 +186,7 @@ logRoutePerformance({
 			<p class="text-sm font-semibold text-slate-950">Cobros</p>
 			<Badge
 				class="mt-3"
-				variant={capabilities.payments ? "success" : "neutral"}
+				variant={capabilities.payments ? "success" : "warning"}
 				data-capability="payments"
 			>
 				{capabilities.payments ? "Habilitados" : "Bloqueados"}
@@ -195,6 +201,97 @@ logRoutePerformance({
 			>
 				{capabilities.integrations ? "Listas" : "Sin activar"}
 			</Badge>
+		</Card>
+	</section>
+
+	{
+		blockers.length > 0 ? (
+			<div data-settings-blockers-notice>
+				<Notice variant="warning" title="Próximo paso">
+					<p class="mb-2">
+						Resuelve primero: <strong>{blockers[0]?.label}</strong>
+					</p>
+					<a
+						href={blockers[0]?.href || primaryCtaHref}
+						class="font-semibold text-amber-950 underline"
+					>
+						{primaryCtaLabel}
+					</a>
+				</Notice>
+			</div>
+		) : null
+	}
+
+	<section class="grid gap-4 xl:grid-cols-2">
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Readiness</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Estado consolidado de cada área de configuración.
+					</p>
+				</div>
+				<div class="space-y-3" data-settings-readiness>
+					{
+						readiness.length ? (
+							readiness.map((item) => (
+								<a href={item.href || "#"} class="block">
+									<Card
+										variant="soft"
+										class="flex items-center justify-between gap-4 transition hover:border-slate-300 hover:bg-white"
+									>
+										<div>
+											<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+											<p class="mt-1 text-sm text-slate-600">
+												{item.complete ? "Listo para operar" : "Requiere configuración"}
+											</p>
+										</div>
+										<Badge variant={item.complete ? "success" : "warning"}>
+											{item.complete ? "Completo" : "Pendiente"}
+										</Badge>
+									</Card>
+								</a>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								No hay readiness disponible.
+							</Card>
+						)
+					}
+				</div>
+			</div>
+		</Card>
+		<Card>
+			<div class="space-y-4">
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950">Riesgos y permisos</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Señales que conviene revisar antes de activar automatizaciones.
+					</p>
+				</div>
+				<div class="space-y-3" data-settings-risks>
+					{
+						risks.length ? (
+							risks.map((risk) => (
+								<a href={risk.href || "#"} class="block">
+									<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
+										<div class="flex items-start justify-between gap-4">
+											<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
+											<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
+												{risk.severity === "medium" ? "Medio" : "Bajo"}
+											</Badge>
+										</div>
+									</Card>
+								</a>
+							))
+						) : (
+							<Card variant="soft" class="text-sm text-slate-600">
+								No hay riesgos activos en el resumen actual.
+							</Card>
+						)
+					}
+				</div>
+			</div>
 		</Card>
 	</section>
 
@@ -254,9 +351,6 @@ logRoutePerformance({
 						<p class="text-sm leading-6 text-slate-600">
 							Recomendado si administras varios hoteles, muchas habitaciones o reglas recurrentes.
 						</p>
-						<p class="text-xs text-slate-500">
-							Última actualización: {professionalToolsUpdatedLabel}
-						</p>
 					</div>
 					<div
 						class="fastt-tabs min-w-[220px] border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700 shadow-sm"
@@ -311,6 +405,8 @@ logRoutePerformance({
 			</form>
 		</Card>
 	</section>
+
+	<script type="application/json" id="settings-summary-bootstrap" set:html={summaryBootstrap} />
 
 	<script>
 		import "@/pages/provider/settings/_client/settings-summary-hydration.js"

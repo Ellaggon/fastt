@@ -135,6 +135,16 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 	},
 ]
 
+/** Simple-mode starters: payments + distribution (Airbnb/Expedia-shaped minimum). */
+export const recommendedProviderConnectorKeys = [
+	"payment_gateway",
+	"channel_manager",
+] as const satisfies ReadonlyArray<ProviderConnectorKey>
+
+export function isRecommendedProviderConnector(key: string): boolean {
+	return (recommendedProviderConnectorKeys as readonly string[]).includes(key)
+}
+
 const catalogByKey = new Map(connectorCatalog.map((connector) => [connector.key, connector]))
 
 function normalizeConnectorKey(key: string): ProviderConnectorKey {

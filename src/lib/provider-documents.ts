@@ -94,7 +94,7 @@ export const providerDocumentTypes: Array<{
 	{
 		value: "government_id",
 		label: "Documento de identidad",
-		description: "Pasaporte, cédula o licencia emitida por el gobierno (KYC).",
+		description: "Pasaporte, cédula o licencia emitida por el gobierno.",
 	},
 	{
 		value: "business_registration",
@@ -104,7 +104,7 @@ export const providerDocumentTypes: Array<{
 	{
 		value: "tax_document",
 		label: "Documento fiscal",
-		description: "NIT/TIN, W-9/W-8 u otro respaldo fiscal para payouts.",
+		description: "NIT/TIN u otro respaldo fiscal para payouts.",
 	},
 	{
 		value: "ownership_proof",
@@ -123,11 +123,84 @@ export const providerDocumentTypes: Array<{
 	},
 ]
 
+export type ProviderKycSlotState = "missing" | "pending" | "verified" | "rejected"
+
+export type ProviderKycSlot = {
+	type: RequiredKycDocumentType
+	label: string
+	description: string
+	state: ProviderKycSlotState
+	stateLabel: string
+	documentId: string | null
+	fileName: string | null
+	reviewNotes: string | null
+	uploadHref: string
+}
+
+const kycSlotStateLabels: Record<ProviderKycSlotState, string> = {
+	missing: "Falta enviar",
+	pending: "En revisión",
+	verified: "Verificado",
+	rejected: "Rechazado",
+}
+
+function pickLatestDocumentForType(
+	documents: ProviderDocumentRecord[],
+	type: RequiredKycDocumentType
+): ProviderDocumentRecord | null {
+	const candidates = documents
+		.filter((doc) => doc.type === type && doc.status !== "superseded")
+		.sort((a, b) => {
+			const rank = (status: string) =>
+				status === "verified" ? 3 : status === "pending" ? 2 : status === "rejected" ? 1 : 0
+			const byStatus = rank(b.status) - rank(a.status)
+			if (byStatus !== 0) return byStatus
+			const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+			const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+			return bTime - aTime
+		})
+	return candidates[0] ?? null
+}
+
+/**
+ * Provider-facing KYC minimum set as three slots (missing / pending / verified / rejected).
+ */
+export function buildRequiredKycSlots(params: {
+	documents: ProviderDocumentRecord[]
+	uploadBasePath?: string
+}): ProviderKycSlot[] {
+	const base = String(params.uploadBasePath ?? "/provider/settings/verification").trim()
+	return requiredKycDocumentTypes.map((type) => {
+		const meta = providerDocumentTypes.find((item) => item.value === type)
+		const document = pickLatestDocumentForType(params.documents, type)
+		const state: ProviderKycSlotState =
+			document?.status === "verified"
+				? "verified"
+				: document?.status === "pending"
+					? "pending"
+					: document?.status === "rejected"
+						? "rejected"
+						: "missing"
+		const uploadHref = `${base}?type=${encodeURIComponent(type)}#kyc-upload`
+		return {
+			type,
+			label: meta?.label ?? type,
+			description: meta?.description ?? "",
+			state,
+			stateLabel: kycSlotStateLabels[state],
+			documentId: document?.id ?? null,
+			fileName: document?.fileName ?? null,
+			reviewNotes: state === "rejected" ? String(document?.reviewNotes ?? "").trim() || null : null,
+			uploadHref,
+		}
+	})
+}
+
 const statusMeta: Record<
 	ProviderDocumentStatus,
 	{ label: string; tone: ProviderDocumentRecord["tone"] }
 > = {
-	pending: { label: "Pendiente de revisión", tone: "warning" },
+	pending: { label: "En revisión", tone: "warning" },
 	verified: { label: "Verificado", tone: "success" },
 	rejected: { label: "Rechazado", tone: "error" },
 	superseded: { label: "Reemplazado", tone: "neutral" },

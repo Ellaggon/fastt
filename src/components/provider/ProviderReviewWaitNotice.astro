@@ -1,0 +1,31 @@
+---
+import Notice from "@/components/ui/Notice.astro"
+import {
+	buildProviderReviewWaitState,
+	type ProviderReviewWaitDomain,
+} from "@/lib/provider-review-wait-state"
+
+type Props = {
+	domain: ProviderReviewWaitDomain
+	assignment?: {
+		slaDueAt: Date | string | null
+		slaState: "ok" | "due_soon" | "overdue" | "done"
+	} | null
+	class?: string
+	className?: string
+}
+
+const { domain, assignment = null, class: classProp = "", className = "" } = Astro.props as Props
+const wait = buildProviderReviewWaitState(domain, { assignment })
+const variant = wait.sla.state === "overdue" ? ("warning" as const) : ("warning" as const)
+---
+
+<Notice variant={variant} title={wait.title} class={`${className} ${classProp}`.trim()}>
+	<p class="leading-6">{wait.body}</p>
+	<p
+		class="mt-2 text-sm leading-6 opacity-90"
+		data-sla-mirror={wait.sla.hasPublishedSla ? "published" : "none"}
+	>
+		{wait.footnote}
+	</p>
+</Notice>
