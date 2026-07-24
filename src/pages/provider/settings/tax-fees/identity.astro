@@ -54,8 +54,17 @@ const fiscalAssignment =
 					Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en esta página
 					cuando el equipo Fastt termine.
 				</p>
-				<p class="mt-3" data-post-save-cta>
-					<a class="font-semibold underline" href={routes.providerSettingsPayments()}>
+				<p
+					class="mt-3"
+					data-post-save-cta
+					data-funnel-domain="fiscality"
+					data-funnel-surface="fiscality"
+				>
+					<a
+						class="font-semibold underline"
+						href={routes.providerSettingsPayments()}
+						data-funnel-cta="post_save"
+					>
 						Continuar a pagos
 					</a>
 				</p>
@@ -69,6 +78,33 @@ const fiscalAssignment =
 			Impuestos al huésped
 		</a>
 		.
+	</Notice>
+
+	<Notice variant="warning" title="Retenciones y liquidaciones" data-fiscal-withhold-explainer>
+		<p class="mb-2">
+			Sin NIT/registro y residencia fiscal verificados, Fastt puede <strong
+				>retener o retrasar liquidaciones</strong
+			> hasta confirmar tu identidad tributaria.
+		</p>
+		<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
+			<li>
+				<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de cobros pueden seguir
+				el calendario normal (tras payout verificado).
+			</li>
+			<li>
+				<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden continuar, pero el
+				desembolso al proveedor queda sujeto a retención / espera de cumplimiento.
+			</li>
+			<li>
+				Esto es independiente de los impuestos al huésped: la retención se aplica a <em>tu</em>{" "}
+				liquidación, no al precio de la reserva.
+			</li>
+		</ul>
+		<p class="mt-3 text-sm">
+			<a class="font-semibold underline" href={routes.providerSettingsPayments()}>
+				Ir a cuentas de liquidación
+			</a>
+		</p>
 	</Notice>
 
 	<ProviderTaxProfileCard

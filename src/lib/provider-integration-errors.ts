@@ -6,10 +6,15 @@
 const exactMessages: Record<string, string> = {
 	CONNECTION_NOT_FOUND: "No encontramos esa integración. Guárdala primero y vuelve a intentar.",
 	CONNECTOR_NOT_FOUND: "Ese tipo de conector no está disponible.",
+	unknown_connector: "Ese tipo de conector no está disponible.",
 	unauthorized: "Tu sesión expiró. Vuelve a iniciar sesión.",
 	forbidden: "No tienes permiso para gestionar integraciones.",
 	integration_error: "No se pudo completar la acción. Revisa los datos e inténtalo de nuevo.",
 	credentials_required: "Falta el enlace o la referencia de conexión.",
+	oauth_not_configured:
+		"OAuth no está configurado en este entorno. Usa el enlace o referencia manual.",
+	oauth_authorize_unavailable:
+		"No pudimos abrir la autorización OAuth. Revisa la configuración del entorno.",
 	PRODUCTION_BLOCKED:
 		"Todavía no puedes usar producción. Completa verificación, pagos y el resto de requisitos del proveedor.",
 }
@@ -20,7 +25,7 @@ const successPatterns: Array<{ test: RegExp; message: string }> = [
 		message: "Prueba de conexión correcta.",
 	},
 	{
-		test: /Referencia vault válida/i,
+		test: /Referencia vault válida|Referencia OAuth válida/i,
 		message: "Referencia de acceso válida.",
 	},
 ]
@@ -32,7 +37,7 @@ const errorPatterns: Array<{ test: RegExp; message: string }> = [
 			"Falta un enlace https válido o una referencia de acceso guardada. Completa el campo y vuelve a probar.",
 	},
 	{
-		test: /vault:\/\//i,
+		test: /vault:\/\/|oauth2:\/\//i,
 		message:
 			"La referencia de acceso no es válida. Usa un enlace https o una referencia segura correcta.",
 	},
@@ -52,7 +57,7 @@ const errorPatterns: Array<{ test: RegExp; message: string }> = [
 ]
 
 function sanitizeJargon(value: string): string {
-	if (/vault:\/\/|credentialsRef|smoke|probe/i.test(value)) {
+	if (/vault:\/\/|oauth2:\/\/|credentialsRef|smoke|probe/i.test(value)) {
 		return "No se pudo completar la acción. Revisa la conexión e inténtalo de nuevo."
 	}
 	return value.length > 180

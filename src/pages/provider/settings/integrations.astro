@@ -7,6 +7,7 @@ import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { getConnectorOAuthStatus } from "@/lib/provider-connector-oauth"
 import {
 	mapProviderIntegrationError,
 	mapProviderIntegrationLogMessage,
@@ -29,9 +30,14 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSetti
 const url = new URL(Astro.request.url)
 const success = url.searchParams.get("success")
 const error = url.searchParams.get("error")
+const oauth = url.searchParams.get("oauth")
+const oauthReason = url.searchParams.get("reason")
 const uiMode = url.searchParams.get("mode") === "pro" ? "pro" : "simple"
 const isSimple = uiMode === "simple"
 const modeQuery = isSimple ? "simple" : "pro"
+const oauthStatus = getConnectorOAuthStatus()
+const oauthConnectAvailable =
+	oauthStatus.mode === "oauth_scaffold" || oauthStatus.mode === "oauth_live"
 
 const connectors = await listProviderIntegrations({
 	providerId: auth.providerId,
@@ -56,6 +62,61 @@ const successMessages: Record<string, string> = {
 	integration_saved: "Integración guardada. Ejecuta “Probar conexión” para activarla.",
 	integration_revoked: "Acceso revocado. El conector ya no puede sincronizar.",
 	sync_tested: "Prueba de conexión correcta. El conector quedó activo.",
+}
+
+const oauthMessages: Record<
+	string,
+	{ variant: "success" | "info" | "warning"; title: string; body: string }
+> = {
+	connected: {
+		variant: "success",
+		title: "OAuth completado",
+		body: "Autorización guardada. Ejecuta “Probar conexión” para activar el conector.",
+	},
+	scaffold: {
+		variant: "info",
+		title: "OAuth en modo preparación",
+		body: "El callback respondió, pero el exchange de tokens aún no está activo en este entorno (falta LIVE + TOKEN_URL).",
+	},
+	denied: {
+		variant: "warning",
+		title: "Autorización cancelada",
+		body: oauthReason
+			? `El proveedor rechazó o canceló el acceso (${oauthReason}).`
+			: "El proveedor rechazó o canceló el acceso.",
+	},
+	not_configured: {
+		variant: "warning",
+		title: "OAuth no configurado",
+		body: "Este entorno no tiene OAuth listo. Usa el enlace o referencia manual.",
+	},
+	missing_code: {
+		variant: "warning",
+		title: "Respuesta OAuth incompleta",
+		body: "Faltó el código de autorización. Vuelve a intentar “Conectar con OAuth”.",
+	},
+	invalid_state: {
+		variant: "warning",
+		title: "Sesión OAuth inválida",
+		body: "El state expiró o no es válido. Vuelve a iniciar “Conectar con OAuth”.",
+	},
+	actor_mismatch: {
+		variant: "warning",
+		title: "Sesión distinta",
+		body: "La autorización no coincide con el usuario actual. Inicia sesión de nuevo.",
+	},
+	token_failed: {
+		variant: "warning",
+		title: "No se pudo canjear el token",
+		body: oauthReason
+			? `El exchange OAuth falló (${oauthReason}).`
+			: "El exchange OAuth falló. Revisa la configuración del vendor.",
+	},
+	persist_failed: {
+		variant: "warning",
+		title: "No se pudo guardar la conexión",
+		body: "La autorización llegó, pero no pudimos persistir el conector. Inténtalo de nuevo.",
+	},
 }
 
 function formatDate(value: Date | null) {
@@ -107,10 +168,29 @@ function canTest(connector: ProviderIntegrationCard) {
 		) : null
 	}
 	{
+		oauth && oauthMessages[oauth] ? (
+			<Notice
+				variant={oauthMessages[oauth].variant}
+				title={oauthMessages[oauth].title}
+				data-oauth-flash={oauth}
+			>
+				{oauthMessages[oauth].body}
+			</Notice>
+		) : null
+	}
+	{
 		error ? (
 			<Notice variant="warning" title="No se pudo completar la acción">
 				{mapProviderIntegrationError(error)}
 			</Notice>
+		) : null
+	}
+
+	{
+		oauthConnectAvailable ? (
+			<p class="text-xs text-slate-500" data-connector-oauth-status={oauthStatus.mode}>
+				{oauthStatus.hostLabel}
+			</p>
 		) : null
 	}
 
@@ -140,15 +220,20 @@ function canTest(connector: ProviderIntegrationCard) {
 	{
 		isSimple ? (
 			<Notice variant="info" title="Modo Simple · recomendados">
-				Te mostramos pasarela de pago y channel manager primero. Guarda el enlace/referencia y pulsa{" "}
+				Te mostramos pasarela de pago y channel manager primero. Abre la ayuda corta de cada
+				conector, guarda el enlace/referencia (o usa OAuth si está disponible) y pulsa{" "}
 				<strong>Probar conexión</strong> — solo si responde bien queda activa. Cambia a Pro para ver
 				el catálogo completo y permisos avanzados.
 			</Notice>
 		) : (
-			<Notice variant="info" title="Cómo activar un conector">
-				Primero guarda la conexión. Luego ejecuta “Probar conexión”: solo si responde bien queda
-				activa. El modo producción se habilita cuando el resto de la configuración del proveedor lo
-				permite.
+			<Notice
+				variant="info"
+				title="Modo Pro · catálogo + ayuda por conector"
+				data-integrations-pro-notice
+			>
+				Primero guarda la conexión (manual u OAuth). Abre la ayuda corta de cada conector si
+				necesitas el paso a paso. Luego ejecuta “Probar conexión”: solo si responde bien queda
+				activa.
 			</Notice>
 		)
 	}
@@ -234,9 +319,34 @@ function canTest(connector: ProviderIntegrationCard) {
 											/>
 										</label>
 
+										<details
+											class="fastt-notice rounded-lg border border-slate-200 bg-white p-3"
+											data-connector-docs-lite
+										>
+											<summary class="cursor-pointer text-sm font-semibold text-slate-900">
+												{connector.docsLite.title}
+											</summary>
+											<ol class="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-600">
+												{connector.docsLite.steps.map((step) => (
+													<li>{step}</li>
+												))}
+											</ol>
+											{connector.docsLite.tip ? (
+												<p class="mt-3 text-xs leading-5 text-slate-500">
+													<strong>Tip:</strong> {connector.docsLite.tip}
+												</p>
+											) : null}
+										</details>
+
 										{!isSimple ? (
-											<div>
-												<p class="text-sm font-semibold text-slate-900">Permisos</p>
+											<details
+												class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 p-3"
+												open={false}
+												data-connector-scopes
+											>
+												<summary class="cursor-pointer text-sm font-semibold text-slate-900">
+													Permisos ({connector.availableScopes.length})
+												</summary>
 												<div class="mt-3 grid gap-2">
 													{connector.availableScopes.map((scope) => (
 														<label class="flex items-center gap-2 text-sm text-slate-700">
@@ -251,7 +361,7 @@ function canTest(connector: ProviderIntegrationCard) {
 														</label>
 													))}
 												</div>
-											</div>
+											</details>
 										) : null}
 
 										<div class="flex flex-wrap gap-2">
@@ -261,6 +371,31 @@ function canTest(connector: ProviderIntegrationCard) {
 										</div>
 									</div>
 								</form>
+								{oauthConnectAvailable ? (
+									<form
+										method="post"
+										action={`/api/provider/integrations/${connector.key}/oauth/start`}
+										class="mt-3"
+									>
+										<input type="hidden" name="uiMode" value={modeQuery} />
+										<input type="hidden" name="mode" value={connector.mode} />
+										{!isSimple
+											? connector.scopes.map((scope) => (
+													<input type="hidden" name="scopes" value={scope} />
+												))
+											: null}
+										<Button
+											type="submit"
+											size="sm"
+											variant="primary"
+											data-connector-oauth-start={connector.key}
+										>
+											{oauthStatus.mode === "oauth_live"
+												? "Conectar con OAuth"
+												: "Probar OAuth (scaffold)"}
+										</Button>
+									</form>
+								) : null}
 							</Card>
 
 							{!isSimple ? (

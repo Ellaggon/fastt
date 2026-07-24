@@ -39,8 +39,9 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				</p>
 				<h2 class="mt-2 text-xl font-semibold text-slate-950">Perfil fiscal del proveedor</h2>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Datos fiscales del proveedor para liquidaciones y retenciones. No definen qué impuestos
-					cobras en una reserva al huésped. Tú envías los datos; Fastt confirma la validación.
+					Datos fiscales del proveedor para liquidaciones y retenciones. Sin NIT/registro
+					verificado, las liquidaciones pueden retenerse. No definen qué impuestos cobras al
+					huésped.
 				</p>
 			</div>
 			<Badge
@@ -66,6 +67,27 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				<Card variant="soft" class="text-sm leading-6 text-slate-600">
 					La identidad fiscal requiere corrección. Actualiza los campos y vuelve a guardar para
 					reenviar a revisión.
+				</Card>
+			) : null
+		}
+
+		{
+			taxConfiguration?.tinBureau ? (
+				<Card
+					variant="soft"
+					class="space-y-2"
+					data-tin-bureau-status={taxConfiguration.tinBureau.matchStatus}
+					data-tin-bureau-mode={taxConfiguration.tinBureau.mode}
+				>
+					<div class="flex flex-wrap items-center gap-2">
+						<p class="text-sm font-semibold text-slate-900">Verificación del registro</p>
+						<Badge variant={taxConfiguration.tinBureau.matchTone}>
+							{taxConfiguration.tinBureau.matchLabel}
+						</Badge>
+					</div>
+					<p class="text-sm leading-6 text-slate-600">
+						{taxConfiguration.tinBureau.hostNarrative || taxConfiguration.tinBureau.message}
+					</p>
 				</Card>
 			) : null
 		}

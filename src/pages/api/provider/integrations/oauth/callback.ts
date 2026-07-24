@@ -1,0 +1,100 @@
+import type { APIRoute } from "astro"
+
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	buildConnectorOAuthRedirectUri,
+	exchangeConnectorOAuthCode,
+	getConnectorOAuthStatus,
+	parseConnectorOAuthState,
+} from "@/lib/provider-connector-oauth"
+import { connectProviderIntegration } from "@/lib/provider-integrations"
+import { routes } from "@/lib/routes"
+
+/**
+ * OAuth callback (P2).
+ * - oauth_live: authorization-code exchange → credentialsRef oauth2://…
+ * - oauth_scaffold: validates state/code shape, honest redirect (no token store)
+ */
+export const GET: APIRoute = async ({ request, url }) => {
+	const user = await getUserFromRequest(request)
+	if (!user?.id) {
+		return Response.redirect(new URL("/SignInPage", request.url), 303)
+	}
+
+	const status = getConnectorOAuthStatus()
+	const code = String(url.searchParams.get("code") ?? "").trim()
+	const stateRaw = String(url.searchParams.get("state") ?? "").trim()
+	const error = String(url.searchParams.get("error") ?? "").trim()
+	const connectorFromQuery = String(url.searchParams.get("connector") ?? "").trim()
+
+	const target = new URL(routes.providerSettingsIntegrations(), request.url)
+	if (error) {
+		target.searchParams.set("oauth", "denied")
+		target.searchParams.set("reason", error.slice(0, 80))
+		return Response.redirect(target, 303)
+	}
+
+	if (status.mode !== "oauth_scaffold" && status.mode !== "oauth_live") {
+		target.searchParams.set("oauth", "not_configured")
+		return Response.redirect(target, 303)
+	}
+
+	if (!code || !stateRaw) {
+		target.searchParams.set("oauth", "missing_code")
+		return Response.redirect(target, 303)
+	}
+
+	const state = parseConnectorOAuthState(stateRaw)
+	if (!state) {
+		target.searchParams.set("oauth", "invalid_state")
+		return Response.redirect(target, 303)
+	}
+
+	if (state.actorUserId !== user.id) {
+		target.searchParams.set("oauth", "actor_mismatch")
+		return Response.redirect(target, 303)
+	}
+
+	const connectorKey = state.connectorKey || connectorFromQuery
+	target.searchParams.set("mode", state.uiMode)
+	target.searchParams.set("connector", connectorKey)
+
+	if (status.mode === "oauth_scaffold") {
+		target.searchParams.set("oauth", "scaffold")
+		return Response.redirect(target, 303)
+	}
+
+	const redirectUri = buildConnectorOAuthRedirectUri(new URL(request.url).origin)
+	const exchanged = await exchangeConnectorOAuthCode({
+		code,
+		redirectUri,
+		connectorKey,
+	})
+	if (!exchanged.ok || !exchanged.credentialsRef) {
+		target.searchParams.set("oauth", "token_failed")
+		target.searchParams.set("reason", String(exchanged.error ?? "exchange_failed").slice(0, 64))
+		return Response.redirect(target, 303)
+	}
+
+	try {
+		await connectProviderIntegration({
+			providerId: state.providerId,
+			currentUserId: state.actorUserId,
+			connectorKey,
+			mode: state.mode,
+			scopes: exchanged.scope ? exchanged.scope.split(/\s+/).filter(Boolean) : [],
+			credentialsRef: exchanged.credentialsRef,
+		})
+	} catch (connectError) {
+		target.searchParams.set("oauth", "persist_failed")
+		target.searchParams.set(
+			"reason",
+			(connectError instanceof Error ? connectError.message : "persist_failed").slice(0, 64)
+		)
+		return Response.redirect(target, 303)
+	}
+
+	target.searchParams.set("oauth", "connected")
+	target.searchParams.set("success", "integration_saved")
+	return Response.redirect(target, 303)
+}
