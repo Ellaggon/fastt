@@ -19,6 +19,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { evaluateRequiredKycDocumentsComplete } from "@/lib/provider-documents"
+import { emitSettingsFunnelDomainCompletions } from "@/lib/provider-settings-funnel"
 
 export type ProviderCapability = "publish" | "booking" | "payments" | "integrations"
 
@@ -442,56 +443,56 @@ export async function evaluateProviderGovernance(
 	const readiness: ProviderGovernanceCheck[] = [
 		{
 			id: "identity",
-			label: "Identidad comercial completa",
+			label: "Datos del negocio",
 			complete: identityComplete,
 			href: settingsRoutes.profile,
 			capabilities: ["publish", "booking", "payments", "integrations"],
 		},
 		{
 			id: "operations",
-			label: "Perfil operativo completo",
+			label: "Contacto y operación diaria",
 			complete: operationsComplete,
 			href: settingsRoutes.profile,
 			capabilities: ["publish", "booking"],
 		},
 		{
 			id: "verification",
-			label: "Proveedor aprobado por cumplimiento",
+			label: "Cuenta revisada y aprobada",
 			complete: verificationComplete,
 			href: settingsRoutes.verification,
 			capabilities: ["publish", "booking", "payments", "integrations"],
 		},
 		{
 			id: "documents",
-			label: "Documentos KYC mínimos verificados",
+			label: "Documentos mínimos verificados",
 			complete: documentsComplete,
 			href: settingsRoutes.verification,
 			capabilities: ["payments", "integrations"],
 		},
 		{
 			id: "fiscality",
-			label: "Identidad fiscal verificada",
+			label: "Registro fiscal verificado",
 			complete: fiscalComplete,
 			href: settingsRoutes.taxFeesIdentity,
 			capabilities: ["publish", "booking", "payments"],
 		},
 		{
 			id: "payments",
-			label: "Cuenta de pago verificada",
+			label: "Cuenta para cobrar verificada",
 			complete: paymentsComplete,
 			href: settingsRoutes.payments,
 			capabilities: ["payments"],
 		},
 		{
 			id: "integrations",
-			label: "Integraciones con prueba de sync exitosa",
+			label: "Conectores con prueba exitosa",
 			complete: integrationsReady,
 			href: settingsRoutes.integrations,
 			capabilities: ["integrations"],
 		},
 		{
 			id: "team",
-			label: "Propietario y permisos base",
+			label: "Equipo y permisos listos",
 			complete: teamComplete,
 			href: settingsRoutes.team,
 			capabilities: ["publish", "booking", "payments", "integrations"],
@@ -517,7 +518,7 @@ export async function evaluateProviderGovernance(
 			: [
 					{
 						id: "integrations_not_ready",
-						label: "No hay integraciones con smoke test exitoso",
+						label: "Aún no hay conectores con prueba de sync exitosa",
 						severity: "low" as const,
 						href: settingsRoutes.integrations,
 						capabilities: ["integrations"] as ProviderCapability[],
@@ -527,7 +528,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "integrations_smoke_pending",
-						label: "Hay conectores configurados pendientes de prueba de sync",
+						label: "Hay conectores pendientes de una prueba de sync",
 						severity: "medium" as const,
 						href: settingsRoutes.integrations,
 						capabilities: ["integrations"] as ProviderCapability[],
@@ -538,7 +539,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "tax_definitions_missing",
-						label: "No hay impuestos/cargos de venta activos",
+						label: "No hay impuestos o cargos de venta activos",
 						severity: "medium" as const,
 						href: settingsRoutes.taxFeesSales,
 						capabilities: ["booking", "payments"] as ProviderCapability[],
@@ -554,8 +555,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "taxpayer_unverified_with_tax_fees",
-						label:
-							"Hay impuestos de venta activos, pero la identidad fiscal aún no está verificada",
+						label: "Hay impuestos de venta activos, pero el registro fiscal aún no está verificado",
 						severity: "high" as const,
 						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
@@ -568,7 +568,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "fiscal_pending_verification",
-						label: "Identidad fiscal enviada y pendiente de validación interna",
+						label: "Registro fiscal enviado y pendiente de validación interna",
 						severity: "high" as const,
 						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
@@ -590,7 +590,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "documents_kyc_set_incomplete",
-						label: `Faltan documentos KYC verificados: ${kycDocuments.missingRequiredTypes.join(", ")}`,
+						label: `Faltan documentos mínimos verificados: ${kycDocuments.missingRequiredTypes.join(", ")}`,
 						severity: "high" as const,
 						href: settingsRoutes.verification,
 						capabilities: ["payments", "integrations"] as ProviderCapability[],
@@ -602,7 +602,7 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "financial_profile_without_verified_payout",
-						label: "Perfil financiero marcado listo sin cuenta de payout verificada",
+						label: "Perfil de cobros marcado listo sin cuenta verificada",
 						severity: "high" as const,
 						href: settingsRoutes.payments,
 						capabilities: ["payments"] as ProviderCapability[],
@@ -639,6 +639,14 @@ export async function evaluateProviderGovernance(
 
 	if (opts.persist) {
 		await safe(undefined, async () => {
+			const previousRow = await db
+				.select({ readinessJson: ProviderConfigurationState.readinessJson })
+				.from(ProviderConfigurationState)
+				.where(eq(ProviderConfigurationState.providerId, id))
+				.then(first)
+				.catch(() => null)
+			const previousReadiness = normalizeReadiness(previousRow?.readinessJson) ?? []
+
 			const values = {
 				providerId: id,
 				canPublish: summary.capabilities.publish,
@@ -670,6 +678,14 @@ export async function evaluateProviderGovernance(
 						updatedAt: values.updatedAt,
 					},
 				})
+
+			emitSettingsFunnelDomainCompletions({
+				providerId: id,
+				previousReadiness,
+				nextReadiness: summary.readiness,
+				progressPercent: summary.progress.progressPercent,
+				actorUserId: opts.currentUserId ?? null,
+			})
 		})
 	}
 
