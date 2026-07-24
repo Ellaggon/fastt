@@ -1,0 +1,41 @@
+---
+import type { ProviderInviteLifecycleProgress } from "@/lib/provider-permissions"
+
+type Props = {
+	progress: ProviderInviteLifecycleProgress
+	compact?: boolean
+}
+
+const { progress, compact = false } = Astro.props as Props
+
+function stepClass(state: string) {
+	if (state === "complete") return "border-emerald-300 bg-emerald-50 text-emerald-900"
+	if (state === "current") return "border-amber-300 bg-amber-50 text-amber-950"
+	if (state === "blocked") return "border-red-200 bg-red-50 text-red-900"
+	return "border-slate-200 bg-white text-slate-500"
+}
+---
+
+<ol
+	class:list={["grid gap-2", compact ? "sm:grid-cols-4" : "sm:grid-cols-4"]}
+	data-invite-lifecycle-stepper
+	data-current-step={progress.currentStepId}
+	data-expired={progress.isExpired ? "true" : "false"}
+>
+	{
+		progress.steps.map((step, index) => (
+			<li class={`rounded-lg border px-3 py-2 ${stepClass(step.state)}`}>
+				<p class="text-[10px] font-semibold tracking-[0.12em] uppercase opacity-80">
+					{index + 1}. {step.label}
+				</p>
+				{!compact ? <p class="mt-1 text-xs leading-5">{step.description}</p> : null}
+				{step.state === "current" ? (
+					<p class="mt-1 text-[10px] font-semibold tracking-[0.1em] uppercase">Actual</p>
+				) : null}
+				{step.state === "blocked" ? (
+					<p class="mt-1 text-[10px] font-semibold tracking-[0.1em] uppercase">Bloqueado</p>
+				) : null}
+			</li>
+		))
+	}
+</ol>

@@ -117,6 +117,70 @@ export const POST: APIRoute = async ({ request }) => {
 				: json({ ok: true })
 		}
 
+		if (action === "resend") {
+			const parsed = cancelSchema.parse({ id: form.get("id") })
+			const existing = await db
+				.select({
+					id: ProviderInvitation.id,
+					email: ProviderInvitation.email,
+					role: ProviderInvitation.role,
+					status: ProviderInvitation.status,
+					expiresAt: ProviderInvitation.expiresAt,
+				})
+				.from(ProviderInvitation)
+				.where(
+					and(eq(ProviderInvitation.id, parsed.id), eq(ProviderInvitation.providerId, providerId))
+				)
+				.then(first)
+
+			if (!existing?.id) {
+				return shouldReturnHtmlRedirect(request)
+					? redirectToTeamError(request, "not_found")
+					: json({ error: "not_found" }, 404)
+			}
+			if (existing.status !== "pending") {
+				return shouldReturnHtmlRedirect(request)
+					? redirectToTeamError(request, "not_pending")
+					: json({ error: "not_pending" }, 409)
+			}
+
+			const now = new Date()
+			const expiresAt = new Date(now)
+			expiresAt.setDate(expiresAt.getDate() + 14)
+
+			await db
+				.update(ProviderInvitation)
+				.set({ status: "pending", expiresAt, updatedAt: now })
+				.where(eq(ProviderInvitation.id, parsed.id))
+
+			await writeProviderAuditLog({
+				providerId,
+				actorUserId: user.id,
+				action: "provider.invitation.resend",
+				entityType: "ProviderInvitation",
+				entityId: parsed.id,
+				beforeJson: {
+					email: existing.email,
+					role: existing.role,
+					status: existing.status,
+					expiresAt: existing.expiresAt,
+				},
+				afterJson: {
+					email: existing.email,
+					role: existing.role,
+					status: "pending",
+					expiresAt,
+				},
+				riskLevel: teamRisk,
+			})
+			await invalidateProvider(providerId)
+			await invalidateProviderGovernance(providerId, "provider_invitation_resent")
+
+			return shouldReturnHtmlRedirect(request)
+				? redirectToTeam(request, "resent")
+				: json({ ok: true, expiresAt })
+		}
+
 		const parsed = inviteSchema.parse({
 			email: form.get("email"),
 			role: form.get("role"),
