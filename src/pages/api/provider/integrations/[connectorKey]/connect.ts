@@ -1,17 +1,17 @@
 import type { APIRoute } from "astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	redirectIntegrationsError,
+	redirectIntegrationsSuccess,
+	resolveIntegrationUiMode,
+} from "@/lib/provider-integration-redirects"
 import { connectProviderIntegration } from "@/lib/provider-integrations"
 
-function redirect(request: Request, params: URLSearchParams) {
-	const url = new URL("/provider/settings/integrations", request.url)
-	params.forEach((value, key) => url.searchParams.set(key, value))
-	return Response.redirect(url, 303)
-}
-
 export const POST: APIRoute = async ({ request, params }) => {
+	const form = await request.formData()
+	const uiMode = resolveIntegrationUiMode(form.get("uiMode"))
 	try {
 		const auth = await requireProvider(request)
-		const form = await request.formData()
 		await connectProviderIntegration({
 			providerId: auth.providerId,
 			currentUserId: auth.user.id,
@@ -20,9 +20,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 			scopes: form.getAll("scopes"),
 			credentialsRef: String(form.get("credentialsRef") ?? ""),
 		})
-		return redirect(request, new URLSearchParams({ success: "integration_saved" }))
+		return redirectIntegrationsSuccess(request, "integration_saved", uiMode)
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "integration_error"
-		return redirect(request, new URLSearchParams({ error: message }))
+		return redirectIntegrationsError(request, message, uiMode)
 	}
 }

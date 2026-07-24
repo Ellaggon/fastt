@@ -7,7 +7,15 @@ import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { listProviderIntegrations } from "@/lib/provider-integrations"
+import {
+	mapProviderIntegrationError,
+	mapProviderIntegrationLogMessage,
+} from "@/lib/provider-integration-errors"
+import {
+	isRecommendedProviderConnector,
+	listProviderIntegrations,
+	type ProviderIntegrationCard,
+} from "@/lib/provider-integrations"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -21,10 +29,18 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSetti
 const url = new URL(Astro.request.url)
 const success = url.searchParams.get("success")
 const error = url.searchParams.get("error")
+const uiMode = url.searchParams.get("mode") === "pro" ? "pro" : "simple"
+const isSimple = uiMode === "simple"
+const modeQuery = isSimple ? "simple" : "pro"
+
 const connectors = await listProviderIntegrations({
 	providerId: auth.providerId,
 	currentUserId: auth.user.id,
 })
+
+const recommended = connectors.filter((connector) => isRecommendedProviderConnector(connector.key))
+const others = connectors.filter((connector) => !isRecommendedProviderConnector(connector.key))
+const visibleConnectors = isSimple ? recommended : connectors
 
 const connectedCount = connectors.filter((connector) => connector.status === "connected").length
 const pendingSmokeCount = connectors.filter((connector) =>
@@ -37,9 +53,9 @@ const lastSync = connectors
 	.sort((a, b) => Number(b) - Number(a))[0]
 
 const successMessages: Record<string, string> = {
-	integration_saved: "Integración guardada. Ejecuta una prueba de sync para activarla.",
-	integration_revoked: "Credenciales revocadas.",
-	sync_tested: "Smoke test de sincronización completado. Conector marcado como conectado.",
+	integration_saved: "Integración guardada. Ejecuta “Probar conexión” para activarla.",
+	integration_revoked: "Acceso revocado. El conector ya no puede sincronizar.",
+	sync_tested: "Prueba de conexión correcta. El conector quedó activo.",
 }
 
 function formatDate(value: Date | null) {
@@ -49,18 +65,38 @@ function formatDate(value: Date | null) {
 		timeStyle: "short",
 	}).format(value)
 }
+
+function canTest(connector: ProviderIntegrationCard) {
+	return connector.status !== "not_configured" && connector.status !== "revoked"
+}
 ---
 
 <ProviderSettingsLayout
 	title="Integraciones"
 	eyebrow="Configuración del proveedor · Conectividad"
 	heading="Integraciones"
-	description="Administra conexiones externas con persistencia, permisos, credenciales, modo sandbox/producción y logs de sincronización por proveedor."
+	description={isSimple
+		? "Empieza por los conectores recomendados. Guarda la referencia y prueba la conexión antes de usarla."
+		: "Catálogo completo: modos, permisos y actividad. Guarda la conexión y pruébala antes de producción."}
 >
-	<div slot="actions">
-		<Button href={routes.providerSettingsVerification()} variant="secondary"
-			>Revisar verificación</Button
+	<div slot="actions" class="flex flex-wrap gap-2">
+		<Button
+			href={`${routes.providerSettingsIntegrations()}?mode=simple`}
+			variant={isSimple ? "primary" : "secondary"}
+			size="sm"
 		>
+			Simple
+		</Button>
+		<Button
+			href={`${routes.providerSettingsIntegrations()}?mode=pro`}
+			variant={!isSimple ? "primary" : "secondary"}
+			size="sm"
+		>
+			Pro
+		</Button>
+		<Button href={routes.providerSettingsVerification()} variant="secondary" size="sm">
+			Verificación
+		</Button>
 	</div>
 
 	{
@@ -73,45 +109,78 @@ function formatDate(value: Date | null) {
 	{
 		error ? (
 			<Notice variant="warning" title="No se pudo completar la acción">
-				{error}
+				{mapProviderIntegrationError(error)}
 			</Notice>
 		) : null
 	}
 
 	<div class="grid gap-4 md:grid-cols-4">
 		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectados</p>
-			<p class="mt-3 text-2xl font-semibold text-slate-950">{connectedCount}/{connectors.length}</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Conectados</p>
+			<p class="mt-3 text-2xl font-semibold text-slate-950">
+				{connectedCount}/{connectors.length}
+			</p>
 		</Card>
 		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Pend. prueba</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				Pendientes de prueba
+			</p>
 			<p class="mt-3 text-2xl font-semibold text-slate-950">{pendingSmokeCount}</p>
 		</Card>
 		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Producción</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Producción</p>
 			<p class="mt-3 text-2xl font-semibold text-slate-950">{productionCount}</p>
 		</Card>
 		<Card variant="soft" class="bg-white">
-			<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Última sync</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Última sync</p>
 			<p class="mt-3 text-sm font-semibold text-slate-950">{formatDate(lastSync ?? null)}</p>
 		</Card>
 	</div>
 
-	<Notice variant="info" title="Gobierno de conectores">
-		Guardar credenciales deja el conector en pendiente. Solo un smoke test de sync exitoso lo marca
-		como conectado (patrón Expedia connectivity test). Producción solo queda disponible cuando la
-		gobernanza del proveedor permite integraciones.
-	</Notice>
+	{
+		isSimple ? (
+			<Notice variant="info" title="Modo Simple · recomendados">
+				Te mostramos pasarela de pago y channel manager primero. Guarda el enlace/referencia y pulsa{" "}
+				<strong>Probar conexión</strong> — solo si responde bien queda activa. Cambia a Pro para ver
+				el catálogo completo y permisos avanzados.
+			</Notice>
+		) : (
+			<Notice variant="info" title="Cómo activar un conector">
+				Primero guarda la conexión. Luego ejecuta “Probar conexión”: solo si responde bien queda
+				activa. El modo producción se habilita cuando el resto de la configuración del proveedor lo
+				permite.
+			</Notice>
+		)
+	}
+
+	{
+		isSimple && others.some((row) => row.status !== "not_configured") ? (
+			<Notice variant="info" title="Hay más conectores configurados">
+				Tienes conectores fuera de la lista recomendada. Ábrelos en{" "}
+				<a
+					class="font-semibold underline"
+					href={`${routes.providerSettingsIntegrations()}?mode=pro`}
+				>
+					modo Pro
+				</a>
+				.
+			</Notice>
+		) : null
+	}
 
 	<div class="grid gap-4 xl:grid-cols-2">
 		{
-			connectors.map((connector) => (
-				<Card>
+			visibleConnectors.map((connector) => (
+				<Card
+					data-connector={connector.key}
+					data-recommended={isRecommendedProviderConnector(connector.key) ? "true" : "false"}
+				>
 					<div class="flex flex-col gap-5">
 						<div class="flex flex-wrap items-start justify-between gap-4">
 							<div>
 								<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
 									{connector.category}
+									{isRecommendedProviderConnector(connector.key) ? " · Recomendado" : ""}
 								</p>
 								<h2 class="mt-2 text-xl font-semibold text-slate-950">{connector.name}</h2>
 							</div>
@@ -125,9 +194,16 @@ function formatDate(value: Date | null) {
 
 						<p class="text-sm leading-6 text-slate-600">{connector.description}</p>
 
-						<div class="grid gap-4 lg:grid-cols-[1fr_0.85fr]">
+						{connector.errorMessage ? (
+							<Notice variant="warning" title="Último problema">
+								{mapProviderIntegrationError(connector.errorMessage)}
+							</Notice>
+						) : null}
+
+						<div class={`grid gap-4 ${isSimple ? "" : "lg:grid-cols-[1fr_0.85fr]"}`}>
 							<Card variant="soft" class="p-4">
 								<form method="post" action={`/api/provider/integrations/${connector.key}/connect`}>
+									<input type="hidden" name="uiMode" value={modeQuery} />
 									<div class="grid gap-4">
 										<label class="grid gap-2 text-sm font-semibold text-slate-900">
 											Modo
@@ -146,34 +222,40 @@ function formatDate(value: Date | null) {
 										</label>
 
 										<label class="grid gap-2 text-sm font-semibold text-slate-900">
-											Referencia de credenciales
+											{isSimple ? "Enlace o referencia de conexión" : "Referencia segura de acceso"}
 											<Input
 												name="credentialsRef"
 												value={connector.credentialsRef}
-												placeholder="vault://proveedor/conector"
+												placeholder={
+													isSimple
+														? "https://tu-servicio.ejemplo.com/…"
+														: "https://… o referencia segura del secreto"
+												}
 											/>
 										</label>
 
-										<div>
-											<p class="text-sm font-semibold text-slate-900">Permisos</p>
-											<div class="mt-3 grid gap-2">
-												{connector.availableScopes.map((scope) => (
-													<label class="flex items-center gap-2 text-sm text-slate-700">
-														<input
-															type="checkbox"
-															name="scopes"
-															value={scope.key}
-															checked={connector.scopes.includes(scope.key)}
-															class="fastt-check-input h-4 w-4 rounded border-slate-300"
-														/>
-														<span>{scope.label}</span>
-													</label>
-												))}
+										{!isSimple ? (
+											<div>
+												<p class="text-sm font-semibold text-slate-900">Permisos</p>
+												<div class="mt-3 grid gap-2">
+													{connector.availableScopes.map((scope) => (
+														<label class="flex items-center gap-2 text-sm text-slate-700">
+															<input
+																type="checkbox"
+																name="scopes"
+																value={scope.key}
+																checked={connector.scopes.includes(scope.key)}
+																class="fastt-check-input h-4 w-4 rounded border-slate-300"
+															/>
+															<span>{scope.label}</span>
+														</label>
+													))}
+												</div>
 											</div>
-										</div>
+										) : null}
 
 										<div class="flex flex-wrap gap-2">
-											<Button type="submit" size="sm">
+											<Button type="submit" size="sm" variant="secondary">
 												Guardar
 											</Button>
 										</div>
@@ -181,57 +263,63 @@ function formatDate(value: Date | null) {
 								</form>
 							</Card>
 
-							<Card variant="plain" class="p-4">
-								<p class="text-sm font-semibold text-slate-950">Requisitos</p>
-								<ul class="mt-3 grid gap-2 text-sm text-slate-600">
-									{connector.requirements.map((requirement) => (
-										<li>{requirement}</li>
+							{!isSimple ? (
+								<Card variant="plain" class="p-4">
+									<p class="text-sm font-semibold text-slate-950">Requisitos</p>
+									<ul class="mt-3 grid gap-2 text-sm text-slate-600">
+										{connector.requirements.map((requirement) => (
+											<li>{requirement}</li>
+										))}
+									</ul>
+									<div class="mt-4 border-t border-slate-200 pt-4">
+										<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
+										<div class="mt-3 grid gap-2">
+											{connector.logs.length ? (
+												connector.logs.map((log) => (
+													<Card variant="soft" class="p-3">
+														<div class="flex items-center justify-between gap-3">
+															<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
+																{log.eventType}
+															</p>
+															<Badge variant={log.status === "error" ? "error" : "neutral"}>
+																{log.status === "error"
+																	? "Error"
+																	: log.status === "success"
+																		? "Ok"
+																		: log.status}
+															</Badge>
+														</div>
+														<p class="mt-2 text-sm text-slate-700">
+															{mapProviderIntegrationLogMessage(log.message)}
+														</p>
+														<p class="mt-1 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+													</Card>
+												))
+											) : (
+												<p class="text-sm text-slate-500">Sin eventos registrados.</p>
+											)}
+										</div>
+									</div>
+								</Card>
+							) : (
+								<ul class="grid gap-1 text-sm text-slate-600">
+									{connector.requirements.slice(0, 2).map((requirement) => (
+										<li>· {requirement}</li>
 									))}
 								</ul>
-								<div class="mt-4 border-t border-slate-200 pt-4">
-									<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
-									<div class="mt-3 grid gap-2">
-										{connector.logs.length ? (
-											connector.logs.map((log) => (
-												<Card variant="soft" class="p-3">
-													<div class="flex items-center justify-between gap-3">
-														<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-															{log.eventType}
-														</p>
-														<Badge variant={log.status === "error" ? "error" : "neutral"}>
-															{log.status}
-														</Badge>
-													</div>
-													<p class="mt-2 text-sm text-slate-700">{log.message}</p>
-													<p class="mt-1 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
-												</Card>
-											))
-										) : (
-											<p class="text-sm text-slate-500">Sin eventos registrados.</p>
-										)}
-									</div>
-								</div>
-							</Card>
+							)}
 						</div>
 
 						<div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
 							<form method="post" action={`/api/provider/integrations/${connector.key}/sync`}>
-								<Button
-									type="submit"
-									variant="secondary"
-									size="sm"
-									disabled={connector.status === "not_configured" || connector.status === "revoked"}
-								>
-									Probar sync
+								<input type="hidden" name="uiMode" value={modeQuery} />
+								<Button type="submit" size="sm" disabled={!canTest(connector)}>
+									Probar conexión
 								</Button>
 							</form>
 							<form method="post" action={`/api/provider/integrations/${connector.key}/revoke`}>
-								<Button
-									type="submit"
-									variant="danger"
-									size="sm"
-									disabled={connector.status === "not_configured" || connector.status === "revoked"}
-								>
+								<input type="hidden" name="uiMode" value={modeQuery} />
+								<Button type="submit" variant="danger" size="sm" disabled={!canTest(connector)}>
 									Revocar
 								</Button>
 							</form>
@@ -241,4 +329,18 @@ function formatDate(value: Date | null) {
 			))
 		}
 	</div>
+
+	{
+		isSimple ? (
+			<p class="text-sm text-slate-600">
+				¿Necesitas calendarios, webhooks o exportación contable?{" "}
+				<a
+					class="font-semibold text-slate-900 underline"
+					href={`${routes.providerSettingsIntegrations()}?mode=pro`}
+				>
+					Abrir modo Pro
+				</a>
+			</p>
+		) : null
+	}
 </ProviderSettingsLayout>
