@@ -139,12 +139,13 @@ export async function buildProviderSettingsSummary(params: {
 	providerId: string
 	userId: string
 	timing?: ServerTimingRecorder
+	scope?: "full" | "hub"
 }) {
-	const { providerId, userId, timing } = params
+	const { providerId, userId, timing, scope = "full" } = params
 	return readThrough(
-		cacheKeys.providerSettingsSummary(providerId, userId),
+		`${cacheKeys.providerSettingsSummary(providerId, userId)}:${scope}`,
 		cacheTtls.providerSettingsSummary,
-		() => buildProviderSettingsSummaryUncached({ providerId, userId, timing })
+		() => buildProviderSettingsSummaryUncached({ providerId, userId, timing, scope })
 	)
 }
 
@@ -152,8 +153,10 @@ async function buildProviderSettingsSummaryUncached(params: {
 	providerId: string
 	userId: string
 	timing?: ServerTimingRecorder
+	scope?: "full" | "hub"
 }) {
-	const { providerId, userId, timing } = params
+	const { providerId, userId, timing, scope = "full" } = params
+	const includeDiagnostics = scope === "full"
 	await measured(timing, "devSeed", () => ensureLocalFinancialDemoSeed())
 
 	const aggregate = await measured(timing, "providerAggregate", () =>
@@ -180,67 +183,79 @@ async function buildProviderSettingsSummaryUncached(params: {
 				definitions: [],
 			})
 		),
-		measured(timing, "audit", () =>
-			db
-				.select({
-					id: ProviderAuditLog.id,
-					action: ProviderAuditLog.action,
-					entityType: ProviderAuditLog.entityType,
-					entityId: ProviderAuditLog.entityId,
-					riskLevel: ProviderAuditLog.riskLevel,
-					createdAt: ProviderAuditLog.createdAt,
-					actorEmail: User.email,
-				})
-				.from(ProviderAuditLog)
-				.leftJoin(User, eq(User.id, ProviderAuditLog.actorUserId))
-				.where(eq(ProviderAuditLog.providerId, providerId))
-				.orderBy(desc(ProviderAuditLog.createdAt))
-				.limit(8)
-		).catch(() => []),
-		measured(timing, "team", () =>
-			db
-				.select({
-					id: User.id,
-					email: User.email,
-					role: ProviderUser.role,
-					permissionsJson: ProviderUser.permissionsJson,
-					createdAt: ProviderUser.createdAt,
-				})
-				.from(ProviderUser)
-				.leftJoin(User, eq(User.id, ProviderUser.userId))
-				.where(eq(ProviderUser.providerId, providerId))
-		).catch(() => []),
-		measured(timing, "invitations", () =>
-			db
-				.select({
-					id: ProviderInvitation.id,
-					email: ProviderInvitation.email,
-					role: ProviderInvitation.role,
-					status: ProviderInvitation.status,
-					token: ProviderInvitation.token,
-					invitedBy: ProviderInvitation.invitedBy,
-					acceptedAt: ProviderInvitation.acceptedAt,
-					expiresAt: ProviderInvitation.expiresAt,
-					createdAt: ProviderInvitation.createdAt,
-				})
-				.from(ProviderInvitation)
-				.where(eq(ProviderInvitation.providerId, providerId))
-				.orderBy(desc(ProviderInvitation.createdAt))
-		).catch(() => []),
-		measured(timing, "documents", () => listProviderDocuments(providerId)).catch(() => []),
-		measured(timing, "taxConfiguration", () => getProviderTaxConfiguration(providerId)).catch(
-			() => null
-		),
+		includeDiagnostics
+			? measured(timing, "audit", () =>
+					db
+						.select({
+							id: ProviderAuditLog.id,
+							action: ProviderAuditLog.action,
+							entityType: ProviderAuditLog.entityType,
+							entityId: ProviderAuditLog.entityId,
+							riskLevel: ProviderAuditLog.riskLevel,
+							createdAt: ProviderAuditLog.createdAt,
+							actorEmail: User.email,
+						})
+						.from(ProviderAuditLog)
+						.leftJoin(User, eq(User.id, ProviderAuditLog.actorUserId))
+						.where(eq(ProviderAuditLog.providerId, providerId))
+						.orderBy(desc(ProviderAuditLog.createdAt))
+						.limit(8)
+				).catch(() => [])
+			: [],
+		includeDiagnostics
+			? measured(timing, "team", () =>
+					db
+						.select({
+							id: User.id,
+							email: User.email,
+							role: ProviderUser.role,
+							permissionsJson: ProviderUser.permissionsJson,
+							createdAt: ProviderUser.createdAt,
+						})
+						.from(ProviderUser)
+						.leftJoin(User, eq(User.id, ProviderUser.userId))
+						.where(eq(ProviderUser.providerId, providerId))
+				).catch(() => [])
+			: [],
+		includeDiagnostics
+			? measured(timing, "invitations", () =>
+					db
+						.select({
+							id: ProviderInvitation.id,
+							email: ProviderInvitation.email,
+							role: ProviderInvitation.role,
+							status: ProviderInvitation.status,
+							token: ProviderInvitation.token,
+							invitedBy: ProviderInvitation.invitedBy,
+							acceptedAt: ProviderInvitation.acceptedAt,
+							expiresAt: ProviderInvitation.expiresAt,
+							createdAt: ProviderInvitation.createdAt,
+						})
+						.from(ProviderInvitation)
+						.where(eq(ProviderInvitation.providerId, providerId))
+						.orderBy(desc(ProviderInvitation.createdAt))
+				).catch(() => [])
+			: [],
+		includeDiagnostics
+			? measured(timing, "documents", () => listProviderDocuments(providerId)).catch(() => [])
+			: [],
+		includeDiagnostics
+			? measured(timing, "taxConfiguration", () => getProviderTaxConfiguration(providerId)).catch(
+					() => null
+				)
+			: null,
 	])
 
 	const taxFeeDefinitions = taxFeeResult.definitions ?? []
 	const taxFeeWarnings = buildTaxFeeWarnings(taxFeeDefinitions)
-	const blockingMatrix = buildBlockingMatrix(governance)
-	const publicationSimulation = buildPublicationSimulation({
-		governance,
-		taxFeeDefinitions,
-		taxFeeWarnings,
-	})
+	const blockingMatrix = includeDiagnostics ? buildBlockingMatrix(governance) : []
+	const publicationSimulation = includeDiagnostics
+		? buildPublicationSimulation({
+				governance,
+				taxFeeDefinitions,
+				taxFeeWarnings,
+			})
+		: null
 
 	const risks = [
 		...governance.risks,
@@ -250,7 +265,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 						id: "tax_fee_warnings",
 						label: "Hay advertencias en impuestos o cargos",
 						severity: "medium",
-						href: routes.providerSettingsTaxSales(),
+						href: routes.providerSettingsTaxFees(),
 					},
 				]
 			: []),
