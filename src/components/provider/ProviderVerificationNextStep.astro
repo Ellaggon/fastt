@@ -1,0 +1,58 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import type { VerificationCrossLink, VerificationNextStep } from "@/lib/provider-trust-map"
+
+type Props = {
+	nextStep?: VerificationNextStep | null
+	crossLinks?: VerificationCrossLink[]
+	/** Hide title + progressLabel (0/3 / «Sube…»); keep body + consequence. */
+	copyOnly?: boolean
+}
+
+const { nextStep = null, copyOnly = false } = Astro.props as Props
+const isSuccess = nextStep?.tone === "success"
+---
+
+{
+	nextStep ? (
+		<section
+			class="space-y-3 text-slate-900"
+			data-verification-next-step
+			data-verification-hero="wizard"
+			data-next-step-link={nextStep.linkId}
+			data-next-step-anchors-kyc={nextStep.anchorsKyc ? "true" : "false"}
+			data-next-step-tone={nextStep.tone ?? "default"}
+			data-next-step-cta-kind={nextStep.ctaKind ?? "navigate"}
+			data-verification-lista={isSuccess ? "true" : undefined}
+		>
+			{nextStep.rejectCategoryLabel ? (
+				<Badge variant="error" data-next-step-reject-category>
+					{nextStep.rejectCategoryLabel}
+				</Badge>
+			) : null}
+
+			{!copyOnly ? (
+				<header class="space-y-2">
+					{nextStep.progressLabel ? (
+						<p
+							class="text-xs font-semibold tracking-wide text-slate-500 uppercase"
+							data-next-step-progress-count
+						>
+							{nextStep.progressLabel}
+						</p>
+					) : null}
+					<h2 class="text-2xl font-semibold text-slate-950 sm:text-3xl">{nextStep.title}</h2>
+				</header>
+			) : null}
+
+			<div class="space-y-2" data-next-step-copy>
+				<p class="max-w-2xl text-sm leading-6 text-slate-600">{nextStep.body}</p>
+				{nextStep.consequenceLine && !isSuccess ? (
+					<p class="max-w-2xl text-sm leading-6 text-slate-500" data-next-step-consequence>
+						{nextStep.consequenceLine}
+					</p>
+				) : null}
+			</div>
+		</section>
+	) : null
+}
