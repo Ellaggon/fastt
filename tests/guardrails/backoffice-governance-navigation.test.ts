@@ -287,9 +287,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(settingsSection?.owner).toBe("Provider Setup")
 		expect(settingsSection?.operationalIntent).toContain("fuera de la operación diaria")
 		expect(settingsSection?.items.map((item) => item.label)).toEqual([
-			"Perfil del proveedor",
+			"Configuración",
 			"Verificación",
-			"Impuestos y cargos",
+			"Fiscalidad",
 			"Integraciones",
 		])
 

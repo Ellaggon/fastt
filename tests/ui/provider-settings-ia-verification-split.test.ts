@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
+
+const root = new URL("../../", import.meta.url)
+
+function read(relativePath: string) {
+	return readFileSync(new URL(relativePath, root), "utf8")
+}
+
+describe("Settings IA: Verificación outside settings tabs", () => {
+	it("keeps settings subnav to data surfaces only (no Verificación tab)", () => {
+		const subnav = read("src/components/provider/ProviderSettingsSubnav.astro")
+		expect(subnav).toContain('label: "Resumen"')
+		expect(subnav).toContain('label: "Perfil"')
+		expect(subnav).toContain('label: "Fiscalidad"')
+		expect(subnav).toContain('label: "Pagos"')
+		expect(subnav).toContain('label: "Integraciones"')
+		expect(subnav).toContain('label: "Equipo"')
+		expect(subnav).not.toContain('label: "Verificación"')
+		expect(subnav).toContain("Verificación lives outside this tab bar")
+	})
+
+	it("hides settings tabs on verification wizard + optionals pages", () => {
+		const layout = read("src/layouts/ProviderSettingsLayout.astro")
+		const verification = read("src/pages/provider/settings/verification.astro")
+		const optionals = read("src/pages/provider/settings/verification/documents.astro")
+
+		expect(layout).toContain("showSettingsTabs")
+		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav")
+		expect(layout).toContain("data-verification-wizard-progress")
+		expect(layout).toContain("bg-slate-800")
+		expect(layout).toContain('class="mb-5 space-y-2"')
+		expect(verification).toContain("showSettingsTabs={false}")
+		expect(verification).toContain("progressStep=")
+		expect(verification).toContain("progressTotal={showWizardProgress ? trustLinks.length : null}")
+		expect(optionals).toContain("showSettingsTabs={false}")
+	})
+
+	it("stacks verification sections with explicit gap (not display:contents)", () => {
+		const page = read("src/pages/provider/settings/verification.astro")
+		expect(page).toContain('data-verification-page')
+		expect(page).toContain('class="space-y-4"')
+		expect(page).not.toMatch(/data-verification-page[\s\S]{0,80}class="contents"/)
+		expect(page).not.toMatch(/class="contents"[\s\S]{0,80}data-verification-page/)
+	})
+
+	it("sidebar activates only the longest matching href (Verificación vs Configuración)", () => {
+		const sidebar = read("src/components/dashboard/DashboardSidebar.astro")
+		expect(sidebar).toContain("Longest matching href wins")
+		expect(sidebar).toContain("hrefPath(item.href) === hrefPath(activeHref)")
+		expect(sidebar).not.toContain("item.href === activeHref || isActive(item.href)")
+	})
+
+	it("aligns sidebar Configuración section labels with tabs vocabulary", () => {
+		const nav = read("src/lib/backoffice-governance.ts")
+		expect(nav).toContain('label: "Configuración"')
+		expect(nav).toContain('label: "Verificación"')
+		expect(nav).toContain('label: "Fiscalidad"')
+		expect(nav).toContain('label: "Integraciones"')
+		expect(nav).not.toContain('label: "Perfil del proveedor"')
+		expect(nav).not.toContain('label: "Impuestos y cargos"')
+	})
+
+	it("wires return-to-verification CTAs on profile, fiscal, and payments", () => {
+		const glossary = read("src/lib/provider-trust-map.ts")
+		const profile = read("src/pages/provider/settings/profile.astro")
+		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
+		const payments = read("src/pages/provider/settings/payments.astro")
+
+		expect(glossary).toContain("returnToVerification")
+		expect(glossary).toContain("Volver a Verificación")
+		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(fiscal).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(payments).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(payments).toContain("providerSettingsVerification()")
+	})
+})

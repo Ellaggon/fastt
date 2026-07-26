@@ -109,7 +109,9 @@ function isItemActive(item: (typeof enterpriseNavigation)[number]["items"][numbe
 		)
 	}
 	if (item.label === "Habitaciones") return isRoomSurface(pathname) || isActive(item.href)
-	return item.href === activeHref || isActive(item.href)
+	// Longest matching href wins — e.g. /provider/settings/verification must not
+	// also light up the parent Configuración item (/provider/settings).
+	return hrefPath(item.href) === hrefPath(activeHref)
 }
 
 function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number]) {
