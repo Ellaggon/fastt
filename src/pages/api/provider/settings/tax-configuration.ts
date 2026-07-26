@@ -37,10 +37,8 @@ function shouldReturnHtmlRedirect(request: Request) {
 }
 
 function redirectToTaxIdentity(request: Request, result: string) {
-	return Response.redirect(
-		new URL(`/provider/settings/tax-fees/identity?result=${result}`, request.url),
-		303
-	)
+	const target = `/provider/settings/verification/fiscal?result=${result}`
+	return Response.redirect(new URL(target, request.url), 303)
 }
 
 export const GET: APIRoute = async ({ request }) => {

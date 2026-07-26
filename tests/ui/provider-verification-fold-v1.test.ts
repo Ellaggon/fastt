@@ -39,6 +39,7 @@ describe("V1 verification fold reorder (action-first)", () => {
 	it("orders page: trust nav → identity panel → business docs panel → optionals entry", () => {
 		const page = read("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
+		const panelClient = read("src/pages/provider/settings/_client/verification-trust-panels.js")
 		const navIdx = page.indexOf("data-verification-trust-nav")
 		const identityPanelIdx = page.indexOf('data-verification-trust-panel="identity"')
 		const foldIdx = page.indexOf("data-verification-docs-fold")
@@ -63,7 +64,11 @@ describe("V1 verification fold reorder (action-first)", () => {
 
 		expect(page).toContain("elevated")
 		expect(page).toContain('placement="primary"')
-		expect(page).toContain("syncVerificationTrustPanels")
+		expect(page).toContain("verification-trust-panels.js")
+		expect(panelClient).toContain("syncVerificationTrustPanels")
+		expect(panelClient).toContain("handleVerificationTrustClick")
+		expect(panelClient).toContain("window.history.pushState")
+		expect(panelClient).toContain("astro:page-load")
 		expect(page).toContain("resolveVerificationNextStep")
 		expect(page).toContain("providerSettingsVerificationDocuments")
 		expect(page).not.toContain("data-optional-upload-form")

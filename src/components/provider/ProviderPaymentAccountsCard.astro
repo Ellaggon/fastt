@@ -28,6 +28,7 @@ type Props = {
 		}
 	>
 	payoutRail?: PayoutRailStatus | null
+	formReturnTo?: "payments" | "verificationPayments"
 }
 
 const {
@@ -36,6 +37,7 @@ const {
 	defaultCurrency = "USD",
 	paymentAssignments = {},
 	payoutRail = null,
+	formReturnTo = "payments",
 } = Astro.props as Props
 
 const rail = payoutRail ?? getPayoutRailStatus()
@@ -220,6 +222,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 												>
 													<input type="hidden" name="action" value="confirm_micro_deposit" />
 													<input type="hidden" name="accountId" value={account.id} />
+													<input type="hidden" name="returnTo" value={formReturnTo} />
 													<FormField
 														label="Monto 1 (centavos)"
 														htmlFor={`amount1-${account.id}`}
@@ -298,6 +301,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 						action="/api/provider/settings/payment-accounts"
 						class="mt-4 space-y-4 border-t border-slate-200 pt-4"
 					>
+						<input type="hidden" name="returnTo" value={formReturnTo} />
 						<div class="grid gap-4 md:grid-cols-2">
 							<FormField label="Titular de la cuenta" htmlFor="accountHolderName" required>
 								<Input

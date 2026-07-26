@@ -17,12 +17,14 @@ type Props = {
 		slaDueAt: Date | string | null
 		slaState: "ok" | "due_soon" | "overdue" | "done"
 	} | null
+	formReturnTo?: "taxIdentity" | "verificationFiscal"
 }
 
 const {
 	taxConfiguration = null,
 	canManageFiscality = false,
 	reviewAssignment = null,
+	formReturnTo = "taxIdentity",
 } = Astro.props as Props
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
@@ -94,6 +96,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 		{
 			canManageFiscality ? (
 				<form method="post" action="/api/provider/settings/tax-configuration" class="space-y-4">
+					<input type="hidden" name="returnTo" value={formReturnTo} />
 					<div class="grid gap-4 md:grid-cols-2">
 						<FormField
 							label="País de residencia fiscal"

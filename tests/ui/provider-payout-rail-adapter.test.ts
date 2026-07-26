@@ -125,7 +125,7 @@ describe("S5-4 payout rail adapter (ACH/Connect scaffold)", () => {
 	it("wires initiate through payout rail and honest host/admin labels", () => {
 		const accountsLib = read("src/lib/provider-payment-accounts.ts")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
-		const paymentsPage = read("src/pages/provider/settings/payments.astro")
+		const paymentsPage = read("src/pages/provider/settings/verification/payments.astro")
 		const admin = read("src/pages/admin/providers.astro")
 		const envExample = read(".env.example")
 

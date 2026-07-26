@@ -78,9 +78,9 @@ const settingsRoutes = {
 	profile: "/provider/settings/profile",
 	verification: "/provider/settings/verification",
 	taxFees: "/provider/settings/tax-fees",
-	taxFeesIdentity: "/provider/settings/tax-fees/identity",
-	taxFeesSales: "/provider/settings/tax-fees/sales",
-	payments: "/provider/settings/payments",
+	taxFeesIdentity: "/provider/settings/verification/fiscal",
+	taxFeesSales: "/provider/settings/tax-fees",
+	payments: "/provider/settings/verification/payments",
 	integrations: "/provider/settings/integrations",
 	team: "/provider/settings/team",
 }

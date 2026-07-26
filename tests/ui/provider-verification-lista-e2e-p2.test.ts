@@ -98,7 +98,7 @@ describe("P2 Lista end-to-end after completing trust map", () => {
 				trustLinks: afterDocs,
 				legalNameComplete: true,
 			}).ctaHref
-		).toBe(routes.providerSettingsTaxIdentity())
+		).toBe(routes.providerSettingsVerificationFiscal())
 
 		const afterFiscal = mapAfter({
 			legalNameComplete: true,
@@ -112,7 +112,7 @@ describe("P2 Lista end-to-end after completing trust map", () => {
 				trustLinks: afterFiscal,
 				legalNameComplete: true,
 			}).ctaHref
-		).toBe(routes.providerSettingsPayments())
+		).toBe(routes.providerSettingsVerificationPayments())
 
 		const lista = mapAfter({
 			legalNameComplete: true,
@@ -136,7 +136,7 @@ describe("P2 Lista end-to-end after completing trust map", () => {
 		expect(next.consequenceLine).toBeNull()
 		expect(next.ctaHref).toBe(VERIFICATION_PUBLISH_HREF)
 		expect(next.ctaLabel).toBe(TRUST_GLOSSARY.page.readyPrimaryCta)
-		expect(next.secondaryCtaHref).toBe(routes.providerSettingsPayments())
+		expect(next.secondaryCtaHref).toBe(routes.providerSettingsVerificationPayments())
 		expect(next.ctaKind).toBe("navigate")
 		expect(next.anchorsKyc).toBe(false)
 	})

@@ -1,0 +1,183 @@
+---
+import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
+import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { getPayoutRailStatus } from "@/lib/payout-rail"
+import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import {
+	listProviderPaymentAccounts,
+	type ProviderPaymentAccountRecord,
+} from "@/lib/provider-payment-accounts"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import { buildProviderVerificationTrustSnapshot } from "@/lib/provider-verification-trust-snapshot"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const providerId = typeof auth === "string" ? null : auth.provider.providerId
+const sessionPermissions = typeof auth === "string" ? null : auth.provider.permissions
+const result = String(Astro.url.searchParams.get("result") ?? "").trim()
+const error = String(Astro.url.searchParams.get("error") ?? "").trim()
+
+const accountsPromise: Promise<ProviderPaymentAccountRecord[]> = providerId
+	? listProviderPaymentAccounts(providerId).catch(() => [])
+	: Promise.resolve([])
+const openAssignmentsPromise = providerId
+	? listOpenComplianceAssignments({ providerId }).catch(() => [])
+	: []
+const trustSnapshotPromise =
+	providerId && accountsPromise
+		? accountsPromise.then((paymentAccounts) =>
+				buildProviderVerificationTrustSnapshot({ providerId, paymentAccounts })
+			)
+		: null
+
+const [accounts, openAssignments, trustSnapshot] = await Promise.all([
+	accountsPromise,
+	openAssignmentsPromise,
+	trustSnapshotPromise,
+])
+
+const permissions = (sessionPermissions ?? {}) as { canManagePayments?: boolean }
+const canManagePayments = Boolean(permissions.canManagePayments)
+const payoutRail = getPayoutRailStatus()
+const paymentAssignments = Object.fromEntries(
+	openAssignments
+		.filter((row: any) => row.domain === "payments")
+		.map((row: any) => [row.entityId, row])
+)
+const defaultCurrency = trustSnapshot?.defaultCurrency ?? "USD"
+const trustLinks = trustSnapshot?.trustLinks ?? []
+const trustMapComplete = Boolean(trustSnapshot?.trustMapComplete)
+const listaReady = Boolean(trustSnapshot?.listaReady)
+const wizardStepNumber = trustSnapshot?.wizardStepNumber ?? 0
+const wizardProgressPercent = trustSnapshot?.wizardProgressPercent ?? 0
+
+const resultMessages: Record<string, { title: string; body: string; variant: "success" | "info" }> =
+	{
+		submitted: {
+			title: "Cuenta enviada",
+			body: "Paso 1 listo. Revisa el extracto en 1-2 días hábiles: verás dos depósitos pequeños. Esta pantalla te guía hasta confirmar montos.",
+			variant: "success",
+		},
+		micro_deposit_confirmed: {
+			title: "Cuenta lista",
+			body: "Confirmaste los montos del extracto. La cuenta quedó verificada para liquidaciones.",
+			variant: "success",
+		},
+	}
+
+const errorMessages: Record<string, { title: string; body: string; variant: "warning" | "error" }> =
+	{
+		micro_deposit_mismatch: {
+			title: "Montos incorrectos",
+			body: "Los montos no coinciden con el extracto. Revisa los dos créditos pequeños e inténtalo de nuevo.",
+			variant: "warning",
+		},
+		micro_deposit_failed: {
+			title: "Intentos agotados",
+			body: "Se agotaron los intentos de confirmación. Envía una cuenta nueva o contacta a soporte Fastt.",
+			variant: "error",
+		},
+		micro_deposit_expired: {
+			title: "Depósitos vencidos",
+			body: "El plazo para confirmar los montos venció. El equipo Fastt puede reiniciar la verificación.",
+			variant: "warning",
+		},
+		micro_deposit_not_initiated: {
+			title: "Aún no hay depósitos",
+			body: "La verificación de titularidad todavía no está lista para confirmar. Espera el paso “Esperando depósitos”.",
+			variant: "warning",
+		},
+		invalid_micro_deposit_amounts: {
+			title: "Montos inválidos",
+			body: "Ingresa dos montos enteros entre 1 y 99 centavos.",
+			variant: "warning",
+		},
+		pending_account_in_progress: {
+			title: "Ya hay una cuenta en curso",
+			body: "Termina la verificación de la cuenta pendiente antes de enviar otra.",
+			variant: "warning",
+		},
+	}
+---
+
+<ProviderSettingsLayout
+	title="Verificación de pagos"
+	eyebrow={TRUST_GLOSSARY.page.eyebrow}
+	heading={TRUST_GLOSSARY.page.heading}
+	description={TRUST_GLOSSARY.page.description}
+	showSettingsTabs={false}
+	progressStep={trustLinks.length ? wizardStepNumber : null}
+	progressTotal={trustLinks.length ? trustLinks.length : null}
+	progressPercent={trustLinks.length ? wizardProgressPercent : null}
+>
+	<div slot="actions" class="flex flex-wrap items-center gap-3">
+		<Button href={routes.providerSettingsVerification()} variant="secondary" size="sm">
+			Volver a verificación
+		</Button>
+	</div>
+
+	<div
+		class="space-y-4"
+		data-verification-payments-page
+		data-verification-lista={listaReady ? "true" : "false"}
+		data-trust-map-complete={trustMapComplete ? "true" : "false"}
+	>
+		{
+			result && resultMessages[result] ? (
+				<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
+					<p>{resultMessages[result].body}</p>
+					<p
+						class="mt-3"
+						data-post-save-cta
+						data-funnel-domain="payments"
+						data-funnel-surface="verification_payments"
+					>
+						<a
+							class="font-semibold underline"
+							href={routes.providerSettingsVerification()}
+							data-funnel-cta="post_save"
+						>
+							Volver al mapa de Verificación
+						</a>
+					</p>
+				</Notice>
+			) : null
+		}
+		{
+			error && errorMessages[error] ? (
+				<Notice variant={errorMessages[error].variant} title={errorMessages[error].title}>
+					{errorMessages[error].body}
+				</Notice>
+			) : null
+		}
+
+		<div class="fastt-card border border-slate-200 bg-white p-3" data-verification-trust-nav>
+			<ProviderTrustMapRail links={trustLinks} activeId="payments" />
+		</div>
+
+		<Notice variant="info" title="Pagos">
+			Agrega una cuenta bancaria y completa la verificación de titularidad. Este es el requisito que
+			habilita liquidaciones cuando Identidad, Negocio y Fiscal también estén listos.
+		</Notice>
+
+		<ProviderPaymentAccountsCard
+			accounts={accounts}
+			canManagePayments={canManagePayments}
+			defaultCurrency={defaultCurrency}
+			paymentAssignments={paymentAssignments}
+			payoutRail={payoutRail}
+			formReturnTo="verificationPayments"
+		/>
+	</div>
+</ProviderSettingsLayout>

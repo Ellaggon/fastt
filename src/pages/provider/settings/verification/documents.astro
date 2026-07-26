@@ -27,17 +27,24 @@ const sessionPermissions = typeof auth === "string" ? null : auth.provider.permi
 const providerRoleLabel =
 	typeof auth === "string" ? "Operaciones" : formatProviderRoleLabel(auth.provider.role)
 
-const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+const summaryPromise = fetch(new URL("/api/provider/settings/summary", Astro.url), {
 	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
 })
-const summary = summaryRes.ok ? await summaryRes.json() : null
+	.then((res) => (res.ok ? res.json() : null))
+	.catch(() => null)
+const documentsPromise = providerId ? listProviderDocuments(providerId).catch(() => []) : []
+const openAssignmentsPromise = providerId
+	? listOpenComplianceAssignments({ providerId }).catch(() => [])
+	: []
+
+const [summary, documents, openAssignments] = await Promise.all([
+	summaryPromise,
+	documentsPromise,
+	openAssignmentsPromise,
+])
 const permissions = sessionPermissions ?? summary?.permissions ?? {}
 const canManageDocuments = Boolean(permissions.canManageDocuments)
 
-const documents = providerId ? await listProviderDocuments(providerId).catch(() => []) : []
-const openAssignments = providerId
-	? await listOpenComplianceAssignments({ providerId }).catch(() => [])
-	: []
 const documentAssignmentById = Object.fromEntries(
 	openAssignments
 		.filter((row) => row.domain === "documents")
@@ -80,10 +87,10 @@ const resultMessages: Record<
 ---
 
 <ProviderSettingsLayout
-	title="Documentos opcionales"
+	title="Documentos adicionales"
 	eyebrow="Confianza del proveedor"
-	heading="Documentos opcionales"
-	description="Respaldo adicional fuera del camino crítico. La Verificación se centra en los mínimos y la espera de revisión."
+	heading="Documentos adicionales"
+	description="Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
 	showSettingsTabs={false}
 >
 	<div slot="actions" class="flex flex-wrap gap-3">

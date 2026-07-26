@@ -13,10 +13,10 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(subnav).toContain('label: "Resumen"')
 		expect(subnav).toContain('label: "Perfil"')
 		expect(subnav).toContain('label: "Fiscalidad"')
-		expect(subnav).toContain('label: "Pagos"')
 		expect(subnav).toContain('label: "Integraciones"')
 		expect(subnav).toContain('label: "Equipo"')
 		expect(subnav).not.toContain('label: "Verificación"')
+		expect(subnav).not.toContain('label: "Pagos"')
 		expect(subnav).toContain("Verificación lives outside this tab bar")
 	})
 
@@ -24,6 +24,8 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const layout = read("src/layouts/ProviderSettingsLayout.astro")
 		const verification = read("src/pages/provider/settings/verification.astro")
 		const optionals = read("src/pages/provider/settings/verification/documents.astro")
+		const fiscalVerification = read("src/pages/provider/settings/verification/fiscal.astro")
+		const paymentsVerification = read("src/pages/provider/settings/verification/payments.astro")
 
 		expect(layout).toContain("showSettingsTabs")
 		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav")
@@ -34,6 +36,18 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(verification).toContain("progressStep=")
 		expect(verification).toContain("progressTotal={showWizardProgress ? trustLinks.length : null}")
 		expect(optionals).toContain("showSettingsTabs={false}")
+		expect(fiscalVerification).toContain("showSettingsTabs={false}")
+		expect(fiscalVerification).toContain("ProviderTrustMapRail")
+		expect(fiscalVerification).toContain('activeId="fiscal"')
+		expect(fiscalVerification).toContain("buildProviderVerificationTrustSnapshot")
+		expect(fiscalVerification).not.toContain("/api/provider/settings/summary")
+		expect(fiscalVerification).not.toContain("getProviderFullAggregate")
+		expect(paymentsVerification).toContain("showSettingsTabs={false}")
+		expect(paymentsVerification).toContain("ProviderTrustMapRail")
+		expect(paymentsVerification).toContain('activeId="payments"')
+		expect(paymentsVerification).toContain("buildProviderVerificationTrustSnapshot")
+		expect(paymentsVerification).not.toContain("/api/provider/settings/summary")
+		expect(paymentsVerification).not.toContain("getProviderFullAggregate")
 	})
 
 	it("stacks verification sections with explicit gap (not display:contents)", () => {
@@ -61,17 +75,19 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(nav).not.toContain('label: "Impuestos y cargos"')
 	})
 
-	it("wires return-to-verification CTAs on profile, fiscal, and payments", () => {
+	it("wires return-to-verification CTAs on profile and fiscal; legacy payments redirects", () => {
 		const glossary = read("src/lib/provider-trust-map.ts")
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
+		const verificationFiscal = read("src/pages/provider/settings/verification/fiscal.astro")
 		const payments = read("src/pages/provider/settings/payments.astro")
 
 		expect(glossary).toContain("returnToVerification")
 		expect(glossary).toContain("Volver a Verificación")
 		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
-		expect(fiscal).toContain("TRUST_GLOSSARY.returnToVerification")
-		expect(payments).toContain("TRUST_GLOSSARY.returnToVerification")
-		expect(payments).toContain("providerSettingsVerification()")
+		expect(fiscal).toContain("Astro.redirect(routes.providerSettingsVerificationFiscal())")
+		expect(verificationFiscal).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(payments).toContain('Astro.redirect("/provider/settings/verification/payments")')
+		expect(payments).not.toContain("ProviderPaymentAccountsCard")
 	})
 })

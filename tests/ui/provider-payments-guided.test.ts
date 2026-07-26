@@ -34,7 +34,7 @@ describe("S4-4 guided payouts: one account + micro-deposit education", () => {
 	})
 
 	it("wires one-account-first UX and API guard", () => {
-		const page = read("src/pages/provider/settings/payments.astro")
+		const page = read("src/pages/provider/settings/verification/payments.astro")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
 		const api = read("src/pages/api/provider/settings/payment-accounts.ts")
 		const lib = read("src/lib/provider-payment-accounts.ts")
@@ -55,7 +55,7 @@ describe("S4-4 guided payouts: one account + micro-deposit education", () => {
 
 		expect(page).toContain("pending_account_in_progress")
 		expect(page).toContain("Ya hay una cuenta en curso")
-		expect(page).toContain("micro-depósitos")
+		expect(page).toContain("depósitos pequeños")
 		expect(page).not.toContain(">Fiscalidad</Button>")
 		expect(page).not.toContain(">Resumen</Button>")
 

@@ -44,16 +44,34 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return accept.includes("text/html")
 }
 
-function redirectToPayments(request: Request, result: string) {
-	return Response.redirect(
-		new URL(`/provider/settings/payments?result=${result}`, request.url),
-		303
-	)
+function paymentsRedirectTarget(
+	resultOrError: string,
+	returnTo?: FormDataEntryValue | null,
+	mode = "result"
+) {
+	const base =
+		String(returnTo ?? "") === "verificationPayments"
+			? "/provider/settings/verification/payments"
+			: "/provider/settings/verification/payments"
+	const key = mode === "error" ? "error" : "result"
+	return `${base}?${key}=${encodeURIComponent(resultOrError)}`
 }
 
-function redirectToPaymentsError(request: Request, error: string) {
+function redirectToPayments(
+	request: Request,
+	result: string,
+	returnTo?: FormDataEntryValue | null
+) {
+	return Response.redirect(new URL(paymentsRedirectTarget(result, returnTo), request.url), 303)
+}
+
+function redirectToPaymentsError(
+	request: Request,
+	error: string,
+	returnTo?: FormDataEntryValue | null
+) {
 	return Response.redirect(
-		new URL(`/provider/settings/payments?error=${encodeURIComponent(error)}`, request.url),
+		new URL(paymentsRedirectTarget(error, returnTo, "error"), request.url),
 		303
 	)
 }
@@ -87,11 +105,13 @@ export const GET: APIRoute = async ({ request }) => {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	let returnTo: FormDataEntryValue | null = null
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
 
 		const form = await request.formData()
+		returnTo = form.get("returnTo")
 		const action = String(form.get("action") ?? "create")
 
 		// Review is internal-admin only.
@@ -118,7 +138,7 @@ export const POST: APIRoute = async ({ request }) => {
 			await invalidateProvider(providerId)
 			await invalidateProviderGovernance(providerId, "provider_payment_micro_deposit_confirmed")
 			return shouldReturnHtmlRedirect(request)
-				? redirectToPayments(request, "micro_deposit_confirmed")
+				? redirectToPayments(request, "micro_deposit_confirmed", returnTo)
 				: json({ ok: true, account })
 		}
 
@@ -151,7 +171,7 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProviderGovernance(providerId, "provider_payment_account_created")
 
 		return shouldReturnHtmlRedirect(request)
-			? redirectToPayments(request, "submitted")
+			? redirectToPayments(request, "submitted", returnTo)
 			: json({ ok: true, account }, 201)
 	} catch (err: any) {
 		if (err instanceof Response) return err
@@ -165,7 +185,7 @@ export const POST: APIRoute = async ({ request }) => {
 				message === "invalid_micro_deposit_amounts" ||
 				message === "pending_account_in_progress")
 		) {
-			return redirectToPaymentsError(request, message)
+			return redirectToPaymentsError(request, message, returnTo)
 		}
 		return json({ error: message }, status)
 	}

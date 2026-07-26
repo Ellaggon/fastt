@@ -220,7 +220,7 @@ export async function initiateStripeConnectMicroDeposit(
 				providerId: input.providerId,
 				accountId: input.accountId,
 				returnUrl: process.env.PUBLIC_APP_URL
-					? `${String(process.env.PUBLIC_APP_URL).replace(/\/$/, "")}/provider/settings/payments`
+					? `${String(process.env.PUBLIC_APP_URL).replace(/\/$/, "")}/provider/settings/verification/payments`
 					: null,
 			})
 			if (!session.ok || !session.sessionId || !session.clientSecret) {

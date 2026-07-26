@@ -52,13 +52,21 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 
 		expect(page).toContain("ProviderVerificationOptionals")
 		expect(page).toContain("Volver a verificación")
-		expect(page).toContain("Documentos opcionales")
+		expect(page).toContain("Documentos adicionales")
+		expect(page).toContain(
+			"Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
+		)
 
 		expect(panel).toContain("data-verification-optionals")
 		expect(panel).toContain("data-verification-optionals-page")
 		expect(panel).toContain("data-optional-upload-form")
 		expect(panel).toContain("data-optional-documents-list")
 		expect(panel).toContain("ProviderReviewWaitNotice")
+		expect(panel).not.toContain("Respaldo adicional")
+		expect(panel).not.toContain("<h2")
+		expect(panel.indexOf("{pendingCount} enviado")).toBeGreaterThan(
+			panel.indexOf("Subir documento opcional")
+		)
 
 		expect(api).toContain("redirectAfterSubmit")
 		expect(api).toContain("providerSettingsVerificationDocuments")

@@ -29,7 +29,7 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 	})
 
 	it("wires payments page/card to payment assignments and wait notice", () => {
-		const page = read("src/pages/provider/settings/payments.astro")
+		const page = read("src/pages/provider/settings/verification/payments.astro")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
 
 		expect(page).toContain("listOpenComplianceAssignments")
@@ -37,8 +37,8 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		expect(page).toContain('domain === "payments"')
 		expect(page).toContain("paymentAssignments={paymentAssignments}")
 		expect(page).toContain("data-post-save-cta")
-		expect(page).toContain("TRUST_GLOSSARY.returnToVerification")
-		expect(page).toContain("providerSettingsVerification()")
+		expect(page).toContain("ProviderTrustMapRail")
+		expect(page).toContain('activeId="payments"')
 
 		expect(card).toContain("ProviderReviewWaitNotice")
 		expect(card).toContain('domain="payment"')
@@ -49,7 +49,7 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 	it("exposes post-save CTAs toward verification (data surfaces) and next domains", () => {
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const verification = read("src/pages/provider/settings/verification.astro")
-		const taxIdentity = read("src/pages/provider/settings/tax-fees/identity.astro")
+		const taxIdentity = read("src/pages/provider/settings/verification/fiscal.astro")
 
 		expect(profile).toContain("data-post-save-cta")
 		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
