@@ -5,6 +5,8 @@ export const SETTINGS_FUNNEL_EVENTS = {
 	blockerShown: "provider.settings.funnel.blocker_shown",
 	ctaClicked: "provider.settings.funnel.cta_clicked",
 	domainComplete: "provider.settings.funnel.domain_complete",
+	/** KYC capture timing (open→file / open→submit). duration in ctaTarget `ms=`. */
+	kycCaptureTiming: "provider.settings.funnel.kyc_capture_timing",
 } as const
 
 export type SettingsFunnelEventName =

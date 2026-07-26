@@ -1,0 +1,117 @@
+---
+import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import {
+	listProviderDocuments,
+	providerDocumentTypes,
+	requiredKycDocumentTypes,
+} from "@/lib/provider-documents"
+import { formatProviderRoleLabel } from "@/lib/provider-permissions"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
+	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+	throw e
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const providerId = typeof auth === "string" ? null : auth.provider.providerId
+const sessionPermissions = typeof auth === "string" ? null : auth.provider.permissions
+const providerRoleLabel =
+	typeof auth === "string" ? "Operaciones" : formatProviderRoleLabel(auth.provider.role)
+
+const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+const summary = summaryRes.ok ? await summaryRes.json() : null
+const permissions = sessionPermissions ?? summary?.permissions ?? {}
+const canManageDocuments = Boolean(permissions.canManageDocuments)
+
+const documents = providerId ? await listProviderDocuments(providerId).catch(() => []) : []
+const openAssignments = providerId
+	? await listOpenComplianceAssignments({ providerId }).catch(() => [])
+	: []
+const documentAssignmentById = Object.fromEntries(
+	openAssignments
+		.filter((row) => row.domain === "documents")
+		.map((row) => [row.entityId, row] as const)
+)
+
+const optionalDocumentTypes = providerDocumentTypes.filter(
+	(item) => !(requiredKycDocumentTypes as readonly string[]).includes(item.value)
+)
+const optionalDocuments = documents.filter(
+	(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
+)
+
+const result = Astro.url.searchParams.get("result")
+const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
+const defaultOptionalUploadType = optionalDocumentTypes.some((item) => item.value === requestedType)
+	? requestedType
+	: optionalDocumentTypes[0]?.value
+
+const resultMessages: Record<
+	string,
+	{ title: string; body: string; variant: "success" | "warning" }
+> = {
+	submitted: {
+		title: "Documento opcional enviado",
+		body: "Quedó como Enviado. No cuenta para el checklist mínimo de Verificación.",
+		variant: "success",
+	},
+	verified: {
+		title: "Documento opcional verificado",
+		body: "Queda en el archivo de respaldo adicional.",
+		variant: "success",
+	},
+	rejected: {
+		title: "Documento requiere cambios",
+		body: "Revisa el motivo y envía una versión corregida.",
+		variant: "warning",
+	},
+}
+---
+
+<ProviderSettingsLayout
+	title="Documentos opcionales"
+	eyebrow="Confianza del proveedor"
+	heading="Documentos opcionales"
+	description="Respaldo adicional fuera del camino crítico. La Verificación se centra en los mínimos y la espera de revisión."
+	showSettingsTabs={false}
+>
+	<div slot="actions" class="flex flex-wrap gap-3">
+		<Button href={routes.providerSettingsVerification()} variant="secondary">
+			Volver a verificación
+		</Button>
+		<Button href={routes.providerSettings()} variant="secondary">Configuración</Button>
+	</div>
+
+	{
+		result && resultMessages[result] ? (
+			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
+				{resultMessages[result].body}
+			</Notice>
+		) : null
+	}
+
+	{
+		canManageDocuments ? (
+			<ProviderVerificationOptionals
+				documents={optionalDocuments}
+				documentTypes={optionalDocumentTypes}
+				canManageDocuments={canManageDocuments}
+				defaultUploadType={defaultOptionalUploadType}
+				documentAssignments={documentAssignmentById}
+			/>
+		) : (
+			<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />
+		)
+	}
+</ProviderSettingsLayout>

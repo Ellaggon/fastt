@@ -46,37 +46,47 @@ describe("S5-3 verification capture coach", () => {
 		}
 	})
 
-	it("wires capture coach notice and one-doc focus in KYC slots card", () => {
+	it("wires capture coach collapsed by default and elevated one-title card", () => {
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
+		const form = read("src/components/provider/ProviderKycUploadForm.astro")
+		const coach = read("src/components/provider/ProviderKycCaptureCoach.astro")
 		const page = read("src/pages/provider/settings/verification.astro")
 
 		expect(card).toContain("resolveKycUploadFocusType")
 		expect(card).toContain("focusTypeResolved")
 		expect(card).toContain("data-kyc-one-doc-focus")
 		expect(card).toContain("data-kyc-slot-focus")
-		expect(card).toContain("data-kyc-capture-coach")
-		expect(card).toContain("data-kyc-capture-example")
-		expect(card).toContain("Cómo preparar el documento")
-		expect(card).toContain("kycCaptureSharedTips")
-		expect(card).toContain("preferOpen = isFocused && allowUploadForm(slot)")
+		expect(card).toContain("ProviderKycUploadForm")
+		expect(card).toContain("data-kyc-elevated-title")
+		expect(card).not.toContain("data-kyc-empty-example")
 		expect(card).not.toContain("focus ? focus === slot.type : slot.state !== \"verified\"")
 		expect(card).not.toMatch(/Persona|Jumio|Onfido/i)
 
+		expect(form).toContain("ProviderKycCaptureCoach")
+		expect(form).toContain("data-kyc-inline-upload-form")
+		expect(form).toContain("data-kyc-submission-notes")
+		expect(coach).toContain("data-kyc-capture-coach")
+		expect(coach).toContain("data-kyc-capture-example")
+		expect(coach).toContain("data-kyc-capture-collapsed")
+		expect(coach).toContain("Consejos de captura")
+
 		expect(page).toContain("focusType={requestedType}")
-		expect(page).toContain("Un próximo documento a la vez")
+		expect(page).toContain("ProviderVerificationNextStep")
+		expect(page).toContain("elevated")
+		expect(card).toContain("Un documento a la vez")
 	})
 })
 
 describe("S6-3 KYC hard one-doc focus", () => {
-	it("mounts upload form only for the focused slot; others get defer CTA", () => {
+	it("mounts upload form only for the focused slot; no deferred queue on elevated fold", () => {
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 
 		expect(card).toContain("allowUploadForm")
 		expect(card).toContain("data-kyc-hard-one-doc")
-		expect(card).toContain("data-kyc-slot-defer")
-		expect(card).toContain("data-kyc-slot-defer-cta")
-		expect(card).toContain("Hacer después")
-		expect(card).toContain("deferUpload")
+		expect(card).toContain("data-kyc-one-job")
+		expect(card).toContain("deferUpload && !oneJobOnly")
+		expect(card).not.toContain("data-kyc-collapsed-slots")
+		expect(card).not.toContain("Hacer después")
 		expect(card).toContain("{allowUploadForm(slot) ? (")
 		expect(card).toContain("solo el foco de abajo muestra el envío")
 		expect(card).not.toContain("{showInlineUpload(slot) ? (")

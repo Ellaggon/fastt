@@ -1,0 +1,172 @@
+---
+import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+
+type OptionalDocType = { value: string; label: string; description?: string }
+
+type Props = {
+	documents?: ProviderDocumentRecord[]
+	documentTypes?: OptionalDocType[]
+	canManageDocuments?: boolean
+	defaultUploadType?: string | null
+	documentAssignments?: Record<
+		string,
+		{
+			slaDueAt: Date | string | null
+			slaState: "ok" | "due_soon" | "overdue" | "done"
+		}
+	>
+}
+
+const {
+	documents = [],
+	documentTypes = [],
+	canManageDocuments = false,
+	defaultUploadType = null,
+	documentAssignments = {},
+} = Astro.props as Props
+
+const pendingCount = documents.filter((doc) => doc.status === "pending").length
+const verifiedCount = documents.filter((doc) => doc.status === "verified").length
+const rejectedCount = documents.filter((doc) => doc.status === "rejected").length
+const selectedType = documentTypes.some((item) => item.value === defaultUploadType)
+	? defaultUploadType
+	: documentTypes[0]?.value
+---
+
+<section class="space-y-5" data-verification-optionals data-verification-optionals-page>
+	<div class="flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+				Respaldo adicional
+			</p>
+			<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos opcionales</h2>
+			<p class="mt-2 text-sm leading-6 text-slate-600">
+				Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación.
+			</p>
+		</div>
+		<div class="flex flex-wrap gap-2">
+			<Badge variant={pendingCount ? "warning" : "neutral"}>
+				{pendingCount} enviado{pendingCount === 1 ? "" : "s"}
+			</Badge>
+			<Badge variant={verifiedCount ? "success" : "neutral"}>
+				{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
+			</Badge>
+			<Badge variant={rejectedCount ? "error" : "neutral"}>
+				{rejectedCount} por corregir
+			</Badge>
+		</div>
+	</div>
+
+	<div class="space-y-3" data-optional-documents-list>
+		{
+			documents.length ? (
+				documents.map((doc) => (
+					<Card variant="soft" class="space-y-3">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<p class="text-sm font-semibold text-slate-950">{doc.typeLabel}</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{doc.fileName || "Sin nombre de archivo"}
+									{doc.mimeType ? ` · ${doc.mimeType}` : ""}
+								</p>
+								{doc.submissionNotes ? (
+									<p class="mt-2 text-sm leading-6 text-slate-600">
+										Nota de envío: {doc.submissionNotes}
+									</p>
+								) : null}
+								{doc.status === "rejected" && doc.reviewNotes ? (
+									<Notice variant="error" title="Motivo del rechazo" class="mt-3">
+										{doc.reviewNotes}
+									</Notice>
+								) : doc.reviewNotes ? (
+									<p class="mt-2 text-sm leading-6 text-slate-600">
+										Nota de revisión: {doc.reviewNotes}
+									</p>
+								) : null}
+							</div>
+							<Badge
+								variant={
+									doc.tone === "success"
+										? "success"
+										: doc.tone === "error"
+											? "error"
+											: doc.tone === "warning"
+												? "warning"
+												: "neutral"
+								}
+							>
+								{doc.statusLabel}
+							</Badge>
+						</div>
+
+						{doc.status === "pending" ? (
+							<ProviderReviewWaitNotice
+								domain="document"
+								assignment={documentAssignments[doc.id] ?? null}
+								class="mt-3"
+							/>
+						) : null}
+					</Card>
+				))
+			) : (
+				<Card variant="soft" class="text-sm text-slate-600" data-optional-empty>
+					No hay documentos opcionales cargados todavía.
+				</Card>
+			)
+		}
+	</div>
+
+	{
+		canManageDocuments && documentTypes.length ? (
+			<form
+				class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+				method="post"
+				action="/api/provider/settings/documents"
+				enctype="multipart/form-data"
+				id="optional-upload"
+				data-astro-reload
+				data-optional-upload-form
+			>
+				<input type="hidden" name="action" value="submit" />
+				<div>
+					<h3 class="text-base font-semibold text-slate-950">Subir documento opcional</h3>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						Adjunta PDF o imagen (máx. 12&nbsp;MB). Los mínimos se suben en Verificación.
+					</p>
+				</div>
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					Tipo
+					<Select name="type" required>
+						{documentTypes.map((item) => (
+							<option value={item.value} selected={item.value === selectedType}>
+								{item.label}
+							</option>
+						))}
+					</Select>
+				</label>
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					Archivo
+					<input
+						type="file"
+						name="file"
+						required
+						accept=".pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+						class="fastt-field block min-h-12 w-full text-sm text-slate-700 file:mr-3 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+					/>
+				</label>
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					Notas de envío (opcional)
+					<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
+				</label>
+				<Button type="submit">Enviar a revisión</Button>
+			</form>
+		) : null
+	}
+</section>

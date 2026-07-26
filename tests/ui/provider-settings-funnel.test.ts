@@ -113,6 +113,7 @@ describe("S5-6 settings funnel analytics (blocker→CTA→complete)", () => {
 		expect(helper).toContain("provider.settings.funnel.blocker_shown")
 		expect(helper).toContain("provider.settings.funnel.cta_clicked")
 		expect(helper).toContain("provider.settings.funnel.domain_complete")
+		expect(helper).toContain("provider.settings.funnel.kyc_capture_timing")
 		expect(helper).toContain("SETTINGS_FUNNEL_SINK")
 
 		expect(api).toContain("emitProviderSettingsFunnelEvent")
@@ -122,6 +123,8 @@ describe("S5-6 settings funnel analytics (blocker→CTA→complete)", () => {
 		expect(beacon).toContain("/api/provider/settings/funnel")
 		expect(beacon).toContain("blocker_shown")
 		expect(beacon).toContain("cta_clicked")
+		expect(beacon).toContain("kyc_capture_timing")
+		expect(beacon).toContain("bindKycCaptureTiming")
 		expect(beacon).toContain("sendBeacon")
 		expect(beacon).toContain("settings-summary-hydrated")
 
