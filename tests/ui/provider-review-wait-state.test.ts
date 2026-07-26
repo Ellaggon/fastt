@@ -61,9 +61,9 @@ describe("S1-3 / S2-4 review wait-state + SLA mirror", () => {
 		expect(taxCard).toContain('domain="fiscal"')
 		expect(taxCard).toContain("PROVIDER_REVIEW_WAIT_LABEL")
 		expect(taxCard).toContain("assignment={reviewAssignment}")
+		expect(kycCard).toContain("ProviderReviewWaitNotice")
 		expect(kycCard).toContain('domain="document"')
-		expect(verification).toContain("ProviderReviewWaitNotice")
-		expect(verification).toContain("Quedó en revisión")
+		expect(verification).toContain("Quedó como Enviado")
 		expect(taxPage).toContain("Quedó en revisión")
 		expect(taxPage).toContain("reviewAssignment={fiscalAssignment}")
 
@@ -72,7 +72,7 @@ describe("S1-3 / S2-4 review wait-state + SLA mirror", () => {
 		expect(notice).toContain("data-sla-mirror")
 
 		expect(taxLib).toContain('{ value: "pending", label: "En revisión" }')
-		expect(docsLib).toContain('pending: { label: "En revisión"')
+		expect(docsLib).toContain('pending: { label: "Enviado"')
 
 		const visible = [taxCard, kycCard, verification, taxPage, notice].map(visibleCopy).join("\n")
 		for (const phrase of falseEtaPhrases) {

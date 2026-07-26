@@ -39,9 +39,8 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				</p>
 				<h2 class="mt-2 text-xl font-semibold text-slate-950">Perfil fiscal del proveedor</h2>
 				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Datos fiscales del proveedor para liquidaciones y retenciones. Sin NIT/registro
-					verificado, las liquidaciones pueden retenerse. No definen qué impuestos cobras al
-					huésped.
+					Datos fiscales del proveedor para liquidaciones y retenciones. No definen qué impuestos
+					cobras al huésped.
 				</p>
 			</div>
 			<Badge
@@ -134,6 +133,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 								name="businessRegistrationNumber"
 								value={taxConfiguration?.businessRegistrationNumber ?? ""}
 								placeholder="NIT-123456 / EIN / CIF"
+								class="scroll-mt-24"
 							/>
 						</FormField>
 
@@ -163,20 +163,28 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</Select>
 					</FormField>
 
-					<Card variant="soft" class="text-sm leading-6 text-slate-600">
-						<ul class="list-disc space-y-1 pl-4">
-							{providerInvoicingModes.map((item) => (
-								<li>
-									<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
-								</li>
-							))}
-						</ul>
-						<p class="mt-3">
-							Al guardar con datos de identidad, el estado pasa a{" "}
-							<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
-							puedes marcar Verificado tú mismo.
-						</p>
-					</Card>
+					<details
+						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
+						data-fiscal-long-copy-collapsed="true"
+					>
+						<summary class="cursor-pointer font-semibold text-slate-900">
+							Ver cómo se usa la facturación
+						</summary>
+						<div class="mt-3 border-t border-slate-200 pt-3">
+							<ul class="list-disc space-y-1 pl-4">
+								{providerInvoicingModes.map((item) => (
+									<li>
+										<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
+									</li>
+								))}
+							</ul>
+							<p class="mt-3">
+								Al guardar con datos de identidad, el estado pasa a{" "}
+								<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
+								puedes marcar Verificado tú mismo.
+							</p>
+						</div>
+					</details>
 
 					<div class="flex justify-end">
 						<Button type="submit">Enviar identidad fiscal</Button>

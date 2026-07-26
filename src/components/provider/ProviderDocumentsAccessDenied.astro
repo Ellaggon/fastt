@@ -1,0 +1,103 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import type { ProviderKycSlot } from "@/lib/provider-documents"
+import { routes } from "@/lib/routes"
+
+type Props = {
+	roleLabel?: string
+	/** Optional read-only status of required slots (no upload forms). */
+	slots?: ProviderKycSlot[]
+	/** Narrow copy for optionals vs mínimos. */
+	surface?: "required" | "optional"
+}
+
+const { roleLabel = "Operaciones", slots = [], surface = "required" } = Astro.props as Props
+
+const isOptional = surface === "optional"
+const pendingSlots = slots.filter(
+	(slot) => slot.state === "missing" || slot.state === "rejected" || slot.state === "pending"
+)
+---
+
+<Card
+	class="space-y-4 border-slate-800"
+	data-documents-access-denied
+	data-documents-access-surface={surface}
+>
+	<div class="space-y-2">
+		<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Acceso</p>
+		<h2 class="text-xl font-semibold text-slate-950">
+			{
+				isOptional
+					? "No puedes subir documentos opcionales con tu rol"
+					: "No puedes enviar documentos con tu rol"
+			}
+		</h2>
+		<p class="text-sm leading-6 text-slate-600">
+			Tu acceso es «{roleLabel}». Solo Propietario o Administrador pueden{" "}
+			{isOptional ? "cargar respaldo adicional" : "subir o reenviar documentos de verificación"}.
+		</p>
+	</div>
+
+	<div class="flex flex-wrap items-center gap-2" data-documents-access-role>
+		<span class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Tu rol</span>
+		<Badge variant="neutral">{roleLabel}</Badge>
+	</div>
+
+	{
+		!isOptional && pendingSlots.length ? (
+			<div
+				class="scroll-mt-24 space-y-2 border-t border-slate-100 pt-4"
+				id="documents-access-status"
+				data-documents-access-status
+			>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Estado (solo lectura)
+				</p>
+				<ul class="space-y-2">
+					{pendingSlots.map((slot) => (
+						<li class="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
+							<span>{slot.label}</span>
+							<Badge
+								variant={
+									slot.state === "rejected"
+										? "error"
+										: slot.state === "pending"
+											? "warning"
+											: "neutral"
+								}
+							>
+								{slot.stateLabel}
+							</Badge>
+						</li>
+					))}
+				</ul>
+			</div>
+		) : null
+	}
+
+	<p class="text-sm leading-6 text-slate-700">
+		Pide a quien gestione el proveedor que suba los documentos o te asigne un rol con permiso de
+		Documentos.
+	</p>
+
+	<div class="flex flex-wrap gap-2">
+		<Button href={routes.providerSettingsTeam()} size="sm" data-documents-access-team-cta>
+			Ver equipo y roles
+		</Button>
+		{
+			isOptional ? (
+				<Button
+					href={routes.providerSettingsVerification()}
+					size="sm"
+					variant="secondary"
+					data-documents-access-back-cta
+				>
+					Volver a verificación
+				</Button>
+			) : null
+		}
+	</div>
+</Card>
